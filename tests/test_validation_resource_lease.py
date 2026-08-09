@@ -2761,7 +2761,13 @@ def _acquire_and_record(lease, owner, label: str, order: list[str]) -> None:
 def test_cancelled_aged_waiter_does_not_transfer_protection(tmp_path):
     state_path = tmp_path / "lease.sqlite3"
     lease = ValidationResourceLease(
-        state_path, aging_seconds=0.01, poll_seconds=0.005
+        # Keep the replacement requests provably fresh under the suite's
+        # five-second bound.  With the old 10 ms aging band, an ordinary
+        # 210 ms scheduling delay legitimately made the replacement worker
+        # starvation-protected before the exact waiter was durably queued.
+        state_path,
+        aging_seconds=1.0,
+        poll_seconds=0.005,
     )
     held = lease.acquire(_gate_owner("blocker", "held"))
     cancelled = threading.Event()
@@ -2779,7 +2785,7 @@ def test_cancelled_aged_waiter_does_not_transfer_protection(tmp_path):
     thread = threading.Thread(target=wait)
     thread.start()
     _wait_for(lambda: lease.status().waiter_count == 1)
-    _age_waiter(state_path, "cancelled-worker", seconds=0.22)
+    _age_waiter(state_path, "cancelled-worker", seconds=22.0)
     cancelled.set()
     thread.join(timeout=3)
     assert isinstance(errors[0], ValidationLeaseCancelled)
@@ -2804,6 +2810,10 @@ def test_cancelled_aged_waiter_does_not_transfer_protection(tmp_path):
     )
     worker.start()
     _wait_for(lambda: lease.status().waiter_count == 1)
+    # Model substantial host scheduling latency without relying on real-time
+    # thread scheduling.  This waiter is still below its first one-second age
+    # boost and far below the 21-second starvation-protection boundary.
+    _age_waiter(state_path, "fresh-worker", seconds=0.25)
     exact.start()
     _wait_for(lambda: lease.status().waiter_count == 2)
     held.release()
