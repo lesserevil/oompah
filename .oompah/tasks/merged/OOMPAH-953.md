@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:17:05.346841Z'
-updated_at: '2026-08-09T16:34:06.152243Z'
+updated_at: '2026-08-09T16:34:12.245725Z'
 work_branch: OOMPAH-953
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/764
@@ -275,5 +275,10 @@ created: 2026-08-09 16:34
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Project-owner override after exact task head 20ab5659fd0a2bc67c5d31577f3a9e969eb1df7c was proven to be PR #764 head and contained in main; PR #764 merged as 1de571bad9bdc4ae3e62599ddf0dee7fbda53f02 with hosted Python 3.11/3.12/3.13 checks successful; the independent terminal auditor also recorded PASS.
+---
+author: oompah
+created: 2026-08-09 16:34
+---
+Merged: exact OOMPAH-953 head 20ab5659f landed through PR #764 as 1de571bad; all hosted Python matrices and independent audit passed.
 ---
 <!-- COMMENTS:END -->
