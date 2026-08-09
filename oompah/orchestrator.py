@@ -6325,14 +6325,19 @@ class Orchestrator:
         if not self._save_state(workflow_liveness=dict(state)):
             raise OSError("workflow liveness state was not durably saved")
 
-    def _set_maintenance_cursor(self, name: str, value: str | None) -> None:
-        cursors = getattr(self, "_maintenance_cursors", {})
-        if value is None:
-            cursors.pop(name, None)
-        else:
-            cursors[name] = value
-        self._maintenance_cursors = cursors
-        self._save_state(maintenance_cursors=cursors)
+    def _set_maintenance_cursor(self, name: str, value: str | None) -> bool:
+        with self._state_io_lock:
+            previous = dict(getattr(self, "_maintenance_cursors", {}))
+            cursors = dict(previous)
+            if value is None:
+                cursors.pop(name, None)
+            else:
+                cursors[name] = value
+            if not self._save_state(maintenance_cursors=cursors):
+                self._maintenance_cursors = previous
+                return False
+            self._maintenance_cursors = cursors
+            return True
 
     def _reload_config_locked(
         self, config: ServiceConfig, prompt_template: str
@@ -11254,52 +11259,57 @@ class Orchestrator:
                 return
 
     def _cleanup_stale_project_worktree_dirs(
-        self, project: Any, limit: int
-    ) -> tuple[int, bool]:
+        self,
+        project: Any,
+        limit: int,
+        *,
+        after: str | None = None,
+    ) -> tuple[int, int, bool, str | None]:
         """Remove stale managed worktree directories when ProjectStore supports it."""
         if limit <= 0:
-            return 0, True
+            return 0, 0, True, after
         cleanup = getattr(type(self.project_store), "cleanup_stale_worktree_dirs", None)
         if cleanup is None:
-            return 0, False
-        try:
-            return self.project_store.cleanup_stale_worktree_dirs(
-                project.id, limit=limit
-            )
-        except ProjectError as exc:
-            logger.warning(
-                "Stale worktree directory cleanup failed for project %s: %s",
-                project.name,
-                exc,
-            )
-            return 0, False
+            return 0, 0, False, None
+        return self.project_store.cleanup_stale_worktree_dirs(
+            project.id,
+            limit=limit,
+            after=after,
+            should_stop=lambda: (
+                self._stopping
+                or self._quiesced
+                or self._job_deadline_exceeded("worktree_cleanup")
+            ),
+        )
 
     def _cleanup_stale_project_branches(
-        self, project: Any, limit: int
-    ) -> tuple[int, bool]:
+        self,
+        project: Any,
+        limit: int,
+        *,
+        after: str | None = None,
+    ) -> tuple[int, int, bool, str | None]:
         """Prune safe gone-upstream branches when ProjectStore supports it."""
 
         if limit <= 0:
-            return 0, True
+            return 0, 0, True, after
         cleanup = getattr(
             type(self.project_store),
             "cleanup_stale_local_branches",
             None,
         )
         if cleanup is None:
-            return 0, False
-        try:
-            return self.project_store.cleanup_stale_local_branches(
-                project.id,
-                limit=limit,
-            )
-        except ProjectError as exc:
-            logger.warning(
-                "Stale local branch cleanup failed for project %s: %s",
-                project.name,
-                exc,
-            )
-            return 0, False
+            return 0, 0, False, None
+        return self.project_store.cleanup_stale_local_branches(
+            project.id,
+            limit=limit,
+            after=after,
+            should_stop=lambda: (
+                self._stopping
+                or self._quiesced
+                or self._job_deadline_exceeded("worktree_cleanup")
+            ),
+        )
 
     def _cleanup_terminal_project_issue(
         self,
@@ -11462,7 +11472,7 @@ class Orchestrator:
         cleanup for other projects.
         """
         cleaned = 0
-        # Track categorized skip reasons to avoid warning floods
+        examined = 0
         skip_reasons: dict[str, int] = {
             "shared_epic_branch": 0,
             "protected_branch": 0,
@@ -11470,162 +11480,382 @@ class Orchestrator:
             "not_owned": 0,
         }
         limit = getattr(self.config, "worktree_cleanup_batch_size", 100)
+        raw_cursor = getattr(self, "_maintenance_cursors", {}).get(
+            "worktree_cleanup"
+        )
+
+        def _empty_progress() -> dict[str, Any]:
+            return {"frontiers": {}, "done": [], "next": 0}
+
+        def _decode_cursor() -> tuple[str, dict[str, Any]]:
+            if not raw_cursor:
+                return "terminal", _empty_progress()
+            prefix, separator, encoded = raw_cursor.partition(":")
+            if not separator or prefix not in {
+                "terminal-v2",
+                "dirs-v2",
+                "branches-v2",
+            }:
+                return "terminal", _empty_progress()
+            try:
+                loaded = json.loads(urllib.parse.unquote(encoded))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                return "terminal", _empty_progress()
+            if not isinstance(loaded, dict):
+                return "terminal", _empty_progress()
+            frontiers = loaded.get("frontiers")
+            done = loaded.get("done")
+            return prefix.removesuffix("-v2"), {
+                "frontiers": (
+                    {str(key): str(value) for key, value in frontiers.items()}
+                    if isinstance(frontiers, dict)
+                    else {}
+                ),
+                "done": (
+                    [str(value) for value in done]
+                    if isinstance(done, list)
+                    else []
+                ),
+                "next": max(int(loaded.get("next", 0)), 0),
+            }
+
+        def _encode_cursor(phase_name: str, progress: Mapping[str, Any]) -> str:
+            payload = json.dumps(
+                {
+                    "frontiers": dict(progress.get("frontiers", {})),
+                    "done": sorted(set(progress.get("done", []))),
+                    "next": int(progress.get("next", 0)),
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            return f"{phase_name}-v2:{urllib.parse.quote(payload, safe='')}"
+
+        phase, progress = _decode_cursor()
+
+        def _stop_reason(*, allow_initial_runtime: bool = False) -> str | None:
+            if self._stopping or self._quiesced:
+                return "lifecycle_drain"
+            if examined >= limit:
+                return "operation_budget"
+            if (examined > 0 or allow_initial_runtime) and self._job_deadline_exceeded(
+                "worktree_cleanup"
+            ):
+                return "runtime_budget"
+            return None
+
+        def _finish_deferred(
+            cursor: str,
+            reason: str | None = None,
+            *,
+            errors: list[str] | None = None,
+        ) -> int:
+            resolved_reason = reason or _stop_reason(allow_initial_runtime=True)
+            saved = self._set_maintenance_cursor("worktree_cleanup", cursor)
+            if not saved:
+                resolved_reason = "cursor_persistence_failed"
+                cursor = raw_cursor
+            status: dict[str, Any] = {
+                "last_run_at": datetime.now(timezone.utc).isoformat(),
+                "cleaned": cleaned,
+                "examined": examined,
+                "limit": limit,
+                "deferred": True,
+                "cursor": cursor,
+                "reason": resolved_reason or "operation_budget",
+                "skipped_branches": skip_reasons,
+            }
+            if errors:
+                status["errors"] = errors[:20]
+            self._maintenance_status["worktree_cleanup"] = status
+            return cleaned
+
         if limit <= 0:
             self._maintenance_status["worktree_cleanup"] = {
                 "last_run_at": datetime.now(timezone.utc).isoformat(),
                 "cleaned": 0,
+                "examined": 0,
                 "limit": limit,
-                "deferred": True,
+                "deferred": False,
+                "cursor": raw_cursor,
+                "reason": "disabled",
+                "skipped_branches": skip_reasons,
             }
             return 0
-        last_key = getattr(self, "_maintenance_cursors", {}).get("worktree_cleanup")
-        seen_cursor = last_key is None
-        last_processed_key = last_key
+
         if projects is None:
             projects = self.project_store.list_all()
-        if projects:
-            for project in projects:
-                try:
-                    tracker = self._tracker_for_project(project.id)
-                    terminal_issues = tracker.fetch_issues_by_states(
-                        list(_WORKTREE_CLEANUP_STATES)
+        sorted_projects = sorted(projects or [], key=lambda item: str(item.id))
+
+        if phase == "terminal":
+            sources: list[tuple[str, Any | None]] = (
+                [(str(project.id), project) for project in sorted_projects]
+                if sorted_projects
+                else [("legacy", None)]
+            )
+            frontiers = dict(progress.get("frontiers", {}))
+            done = set(progress.get("done", []))
+            next_index = int(progress.get("next", 0)) % len(sources)
+            scan_errors: list[str] = []
+            failed_sources: set[str] = set()
+            while len(done) < len(sources):
+                reason = _stop_reason()
+                if reason:
+                    if scan_errors:
+                        done.difference_update(failed_sources)
+                        for source_id in failed_sources:
+                            frontiers.pop(source_id, None)
+                        reason = "source_scan_error"
+                    progress = {
+                        "frontiers": frontiers,
+                        "done": list(done),
+                        "next": next_index,
+                    }
+                    return _finish_deferred(
+                        _encode_cursor("terminal", progress),
+                        reason,
+                        errors=scan_errors or None,
                     )
-                    for issue in terminal_issues:
-                        issue_key = f"{project.id}:{issue.identifier}"
-                        if not seen_cursor:
-                            seen_cursor = issue_key == last_key
-                            continue
-                        if not _is_cleanable_worktree_state(issue.state):
-                            continue
-                        if cleaned >= limit:
-                            self._set_maintenance_cursor(
-                                "worktree_cleanup", last_processed_key
-                            )
-                            self._maintenance_status["worktree_cleanup"] = {
-                                "last_run_at": datetime.now(timezone.utc).isoformat(),
-                                "cleaned": cleaned,
-                                "limit": limit,
-                                "deferred": True,
-                                "cursor": last_processed_key,
-                            }
-                            return cleaned
-                        try:
+                selected_index = next(
+                    (
+                        (next_index + offset) % len(sources)
+                        for offset in range(len(sources))
+                        if sources[(next_index + offset) % len(sources)][0] not in done
+                    ),
+                    None,
+                )
+                if selected_index is None:
+                    break
+                source_id, project = sources[selected_index]
+                next_index = (selected_index + 1) % len(sources)
+                try:
+                    tracker = (
+                        self.tracker
+                        if project is None
+                        else self._tracker_for_project(project.id)
+                    )
+                    supports_bounded = (
+                        getattr(tracker, "supports_bounded_state_reads", False)
+                        is True
+                    )
+                    reader = getattr(tracker, "fetch_issues_by_states_page", None)
+                    if not supports_bounded or not callable(reader):
+                        examined += 1
+                        failed_sources.add(source_id)
+                        done.add(source_id)
+                        scan_errors.append(
+                            f"{source_id}: tracker has no bounded state-page reader"
+                        )
+                        continue
+                    issues, page_examined, page_cursor, deferred = reader(
+                        list(_WORKTREE_CLEANUP_STATES),
+                        after=frontiers.get(source_id),
+                        limit=1,
+                    )
+                except (TrackerError, ProjectError) as exc:
+                    examined += 1
+                    failed_sources.add(source_id)
+                    done.add(source_id)
+                    scan_errors.append(f"{source_id}: {type(exc).__name__}: {exc}")
+                    logger.warning(
+                        "Bounded terminal cleanup scan failed project=%s error=%s",
+                        source_id,
+                        exc,
+                    )
+                    continue
+                consumed = max(int(page_examined), 0)
+                examined += max(consumed, 1)
+                if consumed > 1 or len(issues) > 1 or len(issues) > consumed:
+                    failed_sources.add(source_id)
+                    done.add(source_id)
+                    scan_errors.append(
+                        f"{source_id}: bounded reader violated its one-row contract"
+                    )
+                    continue
+                for issue in issues:
+                    if not _is_cleanable_worktree_state(issue.state):
+                        continue
+                    try:
+                        if project is None:
+                            self.workspace_mgr.remove_workspace(issue.identifier)
+                            changed, skip_reason = True, None
+                        else:
                             changed, skip_reason = self._cleanup_terminal_project_issue(
                                 project,
                                 issue,
                             )
-                            if changed:
-                                cleaned += 1
-                                logger.info(
-                                    "Cleaned terminal worktree/branch "
-                                    "project=%s issue=%s",
-                                    project.name,
-                                    issue.identifier,
-                                )
-                            elif skip_reason:
-                                # Track categorized skip for aggregated summary
-                                skip_reasons[skip_reason] = (
-                                    skip_reasons.get(skip_reason, 0) + 1
-                                )
-                        except Exception as exc:
-                            logger.warning(
-                                "Failed to clean worktree/branch "
-                                "project=%s issue=%s error=%s",
-                                project.name,
+                        if changed:
+                            cleaned += 1
+                            logger.info(
+                                "Cleaned terminal worktree/branch project=%s issue=%s",
+                                project.name if project is not None else "legacy",
                                 issue.identifier,
-                                exc,
                             )
-                        last_processed_key = issue_key
-                    remaining = limit - cleaned
-                    if remaining > 0:
-                        stale_cleaned, stale_deferred = (
-                            self._cleanup_stale_project_worktree_dirs(
-                                project, remaining
+                        elif skip_reason:
+                            skip_reasons[skip_reason] = (
+                                skip_reasons.get(skip_reason, 0) + 1
                             )
-                        )
-                        cleaned += stale_cleaned
-                        if stale_deferred:
-                            self._set_maintenance_cursor(
-                                "worktree_cleanup", last_processed_key
-                            )
-                            self._maintenance_status["worktree_cleanup"] = {
-                                "last_run_at": datetime.now(timezone.utc).isoformat(),
-                                "cleaned": cleaned,
-                                "limit": limit,
-                                "deferred": True,
-                                "cursor": last_processed_key,
-                            }
-                            return cleaned
-                    remaining = limit - cleaned
-                    if remaining > 0:
-                        branch_cleaned, branch_deferred = (
-                            self._cleanup_stale_project_branches(
-                                project,
-                                remaining,
-                            )
-                        )
-                        cleaned += branch_cleaned
-                        if branch_deferred:
-                            self._set_maintenance_cursor(
-                                "worktree_cleanup", last_processed_key
-                            )
-                            self._maintenance_status["worktree_cleanup"] = {
-                                "last_run_at": datetime.now(timezone.utc).isoformat(),
-                                "cleaned": cleaned,
-                                "limit": limit,
-                                "deferred": True,
-                                "cursor": last_processed_key,
-                            }
-                            return cleaned
-                except (TrackerError, ProjectError) as exc:
-                    logger.warning(
-                        "Terminal worktree cleanup failed for project %s: %s",
-                        project.name,
-                        exc,
-                    )
-        else:
-            try:
-                terminal_issues = self.tracker.fetch_issues_by_states(
-                    list(_WORKTREE_CLEANUP_STATES)
-                )
-                for issue in terminal_issues:
-                    issue_key = f"legacy:{issue.identifier}"
-                    if not seen_cursor:
-                        seen_cursor = issue_key == last_key
-                        continue
-                    if not _is_cleanable_worktree_state(issue.state):
-                        continue
-                    if cleaned >= limit:
-                        self._set_maintenance_cursor(
-                            "worktree_cleanup", last_processed_key
-                        )
-                        self._maintenance_status["worktree_cleanup"] = {
-                            "last_run_at": datetime.now(timezone.utc).isoformat(),
-                            "cleaned": cleaned,
-                            "limit": limit,
-                            "deferred": True,
-                            "cursor": last_processed_key,
-                        }
-                        return cleaned
-                    try:
-                        self.workspace_mgr.remove_workspace(issue.identifier)
-                        cleaned += 1
-                        logger.info(
-                            "Cleaned terminal workspace issue_identifier=%s",
-                            issue.identifier,
-                        )
                     except Exception as exc:
+                        failed_sources.add(source_id)
+                        scan_errors.append(
+                            f"{source_id}:{issue.identifier}: "
+                            f"{type(exc).__name__}: {exc}"
+                        )
                         logger.warning(
-                            "Failed to clean workspace issue_identifier=%s error=%s",
+                            "Failed to clean worktree/branch "
+                            "project=%s issue=%s error=%s",
+                            project.name if project is not None else "legacy",
                             issue.identifier,
                             exc,
                         )
-                    last_processed_key = issue_key
-            except TrackerError as exc:
-                logger.warning("Terminal workspace cleanup failed: %s", exc)
-        self._set_maintenance_cursor("worktree_cleanup", None)
+                if page_cursor:
+                    frontiers[source_id] = str(page_cursor)
+                if not deferred:
+                    done.add(source_id)
+                elif consumed <= 0 or not page_cursor:
+                    failed_sources.add(source_id)
+                    done.add(source_id)
+                    scan_errors.append(f"{source_id}: bounded reader made no progress")
+            if scan_errors:
+                done.difference_update(failed_sources)
+                for source_id in failed_sources:
+                    frontiers.pop(source_id, None)
+                progress = {
+                    "frontiers": frontiers,
+                    "done": list(done),
+                    "next": next_index,
+                }
+                reason = (
+                    "unbounded_source_scan"
+                    if any("no bounded" in error for error in scan_errors)
+                    else "source_scan_error"
+                )
+                return _finish_deferred(
+                    _encode_cursor("terminal", progress),
+                    reason,
+                    errors=scan_errors,
+                )
+            phase, progress = "dirs", _empty_progress()
 
-        # Emit structured summary of skipped branches (aggregated, not per-issue warnings)
+        def _run_stale_phase(
+            phase_name: str,
+            cleanup: Callable[..., tuple[int, int, bool, str | None]],
+        ) -> int | None:
+            nonlocal cleaned, examined, progress
+            if not sorted_projects:
+                return None
+            frontiers = dict(progress.get("frontiers", {}))
+            done = set(progress.get("done", []))
+            next_index = int(progress.get("next", 0)) % len(sorted_projects)
+            scan_errors: list[str] = []
+            failed_projects: set[str] = set()
+            while len(done) < len(sorted_projects):
+                reason = _stop_reason(allow_initial_runtime=True)
+                if reason:
+                    progress = {
+                        "frontiers": frontiers,
+                        "done": list(done),
+                        "next": next_index,
+                    }
+                    return _finish_deferred(
+                        _encode_cursor(phase_name, progress), reason
+                    )
+                selected_index = next(
+                    (
+                        (next_index + offset) % len(sorted_projects)
+                        for offset in range(len(sorted_projects))
+                        if str(
+                            sorted_projects[(next_index + offset) % len(sorted_projects)].id
+                        )
+                        not in done
+                    ),
+                    None,
+                )
+                if selected_index is None:
+                    break
+                project = sorted_projects[selected_index]
+                project_id = str(project.id)
+                next_index = (selected_index + 1) % len(sorted_projects)
+                try:
+                    removed, phase_examined, deferred, item_cursor = cleanup(
+                        project,
+                        1,
+                        after=frontiers.get(project_id),
+                    )
+                except ProjectError as exc:
+                    examined += 1
+                    failed_projects.add(project_id)
+                    done.add(project_id)
+                    scan_errors.append(f"{project_id}: {type(exc).__name__}: {exc}")
+                    logger.warning(
+                        "Bounded %s cleanup failed project=%s error=%s",
+                        phase_name,
+                        project.name,
+                        exc,
+                    )
+                    continue
+                cleaned += removed
+                consumed = max(int(phase_examined), 0)
+                examined += max(consumed, 1)
+                if item_cursor:
+                    frontiers[project_id] = str(item_cursor)
+                if not deferred:
+                    done.add(project_id)
+                elif consumed <= 0:
+                    stop = _stop_reason(allow_initial_runtime=True)
+                    if stop:
+                        progress = {
+                            "frontiers": frontiers,
+                            "done": list(done),
+                            "next": next_index,
+                        }
+                        return _finish_deferred(
+                            _encode_cursor(phase_name, progress), stop
+                        )
+                    failed_projects.add(project_id)
+                    done.add(project_id)
+                    scan_errors.append(f"{project_id}: bounded helper made no progress")
+            if scan_errors:
+                done.difference_update(failed_projects)
+                progress = {
+                    "frontiers": frontiers,
+                    "done": list(done),
+                    "next": next_index,
+                }
+                return _finish_deferred(
+                    _encode_cursor(phase_name, progress),
+                    "source_scan_error",
+                    errors=scan_errors,
+                )
+            return None
+
+        if phase == "dirs":
+            result = _run_stale_phase(
+                "dirs", self._cleanup_stale_project_worktree_dirs
+            )
+            if result is not None:
+                return result
+            phase, progress = "branches", _empty_progress()
+
+        if phase == "branches":
+            result = _run_stale_phase(
+                "branches", self._cleanup_stale_project_branches
+            )
+            if result is not None:
+                return result
+
+        if not self._set_maintenance_cursor("worktree_cleanup", None):
+            self._maintenance_status["worktree_cleanup"] = {
+                "last_run_at": datetime.now(timezone.utc).isoformat(),
+                "cleaned": cleaned,
+                "examined": examined,
+                "limit": limit,
+                "deferred": True,
+                "cursor": raw_cursor,
+                "reason": "cursor_persistence_failed",
+                "skipped_branches": skip_reasons,
+            }
+            return cleaned
         skipped_total = sum(skip_reasons.values())
         if skipped_total > 0:
             skip_summary = ", ".join(
@@ -11638,10 +11868,10 @@ class Orchestrator:
                 skip_summary,
                 skipped_total,
             )
-
         self._maintenance_status["worktree_cleanup"] = {
             "last_run_at": datetime.now(timezone.utc).isoformat(),
             "cleaned": cleaned,
+            "examined": examined,
             "limit": limit,
             "deferred": False,
             "cursor": None,
@@ -12152,20 +12382,51 @@ class Orchestrator:
 
         The actual work is in :meth:`_do_cleanup_worktrees`.
         """
+        if self._stopping or self._quiesced:
+            self._maintenance_status["worktree_cleanup"] = {
+                "last_run_at": datetime.now(timezone.utc).isoformat(),
+                "cleaned": 0,
+                "examined": 0,
+                "deferred": True,
+                "reason": "lifecycle_drain",
+            }
+            return
         interval_s = getattr(
             self.config,
             "worktree_cleanup_interval_seconds",
             60,
         )
+        previous_state = self._maintenance_jobs.get("worktree_cleanup")
+        previous_run_count = previous_state.run_count if previous_state else 0
         self._run_maintenance_job(
             "worktree_cleanup",
             self._do_cleanup_worktrees,
             min_interval_s=interval_s,
+            max_runtime_s=(
+                self.config.worktree_cleanup_max_runtime_seconds or None
+            ),
         )
         # Back-fill _last_cleanup_at for legacy callers that read it directly.
         state = self._maintenance_jobs.get("worktree_cleanup")
         if state and state.last_run_monotonic is not None:
             self._last_cleanup_at = state.last_run_monotonic
+        cleanup_status = self._maintenance_status.get("worktree_cleanup", {})
+        if (
+            state is not None
+            and state.run_count > previous_run_count
+            and cleanup_status.get("deferred") is True
+            and cleanup_status.get("reason")
+            in {"operation_budget", "runtime_budget"}
+            and not self._stopping
+            and not self._quiesced
+        ):
+            state.next_run_monotonic = 0.0
+            self._post_event(
+                DispatchEvent(
+                    event_type=DispatchEventType.REFRESH_REQUESTED,
+                    payload={"reason": "worktree_cleanup_deferred"},
+                )
+            )
 
     def _do_cleanup_worktrees(self) -> None:
         """Inner body of _maybe_cleanup_worktrees; called with the maintenance gate held.
@@ -12648,12 +12909,11 @@ class Orchestrator:
             batch_limit=self.config.storage_cleanup_batch_size,
             byte_limit=self.config.storage_cleanup_max_bytes,
         )
-        # Reuse the tracker-aware cleanup for registered terminal worktrees and
-        # ProjectStore's validation of stale unregistered worktree directories.
-        # It deliberately preserves Done/conflict and active worktrees.
-        worktrees_cleaned = self._cleanup_terminal_worktrees(
-            self.project_store.list_all()
-        )
+        # Worktree cleanup has its own durable, bounded maintenance lane and
+        # runs immediately before storage cleanup in both housekeeping bundles.
+        # Calling it here as well would bypass that lane's gate/deadline and
+        # race its cursor, so storage telemetry only reports its own work.
+        worktrees_cleaned = 0
         coordination_messages_cleaned = 0
         coordination_store = getattr(self, "coordination_store", None)
         if isinstance(coordination_store, CoordinationStore):

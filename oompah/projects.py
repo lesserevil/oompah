@@ -12,6 +12,7 @@ import subprocess
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, replace
 from fnmatch import fnmatchcase
@@ -8124,38 +8125,67 @@ class ProjectStore:
         return worktree_removed or branch_removed or repair_removed, skip_reason
 
     def cleanup_stale_worktree_dirs(
-        self, project_id: str, limit: int | None = None
-    ) -> tuple[int, bool]:
+        self,
+        project_id: str,
+        limit: int | None = None,
+        *,
+        after: str | None = None,
+        should_stop: Callable[[], bool] | None = None,
+    ) -> tuple[int, int, bool, str | None]:
         """Remove managed worktree directories Git no longer registers.
 
-        Returns ``(removed_count, deferred)``.  ``deferred`` is true when the
-        caller-provided limit was reached before all stale directories were
-        removed.
+        Returns ``(removed_count, examined_count, deferred, cursor)``.  The
+        limit applies to examined unregistered directories, including valid
+        worktrees that must be preserved.  ``after`` resumes strictly after a
+        previously returned cursor.  ``should_stop`` is checked between exact
+        candidates so lifecycle drain and scheduler deadlines yield promptly.
         """
         with self.project_write_lock(project_id):
-            return self._cleanup_stale_worktree_dirs_locked(project_id, limit)
+            return self._cleanup_stale_worktree_dirs_locked(
+                project_id,
+                limit,
+                after=after,
+                should_stop=should_stop,
+            )
 
     def _cleanup_stale_worktree_dirs_locked(
-        self, project_id: str, limit: int | None = None
-    ) -> tuple[int, bool]:
+        self,
+        project_id: str,
+        limit: int | None = None,
+        *,
+        after: str | None = None,
+        should_stop: Callable[[], bool] | None = None,
+    ) -> tuple[int, int, bool, str | None]:
         project = self._projects.get(project_id)
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")
         if limit is not None and limit <= 0:
-            return 0, True
+            return 0, 0, True, after
 
         project_root = self._project_worktree_root(project)
         self._prune_git_worktrees(project.repo_path)
         if not os.path.isdir(project_root):
-            return 0, False
+            return 0, 0, False, None
 
         registered = self._registered_worktree_paths(project.repo_path)
         removed = 0
+        examined = 0
         deferred = False
+        cursor = after
         for entry in sorted(os.listdir(project_root)):
+            if after is not None and entry <= after:
+                continue
             path = os.path.join(project_root, entry)
             if not os.path.isdir(path) or os.path.islink(path):
                 continue
+            if (
+                (limit is not None and examined >= limit)
+                or (should_stop is not None and should_stop())
+            ):
+                deferred = True
+                break
+            examined += 1
+            cursor = entry
             if os.path.realpath(path) in registered:
                 continue
             if _is_git_working_tree(path):
@@ -8164,9 +8194,6 @@ class ProjectStore:
                     path,
                 )
                 continue
-            if limit is not None and removed >= limit:
-                deferred = True
-                break
             _safe_remove_managed_dir(path, project_root)
             removed += 1
             logger.info("Removed stale worktree directory path=%s", path)
@@ -8175,19 +8202,23 @@ class ProjectStore:
             os.rmdir(project_root)
         except OSError:
             pass
-        return removed, deferred
+        return removed, examined, deferred, cursor if deferred else None
 
     def cleanup_stale_local_branches(
         self,
         project_id: str,
         limit: int | None = None,
-    ) -> tuple[int, bool]:
+        *,
+        after: str | None = None,
+        should_stop: Callable[[], bool] | None = None,
+    ) -> tuple[int, int, bool, str | None]:
         """Delete fully merged local branches whose configured upstream is gone.
 
         This sweep handles old branches that predate terminal task cleanup or
         were created manually. It never force-deletes unmerged work and skips
         configured long-lived branches plus every branch checked out in a
-        worktree. Returns ``(removed_count, deferred)``.
+        worktree. The limit counts examined eligible branches, not successful
+        deletions. Returns ``(removed_count, examined_count, deferred, cursor)``.
         """
 
         with self.project_write_lock(project_id):
@@ -8195,7 +8226,7 @@ class ProjectStore:
             if not project:
                 raise ProjectError(f"Unknown project: {project_id}")
             if limit is not None and limit <= 0:
-                return 0, True
+                return 0, 0, True, after
 
             self._prune_git_worktrees(project.repo_path)
             checked_out = self._registered_worktree_branches(project.repo_path)
@@ -8222,16 +8253,26 @@ class ProjectStore:
                 raise ProjectError(f"git local branch listing failed: {exc}") from exc
 
             removed = 0
+            examined = 0
             deferred = False
+            cursor = after
             default_ref = f"origin/{project.default_branch}"
-            for line in listed.stdout.splitlines():
+            for line in sorted(listed.stdout.splitlines()):
                 branch, _separator, tracking = line.partition("\t")
-                if tracking.strip() != "[gone]":
+                if tracking.strip() != "[gone]" or not branch:
+                    continue
+                if after is not None and branch <= after:
                     continue
                 if (
-                    not branch
-                    or branch in checked_out
-                    or self._branch_is_protected(project, branch)
+                    (limit is not None and examined >= limit)
+                    or (should_stop is not None and should_stop())
+                ):
+                    deferred = True
+                    break
+                examined += 1
+                cursor = branch
+                if branch in checked_out or self._branch_is_protected(
+                    project, branch
                 ):
                     continue
                 try:
@@ -8255,9 +8296,6 @@ class ProjectStore:
                     ) from exc
                 if merged.returncode != 0:
                     continue
-                if limit is not None and removed >= limit:
-                    deferred = True
-                    break
                 try:
                     deleted = subprocess.run(
                         ["git", "branch", "-D", "--", branch],
@@ -8283,7 +8321,7 @@ class ProjectStore:
                     project.id,
                     branch,
                 )
-            return removed, deferred
+            return removed, examined, deferred, cursor if deferred else None
 
     def list_worktrees(self, project_id: str) -> list[str]:
         project = self._projects.get(project_id)

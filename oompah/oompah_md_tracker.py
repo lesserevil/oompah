@@ -7,6 +7,7 @@ directly on the project's default branch.
 
 from __future__ import annotations
 
+import bisect
 import hashlib
 import json
 import logging
@@ -299,6 +300,7 @@ class OompahMarkdownTracker:
     # the extension interface.
     supports_generation_bound_reads = True
     supports_atomic_create_once = True
+    supports_bounded_state_reads = True
 
     def __init__(
         self,
@@ -678,6 +680,67 @@ class OompahMarkdownTracker:
             for issue in self.fetch_all_issues()
             if status_key(issue.state) in wanted
         ]
+
+    def fetch_issues_by_states_page(
+        self,
+        state_names: list[str],
+        *,
+        after: str | None,
+        limit: int,
+    ) -> tuple[list[Issue], int, str | None, bool]:
+        """Read one bounded, stable page from selected native status folders.
+
+        The cursor is the task path relative to ``tasks_root``.  Resumption is
+        strictly after that key, so deleting or moving the exact cursor row
+        cannot replay the already-examined prefix.  Paths are enumerated under
+        the repository mutation lock, but Markdown parsing and normalization
+        are limited to at most ``limit`` records from a cold cache.
+        """
+
+        if limit <= 0:
+            return [], 0, after, True
+        wanted_dirs = {
+            _status_dir(canonicalize_status(state)) for state in state_names
+        }
+        wanted_states = {
+            status_key(canonicalize_status(state)) for state in state_names
+        }
+        with self._write_lock:
+            keyed_paths: list[tuple[str, Path]] = []
+            for status_dir in sorted(wanted_dirs):
+                directory = self.tasks_root / status_dir
+                if not directory.is_dir():
+                    continue
+                keyed_paths.extend(
+                    (f"{status_dir}/{path.name}", path)
+                    for path in directory.glob("*.md")
+                    if path.is_file()
+                )
+            keyed_paths.sort(key=lambda item: item[0])
+            keys = [item[0] for item in keyed_paths]
+            start = bisect.bisect_right(keys, after) if after is not None else 0
+            selected = keyed_paths[start : start + limit]
+            issues: list[Issue] = []
+            for _key, path in selected:
+                try:
+                    meta, body = _read_markdown(path)
+                    issue = self._normalize_record(
+                        {"path": path, "meta": meta, "body": body}
+                    )
+                except TrackerError as exc:
+                    logger.warning(
+                        "Skipping unreadable native task during bounded state scan "
+                        "path=%s error=%s",
+                        path,
+                        exc,
+                    )
+                    continue
+                if status_key(issue.state) in wanted_states:
+                    issues.append(issue)
+            examined = len(selected)
+            cursor = selected[-1][0] if selected else after
+            deferred = start + examined < len(keyed_paths)
+            return issues, examined, cursor, deferred
 
     def fetch_issues_by_labels(
         self,

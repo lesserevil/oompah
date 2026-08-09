@@ -371,6 +371,64 @@ class TestOompahMarkdownTrackerMutations:
                 f"Duplicate detection must log at WARNING, got {record.levelname}"
             )
 
+    def test_cold_thousand_task_page_parses_only_limit_and_resumes_strictly_after(
+        self, tmp_path
+    ):
+        tracker = _tracker(tmp_path)
+        merged = tracker.tasks_root / "merged"
+        for index in range(1000):
+            identifier = f"TASK-{index:04d}"
+            _write_markdown(
+                merged / f"{identifier}.md",
+                {
+                    "id": identifier,
+                    "title": f"Task {index}",
+                    "status": MERGED,
+                    "type": "task",
+                    "priority": 2,
+                },
+                "## Summary\n\nBounded cleanup fixture.\n",
+            )
+
+        with patch.object(
+            tracker, "_normalize_record", wraps=tracker._normalize_record
+        ) as normalize:
+            first, examined, cursor, deferred = tracker.fetch_issues_by_states_page(
+                [MERGED, ARCHIVED],
+                after=None,
+                limit=3,
+            )
+
+        assert [issue.identifier for issue in first] == [
+            "TASK-0000",
+            "TASK-0001",
+            "TASK-0002",
+        ]
+        assert (examined, cursor, deferred) == (
+            3,
+            "merged/TASK-0002.md",
+            True,
+        )
+        assert normalize.call_count == 3
+
+        # The exact cursor row can disappear between slices. Strict-after path
+        # ordering still advances to TASK-0003 instead of replaying the prefix.
+        (merged / "TASK-0002.md").unlink()
+        second, examined, next_cursor, deferred = (
+            tracker.fetch_issues_by_states_page(
+                [MERGED, ARCHIVED],
+                after=cursor,
+                limit=2,
+            )
+        )
+
+        assert [issue.identifier for issue in second] == ["TASK-0003", "TASK-0004"]
+        assert (examined, next_cursor, deferred) == (
+            2,
+            "merged/TASK-0004.md",
+            True,
+        )
+
     def test_setting_unchanged_metadata_does_not_commit_or_update_timestamp(
         self, tmp_path
     ):
