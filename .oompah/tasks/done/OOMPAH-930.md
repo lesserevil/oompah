@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T03:11:25.306117Z'
-updated_at: '2026-08-09T05:16:32.101916Z'
+updated_at: '2026-08-09T05:16:38.737425Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,7 +36,17 @@ oompah.terminal_audit:
     reason: Direct project-owner completion after exact-head full-gate and live enforce
       verification.
     created_at: '2026-08-09T05:16:28.098471+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-930
+    target_state: Done
+    evidence_fingerprint: 84a259db785128f8e24e1ac7359a7cc4476be3206ffcedc601d6360710a4a74e
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T05:16:37.098567+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -57,5 +67,12 @@ author: oompah
 created: 2026-08-09 05:16
 ---
 Completed by direct project owner. Live-project fixture isolation commits 765c187e6 and d8610fbdc are included in rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e. Repeated focused runs and the exact full gate passed with the production server stopped; the same exact build is live in enforce.
+---
+author: oompah
+created: 2026-08-09 05:16
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct project-owner completion after exact-head full-gate and live enforce verification.
 ---
 <!-- COMMENTS:END -->
