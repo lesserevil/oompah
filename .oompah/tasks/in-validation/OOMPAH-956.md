@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:50:18.472017Z'
-updated_at: '2026-08-09T16:25:38.657510Z'
+updated_at: '2026-08-09T16:26:26.237329Z'
 work_branch: OOMPAH-956
 target_branch: null
 review_url: null
@@ -137,13 +137,13 @@ oompah.terminal_audit:
     ended_at: '2026-08-09T16:25:35.293927+00:00'
     failure_reason: operator pause interrupted auditor before verdict
 oompah.task_costs:
-  total_input_tokens: 46
-  total_output_tokens: 7
+  total_input_tokens: 92
+  total_output_tokens: 12
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 46
-      output_tokens: 7
+      input_tokens: 92
+      output_tokens: 12
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -152,6 +152,12 @@ oompah.task_costs:
     output_tokens: 7
     cost_usd: 0.0
     recorded_at: '2026-08-09T15:50:58.711396+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 46
+    output_tokens: 5
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T16:26:18.946583+00:00'
 ---
 ## Summary
 
@@ -224,5 +230,20 @@ author: oompah
 created: 2026-08-09 16:07
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 16:26
+---
+Auditor transport/finalization ended before a verdict; the bounded audit retry will preserve candidate capacity.
+---
+author: oompah
+created: 2026-08-09 16:26
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 2
+- Tokens: 46 in / 5 out [51 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 18m 28s
+- Log: OOMPAH-956__20260809T160803Z.jsonl
 ---
 <!-- COMMENTS:END -->

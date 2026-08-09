@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:32.442706Z'
-updated_at: '2026-08-09T16:26:09.057445Z'
+updated_at: '2026-08-09T16:26:28.815725Z'
 work_branch: OOMPAH-943
 target_branch: null
 review_url: null
@@ -158,5 +158,10 @@ created: 2026-08-09 16:26
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Project-owner override after exact accepted head b30a2880d57460b730547faa2d90732a4bab8e9c was proven contained in aggregate head 2dd74be288b81265ea4a242d7467ecc1ed9f1435, merged by PR #757 as ba0859da9d47d3417a50bfbaa2cb10a7a32f5f01, with hosted Python 3.11/3.12/3.13 checks successful.
+---
+author: oompah
+created: 2026-08-09 16:26
+---
+Done: OOMPAH-943 accepted head b30a2880d is contained in merged epic PR #757 (ba0859da9); all hosted Python matrices passed.
 ---
 <!-- COMMENTS:END -->

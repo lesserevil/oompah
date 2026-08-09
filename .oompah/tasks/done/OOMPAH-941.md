@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:20.700706Z'
-updated_at: '2026-08-09T16:25:21.389700Z'
+updated_at: '2026-08-09T16:26:38.460642Z'
 work_branch: OOMPAH-941
 target_branch: null
 review_url: null
@@ -125,6 +125,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-941
     selected_ref: 9996c0f8e8b64d83ee59bd65d3552f034df6031a
     selected_sha: 9996c0f8e8b64d83ee59bd65d3552f034df6031a
+oompah.task_costs:
+  total_input_tokens: 70
+  total_output_tokens: 8
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 70
+      output_tokens: 8
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 70
+    output_tokens: 8
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T16:26:33.790916+00:00'
 ---
 ## Summary
 
@@ -208,5 +224,15 @@ author: oompah
 created: 2026-08-09 16:25
 ---
 Done: exact OOMPAH-941 head 9996c0f8 is contained in merged epic PR #757 (ba0859da9); all hosted Python matrices passed.
+---
+author: oompah
+created: 2026-08-09 16:26
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 3
+- Tokens: 70 in / 8 out [78 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 0s
+- Log: OOMPAH-941__20260809T161745Z.jsonl
 ---
 <!-- COMMENTS:END -->
