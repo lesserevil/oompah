@@ -7,7 +7,6 @@ import logging
 import os
 import subprocess
 import threading
-import time
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -2074,18 +2073,34 @@ def test_concurrent_runtime_keeps_same_task_effects_serialized(tmp_path):
     store.close()
 
 
-def test_detached_effect_heartbeats_and_drains_without_duplicate_apply(tmp_path):
-    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+def test_detached_effect_heartbeats_and_drains_without_duplicate_apply(
+    tmp_path, monkeypatch
+):
+    clock_lock = threading.Lock()
+    clock = {"now": 1_000.0}
+
+    def read_clock():
+        with clock_lock:
+            return clock["now"]
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"), clock=read_clock)
     tracker = NativeTracker([])
     binding, journal = make_binding(tmp_path, tracker, store)
     started = asyncio.Event()
     release = asyncio.Event()
+    renewal_entered = threading.Event()
+    release_renewal = threading.Event()
+    renewal_finished = threading.Event()
+    renewal_calls = []
+    renewed_jobs = []
+    claimed_lease = []
     apply_calls = 0
 
     class LeaseHandler(CompleteHandler):
         async def apply(self, context):
             nonlocal apply_calls
             apply_calls += 1
+            claimed_lease.append((context.job.job_id, context.job.lease_token))
             started.set()
             await release.wait()
             return await super().apply(context)
@@ -2109,6 +2124,28 @@ def test_detached_effect_heartbeats_and_drains_without_duplicate_apply(tmp_path)
             idempotency_key="lease-1",
         )
     )
+    original_renew = store.renew
+
+    def observed_renew(job_id, lease_token, *, lease_seconds, now=None):
+        # Hold the worker's real heartbeat at the store boundary. This lets
+        # the test capture the original lease before the renewal is committed
+        # without estimating when a wall-clock heartbeat should have fired.
+        renewal_calls.append((job_id, lease_token, lease_seconds))
+        renewal_entered.set()
+        assert release_renewal.wait(1), "heartbeat renewal barrier timed out"
+        with clock_lock:
+            clock["now"] += 0.05
+        renewed = original_renew(
+            job_id,
+            lease_token,
+            lease_seconds=lease_seconds,
+            now=now,
+        )
+        renewed_jobs.append(renewed)
+        renewal_finished.set()
+        return renewed
+
+    monkeypatch.setattr(store, "renew", observed_renew)
     runtime = WorkflowRuntime(
         project_bindings={"project-1": binding},
         store=store,
@@ -2125,11 +2162,25 @@ def test_detached_effect_heartbeats_and_drains_without_duplicate_apply(tmp_path)
         report = await runtime._run_due(("project-1",))
         assert report["scheduled"] == 1
         await asyncio.wait_for(started.wait(), 1)
-        await asyncio.sleep(0.22)
+        assert await asyncio.to_thread(renewal_entered.wait, 1)
+        leased = store.get(queued.job_id)
+        assert claimed_lease == [(queued.job_id, leased.lease_token)]
+        assert renewal_calls == [
+            (queued.job_id, leased.lease_token, worker.lease_seconds)
+        ]
+
+        release_renewal.set()
+        assert await asyncio.to_thread(renewal_finished.wait, 1)
         live = store.get(queued.job_id)
         assert live.state is WorkflowJobState.RUNNING
+        assert live.lease_token == leased.lease_token
         assert live.lease_expires_at is not None
-        assert live.lease_expires_at > time.time()
+        assert leased.lease_expires_at is not None
+        assert live.lease_expires_at > leased.lease_expires_at
+        assert renewed_jobs[0].lease_expires_at is not None
+        assert renewed_jobs[0].lease_expires_at > leased.lease_expires_at
+        assert live.lease_expires_at >= renewed_jobs[0].lease_expires_at
+        assert release.is_set() is False
         assert await runtime.drain(timeout_seconds=0.02) is False
         release.set()
         assert await runtime.drain(timeout_seconds=1) is True
