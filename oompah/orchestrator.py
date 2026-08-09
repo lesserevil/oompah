@@ -1020,6 +1020,10 @@ class DispatchEventType(str, Enum):
     WORKER_EXIT = "worker_exit"
     # An external caller (API, user action) requested an immediate refresh
     REFRESH_REQUESTED = "refresh_requested"
+    # A published durable snapshot has more exact jobs to admit.  This wake
+    # never needs a tracker/controller world scan unless its snapshot fence is
+    # stale by the time the event loop consumes it.
+    WORKFLOW_ADMISSION = "workflow_admission"
     # A retry timer fired — re-evaluate the specific issue
     RETRY_FIRED = "retry_fired"
     # Safety-net: periodic full sync to catch anything missed
@@ -11098,7 +11102,11 @@ class Orchestrator:
             )
         )
 
-    def _request_workflow_batch_continuation(self) -> bool:
+    def _request_workflow_batch_continuation(
+        self,
+        *,
+        reason: str = "workflow_batch_saturated",
+    ) -> bool:
         """Queue one non-recursive follow-up for a saturated durable batch.
 
         The event-intake owner coalesces this with any refresh already pending.
@@ -11114,14 +11122,15 @@ class Orchestrator:
                 runtime is None
                 or self._stopping
                 or self._quiesced
+                or getattr(self, "_paused", False)
                 or not runtime.worker.accepting
             ):
                 return False
             self._set_refresh_requested()
             self._post_event(
                 DispatchEvent(
-                    event_type=DispatchEventType.REFRESH_REQUESTED,
-                    payload={"reason": "workflow_batch_saturated"},
+                    event_type=DispatchEventType.WORKFLOW_ADMISSION,
+                    payload={"reason": reason},
                 )
             )
         return True
@@ -13075,15 +13084,15 @@ class Orchestrator:
 
         - ``_on_worker_exit()`` when a worker finishes or fails
         - ``request_refresh()`` for API/user-triggered refreshes
+        - durable-effect saturation/completion for admission-only continuations
         - ``unpause()`` to restart dispatch after a pause
         - ``_on_retry_timer()`` when a retry timer fires
         - ``_full_sync_loop()`` for the periodic safety-net full sync
 
-        A full ``_tick()`` (world scan) is run for FULL_SYNC events and for the
-        initial startup tick.  For WORKER_EXIT and REFRESH_REQUESTED events,
-        ``_tick()`` is also run because it's the simplest correct behavior
-        (targeted optimisations can be layered on top later without changing
-        the loop contract).
+        A full ``_tick()`` (world scan) is run for every ordinary event and for
+        the initial startup tick.  A pure WORKFLOW_ADMISSION burst instead
+        drains one bounded slice from the exact last-published snapshot; a
+        stale or unavailable snapshot falls back to one full tick.
         """
         self._dispatch_loop = asyncio.get_running_loop()
         runtime_bound = self.workflow_runtime is not None
@@ -13230,6 +13239,9 @@ class Orchestrator:
                 )
 
                 coalesced = self._mark_dispatch_event_dequeued(event)
+                admission_only = (
+                    event.event_type is DispatchEventType.WORKFLOW_ADMISSION
+                )
                 while True:
                     try:
                         extra = self._dispatch_queue.get_nowait()
@@ -13237,15 +13249,27 @@ class Orchestrator:
                         break
                     coalesced += 1
                     coalesced += self._mark_dispatch_event_dequeued(extra)
+                    admission_only = admission_only and (
+                        extra.event_type
+                        is DispatchEventType.WORKFLOW_ADMISSION
+                    )
                 # Track coalesced count for dashboard snapshots (TASK-465.2).
                 self._last_coalesced_event_count = coalesced
                 if coalesced:
                     logger.debug("Coalesced %d dispatch event(s)", coalesced)
 
-                # All current event types still result in a full _tick(), but
-                # bursts are coalesced so one worker-exit storm cannot queue a
-                # long train of identical world scans.
-                await _run_tick()
+                # A pure durable-admission burst consumes only the exact last
+                # published cut. Any ordinary event in the coalesced burst
+                # still owns one full world scan, which also performs due-job
+                # admission and therefore subsumes the fast wake.
+                if admission_only:
+                    requires_full_tick = (
+                        await self._run_workflow_admission_tick()
+                    )
+                    if requires_full_tick:
+                        await _run_tick()
+                else:
+                    await _run_tick()
 
         finally:
             # Fence callbacks queued from foreign threads before observing and
@@ -15013,6 +15037,57 @@ class Orchestrator:
         self._last_tick_timings = dict(self._last_tick_metrics)
         self._notify_observers()
         await self._handle_auto_update()
+
+    async def _run_workflow_admission_tick(self) -> bool:
+        """Drain one exact durable slice without rebuilding the world.
+
+        Returns ``True`` only when the cached snapshot lost authority and the
+        caller must fall back to the ordinary full tick.  Pause/drain fences
+        are normal no-op outcomes and never force an expensive scan.
+        """
+
+        runtime = self.workflow_runtime
+        with self._provider_admission_lock:
+            blocked = (
+                runtime is None
+                or self._stopping
+                or self._quiesced
+                or getattr(self, "_paused", False)
+                or not runtime.worker.accepting
+            )
+        if blocked:
+            return False
+
+        started_at = self._monotonic_clock()
+        try:
+            report = await runtime.continue_admission_async()
+        except Exception:  # noqa: BLE001 - authoritative scan is the fallback
+            logger.exception("Durable workflow fast admission failed")
+            return True
+        if report.get("requires_reconcile") is True:
+            return True
+
+        worker_report = report.get("worker")
+        batch_saturated = bool(
+            isinstance(worker_report, Mapping)
+            and worker_report.get("batch_saturated") is True
+        )
+        continuation_requested = bool(
+            batch_saturated and self._request_workflow_batch_continuation()
+        )
+        total_ms = (self._monotonic_clock() - started_at) * 1000
+        self._last_tick_metrics = {
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+            "durable_runtime": True,
+            "workflow_admission_only": True,
+            "workflow_runtime": report,
+            "workflow_batch_saturated": batch_saturated,
+            "workflow_batch_continuation_requested": continuation_requested,
+            "total_ms": round(total_ms, 3),
+        }
+        self._last_tick_timings = dict(self._last_tick_metrics)
+        self._notify_observers()
+        return False
 
     async def _tick(self) -> None:
         """Run one durable production tick or an unbound fixture tick.

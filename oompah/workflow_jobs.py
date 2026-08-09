@@ -1679,6 +1679,36 @@ class WorkflowJobStore:
         accepted = int(row["accepted"] or 0) if row is not None else 0
         return allocated == generation == accepted
 
+    def published_snapshot_generation_is_current(
+        self, snapshot_generation: int
+    ) -> bool:
+        """Return whether one generation is the exact published authority cut."""
+
+        if isinstance(snapshot_generation, bool) or int(snapshot_generation) < 1:
+            raise ValueError("snapshot_generation must be a positive integer")
+        generation = int(snapshot_generation)
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT
+                    MAX(CASE WHEN key = 'workflow_snapshot_generation'
+                             THEN CAST(value AS INTEGER) ELSE 0 END) AS allocated,
+                    MAX(CASE WHEN key = 'workflow_snapshot_accepted_generation'
+                             THEN CAST(value AS INTEGER) ELSE 0 END) AS accepted,
+                    MAX(CASE WHEN key = 'workflow_snapshot_published_generation'
+                             THEN CAST(value AS INTEGER) ELSE 0 END) AS published
+                  FROM schema_meta
+                """
+            ).fetchone()
+        if row is None:
+            return False
+        return (
+            int(row["allocated"] or 0)
+            == int(row["accepted"] or 0)
+            == int(row["published"] or 0)
+            == generation
+        )
+
     def _snapshot_generation_is_current_locked(self, generation: int) -> bool:
         allocated_row = self._conn.execute(
             "SELECT value FROM schema_meta "
@@ -4625,6 +4655,7 @@ class WorkflowJobStore:
         task_id: str | None = None,
         generation: str | None = None,
         actions: Sequence[str] | None = None,
+        required_snapshot_generation: int | None = None,
         fair_across_projects: bool = False,
         now: float | None = None,
         recovery_limit: int = DEFAULT_SCAN_LIMIT,
@@ -4648,6 +4679,7 @@ class WorkflowJobStore:
                     task_id=task_id,
                     generation=generation,
                     actions=actions,
+                    required_snapshot_generation=required_snapshot_generation,
                     now=timestamp,
                 )
             )
@@ -4741,6 +4773,7 @@ class WorkflowJobStore:
         task_id: str | None = None,
         generation: str | None = None,
         actions: Sequence[str] | None = None,
+        required_snapshot_generation: int | None = None,
         now: float | None = None,
     ) -> bool:
         """Return whether an exact claim candidate exists without mutating it.
@@ -4760,6 +4793,7 @@ class WorkflowJobStore:
                 task_id=task_id,
                 generation=generation,
                 actions=actions,
+                required_snapshot_generation=required_snapshot_generation,
                 now=timestamp,
             )
             row = self._conn.execute(
@@ -4780,6 +4814,7 @@ class WorkflowJobStore:
         task_id: str | None,
         generation: str | None,
         actions: Sequence[str] | None,
+        required_snapshot_generation: int | None,
         now: float,
     ) -> tuple[
         list[str],
@@ -4866,6 +4901,30 @@ class WorkflowJobStore:
                 f"candidate.action IN ({','.join('?' for _ in normalized_actions)})"
             )
             values.extend(normalized_actions)
+        if required_snapshot_generation is not None:
+            if (
+                isinstance(required_snapshot_generation, bool)
+                or int(required_snapshot_generation) < 1
+            ):
+                raise ValueError(
+                    "required_snapshot_generation must be a positive integer"
+                )
+            snapshot = int(required_snapshot_generation)
+            # A fast admission continuation is authorized by one exact,
+            # already-published world snapshot.  Bind the claim itself to
+            # that cut, rather than relying on a check before entering this
+            # transaction: another process may allocate/publish a replacement
+            # generation between those two operations.
+            for key in (
+                "workflow_snapshot_generation",
+                "workflow_snapshot_accepted_generation",
+                "workflow_snapshot_published_generation",
+            ):
+                clauses.append(
+                    "(SELECT CAST(value AS INTEGER) FROM schema_meta "
+                    "WHERE key = ?) = ?"
+                )
+                values.extend((key, snapshot))
         return clauses, values, normalized_project_ids, normalized_actions
 
     def _owned_row_locked(

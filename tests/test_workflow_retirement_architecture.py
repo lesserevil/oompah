@@ -267,7 +267,7 @@ def test_saturated_runtime_batch_requests_one_follow_up_tick() -> None:
     )
 
 
-def test_workflow_batch_continuation_posts_coalescible_refresh() -> None:
+def test_workflow_batch_continuation_posts_coalescible_admission_wake() -> None:
     orchestrator = object.__new__(Orchestrator)
     orchestrator.workflow_runtime = SimpleNamespace(
         worker=SimpleNamespace(accepting=True)
@@ -282,17 +282,23 @@ def test_workflow_batch_continuation_posts_coalescible_refresh() -> None:
 
     orchestrator._set_refresh_requested.assert_called_once_with()
     event = orchestrator._post_event.call_args.args[0]
-    assert event.event_type is DispatchEventType.REFRESH_REQUESTED
+    assert event.event_type is DispatchEventType.WORKFLOW_ADMISSION
     assert event.payload == {"reason": "workflow_batch_saturated"}
 
 
 @pytest.mark.parametrize(
-    ("stopping", "quiesced", "accepting"),
-    ((True, False, True), (False, True, True), (False, False, False)),
+    ("stopping", "quiesced", "paused", "accepting"),
+    (
+        (True, False, False, True),
+        (False, True, False, True),
+        (False, False, True, True),
+        (False, False, False, False),
+    ),
 )
 def test_workflow_batch_continuation_respects_shutdown_fences(
     stopping: bool,
     quiesced: bool,
+    paused: bool,
     accepting: bool,
 ) -> None:
     orchestrator = object.__new__(Orchestrator)
@@ -302,6 +308,7 @@ def test_workflow_batch_continuation_respects_shutdown_fences(
     orchestrator._provider_admission_lock = threading.RLock()
     orchestrator._stopping = stopping
     orchestrator._quiesced = quiesced
+    orchestrator._paused = paused
     orchestrator._set_refresh_requested = Mock()
     orchestrator._post_event = Mock()
 

@@ -1206,6 +1206,7 @@ class DurableWorkflowWorker:
         project_id: str | None = None,
         project_ids: Sequence[str] | None = None,
         actions: Sequence[str] | None = None,
+        required_snapshot_generation: int | None = None,
         fair_across_projects: bool = False,
     ) -> WorkflowJob | None:
         """Claim one exact durable row without waiting for its effect.
@@ -1230,6 +1231,7 @@ class DurableWorkflowWorker:
             project_id=project_id,
             project_ids=project_ids,
             actions=claim_actions,
+            required_snapshot_generation=required_snapshot_generation,
             fair_across_projects=fair_across_projects,
         )
 
@@ -1239,6 +1241,7 @@ class DurableWorkflowWorker:
         project_id: str | None = None,
         project_ids: Sequence[str] | None = None,
         actions: Sequence[str] | None = None,
+        required_snapshot_generation: int | None = None,
     ) -> bool:
         """Probe exact admission eligibility without spending an attempt."""
 
@@ -1254,6 +1257,7 @@ class DurableWorkflowWorker:
             project_id=project_id,
             project_ids=project_ids,
             actions=claim_actions,
+            required_snapshot_generation=required_snapshot_generation,
         )
 
     async def execute_claimed(self, job: WorkflowJob) -> WorkflowRunResult:
