@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-907
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Serialize orphan recovery with epic rollup authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-08T06:36:33.809062Z'
-updated_at: '2026-08-08T12:03:40.578964Z'
+updated_at: '2026-08-09T05:10:29.201862Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -177,6 +177,28 @@ oompah.task_costs:
     output_tokens: 1699
     cost_usd: 0.0
     recorded_at: '2026-08-08T06:39:38.718271+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-3efb70f2bc7d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-907
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 55393f26938b1e448d5ea962cb8dcfdc8957f7519cd7b53e1f8a275e26d54ecf
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after exact-head full-gate and live enforce
+      verification.
+    created_at: '2026-08-09T05:10:25.218980+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -496,5 +518,10 @@ author: oompah
 created: 2026-08-08 07:39
 ---
 Direct repair checkpoint: orphan recovery and epic rollup now share exact parent+child generation CAS under task locks, with owner/scheduler fences and fail-closed child reads. The repair is integrated in systemic head 6cbbd6ef7bb7882257c4c9e9175bd5b3edc14183; 97 focused tests and the 1076-test combined affected gate passed. The exact full make test gate is currently running clean before publication/terminalization.
+---
+author: oompah
+created: 2026-08-09 05:10
+---
+Direct project-owner completion verified on composed rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e: exact full gate passed (18,874 passed, 7 skipped, 2 xfailed), all four durable workflow domains are live in enforce mode, no actionable global alerts remain, and current durable exhaustion/expired leases are zero.
 ---
 <!-- COMMENTS:END -->

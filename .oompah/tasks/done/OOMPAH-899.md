@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-07T17:37:48.469758Z'
-updated_at: '2026-08-09T05:10:14.443027Z'
+updated_at: '2026-08-09T05:10:20.783791Z'
 work_branch: OOMPAH-899
 target_branch: null
 review_url: null
@@ -125,7 +125,17 @@ oompah.terminal_audit:
     reason: Direct project-owner completion after exact-head full-gate and live enforce
       verification.
     created_at: '2026-08-09T05:10:10.623461+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-899
+    target_state: Done
+    evidence_fingerprint: cdc815bced2a37f04ea50bc657d6aec1b2063b5ecae88dad5d5750d4d6eef924
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T05:10:19.213467+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -404,5 +414,12 @@ author: oompah
 created: 2026-08-09 05:10
 ---
 Direct project-owner completion verified on composed rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e: exact full gate passed (18,874 passed, 7 skipped, 2 xfailed), all four durable workflow domains are live in enforce mode, no actionable global alerts remain, and current durable exhaustion/expired leases are zero.
+---
+author: oompah
+created: 2026-08-09 05:10
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct project-owner completion after exact-head full-gate and live enforce verification.
 ---
 <!-- COMMENTS:END -->
