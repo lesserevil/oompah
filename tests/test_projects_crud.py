@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -18,6 +19,47 @@ import pytest
 
 from oompah.models import Project
 from oompah.projects import ProjectError, ProjectStore
+
+
+def _clean_repo_with_agents(repo_path: Path, contents: str) -> Path:
+    """Create a clean Git checkout containing the supplied AGENTS.md."""
+
+    repo_path.mkdir(parents=True)
+    subprocess.run(["git", "init", str(repo_path)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"],
+        cwd=repo_path,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=repo_path,
+        check=True,
+        capture_output=True,
+    )
+    agents_path = repo_path / "AGENTS.md"
+    agents_path.write_text(contents, encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "AGENTS.md"], cwd=repo_path, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "initial"],
+        cwd=repo_path,
+        check=True,
+        capture_output=True,
+    )
+    return agents_path
+
+
+def _git_porcelain(repo_path: Path) -> str:
+    return subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
 
 
 # ---------------------------------------------------------------------------
@@ -679,12 +721,10 @@ class TestProjectCreateAPIDefaults:
 
         monkeypatch.setattr(srv, "_orchestrator", orch)
         monkeypatch.setattr(srv, "_log_watcher_manager", None)
-        monkeypatch.setattr(
-            srv, "_ensure_tracker_agent_instructions_for_project", MagicMock()
-        )
 
         self.client = TestClient(app)
         self.project_store = project_store
+        self.repo_path = tmp_path / "repos" / "example-repo"
         yield self.client
 
     def test_create_defaults_to_oompah_md_and_paused(self):
@@ -704,6 +744,27 @@ class TestProjectCreateAPIDefaults:
         assert kwargs["github_issue_intake_enabled"] is False
         assert res.json()["tracker_kind"] == "oompah_md"
         assert res.json()["paused"] is True
+
+    def test_create_does_not_mutate_stale_agents_md(self):
+        original = """# Project Rules
+
+<!-- BEGIN OOMPAH TASK INTEGRATION v:1 -->
+Old managed instructions.
+<!-- END OOMPAH TASK INTEGRATION -->
+"""
+        agents_path = _clean_repo_with_agents(self.repo_path, original)
+
+        res = self.client.post(
+            "/api/v1/projects",
+            json={
+                "repo_url": "https://github.com/example-org/example-repo.git",
+                "tracker_kind": "oompah_md",
+            },
+        )
+
+        assert res.status_code == 201
+        assert agents_path.read_text(encoding="utf-8") == original
+        assert _git_porcelain(self.repo_path) == ""
 
     def test_create_sends_github_issue_intake_enabled(self):
         res = self.client.post(
@@ -1650,64 +1711,46 @@ class TestProjectAPITrackerFields:
             "'github_issue_intake_enabled'; when both are provided they must match"
         )
 
-    def test_patch_github_tracker_updates_agents_md(self):
-        project = self.store.get("proj-tracker")
-        repo_path = Path(project.repo_path)
-        repo_path.mkdir(parents=True)
-        (repo_path / "AGENTS.md").write_text(
-            """# Project Rules
+    @pytest.mark.parametrize(
+        ("tracker_kind", "original"),
+        (
+            (
+                "github_issues",
+                """# Project Rules
 
 <!-- BEGIN OOMPAH TASK INTEGRATION v:1 -->
-## Issue Tracking with oompah
-
 Use oompah tasks for tracking.
 <!-- END OOMPAH TASK INTEGRATION -->
 """,
-            encoding="utf-8",
-        )
-
-        res = self.client.patch(
-            "/api/v1/projects/proj-tracker",
-            json={"tracker_kind": "github_issues"},
-        )
-
-        assert res.status_code == 200
-        text = (repo_path / "AGENTS.md").read_text(encoding="utf-8")
-        assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" in text
-        assert "Use oompah tasks for tracking" not in text
-        assert "oompah task create --project <project-id>" in text
-        assert "Prefer the `oompah task` CLI only when it is installed" in text
-        assert "GitHub Fallback" in text
-        assert "`parent:<issue-number>`" in text
-        assert "`depends-on:<issue-number>`" in text
-
-    def test_patch_oompah_md_tracker_updates_agents_md(self):
-        project = self.store.get("proj-tracker")
-        repo_path = Path(project.repo_path)
-        repo_path.mkdir(parents=True)
-        (repo_path / "AGENTS.md").write_text(
-            """# Project Rules
+            ),
+            (
+                "oompah_md",
+                """# Project Rules
 
 <!-- BEGIN OOMPAH GITHUB ISSUES INTEGRATION v:1 -->
-## Issue Tracking with GitHub Issues
-
 Use GitHub Issues for task tracking.
 <!-- END OOMPAH GITHUB ISSUES INTEGRATION -->
 """,
-            encoding="utf-8",
-        )
+            ),
+        ),
+    )
+    def test_patch_tracker_kind_does_not_mutate_agents_md(
+        self,
+        tracker_kind,
+        original,
+    ):
+        project = self.store.get("proj-tracker")
+        repo_path = Path(project.repo_path)
+        agents_path = _clean_repo_with_agents(repo_path, original)
 
         res = self.client.patch(
             "/api/v1/projects/proj-tracker",
-            json={"tracker_kind": "oompah_md"},
+            json={"tracker_kind": tracker_kind},
         )
 
         assert res.status_code == 200
-        text = (repo_path / "AGENTS.md").read_text(encoding="utf-8")
-        assert "BEGIN OOMPAH TASK INTEGRATION" in text
-        assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" not in text
-        assert "Use GitHub Issues for task tracking" not in text
-        assert "`.oompah/tasks`" in text
+        assert agents_path.read_text(encoding="utf-8") == original
+        assert _git_porcelain(repo_path) == ""
 
     def test_patch_tracker_kind_invalidates_cached_tracker(self):
         import oompah.server as srv

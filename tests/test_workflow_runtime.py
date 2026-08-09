@@ -1245,6 +1245,151 @@ def test_revoked_retained_calls_preserve_fence_and_reserved_owner_control(
     store.close()
 
 
+def test_reserved_control_admission_bypasses_inflight_world_cut(tmp_path):
+    """An imperative owner claim cannot wait behind a corpus reconciliation."""
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    control_completed = asyncio.Event()
+
+    class ObservedControlHandler(CompleteHandler):
+        async def apply(self, context):
+            effect = await super().apply(context)
+            if context.job.action == "direct_owner_claim":
+                control_completed.set()
+            return effect
+
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(ObservedControlHandler()),
+        max_concurrent=4,
+        control_reserved_slots=1,
+    )
+    reconcile_entered = threading.Event()
+    release_reconcile = threading.Event()
+    runtime_checkpoint = binding.collector.cooperative_checkpoint
+    assert runtime_checkpoint is not None
+
+    def blocked_checkpoint():
+        reconcile_entered.set()
+        assert release_reconcile.wait(2), "world reconcile barrier timed out"
+        runtime_checkpoint()
+
+    async def exercise():
+        await runtime.start()
+        initial = await runtime.reconcile_async()
+        assert initial["projects"]["project-1"]["snapshot"]["published"] is True
+        binding.collector.cooperative_checkpoint = blocked_checkpoint
+        tracker.issues["OWNER-CONTROL"] = make_issue(
+            "OWNER-CONTROL", state="Open"
+        )
+        reconcile = asyncio.create_task(runtime.reconcile_async())
+        assert await asyncio.to_thread(reconcile_entered.wait, 1)
+        job = store.enqueue(
+            WorkflowJobSpec(
+                project_id="project-1",
+                task_id="OWNER-CONTROL",
+                generation="owner-control-1",
+                action="direct_owner_claim",
+                idempotency_key="owner-control-1",
+                scheduling_lane="event:implementation:imperative",
+                priority=0,
+            )
+        )
+        try:
+            admission = await runtime.continue_admission_async()
+            await asyncio.wait_for(control_completed.wait(), 1)
+            await wait_for_runtime_effects(runtime)
+            assert not reconcile.done()
+            completed = store.get(job.job_id)
+        finally:
+            release_reconcile.set()
+        await asyncio.wait_for(reconcile, 2)
+        return admission, completed
+
+    try:
+        admission, completed = asyncio.run(exercise())
+    finally:
+        release_reconcile.set()
+
+    assert admission["reason"] == "workflow admission cut is stale"
+    assert admission["requires_reconcile"] is True
+    assert admission["worker"]["scheduled"] == 1
+    assert admission["worker"]["active_lanes"]["shared"] == 0
+    assert completed.state is WorkflowJobState.COMPLETED
+    runtime.close()
+    store.close()
+
+
+def test_control_admission_isolates_project_pause_read_failure(tmp_path):
+    """One broken binding cannot starve another project's control event."""
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    broken_binding, broken_journal = make_binding(
+        tmp_path,
+        NativeTracker([]),
+        store,
+        project_id="project-broken",
+    )
+    healthy_binding, healthy_journal = make_binding(
+        tmp_path,
+        NativeTracker([]),
+        store,
+        project_id="project-healthy",
+    )
+
+    def unavailable_pause_authority():
+        raise OSError("pause authority unavailable")
+
+    broken_binding.dispatch_enabled = unavailable_pause_authority
+    job = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-healthy",
+            task_id="OWNER-HEALTHY",
+            generation="owner-healthy-1",
+            action="direct_owner_claim",
+            idempotency_key="owner-healthy-1",
+            scheduling_lane="event:implementation:imperative",
+            priority=0,
+        )
+    )
+    runtime = WorkflowRuntime(
+        project_bindings={
+            "project-broken": broken_binding,
+            "project-healthy": healthy_binding,
+        },
+        store=store,
+        journals={
+            "project-broken": broken_journal,
+            "project-healthy": healthy_journal,
+        },
+        mode="enforce",
+        handlers=complete_handlers(),
+        handler_coverage={
+            action: {"project-broken", "project-healthy"}
+            for action in RUNTIME_ACTIONS
+        },
+    )
+
+    async def exercise():
+        await runtime.start()
+        report = await runtime.continue_admission_async()
+        await wait_for_runtime_effects(runtime)
+        return report
+
+    report = asyncio.run(exercise())
+
+    assert report["projects"] == ["project-healthy"]
+    assert report["worker"]["scheduled"] == 1
+    assert store.get(job.job_id).state is WorkflowJobState.COMPLETED
+    runtime.close()
+    store.close()
+
+
 def accepted_projection_wiring():
     def publisher(*_args, **_kwargs):
         return SimpleNamespace(
