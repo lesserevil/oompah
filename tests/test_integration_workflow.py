@@ -708,12 +708,19 @@ def test_executor_wrapper_rejects_ambiguous_workflow_authority():
 
 
 @pytest.mark.asyncio
+@pytest.mark.timeout(10)
 async def test_durable_integration_worker_heartbeats_unleased_effect(tmp_path):
     authority_checks = []
+    clock = {"now": 0.0}
+    renewed = threading.Event()
 
     def execute(row, *, workflow_authority, **_kwargs):
         authority_checks.append(workflow_authority())
-        time.sleep(0.15)
+        assert renewed.wait(timeout=2)
+        # Cross the original lease deadline deterministically after the first
+        # renewal.  The renewed lease remains current, while a missing or late
+        # heartbeat would make the second authority check fail closed.
+        clock["now"] = 6.0
         authority_checks.append(workflow_authority())
         return IntegrationExecutionResult(
             "integrated",
@@ -727,14 +734,26 @@ async def test_durable_integration_worker_heartbeats_unleased_effect(tmp_path):
         tmp_path,
         execute=execute,
     )
-    store = WorkflowJobStore(str(tmp_path / "durable-workflow.sqlite3"))
+    store = WorkflowJobStore(
+        str(tmp_path / "durable-workflow.sqlite3"),
+        clock=lambda: clock["now"],
+    )
+    original_renew = store.renew
+
+    def renew_after_advancing_clock(*args, **kwargs):
+        clock["now"] = 4.0
+        job = original_renew(*args, **kwargs)
+        renewed.set()
+        return job
+
+    store.renew = renew_after_advancing_clock
     try:
         queued = enqueue_durable_integration_job(store, context)
         result = await durable_integration_worker(
             store,
             backend,
-            lease_seconds=0.08,
-            heartbeat_seconds=0.02,
+            lease_seconds=5,
+            heartbeat_seconds=0.05,
         ).run_once()
 
         assert result.disposition is WorkflowRunDisposition.COMPLETED
@@ -748,7 +767,7 @@ async def test_durable_integration_worker_heartbeats_unleased_effect(tmp_path):
                 for event in store.events(queued.job_id)
                 if event.event_type == "renewed"
             ]
-        ) >= 2
+        ) >= 1
         integrated = queue.get("project-1", "TASK-A")
         assert integrated is not None
         assert integrated.state == "integrated"
