@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:38:30.732911Z'
-updated_at: '2026-08-09T13:34:25.310959Z'
+updated_at: '2026-08-09T13:35:03.633695Z'
 work_branch: OOMPAH-947
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/760
@@ -239,5 +239,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 28m 27s
 - Log: OOMPAH-947__20260809T130605Z.jsonl
+---
+author: oompah
+created: 2026-08-09 13:35
+---
+Operator re-evaluation: the implementation is merged on main via PR #760 and the accepted focused audit evidence is green. The auditor's broad run completed 18,905 tests and its seven failures were isolated nested-runner infrastructure failures caused by an invalid prepared audit-venv interpreter path, not failures in OOMPAH-947. Restoring the task to In Validation so terminal processing can continue naturally; existing OOMPAH-862 tracks redundant auditor full-gate behavior and OOMPAH-831 tracks the read-only auditor tool-policy mismatch, so no duplicate bug is being filed.
 ---
 <!-- COMMENTS:END -->
