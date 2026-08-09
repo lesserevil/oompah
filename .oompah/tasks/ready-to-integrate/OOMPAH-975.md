@@ -6,13 +6,12 @@ priority: 1
 title: Carry trusted composed landing heads into rollup terminal transitions
 parent: null
 children: []
-blocked_by:
-- OOMPAH-974
+blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:14:31.760374Z'
-updated_at: '2026-08-09T21:57:38.952492Z'
+updated_at: '2026-08-09T22:04:40.474038Z'
 work_branch: OOMPAH-975
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/782

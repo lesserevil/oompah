@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T22:03:47.126413Z'
+updated_at: '2026-08-09T22:04:37.478137Z'
 work_branch: OOMPAH-974
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/783
@@ -178,5 +178,10 @@ author: oompah
 created: 2026-08-09 22:03
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 22:04
+---
+Merged via protected PR #783 at 9ea2d4d07bfe2372b544989eaca47808e10e44c6 and deployed as exact service/CLI build. The old 312c process accepted restart but failed to settle; the newly merged HTTP-independent exact-identity force path boundedly quarantined it and started PID 2323184. Six consecutive health probes remained HTTP 200 throughout the cold 1,776-task initial reconciliation as state advanced from unavailable to live scan_complete=false snapshots. Independent review approved; 399 review tests, 335 focused tests, 8,580 additional no-failure full-gate tests, and protected Python 3.11/3.12/3.13 gates passed.
 ---
 <!-- COMMENTS:END -->
