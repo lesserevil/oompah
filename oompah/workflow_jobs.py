@@ -34,6 +34,90 @@ MAX_SCAN_LIMIT = 1000
 _INITIALIZE_LOCK = threading.Lock()
 _REASSESSMENT_GENERATION_MARKER = ":reassess="
 
+# One exhausted ledger row stops being current only when its durable lane
+# cursor names another fully materialized generation and that generation has a
+# concrete, non-retired job.  Cursor movement by itself is not execution
+# authority: evaluation may advance a decision revision before reconciliation,
+# and action-required decisions intentionally materialize no replacement job.
+# Unknown, legacy, and partially written authority therefore remain current
+# (fail closed).  Keep this predicate shared by the per-task lookup and global
+# health telemetry so their meanings cannot drift apart again.
+_CURRENT_EXHAUSTION_PREDICATE = """
+job.state = 'exhausted'
+AND NOT (
+    (job.workflow_managed = 1 AND EXISTS (
+        SELECT 1
+          FROM workflow_schedule_cursors cursor
+         WHERE cursor.project_id = job.project_id
+           AND cursor.task_id = job.task_id
+           AND cursor.job_generation != job.generation
+           AND cursor.materialized_job_generation = cursor.job_generation
+           AND EXISTS (
+               SELECT 1
+                 FROM workflow_jobs replacement
+                WHERE replacement.project_id = job.project_id
+                  AND replacement.task_id = job.task_id
+                  AND replacement.workflow_managed = 1
+                  AND replacement.generation = cursor.job_generation
+                  AND replacement.state IN (
+                      'queued', 'running', 'retry_wait',
+                      'completed', 'exhausted'
+                  )
+           )
+    ))
+    OR
+    (job.workflow_managed = 0 AND EXISTS (
+        SELECT 1
+          FROM workflow_event_cursors cursor
+         WHERE cursor.project_id = job.project_id
+           AND cursor.task_id = job.task_id
+           AND cursor.event_namespace = job.scheduling_lane
+           AND cursor.event_generation != job.generation
+           AND EXISTS (
+               SELECT 1
+                 FROM workflow_jobs replacement
+                WHERE replacement.project_id = job.project_id
+                  AND replacement.task_id = job.task_id
+                  AND replacement.workflow_managed = 0
+                  AND replacement.scheduling_lane = job.scheduling_lane
+                  AND replacement.generation = cursor.event_generation
+                  AND replacement.state IN (
+                      'queued', 'running', 'retry_wait',
+                      'completed', 'exhausted'
+                  )
+           )
+    ))
+    OR
+    (job.workflow_managed = 0 AND NOT EXISTS (
+        SELECT 1
+          FROM workflow_event_cursors cursor
+         WHERE cursor.project_id = job.project_id
+           AND cursor.task_id = job.task_id
+           AND cursor.event_namespace = job.scheduling_lane
+    ) AND EXISTS (
+        SELECT 1
+          FROM workflow_event_ordering ordering
+         WHERE ordering.project_id = job.project_id
+           AND ordering.task_id = job.task_id
+           AND ordering.ordering_namespace = job.scheduling_lane
+           AND ordering.decision_revision != job.generation
+           AND EXISTS (
+               SELECT 1
+                 FROM workflow_jobs replacement
+                WHERE replacement.project_id = job.project_id
+                  AND replacement.task_id = job.task_id
+                  AND replacement.workflow_managed = 0
+                  AND replacement.scheduling_lane = job.scheduling_lane
+                  AND replacement.generation = ordering.decision_revision
+                  AND replacement.state IN (
+                      'queued', 'running', 'retry_wait',
+                      'completed', 'exhausted'
+                  )
+           )
+    ))
+)
+"""
+
 
 def _required_text(value: object, name: str) -> str:
     text = str(value or "").strip()
@@ -3971,6 +4055,32 @@ class WorkflowJobStore:
             ).fetchall()
         return tuple(self._from_row(row) for row in rows)
 
+    def current_exhausted_jobs(
+        self, *, project_id: str, task_id: str
+    ) -> tuple[WorkflowJob, ...]:
+        """Return this task's authoritative current exhausted generations.
+
+        Historical ledger rows remain immutable.  They are excluded here only
+        when their lane cursor and a concrete replacement row agree that a
+        distinct generation owns subsequent recovery.  Any partial or
+        ambiguous cursor state remains actionable.
+        """
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        with self._lock:
+            rows = self._conn.execute(
+                f"""
+                SELECT *
+                  FROM workflow_jobs job
+                 WHERE job.project_id = ? AND job.task_id = ?
+                   AND {_CURRENT_EXHAUSTION_PREDICATE}
+                 ORDER BY job.enqueue_sequence
+                """,
+                (project, task),
+            ).fetchall()
+        return tuple(self._from_row(row) for row in rows)
+
     def due_jobs(
         self,
         *,
@@ -5046,49 +5156,14 @@ class WorkflowJobStore:
                   FROM workflow_jobs GROUP BY state ORDER BY state
                 """
             ).fetchall()
-            # ``states`` is the immutable ledger-history projection, so an
-            # exhausted generation stays exhausted after a replacement owns
-            # the lane.  Rollout health needs the narrower actionable view:
-            # an exhausted row is current unless a durable authority cursor
-            # proves that another generation now owns its lane.  Unknown and
-            # legacy rows deliberately remain current (fail closed).
+            # ``states`` is the immutable ledger-history projection, while
+            # ``current_states`` uses the same authoritative predicate as the
+            # per-task liveness lookup.
             current_exhausted = self._conn.execute(
-                """
+                f"""
                 SELECT COUNT(*) AS count
                   FROM workflow_jobs job
-                 WHERE job.state = 'exhausted'
-                   AND NOT (
-                       (job.workflow_managed = 1 AND EXISTS (
-                           SELECT 1 FROM workflow_schedule_cursors cursor
-                            WHERE cursor.project_id = job.project_id
-                              AND cursor.task_id = job.task_id
-                              AND cursor.materialized_job_generation IS NOT NULL
-                              AND cursor.materialized_job_generation
-                                  != job.generation
-                       ))
-                       OR
-                       (job.workflow_managed = 0 AND EXISTS (
-                           SELECT 1 FROM workflow_event_cursors cursor
-                            WHERE cursor.project_id = job.project_id
-                              AND cursor.task_id = job.task_id
-                              AND cursor.event_namespace = job.scheduling_lane
-                              AND cursor.event_generation != job.generation
-                       ))
-                       OR
-                       (job.workflow_managed = 0 AND NOT EXISTS (
-                           SELECT 1 FROM workflow_event_cursors cursor
-                            WHERE cursor.project_id = job.project_id
-                              AND cursor.task_id = job.task_id
-                              AND cursor.event_namespace = job.scheduling_lane
-                       ) AND EXISTS (
-                           SELECT 1 FROM workflow_event_ordering ordering
-                            WHERE ordering.project_id = job.project_id
-                              AND ordering.task_id = job.task_id
-                              AND ordering.ordering_namespace
-                                  = job.scheduling_lane
-                              AND ordering.decision_revision != job.generation
-                       ))
-                   )
+                 WHERE {_CURRENT_EXHAUSTION_PREDICATE}
                 """
             ).fetchone()
             phase_rows = self._conn.execute(

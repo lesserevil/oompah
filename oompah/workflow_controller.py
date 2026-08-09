@@ -43,7 +43,6 @@ from oompah.workflow_fact_model import (
     WorkflowFacts,
 )
 from oompah.workflow_jobs import (
-    WorkflowJobState,
     WorkflowJobStore,
     WorkflowSnapshotPublication,
 )
@@ -410,28 +409,13 @@ def _graph_problem(facts: WorkflowFacts) -> tuple[str, ...] | None:
 def _stored_retry_exhausted(
     scheduler: WorkflowJobScheduler, decision: WorkDecision
 ) -> bool:
-    """Check exhaustion for the current activation, not historical jobs."""
+    """Check the store's authoritative current exhaustion projection."""
 
-    if not decision.durable_jobs:
-        return False
-    cursor = scheduler.store.schedule_cursor(
-        project_id=decision.project_id, task_id=decision.task_id
-    )
-    if (
-        cursor is None
-        or cursor.decision_revision != scheduler.decision_revision(decision)
-    ):
-        return False
-    current = scheduler.store.list_jobs(
-        project_id=decision.project_id,
-        task_id=decision.task_id,
-        generation=cursor.job_generation,
-        limit=1000,
-    )
-    return any(
-        job.state is WorkflowJobState.EXHAUSTED
-        and job.action in decision.durable_jobs
-        for job in current
+    return bool(
+        scheduler.store.current_exhausted_jobs(
+            project_id=decision.project_id,
+            task_id=decision.task_id,
+        )
     )
 
 
@@ -646,12 +630,9 @@ class UniversalTotalityLivenessController:
                 alert=AlertSeverity.CRITICAL,
             )
 
-        if (
-            (
-                _retry_exhausted(facts, self.max_attempts)
-                or _stored_retry_exhausted(self.scheduler, decision)
-            )
-            and decision.durable_jobs
+        if _stored_retry_exhausted(self.scheduler, decision) or (
+            decision.durable_jobs
+            and _retry_exhausted(facts, self.max_attempts)
         ):
             return _replace(
                 decision,
