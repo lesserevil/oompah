@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-964
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Ignore PR-backed issue comments in GitHub issue intake
 parent: null
@@ -13,7 +13,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-08-09T16:09:40.311061Z'
-updated_at: '2026-08-09T16:09:40.311061Z'
+updated_at: '2026-08-09T16:20:18.654117Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,3 +33,11 @@ GitHub sends issue_comment webhooks for both issues and pull requests. The 2026-
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 16:20
+---
+Project owner promotes the confirmed PR-backed issue_comment intake regression for direct implementation.
+---
+<!-- COMMENTS:END -->
