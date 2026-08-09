@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-08-09T14:59:47.450633Z'
-updated_at: '2026-08-09T14:59:56.711497Z'
+updated_at: '2026-08-09T16:09:54.410365Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,10 @@ Corrected the exact-head review blocker in `b9db677d1c4736a9c976c9a4ae3f8be33a9c
 The parent-scoped resolver now uses a bounded indexed exact source/target landing-fact query, so 1,000 lexically earlier sibling facts cannot hide a valid child proof. Foreign, corrupt, ambiguous, route-mismatched, and revision-stale evidence remains fail closed. The regression crosses the prior 1,000-row boundary.
 
 Validation: 10 focused tests passed; `tests/test_integration_workflow.py` + `tests/test_workflow_jobs.py`: 193 passed; terminal mutation scan and secret scan passed.
+---
+author: oompah
+created: 2026-08-09 16:09
+---
+Duplicate/erroneous-intake evidence: this native Proposed task points to https://github.com/lesserevil/oompah/pull/768 and its title/body are the merged OOMPAH-960 pull request, not a customer GitHub issue. Runtime logs record issue_comment.created deliveries for #768 at 2026-08-09T14:59:41 and 14:59:54; GitHub uses issue_comment for PR conversation as well as issue conversation. Existing main already filters PRs from GitHub issues-list polling and PR-backed issues events, so the uncovered path is PR-backed issue_comment intake. Follow-up bug OOMPAH-964 records the systemic fix and regression requirements. Archiving this task as erroneous imported review metadata; no implementation is due under OOMPAH-963.
 ---
 <!-- COMMENTS:END -->
