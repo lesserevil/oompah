@@ -4267,6 +4267,30 @@ class TerminalTransitionCoordinator:
                 error_code=OverrideRejection.FINGERPRINT_MISMATCH,
             )
 
+        # Preserve the immutable repository authority when this owner action
+        # is capable of proving delivery.  Overrides remain valid for
+        # metadata-only terminal work when no revision can be resolved, but an
+        # unbound override is never reusable as a landing fact.  Reusing the
+        # active audit binding also keeps override and auditor evidence on the
+        # same exact generation.
+        revision_binding: AuditRevisionBinding | None = None
+        try:
+            revision_binding = self._request_revision_binding(
+                store,
+                current_issue,
+                requested_target,
+                project_id,
+                evidence_fingerprint,
+                trigger_identity=authorized_actor,
+            )
+        except Exception:  # noqa: BLE001 - optional delivery provenance
+            logger.debug(
+                "Owner override for %s/%s has no revision-bound delivery provenance",
+                project_id,
+                identifier,
+                exc_info=True,
+            )
+
         # Validation has succeeded and this owner override is now about to
         # acquire terminal authority.  Revoke synchronously, before its first
         # durable mutation, so a concurrent standalone gate cannot publish a
@@ -4303,6 +4327,12 @@ class TerminalTransitionCoordinator:
             authorized_by=authorized_actor,
             reason=reason,
             created_at=now,
+            selected_ref=(
+                revision_binding.selected_ref if revision_binding is not None else None
+            ),
+            selected_sha=(
+                revision_binding.selected_sha if revision_binding is not None else None
+            ),
         )
 
         # Step 4: Persist override record in metadata before status change

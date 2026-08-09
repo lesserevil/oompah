@@ -49,6 +49,7 @@ from oompah.task_transition_service import (
 from oompah.work_decision import WorkDecision, evaluate_task
 from oompah.workflow_contract import READY_TO_INTEGRATE
 from oompah.workflow_fact_model import (
+    FactDomain,
     LandingFact,
     LandingRequest,
     LandingState,
@@ -627,6 +628,31 @@ class IntegrationWorkflowController:
             facts = self.collector.collect(
                 task.identifier, landing_requests=task_requests
             )
+            terminal_value = facts.fact(FactDomain.TERMINAL_AUDIT).value
+            owner_delivery = (
+                terminal_value.get("owner_delivery")
+                if isinstance(terminal_value, Mapping)
+                else None
+            )
+            if (
+                not task_requests
+                and canonicalize_status(task.state) == DONE
+                and isinstance(owner_delivery, Mapping)
+            ):
+                # A direct owner can terminalize an exact accepted generation
+                # before the ordinary integration row reaches ``integrated``.
+                # Resolve that generation through the same include-ready
+                # source/target policy, then recollect: the fact collector
+                # still requires an exact provenance/request tuple match.
+                owner_requests = self.landing_requests_for(
+                    task, include_ready=True
+                )
+                if owner_requests:
+                    task_requests = owner_requests
+                    facts = self.collector.collect(
+                        task.identifier,
+                        landing_requests=task_requests,
+                    )
             evaluated.append(
                 IntegrationTaskDecision(
                     task,

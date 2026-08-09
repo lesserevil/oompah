@@ -122,6 +122,7 @@ from oompah.integration_projection import (
     IntegrationDependencyProjection,
     build_integration_dependency_projections,
 )
+from oompah.owner_delivery_provenance import collect_owner_delivery_provenance
 from oompah.review_capacity import (
     DEFAULT_REVIEW_RESERVATION_TTL_SECONDS,
     ReviewCapacityReservation,
@@ -13408,9 +13409,26 @@ class Orchestrator:
         def terminal_audit(current: Issue) -> dict[str, Any] | None:
             try:
                 document = self._audit_store(current).read(current.identifier)
+                project_id = str(current.project_id or "legacy")
+                get_project = getattr(
+                    getattr(self, "project_store", None), "get", None
+                )
+                project = get_project(project_id) if callable(get_project) else None
+                owner_delivery = collect_owner_delivery_provenance(
+                    current,
+                    document,
+                    project_id=project_id,
+                    project=project,
+                    integration_queue=getattr(self, "integration_queue", None),
+                )
+                owner_fact = (
+                    {"owner_delivery": owner_delivery.to_dict()}
+                    if owner_delivery is not None
+                    else {}
+                )
                 record = AuditorDispatchLane.pending_record(
                     document.pending_chain,
-                    project_id=str(current.project_id or "legacy"),
+                    project_id=project_id,
                     task_id=current.identifier,
                 )
                 if record is not None:
@@ -13433,6 +13451,7 @@ class Orchestrator:
                     if details is None:
                         return {
                             **authority,
+                            **owner_fact,
                             "phase": "queued",
                             "workflow_phase": AuditWorkflowPhase.QUEUED.value,
                             "audit_job_present": False,
@@ -13468,6 +13487,7 @@ class Orchestrator:
                         return {
                             **authority,
                             **exact_job,
+                            **owner_fact,
                             "phase": "queued",
                             "workflow_phase": disposition.phase.value,
                             "action_required": True,
@@ -13481,12 +13501,14 @@ class Orchestrator:
                         return {
                             **authority,
                             **exact_job,
+                            **owner_fact,
                             "phase": "active",
                             "workflow_phase": disposition.phase.value,
                         }
                     return {
                         **authority,
                         **exact_job,
+                        **owner_fact,
                         "phase": "queued",
                         "workflow_phase": disposition.phase.value,
                         "retry_at": (
@@ -13501,6 +13523,12 @@ class Orchestrator:
                 # record has unknown audit state.  Returning ``None`` lets the
                 # fact collector schedule recovery instead of inventing a
                 # queue or inheriting task-wide legacy activity.
+                if owner_delivery is not None:
+                    return {
+                        **owner_fact,
+                        "phase": "completed",
+                        "workflow_phase": "owner_delivery",
+                    }
                 return None
             except Exception as exc:  # noqa: BLE001 - evidence boundary
                 raise RuntimeError(
