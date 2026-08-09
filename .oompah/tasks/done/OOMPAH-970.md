@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:37:32.521266Z'
-updated_at: '2026-08-09T19:59:05.078287Z'
+updated_at: '2026-08-09T19:59:13.120915Z'
 work_branch: OOMPAH-970
 target_branch: null
 review_url: null
@@ -241,5 +241,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 23s
 - Log: OOMPAH-970__20260809T195756Z.jsonl
+---
+author: oompah
+created: 2026-08-09 19:59
+---
+Deterministic detached-heartbeat coverage is merged via PR #777 with the full hosted matrix green; detached-auditor harness portability is tracked separately in OOMPAH-971.
 ---
 <!-- COMMENTS:END -->
