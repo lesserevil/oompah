@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-459
 type: epic
-status: Done
+status: Merged
 priority: 1
 title: Route all terminal-state producers through independent auditing
 parent: null
@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-08-07T17:38:26.417614Z'
+updated_at: '2026-08-09T07:17:11.118218Z'
 work_branch: epic-OOMPAH-459
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/590
@@ -184,6 +184,26 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-07T15:16:34.205350+00:00'
     applied_at: '2026-08-07T15:16:43.902585+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-c849894fba1f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-459
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e0217179809dfdb570b685ac4b2b8fd0bfdd5c35331a2957b363d2d71087f42c
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: The deployed all-enforce workflow projection at merged main d6b3018016bfa2036a010cce7ecec9ac13924a5a
+      reports terminal.immediate_target_landing_proven with recommended_status=Merged
+      and no action-required prerequisite. Project-owner override bypasses the restart-replayed
+      durable queue backlog without weakening the exact landing decision.
+    created_at: '2026-08-09T07:17:07.206087+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -255,6 +275,7 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-07-30T04:16:21.411299+00:00'
     updated_at: '2026-08-07T14:20:03.984974+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-f48fab3abffb
     project_id: proj-14849f1b
@@ -272,6 +293,7 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Merged
     created_at: '2026-07-30T04:16:21.411299+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-8e8577f8905a
     project_id: proj-14849f1b
@@ -329,6 +351,7 @@ oompah.terminal_audit:
     selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     updated_at: '2026-08-07T14:43:37.180074+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-9cce4c37ec04
     project_id: proj-14849f1b
@@ -367,6 +390,7 @@ oompah.terminal_audit:
     selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     updated_at: '2026-08-07T15:03:23.785501+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-d0d4c70ac281
     project_id: proj-14849f1b
@@ -404,6 +428,7 @@ oompah.terminal_audit:
     selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     updated_at: '2026-08-07T15:16:34.205005+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-54b1e92558a0
     project_id: proj-14849f1b
@@ -423,6 +448,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T17:38:24.884665+00:00'
     selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+    source_generation: 1
   - version: 1
     audit_id: audit-78c11c13e933
     project_id: proj-14849f1b
@@ -442,6 +468,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T17:38:24.884665+00:00'
     selected_ref: 95581aca5772d59c8c23d5b7288b92836f1abbf6
     selected_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-3ae4bc120dca
