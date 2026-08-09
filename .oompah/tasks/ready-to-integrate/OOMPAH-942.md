@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:26.152660Z'
-updated_at: '2026-08-09T09:55:11.342172Z'
+updated_at: '2026-08-09T10:04:14.876337Z'
 work_branch: OOMPAH-942
 target_branch: null
 review_url: null
@@ -72,5 +72,10 @@ author: oompah
 created: 2026-08-09 09:55
 ---
 Backfilled trusted terminal-parent heads only from exact route-bound authority; independent review fix binds terminal-audit proof to the parent source branch. Exact head 53799805c; 154 focused tests pass.
+---
+author: oompah
+created: 2026-08-09 10:04
+---
+Second independent review completed before integration. Fixed two additional authority gaps: terminal-audit parent receipts must match the current canonical issue evidence fingerprint, and simultaneous queue/audit/forge exact receipts must agree on one revision before any backfill is persisted. Added stale pre-edit audit and cross-authority conflict regressions. Verification: 156 integration/runtime tests passed; mutation/secret scans and targeted Ruff passed. Exact head dcda220c2.
 ---
 <!-- COMMENTS:END -->
