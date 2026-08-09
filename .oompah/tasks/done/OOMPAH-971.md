@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-971
 type: task
-status: In Review
+status: Done
 priority: null
 title: Make terminal-audit full gates portable to task-private virtualenvs
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:50:52.737789Z'
-updated_at: '2026-08-09T20:14:52.160441Z'
+updated_at: '2026-08-09T20:23:41.647264Z'
 work_branch: OOMPAH-971
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/779
@@ -32,6 +32,81 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/779
 oompah.review_number: '779'
 oompah.target_branch: main
 oompah.review_head: 125d19edd8b6c4e3bb001b675cf77da084ea25a2
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-11f362ee6fd3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-971
+    digest: edc8243811c44553d088cc96cd3076abb4145ebcafe791a69427168b99faa0ea
+  - version: 1
+    audit_id: audit-e1e1e9549d39
+    project_id: proj-14849f1b
+    task_id: OOMPAH-971
+    digest: edc8243811c44553d088cc96cd3076abb4145ebcafe791a69427168b99faa0ea
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-793b46743a90
+    project_id: proj-14849f1b
+    task_id: OOMPAH-971
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: edc8243811c44553d088cc96cd3076abb4145ebcafe791a69427168b99faa0ea
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-09T20:23:37.183012+00:00'
+    selected_ref: 125d19edd8b6c4e3bb001b675cf77da084ea25a2
+    selected_sha: 125d19edd8b6c4e3bb001b675cf77da084ea25a2
+    applied: false
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-11f362ee6fd3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-971
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: edc8243811c44553d088cc96cd3076abb4145ebcafe791a69427168b99faa0ea
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-09T20:23:27.862194+00:00'
+    selected_ref: 125d19edd8b6c4e3bb001b675cf77da084ea25a2
+    selected_sha: 125d19edd8b6c4e3bb001b675cf77da084ea25a2
+  - version: 1
+    audit_id: audit-e1e1e9549d39
+    project_id: proj-14849f1b
+    task_id: OOMPAH-971
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: edc8243811c44553d088cc96cd3076abb4145ebcafe791a69427168b99faa0ea
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-09T20:23:27.862194+00:00'
+    selected_ref: 125d19edd8b6c4e3bb001b675cf77da084ea25a2
+    selected_sha: 125d19edd8b6c4e3bb001b675cf77da084ea25a2
+  attempt_history: []
 ---
 ## Summary
 
@@ -64,5 +139,10 @@ author: oompah
 created: 2026-08-09 20:14
 ---
 Branch quality gate passed for `125d19edd8b6c4e3bb001b675cf77da084ea25a2` using `make test` in 162.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-09 20:23
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
