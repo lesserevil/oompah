@@ -80,13 +80,32 @@ class ProductionReplay:
         assert issue is not None
         return issue
 
+    def facts(self):
+        task = self.task
+        if self.scenario.source_task_id != "OOMPAH-748":
+            return self.collector.collect(
+                self.task_id,
+                landing_requests=self.landing_requests,
+            )
+        orchestrator = Orchestrator.__new__(Orchestrator)
+        orchestrator.tracker = self.native.tracker
+        orchestrator._tracker_for_project = lambda _project_id: self.native.tracker
+        orchestrator.project_store = SimpleNamespace(
+            get=lambda _project_id: SimpleNamespace(
+                default_branch="main",
+                repo_path=self.git.path if self.git is not None else None,
+            )
+        )
+        orchestrator.integration_queue = self.queue
+        orchestrator._workflow_shadow_sources = lambda _task: _external_sources(
+            self.scenario.source_task_id
+        )
+        return orchestrator._collect_universal_workflow_facts(task)
+
     def decision(self):
         return evaluate_task(
             self.task,
-            self.collector.collect(
-                self.task_id,
-                landing_requests=self.landing_requests,
-            ),
+            self.facts(),
             now=NOW,
         )
 
@@ -322,6 +341,32 @@ def test_incident_decision_scheduler_ledger_and_ui_share_one_reason(
     assert len(jobs) == len(expected.durable_jobs)
     assert duplicate.jobs_created == 0
     assert duplicate.jobs_replayed == len(expected.durable_jobs)
+    if scenario.source_task_id == "OOMPAH-748":
+        task = replay.task
+        assert task.parent_id
+        containment = replay.facts().fact(FactDomain.CONTAINMENT)
+        assert containment.value == {
+            "parent_id": task.parent_id,
+            "epic_branch": f"epic-{task.identifier}",
+            "target_branch": f"epic-{task.parent_id}",
+            "children": (),
+            "acyclic": True,
+            "cycle": None,
+        }
+        assert replay.git is not None
+        epic_store = WorkflowJobStore(str(tmp_path / "OOMPAH-748-epic.sqlite3"))
+        epic_batch = EpicWorkflowController(
+            collector=EpicFactCollector(
+                project_id=PROJECT_ID,
+                tracker=replay.native.tracker,
+                default_branch="main",
+                repo_path=replay.git.path,
+                sources=_external_sources(scenario.source_task_id),
+            ),
+            store=epic_store,
+        ).evaluate((task,), persist_evidence=False)
+        assert epic_batch.tasks[0].decision.reason_code == projection["reason_code"]
+        epic_store.close()
     store.close()
     if replay.queue is not None:
         replay.queue.close()
@@ -614,6 +659,65 @@ class _AuditStage:
         return TerminalStageResult(True, audit_id="audit-OOMPAH-748")
 
 
+class _AlreadyRetiredEpicReviewEffects:
+    """Contract-complete auto-close port for the no-open-review incident."""
+
+    def __init__(self):
+        self.apply_calls = 0
+        self.receipts = []
+
+    @staticmethod
+    def _receipt(action, epic, facts):
+        assert action is EpicAction.AUTO_CLOSE
+        containment = facts.fact(FactDomain.CONTAINMENT).value
+        source = containment["epic_branch"]
+        target = containment["target_branch"]
+        landing = next(
+            item
+            for item in facts.landings
+            if item.source == source
+            and item.target == target
+            and item.state is LandingState.LANDED
+        )
+        return {
+            "effect": action.value,
+            "source_branch": source,
+            "target_branch": target,
+            "source_head": landing.revision,
+            "review_retired": True,
+        }
+
+    def inspect_epic_effect(self, action, epic, facts, _payload):
+        return self._receipt(action, epic, facts)
+
+    def apply_epic_effect(
+        self,
+        action,
+        epic,
+        facts,
+        _payload,
+        *,
+        idempotency_key,
+        originating_job,
+        evidence_generation,
+    ):
+        assert idempotency_key
+        assert originating_job
+        assert evidence_generation
+        self.apply_calls += 1
+        receipt = self._receipt(action, epic, facts)
+        self.receipts.append(receipt)
+        return receipt
+
+    def verify_epic_effect(self, action, epic, facts, _payload, receipt):
+        current = self._receipt(action, epic, facts)
+        return (
+            current
+            if all(receipt.get(key) == value for key, value in current.items())
+            else None
+        )
+
+
 def test_nested_done_to_merged_uses_exact_landing_and_terminal_service(tmp_path):
     replay = _prepare(tmp_path, INCIDENTS_BY_ID["OOMPAH-748"])
     store = WorkflowJobStore(str(tmp_path / "nested-jobs.sqlite3"))
@@ -636,11 +740,12 @@ def test_nested_done_to_merged_uses_exact_landing_and_terminal_service(tmp_path)
     assert store.list_jobs()[0].action == EpicAction.AUTO_CLOSE.value
     journal = TransitionJournal(str(tmp_path / "nested-transitions.sqlite3"))
     audit = _AuditStage(replay.native.tracker)
+    effects = _AlreadyRetiredEpicReviewEffects()
     handler = EpicWorkflowHandler(
         ProductionEpicWorkflowBackend(
             controller=controller,
             tracker=replay.native.tracker,
-            effects=SimpleNamespace(),
+            effects=effects,
         )
     )
     service = TaskTransitionService(
@@ -662,6 +767,8 @@ def test_nested_done_to_merged_uses_exact_landing_and_terminal_service(tmp_path)
     assert len(audit.intents) == 1
     assert audit.intents[0].requested_status == MERGED
     assert audit.intents[0].precondition_revision == decision.evidence_revision
+    assert effects.apply_calls == 1
+    assert effects.receipts[0]["source_head"] == replay.git.commits["child-head"]
     assert replay.task.state == IN_VALIDATION
     store.close()
     journal.close()

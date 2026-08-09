@@ -14152,21 +14152,56 @@ class Orchestrator:
             FactDomain.CONFIG: config,
         }
 
+    def _universal_workflow_fact_collector(
+        self,
+        task: Issue,
+        *,
+        tracker: Any | None = None,
+    ) -> WorkflowFactCollector | EpicFactCollector:
+        """Build the canonical project-scoped collector for one task.
+
+        Epic decisions require the resolved epic and target branches carried by
+        :class:`EpicFactCollector`. The generic collector intentionally exposes
+        only parent/child containment, so using it for an epic would make the
+        universal controller disagree with the dedicated epic lane and fail
+        closed on otherwise valid landing evidence.
+        """
+
+        project_id = str(task.project_id or "legacy")
+        scoped_tracker = (
+            tracker
+            if tracker is not None
+            else (
+                self._tracker_for_project(project_id)
+                if task.project_id
+                else self.tracker
+            )
+        )
+        sources = self._workflow_shadow_sources(task)
+        if str(task.issue_type or "").strip().lower() == "epic":
+            project = self.project_store.get(project_id)
+            return EpicFactCollector(
+                project_id=project_id,
+                tracker=scoped_tracker,
+                default_branch=str(
+                    getattr(project, "default_branch", None)
+                    or getattr(project, "branch", None)
+                    or "main"
+                ),
+                repo_path=getattr(project, "repo_path", None) if project else None,
+                sources=sources,
+            )
+        return WorkflowFactCollector(
+            project_id=project_id,
+            tracker=scoped_tracker,
+            sources=sources,
+            integration_queue=self.integration_queue,
+        )
+
     def _collect_universal_workflow_facts(self, task: Issue):
         """Collect one project-scoped snapshot for the enforcing controller."""
 
-        project_id = str(task.project_id or "legacy")
-        tracker = (
-            self._tracker_for_project(project_id)
-            if task.project_id
-            else self.tracker
-        )
-        collector = WorkflowFactCollector(
-            project_id=project_id,
-            tracker=tracker,
-            sources=self._workflow_shadow_sources(task),
-            integration_queue=self.integration_queue,
-        )
+        collector = self._universal_workflow_fact_collector(task)
         return collector.collect(task.identifier)
 
     def _legacy_workflow_projections(
@@ -14518,30 +14553,10 @@ class Orchestrator:
             )
             for project_id, tracker, issue in scan_window:
                 try:
-                    if str(issue.issue_type or "").strip().lower() == "epic":
-                        project = self.project_store.get(project_id)
-                        collector = EpicFactCollector(
-                            project_id=project_id,
-                            tracker=tracker,
-                            default_branch=str(
-                                getattr(project, "default_branch", None)
-                                or getattr(project, "branch", None)
-                                or "main"
-                            ),
-                            repo_path=(
-                                getattr(project, "repo_path", None)
-                                if project
-                                else None
-                            ),
-                            sources=self._workflow_shadow_sources(issue),
-                        )
-                    else:
-                        collector = WorkflowFactCollector(
-                            project_id=project_id,
-                            tracker=tracker,
-                            sources=self._workflow_shadow_sources(issue),
-                            integration_queue=self.integration_queue,
-                        )
+                    collector = self._universal_workflow_fact_collector(
+                        issue,
+                        tracker=tracker,
+                    )
                     facts = collector.collect(issue.identifier)
                     evaluate_kwargs: dict[str, Any] = {
                         "snapshot_generation": generation
@@ -28920,6 +28935,8 @@ class Orchestrator:
         target_branch: str,
         live_reviews: list[Any] | None = None,
         authority: StandaloneDeliveryAuthority | None = None,
+        authority_generation: str | None = None,
+        head_sha: str | None = None,
     ) -> ReviewCapacityReservation | None:
         """Fetch authoritative forge state and atomically reserve one slot."""
         if live_reviews is None:
@@ -28940,9 +28957,15 @@ class Orchestrator:
             open_review_ids=self._open_review_ids(live_reviews),
             reservation_id=str(uuid.uuid4()),
             authority_generation=(
-                authority.generation if authority is not None else None
+                authority.generation
+                if authority is not None
+                else str(authority_generation or "").strip() or None
             ),
-            head_sha=(authority.head_sha if authority is not None else None),
+            head_sha=(
+                authority.head_sha
+                if authority is not None
+                else str(head_sha or "").strip().lower() or None
+            ),
         )
         if reservation is not None and not reservation.acquired_new:
             same_delivery = (
@@ -28951,16 +28974,24 @@ class Orchestrator:
                 and reservation.source_branch == source_branch
                 and reservation.target_branch == target_branch
             )
-            exact_standalone_head = authority is None or (
-                reservation.project_id == authority.project_id
-                and reservation.task_id == authority.task_id
-                and reservation.source_branch == authority.branch
-                and reservation.target_branch == authority.target_branch
-                and str(reservation.head_sha or "").strip().lower()
-                == str(authority.head_sha or "").strip().lower()
-                and bool(str(authority.head_sha or "").strip())
+            expected_head = str(
+                authority.head_sha if authority is not None else head_sha or ""
+            ).strip().lower()
+            expected_generation = str(
+                authority.generation
+                if authority is not None
+                else authority_generation or ""
+            ).strip()
+            exact_delivery = bool(
+                not expected_head
+                or str(reservation.head_sha or "").strip().lower()
+                == expected_head
+            ) and bool(
+                not expected_generation
+                or str(reservation.authority_generation or "").strip()
+                == expected_generation
             )
-            if same_delivery and exact_standalone_head:
+            if same_delivery and exact_delivery:
                 # A concurrent sweep, or a restarted sweep for the same exact
                 # accepted head, already owns the durable gap between capacity
                 # inspection and review creation.  Return that observation so
@@ -37040,6 +37071,14 @@ class Orchestrator:
                             source_branch=epic_branch,
                             target_branch=target_branch,
                             review_id=getattr(existing_review, "id", None),
+                            authority_generation=issue_authority_version(issue),
+                            head_sha=(
+                                str(expected_source_head or "").strip().lower()
+                                or str(
+                                    getattr(existing_review, "head_sha", "") or ""
+                                ).strip().lower()
+                                or None
+                            ),
                             authoritative=True,
                         )
                     ):
@@ -37174,6 +37213,12 @@ class Orchestrator:
                 task_id=issue.identifier,
                 source_branch=epic_branch,
                 target_branch=target_branch,
+                authority_generation=issue_authority_version(issue),
+                head_sha=(
+                    str(expected_source_head or "").strip().lower()
+                    or str(issue_exact_head(issue) or "").strip().lower()
+                    or None
+                ),
             )
             if reservation is None:
                 n_open, limit, _ = self._project_review_capacity(project_id)
