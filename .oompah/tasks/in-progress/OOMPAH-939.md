@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T08:54:39.101794Z'
-updated_at: '2026-08-09T09:03:37.656565Z'
+updated_at: '2026-08-09T09:03:45.623921Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,24 @@ author: oompah
 created: 2026-08-09 09:03
 ---
 Direct-owner fix is committed and pushed at 2bac503b1 on protected-main PR 751. The runtime now reports cap saturation and the production orchestrator posts one coalesced, shutdown-fenced continuation; future-due/ineligible rows do not rearm. Verification: 109 adjacent tests passed plus targeted lint/diff checks. Hosted complete gates are starting.
+---
+author: oompah
+created: 2026-08-09 09:03
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-939`
+Target: `main`
+Head: `unknown`
+Command: `make test`
+Result: `infrastructure_error`
+Process: ended without subprocess exit evidence
+
+Infrastructure action required: repair or replace the operator-owned quality-gate runtime. No candidate CI-fix status was applied because the candidate command did not run.
+
+Output tail:
+```text
+Candidate CI was not run because the submitted review branch tip is unavailable in the managed repository.
+```
 ---
 <!-- COMMENTS:END -->
