@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T08:54:39.101794Z'
-updated_at: '2026-08-09T11:11:08.963728Z'
+updated_at: '2026-08-09T11:11:19.578930Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -215,13 +215,13 @@ oompah.terminal_audit:
     selected_sha: b1fc26aa98edc4fdd53c2315906af7321d48a1eb
     candidate_rotation_count: 2
 oompah.task_costs:
-  total_input_tokens: 340
-  total_output_tokens: 12965
+  total_input_tokens: 654
+  total_output_tokens: 23649
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 340
-      output_tokens: 12965
+      input_tokens: 654
+      output_tokens: 23649
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -236,6 +236,12 @@ oompah.task_costs:
     output_tokens: 12834
     cost_usd: 0.0
     recorded_at: '2026-08-09T10:37:11.522940+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 314
+    output_tokens: 10684
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T11:11:14.086278+00:00'
 ---
 ## Summary
 
@@ -359,5 +365,15 @@ Safe evidence:
 - test_results: 18894_passed_7_failed_8_batch_continuation_tests_all_passed
 - implementation: runtime_batch_saturated_at_workflow_runtime_3087_orchestrator_refresh_requested_event_shutdown_fenced
 - acceptance_criteria: no_starvation_bounded_coalesced_non_recursive_fairness_preserved
+---
+author: oompah
+created: 2026-08-09 11:11
+---
+Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 81, Tool calls: 38
+- Tokens: 314 in / 10.7K out [11.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 25m 53s
+- Log: OOMPAH-939__20260809T104529Z.jsonl
 ---
 <!-- COMMENTS:END -->
