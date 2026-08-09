@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:02.492322Z'
-updated_at: '2026-08-04T16:48:16.452095Z'
+updated_at: '2026-08-09T20:13:39.999254Z'
 work_branch: epic-OOMPAH-766
 target_branch: null
 review_url: null
@@ -59,6 +59,28 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-04T15:51:10.536975+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Project owner confirms OOMPAH-783 is a completed historical/provenance-only
+      legacy record; this is not a landing claim.
+    marked_at: '2026-08-09T20:13:38.287458+00:00'
+    updated_at: '2026-08-09T20:13:38.287458+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Project owner confirms OOMPAH-783 is a completed historical/provenance-only
+        legacy record; this is not a landing claim.
+      recorded_at: '2026-08-09T20:13:38.287458+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []

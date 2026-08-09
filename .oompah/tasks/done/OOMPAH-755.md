@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-04T11:04:47.253891Z'
-updated_at: '2026-08-04T11:27:18.732775Z'
+updated_at: '2026-08-09T20:13:32.157033Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: null
@@ -57,6 +57,28 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T11:26:32.996336+00:00'
     applied_at: '2026-08-04T11:26:42.043034+00:00'
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Project owner confirms OOMPAH-755 is a completed historical/provenance-only
+      legacy record; this is not a landing claim.
+    marked_at: '2026-08-09T20:13:30.701223+00:00'
+    updated_at: '2026-08-09T20:13:30.701223+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Project owner confirms OOMPAH-755 is a completed historical/provenance-only
+        legacy record; this is not a landing claim.
+      recorded_at: '2026-08-09T20:13:30.701223+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -76,6 +98,7 @@ oompah.terminal_audit:
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-04T11:10:33.553014+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-4d23d9e26034
     project_id: proj-14849f1b
@@ -110,6 +133,7 @@ oompah.terminal_audit:
     previous_state: Open
     created_at: '2026-08-04T11:15:56.050934+00:00'
     updated_at: '2026-08-04T11:26:32.996133+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-0b39ae84a239
