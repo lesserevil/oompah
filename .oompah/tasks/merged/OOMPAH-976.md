@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-976
 type: task
-status: In Review
+status: Merged
 priority: null
 title: Serialize native validation authority withdrawal with supervisor terminal claims
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T22:15:32.098347Z'
-updated_at: '2026-08-09T23:04:15.780702Z'
+updated_at: '2026-08-09T23:04:21.034417Z'
 work_branch: OOMPAH-976
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/785
