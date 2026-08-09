@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T14:35:21.482578Z'
-updated_at: '2026-08-09T16:06:47.301310Z'
+updated_at: '2026-08-09T16:21:25.252308Z'
 work_branch: OOMPAH-962
 target_branch: null
 review_url: null
@@ -153,5 +153,10 @@ author: oompah
 created: 2026-08-09 16:03
 ---
 Corrected quarantine recovery head 8bea28656286d06fd254e8d6a39592ade981939f passed independent no-blocker re-review, 334 focused tests, and 20 repeated async runs. Hosted 3.11/3.13 passed; 3.12 failed only the unrelated durable heartbeat test race independently reproduced on OOMPAH-961 and fixed by OOMPAH-957 PR #772. Keep implementation closed; rebase onto the shared test repair and rerun exact hosted gates.
+---
+author: oompah
+created: 2026-08-09 16:21
+---
+Refreshed exact branch head ee690e89147851558b23273a26a068f23bd705f3 onto main 890070ab7411b4a7874013ffdea3bf4fa227c86f containing OOMPAH-957 and OOMPAH-959. Composition auto-merged cleanly; 820 affected/composed tests passed, along with diff, undefined-name lint, terminal-audit, and secret scans. Hosted PR #770 run 31323480242 is now qualifying this exact head on Python 3.11/3.12/3.13.
 ---
 <!-- COMMENTS:END -->
