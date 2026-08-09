@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T09:56:00.569098Z'
-updated_at: '2026-08-09T11:38:43.850197Z'
+updated_at: '2026-08-09T11:38:55.612992Z'
 work_branch: OOMPAH-948
 target_branch: null
 review_url: null
@@ -25,9 +25,9 @@ oompah.integration:
   attempts: 0
   mode: standalone
   task_branch: OOMPAH-948
-  head_sha: 08701a1925d1a6f2a3daf872f22ddda46357540e
-  submitted_at: '2026-08-09T10:43:15.307424+00:00'
-  updated_at: '2026-08-09T10:43:15.307424+00:00'
+  head_sha: a557d6de3384308a1ae18dd41fec5d12bfb8328a
+  submitted_at: '2026-08-09T11:38:46.399397+00:00'
+  updated_at: '2026-08-09T11:38:46.399397+00:00'
 oompah.work_branch: OOMPAH-948
 ---
 ## Summary
@@ -132,5 +132,10 @@ author: oompah
 created: 2026-08-09 11:38
 ---
 Complete-gate repair pushed at a557d6de3. Exact cause: the new durable maintenance-cursor transaction correctly uses Orchestrator._state_io_lock; terminal-audit durable-finalization and workspace-recovery partial harnesses construct via __new__ and omitted that production invariant. No cleanup state leak or terminal-audit runtime interaction occurred. Added the missing RLock to both partial harnesses. Verification: 55/55 exact previously failing module tests and 866/866 combined cleanup/config/tracker/project/storage plus terminal-audit tests passed; git diff --check passed. A coordinated full gate is intentionally left to Oompah because other urgent full gates are already running.
+---
+author: oompah
+created: 2026-08-09 11:38
+---
+Fixed complete-gate fixture regression at a557d6de3; 866 focused tests pass
 ---
 <!-- COMMENTS:END -->
