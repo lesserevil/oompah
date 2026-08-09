@@ -11,13 +11,23 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:17:05.346841Z'
-updated_at: '2026-08-09T11:36:59.227372Z'
-work_branch: null
+updated_at: '2026-08-09T11:37:12.717761Z'
+work_branch: OOMPAH-953
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-953
+  head_sha: 20ab5659fd0a2bc67c5d31577f3a9e969eb1df7c
+  submitted_at: '2026-08-09T11:37:01.843657+00:00'
+  updated_at: '2026-08-09T11:37:01.843657+00:00'
+oompah.work_branch: OOMPAH-953
 ---
 ## Summary
 
@@ -40,5 +50,10 @@ author: oompah
 created: 2026-08-09 11:36
 ---
 Independent review found no blockers. Reviewed commit 20ab5659fd0a2bc67c5d31577f3a9e969eb1df7c is pushed on origin/OOMPAH-953. Focused validation: 776 quality-gate/standalone/validation-lease tests and 175 integration-workflow/worker/delivery-recovery tests passed; terminal task-status mutation scan and secret scan passed.
+---
+author: oompah
+created: 2026-08-09 11:37
+---
+Separated hot quality-gate cancellation polling from full tracker/dependency/remote revalidation, retained exact external-effect barriers, and added deterministic bounded-I/O and prompt-revocation coverage.
 ---
 <!-- COMMENTS:END -->
