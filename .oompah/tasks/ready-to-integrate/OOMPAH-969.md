@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-969
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Preserve fast workflow admission under continuous ordinary events
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:25:38.748132Z'
-updated_at: '2026-08-09T19:58:08.775377Z'
+updated_at: '2026-08-09T20:01:25.252978Z'
 work_branch: OOMPAH-969
 target_branch: null
 review_url: null
