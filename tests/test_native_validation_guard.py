@@ -3136,26 +3136,81 @@ def test_orphan_boundary_cannot_authorize_later_same_command_item(
         assert not broker._boundaries
         assert not broker._boundary_items
         assert not broker._bound_item_ids
+        assert not broker._boundary_liveness
+        assert not broker._seen_boundary_groups
 
-    def fresh_exit_observed() -> bool:
+
+def test_consumed_heavy_boundary_retains_delayed_completion_correlation(
+    tmp_path: Path,
+) -> None:
+    """Receipt expiry cannot strand a consumed heavy validation run."""
+
+    broker, _ = _test_native_broker(tmp_path, task_id="DELAYED-COMPLETION")
+    lifecycle: list[dict[str, object]] = []
+    broker.validation_command_handler = lambda **values: lifecycle.append(values)
+    group = "456:789"
+    item_id = "item-456"
+    command = "make test"
+    command_identity = "a" * 64
+    broker._start_validation_lifecycle(
+        group,
+        command=command,
+        command_identity=command_identity,
+        classification=ValidationCommandClassification(True, "full"),
+        invocation_id="delayed-completion",
+    )
+    try:
         with broker._boundary_lock:
-            return bool(broker._boundary_liveness) and all(
-                record.observed_exit_at is not None
-                for record in broker._boundary_liveness.values()
+            broker._seen_boundary_groups.add(group)
+            broker._boundary_liveness[group] = guard_module._NativeBoundaryLiveness(
+                pid=os.getpid(),
+                start_ticks=-1,
+                command_identity=command_identity,
+                observed_exit_at=(
+                    time.monotonic()
+                    - guard_module._BOUNDARY_HANDOFF_GRACE_SECONDS
+                    + 0.1
+                ),
             )
+            broker._boundaries.append((time.monotonic(), group, command_identity))
 
-    _wait_until(fresh_exit_observed)
-    with broker._boundary_lock:
-        for record in broker._boundary_liveness.values():
+        # Consume immediately before the post-exit authorization grace closes.
+        assert broker.consume_recent_boundary(command_identity, item_id) is True
+        with broker._boundary_lock:
+            record = broker._boundary_liveness[group]
             record.observed_exit_at = (
                 time.monotonic()
                 - guard_module._BOUNDARY_HANDOFF_GRACE_SECONDS
                 - 1.0
             )
-    broker._refresh_boundary_liveness()
-    with broker._boundary_lock:
-        assert not broker._boundary_liveness
-        assert not broker._seen_boundary_groups
+
+        # The consumed receipt no longer authorizes anything, but the active
+        # item's completion correlation must remain after receipt expiry.
+        broker._refresh_boundary_liveness()
+        with broker._boundary_lock:
+            assert not broker._boundaries
+            assert broker._boundary_items == {group: item_id}
+            assert broker._bound_item_ids == {item_id}
+            assert group in broker._boundary_liveness
+            assert group in broker._seen_boundary_groups
+            assert group in broker._validation_runs
+
+        assert broker.complete_validation_item(
+            command_identity,
+            item_id,
+            succeeded=True,
+            outcome="passed",
+        ) is True
+        assert [entry["phase"] for entry in lifecycle] == ["started", "completed"]
+        assert lifecycle[-1]["outcome"] == "passed"
+        with broker._boundary_lock:
+            assert group not in broker._validation_runs
+            assert group not in broker._boundary_items
+            assert item_id not in broker._bound_item_ids
+            assert group not in broker._boundary_liveness
+            assert group not in broker._seen_boundary_groups
+    finally:
+        broker.stop()
 
 
 def test_dead_orphan_boundary_storage_is_actively_bounded(tmp_path: Path) -> None:

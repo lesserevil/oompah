@@ -2030,7 +2030,7 @@ class _NativeValidationLeaseBroker:
             if self._validation_runs.get(boundary_group) is not run:
                 return None
             self._validation_runs.pop(boundary_group, None)
-            self._retire_boundary_receipt_locked(boundary_group)
+            self._retire_boundary_group_locked(boundary_group)
 
         def publish_terminal() -> bool:
             # Publication is deliberately outside the ACK boundary. The
@@ -2091,7 +2091,7 @@ class _NativeValidationLeaseBroker:
             with self._boundary_lock:
                 if self._validation_runs.get(boundary_group) is run:
                     self._validation_runs.pop(boundary_group, None)
-                    self._retire_boundary_receipt_locked(boundary_group)
+                    self._retire_boundary_group_locked(boundary_group)
             with run.state_lock:
                 run.terminal_publication_state = "published"
 
@@ -2186,7 +2186,7 @@ class _NativeValidationLeaseBroker:
             run = self._validation_runs.get(boundary_group)
         if run is None:
             with self._boundary_lock:
-                self._retire_boundary_receipt_locked(boundary_group)
+                self._retire_boundary_group_locked(boundary_group)
             return True
         with run.state_lock:
             if run.terminal_outcome:
@@ -2402,21 +2402,26 @@ class _NativeValidationLeaseBroker:
         )
 
     def _retire_boundary_receipt_locked(self, boundary_group: str) -> None:
-        """Make one receipt unconsumable and release its item indexes."""
+        """Make one authorization receipt unconsumable."""
 
-        item_id = self._boundary_items.pop(boundary_group, None)
-        if item_id is not None:
-            self._bound_item_ids.discard(item_id)
         self._boundaries = deque(
             boundary
             for boundary in self._boundaries
             if boundary[1] != boundary_group
         )
 
+    def _retire_boundary_correlation_locked(self, boundary_group: str) -> None:
+        """Release the item indexes retained after receipt consumption."""
+
+        item_id = self._boundary_items.pop(boundary_group, None)
+        if item_id is not None:
+            self._bound_item_ids.discard(item_id)
+
     def _retire_boundary_group_locked(self, boundary_group: str) -> None:
         """Drop every replay, liveness, and process-fence index for a group."""
 
         self._retire_boundary_receipt_locked(boundary_group)
+        self._retire_boundary_correlation_locked(boundary_group)
         self._boundary_liveness.pop(boundary_group, None)
         self._seen_boundary_groups.discard(boundary_group)
 
@@ -2441,7 +2446,15 @@ class _NativeValidationLeaseBroker:
                     observed_at - record.observed_exit_at
                     > _BOUNDARY_HANDOFF_GRACE_SECONDS
                 ):
-                    self._retire_boundary_group_locked(boundary_group)
+                    # Expiry revokes only an unconsumed authorization receipt.
+                    # Once an item has consumed the receipt, its mapping no
+                    # longer authorizes any work; it is completion correlation
+                    # for the active item/run and must survive until terminal
+                    # item handling retires the complete group.
+                    if boundary_group in self._boundary_items:
+                        self._retire_boundary_receipt_locked(boundary_group)
+                    else:
+                        self._retire_boundary_group_locked(boundary_group)
 
     def consume_recent_boundary(
         self,
