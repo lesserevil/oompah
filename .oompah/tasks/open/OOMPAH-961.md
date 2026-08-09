@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:20:19.752110Z'
-updated_at: '2026-08-09T15:20:15.707693Z'
+updated_at: '2026-08-09T15:21:36.608571Z'
 work_branch: OOMPAH-961
 target_branch: null
 review_url: null
@@ -68,5 +68,10 @@ author: oompah
 created: 2026-08-09 15:20
 ---
 Addressed exact-head review blocker: the read predicate now accepts only terminal_audit_handoff NULL proofs that name a real exact terminal-audit job, or managed/lifecycle proofs whose exact cursor/final revision and snapshot publication relationships hold. Write paths reject kind/job-cut mismatches, missing proof relationships, and non-final lifecycle statuses such as Open; runtime excludes terminal maintenance identities from lifecycle-final retirement. Added corruption regressions for unknown kinds, blank/missing revisions, illegal NULL/published generation shapes, wrong managed revision, forged lifecycle-final:Open, active membership, and kind/cut mismatch. Affected suite passes: 402 tests; terminal mutation and secret scans pass. Preparing amended pushed head.
+---
+author: oompah
+created: 2026-08-09 15:21
+---
+Exact corrected head 5f2814dccf069fa8a65d74421a05621fdb31e6eb is pushed and PR #769 now targets it. 402 affected tests plus terminal mutation and secret scans pass; hosted CI is queued/running on the new head.
 ---
 <!-- COMMENTS:END -->
