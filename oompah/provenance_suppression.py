@@ -366,9 +366,9 @@ def read_provenance_suppression(
     fail-closed for status mutation and surface an operator alert.
     """
 
-    raw = document.unknown_fields.get(PROVENANCE_SUPPRESSION_KEY)
-    if raw is None:
+    if PROVENANCE_SUPPRESSION_KEY not in document.unknown_fields:
         return None
+    raw = document.unknown_fields[PROVENANCE_SUPPRESSION_KEY]
     return ProvenanceSuppression.from_dict(raw)
 
 

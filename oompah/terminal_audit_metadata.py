@@ -335,9 +335,10 @@ class TerminalAuditMetadataStore:
     append_audit_attempt = append_attempt
 
     def _read_unlocked(self, identifier: str) -> TerminalAuditMetadata:
-        raw = (self._tracker.get_metadata(identifier) or {}).get(METADATA_KEY)
-        if raw is None:
+        metadata = self._tracker.get_metadata(identifier) or {}
+        if not isinstance(metadata, Mapping) or METADATA_KEY not in metadata:
             return TerminalAuditMetadata.empty()
+        raw = metadata[METADATA_KEY]
         try:
             return TerminalAuditMetadata.from_dict(raw)
         except (TypeError, ValueError, TerminalAuditMetadataError):

@@ -258,6 +258,34 @@ def test_workflow_terminal_audit_fact_projects_malformed_marker_fail_closed(
     }
 
 
+@pytest.mark.parametrize("marker", [None, "invalid", [], True])
+def test_workflow_terminal_audit_fact_projects_non_mapping_marker_fail_closed(
+    tmp_path, marker: object
+):
+    tracker = _MetadataTracker()
+    issue = _issue("TASK-967", state="Done")
+    tracker.issue_details[issue.identifier] = issue
+    _seed_suppression(tracker, issue.identifier)
+    tracker._metadata[issue.identifier][METADATA_KEY][  # noqa: SLF001
+        PROVENANCE_SUPPRESSION_KEY
+    ] = marker
+    orch = _make_orchestrator(tmp_path, tracker)
+
+    source = orch._workflow_shadow_sources(issue)[FactDomain.TERMINAL_AUDIT]
+    fact = source(issue)
+
+    assert fact == {
+        "terminal_provenance": {
+            "schema_version": 1,
+            "project_id": "proj-1",
+            "task_id": issue.identifier,
+            "retained": False,
+            "malformed": True,
+            "authority_generation": 0,
+        }
+    }
+
+
 # ---------------------------------------------------------------------------
 # Contract 1: watchdog ticks cannot reopen a provenance-only record
 # ---------------------------------------------------------------------------

@@ -335,6 +335,27 @@ class TestSuppressionStatus:
         assert status.suppressed is True
         assert "malformed" in status.malformed_reason.lower() or "version" in status.malformed_reason.lower()
 
+    @pytest.mark.parametrize("marker", [None, "invalid", [], True])
+    def test_present_non_mapping_marker_reports_fail_closed(
+        self, marker: object
+    ) -> None:
+        tracker = _MemoryTracker(
+            {
+                METADATA_KEY: {
+                    "version": 1,
+                    "pending_chain": [],
+                    "attempt_history": [],
+                    PROVENANCE_SUPPRESSION_KEY: marker,
+                }
+            }
+        )
+
+        status = load_provenance_suppression_status(_store(tracker), "TASK-1")
+
+        assert status.suppressed is True
+        assert status.malformed is True
+        assert status.marker is None
+
     def test_quarantined_metadata_is_treated_as_suppressed(self) -> None:
         """A quarantined envelope must not silently permit a reopen."""
 

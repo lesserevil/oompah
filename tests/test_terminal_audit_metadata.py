@@ -287,6 +287,16 @@ class TestTerminalAuditMetadataContract:
         with pytest.raises(TerminalAuditMetadataQuarantinedError):
             repository.append_attempt("TASK-1", _attempt())
 
+    def test_present_null_document_is_quarantined(self) -> None:
+        tracker = _MemoryTracker({METADATA_KEY: None})
+        repository = TerminalAuditMetadataStore(tracker, _LockStore(), "proj-1")
+
+        document = repository.read("TASK-1")
+
+        assert document.is_quarantined
+        assert tracker.metadata[METADATA_KEY]["quarantine"]["fingerprint"]
+        assert tracker.set_calls == 1
+
     @pytest.mark.parametrize("version", [True, 1.0])
     def test_quarantine_rejects_non_integer_version(self, version: object) -> None:
         with pytest.raises(
