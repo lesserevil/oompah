@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:46.122749Z'
-updated_at: '2026-08-09T09:14:51.565190Z'
+updated_at: '2026-08-09T09:25:45.862391Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-08-09 09:11
 ---
 Accepted for direct-owner completion as part of the live legacy Done-backlog convergence program.
+---
+author: oompah
+created: 2026-08-09 09:25
+---
+Implemented the two reproduced authority splits in the isolated OOMPAH-945 worktree. Terminal API ownership refresh now restores the canonical native-tracker project scope and rejects explicit cross-project refreshes before staging. Done-epic decisions and lifecycle guards now share one containment-derived immediate-target landing selector, so child landings cannot falsely authorize epic auto-close when task branch metadata is absent. Focused decision/API/runtime/epic/integration/transition/audit coverage is green: 826 passed. Terminal mutation scan and secret scan pass; preparing the exact commit for publication.
 ---
 <!-- COMMENTS:END -->
