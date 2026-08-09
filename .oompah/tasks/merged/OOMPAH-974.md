@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T23:54:52.537649Z'
+updated_at: '2026-08-09T23:55:00.140096Z'
 work_branch: OOMPAH-974
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/783
@@ -63,6 +63,17 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-08-09T22:11:47.822373+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-974
+    target_state: Merged
+    evidence_fingerprint: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
+    audit_ids:
+    - audit-d565b6a25f30
+    - audit-e005f71194c1
+    - audit-7dcdc0452acb
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T23:54:58.656005+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-974
@@ -123,7 +134,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T23:54:48.414563+00:00'
     selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
     selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
-    applied: false
+    applied: true
   oompah.terminal_provenance_suppression:
     version: 1
     suppressed: false
@@ -226,7 +237,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-974
     target_state: Merged
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -256,7 +267,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T23:45:42.374145+00:00'
     selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
     selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
-    updated_at: '2026-08-09T23:47:58.428326+00:00'
+    updated_at: '2026-08-09T23:54:58.655964+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-64bedb0842a2
@@ -441,5 +452,12 @@ author: oompah
 created: 2026-08-09 23:48
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 23:54
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Protected combined PR #787 merged exact OOMPAH-974 head 0006c430f566da7138f2958ed948e15d371cdf6d into main as eb3ca86e56dbe87a078d81f97cfa6054b94a5ee6. Protected Python 3.11/3.12/3.13 gates passed; independent exact-head reviews and focused liveness/race suites passed. The restored auditor was obsolete because it bound 8526a01bfb741eb58c267e7f4b649b75f8bdc882 rather than the delivered head.
 ---
 <!-- COMMENTS:END -->
