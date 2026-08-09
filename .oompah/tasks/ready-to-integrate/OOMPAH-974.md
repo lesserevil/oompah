@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T23:27:01.058675Z'
+updated_at: '2026-08-09T23:43:16.925668Z'
 work_branch: OOMPAH-974
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/783
@@ -348,5 +348,10 @@ author: oompah
 created: 2026-08-09 23:27
 ---
 Protected Python 3.11 exposed one real ordering defect in the final liveness revision: off-loop canonical project resolution yielded before the terminal dispatch fence was installed, violating the existing fence-before-first-await serialization invariant. Fixed at exact head 0006c430f566da7138f2958ed948e15d371cdf6d by installing the fence synchronously before control-executor lookup and rolling it back on every pre-staging project/validation/actor rejection. The hosted failure now passes repeatedly locally; 418 focused dispatch/terminal/owner tests and terminal mutation scan 20/20 pass. Protected PR #784 gates are rerunning and independent delta review is active.
+---
+author: oompah
+created: 2026-08-09 23:43
+---
+Additional live confirmation on pre-final build 25154c8: the 900s dispatch-stale watchdog requested restart at 23:33:42, closed the listener, then the process remained alive waiting for background tasks, leaving port 8090 unavailable. Exact PID 2697536 was still identity-owned with no running agents; supported make force-restart boundedly cut over to PID 2951307 at exact main 344c420d0, and /healthz plus make status are green. This is the same lifecycle/background-I/O liveness defect owned by OOMPAH-974, not a new task; final head 0006c430f moves those paths off-loop and has independent exact review.
 ---
 <!-- COMMENTS:END -->
