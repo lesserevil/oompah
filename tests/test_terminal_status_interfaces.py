@@ -891,10 +891,105 @@ async def test_terminal_stage_refreshes_issue_inside_task_ownership_lock():
     assert error is None
     assert payload is not None
     assert coordinator.overrides[0]["current_issue"] is authoritative
+    assert authoritative.project_id == "proj-1"
     expected_fingerprint = server_module._terminal_evidence_fingerprint(
         authoritative, "proj-1"
     )
     assert coordinator.overrides[0]["evidence_fingerprint"] == expected_fingerprint
+
+
+@pytest.mark.asyncio
+async def test_terminal_stage_rejects_refreshed_issue_from_another_project():
+    stale = Issue(
+        "task-wrong-project",
+        "task-wrong-project",
+        "Task",
+        description="work",
+        state="Done",
+    )
+    authoritative = Issue(
+        "task-wrong-project",
+        "task-wrong-project",
+        "Task",
+        description="work",
+        state="Done",
+        project_id="proj-other",
+    )
+    orch, tracker, coordinator = _orchestrator(stale)
+    tracker.fetch_issue_detail = lambda identifier: authoritative
+    orch.issue_transition_lock = lambda _issue_id: asyncio.Lock()
+
+    payload, error = await server_module._stage_terminal_transition(
+        orch=orch,
+        tracker=tracker,
+        project_id="proj-1",
+        issue=stale,
+        target=TargetState.MERGED,
+        body={},
+    )
+
+    assert payload is None
+    assert error == (
+        "The terminal transition could not be staged. Retry the request or ask "
+        "a project owner to review it.",
+        503,
+    )
+    assert coordinator.requests == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "refreshed_project_id",
+    ("proj-1", None),
+    ids=("same-project", "native-projectless"),
+)
+async def test_terminal_stage_rejects_refreshed_different_task_identity(
+    refreshed_project_id,
+):
+    stale = Issue(
+        "task-requested",
+        "task-requested",
+        "Task",
+        description="work",
+        state="Done",
+    )
+    wrong_task = Issue(
+        "task-requested",
+        "task-substituted",
+        "Different task",
+        description="unrelated work",
+        state="Done",
+        project_id=refreshed_project_id,
+    )
+    orch, tracker, coordinator = _orchestrator(stale)
+    tracker.fetch_issue_detail = lambda identifier: wrong_task
+    locked_ids = []
+
+    def issue_lock(issue_id):
+        locked_ids.append(issue_id)
+        return asyncio.Lock()
+
+    orch.issue_transition_lock = issue_lock
+
+    payload, error = await server_module._stage_terminal_transition(
+        orch=orch,
+        tracker=tracker,
+        project_id="proj-1",
+        issue=stale,
+        target=TargetState.MERGED,
+        body={},
+    )
+
+    assert payload is None
+    assert error == (
+        "The terminal transition could not be staged. Retry the request or ask "
+        "a project owner to review it.",
+        503,
+    )
+    assert locked_ids == [stale.id]
+    assert wrong_task.project_id == refreshed_project_id
+    assert stale.id not in orch.state.completed
+    assert coordinator.requests == []
 
 
 @pytest.mark.asyncio

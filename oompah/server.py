@@ -7672,6 +7672,7 @@ async def _stage_terminal_transition(
     # successful staged transition makes terminal-audit ownership authoritative;
     # a later explicit reopen clears the marker through the existing API path.
     issue_id = str(getattr(issue, "id", "") or "")
+    issue_identifier = str(getattr(issue, "identifier", "") or "").strip()
     completed = getattr(getattr(orch, "state", None), "completed", None)
     was_completed = bool(
         issue_id and completed is not None and issue_id in completed
@@ -7712,6 +7713,35 @@ async def _stage_terminal_transition(
                     )
                 else:
                     if refreshed is not None:
+                        refreshed_issue_id = str(
+                            getattr(refreshed, "id", "") or ""
+                        )
+                        refreshed_identifier = str(
+                            getattr(refreshed, "identifier", "") or ""
+                        ).strip()
+                        if (
+                            refreshed_issue_id != issue_id
+                            or refreshed_identifier != issue_identifier
+                        ):
+                            raise ProjectError(
+                                "Refreshed terminal-transition issue changed task "
+                                "identity under the ownership lock"
+                            )
+                        refreshed_project_id = str(
+                            getattr(refreshed, "project_id", None) or ""
+                        ).strip()
+                        if refreshed_project_id and refreshed_project_id != project_id:
+                            raise ProjectError(
+                                "Refreshed terminal-transition issue escaped its "
+                                "canonical managed project"
+                            )
+                        # Native Markdown records are already scoped by their
+                        # project tracker and intentionally omit this redundant
+                        # field.  Reattach the canonical API scope after the
+                        # ownership-lock refresh; otherwise downstream lifecycle
+                        # validation cannot resolve a parent through
+                        # ``_tracker_for_issue`` and falsely reports it missing.
+                        refreshed.project_id = project_id
                         locked_issue = refreshed
             locked_owner_claim = orch._owner_claim_for_issue(
                 locked_issue.id,

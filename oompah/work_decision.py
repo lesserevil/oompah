@@ -46,6 +46,7 @@ from oompah.workflow_contract import (
 from oompah.workflow_fact_model import (
     FactDomain,
     FactState,
+    LandingFact,
     LandingState,
     WorkflowFacts,
 )
@@ -99,6 +100,7 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "duplicate.recovery_scheduled",
         "duplicate.screening_disabled",
         "evidence.conflicting_task_facts",
+        "evidence.containment_malformed",
         "evidence.dependencies_malformed",
         "evidence.project_or_task_mismatch",
         "evidence.task_fact_identity_mismatch",
@@ -209,6 +211,33 @@ def _render_time(value: datetime) -> str:
 
 def _mapping(value: Any) -> Mapping[str, Any] | None:
     return value if isinstance(value, Mapping) else None
+
+
+def epic_immediate_target_landings(facts: WorkflowFacts) -> tuple[LandingFact, ...]:
+    """Return only landing facts for an epic's exact containment target.
+
+    Epic fact snapshots contain both direct-child landings and the epic's own
+    landing.  Tracker branch fields can be absent on legacy Done epics, so the
+    containment fact is the canonical source/target authority.  Keeping this
+    selector shared with the mutation guard prevents an unrelated child landing
+    from making the public decision more permissive than the commit boundary.
+    """
+
+    containment = facts.fact(FactDomain.CONTAINMENT)
+    value = (
+        _mapping(containment.value)
+        if containment.state is FactState.KNOWN
+        else None
+    )
+    source = str((value or {}).get("epic_branch") or "").strip()
+    target = str((value or {}).get("target_branch") or "").strip()
+    if not source or not target:
+        return ()
+    return tuple(
+        item
+        for item in facts.landings
+        if item.source == source and item.target == target
+    )
 
 
 class PermittedAction(str, Enum):
@@ -1567,16 +1596,52 @@ def _rollup_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
 
 
 def _landing_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
+    epic = task.issue_type.strip().lower() == "epic"
     refresh_job = (
         "epic_terminal_validation"
-        if task.issue_type.strip().lower() == "epic"
+        if epic
         else "integration_landing_refresh"
     )
-    candidates = tuple(
-        item
-        for item in facts.landings
-        if task.target_branch is None or item.target == task.target_branch
-    )
+    expected_target = task.target_branch
+    if epic:
+        containment = facts.fact(FactDomain.CONTAINMENT)
+        if containment.state is not FactState.KNOWN:
+            return _fact_wait(
+                task,
+                facts,
+                FactDomain.CONTAINMENT,
+                owner=WorkflowOwner.ROLLUP,
+                action=PermittedAction.REFRESH_LANDING,
+                job=refresh_job,
+            )
+        containment_value = _mapping(containment.value)
+        expected_source = str(
+            (containment_value or {}).get("epic_branch") or ""
+        ).strip()
+        expected_target = str(
+            (containment_value or {}).get("target_branch") or ""
+        ).strip()
+        if not expected_source or not expected_target:
+            return _decision(
+                task,
+                facts,
+                disposition=TaskDisposition.RETRY_SCHEDULED,
+                reason_code="evidence.containment_malformed",
+                owner=WorkflowOwner.ROLLUP,
+                prerequisites=(
+                    UnmetPrerequisite("evidence.malformed", "containment"),
+                ),
+                actions=(PermittedAction.REFRESH_LANDING,),
+                alert=AlertSeverity.INFO,
+                durable_jobs=(refresh_job,),
+            )
+        candidates = epic_immediate_target_landings(facts)
+    else:
+        candidates = tuple(
+            item
+            for item in facts.landings
+            if task.target_branch is None or item.target == task.target_branch
+        )
     if not candidates and facts.landings:
         return _decision(
             task,
@@ -1587,7 +1652,7 @@ def _landing_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             prerequisites=(
                 UnmetPrerequisite(
                     "landing.target_evidence_missing",
-                    task.target_branch or "configured_target",
+                    expected_target or "configured_target",
                 ),
             ),
             actions=(PermittedAction.REFRESH_LANDING,),
@@ -1608,7 +1673,7 @@ def _landing_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
     if landed:
         action = (
             "epic_auto_close"
-            if task.issue_type.strip().lower() == "epic"
+            if epic
             else "parent_rollup_review"
         )
         return _decision(
