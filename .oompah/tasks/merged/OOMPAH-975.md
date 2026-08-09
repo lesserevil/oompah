@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-975
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Carry trusted composed landing heads into rollup terminal transitions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:14:31.760374Z'
-updated_at: '2026-08-09T23:01:36.989394Z'
+updated_at: '2026-08-09T23:03:59.052475Z'
 work_branch: OOMPAH-975
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/782
@@ -45,6 +45,30 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-975
     digest: 359fd89c7c4eb5ac1aec11ed4c75a771a703477e08b7702059d2e1eea95a9fbf
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-7420e162bf78
+    project_id: proj-14849f1b
+    task_id: OOMPAH-975
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 359fd89c7c4eb5ac1aec11ed4c75a771a703477e08b7702059d2e1eea95a9fbf
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Exact implementation head d173e88eec2552ee639ef235a772fceeed8b66e6 passed
+      protected Python 3.11/3.12/3.13 and independent 553-test review, merged via
+      PR #782 as e8be4d38d15f13859acb13865102bdbd86a8ec23, and is deployed in exact
+      running main 25154c8b709f5916d5a9744d2b2fe9979d64799f. The terminal auditor''s
+      duplicate full suite stalled in jbd2 after protected evidence was already green
+      and its shell mutation is policy-incompatible.'
+    created_at: '2026-08-09T23:03:54.471449+00:00'
+    selected_ref: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
+    selected_sha: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
+    applied: false
   version: 1
   pending_chain:
   - version: 1
