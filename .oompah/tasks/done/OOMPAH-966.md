@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T16:29:54.272144Z'
-updated_at: '2026-08-09T17:38:26.370286Z'
+updated_at: '2026-08-09T17:38:40.770714Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,7 +37,17 @@ oompah.terminal_audit:
       source: api
     reason: Regression child delivered in the exact reviewed OOMPAH-962 merge.
     created_at: '2026-08-09T17:38:18.021642+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-966
+    target_state: Done
+    evidence_fingerprint: 48dbc93627f96806b0b07a90c339ddfd2c0f891c4761cd132cd6ae68994bc7ec
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T17:38:31.740121+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -80,5 +90,17 @@ author: oompah
 created: 2026-08-09 17:14
 ---
 Regression proof strengthened at final exact OOMPAH-962 head 2fc11a864. The test now structurally blocks the post-schedule no-job claim until the completion callback has settled, proving the first report is scheduled=1/completed=0/active=0 with one deferred result, the second is the sole published_queue_drained reconcile, and the third is empty. 100 focused repetitions and 293 composed tests pass; no further production change was required.
+---
+author: oompah
+created: 2026-08-09 17:38
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Regression child delivered in the exact reviewed OOMPAH-962 merge.
+---
+author: oompah
+created: 2026-08-09 17:38
+---
+Delivered by PR #770 at c503e7e586a18445b0671c765bce2b998cc277be. Deterministic callback-settlement proof passed 100 repetitions; final combined exact head dd2e18fc passed independent review and hosted Python 3.11/3.12/3.13 CI.
 ---
 <!-- COMMENTS:END -->
