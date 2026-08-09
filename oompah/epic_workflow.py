@@ -48,8 +48,8 @@ from oompah.workflow_fact_model import (
 )
 from oompah.workflow_facts import GitLandingCollector, WorkflowFactCollector
 from oompah.workflow_jobs import (
-    WorkflowFailureCategory,
     WorkflowEventWrite,
+    WorkflowFailureCategory,
     WorkflowJob,
     WorkflowJobStore,
 )
@@ -740,10 +740,10 @@ class EpicWorkflowEffectPort(Protocol):
 
     The durable backend owns evidence revalidation and lifecycle intents.  The
     port owns only effects that cannot be expressed as a
-    :class:`TransitionIntent`: creating one exact rollup review, synchronizing
-    its exact terminal metadata, ensuring one exact rebase helper, and
-    cleaning one exact landed epic.  A port method must never invoke a
-    whole-project sweep.
+    :class:`TransitionIntent`: creating or retiring one exact rollup review,
+    synchronizing its exact terminal metadata, ensuring one exact rebase
+    helper, and cleaning one exact landed epic.  A port method must never
+    invoke a whole-project sweep.
     """
 
     def inspect_epic_effect(
@@ -1223,8 +1223,20 @@ class ProductionEpicWorkflowBackend:
             target = self._transition_target(action, snapshot)
             if target is None:
                 return EffectObservation(True, {"action": action.value, "noop": True})
+            observed = await self._observe_external(
+                self.effects.inspect_epic_effect,
+                action,
+                snapshot.epic,
+                snapshot.facts,
+                payload,
+            )
+            if observed is None:
+                return EffectObservation(False)
             receipt = self._transition_receipt(
-                action, snapshot, requested_status=target
+                action,
+                snapshot,
+                requested_status=target,
+                extra=dict(observed),
             )
             return EffectObservation(
                 canonicalize_status(snapshot.epic.state) == target,
@@ -1241,12 +1253,41 @@ class ProductionEpicWorkflowBackend:
         snapshot = await self._load_snapshot(context)
         payload = self._payload(context)
         self._require_action_current(context, action, snapshot, payload)
-        if action in {EpicAction.ROLLUP_RECONCILIATION, EpicAction.AUTO_CLOSE}:
+        if action is EpicAction.ROLLUP_RECONCILIATION:
             target = self._transition_target(action, snapshot)
             if target is None:
                 return EffectResult({"action": action.value, "noop": True})
             return EffectResult(
                 self._transition_receipt(action, snapshot, requested_status=target)
+            )
+        if action is EpicAction.AUTO_CLOSE:
+            target = self._transition_target(action, snapshot)
+            if target is None:
+                return EffectResult({"action": action.value, "noop": True})
+            receipt = await _resolve_backend(
+                self.effects.apply_epic_effect(
+                    action,
+                    snapshot.epic,
+                    snapshot.facts,
+                    payload,
+                    idempotency_key=context.idempotency_key,
+                    originating_job=context.job.job_id,
+                    evidence_generation=context.job.generation,
+                )
+            )
+            if not isinstance(receipt, Mapping):
+                raise WorkflowActionError(
+                    "epic auto-close retirement did not return a durable receipt",
+                    category=WorkflowFailureCategory.PERMANENT,
+                    retryable=False,
+                )
+            return EffectResult(
+                self._transition_receipt(
+                    action,
+                    snapshot,
+                    requested_status=target,
+                    extra=dict(receipt),
+                )
             )
         if action in _EPIC_EXTERNAL_ACTIONS:
             receipt = await _resolve_backend(
@@ -1334,7 +1375,33 @@ class ProductionEpicWorkflowBackend:
                     extra=receipt,
                 )
             return VerificationResult(True, receipt)
-        if action in {EpicAction.ROLLUP_RECONCILIATION, EpicAction.AUTO_CLOSE}:
+        if action is EpicAction.AUTO_CLOSE:
+            target = self._transition_target(action, snapshot)
+            if target is None:
+                return VerificationResult(True, {"action": action.value, "noop": True})
+            verified = await self._observe_external(
+                self.effects.verify_epic_effect,
+                action,
+                snapshot.epic,
+                snapshot.facts,
+                payload,
+                effect.receipt,
+            )
+            if verified is None:
+                return VerificationResult(
+                    False,
+                    reason="epic auto-close review retirement is not yet observable",
+                )
+            return VerificationResult(
+                True,
+                self._transition_receipt(
+                    action,
+                    snapshot,
+                    requested_status=target,
+                    extra=dict(verified),
+                ),
+            )
+        if action is EpicAction.ROLLUP_RECONCILIATION:
             target = self._transition_target(action, snapshot)
             if target is None:
                 return VerificationResult(True, {"action": action.value, "noop": True})
