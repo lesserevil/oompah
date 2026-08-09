@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-944
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Use canonical child landing proof in epic cleanup
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:39.515436Z'
-updated_at: '2026-08-09T09:11:12.482554Z'
+updated_at: '2026-08-09T09:14:48.447361Z'
 work_branch: null
 target_branch: null
 review_url: null
