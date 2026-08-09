@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T06:09:37.822614Z'
-updated_at: '2026-08-09T06:14:38.187857Z'
+updated_at: '2026-08-09T06:59:05.084640Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,5 +35,10 @@ author: oompah
 created: 2026-08-09 06:14
 ---
 Root cause confirmed from PR #749: hosted CI ran raw pytest without bubblewrap namespace support, a project .venv, or Git commit identity. Implemented the protected-CI contract fix on epic-OOMPAH-763: provision and smoke-test both required bwrap namespace shapes, configure canonical bot identity, create the matrix-specific .venv through make test-setup, and run make test. Added static workflow regression coverage. Focused sandbox/quality/workflow tests: 248 passed. Preparing the exact gate and protected PR checks now.
+---
+author: oompah
+created: 2026-08-09 06:59
+---
+Delivered through protected PR #749 and squash-merged to main at d6b3018016bfa2036a010cce7ecec9ac13924a5a. Required GitHub-hosted Python 3.11/3.12/3.13 checks all passed. The exact merged tree also passed the complete Makefile gate: 18,880 passed, 7 skipped, 2 xfailed.
 ---
 <!-- COMMENTS:END -->

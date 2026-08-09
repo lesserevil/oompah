@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T06:26:17.775582Z'
-updated_at: '2026-08-09T06:33:53.073820Z'
+updated_at: '2026-08-09T06:59:07.794044Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-08-09 06:33
 ---
 Implemented deterministic synchronization and constrained-host execution: bounded broker-release waits; PID publication validation; cleanup + explicit budget for parallel native guards; per-test GitHub PR-detail cache isolation; event-driven startup tick synchronization; stable dispatch tracker mock rather than exhaustible side effects; narrow budgets for repository scan/multiprocess lease checks; hosted xdist reduced to two workers. Verification: 20/20 exact prior failures passed under two-worker loadgroup; all seven affected modules 1007 passed in 44.97s; diff check clean.
+---
+author: oompah
+created: 2026-08-09 06:59
+---
+Delivered through protected PR #749 and squash-merged to main at d6b3018016bfa2036a010cce7ecec9ac13924a5a. Exact prior failures passed 20/20 under two-worker load; all seven affected modules passed 1,007 tests; required Python 3.11/3.12/3.13 CI and the complete 18,880-test Makefile gate passed.
 ---
 <!-- COMMENTS:END -->

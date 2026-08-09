@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-932
 type: bug
-status: In Progress
+status: Done
 priority: 2
 title: '[backend:workflow_runtime] Durable workflow source evaluation failed for proj-14849f1b'
 parent: null
@@ -11,13 +11,38 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T05:18:44.565095Z'
-updated_at: '2026-08-09T05:54:03.702097Z'
+updated_at: '2026-08-09T06:59:12.808605Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-12208ce42241
+    project_id: proj-14849f1b
+    task_id: OOMPAH-932
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8d2c79d32773fae59a4daaa12f571a4fc3a9e552988dbdf7cc52acbf9a0e6967
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Protected PR #749 squash-integrated the OOMPAH-932 runtime source-race
+      fix through epic-OOMPAH-763 into main at d6b3018016bfa2036a010cce7ecec9ac13924a5a.
+      The exact merged tree passed required Python 3.11/3.12/3.13 CI and the complete
+      Makefile gate; the deployed main build reports healthy workflow liveness with
+      zero current divergence and zero expired leases.'
+    created_at: '2026-08-09T06:59:08.996844+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
