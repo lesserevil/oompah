@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-957
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Stabilize concurrent validation and review-capacity CI regressions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T16:13:02.492033Z'
+updated_at: '2026-08-09T16:13:49.316606Z'
 work_branch: OOMPAH-957
 target_branch: null
 review_url: null
@@ -41,6 +41,28 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-957
     digest: 395deaefdf523e61a4892a5aa578e0c64e2a260b52c7c3cb2d01f0badc629ddd
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-bc5678741558
+    project_id: proj-14849f1b
+    task_id: OOMPAH-957
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 395deaefdf523e61a4892a5aa578e0c64e2a260b52c7c3cb2d01f0badc629ddd
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner direct completion: exact PR head 561deed0f5bb9d897454b7b29756185100989968
+      passed hosted Python 3.11/3.12/3.13 CI run 31322718498, independent final review
+      reported no blockers, and squash merge 11e295d082bdbd0d966b39884eb5f24e6ed09568
+      has an identical Git tree.'
+    created_at: '2026-08-09T16:13:45.100663+00:00'
+    selected_ref: 7d0807c2005cf299bc2a90a97909600d65171573
+    selected_sha: 7d0807c2005cf299bc2a90a97909600d65171573
+    applied: false
   version: 1
   pending_chain:
   - version: 1
