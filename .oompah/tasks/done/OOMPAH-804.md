@@ -20,7 +20,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-06T13:13:39.396734Z'
+updated_at: '2026-08-09T20:14:02.109873Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -163,6 +163,30 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-06T13:13:05.654839+00:00'
     applied_at: '2026-08-06T13:13:15.761760+00:00'
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Project owner confirms OOMPAH-804 is a completed historical/provenance-only
+      legacy record; this is not a landing claim. The retained provenance records
+      an explicit project-owner historical decision.
+    marked_at: '2026-08-09T20:14:00.464610+00:00'
+    updated_at: '2026-08-09T20:14:00.464610+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Project owner confirms OOMPAH-804 is a completed historical/provenance-only
+        legacy record; this is not a landing claim. The retained provenance records
+        an explicit project-owner historical decision.
+      recorded_at: '2026-08-09T20:14:00.464610+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -198,6 +222,7 @@ oompah.terminal_audit:
     previous_state: Open
     created_at: '2026-08-06T12:56:06.488568+00:00'
     updated_at: '2026-08-06T13:13:05.654707+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-c52b59cfd6d7
