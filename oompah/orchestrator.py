@@ -65916,6 +65916,51 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             )
         return facts
 
+    @staticmethod
+    def _workflow_quarantine_dashboard_alerts(
+        workflow_jobs_health: Mapping[str, Any],
+    ) -> list[dict[str, Any]]:
+        """Expose live non-expiring workflow quarantines as actionable health."""
+
+        leases = workflow_jobs_health.get("leases")
+        if not isinstance(leases, Mapping):
+            return []
+        quarantined = int(leases.get("quarantined", 0) or 0)
+        if quarantined <= 0:
+            return []
+        oldest_age = leases.get("oldest_quarantined_age_seconds")
+        age_detail = (
+            f" The oldest quarantine is {float(oldest_age):.0f} seconds old."
+            if oldest_age is not None
+            else ""
+        )
+        noun = "call" if quarantined == 1 else "calls"
+        return [
+            {
+                "source": "workflow_jobs:quarantined_calls",
+                "severity": "warning",
+                "action_required": True,
+                "recovery_state": "restart_required",
+                "status": "active",
+                "active": True,
+                "summary": (
+                    f"{quarantined} durable workflow {noun} remain quarantined"
+                ),
+                "detail": (
+                    "A timed-out external mutation still owns its exact task "
+                    "fence and prevents same-task replacement overlap."
+                    f"{age_detail}"
+                ),
+                "remediation": (
+                    "Allow the coalesced graceful recycle to complete. If the "
+                    "alert survives a verified restart, inspect workflow job "
+                    "recovery before admitting replacement work."
+                ),
+                "quarantined": quarantined,
+                "oldest_quarantined_age_seconds": oldest_age,
+            }
+        ]
+
     def _budget_snapshot(self) -> dict[str, Any]:
         """Return the budget projection from local orchestrator state.
 
@@ -66150,9 +66195,15 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         work_decisions = list(work_decision_projection["items"])
         audit_health = getattr(self, "_audit_health", TerminalAuditHealth())
         audit_health_payload = audit_health.to_dict()
+        workflow_jobs_health = self.workflow_job_store.health_snapshot()
+        workflow_quarantined = int(
+            (workflow_jobs_health.get("leases") or {}).get("quarantined", 0)
+            or 0
+        )
         raw_alerts = (
             self._alerts_snapshot()
             + self._quality_gate_dashboard_alerts(quality_gate_state)
+            + self._workflow_quarantine_dashboard_alerts(workflow_jobs_health)
             + self._credential_error_alerts()
             + auth_health_alerts()
             + (
@@ -66298,7 +66349,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "terminal_audit": terminal_audit_metrics,
             "quality_gates": quality_gate_state,
             "validation_resources": validation_resource_state,
-            "workflow_jobs": self.workflow_job_store.health_snapshot(),
+            "workflow_jobs": workflow_jobs_health,
             "workflow_controller": workflow_controller.health_snapshot(),
             "workflow_liveness": {
                 "enabled": workflow_liveness_enabled,
@@ -66321,6 +66372,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     "degraded"
                     if audit_health.degraded
                     or validation_resource_action_required
+                    or workflow_quarantined > 0
                     or (
                         workflow_liveness_enabled
                         and workflow_liveness.degraded
@@ -66330,6 +66382,14 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "terminal_audit": dict(audit_health_payload),
                 "quality_gates": quality_gate_state,
                 "validation_resources": validation_resource_state,
+                "workflow_jobs": {
+                    "quarantined": workflow_quarantined,
+                    "oldest_quarantined_age_seconds": (
+                        (workflow_jobs_health.get("leases") or {}).get(
+                            "oldest_quarantined_age_seconds"
+                        )
+                    ),
+                },
                 "workflow_liveness": {
                     "enabled": workflow_liveness_enabled,
                     **workflow_liveness.to_dict(),

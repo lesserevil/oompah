@@ -16,6 +16,10 @@ from oompah.http_auth import HtpasswdCredentials, VerificationError
 from oompah.models import Issue, WorkflowDefinition
 from oompah.orchestrator import Orchestrator
 from oompah.workflow_contract import TaskDisposition, WorkflowOwner
+from oompah.workflow_jobs import (
+    WorkflowFailureCategory,
+    WorkflowJobSpec,
+)
 from oompah.workflow_liveness_metrics import LIVENESS_STATE_SCHEMA_VERSION
 from oompah.workflow_shadow import LegacyWorkflowProjection
 
@@ -666,6 +670,46 @@ def test_state_and_websocket_message_share_shadow_summary(tmp_path, monkeypatch)
     assert message["type"] == "state"
     assert message["data"]["workflow_shadow"] == snapshot["workflow_shadow"]
     assert message["data"]["workflow_liveness"] == snapshot["workflow_liveness"]
+
+
+def test_snapshot_degrades_and_alerts_while_workflow_call_is_quarantined(tmp_path):
+    tracker = fake_tracker([issue()])
+    orch = orchestrator(tmp_path)
+    attach_project(orch, tracker)
+    queued = orch.workflow_job_store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-a",
+            task_id="OOMPAH-1",
+            generation="quarantine-1",
+            action="authority_revocation",
+            idempotency_key="quarantine-health-1",
+        )
+    )
+    claimed = orch.workflow_job_store.claim_next(
+        lease_owner="workflow-runtime:999999:deadbeef",
+        lease_seconds=30,
+        actions=("authority_revocation",),
+    )
+    assert claimed is not None and claimed.job_id == queued.job_id
+    orch.workflow_job_store.quarantine_owned(
+        claimed.job_id,
+        claimed.lease_token,
+        category=WorkflowFailureCategory.TIMEOUT,
+        error="adapter did not return",
+    )
+
+    snapshot = orch.get_snapshot()
+    alert = next(
+        item
+        for item in snapshot["global_alerts"]
+        if item["source"] == "workflow_jobs:quarantined_calls"
+    )
+
+    assert snapshot["health"]["status"] == "degraded"
+    assert snapshot["health"]["workflow_jobs"]["quarantined"] == 1
+    assert snapshot["workflow_jobs"]["leases"]["quarantined"] == 1
+    assert alert["action_required"] is True
+    assert alert["quarantined"] == 1
 
 
 def _credentials() -> HtpasswdCredentials:

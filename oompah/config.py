@@ -753,6 +753,11 @@ class ServiceConfig:
     # controls (revocation, submission, and recovery).
     workflow_runtime_max_concurrent: int = 4
     workflow_runtime_control_reserved_slots: int = 1
+    # A synchronous adapter which remains live after its operation timeout
+    # retains a non-expiring durable quarantine.  Wait this additional bounded
+    # interval for a late result before requesting one coalesced service
+    # recycle; startup recovers only the exact marked runtime owner.
+    workflow_quarantine_recycle_seconds: float = 60.0
     # Multi-process service split (TASK-469.5.1).
     # When set, the scheduler process publishes state/issues snapshots to this
     # SQLite database and the API process reads from it.  An empty string means
@@ -1059,6 +1064,9 @@ class ServiceConfig:
         self.workflow_runtime_control_reserved_slots = min(
             max(int(self.workflow_runtime_control_reserved_slots), 1),
             self.workflow_runtime_max_concurrent - 1,
+        )
+        self.workflow_quarantine_recycle_seconds = max(
+            float(self.workflow_quarantine_recycle_seconds), 0.1
         )
         self.temp_root = str(resolve_temp_root(self.temp_root or default_temp_root()))
         if not self.workspace_root:
@@ -1589,6 +1597,9 @@ class ServiceConfig:
             ),
             workflow_runtime_control_reserved_slots=_env_int(
                 "OOMPAH_WORKFLOW_RUNTIME_CONTROL_RESERVED_SLOTS", None, 1
+            ),
+            workflow_quarantine_recycle_seconds=_env_float(
+                "OOMPAH_WORKFLOW_QUARANTINE_RECYCLE_SECONDS", None, 60.0
             ),
             ipc_db_path=_env_str("OOMPAH_IPC_DB_PATH", None, ""),
             project_refresh_timeout_ms=_env_int(

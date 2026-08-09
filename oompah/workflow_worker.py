@@ -117,12 +117,20 @@ class WorkflowActionError(RuntimeError):
 
 
 class WorkflowActionTimedOut(WorkflowActionError):
-    def __init__(self, operation: str, timeout_seconds: float) -> None:
+    def __init__(
+        self,
+        operation: str,
+        timeout_seconds: float,
+        *,
+        detached_call: asyncio.Future[Any] | None = None,
+    ) -> None:
         super().__init__(
             f"{operation} exceeded {timeout_seconds:g}s timeout",
             category=WorkflowFailureCategory.TIMEOUT,
             retryable=True,
         )
+        self.operation = str(operation)
+        self.detached_call = detached_call
 
 
 class WorkflowActionInterrupted(WorkflowActionError):
@@ -240,6 +248,9 @@ class TransitionExecutor(Protocol):
 
 
 PhaseObserver = Callable[[str, WorkflowJob], object | Awaitable[object]]
+QuarantineRecycleObserver = Callable[
+    [WorkflowJob], object | Awaitable[object]
+]
 
 
 class DurableWorkflowWorker:
@@ -275,7 +286,9 @@ class DurableWorkflowWorker:
         heartbeat_seconds: float = 10,
         operation_timeout_seconds: float = 60,
         retry_delay_seconds: float = 5,
+        quarantine_recycle_seconds: float = 60,
         phase_observer: PhaseObserver | None = None,
+        quarantine_recycle_observer: QuarantineRecycleObserver | None = None,
     ) -> None:
         self.store = store
         self.handlers = {
@@ -309,15 +322,20 @@ class DurableWorkflowWorker:
             raise ValueError("operation_timeout_seconds must be positive")
         if retry_delay_seconds < 0:
             raise ValueError("retry_delay_seconds cannot be negative")
+        if quarantine_recycle_seconds <= 0:
+            raise ValueError("quarantine_recycle_seconds must be positive")
         self.lease_seconds = float(lease_seconds)
         self.heartbeat_seconds = float(heartbeat_seconds)
         self.operation_timeout_seconds = float(operation_timeout_seconds)
         self.retry_delay_seconds = float(retry_delay_seconds)
+        self.quarantine_recycle_seconds = float(quarantine_recycle_seconds)
         self.phase_observer = phase_observer
+        self.quarantine_recycle_observer = quarantine_recycle_observer
         self._accepting = True
         self._interrupted = asyncio.Event()
         self._active: set[asyncio.Task[Any]] = set()
         self._quarantined_calls: set[asyncio.Future[Any]] = set()
+        self._quarantine_monitors: set[asyncio.Task[Any]] = set()
 
     @property
     def accepting(self) -> bool:
@@ -326,6 +344,14 @@ class DurableWorkflowWorker:
     @property
     def active_count(self) -> int:
         return len(self._active)
+
+    @property
+    def quarantined_call_count(self) -> int:
+        return sum(not call.done() for call in self._quarantined_calls)
+
+    @property
+    def quarantine_monitor_count(self) -> int:
+        return sum(not monitor.done() for monitor in self._quarantine_monitors)
 
     def interrupt(self) -> None:
         """Request cooperative interruption at the next safe boundary."""
@@ -383,7 +409,11 @@ class DurableWorkflowWorker:
             # thread. Detach the now-authority-fenced awaiter and let the caller
             # durably quarantine the exact lease rather than blocking forever.
             self._detach_quarantined_call(task)
-            raise WorkflowActionTimedOut(operation, timeout)
+            raise WorkflowActionTimedOut(
+                operation,
+                timeout,
+                detached_call=task,
+            )
         except asyncio.CancelledError:
             if timeout_fence is not None:
                 timeout_fence()
@@ -403,7 +433,138 @@ class DurableWorkflowWorker:
                 pass
 
         task.add_done_callback(_consume)
-        task.cancel()
+
+    def _track_quarantine_monitor(self, monitor: asyncio.Task[Any]) -> None:
+        self._quarantine_monitors.add(monitor)
+        monitor.add_done_callback(self._quarantine_monitors.discard)
+
+    def _monitor_quarantined_call(
+        self,
+        context: WorkflowJobContext,
+        failure: WorkflowActionTimedOut,
+    ) -> None:
+        """Settle one exact quarantine when its detached awaiter really ends."""
+
+        call = failure.detached_call
+        if call is None:
+            return
+        job_id = context.job.job_id
+        lease_token = str(context.job.lease_token or "")
+        operation = failure.operation
+        settled = asyncio.Event()
+
+        async def recover() -> None:
+            effect_receipt: Mapping[str, Any] | None = None
+            error: str | None = None
+            category = WorkflowFailureCategory.UNKNOWN
+            retryable = True
+            try:
+                value = await asyncio.shield(call)
+                if operation == "apply":
+                    if isinstance(value, EffectResult):
+                        effect_receipt = dict(value.receipt)
+                    else:
+                        category = WorkflowFailureCategory.PERMANENT
+                        retryable = False
+                        error = "late apply returned an invalid effect result"
+            except asyncio.CancelledError:
+                # Loop/process shutdown leaves the durable quarantine for the
+                # startup dead-owner recovery path.  Never manufacture a call
+                # outcome merely because its monitor was cancelled.
+                return
+            except Exception as exc:  # noqa: BLE001 - detached adapter boundary
+                if isinstance(exc, WorkflowActionError):
+                    category = exc.category
+                    retryable = exc.retryable
+                error = f"late {operation} failed: {type(exc).__name__}"
+            try:
+                recovered = await asyncio.to_thread(
+                    self.store.settle_quarantined_call,
+                    job_id,
+                    lease_token,
+                    operation=operation,
+                    effect_receipt=effect_receipt,
+                    failure_category=category,
+                    error=error,
+                    retryable=retryable,
+                    retry_delay_seconds=self.retry_delay_seconds,
+                )
+            except WorkflowJobLeaseLost:
+                settled.set()
+                return
+            except Exception:
+                # The immutable quarantine remains the safe fallback.  Its
+                # health row and bounded recycle request stay visible.
+                return
+            settled.set()
+            await self._notify("quarantine_settled", recovered)
+
+        async def request_recycle() -> None:
+            try:
+                await asyncio.wait_for(
+                    settled.wait(),
+                    timeout=self.quarantine_recycle_seconds,
+                )
+                return
+            except TimeoutError:
+                pass
+            # A completed adapter is not sufficient proof that its durable
+            # settlement committed.  If that store write failed, retain the
+            # exact quarantine and cross the same bounded recycle boundary as
+            # a call which never returned; startup recovery can then inspect
+            # the external effect without overlap.
+            try:
+                current = await asyncio.to_thread(self.store.get, job_id)
+            except Exception:
+                return
+            if (
+                current.state is not WorkflowJobState.RUNNING
+                or current.phase != "quarantined"
+                or str(current.lease_token or "") != lease_token
+            ):
+                return
+            try:
+                current = await asyncio.to_thread(
+                    self.store.mark_quarantine_recycle_requested,
+                    job_id,
+                    lease_token,
+                )
+            except Exception:
+                return
+            await self._notify("quarantine_recycle_requested", current)
+            observer = self.quarantine_recycle_observer
+            if observer is None:
+                return
+            handler = self.handlers.get(current.action)
+            prepare = getattr(handler, "prepare_quarantine_recycle", None)
+            if callable(prepare):
+                try:
+                    prepared = prepare(current)
+                    if inspect.isawaitable(prepared):
+                        await prepared
+                except Exception:
+                    return
+            try:
+                result = observer(current)
+                if inspect.isawaitable(result):
+                    await result
+            except Exception:
+                # The durable quarantine remains operator-visible and a later
+                # controller pass may coalesce another service-level request.
+                return
+
+        self._track_quarantine_monitor(
+            asyncio.create_task(
+                recover(),
+                name=f"workflow-quarantine-settle:{job_id}",
+            )
+        )
+        self._track_quarantine_monitor(
+            asyncio.create_task(
+                request_recycle(),
+                name=f"workflow-quarantine-recycle:{job_id}",
+            )
+        )
 
     async def _checkpoint(
         self,
@@ -951,7 +1112,10 @@ class DurableWorkflowWorker:
             return await self._fail(context, exc)
         except WorkflowActionError as exc:
             if isinstance(exc, WorkflowActionTimedOut):
-                return await self._quarantine(context, exc)
+                result = await self._quarantine(context, exc)
+                if result.disposition is WorkflowRunDisposition.ACTION_REQUIRED:
+                    self._monitor_quarantined_call(context, exc)
+                return result
             return await self._fail(context, exc)
         except asyncio.CancelledError:
             context.fence_external_effects()

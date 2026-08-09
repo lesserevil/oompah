@@ -52,7 +52,7 @@ from oompah.task_transition_service import (
     issue_authority_version,
     issue_exact_head,
 )
-from oompah.workflow_jobs import WorkflowFailureCategory, WorkflowJobState
+from oompah.workflow_jobs import WorkflowFailureCategory, WorkflowJob, WorkflowJobState
 from oompah.workflow_worker import (
     RevalidationResult,
     VerificationResult,
@@ -283,6 +283,39 @@ class OrchestratorImplementationEffects:
         except TimeoutError:
             return False
         return True
+
+    async def prepare_quarantine_recycle(self, job: WorkflowJob) -> None:
+        """Transfer one fenced mutation from loop drain to process restart.
+
+        The workflow ledger must already contain the exact quarantined token
+        and recycle marker before this is called.  Cancelling the asyncio task
+        does not pretend to terminate a synchronous adapter thread; it only
+        prevents safe-stop from waiting forever on an in-memory wrapper.  The
+        running quarantine continues to block replacements until the process
+        boundary removes the old thread and startup recovers that exact owner.
+        """
+
+        current = self.orchestrator.workflow_job_store.get(job.job_id)
+        marker = (current.checkpoint or {}).get("quarantine_recycle")
+        if not (
+            current.state is WorkflowJobState.RUNNING
+            and current.phase == "quarantined"
+            and current.lease_owner == job.lease_owner
+            and current.lease_token == job.lease_token
+            and isinstance(marker, Mapping)
+            and _text(marker.get("lease_owner")) == _text(current.lease_owner)
+            and _text(marker.get("lease_token")) == _text(current.lease_token)
+        ):
+            raise WorkflowActionError(
+                "implementation recycle lacks an exact durable quarantine marker",
+                category=WorkflowFailureCategory.PERMANENT,
+                retryable=False,
+            )
+        mutation = self._mutations.get(job.idempotency_key)
+        if mutation is None or mutation.done():
+            return
+        mutation.cancel()
+        await asyncio.gather(mutation, return_exceptions=True)
 
     @property
     def receipts(self) -> ImplementationReceiptStore:
@@ -667,9 +700,9 @@ class OrchestratorImplementationEffects:
             return await asyncio.shield(mutation)
         except asyncio.CancelledError:
             # A worker timeout must not detach a still-running tracker/process
-            # mutation and let the next lease overlap it.  Propagate the
-            # cancellation so the durable worker can release/retry its lease;
-            # the shielded mutation remains shared in ``_mutations``.
+            # mutation and let the next lease overlap it.  The durable worker
+            # quarantines the exact lease and observes this shielded mutation;
+            # only a marked process-recycle transfer may detach it from drain.
             raise
         finally:
             if mutation.done() and self._mutations.get(key) is mutation:

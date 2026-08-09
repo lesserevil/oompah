@@ -38,7 +38,12 @@ def healthy_snapshot() -> dict:
             },
         },
         "workflow_jobs": {
-            "leases": {"running": 1, "expired": 0},
+            "leases": {
+                "running": 1,
+                "expired": 0,
+                "quarantined": 0,
+                "oldest_quarantined_age_seconds": None,
+            },
             "states": {"running": 1, "queued": 2},
             "current_states": {"exhausted": 0},
         },
@@ -64,6 +69,21 @@ def test_canary_rejects_actionable_alert_and_expired_lease():
     assert not result.healthy
     assert "1 operator-actionable alert(s) remain" in result.failures
     assert "expired durable workflow leases remain" in result.failures
+
+
+def test_canary_rejects_quarantined_workflow_call():
+    snapshot = healthy_snapshot()
+    snapshot["workflow_jobs"]["leases"].update(
+        {
+            "quarantined": 1,
+            "oldest_quarantined_age_seconds": 75.0,
+        }
+    )
+
+    result = evaluate_snapshot(snapshot)
+
+    assert not result.healthy
+    assert "quarantined durable workflow calls remain" in result.failures
 
 
 def test_canary_ignores_historical_exhaustion_with_current_replacement():
