@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-930
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Isolate event-loop and close-race tests from live project reconciliation
 parent: OOMPAH-763
@@ -11,13 +11,35 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T03:11:25.306117Z'
-updated_at: '2026-08-09T03:11:59.558129Z'
+updated_at: '2026-08-09T05:16:32.101916Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-e5493a4590f1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-930
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 84a259db785128f8e24e1ac7359a7cc4476be3206ffcedc601d6360710a4a74e
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after exact-head full-gate and live enforce
+      verification.
+    created_at: '2026-08-09T05:16:28.098471+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -29,3 +51,11 @@ The exact OOMPAH-929 gate reproducibly times out in tests/test_event_driven_loop
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 05:16
+---
+Completed by direct project owner. Live-project fixture isolation commits 765c187e6 and d8610fbdc are included in rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e. Repeated focused runs and the exact full gate passed with the production server stopped; the same exact build is live in enforce.
+---
+<!-- COMMENTS:END -->
