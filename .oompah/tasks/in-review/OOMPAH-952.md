@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-952
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Retire obsolete landed reviews and exact capacity reservations
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:48:29.754525Z'
-updated_at: '2026-08-09T11:34:23.825829Z'
+updated_at: '2026-08-09T12:47:23.454363Z'
 work_branch: OOMPAH-952
 target_branch: null
 review_url: null
@@ -61,5 +61,10 @@ author: oompah
 created: 2026-08-09 11:30
 ---
 Implemented exact landed epic review retirement before auto-close, with durable authority/head capacity binding, restart-safe release, fail-closed route/head checks, and regression coverage. Commit 8e1ac57e2ec2e8503fd380e75c05639badcc5fba is pushed; 503 related tests and focused validation passed.
+---
+author: oompah
+created: 2026-08-09 12:47
+---
+Worked around the deployed pre-OOMPAH-953 remote-head polling deadlock by creating exact-head PR #765 and arming squash auto-merge. GitHub hosted checks are the exact review-head gate.
 ---
 <!-- COMMENTS:END -->
