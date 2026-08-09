@@ -3152,6 +3152,7 @@ class WorkflowRuntime:
                 for lane in ("control", "shared")
             }
         scheduled = 0
+        admission_saturated = False
         async with self._effect_admission_lock:
             if active_projects and not self._draining and self.worker.accepting:
                 remaining = self.batch_size
@@ -3193,6 +3194,31 @@ class WorkflowRuntime:
                         remaining -= 1
                     if remaining <= 0:
                         break
+
+                admission_saturated = scheduled >= self.batch_size
+                if scheduled and not admission_saturated:
+                    # A runtime whose concurrency is smaller than its batch
+                    # size can fill every execution slot without ever reaching
+                    # the historical per-pass cap.  Request a continuation
+                    # only when an exact eligible suffix remains.  Requiring a
+                    # new admission prevents repeated ticks from spinning while
+                    # the same long-running effects still occupy the lanes;
+                    # their completion callbacks provide the replenishment
+                    # edge instead.
+                    for lane, capacity, actions in lane_limits:
+                        with self._lock:
+                            lane_active = sum(
+                                task_lane == lane and not task.done()
+                                for task, task_lane in self._effect_tasks.items()
+                            )
+                        if lane_active < capacity:
+                            continue
+                        if await self.worker.has_claimable(
+                            project_ids=active_projects,
+                            actions=actions,
+                        ):
+                            admission_saturated = True
+                            break
 
         with self._lock:
             active_by_lane = {
@@ -3241,10 +3267,10 @@ class WorkflowRuntime:
             "scheduled": scheduled,
             "active": active,
             "active_lanes": active_by_lane,
-            # Completion callbacks replenish concurrency. This flag remains
-            # the exact per-pass admission cap signal for compatibility with
-            # the coalesced continuation path.
-            "batch_saturated": scheduled >= self.batch_size,
+            # Completion callbacks replenish concurrency.  This signal also
+            # covers an exact claimable suffix blocked by lane concurrency
+            # when max_concurrent is smaller than the per-pass batch cap.
+            "batch_saturated": admission_saturated,
         }
 
     def _effect_finished(self, task: asyncio.Task[Any]) -> None:

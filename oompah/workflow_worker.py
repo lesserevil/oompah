@@ -1069,6 +1069,29 @@ class DurableWorkflowWorker:
             fair_across_projects=fair_across_projects,
         )
 
+    async def has_claimable(
+        self,
+        *,
+        project_id: str | None = None,
+        project_ids: Sequence[str] | None = None,
+        actions: Sequence[str] | None = None,
+    ) -> bool:
+        """Probe exact admission eligibility without spending an attempt."""
+
+        if not self._accepting:
+            return False
+        claim_actions = (
+            tuple(sorted(self.handlers)) if actions is None else tuple(actions)
+        )
+        if not claim_actions:
+            return False
+        return await asyncio.to_thread(
+            self.store.has_claimable,
+            project_id=project_id,
+            project_ids=project_ids,
+            actions=claim_actions,
+        )
+
     async def execute_claimed(self, job: WorkflowJob) -> WorkflowRunResult:
         """Execute a row already leased by :meth:`claim_next`.
 
