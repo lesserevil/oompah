@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-934
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Make concurrency regressions deterministic on constrained CI hosts
 parent: null
@@ -11,13 +11,38 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T06:26:17.775582Z'
-updated_at: '2026-08-09T06:59:07.794044Z'
+updated_at: '2026-08-09T06:59:47.383914Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-529fb11fef38
+    project_id: proj-14849f1b
+    task_id: OOMPAH-934
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2429c20a0ba153dd7c512da48383eebf04dab6f07e3343cce78848d48e59e439
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Protected PR #749 squash-integrated the OOMPAH-934 deterministic concurrency
+      regressions into main at d6b3018016bfa2036a010cce7ecec9ac13924a5a. Exact reproductions,
+      affected modules, required hosted Python 3.11/3.12/3.13 CI, and the complete
+      Makefile gate passed. Owner terminalization is required because delivery used
+      the shared epic branch.'
+    created_at: '2026-08-09T06:59:43.559593+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
