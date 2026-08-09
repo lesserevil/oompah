@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:29:27.319915Z'
-updated_at: '2026-08-09T15:51:29.939552Z'
+updated_at: '2026-08-09T15:51:51.925006Z'
 work_branch: OOMPAH-954
 target_branch: null
 review_url: null
@@ -176,5 +176,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: scheduler_pause, Duration: 1h 21m 40s
 - Log: OOMPAH-954__20260809T142928Z.jsonl
+---
+author: oompah
+created: 2026-08-09 15:51
+---
+Auditor attempt ended: graceful restart interrupted auditor before verdict. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
