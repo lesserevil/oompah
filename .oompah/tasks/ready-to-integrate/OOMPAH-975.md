@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-975
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Carry trusted composed landing heads into rollup terminal transitions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:14:31.760374Z'
-updated_at: '2026-08-09T21:45:27.975880Z'
+updated_at: '2026-08-09T21:47:14.417082Z'
 work_branch: OOMPAH-975
 target_branch: null
 review_url: null
@@ -24,9 +24,9 @@ oompah.integration:
   attempts: 0
   mode: standalone
   task_branch: OOMPAH-975
-  head_sha: 2fd04d272f03f9ea670243978878dd8e9c88ff2f
-  submitted_at: '2026-08-09T21:43:23.517825+00:00'
-  updated_at: '2026-08-09T21:43:23.517825+00:00'
+  head_sha: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
+  submitted_at: '2026-08-09T21:45:55.062482+00:00'
+  updated_at: '2026-08-09T21:45:55.062482+00:00'
 oompah.work_branch: OOMPAH-975
 ---
 ## Summary
@@ -67,5 +67,10 @@ author: oompah
 created: 2026-08-09 21:45
 ---
 Fresh post-implementation scan expanded the live same-shape corpus by 14 current exhausted Done children under OOMPAH-763: OOMPAH-910, -911, -914, -915, -916, -917, -918, -919, -920, -921, -926, -929, -930, and -931. Each has exact durable parent-scoped landing authority and the same historical null-head parent_rollup_review rejection. Supported terminal-provenance retain was applied externally to preserve owner authority; this change does not rearm or edit rows. Regression parameterization now names all 20 observed production shapes; the generic implementation path is identical across them.
+---
+author: oompah
+created: 2026-08-09 21:47
+---
+Updated exact head 0cbca98c1 expands the regression matrix to all 20 live composed Done child shapes, including newly observed OOMPAH-910/-911/-914 through -921/-926/-929 through -931 under OOMPAH-763. Relevant workflow/transition/runtime suites now pass 644 tests; terminal mutation scan passed. No exhausted row rearm or database edit is introduced; fresh owner scans retire/supersede historical generations.
 ---
 <!-- COMMENTS:END -->
