@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:04:59.855533Z'
-updated_at: '2026-08-09T18:32:55.366105Z'
+updated_at: '2026-08-09T18:32:59.527698Z'
 work_branch: OOMPAH-967
 target_branch: null
 review_url: null
@@ -67,5 +67,10 @@ author: oompah
 created: 2026-08-09 18:32
 ---
 Submission head superseded by pushed corrective head 6ee361231 after adversarial review. Every present provenance fact now requires boolean retained/malformed flags, non-boolean integer schema versions, and complete project/task/actor/generation/timestamp identity before it can retain or resume delivery. Verification: 487 focused tests pass; independent 92-test re-review reports no blockers; Ruff and diff checks pass. Do not integrate prior head 9dc053c7d.
+---
+author: oompah
+created: 2026-08-09 18:32
+---
+Corrected exact head 6ee361231 fully validates all retained and non-retained provenance facts fail closed, honors valid retained authority, and fences zero-job publication. 487 focused tests and independent review are green.
 ---
 <!-- COMMENTS:END -->
