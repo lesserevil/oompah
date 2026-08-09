@@ -11,13 +11,23 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T20:03:49.482603Z'
-updated_at: '2026-08-09T20:24:54.522248Z'
-work_branch: null
+updated_at: '2026-08-09T20:25:19.088451Z'
+work_branch: OOMPAH-972
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-972
+  head_sha: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
+  submitted_at: '2026-08-09T20:25:05.536964+00:00'
+  updated_at: '2026-08-09T20:25:05.536964+00:00'
+oompah.work_branch: OOMPAH-972
 ---
 ## Summary
 
@@ -40,5 +50,10 @@ author: oompah
 created: 2026-08-09 20:24
 ---
 Implementation complete at exact rebased head 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e on main a7c418ee4. Setup now validates the private venv and isolated editable source even with a fresh stamp, refreshes stale worktree targets, preserves the correct-install fast path, and fails before stamp mutation when uv partially updates metadata then exits nonzero. Evidence: 46 focused setup/lifecycle tests, real first-run and repeated idempotent make setup/test-setup, secret scan, diff check, and independent review. Review found and the final commit closed the partial-installer fail-open; narrow re-review passed 3 nodes and full setup module passed 18 with no remaining blocker.
+---
+author: oompah
+created: 2026-08-09 20:25
+---
+Made setup idempotency safe across retired worktrees, including fail-closed partial-installer behavior; exact rebased head is independently reviewed and all focused setup/lifecycle checks pass.
 ---
 <!-- COMMENTS:END -->
