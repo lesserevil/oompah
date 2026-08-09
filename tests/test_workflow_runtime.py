@@ -1256,6 +1256,98 @@ def test_reserved_lane_and_shared_concurrency_are_hard_bounded(tmp_path):
     store.close()
 
 
+def test_concurrent_due_callers_cannot_spend_the_same_lane_reservation(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    release_effects = asyncio.Event()
+    four_started = asyncio.Event()
+    active = 0
+
+    class BlockingHandler(CompleteHandler):
+        async def apply(self, context):
+            nonlocal active
+            active += 1
+            if active == 4:
+                four_started.set()
+            try:
+                await release_effects.wait()
+                return await super().apply(context)
+            finally:
+                active -= 1
+
+    for index in range(4):
+        store.enqueue(
+            WorkflowJobSpec(
+                project_id="project-1",
+                task_id=f"CONTROL-RACE-{index}",
+                generation=f"control-race-{index}",
+                action="authority_revocation",
+                idempotency_key=f"control-race-{index}",
+                priority=100,
+            )
+        )
+    for index in range(8):
+        store.enqueue(
+            WorkflowJobSpec(
+                project_id="project-1",
+                task_id=f"DATA-RACE-{index}",
+                generation=f"data-race-{index}",
+                action="standalone_delivery",
+                idempotency_key=f"data-race-{index}",
+                priority=0,
+            )
+        )
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(BlockingHandler()),
+        batch_size=8,
+        max_concurrent=4,
+        control_reserved_slots=1,
+    )
+    first_claim_entered = asyncio.Event()
+    release_claims = asyncio.Event()
+    claim_calls = 0
+    original_claim = runtime.worker.claim_next
+
+    async def delayed_claim(**kwargs):
+        nonlocal claim_calls
+        claim_calls += 1
+        first_claim_entered.set()
+        await release_claims.wait()
+        return await original_claim(**kwargs)
+
+    runtime.worker.claim_next = delayed_claim
+
+    async def exercise():
+        await runtime.start()
+        first = asyncio.create_task(runtime._run_due(("project-1",)))
+        await asyncio.wait_for(first_claim_entered.wait(), 1)
+        second = asyncio.create_task(runtime._run_due(("project-1",)))
+        # The first caller is suspended inside claim_next. The second caller
+        # must remain outside admission instead of observing the same slots.
+        await asyncio.sleep(0)
+        assert claim_calls == 1
+        release_claims.set()
+        reports = await asyncio.wait_for(asyncio.gather(first, second), 1)
+        await asyncio.wait_for(four_started.wait(), 1)
+
+        assert sum(report["scheduled"] for report in reports) == 4
+        assert runtime.health_snapshot()["worker"]["retained"] == 4
+        assert reports[-1]["active_lanes"] == {"control": 1, "shared": 3}
+
+        release_effects.set()
+        await wait_for_runtime_effects(runtime)
+
+    asyncio.run(exercise())
+
+    runtime.close()
+    store.close()
+
+
 def test_concurrent_runtime_keeps_same_task_effects_serialized(tmp_path):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     tracker = NativeTracker([])

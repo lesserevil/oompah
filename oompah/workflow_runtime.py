@@ -503,6 +503,10 @@ class WorkflowRuntime:
         self._events: list[WorkflowRuntimeEvent] = []
         self._effect_tasks: dict[asyncio.Task[Any], str] = {}
         self._effect_results: deque[Any] = deque(maxlen=128)
+        # Claiming awaits SQLite off-loop. Keep the capacity observation,
+        # exact claim, and retained-task publication inside one async critical
+        # section so overlapping reconciles cannot both spend the same slot.
+        self._effect_admission_lock = asyncio.Lock()
         self._closed = False
         self._topology_signature = topology_signature
         self._topology_source = topology_source
@@ -3148,46 +3152,47 @@ class WorkflowRuntime:
                 for lane in ("control", "shared")
             }
         scheduled = 0
-        if active_projects and not self._draining and self.worker.accepting:
-            remaining = self.batch_size
-            lane_limits = (
-                (
-                    "control",
-                    self.control_reserved_slots,
-                    tuple(sorted(RUNTIME_CONTROL_ACTIONS)),
-                ),
-                (
-                    "shared",
-                    self.max_concurrent - self.control_reserved_slots,
-                    tuple(sorted(RUNTIME_ACTIONS)),
-                ),
-            )
-            for lane, capacity, actions in lane_limits:
-                with self._lock:
-                    lane_active = sum(
-                        task_lane == lane and not task.done()
-                        for task, task_lane in self._effect_tasks.items()
-                    )
-                free = max(capacity - lane_active, 0)
-                for _index in range(min(free, remaining)):
-                    job = await self.worker.claim_next(
-                        project_ids=active_projects,
-                        actions=actions,
-                        fair_across_projects=True,
-                    )
-                    if job is None:
-                        break
-                    task = asyncio.create_task(
-                        self.worker.execute_claimed(job),
-                        name=f"workflow-effect:{lane}:{job.job_id}",
-                    )
+        async with self._effect_admission_lock:
+            if active_projects and not self._draining and self.worker.accepting:
+                remaining = self.batch_size
+                lane_limits = (
+                    (
+                        "control",
+                        self.control_reserved_slots,
+                        tuple(sorted(RUNTIME_CONTROL_ACTIONS)),
+                    ),
+                    (
+                        "shared",
+                        self.max_concurrent - self.control_reserved_slots,
+                        tuple(sorted(RUNTIME_ACTIONS)),
+                    ),
+                )
+                for lane, capacity, actions in lane_limits:
                     with self._lock:
-                        self._effect_tasks[task] = lane
-                    task.add_done_callback(self._effect_finished)
-                    scheduled += 1
-                    remaining -= 1
-                if remaining <= 0:
-                    break
+                        lane_active = sum(
+                            task_lane == lane and not task.done()
+                            for task, task_lane in self._effect_tasks.items()
+                        )
+                    free = max(capacity - lane_active, 0)
+                    for _index in range(min(free, remaining)):
+                        job = await self.worker.claim_next(
+                            project_ids=active_projects,
+                            actions=actions,
+                            fair_across_projects=True,
+                        )
+                        if job is None:
+                            break
+                        task = asyncio.create_task(
+                            self.worker.execute_claimed(job),
+                            name=f"workflow-effect:{lane}:{job.job_id}",
+                        )
+                        with self._lock:
+                            self._effect_tasks[task] = lane
+                        task.add_done_callback(self._effect_finished)
+                        scheduled += 1
+                        remaining -= 1
+                    if remaining <= 0:
+                        break
 
         with self._lock:
             active_by_lane = {
