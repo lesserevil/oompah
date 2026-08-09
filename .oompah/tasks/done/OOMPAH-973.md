@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T20:35:08.355449Z'
-updated_at: '2026-08-09T21:05:28.489023Z'
+updated_at: '2026-08-09T21:05:39.097855Z'
 work_branch: OOMPAH-973
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/781
@@ -55,7 +55,17 @@ oompah.terminal_audit:
     created_at: '2026-08-09T21:05:24.327824+00:00'
     selected_ref: ddf671f9397b923acf628bfdf1cc74cf03cb5fd3
     selected_sha: ddf671f9397b923acf628bfdf1cc74cf03cb5fd3
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-973
+    target_state: Done
+    evidence_fingerprint: 8c4b71dd008ac3a10d9028875b96d4e2da38aaaf38e5d396b61108f598a7c15a
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T21:05:33.425219+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -91,5 +101,17 @@ author: oompah
 created: 2026-08-09 20:51
 ---
 Branch quality gate passed for `ddf671f9397b923acf628bfdf1cc74cf03cb5fd3` using `make test` in 166.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-09 21:05
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Owner accepts exact merged review evidence: PR #781 merged exact head ddf671f9397b923acf628bfdf1cc74cf03cb5fd3 into main as 312c18ae3d834f6566ca3cb62d71184f87af2265; protected Python 3.11, 3.12, and 3.13 checks all passed; the full quality-gate module passed 199 tests; focused deterministic repeats passed; changed-code Ruff/diff checks passed; and independent semantic review found no blocker.
+---
+author: oompah
+created: 2026-08-09 21:05
+---
+Merged deterministic cleanup proof in PR #781 with the full protected Python matrix green.
 ---
 <!-- COMMENTS:END -->
