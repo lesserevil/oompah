@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T05:18:44.565095Z'
-updated_at: '2026-08-09T05:23:50.379823Z'
+updated_at: '2026-08-09T05:25:24.116959Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,3 +58,11 @@ The operation in `backend:workflow_runtime` should complete successfully, or deg
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 05:25
+---
+Root cause confirmed: a normal tracker source race can yield an unowned facts_refresh decision from a managed domain. WorkflowRuntime treated that hint as a foreign durable action, rejected the entire project cut, and prevented generation publication. Fix in progress scopes managed batches by dropping only actions explicitly registered to owner=none while preserving fail-closed rejection for unknown or cross-domain actions. Regression reproduces a stale epic list read followed by a current terminal task-fact read; focused tests pass.
+---
+<!-- COMMENTS:END -->
