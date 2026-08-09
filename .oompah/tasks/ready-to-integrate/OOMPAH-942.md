@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:26.152660Z'
-updated_at: '2026-08-09T09:54:08.391730Z'
+updated_at: '2026-08-09T09:54:19.912725Z'
 work_branch: OOMPAH-942
 target_branch: null
 review_url: null
@@ -26,9 +26,9 @@ oompah.integration:
   task_branch: OOMPAH-942
   base_branch: epic-OOMPAH-940
   base_sha: b7e7d9509a4e6025b48c54336098acef2dda4986
-  head_sha: 1b50116ce5057a617b84d22dd542c621721fc20e
-  submitted_at: '2026-08-09T09:32:14.484356+00:00'
-  updated_at: '2026-08-09T09:32:14.484356+00:00'
+  head_sha: 00c7e43c9d8448569871c33b07cb3c613196d2a7
+  submitted_at: '2026-08-09T09:54:11.191466+00:00'
+  updated_at: '2026-08-09T09:54:11.191466+00:00'
 oompah.work_branch: OOMPAH-942
 ---
 ## Summary
@@ -62,5 +62,10 @@ author: oompah
 created: 2026-08-09 09:54
 ---
 Independent review found and fixed a source-authority gap before integration: exact terminal-audit parent backfill now requires the persisted audit binding to match the parent source branch (or an equal immutable revision), and malformed or wrong-ref authority blocks lower-priority fallback. Added a wrong-source fail-closed regression. Verification: 154 integration/runtime tests passed; mutation and secret scans passed.
+---
+author: oompah
+created: 2026-08-09 09:54
+---
+Backfilled trusted terminal-parent heads only from exact route-bound authority; independent review fix binds terminal-audit proof to the parent source branch. 154 focused tests pass.
 ---
 <!-- COMMENTS:END -->
