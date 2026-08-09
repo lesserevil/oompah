@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:14:31.760374Z'
-updated_at: '2026-08-09T22:29:26.561069Z'
+updated_at: '2026-08-09T23:01:36.989394Z'
 work_branch: OOMPAH-975
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/782
@@ -61,7 +61,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-b69cff5382a7
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -73,6 +73,26 @@ oompah.terminal_audit:
       branch_key: OOMPAH-975
       selected_ref: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
       selected_sha: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
+      failure_classification: infrastructure_error
+      origin: coordinator_abandoned_recovery
+      ended_at: '2026-08-09T23:01:24.040479+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-489a1f3fae11
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 359fd89c7c4eb5ac1aec11ed4c75a771a703477e08b7702059d2e1eea95a9fbf
+      created_at: '2026-08-09T23:01:27.298881+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-09T23:01:27.298881+00:00'
+      branch_key: OOMPAH-975
+      selected_ref: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
+      selected_sha: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
+      candidate_rotation_count: 1
     source_generation: 1
     requested_by:
       version: 1
@@ -82,7 +102,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T22:26:07.264673+00:00'
     selected_ref: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
     selected_sha: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
-    updated_at: '2026-08-09T22:29:15.942758+00:00'
+    updated_at: '2026-08-09T23:01:27.298881+00:00'
   - version: 1
     audit_id: audit-b8647366926c
     project_id: proj-14849f1b
@@ -107,7 +127,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-b69cff5382a7
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -119,6 +139,26 @@ oompah.terminal_audit:
     branch_key: OOMPAH-975
     selected_ref: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
     selected_sha: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
+    failure_classification: infrastructure_error
+    origin: coordinator_abandoned_recovery
+    ended_at: '2026-08-09T23:01:24.040479+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-489a1f3fae11
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 359fd89c7c4eb5ac1aec11ed4c75a771a703477e08b7702059d2e1eea95a9fbf
+    created_at: '2026-08-09T23:01:27.298881+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-09T23:01:27.298881+00:00'
+    branch_key: OOMPAH-975
+    selected_ref: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
+    selected_sha: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -201,6 +241,16 @@ Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
 ---
 author: oompah
 created: 2026-08-09 22:29
+---
+Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 23:01
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-09 23:01
 ---
 Focus: Completion Auditor
 ---
