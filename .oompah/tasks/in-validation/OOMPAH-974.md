@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-974
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Keep lifecycle control recoverable when workflow reconciliation deadlocks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T21:55:16.851137Z'
+updated_at: '2026-08-09T21:59:29.957098Z'
 work_branch: OOMPAH-974
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/783
@@ -32,6 +32,62 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/783
 oompah.review_number: '783'
 oompah.target_branch: main
 oompah.review_head: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-d565b6a25f30
+    project_id: proj-14849f1b
+    task_id: OOMPAH-974
+    digest: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
+  - version: 1
+    audit_id: audit-e005f71194c1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-974
+    digest: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d565b6a25f30
+    project_id: proj-14849f1b
+    task_id: OOMPAH-974
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-09T21:59:24.029402+00:00'
+    selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+    selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+  - version: 1
+    audit_id: audit-e005f71194c1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-974
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-09T21:59:24.029402+00:00'
+    selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+    selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+  attempt_history: []
 ---
 ## Summary
 
@@ -76,5 +132,10 @@ author: oompah
 created: 2026-08-09 21:54
 ---
 Branch quality gate passed for `8526a01bfb741eb58c267e7f4b649b75f8bdc882` using `make test` in 160.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-09 21:59
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
