@@ -487,6 +487,23 @@ class OrchestratorEpicWorkflowEffects:
                     if callable(invalidate):
                         invalidate()
                     current = tracker.fetch_issue_detail(child.identifier)
+                    current_head = (
+                        _text(issue_exact_head(current)).lower()
+                        if isinstance(current, Issue)
+                        else ""
+                    )
+                    landing_revision = self._cleanup_landing_revision(
+                        facts,
+                        child.identifier,
+                        expected_source=(
+                            self.orchestrator.project_store.epic_child_branch_name(
+                                current_epic.identifier,
+                                child.identifier,
+                            )
+                        ),
+                        expected_target=self._branches(current_epic, facts)[0],
+                        expected_revision=expected_revision,
+                    )
                     if (
                         not isinstance(current, Issue)
                         or _text(current.project_id) != self.project_id
@@ -495,8 +512,11 @@ class OrchestratorEpicWorkflowEffects:
                         not in {DONE, MERGED, ARCHIVED}
                         or issue_authority_version(current)
                         != issue_authority_version(child)
-                        or _text(issue_exact_head(current)).lower()
-                        != expected_revision
+                        or (current_head and current_head != expected_revision)
+                        or (
+                            not current_head
+                            and landing_revision != expected_revision
+                        )
                     ):
                         replacement = (
                             issue_authority_version(current)
@@ -516,6 +536,55 @@ class OrchestratorEpicWorkflowEffects:
                             canonicalize_status(current.state) != ARCHIVED
                         ),
                     )
+
+    def _cleanup_landing_revision(
+        self,
+        facts: WorkflowFacts,
+        identifier: str,
+        *,
+        expected_source: str,
+        expected_target: str,
+        expected_revision: str = "",
+    ) -> str | None:
+        """Return one exact durable cleanup landing for a normal child."""
+
+        children = self._containment(facts).get("children")
+        if not isinstance(children, (list, tuple)):
+            return None
+        matching_children = tuple(
+            item
+            for item in children
+            if isinstance(item, Mapping)
+            and _text(item.get("identifier")) == identifier
+        )
+        if len(matching_children) != 1:
+            return None
+        child_fact = matching_children[0]
+        if (
+            canonicalize_status(child_fact.get("status")) == ARCHIVED
+            or bool(child_fact.get("maintenance"))
+            or _text(child_fact.get("landing_source")) != expected_source
+            or _text(child_fact.get("landing_target")) != expected_target
+        ):
+            return None
+        matching_landings = tuple(
+            fact
+            for fact in facts.landings
+            if fact.source == expected_source and fact.target == expected_target
+        )
+        if len(matching_landings) != 1:
+            return None
+        landing = matching_landings[0]
+        revision = _text(landing.revision).lower()
+        expected = _text(expected_revision).lower()
+        if (
+            landing.state is not LandingState.LANDED
+            or not landing.durable
+            or not _EXACT_HEAD_RE.fullmatch(revision)
+            or (expected and revision != expected)
+        ):
+            return None
+        return revision
 
     def _cleanup_primary_under_authority(
         self,
@@ -1058,6 +1127,7 @@ class OrchestratorEpicWorkflowEffects:
         children = self._containment(facts).get("children")
         if not isinstance(children, (list, tuple)):
             return ()
+        expected_target = self._branches(epic, facts)[0]
         tracker = self._tracker()
         selected: list[tuple[Issue, str, str | None]] = []
         for item in children:
@@ -1089,40 +1159,48 @@ class OrchestratorEpicWorkflowEffects:
             ) or _text(child.work_branch)
             if recorded != expected:
                 continue
+            requires_landing = status != ARCHIVED and not bool(
+                item.get("maintenance")
+            )
             expected_revision = _text(item.get("revision")).lower()
-            current_head = _text(issue_exact_head(child)).lower()
-            if (
-                not _EXACT_HEAD_RE.fullmatch(expected_revision)
-                or current_head != expected_revision
-            ):
-                raise WorkflowActionError(
-                    f"child {identifier} has no stable exact head for cleanup",
-                    category=WorkflowFailureCategory.TRANSIENT,
-                    retryable=True,
-                )
-            if status != ARCHIVED and not bool(item.get("maintenance")):
-                source = _text(item.get("landing_source"))
-                target = _text(item.get("landing_target"))
-                landing = next(
-                    (
-                        fact
-                        for fact in facts.landings
-                        if fact.source == source and fact.target == target
-                    ),
-                    None,
-                )
-                if (
-                    source != expected
-                    or landing is None
-                    or landing.state is not LandingState.LANDED
-                    or _text(landing.revision).lower() != expected_revision
-                ):
+            landing_revision = ""
+            if requires_landing:
+                landing_revision = self._cleanup_landing_revision(
+                    facts,
+                    identifier,
+                    expected_source=expected,
+                    expected_target=expected_target,
+                    expected_revision=expected_revision,
+                ) or ""
+                if not landing_revision:
                     raise WorkflowActionError(
                         f"Terminal child {identifier} has no exact landing proof "
                         "for cleanup",
                         category=WorkflowFailureCategory.TRANSIENT,
                         retryable=True,
                     )
+                # A canonical durable landing remains exact evidence after the
+                # child ref and tracker head are intentionally pruned. Reuse
+                # that same revision instead of requiring a second cleanup-
+                # specific head path.
+                expected_revision = expected_revision or landing_revision
+            current_head = _text(issue_exact_head(child)).lower()
+            if (
+                not _EXACT_HEAD_RE.fullmatch(expected_revision)
+                or (
+                    current_head
+                    and (
+                        not _EXACT_HEAD_RE.fullmatch(current_head)
+                        or current_head != expected_revision
+                    )
+                )
+                or (not current_head and not requires_landing)
+            ):
+                raise WorkflowActionError(
+                    f"child {identifier} has no stable exact head for cleanup",
+                    category=WorkflowFailureCategory.TRANSIENT,
+                    retryable=True,
+                )
             selected.append((child, expected, expected_revision or None))
         return tuple(selected)
 
