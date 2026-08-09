@@ -1222,6 +1222,67 @@ class TestOompahMarkdownTrackerAllStatusDirectories:
         assert found is not None, f"task with status {status!r} was not found"
         assert found.state == status
 
+    def test_cached_detail_lookup_is_indexed_for_large_corpus(self, tmp_path):
+        """Repeated fact reads must not rescan every cached task record."""
+
+        tracker = _tracker(tmp_path)
+        corpus_size = 256
+        for index in range(corpus_size):
+            identifier = f"REPO-{index + 1}"
+            _write_markdown_fixture(
+                tracker.tasks_root / "open" / f"{identifier}.md",
+                {
+                    "id": identifier,
+                    "type": "task",
+                    "status": OPEN,
+                    "title": f"Large corpus row {index + 1}",
+                },
+                "## Summary\n\nExercise indexed workflow fact lookup.\n",
+            )
+
+        with patch("oompah.oompah_md_tracker.time.sleep") as cooperative_yield:
+            assert len(tracker.fetch_all_issues()) == corpus_size
+        assert cooperative_yield.call_count == (
+            corpus_size // 32
+        ), "cold native scans must yield lifecycle control at a bounded interval"
+        original_lookup = tracker._lookup_id
+        lookup_calls = 0
+
+        def counted_lookup(identifier):
+            nonlocal lookup_calls
+            lookup_calls += 1
+            return original_lookup(identifier)
+
+        tracker._lookup_id = counted_lookup
+        for index in range(corpus_size):
+            assert tracker.fetch_issue_detail(f"REPO-{index + 1}") is not None
+
+        # One canonicalization per key is linear.  The old implementation did
+        # O(n) canonicalizations for every detail read (65,536 for this case).
+        assert lookup_calls <= corpus_size * 2
+
+    def test_detail_lookup_keeps_coherent_snapshot_across_cache_invalidation(
+        self, tmp_path
+    ):
+        """A concurrent invalidation cannot turn a present row into None."""
+
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Invalidate after read", initial_status=OPEN)
+        tracker.fetch_all_issues()
+        original_read_records = tracker._read_records
+
+        def read_then_invalidate():
+            records = original_read_records()
+            tracker.invalidate_read_cache()
+            return records
+
+        tracker._read_records = read_then_invalidate
+
+        found = tracker.fetch_issue_detail(issue.identifier)
+
+        assert found is not None
+        assert found.identifier == issue.identifier
+
 
 class TestOompahMarkdownTrackerFullLifecycle:
     """Walk a task through the canonical 1.0 lifecycle end-to-end."""

@@ -63,6 +63,7 @@ from oompah.tracker import (
 logger = logging.getLogger(__name__)
 
 TRACKER_KIND = "oompah_md"
+_READ_CONTROL_PLANE_YIELD_INTERVAL = 32
 
 # ---------------------------------------------------------------------------
 # Module-level write-lock registry (OOMPAH-267 / OOMPAH-268)
@@ -361,6 +362,7 @@ class OompahMarkdownTracker:
         self._repo_lock_key = str(self._root)
         self._write_lock = _repo_write_lock(self._repo_lock_key)
         self._read_cache: list[dict[str, Any]] | None = None
+        self._read_cache_by_id: dict[str, dict[str, Any]] | None = None
         self._read_cache_generation: int | None = None
         self._corrupt_stubs: list[dict[str, Any]] | None = None
         self._read_cache_guard = threading.Lock()
@@ -1357,6 +1359,7 @@ class OompahMarkdownTracker:
         _advance_repo_read_generation(self._repo_lock_key)
         with self._read_cache_guard:
             self._read_cache = None
+            self._read_cache_by_id = None
             self._read_cache_generation = None
             self._corrupt_stubs = None
         # Invalidation occurs after the mutation has been written to the
@@ -1651,7 +1654,7 @@ class OompahMarkdownTracker:
                 )
                 readable_stems: set[str] = set()
                 missing_this_attempt: list[Path] = []
-                for path in paths:
+                for index, path in enumerate(paths, start=1):
                     try:
                         meta, body = _read_markdown(path)
                     except TrackerError as exc:
@@ -1666,34 +1669,40 @@ class OompahMarkdownTracker:
                     previous = records_by_id.get(identifier)
                     if previous is None:
                         records_by_id[identifier] = record
-                        continue
+                    else:
+                        # A task can be left in two status directories if concurrent
+                        # writers race while moving it.  Never expose both copies to
+                        # the board or scheduler: prefer the most recently updated
+                        # record and leave the obsolete file for an explicit repair.
+                        def recency(item: dict[str, Any]) -> tuple[datetime, str]:
+                            updated = _parse_timestamp(item["meta"].get("updated_at"))
+                            return (
+                                updated or datetime.min.replace(tzinfo=timezone.utc),
+                                str(item["path"]),
+                            )
 
-                    # A task can be left in two status directories if concurrent
-                    # writers race while moving it.  Never expose both copies to
-                    # the board or scheduler: prefer the most recently updated
-                    # record and leave the obsolete file for an explicit repair.
-                    def recency(item: dict[str, Any]) -> tuple[datetime, str]:
-                        updated = _parse_timestamp(item["meta"].get("updated_at"))
-                        return (
-                            updated or datetime.min.replace(tzinfo=timezone.utc),
-                            str(item["path"]),
+                        winner, loser = (
+                            (record, previous)
+                            if recency(record) > recency(previous)
+                            else (previous, record)
                         )
-
-                    winner, loser = (
-                        (record, previous)
-                        if recency(record) > recency(previous)
-                        else (previous, record)
-                    )
-                    records_by_id[identifier] = winner
-                    logger.warning(
-                        "Duplicate native oompah task ID %s at %s and %s; using %s "
-                        "and ignoring %s. Repair the stale record before editing this task.",
-                        identifier,
-                        previous["path"],
-                        record["path"],
-                        winner["path"],
-                        loser["path"],
-                    )
+                        records_by_id[identifier] = winner
+                        logger.warning(
+                            "Duplicate native oompah task ID %s at %s and %s; using %s "
+                            "and ignoring %s. Repair the stale record before editing this task.",
+                            identifier,
+                            previous["path"],
+                            record["path"],
+                            winner["path"],
+                            loser["path"],
+                        )
+                    # LibYAML and task normalization can keep this scheduler
+                    # thread runnable for seconds on a large native corpus.
+                    # Yield the GIL at a deterministic bounded interval so the
+                    # co-resident lifecycle HTTP loop can serve health, state,
+                    # and quiesce while a cold authoritative scan is active.
+                    if index % _READ_CONTROL_PLANE_YIELD_INTERVAL == 0:
+                        time.sleep(0)
 
                 missing_paths.extend(missing_this_attempt)
                 if missing_this_attempt and attempt == 0:
@@ -1732,6 +1741,7 @@ class OompahMarkdownTracker:
                 records = list(records_by_id.values())
                 with self._read_cache_guard:
                     self._read_cache = records
+                    self._read_cache_by_id = dict(records_by_id)
                     self._read_cache_generation = generation
                     self._corrupt_stubs = corrupt_stubs
                 return records
@@ -1740,10 +1750,21 @@ class OompahMarkdownTracker:
 
     def _read_record(self, identifier: str) -> dict[str, Any] | None:
         needle = self._lookup_id(identifier)
-        for rec in self._read_records():
-            task_id = str(rec["meta"].get("id") or Path(rec["path"]).stem)
+        records = self._read_records()
+        with self._read_cache_guard:
+            index = self._read_cache_by_id
+            if index is not None:
+                return index.get(needle)
+        # Invalidation may race after _read_records() returns its coherent
+        # snapshot and before the cache guard above.  That snapshot remains a
+        # valid linearization point; search it rather than manufacturing a
+        # false missing task from the deliberately cleared shared index.
+        for record in records:
+            task_id = str(
+                record["meta"].get("id") or Path(record["path"]).stem
+            )
             if self._lookup_id(task_id) == needle:
-                return rec
+                return record
         return None
 
     def _read_record_uncached(self, identifier: str) -> dict[str, Any] | None:
