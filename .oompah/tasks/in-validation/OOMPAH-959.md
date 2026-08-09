@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-959
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Continue durable effects when concurrency fills before batch size
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T14:08:58.066871Z'
-updated_at: '2026-08-09T14:37:21.247757Z'
+updated_at: '2026-08-09T15:08:08.154436Z'
 work_branch: OOMPAH-959
 target_branch: null
 review_url: null
@@ -28,6 +28,37 @@ oompah.integration:
   submitted_at: '2026-08-09T14:23:59.670559+00:00'
   updated_at: '2026-08-09T14:23:59.670559+00:00'
 oompah.work_branch: OOMPAH-959
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-5317d8cb7d28
+    project_id: proj-14849f1b
+    task_id: OOMPAH-959
+    digest: 9a998114f7815472d49fefa3db1706de6c4637bd39a4dc56911707d275fccf4e
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-5317d8cb7d28
+    project_id: proj-14849f1b
+    task_id: OOMPAH-959
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9a998114f7815472d49fefa3db1706de6c4637bd39a4dc56911707d275fccf4e
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Open
+    created_at: '2026-08-09T15:08:02.089926+00:00'
+    selected_ref: 4bd555a74d78a1fb0324a3ed58bcd7c01d342b41
+    selected_sha: 4bd555a74d78a1fb0324a3ed58bcd7c01d342b41
+  attempt_history: []
 ---
 ## Summary
 
@@ -50,5 +81,10 @@ author: oompah
 created: 2026-08-09 14:24
 ---
 Exact claimability probe and concurrency-cap continuation implemented; 155 focused workflow job/runtime tests pass.
+---
+author: oompah
+created: 2026-08-09 15:08
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
