@@ -285,6 +285,120 @@ def test_event_lane_retry_wait_is_live_authority(store):
     )
 
 
+def test_administrative_deferral_preserves_checkpoint_and_failure_budget(
+    store, clock
+):
+    queued = store.enqueue(spec(max_attempts=1))
+    running = claim(store)
+    assert running is not None
+    checkpointed = store.checkpoint(
+        running.job_id,
+        running.lease_token,
+        phase="revalidated",
+        checkpoint={"revalidation": {"generation": "g1"}},
+    )
+
+    first = store.defer_owned_without_attempt(
+        checkpointed.job_id,
+        checkpointed.lease_token,
+        reason="operator pause",
+        retry_delay_seconds=5,
+    )
+
+    assert first.state is WorkflowJobState.RETRY_WAIT
+    assert first.attempts == 0
+    assert first.generation == queued.generation
+    assert first.phase == checkpointed.phase
+    assert first.checkpoint == checkpointed.checkpoint
+    assert first.retry_at == clock.now + 5
+    assert first.failure_category is None
+    assert first.last_error is None
+    event = store.events(queued.job_id)[-1]
+    assert event.event_type == "administrative_deferred"
+    assert event.payload == {
+        "deferral_count": 1,
+        "reason": "operator pause",
+        "restored_attempts": 0,
+        "retry_at": clock.now + 5,
+        "retry_delay_seconds": 5.0,
+    }
+
+    clock.advance(5)
+    resumed = claim(store)
+    assert resumed is not None
+    second = store.defer_owned_without_attempt(
+        resumed.job_id,
+        resumed.lease_token,
+        reason="graceful restart",
+        retry_delay_seconds=5,
+    )
+
+    assert second.attempts == 0
+    assert second.retry_at == clock.now + 10
+    assert second.checkpoint == checkpointed.checkpoint
+    assert store.events(queued.job_id)[-1].payload["deferral_count"] == 2
+
+
+def test_administrative_deferral_fences_aba_lease_across_restart(tmp_path, clock):
+    path = str(tmp_path / "administrative-restart.sqlite3")
+    store = WorkflowJobStore(path, clock=clock)
+    queued = store.enqueue(spec(max_attempts=1))
+    first = claim(store)
+    assert first is not None
+    store.defer_owned_without_attempt(
+        first.job_id,
+        first.lease_token,
+        reason="lifecycle drain",
+        retry_delay_seconds=5,
+    )
+    store.close()
+
+    clock.advance(5)
+    reopened = WorkflowJobStore(path, clock=clock)
+    try:
+        replacement = reopened.claim_next(
+            lease_owner="worker-after-restart",
+            lease_seconds=30,
+        )
+        assert replacement is not None
+        assert replacement.job_id == queued.job_id
+        assert replacement.generation == queued.generation
+        assert replacement.lease_token != first.lease_token
+        assert replacement.attempts == 1
+
+        with pytest.raises(WorkflowJobLeaseLost):
+            reopened.defer_owned_without_attempt(
+                first.job_id,
+                first.lease_token,
+                reason="late pre-restart callback",
+                retry_delay_seconds=5,
+            )
+
+        observed = reopened.get(queued.job_id)
+        assert observed.state is WorkflowJobState.RUNNING
+        assert observed.lease_token == replacement.lease_token
+        assert observed.attempts == 1
+
+        superseded = reopened.supersede(
+            queued.job_id,
+            generation=queued.generation,
+            replacement_generation="g2",
+            reason="new evidence generation",
+        )
+        with pytest.raises(WorkflowJobLeaseLost):
+            reopened.defer_owned_without_attempt(
+                replacement.job_id,
+                replacement.lease_token,
+                reason="late replacement callback",
+                retry_delay_seconds=5,
+            )
+        assert superseded.state is WorkflowJobState.SUPERSEDED
+        assert superseded.superseded_by_generation == "g2"
+        assert reopened.get(queued.job_id) == superseded
+    finally:
+        reopened.close()
+
+
 @pytest.mark.parametrize(
     "active_state",
     [

@@ -64,6 +64,7 @@ from oompah.workflow_runtime import (
     WorkflowProjectBinding,
     WorkflowRuntime,
     WorkflowRuntimeError,
+    _ProjectRoutedHandler,
 )
 from oompah.workflow_worker import (
     DurableWorkflowWorker,
@@ -71,6 +72,7 @@ from oompah.workflow_worker import (
     EffectResult,
     RevalidationResult,
     VerificationResult,
+    WorkflowRunDisposition,
 )
 from oompah.work_decision import evaluate_task
 from oompah.work_decision_projection import (
@@ -4415,6 +4417,65 @@ def test_paused_project_keeps_due_job_unclaimed_until_resumed(tmp_path):
     assert resumed_report["worker"]["processed"] == 1
     assert store.get(job.job_id).state is WorkflowJobState.COMPLETED
     runtime.close()
+    store.close()
+
+
+def test_pause_race_after_claim_defers_without_consuming_attempt(tmp_path):
+    now = [1000.0]
+    enabled = True
+    store = WorkflowJobStore(
+        str(tmp_path / "pause-race.sqlite3"), clock=lambda: now[0]
+    )
+    leaf = CompleteHandler()
+    routed = _ProjectRoutedHandler(
+        "review_refresh",
+        {"project-1": leaf},
+        project_enabled={"project-1": lambda: enabled},
+    )
+    job = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-PAUSE-RACE",
+            generation="pause-race-1",
+            action="review_refresh",
+            idempotency_key="pause-race-job",
+            max_attempts=1,
+        )
+    )
+
+    async def exercise():
+        nonlocal enabled
+        paused_once = False
+
+        def pause_after_claim(phase, _job):
+            nonlocal enabled, paused_once
+            if phase == "leased" and not paused_once:
+                paused_once = True
+                enabled = False
+
+        runner = DurableWorkflowWorker(
+            store=store,
+            handlers={"review_refresh": routed},
+            transition_services={},
+            worker_id="pause-race-worker",
+            retry_delay_seconds=5,
+            phase_observer=pause_after_claim,
+        )
+        deferred = await runner.run_once()
+        enabled = True
+        now[0] += 5
+        completed = await runner.run_once()
+        return deferred, completed
+
+    deferred, completed = asyncio.run(exercise())
+
+    assert deferred.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+    assert deferred.attempts == 0
+    assert completed.disposition is WorkflowRunDisposition.COMPLETED
+    assert store.get(job.job_id).attempts == 1
+    assert [event.event_type for event in store.events(job.job_id)].count(
+        "administrative_deferred"
+    ) == 1
     store.close()
 
 

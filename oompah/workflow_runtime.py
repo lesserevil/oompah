@@ -91,6 +91,7 @@ from oompah.workflow_worker import (
     EffectResult,
     RevalidationResult,
     VerificationResult,
+    WorkflowAdministrativeDeferral,
     WorkflowActionDomain,
     WorkflowActionError,
     WorkflowActionHandler,
@@ -331,10 +332,9 @@ class _ProjectRoutedHandler:
             except Exception:
                 may_run = False
             if not may_run:
-                raise WorkflowActionError(
+                raise WorkflowAdministrativeDeferral(
                     "durable workflow project is paused or quiesced",
-                    category=WorkflowFailureCategory.TRANSIENT,
-                    retryable=True,
+                    effect_not_started=True,
                 )
         try:
             return self.handlers[context.job.project_id]

@@ -24,7 +24,9 @@ from oompah.workflow_worker import (
     EffectResult,
     RevalidationResult,
     VerificationResult,
+    WorkflowAdministrativeDeferral,
     WorkflowActionDomain,
+    WorkflowActionError,
     WorkflowRunDisposition,
 )
 
@@ -630,6 +632,167 @@ async def test_interrupt_is_cooperative_and_persists_retry(store):
     assert result.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
     assert store.get(queued.job_id).state is WorkflowJobState.RETRY_WAIT
     assert (await runner.run_once()).disposition is WorkflowRunDisposition.STOPPED
+
+
+@pytest.mark.asyncio
+async def test_pre_effect_lifecycle_drain_does_not_consume_attempt_after_restart(
+    store, clock
+):
+    queued = store.enqueue(job_spec(max_attempts=1))
+    handler = ScriptedHandler()
+    handler.delay_operation = "revalidate"
+    handler.started = asyncio.Event()
+    handler.release = asyncio.Event()
+    draining_worker = worker(store, handler)
+
+    invocation = asyncio.create_task(draining_worker.run_once())
+    await handler.started.wait()
+    draining_worker.interrupt()
+    handler.release.set()
+    deferred = await invocation
+
+    assert deferred.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+    waiting = store.get(queued.job_id)
+    assert waiting.state is WorkflowJobState.RETRY_WAIT
+    assert waiting.attempts == 0
+    assert store.events(queued.job_id)[-1].event_type == "administrative_deferred"
+
+    clock.advance(5)
+    resumed = await worker(store, ScriptedHandler()).run_once()
+
+    assert resumed.disposition is WorkflowRunDisposition.COMPLETED
+    assert store.get(queued.job_id).attempts == 1
+
+
+@pytest.mark.asyncio
+async def test_administrative_cycles_beyond_max_attempts_resume_with_backoff(
+    store, clock
+):
+    queued = store.enqueue(job_spec(max_attempts=2))
+    handler = ScriptedHandler()
+    original_revalidate = handler.revalidate
+    remaining_deferrals = 5
+
+    async def administratively_deferred(context):
+        nonlocal remaining_deferrals
+        if remaining_deferrals:
+            remaining_deferrals -= 1
+            raise WorkflowAdministrativeDeferral("resource admission deferred")
+        return await original_revalidate(context)
+
+    handler.revalidate = administratively_deferred
+    runner = worker(store, handler)
+    observed_delays = []
+
+    for _ in range(5):
+        result = await runner.run_once()
+        waiting = store.get(queued.job_id)
+        assert result.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+        assert waiting.state is WorkflowJobState.RETRY_WAIT
+        assert waiting.attempts == 0
+        observed_delays.append(waiting.retry_at - clock.now)
+        clock.advance(waiting.retry_at - clock.now)
+
+    completed = await runner.run_once()
+
+    assert observed_delays == [5, 10, 20, 40, 80]
+    assert completed.disposition is WorkflowRunDisposition.COMPLETED
+    assert store.get(queued.job_id).attempts == 1
+
+
+@pytest.mark.asyncio
+async def test_proven_apply_admission_deferral_preserves_exact_checkpoint(
+    store, clock
+):
+    queued = store.enqueue(job_spec(max_attempts=1))
+    handler = ScriptedHandler()
+    original_apply = handler.apply
+    blocked = True
+
+    async def guarded_apply(context):
+        nonlocal blocked
+        if blocked:
+            blocked = False
+            raise WorkflowAdministrativeDeferral(
+                "project paused at effect admission",
+                effect_not_started=True,
+            )
+        return await original_apply(context)
+
+    handler.apply = guarded_apply
+    runner = worker(store, handler)
+
+    deferred = await runner.run_once()
+    waiting = store.get(queued.job_id)
+
+    assert deferred.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+    assert waiting.attempts == 0
+    assert waiting.phase == "effect_pending"
+    assert waiting.checkpoint == {
+        "effect_observed": False,
+        "revalidation": {
+            "details": {"source": "test"},
+            "evidence_revision": "facts-g1",
+            "generation": "g1",
+            "head_sha": "a" * 40,
+        },
+    }
+
+    clock.advance(5)
+    completed = await runner.run_once()
+    assert completed.disposition is WorkflowRunDisposition.COMPLETED
+    assert store.get(queued.job_id).attempts == 1
+
+
+@pytest.mark.asyncio
+async def test_genuine_pre_effect_failures_still_increment_and_exhaust(store, clock):
+    queued = store.enqueue(job_spec(max_attempts=2))
+    handler = ScriptedHandler()
+
+    async def unavailable(_context):
+        raise WorkflowActionError(
+            "provider transport failed",
+            category=WorkflowFailureCategory.TRANSPORT,
+            retryable=True,
+        )
+
+    handler.revalidate = unavailable
+    runner = worker(store, handler)
+
+    first = await runner.run_once()
+    clock.advance(5)
+    second = await runner.run_once()
+
+    assert first.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+    assert second.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    exhausted = store.get(queued.job_id)
+    assert exhausted.state is WorkflowJobState.EXHAUSTED
+    assert exhausted.attempts == 2
+    assert exhausted.failure_category is WorkflowFailureCategory.TRANSPORT
+
+
+@pytest.mark.asyncio
+async def test_uncertain_post_effect_deferral_is_not_given_free_attempt(store):
+    queued = store.enqueue(job_spec(max_attempts=1))
+    handler = ScriptedHandler()
+
+    async def effect_then_defer(_context):
+        handler.apply_calls += 1
+        handler.external_applied = True
+        raise WorkflowAdministrativeDeferral("pause raced with effect return")
+
+    handler.apply = effect_then_defer
+
+    result = await worker(store, handler).run_once()
+
+    assert result.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    exhausted = store.get(queued.job_id)
+    assert exhausted.state is WorkflowJobState.EXHAUSTED
+    assert exhausted.attempts == 1
+    assert exhausted.failure_category is WorkflowFailureCategory.TRANSIENT
+    assert [event.event_type for event in store.events(queued.job_id)][-1] == (
+        "exhausted"
+    )
 
 
 @pytest.mark.asyncio

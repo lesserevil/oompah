@@ -33,6 +33,7 @@ except ImportError:  # pragma: no cover
 WORKFLOW_JOB_SCHEMA_VERSION = 6
 DEFAULT_SCAN_LIMIT = 100
 MAX_SCAN_LIMIT = 1000
+_MAX_ADMINISTRATIVE_BACKOFF_EXPONENT = 10
 _INITIALIZE_LOCK = threading.Lock()
 _REASSESSMENT_GENERATION_MARKER = ":reassess="
 
@@ -5089,6 +5090,96 @@ class WorkflowJobStore:
                     payload={
                         "reason": message,
                         "restored_attempts": restored_attempts,
+                    },
+                    now=timestamp,
+                )
+                self._conn.commit()
+                return self._from_row(row)
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def defer_owned_without_attempt(
+        self,
+        job_id: str,
+        lease_token: str,
+        *,
+        reason: str,
+        retry_delay_seconds: float,
+        now: float | None = None,
+    ) -> WorkflowJob:
+        """Release an exact pre-effect lease without charging failure budget.
+
+        A claim is the execution-attempt boundary and therefore increments the
+        durable attempt count.  Administrative admission failures (operator
+        pause, quiesce, lifecycle drain, and equivalent resource deferrals)
+        happen before the external effect has started, so they invert only
+        that increment.  The exact phase and checkpoint remain intact for the
+        resumed invocation, while an append-only event records why ownership
+        was released.
+
+        Repeated deferrals retain exponential backoff independently of the
+        substantive failure-attempt budget.  The exponent is capped so a long
+        administrative outage cannot overflow or grow without bound.
+        """
+
+        message = _required_text(reason, "reason")
+        if retry_delay_seconds < 0:
+            raise ValueError("retry_delay_seconds cannot be negative")
+        with self._authority_mutation_guard():
+            timestamp = float(self._clock() if now is None else now)
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                owned = self._owned_row_locked(job_id, lease_token, now=timestamp)
+                restored_attempts = max(int(owned["attempts"]) - 1, 0)
+                prior_deferrals = int(
+                    self._conn.execute(
+                        """
+                        SELECT COUNT(*) FROM workflow_job_events
+                         WHERE job_id = ? AND event_type = 'administrative_deferred'
+                        """,
+                        (job_id,),
+                    ).fetchone()[0]
+                )
+                exponent = min(
+                    prior_deferrals, _MAX_ADMINISTRATIVE_BACKOFF_EXPONENT
+                )
+                retry_delay = float(retry_delay_seconds) * (2**exponent)
+                retry_at = timestamp + retry_delay
+                cursor = self._conn.execute(
+                    """
+                    UPDATE workflow_jobs
+                       SET state = ?, attempts = ?,
+                           lease_owner = NULL, lease_token = NULL,
+                           lease_expires_at = NULL, retry_at = ?,
+                           failure_category = NULL, last_error = NULL,
+                           updated_at = ?, completed_at = NULL
+                     WHERE job_id = ? AND state = ? AND lease_token = ?
+                    """,
+                    (
+                        WorkflowJobState.RETRY_WAIT.value,
+                        restored_attempts,
+                        retry_at,
+                        timestamp,
+                        job_id,
+                        WorkflowJobState.RUNNING.value,
+                        lease_token,
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    raise WorkflowJobLeaseLost(
+                        f"workflow job lease is no longer owned: {job_id}"
+                    )
+                row = self._row_locked(job_id)
+                self._append_event_locked(
+                    row,
+                    "administrative_deferred",
+                    payload={
+                        "reason": message,
+                        "restored_attempts": restored_attempts,
+                        "deferral_count": prior_deferrals + 1,
+                        "retry_delay_seconds": retry_delay,
+                        "retry_at": retry_at,
                     },
                     now=timestamp,
                 )
