@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-964
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Ignore PR-backed issue comments in GitHub issue intake
 parent: null
@@ -13,7 +13,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-08-09T16:09:40.311061Z'
-updated_at: '2026-08-09T17:16:40.395608Z'
+updated_at: '2026-08-09T17:17:49.604406Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,6 +33,26 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-964
     digest: 5f317aea7f8bfeec2d33d305f88480668d0a5d1039eaa7e29d86ced8e185da6a
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6341e1e89e40
+    project_id: proj-14849f1b
+    task_id: OOMPAH-964
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5f317aea7f8bfeec2d33d305f88480668d0a5d1039eaa7e29d86ced8e185da6a
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct-owner completion after independent review and exact hosted CI on
+      Python 3.11, 3.12, and 3.13.
+    created_at: '2026-08-09T17:17:43.168221+00:00'
+    selected_ref: origin/OOMPAH-964
+    selected_sha: 21861cac88967f1b7b1fb171c8bb78ded3fd346c
+    applied: false
   version: 1
   pending_chain:
   - version: 1
