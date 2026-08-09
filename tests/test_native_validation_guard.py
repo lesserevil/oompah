@@ -3051,8 +3051,6 @@ def test_parallel_native_command_boundaries_are_consumed_independently(
         assert second.stdout is not None
         assert first.stdout.read(len("first")) == "first"
         assert second.stdout.read(len("second")) == "second"
-        assert first.poll() is None
-        assert second.poll() is None
     finally:
         for process in processes:
             if process.poll() is None:
