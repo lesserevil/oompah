@@ -11135,6 +11135,44 @@ class Orchestrator:
             )
         return True
 
+    def _request_workflow_reconcile_continuation(
+        self,
+        *,
+        reason: str = "workflow_publication_superseded",
+    ) -> bool:
+        """Queue one ordinary full scan after a staged world cut goes stale."""
+
+        runtime = self.workflow_runtime
+        with self._provider_admission_lock:
+            if (
+                runtime is None
+                or self._stopping
+                or self._quiesced
+                or getattr(self, "_paused", False)
+                or not runtime.worker.accepting
+            ):
+                return False
+            self._set_refresh_requested()
+            self._post_event(
+                DispatchEvent(
+                    event_type=DispatchEventType.REFRESH_REQUESTED,
+                    payload={"reason": reason},
+                )
+            )
+        return True
+
+    def _request_runtime_report_continuation(
+        self, report: Mapping[str, Any]
+    ) -> bool:
+        """Translate a stale runtime report into one coalesced full scan."""
+
+        if report.get("requires_reconcile") is not True:
+            return False
+        reason = str(
+            report.get("reconcile_reason") or "workflow_publication_superseded"
+        )
+        return self._request_workflow_reconcile_continuation(reason=reason)
+
     def _request_audit_lane_continuation(self) -> bool:
         """Queue one coalesced follow-up for a budget-sliced audit scan."""
 
@@ -15006,6 +15044,10 @@ class Orchestrator:
         audit_metrics = await self._dispatch_audit_lane()
         report = await runtime.reconcile_async()
 
+        reconcile_continuation_requested = (
+            self._request_runtime_report_continuation(report)
+        )
+
         worker_report = report.get("worker")
         batch_saturated = bool(
             isinstance(worker_report, Mapping)
@@ -15027,6 +15069,9 @@ class Orchestrator:
             "workflow_runtime": report,
             "workflow_batch_saturated": batch_saturated,
             "workflow_batch_continuation_requested": continuation_requested,
+            "workflow_reconcile_continuation_requested": (
+                reconcile_continuation_requested
+            ),
             "terminal_audit": audit_metrics,
             "housekeeping_pending": bool(
                 self._maintenance_future is not None
