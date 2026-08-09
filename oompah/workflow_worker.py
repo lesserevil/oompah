@@ -894,10 +894,7 @@ class DurableWorkflowWorker:
                     None,
                     "worker has no registered workflow actions",
                 )
-            job = await asyncio.to_thread(
-                self.store.claim_next,
-                lease_owner=self.worker_id,
-                lease_seconds=self.lease_seconds,
+            job = await self.claim_next(
                 project_id=project_id,
                 project_ids=project_ids,
                 actions=claim_actions,
@@ -910,6 +907,59 @@ class DurableWorkflowWorker:
                     None,
                     "no due workflow job",
                 )
+            return await self._execute_claimed(job)
+        finally:
+            if current is not None:
+                self._active.discard(current)
+
+    async def claim_next(
+        self,
+        *,
+        project_id: str | None = None,
+        project_ids: Sequence[str] | None = None,
+        actions: Sequence[str] | None = None,
+        fair_across_projects: bool = False,
+    ) -> WorkflowJob | None:
+        """Claim one exact durable row without waiting for its effect.
+
+        Runtime schedulers use this small admission boundary to retain the
+        resulting invocation in a bounded background lane.  A claim remains
+        restart-safe even if the process exits before ``execute_claimed`` is
+        admitted: its lease expires back into the ordinary recovery path.
+        """
+
+        if not self._accepting:
+            return None
+        claim_actions = (
+            tuple(sorted(self.handlers)) if actions is None else tuple(actions)
+        )
+        if not claim_actions:
+            return None
+        return await asyncio.to_thread(
+            self.store.claim_next,
+            lease_owner=self.worker_id,
+            lease_seconds=self.lease_seconds,
+            project_id=project_id,
+            project_ids=project_ids,
+            actions=claim_actions,
+            fair_across_projects=fair_across_projects,
+        )
+
+    async def execute_claimed(self, job: WorkflowJob) -> WorkflowRunResult:
+        """Execute a row already leased by :meth:`claim_next`.
+
+        Unlike new admission this method deliberately remains available after
+        ``drain`` fences claims.  Shutdown first waits for the runtime's claim
+        pass, so every lease returned to it must either start its independent
+        heartbeat here or recover durably after a process crash.
+        """
+
+        if not isinstance(job, WorkflowJob):
+            raise TypeError("job must be a WorkflowJob")
+        current = asyncio.current_task()
+        if current is not None:
+            self._active.add(current)
+        try:
             return await self._execute_claimed(job)
         finally:
             if current is not None:

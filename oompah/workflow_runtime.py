@@ -23,6 +23,7 @@ import re
 import subprocess
 import threading
 import uuid
+from collections import deque
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import ExitStack
 from dataclasses import asdict, dataclass, replace
@@ -116,12 +117,27 @@ _DOMAIN_ACTIONS = {
     "epic": EPIC_ACTIONS,
 }
 RUNTIME_ACTIONS = frozenset().union(*_DOMAIN_ACTIONS.values())
+# These exact lifecycle effects must remain admissible while a forge or
+# validation gate is waiting.  The shared lane may also execute them, but the
+# reserved lane never admits data-plane work.
+RUNTIME_CONTROL_ACTIONS = frozenset(
+    {
+        "authority_revocation",
+        "validation_submission",
+        "worker_exit",
+        "implementation_recovery",
+        "integration_recovery",
+        "terminal_audit_done",
+    }
+)
 _RUNTIME_OWNER_PATTERN = re.compile(
     r"^workflow-runtime:(?P<pid>[1-9][0-9]*):[0-9a-f]+$"
 )
 
 if sum(len(actions) for actions in _DOMAIN_ACTIONS.values()) != len(RUNTIME_ACTIONS):
     raise RuntimeError("durable workflow domain action sets overlap")
+if not RUNTIME_CONTROL_ACTIONS < RUNTIME_ACTIONS:
+    raise RuntimeError("durable workflow control actions must be runtime actions")
 
 _LIVENESS_ACTION_OWNER = {
     **{action: "implementation" for action in IMPLEMENTATION_ACTIONS},
@@ -371,6 +387,8 @@ class WorkflowRuntime:
         handlers: Mapping[str, WorkflowActionHandler] | None = None,
         decision_limit: int = DEFAULT_RUNTIME_DECISION_LIMIT,
         batch_size: int = DEFAULT_RUNTIME_BATCH_SIZE,
+        max_concurrent: int = 4,
+        control_reserved_slots: int = 1,
         worker: DurableWorkflowWorker | None = None,
         handler_coverage: Mapping[str, Sequence[str]] | None = None,
         abandoned_lease_owners: Sequence[str] = (),
@@ -378,6 +396,7 @@ class WorkflowRuntime:
         topology_source: Callable[[], tuple[Any, ...]] | None = None,
         topology_change_handler: Callable[[], Any] | None = None,
         transition_observer: Callable[[Any], None] | None = None,
+        effect_completion_observer: Callable[[Any], None] | None = None,
         liveness_controller: UniversalTotalityLivenessController | None = None,
         persist_liveness_state: Callable[[Mapping[str, Any]], None] | None = None,
         projection_publisher: Callable[..., Any] | None = None,
@@ -390,6 +409,14 @@ class WorkflowRuntime:
             raise ValueError("decision_limit must be positive")
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
+        if max_concurrent < 2:
+            raise ValueError("max_concurrent must be at least two")
+        if control_reserved_slots < 1:
+            raise ValueError("control_reserved_slots must be positive")
+        if control_reserved_slots >= max_concurrent:
+            raise ValueError(
+                "control_reserved_slots must leave at least one shared slot"
+            )
         self.mode = normalized_mode
         self.domain_modes = normalize_workflow_domain_modes(
             domain_modes,
@@ -463,6 +490,8 @@ class WorkflowRuntime:
         self.journals = dict(journals)
         self.decision_limit = int(decision_limit)
         self.batch_size = int(batch_size)
+        self.max_concurrent = int(max_concurrent)
+        self.control_reserved_slots = int(control_reserved_slots)
         self._lock = threading.RLock()
         self._reconcile_condition = threading.Condition(self._lock)
         self._active_reconciles = 0
@@ -472,11 +501,14 @@ class WorkflowRuntime:
         self._last_reconcile: dict[str, Any] = {}
         self._latest_decisions: dict[tuple[str, str], Any] = {}
         self._events: list[WorkflowRuntimeEvent] = []
+        self._effect_tasks: dict[asyncio.Task[Any], str] = {}
+        self._effect_results: deque[Any] = deque(maxlen=128)
         self._closed = False
         self._topology_signature = topology_signature
         self._topology_source = topology_source
         self._topology_change_handler = topology_change_handler
         self._transition_observer = transition_observer
+        self._effect_completion_observer = effect_completion_observer
         self._abandoned_lease_owners = frozenset(
             str(owner).strip() for owner in abandoned_lease_owners if str(owner).strip()
         )
@@ -640,10 +672,28 @@ class WorkflowRuntime:
             "workflow_runtime_batch_size",
             DEFAULT_RUNTIME_BATCH_SIZE,
         )
+        configured_concurrency = getattr(
+            orchestrator.config,
+            "workflow_runtime_max_concurrent",
+            4,
+        )
+        configured_control_slots = getattr(
+            orchestrator.config,
+            "workflow_runtime_control_reserved_slots",
+            1,
+        )
         if not isinstance(configured_limit, int) or isinstance(configured_limit, bool):
             configured_limit = DEFAULT_RUNTIME_DECISION_LIMIT
         if not isinstance(configured_batch, int) or isinstance(configured_batch, bool):
             configured_batch = DEFAULT_RUNTIME_BATCH_SIZE
+        if not isinstance(configured_concurrency, int) or isinstance(
+            configured_concurrency, bool
+        ):
+            configured_concurrency = 4
+        if not isinstance(configured_control_slots, int) or isinstance(
+            configured_control_slots, bool
+        ):
+            configured_control_slots = 1
         bindings: dict[str, WorkflowProjectBinding] = {}
         journals = {project_id: journal for project_id, _, _ in project_rows}
 
@@ -1185,6 +1235,14 @@ class WorkflowRuntime:
             )
             orchestrator.request_refresh()
 
+        def effect_completion_observer(result: Any) -> None:
+            # Completion is the replenishment edge for detached execution.
+            # Idle admission probes are impossible because the runtime claims
+            # before spawning, so every callback represents durable progress
+            # and may safely request one coalesced controller pass.
+            if getattr(result, "job_id", None) is not None:
+                orchestrator.request_refresh()
+
         def publish_projection(
             decisions: Sequence[Any],
             generation: int,
@@ -1239,6 +1297,8 @@ class WorkflowRuntime:
             handlers=registered_handlers,
             decision_limit=configured_limit,
             batch_size=configured_batch,
+            max_concurrent=configured_concurrency,
+            control_reserved_slots=configured_control_slots,
             handler_coverage=handler_coverage,
             abandoned_lease_owners=getattr(
                 orchestrator, "workflow_abandoned_lease_owners", ()
@@ -1247,6 +1307,7 @@ class WorkflowRuntime:
             topology_source=topology_source,
             topology_change_handler=topology_change_handler,
             transition_observer=transition_observer,
+            effect_completion_observer=effect_completion_observer,
             liveness_controller=getattr(
                 orchestrator, "workflow_controller", None
             ),
@@ -3073,43 +3134,134 @@ class WorkflowRuntime:
         return report
 
     async def _run_due(self, project_ids: Sequence[str]) -> dict[str, Any]:
-        results: list[Any] = []
         active_projects = tuple(
             dict.fromkeys(str(value) for value in project_ids)
         )
-        while active_projects and len(results) < self.batch_size:
-            result = await self.worker.run_once(
-                project_ids=active_projects,
-                actions=tuple(sorted(RUNTIME_ACTIONS)),
-                fair_across_projects=True,
+        with self._lock:
+            completed = tuple(self._effect_results)
+            self._effect_results.clear()
+            active_by_lane = {
+                lane: sum(
+                    task_lane == lane and not task.done()
+                    for task, task_lane in self._effect_tasks.items()
+                )
+                for lane in ("control", "shared")
+            }
+        scheduled = 0
+        if active_projects and not self._draining and self.worker.accepting:
+            remaining = self.batch_size
+            lane_limits = (
+                (
+                    "control",
+                    self.control_reserved_slots,
+                    tuple(sorted(RUNTIME_CONTROL_ACTIONS)),
+                ),
+                (
+                    "shared",
+                    self.max_concurrent - self.control_reserved_slots,
+                    tuple(sorted(RUNTIME_ACTIONS)),
+                ),
             )
-            results.append(result)
-            if result.job_id is None:
-                break
-        processed = sum(item.job_id is not None for item in results)
-        if not results:
+            for lane, capacity, actions in lane_limits:
+                with self._lock:
+                    lane_active = sum(
+                        task_lane == lane and not task.done()
+                        for task, task_lane in self._effect_tasks.items()
+                    )
+                free = max(capacity - lane_active, 0)
+                for _index in range(min(free, remaining)):
+                    job = await self.worker.claim_next(
+                        project_ids=active_projects,
+                        actions=actions,
+                        fair_across_projects=True,
+                    )
+                    if job is None:
+                        break
+                    task = asyncio.create_task(
+                        self.worker.execute_claimed(job),
+                        name=f"workflow-effect:{lane}:{job.job_id}",
+                    )
+                    with self._lock:
+                        self._effect_tasks[task] = lane
+                    task.add_done_callback(self._effect_finished)
+                    scheduled += 1
+                    remaining -= 1
+                if remaining <= 0:
+                    break
+
+        with self._lock:
+            active_by_lane = {
+                lane: sum(
+                    task_lane == lane and not task.done()
+                    for task, task_lane in self._effect_tasks.items()
+                )
+                for lane in ("control", "shared")
+            }
+        active = sum(active_by_lane.values())
+        completed_count = len(completed)
+        if not completed and not scheduled and not active:
             return {
                 "disposition": "idle",
                 "job_id": None,
                 "state": None,
                 "reason": "no eligible durable workflow project",
                 "processed": 0,
+                "completed": 0,
+                "scheduled": 0,
+                "active": 0,
+                "active_lanes": active_by_lane,
                 "batch_saturated": False,
             }
-        result = results[-1]
+        result = completed[-1] if completed else None
         return {
-            "disposition": result.disposition.value,
-            "job_id": result.job_id,
-            "state": result.state.value if result.state else None,
-            "reason": result.reason,
-            "processed": processed,
-            # Reaching the bounded cap is deliberately a conservative signal:
-            # another claimable row may remain.  The orchestrator schedules one
-            # coalesced follow-up tick; an exact-cap final batch therefore costs
-            # one harmless idle tick instead of requiring an unbounded store
-            # scan here or stranding a suffix until the full-sync safety net.
-            "batch_saturated": processed >= self.batch_size,
+            "disposition": (
+                result.disposition.value if result is not None else "scheduled"
+            ),
+            "job_id": result.job_id if result is not None else None,
+            "state": (
+                result.state.value
+                if result is not None and result.state is not None
+                else None
+            ),
+            "reason": (
+                result.reason
+                if result is not None
+                else "durable effects admitted without blocking reconciliation"
+            ),
+            # ``processed`` historically meant rows claimed by this pass.
+            # Claims are now admitted rather than awaited, so retain that
+            # operational meaning and expose completions separately.
+            "processed": scheduled,
+            "completed": completed_count,
+            "scheduled": scheduled,
+            "active": active,
+            "active_lanes": active_by_lane,
+            # Completion callbacks replenish concurrency. This flag remains
+            # the exact per-pass admission cap signal for compatibility with
+            # the coalesced continuation path.
+            "batch_saturated": scheduled >= self.batch_size,
         }
+
+    def _effect_finished(self, task: asyncio.Task[Any]) -> None:
+        """Retire one retained invocation and publish a replenishment edge."""
+
+        with self._lock:
+            self._effect_tasks.pop(task, None)
+        try:
+            result = task.result()
+        except asyncio.CancelledError:
+            return
+        except Exception:  # noqa: BLE001 - worker claim boundary stays observable
+            logger.exception("Detached durable workflow invocation failed")
+            return
+        with self._lock:
+            self._effect_results.append(result)
+            draining = self._draining
+        if not draining and self._effect_completion_observer is not None:
+            try:
+                self._effect_completion_observer(result)
+            except Exception:  # noqa: BLE001 - observation cannot fail the job
+                logger.exception("Failed to publish durable workflow completion")
 
     def _lifecycle_handlers(self) -> tuple[WorkflowActionHandler, ...]:
         """Return unique project-leaf handlers which may own background work."""
@@ -3135,9 +3287,12 @@ class WorkflowRuntime:
 
         with self._lock:
             active_reconciles = self._active_reconciles
+            retained_effects = sum(
+                not task.done() for task in self._effect_tasks
+            )
         return (
             active_reconciles
-            + self.worker.active_count
+            + max(self.worker.active_count, retained_effects)
             + self.pending_mutation_count
         )
 
@@ -3189,6 +3344,22 @@ class WorkflowRuntime:
         worker_drained = await self.worker.drain(timeout_seconds=remaining)
         if not worker_drained:
             return False
+        with self._lock:
+            retained = tuple(
+                task for task in self._effect_tasks if not task.done()
+            )
+        if retained:
+            remaining = None if deadline is None else max(0.0, deadline - loop.time())
+            if remaining is not None and remaining <= 0:
+                return False
+            waiter = asyncio.gather(*retained, return_exceptions=True)
+            try:
+                if remaining is None:
+                    await waiter
+                else:
+                    await asyncio.wait_for(asyncio.shield(waiter), remaining)
+            except TimeoutError:
+                return False
         remaining = None if deadline is None else max(0.0, deadline - loop.time())
         return await self._drain_handler_mutations(timeout_seconds=remaining)
 
@@ -3228,6 +3399,9 @@ class WorkflowRuntime:
     def health_snapshot(self) -> dict[str, Any]:
         with self._lock:
             last = dict(self._last_reconcile)
+            retained_effects = sum(
+                not task.done() for task in self._effect_tasks
+            )
         controller_health = (
             self.liveness_controller.health_snapshot()
             if self.liveness_controller is not None
@@ -3256,6 +3430,9 @@ class WorkflowRuntime:
             "worker": {
                 "accepting": self.worker.accepting,
                 "active": self.worker.active_count,
+                "max_concurrent": self.max_concurrent,
+                "control_reserved_slots": self.control_reserved_slots,
+                "retained": retained_effects,
                 "handlers_configured": self._handlers_configured,
             },
             "last_reconcile": last,

@@ -736,6 +736,12 @@ class ServiceConfig:
     # become candidate-controlled workflow input.
     workflow_runtime_decision_limit: int = 100
     workflow_runtime_batch_size: int = 32
+    # Effect execution is detached from controller reconciliation so a long
+    # forge/gate call cannot stall state publication.  Keep a hard process
+    # bound and a disjoint reserved lane for latency-sensitive lifecycle
+    # controls (revocation, submission, and recovery).
+    workflow_runtime_max_concurrent: int = 4
+    workflow_runtime_control_reserved_slots: int = 1
     # Multi-process service split (TASK-469.5.1).
     # When set, the scheduler process publishes state/issues snapshots to this
     # SQLite database and the API process reads from it.  An empty string means
@@ -1026,6 +1032,13 @@ class ServiceConfig:
         )
         self.workflow_runtime_batch_size = min(
             max(int(self.workflow_runtime_batch_size), 1), 1000
+        )
+        self.workflow_runtime_max_concurrent = min(
+            max(int(self.workflow_runtime_max_concurrent), 2), 64
+        )
+        self.workflow_runtime_control_reserved_slots = min(
+            max(int(self.workflow_runtime_control_reserved_slots), 1),
+            self.workflow_runtime_max_concurrent - 1,
         )
         self.temp_root = str(resolve_temp_root(self.temp_root or default_temp_root()))
         if not self.workspace_root:
@@ -1541,6 +1554,12 @@ class ServiceConfig:
             ),
             workflow_runtime_batch_size=_env_int(
                 "OOMPAH_WORKFLOW_RUNTIME_BATCH_SIZE", None, 32
+            ),
+            workflow_runtime_max_concurrent=_env_int(
+                "OOMPAH_WORKFLOW_RUNTIME_MAX_CONCURRENT", None, 4
+            ),
+            workflow_runtime_control_reserved_slots=_env_int(
+                "OOMPAH_WORKFLOW_RUNTIME_CONTROL_RESERVED_SLOTS", None, 1
             ),
             ipc_db_path=_env_str("OOMPAH_IPC_DB_PATH", None, ""),
             project_refresh_timeout_ms=_env_int(

@@ -116,6 +116,8 @@ class TestServiceConfig:
         assert cfg.prompt_max_comment_bytes == 32 * 1024
         assert cfg.release_pick_max_runtime_seconds == 15
         assert cfg.merged_labels_max_runtime_seconds == 15
+        assert cfg.workflow_runtime_max_concurrent == 4
+        assert cfg.workflow_runtime_control_reserved_slots == 1
         assert cfg.close_gate_enabled is True
         assert cfg.container_cycle_repair_enabled is True
         assert cfg.gitlab_webhook_public_url is None
@@ -129,6 +131,34 @@ class TestServiceConfig:
         monkeypatch.setenv("OOMPAH_PARALLEL_EPIC_CHILDREN_ENABLED", "true")
         wf = WorkflowDefinition(config={}, prompt_template="test")
         assert ServiceConfig.from_workflow(wf).parallel_epic_children_enabled
+
+    def test_workflow_runtime_effect_lanes_come_from_environment(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_WORKFLOW_RUNTIME_MAX_CONCURRENT", "7")
+        monkeypatch.setenv(
+            "OOMPAH_WORKFLOW_RUNTIME_CONTROL_RESERVED_SLOTS", "2"
+        )
+
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+
+        assert cfg.workflow_runtime_max_concurrent == 7
+        assert cfg.workflow_runtime_control_reserved_slots == 2
+
+    def test_workflow_runtime_effect_lanes_keep_both_lane_classes(self):
+        minimum = ServiceConfig(
+            workflow_runtime_max_concurrent=1,
+            workflow_runtime_control_reserved_slots=0,
+        )
+        bounded = ServiceConfig(
+            workflow_runtime_max_concurrent=3,
+            workflow_runtime_control_reserved_slots=99,
+        )
+
+        assert minimum.workflow_runtime_max_concurrent == 2
+        assert minimum.workflow_runtime_control_reserved_slots == 1
+        assert bounded.workflow_runtime_max_concurrent == 3
+        assert bounded.workflow_runtime_control_reserved_slots == 2
 
     def test_container_cycle_repair_policy_comes_from_environment(self, monkeypatch):
         monkeypatch.setenv("OOMPAH_CONTAINER_CYCLE_REPAIR_ENABLED", "false")
