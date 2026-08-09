@@ -64,6 +64,8 @@ from oompah.authority_boundary import (
     check_shell_command,
 )
 from oompah.auditor import (
+    AUDITOR_RESULT_TOOL_NAME,
+    AUDITOR_RESULT_TOOL_SCHEMA,
     auditor_validation_timeout_message,
     is_recoverable_auditor_command_denial,
     resolve_auditor_validation_budget,
@@ -86,6 +88,13 @@ from oompah.validation_resource_lease import managed_agent_validation_owner
 
 logger = logging.getLogger(__name__)
 _PROJECT_SNAPSHOT_UNSET = object()
+
+
+def _auditor_result_input_schema() -> dict[str, Any]:
+    """Return an isolated copy of the canonical top-level result schema."""
+
+    parameters = AUDITOR_RESULT_TOOL_SCHEMA["function"]["parameters"]
+    return json.loads(json.dumps(parameters))
 
 
 def _exec_publish_epic_rebase_candidate(
@@ -1934,13 +1943,12 @@ def build_tool_catalog(
         AUDITOR_RESULT_TOOL_NAME,
         "Submit a validated completion-audit result to the audit scheduler. "
         "This is the only stateful operation available to the read-only auditor.",
-        {"result": dict},
+        _auditor_result_input_schema(),
     )
     async def submit_audit_result_tool(args: dict[str, Any]) -> dict[str, Any]:
         session_denial = check_auditor_session_target(action_policy, audit_target)
         if session_denial is not None:
             return _wrap_text(session_denial)
-        payload = args.get("result") if isinstance(args.get("result"), dict) else args
         # The orchestrator's synchronous handler bridges back to its async
         # coordinator with run_coroutine_threadsafe().  Running that handler
         # on this async MCP tool's event-loop thread deadlocks the bridge until
@@ -1948,7 +1956,7 @@ def build_tool_catalog(
         # call so the dispatch loop remains free to apply the result.
         response = await asyncio.to_thread(
             submit_auditor_result,
-            payload,
+            args,
             audit_target,
             audit_result_handler,
         )
@@ -2431,6 +2439,44 @@ def build_codex_tool_catalog(
             audit_result_handler,
         )
 
+    codex_function_tool = getattr(agents, "FunctionTool", None)
+    if codex_function_tool is not None:
+
+        async def invoke_audit_result(_context: Any, raw_arguments: str) -> str:
+            try:
+                payload = json.loads(raw_arguments)
+            except (TypeError, ValueError):
+                return "Error: auditor result payload must be valid JSON"
+            if not isinstance(payload, dict):
+                return "Error: auditor result payload must be an object"
+            session_denial = check_auditor_session_target(
+                action_policy, audit_target
+            )
+            if session_denial is not None:
+                return session_denial
+            return await asyncio.to_thread(
+                submit_auditor_result,
+                payload,
+                audit_target,
+                audit_result_handler,
+            )
+
+        submit_audit_result = codex_function_tool(
+            name=AUDITOR_RESULT_TOOL_NAME,
+            description=(
+                "Submit a validated completion-audit result to the audit "
+                "scheduler. This is the only stateful operation available "
+                "to the read-only auditor."
+            ),
+            params_json_schema=_auditor_result_input_schema(),
+            on_invoke_tool=invoke_audit_result,
+            # The canonical bounded safe_evidence object intentionally allows
+            # recursively schema-validated keys, which the SDK's stricter
+            # closed-object transformer cannot represent without changing the
+            # cross-transport contract. Server validation remains fail-closed.
+            strict_json_schema=False,
+        )
+
     @function_tool
     async def publish_epic_rebase(candidate: str) -> str:
         """Publish this epic-rebase worktree's exact candidate commit.
@@ -2885,18 +2931,17 @@ def build_opencode_tool_catalog(
         AUDITOR_RESULT_TOOL_NAME,
         "Submit a validated completion-audit result to the audit scheduler. "
         "This is the only stateful operation available to the read-only auditor.",
-        {"result": dict},
+        _auditor_result_input_schema(),
     )
     async def submit_audit_result_tool(args: dict[str, Any]) -> dict[str, Any]:
         session_denial = check_auditor_session_target(action_policy, audit_target)
         if session_denial is not None:
             return _wrap_text(session_denial)
-        payload = args.get("result") if isinstance(args.get("result"), dict) else args
         # Keep the event loop available while the synchronous orchestrator
         # bridge waits for its coordinator coroutine to finish.
         response = await asyncio.to_thread(
             submit_auditor_result,
-            payload,
+            args,
             audit_target,
             audit_result_handler,
         )

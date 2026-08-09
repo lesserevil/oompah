@@ -2760,14 +2760,15 @@ def _acquire_and_record(lease, owner, label: str, order: list[str]) -> None:
 
 def test_cancelled_aged_waiter_does_not_transfer_protection(tmp_path):
     state_path = tmp_path / "lease.sqlite3"
+    # Keep replacement requests provably fresh under scheduler contention.
+    # The old 10 ms interval let a 210 ms delay legitimately starvation-
+    # protect the worker, which made worker-first ordering correct behavior.
+    aging_seconds = 1.0
+    starvation_seconds = aging_seconds * (
+        EXACT_GATE_PRIORITY - WORKER_PRIORITY + 1
+    )
     lease = ValidationResourceLease(
-        # Keep the replacement requests provably fresh under the suite's
-        # five-second bound.  With the old 10 ms aging band, an ordinary
-        # 210 ms scheduling delay legitimately made the replacement worker
-        # starvation-protected before the exact waiter was durably queued.
-        state_path,
-        aging_seconds=1.0,
-        poll_seconds=0.005,
+        state_path, aging_seconds=aging_seconds, poll_seconds=0.005
     )
     held = lease.acquire(_gate_owner("blocker", "held"))
     cancelled = threading.Event()
@@ -2785,7 +2786,15 @@ def test_cancelled_aged_waiter_does_not_transfer_protection(tmp_path):
     thread = threading.Thread(target=wait)
     thread.start()
     _wait_for(lambda: lease.status().waiter_count == 1)
-    _age_waiter(state_path, "cancelled-worker", seconds=22.0)
+    _age_waiter(
+        state_path,
+        "cancelled-worker",
+        seconds=starvation_seconds + aging_seconds,
+    )
+    aged = lease.status().waiters[0]
+    assert aged["task_id"] == "cancelled-worker"
+    assert aged["starvation_protected"] is True
+    assert aged["effective_priority"] > EXACT_GATE_PRIORITY
     cancelled.set()
     thread.join(timeout=3)
     assert isinstance(errors[0], ValidationLeaseCancelled)
@@ -2816,6 +2825,13 @@ def test_cancelled_aged_waiter_does_not_transfer_protection(tmp_path):
     _age_waiter(state_path, "fresh-worker", seconds=0.25)
     exact.start()
     _wait_for(lambda: lease.status().waiter_count == 2)
+    fresh = {row["task_id"]: row for row in lease.status().waiters}
+    assert fresh["fresh-worker"]["starvation_protected"] is False
+    assert fresh["fresh-exact"]["starvation_protected"] is False
+    assert (
+        fresh["fresh-exact"]["effective_priority"]
+        > fresh["fresh-worker"]["effective_priority"]
+    )
     held.release()
     worker.join(timeout=3)
     exact.join(timeout=3)
