@@ -1702,6 +1702,68 @@ def test_owner_claim_job_store_wait_cannot_block_healthz(tmp_path):
         rescue.cancel()
 
 
+def test_owner_claim_admission_survives_saturated_ordinary_api_pool(tmp_path):
+    """Ordinary tracker waits cannot queue lifecycle control behind them."""
+
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.state = "Open"
+    tracker.fetch_issue_detail.return_value = issue
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch._schedule_implementation_workflow_event = MagicMock(
+        return_value=SimpleNamespace(
+            job_id="claim-job",
+            generation="claim-generation",
+        )
+    )
+    ordinary_release = threading.Event()
+    ordinary_workers_entered = threading.Event()
+    entered_lock = threading.Lock()
+    entered_count = 0
+
+    def block_ordinary_worker():
+        nonlocal entered_count
+        with entered_lock:
+            entered_count += 1
+            if entered_count == 4:
+                ordinary_workers_entered.set()
+        assert ordinary_release.wait(3), "ordinary API pool rescue timed out"
+
+    ordinary_futures = [
+        server_module._api_thread_pool.submit(block_ordinary_worker)
+        for _ in range(4)
+    ]
+    assert ordinary_workers_entered.wait(1)
+    endpoint = "/api/v1/projects/proj-1/tasks/OOMPAH-1/owner-claim"
+    rescue = threading.Timer(2, ordinary_release.set)
+    rescue.daemon = True
+
+    async def scenario():
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            claim_request = asyncio.create_task(
+                client.post(endpoint, json={"actor_login": "alice"})
+            )
+            health = await asyncio.wait_for(client.get("/healthz"), 0.5)
+            claimed = await asyncio.wait_for(claim_request, 0.5)
+            assert health.status_code == 200
+            assert claimed.status_code == 202, claimed.text
+            assert not ordinary_release.is_set(), (
+                "owner claim completed only after ordinary API workers were released"
+            )
+
+    rescue.start()
+    try:
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            asyncio.run(scenario())
+    finally:
+        ordinary_release.set()
+        rescue.cancel()
+        for future in ordinary_futures:
+            future.result(timeout=1)
+
+
 def test_enforce_retry_cleanup_does_not_supersede_direct_owner_revocation(tmp_path):
     from oompah.implementation_workflow import ImplementationAction
 
@@ -2173,13 +2235,14 @@ def test_owner_claim_api_waits_for_claim_to_register_before_retirement(tmp_path)
 
     def cancel_then_register(**kwargs):
         result = original_cancel(**kwargs)
-        loop = asyncio.get_running_loop()
 
         def register_runtime():
             orch.state.claimed.discard(issue.id)
             orch.state.running[issue.id] = running
 
-        loop.call_later(0.01, register_runtime)
+        registration = threading.Timer(0.01, register_runtime)
+        registration.daemon = True
+        registration.start()
         return result
 
     async def terminate(issue_id, *, cleanup_workspace):

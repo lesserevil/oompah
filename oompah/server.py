@@ -1166,18 +1166,18 @@ def _ws_sync_record_failure() -> None:
         _ws_sync_metrics["failed_reconciliations"] += 1
         _ws_sync_metrics["last_failure_ts"] = time.monotonic()
         _ws_sync_metrics["consecutive_failures"] += 1
-        
+
         # Alert if threshold exceeded and not recently alerted
         if (_ws_sync_metrics["consecutive_failures"] >= _WS_SYNC_ALERT_THRESHOLD and
             (time.monotonic() - _ws_sync_alert_dedup_ts) > _WS_SYNC_ALERT_DEDUP_WINDOW_S):
-            
+
             last_recon = _ws_sync_metrics.get("last_reconciliation_ts", 0.0)
             if last_recon == 0.0:
                 recon_str = "Never"
             else:
                 elapsed_s = time.monotonic() - last_recon
                 recon_str = f"{elapsed_s:.0f}s ago"
-            
+
             _ws_sync_alert = {
                 "type": "sync_alert",
                 "alert_type": "unrecovered_synchronization_failure",
@@ -1754,6 +1754,14 @@ _ISSUES_THROTTLE_MS = 3000  # Don't fetch/broadcast issues more than every 3s
 from concurrent.futures import ThreadPoolExecutor
 
 _api_thread_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="api")
+# Lifecycle-control requests must remain admissible when ordinary tracker I/O
+# has saturated the general API pool.  Keeping this pool small and dedicated
+# prevents queued create/detail work from hiding an owner revocation or claim
+# behind unrelated native-repository lock waits.
+_api_control_thread_pool = ThreadPoolExecutor(
+    max_workers=2,
+    thread_name_prefix="api-control",
+)
 _issues_broadcast_pending = False
 _STATE_THROTTLE_MS = 500  # Don't broadcast state more than every 500ms
 _state_broadcast_scheduled = False
@@ -1767,6 +1775,15 @@ async def _run_api_io(func: Callable[..., Any], /, *args: Any, **kwargs: Any) ->
     loop = asyncio.get_running_loop()
     call = functools.partial(func, *args, **kwargs)
     return await loop.run_in_executor(_api_thread_pool, call)
+
+
+async def _run_control_api_io(
+    func: Callable[..., Any], /, *args: Any, **kwargs: Any
+) -> Any:
+    """Run blocking lifecycle-control work outside the ordinary API queue."""
+    loop = asyncio.get_running_loop()
+    call = functools.partial(func, *args, **kwargs)
+    return await loop.run_in_executor(_api_control_thread_pool, call)
 
 
 async def _run_task_handoff_mutation(
@@ -3517,7 +3534,7 @@ async def _apply_task_status_transition_async(
             evidence_generation=evidence_generation,
             exact_head=exact_head,
         )
-    return await _run_api_io(
+    return await _run_control_api_io(
         _apply_task_status_transition,
         orch,
         tracker,
@@ -5957,12 +5974,17 @@ async def api_submit_issue(identifier: str, request: Request):
     resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
     requested_project = body.get("project_id") or request.query_params.get("project_id")
     if requested_project:
-        tracker, project_id = _get_tracker_for_issue_or_project(
-            orch, resolved_identifier, requested_project
+        tracker, project_id = await _run_api_io(
+            _get_tracker_for_issue_or_project,
+            orch,
+            resolved_identifier,
+            requested_project,
         )
     else:
-        tracker, project_id, issue = _find_tracker_for_issue(
-            orch, resolved_identifier
+        tracker, project_id, issue = await _run_api_io(
+            _find_tracker_for_issue,
+            orch,
+            resolved_identifier,
         )
         if tracker is None:
             return JSONResponse(
@@ -6008,7 +6030,7 @@ async def api_submit_issue(identifier: str, request: Request):
     if accepted.direct_failure_message is not None:
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
-        orch.request_refresh()
+        await _run_control_api_io(orch.request_refresh)
         await broadcast_issues()
         return JSONResponse(
             {
@@ -6021,7 +6043,7 @@ async def api_submit_issue(identifier: str, request: Request):
         )
     _api_cache.invalidate("issues:all")
     _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
-    orch.request_refresh()
+    await _run_control_api_io(orch.request_refresh)
     await broadcast_issues()
     response_state = (
         IN_VALIDATION if accepted.direct_maintenance else READY_TO_INTEGRATE
@@ -7647,7 +7669,11 @@ async def _stage_terminal_transition(
             400,
         )
     try:
-        project_id = _canonical_managed_project_id(orch, str(project_id))
+        project_id = await _run_control_api_io(
+            _canonical_managed_project_id,
+            orch,
+            str(project_id),
+        )
     except ProjectError:
         return None, ("The managed project could not be resolved.", 404)
     if issue is None:
@@ -7690,6 +7716,11 @@ async def _stage_terminal_transition(
         getattr(coordinator, "request_transition", None)
     ):
         return None, ("Terminal transition service is unavailable.", 503)
+    terminal_project = await _run_control_api_io(
+        _project_by_id,
+        orch,
+        str(project_id),
+    )
 
     # Fence ordinary dispatch before the first await below.  A retry timer
     # removes its RetryEntry before fetching tracker state, so the generic
@@ -7727,7 +7758,7 @@ async def _stage_terminal_transition(
             fetch_issue_detail = getattr(tracker, "fetch_issue_detail", None)
             if callable(fetch_issue_detail):
                 try:
-                    refreshed = await _run_api_io(
+                    refreshed = await _run_control_api_io(
                         fetch_issue_detail,
                         getattr(issue, "identifier", issue_id),
                     )
@@ -7770,7 +7801,8 @@ async def _stage_terminal_transition(
                         # ``_tracker_for_issue`` and falsely reports it missing.
                         refreshed.project_id = project_id
                         locked_issue = refreshed
-            locked_owner_claim = orch._owner_claim_for_issue(
+            locked_owner_claim = await _run_control_api_io(
+                orch._owner_claim_for_issue,
                 locked_issue.id,
                 project_id,
             )
@@ -7790,7 +7822,7 @@ async def _stage_terminal_transition(
         fetch_issue_detail = getattr(tracker, "fetch_issue_detail", None)
         if callable(fetch_issue_detail):
             try:
-                refreshed = await _run_api_io(
+                refreshed = await _run_control_api_io(
                     fetch_issue_detail,
                     locked_issue.identifier,
                 )
@@ -7853,7 +7885,7 @@ async def _stage_terminal_transition(
                     authorized_actor=ContributorIdentity(actor, "api"),
                     project_id=str(project_id),
                     reason=retry_reason,
-                    project=_project_by_id(orch, str(project_id)),
+                    project=terminal_project,
                     evidence_fingerprint=_terminal_evidence_fingerprint(
                         current_issue, str(project_id)
                     ),
@@ -7934,7 +7966,7 @@ async def _stage_terminal_transition(
                         current_issue, str(project_id)
                     ),
                     reason=reason,
-                    project=_project_by_id(orch, str(project_id)),
+                    project=terminal_project,
                 )
             )
         except (TypeError, ValueError) as exc:
@@ -8541,11 +8573,13 @@ async def api_create_issue(request: Request):
         # error if neither is given (GitHub-backed tasks require an explicit
         # project target so the adapter knows where to create the issue).
         if project_id:
-            tracker = _get_tracker(orch, project_id)
+            tracker = await _run_api_io(_get_tracker, orch, project_id)
         elif managed_repo:
             try:
-                tracker, project_id = _get_tracker_for_managed_repo(
-                    orch, managed_repo
+                tracker, project_id = await _run_api_io(
+                    _get_tracker_for_managed_repo,
+                    orch,
+                    managed_repo,
                 )
             except ValueError as exc:
                 return JSONResponse(
@@ -8642,21 +8676,24 @@ async def api_create_issue(request: Request):
             else:
                 description = source_header
 
-        creation_lock = (
-            orch.project_store.project_write_lock(project_id)
-            if project_id
-            else contextlib.nullcontext()
-        )
-        with creation_lock:
-            issue = tracker.create_issue(
-                title=title,
-                issue_type=issue_type,
-                description=description,
-                priority=_task_priority_int(body.get("priority")),
-                initial_status=body.get("status"),
-                labels=initial_labels,
-                parent=parent_id,
+        def _create_issue_under_project_lock():
+            creation_lock = (
+                orch.project_store.project_write_lock(project_id)
+                if project_id
+                else contextlib.nullcontext()
             )
+            with creation_lock:
+                return tracker.create_issue(
+                    title=title,
+                    issue_type=issue_type,
+                    description=description,
+                    priority=_task_priority_int(body.get("priority")),
+                    initial_status=body.get("status"),
+                    labels=initial_labels,
+                    parent=parent_id,
+                )
+
+        issue = await _run_api_io(_create_issue_under_project_lock)
         issue.project_id = project_id
         # Persist tracker-identity fields onto the returned issue so the
         # response carries the full schema even when the tracker adapter
@@ -12807,7 +12844,7 @@ def _owner_claim_authorize(body: dict[str, Any], request: Request, project):
 async def _publish_owner_claim_state(orch) -> None:
     """Refresh the cached/WebSocket state after a direct-owner lease changes."""
 
-    await _run_api_io(orch._notify_state_only)
+    await _run_control_api_io(orch._notify_state_only)
 
 
 async def _retire_scheduler_for_owner_claim(
@@ -12822,7 +12859,8 @@ async def _retire_scheduler_for_owner_claim(
     either registers its runtime or releases its transient claim.
     """
 
-    orch._cancel_retry_for_issue(
+    await _run_control_api_io(
+        orch._cancel_retry_for_issue,
         issue_id=issue.id,
         identifier=issue.identifier,
         project_id=project_id,
@@ -13088,7 +13126,7 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
     if error is not None:
         return error
     assert body is not None
-    project, tracker, issue, error = await _run_api_io(
+    project, tracker, issue, error = await _run_control_api_io(
         _owner_claim_context,
         orch,
         project_id,
@@ -13169,7 +13207,7 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
     if getattr(getattr(orch, "workflow_runtime", None), "enforce", False) is True:
         from oompah.implementation_workflow import ImplementationAction
 
-        job = await _run_api_io(
+        job = await _run_control_api_io(
             orch._schedule_implementation_workflow_event,
             project_id=project_id,
             identifier=issue.identifier,
@@ -13214,7 +13252,9 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
                 issue.labels = [*(issue.labels or []), "human-only"]
                 return True
 
-        added_dispatch_fence = await _run_api_io(_install_temporary_owner_fence)
+        added_dispatch_fence = await _run_control_api_io(
+            _install_temporary_owner_fence
+        )
     except Exception as exc:
         logger.warning(
             "Owner takeover fence failed for %s/%s: %s",
@@ -13228,7 +13268,7 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
         )
 
     if expected_validation_owner is not None:
-        retired, retirement_error = await _run_api_io(
+        retired, retirement_error = await _run_control_api_io(
             _retire_expected_legacy_validation_owner,
             orch,
             issue,
@@ -13300,7 +13340,7 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
                 )
                 return observed, granted
 
-        current, claim = await _run_api_io(_grant_current_owner_claim)
+        current, claim = await _run_control_api_io(_grant_current_owner_claim)
         if claim is None:
             return JSONResponse(
                 {
@@ -13328,7 +13368,7 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
                     evidence_generation=claim.claim_id,
                 )
             except Exception:
-                await _run_api_io(
+                await _run_control_api_io(
                     orch.release_owner_claim,
                     issue_id=issue.id,
                     project_id=project_id,
@@ -13358,7 +13398,7 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
                             exc,
                         )
 
-            await _run_api_io(_remove_temporary_owner_fence)
+            await _run_control_api_io(_remove_temporary_owner_fence)
     except ValueError as exc:
         return JSONResponse(
             {"error": {"code": "scheduler_owned", "message": str(exc)}},
@@ -13380,7 +13420,7 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
     _api_cache.invalidate_prefix(f"detail:{project_id}:{issue.identifier}")
     await _publish_owner_claim_state(orch)
     await broadcast_issues()
-    claim_payload = await _run_api_io(_owner_claim_payload, orch, claim)
+    claim_payload = await _run_control_api_io(_owner_claim_payload, orch, claim)
     return JSONResponse({"active": True, **claim_payload})
 
 
@@ -13389,7 +13429,7 @@ async def api_get_owner_claim(project_id: str, identifier: str):
     """Return direct-owner ownership and expiry evidence for one task."""
 
     orch = _get_orchestrator()
-    _project, _tracker, issue, error = await _run_api_io(
+    _project, _tracker, issue, error = await _run_control_api_io(
         _owner_claim_context,
         orch,
         project_id,
@@ -13398,14 +13438,14 @@ async def api_get_owner_claim(project_id: str, identifier: str):
     if error is not None:
         return error
     assert issue is not None
-    claim = await _run_api_io(
+    claim = await _run_control_api_io(
         orch._owner_claim_for_issue,
         issue.id,
         project_id,
     )
     if claim is None:
         return JSONResponse({"active": False, "ownership_source": None})
-    payload = await _run_api_io(_owner_claim_payload, orch, claim)
+    payload = await _run_control_api_io(_owner_claim_payload, orch, claim)
     return JSONResponse(
         {
             "active": not payload["is_expired"]
@@ -13424,7 +13464,7 @@ async def api_release_owner_claim(project_id: str, identifier: str, request: Req
     if error is not None:
         return error
     assert body is not None
-    project, _tracker, issue, error = await _run_api_io(
+    project, _tracker, issue, error = await _run_control_api_io(
         _owner_claim_context,
         orch,
         project_id,
@@ -13440,14 +13480,14 @@ async def api_release_owner_claim(project_id: str, identifier: str, request: Req
     if getattr(getattr(orch, "workflow_runtime", None), "enforce", False) is True:
         from oompah.implementation_workflow import ImplementationAction
 
-        claim = await _run_api_io(
+        claim = await _run_control_api_io(
             orch._owner_claim_for_issue,
             issue.id,
             project_id,
         )
         if claim is not None:
             try:
-                await _run_api_io(
+                await _run_control_api_io(
                     orch.mark_owner_claim_retirement_pending,
                     issue_id=issue.id,
                     project_id=project_id,
@@ -13468,7 +13508,7 @@ async def api_release_owner_claim(project_id: str, identifier: str, request: Req
                     },
                     status_code=503,
                 )
-        job = await _run_api_io(
+        job = await _run_control_api_io(
             orch._schedule_implementation_workflow_event,
             project_id=project_id,
             identifier=issue.identifier,
@@ -13498,12 +13538,12 @@ async def api_release_owner_claim(project_id: str, identifier: str, request: Req
             status_code=202,
         )
 
-    claim = await _run_api_io(
+    claim = await _run_control_api_io(
         orch._owner_claim_for_issue,
         issue.id,
         project_id,
     )
-    removed = await _run_api_io(
+    removed = await _run_control_api_io(
         orch.release_owner_claim,
         issue_id=issue.id,
         project_id=project_id,
@@ -13653,7 +13693,7 @@ async def _publish_provenance_suppression_change(
     _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
     request_refresh = getattr(orch, "request_refresh", None)
     if callable(request_refresh):
-        request_refresh()
+        await _run_control_api_io(request_refresh)
     await broadcast_issues()
 
 
@@ -13692,7 +13732,10 @@ async def api_terminal_provenance_action(
     if error is not None:
         return error
     orch = _get_orchestrator()
-    project_for_auth = orch.project_store.get(project_id)
+    project_for_auth = await _run_control_api_io(
+        orch.project_store.get,
+        project_id,
+    )
     if project_for_auth is None:
         return JSONResponse(
             {"error": {"code": "not_found", "message": "project not found"}},
@@ -13707,7 +13750,13 @@ async def api_terminal_provenance_action(
     if error is not None:
         return error
     project, tracker, issue, resolved_identifier, error = (
-        _provenance_suppression_context(orch, project_id, identifier, body)
+        await _run_control_api_io(
+            _provenance_suppression_context,
+            orch,
+            project_id,
+            identifier,
+            body,
+        )
     )
     if error is not None:
         return error
@@ -13722,35 +13771,44 @@ async def api_terminal_provenance_action(
     try:
         if normalized_action == "retain":
             async with _submission_authority_lock(orch, issue.id):
-                with orch.project_store.project_write_lock(project_id):
-                    current = tracker.fetch_issue_detail(resolved_identifier)
-                    if current is None:
-                        return JSONResponse(
-                            {
-                                "error": {
-                                    "code": "not_found",
-                                    "message": "task was not found in this project",
-                                }
-                            },
-                            status_code=404,
+                def _retain_under_project_lock():
+                    with orch.project_store.project_write_lock(project_id):
+                        current = tracker.fetch_issue_detail(resolved_identifier)
+                        if current is None:
+                            return "not_found", None, None
+                        if not issue_is_terminal(current):
+                            return "invalid_state", None, None
+                        retained = mark_provenance_only(
+                            store,
+                            resolved_identifier,
+                            ContributorIdentity(actor_login, "api"),
+                            reason,
                         )
-                    if not issue_is_terminal(current):
-                        return JSONResponse(
-                            {
-                                "error": {
-                                    "code": "invalid_state",
-                                    "message": "Only an existing terminal task may be retained as provenance-only.",
-                                }
-                            },
-                            status_code=409,
-                        )
-                    result = mark_provenance_only(
-                        store,
-                        resolved_identifier,
-                        ContributorIdentity(actor_login, "api"),
-                        reason,
+                        return "ok", retained, current.state
+
+                retain_outcome, result, status = await _run_control_api_io(
+                    _retain_under_project_lock
+                )
+                if retain_outcome == "not_found":
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "not_found",
+                                "message": "task was not found in this project",
+                            }
+                        },
+                        status_code=404,
                     )
-                    status = current.state
+                if retain_outcome == "invalid_state":
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "invalid_state",
+                                "message": "Only an existing terminal task may be retained as provenance-only.",
+                            }
+                        },
+                        status_code=409,
+                    )
         else:
             async with _submission_authority_lock(orch, issue.id):
                 owner_revision = getattr(tracker, "authorize_owner_revision", None)
@@ -13768,7 +13826,7 @@ async def api_terminal_provenance_action(
                         },
                         status_code=503,
                     )
-                result = await _run_api_io(
+                result = await _run_control_api_io(
                     owner_revision,
                     resolved_identifier,
                     ContributorIdentity(actor_login, "api"),
@@ -13888,6 +13946,11 @@ async def api_update_issue(identifier: str, request: Request):
                 },
                 status_code=400,
             )
+        update_io = (
+            _run_control_api_io
+            if any(key in body for key in ("status", "work_branch"))
+            else _run_api_io
+        )
         project_id = body.get("project_id") or request.query_params.get("project_id")
 
         # Resolve canonical identifier: support issue_key for GitHub identifiers
@@ -13901,8 +13964,11 @@ async def api_update_issue(identifier: str, request: Request):
         if not project_id and not managed_repo_req:
             managed_repo_req = _managed_repo_from_issue_identifier(resolved_identifier)
         if project_id:
-            tracker, project_id = _get_tracker_for_issue_or_project(
-                orch, resolved_identifier, project_id
+            tracker, project_id = await update_io(
+                _get_tracker_for_issue_or_project,
+                orch,
+                resolved_identifier,
+                project_id,
             )
             resolved_identifier = _canonicalize_project_issue_identifier(
                 tracker,
@@ -13920,8 +13986,10 @@ async def api_update_issue(identifier: str, request: Request):
                     status_code=400,
                 )
             try:
-                tracker, project_id = _get_tracker_for_managed_repo(
-                    orch, managed_repo_req
+                tracker, project_id = await update_io(
+                    _get_tracker_for_managed_repo,
+                    orch,
+                    managed_repo_req,
                 )
             except ValueError as exc:
                 return JSONResponse(
@@ -13929,8 +13997,11 @@ async def api_update_issue(identifier: str, request: Request):
                     status_code=404,
                 )
         else:
-            tracker, project_id, _ = _find_tracker_for_issue(
-                orch, resolved_identifier, project_id
+            tracker, project_id, _ = await update_io(
+                _find_tracker_for_issue,
+                orch,
+                resolved_identifier,
+                project_id,
             )
             if tracker is None:
                 return JSONResponse(
@@ -13976,7 +14047,10 @@ async def api_update_issue(identifier: str, request: Request):
         # Determine issue type for Epic-specific state handling.
         # We need this before the update so we know whether to apply
         # post-update verification.
-        existing_issue = tracker.fetch_issue_detail(identifier)
+        existing_issue = await update_io(
+            tracker.fetch_issue_detail,
+            identifier,
+        )
         is_epic = (
             existing_issue is not None
             and (existing_issue.issue_type or "").strip().lower() == "epic"
@@ -14086,7 +14160,8 @@ async def api_update_issue(identifier: str, request: Request):
                 transition_from_status,
                 transition_to_status,
                 rejection,
-            ) = _evaluate_api_intake_transition(
+            ) = await update_io(
+                _evaluate_api_intake_transition,
                 orch=orch,
                 tracker=tracker,
                 project_id=project_id,
@@ -14183,7 +14258,8 @@ async def api_update_issue(identifier: str, request: Request):
                 # if rejected. Only a successful terminal transition may
                 # withdraw the retry generation permanently.
                 try:
-                    terminal_withdrawn_retry_ids = _cancel_retry_for_authority_change(
+                    terminal_withdrawn_retry_ids = await _run_control_api_io(
+                        _cancel_retry_for_authority_change,
                         orch,
                         existing_issue,
                         identifier,
@@ -14246,7 +14322,8 @@ async def api_update_issue(identifier: str, request: Request):
             if new_work_branch is not None:
                 update_fields["work_branch"] = new_work_branch
             if terminal_transition_payload is None:
-                _cancel_retry_for_authority_change(
+                await _run_control_api_io(
+                    _cancel_retry_for_authority_change,
                     orch,
                     existing_issue,
                     identifier,
@@ -14288,7 +14365,7 @@ async def api_update_issue(identifier: str, request: Request):
                                 )
                         tracker.update_issue(identifier, **update_fields)
 
-                await _run_api_io(_update_fields_under_project_lock)
+                await update_io(_update_fields_under_project_lock)
             if needs_human_status is not None:
                 await _mark_tracker_needs_human_async(
                     orch,
@@ -14303,7 +14380,8 @@ async def api_update_issue(identifier: str, request: Request):
                     author=transition_actor or "oompah",
                 )
 
-        _record_owner_override_if_needed(
+        await update_io(
+            _record_owner_override_if_needed,
             tracker,
             identifier,
             transition_result,
@@ -14335,7 +14413,7 @@ async def api_update_issue(identifier: str, request: Request):
                     await asyncio.sleep(0.3)
                     loop = asyncio.get_event_loop()
                     verified = await loop.run_in_executor(
-                        _api_thread_pool,
+                        _api_control_thread_pool,
                         _verify_epic_state_after_update,
                         tracker,
                         identifier,
@@ -14523,7 +14601,7 @@ async def api_update_issue(identifier: str, request: Request):
             # old branch owner is still registered can make the audit lane skip
             # this request until the periodic safety-net poll.
             try:
-                orch.request_refresh()
+                await _run_control_api_io(orch.request_refresh)
             except Exception as exc:  # noqa: BLE001 - commit already won
                 logger.exception(
                     "Post-commit terminal refresh notification failed for %s",
@@ -14543,7 +14621,7 @@ async def api_update_issue(identifier: str, request: Request):
                 or not is_dispatchable_status(existing_issue.state)
             )
         ):
-            orch.request_refresh()
+            await _run_control_api_io(orch.request_refresh)
         try:
             await broadcast_issues()
         except Exception as exc:  # noqa: BLE001 - commit already won
@@ -14688,10 +14766,16 @@ async def api_issue_intake_action(identifier: str, action: str, request: Request
         managed_repo_req = (body.get("managed_repo") or "").strip() or None
 
         if project_id:
-            tracker, project_id = _get_tracker_for_issue_or_project(
-                orch, resolved_identifier, project_id
+            tracker, project_id = await _run_control_api_io(
+                _get_tracker_for_issue_or_project,
+                orch,
+                resolved_identifier,
+                project_id,
             )
-            issue = tracker.fetch_issue_detail(resolved_identifier)
+            issue = await _run_control_api_io(
+                tracker.fetch_issue_detail,
+                resolved_identifier,
+            )
         elif managed_repo_req:
             if "/" not in managed_repo_req:
                 return JSONResponse(
@@ -14704,18 +14788,25 @@ async def api_issue_intake_action(identifier: str, action: str, request: Request
                     status_code=400,
                 )
             try:
-                tracker, project_id = _get_tracker_for_managed_repo(
-                    orch, managed_repo_req
+                tracker, project_id = await _run_control_api_io(
+                    _get_tracker_for_managed_repo,
+                    orch,
+                    managed_repo_req,
                 )
             except ValueError as exc:
                 return JSONResponse(
                     {"error": {"code": "not_found", "message": str(exc)}},
                     status_code=404,
                 )
-            issue = tracker.fetch_issue_detail(resolved_identifier)
+            issue = await _run_control_api_io(
+                tracker.fetch_issue_detail,
+                resolved_identifier,
+            )
         else:
-            tracker, project_id, issue = _find_tracker_for_issue(
-                orch, resolved_identifier
+            tracker, project_id, issue = await _run_control_api_io(
+                _find_tracker_for_issue,
+                orch,
+                resolved_identifier,
             )
             if tracker is None:
                 issue = None
@@ -14731,7 +14822,7 @@ async def api_issue_intake_action(identifier: str, action: str, request: Request
                 status_code=404,
             )
 
-        project = _project_by_id(orch, project_id)
+        project = await _run_control_api_io(_project_by_id, orch, project_id)
         decision = check_permission(
             normalized_action,
             actor_login,
@@ -14773,7 +14864,12 @@ async def api_issue_intake_action(identifier: str, action: str, request: Request
             )
             new_status = BACKLOG
 
-        tracker.add_comment(resolved_identifier, audit_comment, author=actor_login)
+        await _run_control_api_io(
+            tracker.add_comment,
+            resolved_identifier,
+            audit_comment,
+            author=actor_login,
+        )
 
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate(f"comments:{project_id}:{resolved_identifier}")
@@ -14827,6 +14923,14 @@ async def api_add_label(identifier: str, request: Request):
                 {"error": {"code": "validation", "message": "label is required"}},
                 status_code=400,
             )
+        from oompah.label_auth import label_name_to_status
+
+        status_from_label = label_name_to_status(label)
+        label_io = (
+            _run_control_api_io
+            if status_from_label is not None
+            else _run_api_io
+        )
         # Resolve identifier: issue_key body field overrides path param to
         # support GitHub identifiers with slashes.
         resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
@@ -14835,13 +14939,18 @@ async def api_add_label(identifier: str, request: Request):
         if not project_id and not managed_repo_req:
             managed_repo_req = _managed_repo_from_issue_identifier(resolved_identifier)
         if project_id:
-            tracker, project_id = _get_tracker_for_issue_or_project(
-                orch, resolved_identifier, project_id
+            tracker, project_id = await label_io(
+                _get_tracker_for_issue_or_project,
+                orch,
+                resolved_identifier,
+                project_id,
             )
         elif managed_repo_req:
             try:
-                tracker, project_id = _get_tracker_for_managed_repo(
-                    orch, managed_repo_req
+                tracker, project_id = await label_io(
+                    _get_tracker_for_managed_repo,
+                    orch,
+                    managed_repo_req,
                 )
             except ValueError as exc:
                 return JSONResponse(
@@ -14849,8 +14958,10 @@ async def api_add_label(identifier: str, request: Request):
                     status_code=404,
                 )
         else:
-            tracker, project_id, _ = _find_tracker_for_issue(
-                orch, resolved_identifier
+            tracker, project_id, _ = await label_io(
+                _find_tracker_for_issue,
+                orch,
+                resolved_identifier,
             )
             if tracker is None:
                 return JSONResponse(
@@ -14863,9 +14974,6 @@ async def api_add_label(identifier: str, request: Request):
                     status_code=404,
                 )
 
-        from oompah.label_auth import label_name_to_status
-
-        status_from_label = label_name_to_status(label)
         terminal_target = _terminal_target_for_status(status_from_label)
         transition_result: TransitionGateResult | None = None
         transition_actor = ""
@@ -14875,7 +14983,10 @@ async def api_add_label(identifier: str, request: Request):
         existing_issue = None
         if status_from_label is not None:
             try:
-                existing_issue = tracker.fetch_issue_detail(resolved_identifier)
+                existing_issue = await label_io(
+                    tracker.fetch_issue_detail,
+                    resolved_identifier,
+                )
             except Exception:
                 existing_issue = None
             (
@@ -14884,7 +14995,8 @@ async def api_add_label(identifier: str, request: Request):
                 transition_from_status,
                 transition_to_status,
                 rejection,
-            ) = _evaluate_api_intake_transition(
+            ) = await label_io(
+                _evaluate_api_intake_transition,
                 orch=orch,
                 tracker=tracker,
                 project_id=project_id,
@@ -14948,9 +15060,10 @@ async def api_add_label(identifier: str, request: Request):
                 )
                 terminal_payload = None
         else:
-            tracker.add_label(resolved_identifier, label)
+            await label_io(tracker.add_label, resolved_identifier, label)
 
-        _record_owner_override_if_needed(
+        await label_io(
+            _record_owner_override_if_needed,
             tracker,
             resolved_identifier,
             transition_result,
@@ -14962,7 +15075,7 @@ async def api_add_label(identifier: str, request: Request):
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
         if terminal_payload is not None:
-            orch.request_refresh()
+            await _run_control_api_io(orch.request_refresh)
         await broadcast_issues()
         return JSONResponse(terminal_payload or {"ok": True}, status_code=201)
     except Exception as exc:
@@ -14993,13 +15106,18 @@ async def api_remove_label(identifier: str, label: str, request: Request):
         project_id = body.get("project_id") or request.query_params.get("project_id")
         managed_repo_req = (body.get("managed_repo") or "").strip() or None
         if project_id:
-            tracker, project_id = _get_tracker_for_issue_or_project(
-                orch, resolved_identifier, project_id
+            tracker, project_id = await _run_api_io(
+                _get_tracker_for_issue_or_project,
+                orch,
+                resolved_identifier,
+                project_id,
             )
         elif managed_repo_req:
             try:
-                tracker, project_id = _get_tracker_for_managed_repo(
-                    orch, managed_repo_req
+                tracker, project_id = await _run_api_io(
+                    _get_tracker_for_managed_repo,
+                    orch,
+                    managed_repo_req,
                 )
             except ValueError as exc:
                 return JSONResponse(
@@ -15007,8 +15125,10 @@ async def api_remove_label(identifier: str, label: str, request: Request):
                     status_code=404,
                 )
         else:
-            tracker, project_id, _ = _find_tracker_for_issue(
-                orch, resolved_identifier
+            tracker, project_id, _ = await _run_api_io(
+                _find_tracker_for_issue,
+                orch,
+                resolved_identifier,
             )
             if tracker is None:
                 return JSONResponse(
@@ -15035,7 +15155,11 @@ async def api_remove_label(identifier: str, label: str, request: Request):
                 },
                 status_code=400,
             )
-        tracker.remove_label(resolved_identifier, decoded_label)
+        await _run_api_io(
+            tracker.remove_label,
+            resolved_identifier,
+            decoded_label,
+        )
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
         await broadcast_issues()
@@ -15112,8 +15236,11 @@ async def api_add_dependency(identifier: str, request: Request):
         managed_repo_req = (body.get("managed_repo") or "").strip() or None
 
         if project_id:
-            tracker, project_id = _get_tracker_for_issue_or_project(
-                orch, resolved_identifier, project_id
+            tracker, project_id = await _run_api_io(
+                _get_tracker_for_issue_or_project,
+                orch,
+                resolved_identifier,
+                project_id,
             )
         elif managed_repo_req:
             if "/" not in managed_repo_req:
@@ -15127,8 +15254,10 @@ async def api_add_dependency(identifier: str, request: Request):
                     status_code=400,
                 )
             try:
-                tracker, project_id = _get_tracker_for_managed_repo(
-                    orch, managed_repo_req
+                tracker, project_id = await _run_api_io(
+                    _get_tracker_for_managed_repo,
+                    orch,
+                    managed_repo_req,
                 )
             except ValueError as exc:
                 return JSONResponse(
@@ -15136,8 +15265,10 @@ async def api_add_dependency(identifier: str, request: Request):
                     status_code=404,
                 )
         else:
-            tracker, project_id, _ = _find_tracker_for_issue(
-                orch, resolved_identifier
+            tracker, project_id, _ = await _run_api_io(
+                _find_tracker_for_issue,
+                orch,
+                resolved_identifier,
             )
             if tracker is None:
                 return JSONResponse(
@@ -15150,87 +15281,102 @@ async def api_add_dependency(identifier: str, request: Request):
                     status_code=404,
                 )
 
-        blocked_issue = tracker.fetch_issue_detail(resolved_identifier)
-        blocker_issue = tracker.fetch_issue_detail(depends_on)
-        if blocked_issue is None or blocker_issue is None:
-            missing = (
-                resolved_identifier if blocked_issue is None else depends_on
-            )
+        def _validate_and_add_dependency_under_project_lock():
+            with orch.project_store.project_write_lock(project_id):
+                blocked_issue = tracker.fetch_issue_detail(resolved_identifier)
+                blocker_issue = tracker.fetch_issue_detail(depends_on)
+                if blocked_issue is None or blocker_issue is None:
+                    missing = (
+                        resolved_identifier if blocked_issue is None else depends_on
+                    )
+                    return "missing", missing
+                current_refs = (
+                    blocked_issue.start_blocked_by
+                    if dependency_type == "hard_start"
+                    else blocked_issue.blocked_by
+                )
+                already_present = any(
+                    depends_on
+                    in {
+                        str(ref.id or "").strip(),
+                        str(ref.identifier or "").strip(),
+                    }
+                    for ref in current_refs
+                )
+                if not already_present:
+                    graph_issues = tracker.fetch_all_issues()
+                    cycle = dependency_cycle_for_new_edge(
+                        graph_issues,
+                        resolved_identifier,
+                        depends_on,
+                    )
+                    if cycle is not None:
+                        return "cycle", cycle
+                    container_cycle = container_dependency_cycle_for_new_edge(
+                        graph_issues,
+                        resolved_identifier,
+                        depends_on,
+                        include_hard_start=dependency_type == "hard_start",
+                    )
+                    if container_cycle is not None:
+                        return "container_cycle", container_cycle
+
+                if dependency_type == "hard_start":
+                    tracker.add_start_dependency(resolved_identifier, depends_on)
+                else:
+                    tracker.add_dependency(resolved_identifier, depends_on)
+                return "ok", None
+
+        dependency_result, dependency_detail = await _run_api_io(
+            _validate_and_add_dependency_under_project_lock
+        )
+        if dependency_result == "missing":
             return JSONResponse(
                 {
                     "error": {
                         "code": "issue_not_found",
-                        "message": f"Dependency task {missing!r} was not found",
+                        "message": (
+                            f"Dependency task {dependency_detail!r} was not found"
+                        ),
                     }
                 },
                 status_code=404,
             )
-        current_refs = (
-            blocked_issue.start_blocked_by
-            if dependency_type == "hard_start"
-            else blocked_issue.blocked_by
-        )
-        already_present = any(
-            depends_on
-            in {
-                str(ref.id or "").strip(),
-                str(ref.identifier or "").strip(),
-            }
-            for ref in current_refs
-        )
-        if not already_present:
-            graph_issues = tracker.fetch_all_issues()
-            cycle = dependency_cycle_for_new_edge(
-                graph_issues,
-                resolved_identifier,
-                depends_on,
+        if dependency_result == "cycle":
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "dependency_cycle",
+                        "message": (
+                            "Dependency would create a cycle: "
+                            + " -> ".join(dependency_detail)
+                        ),
+                        "path": list(dependency_detail),
+                    }
+                },
+                status_code=409,
             )
-            if cycle is not None:
-                return JSONResponse(
-                    {
-                        "error": {
-                            "code": "dependency_cycle",
-                            "message": (
-                                "Dependency would create a cycle: "
-                                + " -> ".join(cycle)
-                            ),
-                            "path": list(cycle),
-                        }
-                    },
-                    status_code=409,
-                )
-            container_cycle = container_dependency_cycle_for_new_edge(
-                graph_issues,
-                resolved_identifier,
-                depends_on,
-                include_hard_start=dependency_type == "hard_start",
+        if dependency_result == "container_cycle":
+            repair = (
+                "route affected Ready work to Needs Human and deliver the "
+                "exact prerequisite SHA(s) through the common authoritative "
+                "container before resubmitting"
             )
-            if container_cycle is not None:
-                repair = (
-                    "route affected Ready work to Needs Human and deliver the "
-                    "exact prerequisite SHA(s) through the common authoritative "
-                    "container before resubmitting"
-                )
-                return JSONResponse(
-                    {
-                        "error": {
-                            "code": "container_dependency_cycle",
-                            "message": (
-                                "Dependency would create a container reachability "
-                                f"cycle: {container_cycle.message_path}. {repair}."
-                            ),
-                            "path": list(container_cycle.path),
-                            "cycle": container_cycle.to_dict(),
-                            "selected_repair": container_cycle.selected_repair,
-                        }
-                    },
-                    status_code=409,
-                )
-
-        if dependency_type == "hard_start":
-            tracker.add_start_dependency(resolved_identifier, depends_on)
-        else:
-            tracker.add_dependency(resolved_identifier, depends_on)
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "container_dependency_cycle",
+                        "message": (
+                            "Dependency would create a container reachability "
+                            f"cycle: {dependency_detail.message_path}. {repair}."
+                        ),
+                        "path": list(dependency_detail.path),
+                        "cycle": dependency_detail.to_dict(),
+                        "selected_repair": dependency_detail.selected_repair,
+                    }
+                },
+                status_code=409,
+            )
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
         await broadcast_issues()
@@ -15293,8 +15439,11 @@ async def api_remove_dependency(identifier: str, request: Request):
         ).strip() or None
 
         if project_id:
-            tracker, project_id = _get_tracker_for_issue_or_project(
-                orch, resolved_identifier, project_id
+            tracker, project_id = await _run_api_io(
+                _get_tracker_for_issue_or_project,
+                orch,
+                resolved_identifier,
+                project_id,
             )
         elif managed_repo_req:
             if "/" not in managed_repo_req:
@@ -15308,8 +15457,10 @@ async def api_remove_dependency(identifier: str, request: Request):
                     status_code=400,
                 )
             try:
-                tracker, project_id = _get_tracker_for_managed_repo(
-                    orch, managed_repo_req
+                tracker, project_id = await _run_api_io(
+                    _get_tracker_for_managed_repo,
+                    orch,
+                    managed_repo_req,
                 )
             except ValueError as exc:
                 return JSONResponse(
@@ -15317,8 +15468,10 @@ async def api_remove_dependency(identifier: str, request: Request):
                     status_code=404,
                 )
         else:
-            tracker, project_id, _ = _find_tracker_for_issue(
-                orch, resolved_identifier
+            tracker, project_id, _ = await _run_api_io(
+                _find_tracker_for_issue,
+                orch,
+                resolved_identifier,
             )
             if tracker is None:
                 return JSONResponse(
@@ -15331,13 +15484,17 @@ async def api_remove_dependency(identifier: str, request: Request):
                     status_code=404,
                 )
 
-        if dependency_type == "hard_start":
-            tracker.remove_start_dependency(resolved_identifier, depends_on)
-        else:
-            tracker.remove_dependency(resolved_identifier, depends_on)
+        def _remove_dependency_under_project_lock():
+            with orch.project_store.project_write_lock(project_id):
+                if dependency_type == "hard_start":
+                    tracker.remove_start_dependency(resolved_identifier, depends_on)
+                else:
+                    tracker.remove_dependency(resolved_identifier, depends_on)
+
+        await _run_api_io(_remove_dependency_under_project_lock)
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
-        orch.request_refresh()
+        await _run_control_api_io(orch.request_refresh)
         await broadcast_issues()
         return JSONResponse({"ok": True, "dependency_type": dependency_type})
     except Exception as exc:
@@ -15363,8 +15520,11 @@ async def api_get_comments(identifier: str, request: Request):
         cached = _api_cache.get(cache_key)
         if cached is not None:
             return JSONResponse(cached)
-        tracker, resolved_project_id, issue = _find_tracker_for_issue(
-            orch, resolved_identifier, project_id
+        tracker, resolved_project_id, issue = await _run_api_io(
+            _find_tracker_for_issue,
+            orch,
+            resolved_identifier,
+            project_id,
         )
         if tracker is None or issue is None:
             return JSONResponse(
@@ -15376,7 +15536,10 @@ async def api_get_comments(identifier: str, request: Request):
                 },
                 status_code=404,
             )
-        comments = tracker.fetch_comments(resolved_identifier)
+        comments = await _run_api_io(
+            tracker.fetch_comments,
+            resolved_identifier,
+        )
         _api_cache.set(cache_key, comments, ttl_ms=3000)
         return JSONResponse(comments)
     except Exception as exc:
@@ -15439,13 +15602,18 @@ async def api_add_comment(identifier: str, request: Request):
         if not project_id and not managed_repo_req:
             managed_repo_req = _managed_repo_from_issue_identifier(resolved_identifier)
         if project_id:
-            tracker, project_id = _get_tracker_for_issue_or_project(
-                orch, resolved_identifier, project_id
+            tracker, project_id = await _run_api_io(
+                _get_tracker_for_issue_or_project,
+                orch,
+                resolved_identifier,
+                project_id,
             )
         elif managed_repo_req:
             try:
-                tracker, project_id = _get_tracker_for_managed_repo(
-                    orch, managed_repo_req
+                tracker, project_id = await _run_api_io(
+                    _get_tracker_for_managed_repo,
+                    orch,
+                    managed_repo_req,
                 )
             except ValueError as exc:
                 return JSONResponse(
@@ -15453,8 +15621,10 @@ async def api_add_comment(identifier: str, request: Request):
                     status_code=404,
                 )
         else:
-            tracker, project_id, _ = _find_tracker_for_issue(
-                orch, resolved_identifier
+            tracker, project_id, _ = await _run_api_io(
+                _find_tracker_for_issue,
+                orch,
+                resolved_identifier,
             )
             if tracker is None:
                 return JSONResponse(
@@ -15488,7 +15658,8 @@ async def api_add_comment(identifier: str, request: Request):
                     _comment_id = _hashlib.md5(
                         f"{resolved_identifier}:{text}:{_time.time()}".encode()
                     ).hexdigest()
-                    _delivered = _orch.deliver_comment_to_running_agent(
+                    _delivered = await _run_api_io(
+                        _orch.deliver_comment_to_running_agent,
                         resolved_identifier,
                         f"[New comment from {author}]\n\n{text}",
                         comment_id=_comment_id,
@@ -15540,7 +15711,7 @@ async def api_add_comment(identifier: str, request: Request):
                     # Trigger dispatch so the orchestrator re-dispatches promptly
                     orch = _get_orchestrator()
                     if orch:
-                        orch.request_refresh()
+                        await _run_control_api_io(orch.request_refresh)
             except Exception as exc:
                 logger.debug(
                     "Failed to check/remove asking_question label on %s: %s",
@@ -15591,8 +15762,11 @@ async def api_issue_full_detail(identifier: str, request: Request):
         cached = _detail_cache_get(cache_key, orch, project_id)
         if cached is not None:
             return JSONResponse(cached)
-        tracker, resolved_project_id, issue = _find_tracker_for_issue(
-            orch, resolved_identifier, project_id
+        tracker, resolved_project_id, issue = await _run_api_io(
+            _find_tracker_for_issue,
+            orch,
+            resolved_identifier,
+            project_id,
         )
         if tracker is None or issue is None:
             return JSONResponse(
@@ -15606,13 +15780,19 @@ async def api_issue_full_detail(identifier: str, request: Request):
             )
         # Use the resolved project_id (may differ from query param if it was None)
         project_id = resolved_project_id
-        _wire_tracker_issue_cache_invalidation(tracker, project_id)
+        await _run_api_io(
+            _wire_tracker_issue_cache_invalidation,
+            tracker,
+            project_id,
+        )
         if getattr(tracker, "state_branch_enabled", False) is True:
             # Re-read through the generation-bound native extension.  The
             # initial lookup resolves project ownership; this read binds the
             # response object and its cache generation under one tracker lock.
-            issue, detail_generation = _fetch_tracker_issue_detail_with_generation(
-                tracker, resolved_identifier
+            issue, detail_generation = await _run_api_io(
+                _fetch_tracker_issue_detail_with_generation,
+                tracker,
+                resolved_identifier,
             )
             if issue is None:
                 return JSONResponse(
@@ -15625,7 +15805,10 @@ async def api_issue_full_detail(identifier: str, request: Request):
                     status_code=404,
                 )
         else:
-            detail_generation = _tracker_source_generation(tracker)
+            detail_generation = await _run_api_io(
+                _tracker_source_generation,
+                tracker,
+            )
 
         # Native Markdown tracker records do not persist their managed-project
         # identity on each task.  Attach the authoritative identity resolved
@@ -15633,8 +15816,9 @@ async def api_issue_full_detail(identifier: str, request: Request):
         # screening; otherwise a current fingerprint is falsely shown as stale.
         if project_id:
             issue.project_id = project_id
-        project_names = _project_names_by_id(orch)
+        project_names = await _run_api_io(_project_names_by_id, orch)
         project_name = project_names.get(project_id or "")
+        detail_project = await _run_api_io(_project_by_id, orch, project_id)
         # Prefer the tracker's own display_identifier when set; otherwise use
         # the generic project-prefixed task formatter.
         display_id = getattr(issue, "display_identifier", None) or _display_identifier(
@@ -15753,7 +15937,7 @@ async def api_issue_full_detail(identifier: str, request: Request):
             ),
             "intake_actions": action_permissions(
                 issue,
-                _project_by_id(orch, project_id),
+                detail_project,
                 actor_login,
             ),
         }
@@ -15763,11 +15947,15 @@ async def api_issue_full_detail(identifier: str, request: Request):
         duplicate_screening = _issue_duplicate_screening_summary(issue, orch)
         if duplicate_screening is not None:
             result["duplicate_screening"] = duplicate_screening
-        terminal_audit_summary = _issue_terminal_audit_summary(issue, tracker=tracker)
+        terminal_audit_summary = await _run_api_io(
+            _issue_terminal_audit_summary,
+            issue,
+            tracker=tracker,
+        )
         if terminal_audit_summary is not None:
             result["terminal_audit_summary"] = terminal_audit_summary
         if issue.issue_type in ("epic", "feature"):
-            children = tracker.fetch_children(issue.id)
+            children = await _run_api_io(tracker.fetch_children, issue.id)
             result["children"] = [
                 {
                     "id": c.id,
@@ -15805,7 +15993,10 @@ async def api_issue_full_detail(identifier: str, request: Request):
                 for c in children
             ]
         # Always include comments
-        result["comments"] = tracker.fetch_comments(issue.identifier)
+        result["comments"] = await _run_api_io(
+            tracker.fetch_comments,
+            issue.identifier,
+        )
         _detail_cache_set(
             cache_key,
             result,
@@ -21090,7 +21281,28 @@ async def api_report_error(request: Request):
 # --- Forge Webhook Receivers ---
 
 
-def _handle_webhook_event(event: WebhookEvent, project) -> None:
+def _webhook_uses_control_io(event: WebhookEvent) -> bool:
+    """Return whether a forge event owns lifecycle-control admission."""
+
+    if event.merged:
+        return True
+    if (
+        event.event_type in ("pull_request", "merge_group", "Merge Request Hook")
+        and event.action in ("closed", "merged")
+    ):
+        return True
+    if (
+        event.event_type in ("issues", "Issue Hook")
+        and event.action in ("labeled", "unlabeled")
+        and event.label_name
+    ):
+        from oompah.label_auth import label_name_to_status
+
+        return label_name_to_status(event.label_name) is not None
+    return False
+
+
+async def _handle_webhook_event(event: WebhookEvent, project) -> None:
     """Process a validated webhook event: emit on EventBus and trigger refresh.
 
     Args:
@@ -21098,6 +21310,9 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         project: The matched Project object (may be None for unmatched repos).
     """
     orch = _get_orchestrator()
+    webhook_io = (
+        _run_control_api_io if _webhook_uses_control_io(event) else _run_api_io
+    )
 
     payload = {
         "provider": event.provider,
@@ -21132,7 +21347,8 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         # Record the timestamp of this webhook delivery on the project so
         # callers can track the last-seen delivery time per-project.
         now = datetime.now(timezone.utc)
-        orch.project_store.update(
+        await webhook_io(
+            orch.project_store.update,
             project.id,
             last_webhook_received_at=now,
         )
@@ -21167,7 +21383,8 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
     ):
         release_capacity = getattr(orch, "release_review_capacity", None)
         if callable(release_capacity):
-            release_capacity(
+            await webhook_io(
+                release_capacity,
                 _project_id,
                 event.review_id,
                 source_branch=event.source_branch or None,
@@ -21205,18 +21422,21 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
     # Covers both GitHub ("push") and GitLab ("Push Hook") event types.
     if _project_id and event.event_type in ("push", "Push Hook") and project:
         try:
-            invalidate_release_branch_catalog(_project_id)
+            await webhook_io(
+                invalidate_release_branch_catalog,
+                _project_id,
+            )
         except Exception:  # pragma: no cover — defensive
             pass
         # Also invalidate the commit inventory snapshot so the next GET
         # /release-delivery/commits request fetches fresh ref SHAs.
         try:
-            invalidate_commit_inventory(_project_id)
+            await webhook_io(invalidate_commit_inventory, _project_id)
         except Exception:  # pragma: no cover — defensive
             pass
 
     if event.merged:
-        orch.invalidate_merged_branches()
+        await webhook_io(orch.invalidate_merged_branches)
 
     # Invalidate the tracker's in-memory read cache (ETag-based) for events
     # that may update the branch-to-issue mapping.  For GitHubIssueTracker
@@ -21229,10 +21449,14 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         "push", "Push Hook",
     ):
         try:
-            tracker = orch._tracker_for_project(project.id)
-            inval = getattr(tracker, "invalidate_read_cache", None)
-            if callable(inval):
-                inval()
+
+            def _invalidate_tracker_read_cache():
+                tracker = orch._tracker_for_project(project.id)
+                inval = getattr(tracker, "invalidate_read_cache", None)
+                if callable(inval):
+                    inval()
+
+            await webhook_io(_invalidate_tracker_read_cache)
         except Exception:  # pragma: no cover — defensive, never block webhook
             pass
 
@@ -21242,7 +21466,7 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
     # pushes to non-tracked branches) from triggering unnecessary
     # orchestrator wakeups.
     if _webhook_should_request_refresh(event, project):
-        orch.request_refresh()
+        await webhook_io(orch.request_refresh)
 
     # If the webhook signals that the project's tracked branch advanced
     # (push to that branch, or PR merged into it), pull the latest source
@@ -21335,8 +21559,18 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         if is_status_label(event.label_name):
             authorized = is_authorized_status_actor(event.label_actor, project)
             if authorized:
-                _handle_authorized_status_label_event(orch, event, project)
-            elif _is_oompah_owned_label_event(orch, event, project):
+                await webhook_io(
+                    _handle_authorized_status_label_event,
+                    orch,
+                    event,
+                    project,
+                )
+            elif await webhook_io(
+                _is_oompah_owned_label_event,
+                orch,
+                event,
+                project,
+            ):
                 # The labeled status matches a known oompah-owned write in the
                 # trusted-status ledger (e.g. a backfill or API status change
                 # whose webhook actor did not match OOMPAH_BOT_LOGIN due to a
@@ -21351,7 +21585,12 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
                     event.label_name,
                     event.label_actor,
                 )
-                _record_trusted_status_label_event(orch, event, project)
+                await webhook_io(
+                    _record_trusted_status_label_event,
+                    orch,
+                    event,
+                    project,
+                )
             else:
                 logger.debug(
                     "External label edit detected: %s#%s actor=%s label=%s action=%s",
@@ -22773,8 +23012,17 @@ async def api_webhook_github(request: Request):
 
         # Find matching project
         orch = _get_orchestrator()
-        projects = orch.project_store.list_all()
-        project = _match_github_webhook_project(projects, event)
+        webhook_io = (
+            _run_control_api_io
+            if _webhook_uses_control_io(event)
+            else _run_api_io
+        )
+
+        def _resolve_github_webhook_project():
+            projects = orch.project_store.list_all()
+            return _match_github_webhook_project(projects, event)
+
+        project = await webhook_io(_resolve_github_webhook_project)
 
         # Validate signature if project has a webhook_secret
         if project and project.webhook_secret:
@@ -22791,7 +23039,7 @@ async def api_webhook_github(request: Request):
                     status_code=401,
                 )
 
-        _handle_webhook_event(event, project)
+        await _handle_webhook_event(event, project)
         return JSONResponse(
             {
                 "ok": True,
@@ -22882,14 +23130,16 @@ async def api_webhook_gitlab(request: Request):
         # instances fall back to a fingerprint of the logical event identity.
         if _gitlab_event_dedup is not None:
             event_uuid = request.headers.get("X-Gitlab-Event-UUID") or None
-            if _gitlab_event_dedup.is_duplicate(
+            duplicate = await _run_api_io(
+                _gitlab_event_dedup.is_duplicate,
                 event_uuid=event_uuid,
                 event_type=event_type,
                 repo_slug=event.repo_slug,
                 review_id=event.review_id,
                 action=event.action,
                 issue_number=event.issue_number,
-            ):
+            )
+            if duplicate:
                 logger.debug(
                     "GitLab webhook deduplicated: %s %s #%s action=%s",
                     event_type,
@@ -22907,8 +23157,17 @@ async def api_webhook_gitlab(request: Request):
 
         # Find matching project
         orch = _get_orchestrator()
-        projects = orch.project_store.list_all()
-        project = match_project_by_repo(projects, event.repo_slug, "gitlab")
+        webhook_io = (
+            _run_control_api_io
+            if _webhook_uses_control_io(event)
+            else _run_api_io
+        )
+
+        def _resolve_gitlab_webhook_project():
+            projects = orch.project_store.list_all()
+            return match_project_by_repo(projects, event.repo_slug, "gitlab")
+
+        project = await webhook_io(_resolve_gitlab_webhook_project)
 
         # A GitLab hook is delivered directly to this public endpoint, unlike
         # GitHub's local ``gh webhook forward`` path.  Fail closed:
@@ -22943,7 +23202,7 @@ async def api_webhook_gitlab(request: Request):
                 status_code=401,
             )
 
-        _handle_webhook_event(event, project)
+        await _handle_webhook_event(event, project)
         return JSONResponse(
             {
                 "ok": True,

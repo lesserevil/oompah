@@ -13,6 +13,7 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -23,6 +24,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
 
 from oompah.events import EventBus, EventType
 from oompah.models import Project
@@ -110,7 +112,13 @@ class _WebhookThreadHarness:
 def webhook_threads(monkeypatch):
     """Make every webhook worker test-visible without changing production code."""
     harness = _WebhookThreadHarness()
-    monkeypatch.setattr("oompah.server.threading.Thread", harness.create)
+    # Replace the server's module reference, not ``threading.Thread`` on the
+    # shared stdlib module.  The latter also intercepts ThreadPoolExecutor
+    # workers and Timer internals now that webhook storage work is off-loop.
+    monkeypatch.setattr(
+        "oompah.server.threading",
+        SimpleNamespace(Thread=harness.create),
+    )
     yield harness
     harness.wait()
 
@@ -283,6 +291,148 @@ class TestGitHubWebhookEndpoint:
             "42",
             source_branch="feat-branch",
         )
+
+    def test_blocked_merge_capacity_release_cannot_block_healthz(
+        self,
+        client_no_secret,
+    ):
+        """A merged-review lifecycle lock cannot freeze the ASGI loop."""
+        from oompah.server import _api_thread_pool, app
+
+        _client, orch = client_no_secret
+        release_entered = threading.Event()
+        release_capacity = threading.Event()
+        ordinary_release = threading.Event()
+        ordinary_workers_entered = threading.Event()
+        ordinary_entered_lock = threading.Lock()
+        ordinary_entered_count = 0
+
+        def block_ordinary_worker():
+            nonlocal ordinary_entered_count
+            with ordinary_entered_lock:
+                ordinary_entered_count += 1
+                if ordinary_entered_count == 4:
+                    ordinary_workers_entered.set()
+            assert ordinary_release.wait(3), "ordinary API pool rescue timed out"
+
+        ordinary_futures = [
+            _api_thread_pool.submit(block_ordinary_worker) for _ in range(4)
+        ]
+        assert ordinary_workers_entered.wait(1)
+
+        def blocked_release(*_args, **_kwargs):
+            release_entered.set()
+            assert release_capacity.wait(3), "webhook release rescue timed out"
+
+        orch.release_review_capacity.side_effect = blocked_release
+        payload = _github_pr_payload(action="closed", merged=True)
+        rescue = threading.Timer(2, release_capacity.set)
+        rescue.daemon = True
+
+        async def scenario():
+            async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://test",
+            ) as client:
+                webhook_request = asyncio.create_task(
+                    client.post(
+                        "/api/v1/webhooks/github",
+                        content=json.dumps(payload),
+                        headers={
+                            "X-GitHub-Event": "pull_request",
+                            "X-GitHub-Delivery": "blocked-merge",
+                            "Content-Type": "application/json",
+                        },
+                    )
+                )
+                assert await asyncio.to_thread(release_entered.wait, 1)
+                health = await asyncio.wait_for(client.get("/healthz"), 0.5)
+                assert health.status_code == 200
+                assert not release_capacity.is_set(), (
+                    "healthz completed only after the webhook lifecycle lock "
+                    "was released"
+                )
+                release_capacity.set()
+                webhook = await asyncio.wait_for(webhook_request, 1)
+                assert webhook.status_code == 200
+                assert not ordinary_release.is_set(), (
+                    "merged webhook queued behind ordinary API work"
+                )
+
+        rescue.start()
+        try:
+            asyncio.run(scenario())
+        finally:
+            release_capacity.set()
+            ordinary_release.set()
+            rescue.cancel()
+            for future in ordinary_futures:
+                future.result(timeout=1)
+
+    def test_push_webhook_does_not_consume_saturated_control_pool(
+        self,
+        client_no_secret,
+    ):
+        """Routine webhook storms stay outside reserved lifecycle admission."""
+        from oompah.server import _api_control_thread_pool, app
+
+        _client, _orch = client_no_secret
+        control_release = threading.Event()
+        control_workers_entered = threading.Event()
+        control_entered_lock = threading.Lock()
+        control_entered_count = 0
+
+        def block_control_worker():
+            nonlocal control_entered_count
+            with control_entered_lock:
+                control_entered_count += 1
+                if control_entered_count == 2:
+                    control_workers_entered.set()
+            assert control_release.wait(3), "control API pool rescue timed out"
+
+        control_futures = [
+            _api_control_thread_pool.submit(block_control_worker) for _ in range(2)
+        ]
+        assert control_workers_entered.wait(1)
+        payload = {
+            "ref": "refs/heads/main",
+            "repository": {"full_name": "org/repo"},
+            "pusher": {"name": "alice"},
+            "head_commit": {"message": "routine push"},
+        }
+        rescue = threading.Timer(2, control_release.set)
+        rescue.daemon = True
+
+        async def scenario():
+            async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://test",
+            ) as client:
+                webhook = await asyncio.wait_for(
+                    client.post(
+                        "/api/v1/webhooks/github",
+                        content=json.dumps(payload),
+                        headers={
+                            "X-GitHub-Event": "push",
+                            "Content-Type": "application/json",
+                        },
+                    ),
+                    0.5,
+                )
+                assert webhook.status_code == 200
+                assert webhook.json()["action"] == "processed"
+                assert not control_release.is_set(), (
+                    "routine push webhook queued in lifecycle control pool"
+                )
+
+        rescue.start()
+        try:
+            asyncio.run(scenario())
+        finally:
+            control_release.set()
+            rescue.cancel()
+            for future in control_futures:
+                future.result(timeout=1)
 
     def test_pr_merged_to_tracked_branch_triggers_sync(
         self, client_no_secret, webhook_threads

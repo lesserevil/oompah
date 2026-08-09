@@ -29,6 +29,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
 
 import oompah.server as server_module
 from oompah.focus import Focus
@@ -450,6 +451,74 @@ class TestIssueQualitySourceOffLoop:
         assert all(called_in_thread), (
             "has_quality_source ran on the main thread; it must run off the event loop"
         )
+
+
+# ---------------------------------------------------------------------------
+# api_create_issue — tracker mutation must not block the ASGI event loop
+# ---------------------------------------------------------------------------
+
+class TestCreateIssueMutationOffLoop:
+    def test_blocked_tracker_create_cannot_block_healthz(self, tmp_path):
+        """A slow tracker create must not freeze unrelated ASGI requests."""
+        mock_orch, mock_tracker, _ = _make_orch_with_project(tmp_path)
+        create_entered = threading.Event()
+        release_create = threading.Event()
+
+        def blocked_create(**_kwargs):
+            create_entered.set()
+            assert release_create.wait(3), "test did not release tracker create"
+            return _make_issue("TASK-CREATED")
+
+        mock_tracker.create_issue.side_effect = blocked_create
+        rescue = threading.Timer(2, release_create.set)
+        rescue.daemon = True
+
+        async def scenario():
+            async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://test",
+            ) as client:
+                create_request = asyncio.create_task(
+                    client.post(
+                        "/api/v1/issues",
+                        json={
+                            "title": "Create without blocking ASGI",
+                            "description": "Regression coverage",
+                            "project_id": "proj-1",
+                        },
+                    )
+                )
+                assert await asyncio.to_thread(create_entered.wait, 1)
+
+                health = await asyncio.wait_for(client.get("/healthz"), 0.5)
+
+                assert health.status_code == 200
+                assert not release_create.is_set(), (
+                    "healthz completed only after the rescue timer released "
+                    "a create running on the ASGI event loop"
+                )
+                release_create.set()
+                created = await asyncio.wait_for(create_request, 1)
+                assert created.status_code == 201
+
+        rescue.start()
+        try:
+            with (
+                patch.object(
+                    server_module,
+                    "_get_orchestrator",
+                    return_value=mock_orch,
+                ),
+                patch.object(
+                    server_module,
+                    "broadcast_issues",
+                    new_callable=AsyncMock,
+                ),
+            ):
+                asyncio.run(scenario())
+        finally:
+            release_create.set()
+            rescue.cancel()
 
 
 # ---------------------------------------------------------------------------
