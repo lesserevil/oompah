@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T06:09:37.822614Z'
-updated_at: '2026-08-09T06:59:30.207426Z'
+updated_at: '2026-08-09T06:59:35.588742Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,17 @@ oompah.terminal_audit:
       3.11/3.12/3.13 checks and the exact complete Makefile gate passed. Owner terminalization
       is required because delivery used the shared epic branch.'
     created_at: '2026-08-09T06:59:26.021950+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-933
+    target_state: Done
+    evidence_fingerprint: 94ecad58d4b6319c05822dd305eb6602a11c510c10d319c08ae3b4f000919ed0
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T06:59:34.266699+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -64,5 +74,12 @@ author: oompah
 created: 2026-08-09 06:59
 ---
 Delivered through protected PR #749 and squash-merged to main at d6b3018016bfa2036a010cce7ecec9ac13924a5a. Required GitHub-hosted Python 3.11/3.12/3.13 checks all passed. The exact merged tree also passed the complete Makefile gate: 18,880 passed, 7 skipped, 2 xfailed.
+---
+author: oompah
+created: 2026-08-09 06:59
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Protected PR #749 squash-integrated the OOMPAH-933 hosted-CI contract into main at d6b3018016bfa2036a010cce7ecec9ac13924a5a. All required hosted Python 3.11/3.12/3.13 checks and the exact complete Makefile gate passed. Owner terminalization is required because delivery used the shared epic branch.
 ---
 <!-- COMMENTS:END -->
