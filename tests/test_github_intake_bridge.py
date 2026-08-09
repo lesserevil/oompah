@@ -544,6 +544,53 @@ def test_existing_native_import_comment_webhook_copies_without_readiness_comment
     ]
 
 
+def test_pr_backed_comment_webhook_cannot_reach_native_intake(monkeypatch):
+    """Defensive intake guard rejects parser-bypassing PR #768 payloads."""
+    native = FakeNativeTracker()
+
+    def fail_if_initialized(*_args, **_kwargs):
+        raise AssertionError("PR-backed comments must not initialize intake trackers")
+
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        fail_if_initialized,
+    )
+    event = WebhookEvent(
+        provider="github",
+        event_type="issue_comment",
+        action="created",
+        repo_slug="example-org/app",
+        issue_number="768",
+        comment_id="1885001",
+        author="oompah",
+        title="OOMPAH-960: Consume parent-scoped canonical child landing facts",
+        raw={
+            "issue": {
+                "number": 768,
+                "state": "closed",
+                "title": "OOMPAH-960: Consume parent-scoped canonical child landing facts",
+                "body": "Task: OOMPAH-960",
+                "user": {"login": "oompah"},
+                "pull_request": {
+                    "url": "https://api.github.com/repos/example-org/app/pulls/768",
+                },
+            },
+            "comment": {
+                "id": 1885001,
+                "body": "Merged by the pull-request review lifecycle.",
+                "user": {"login": "oompah"},
+            },
+        },
+    )
+
+    handle_github_issue_event_for_native_project(_orch(native), event, _project())
+
+    assert native.issues == {}
+    assert native.comments == []
+    assert native.metadata == {}
+    assert native.update_calls == []
+
+
 def test_closed_github_issue_does_not_archive_merged_native_task(monkeypatch):
     native = FakeNativeTracker()
     issue = native.create_issue("Imported", initial_status=MERGED)

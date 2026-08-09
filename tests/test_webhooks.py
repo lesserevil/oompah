@@ -647,6 +647,19 @@ class TestParseGitHubIssueCommentWebhook:
         assert event is not None
         assert event.action == "deleted"
 
+    def test_pull_request_comment_returns_none(self):
+        """PR-backed issue comments never enter native issue intake."""
+        payload = self._comment_payload(
+            action="created",
+            issue_number=768,
+            issue_title="OOMPAH-960: Consume parent-scoped landing facts",
+        )
+        payload["issue"]["pull_request"] = {
+            "url": "https://api.github.com/repos/org/repo/pulls/768",
+        }
+
+        assert parse_github_webhook("issue_comment", payload) is None
+
     def test_missing_issue_returns_none(self):
         payload = {"action": "created", "comment": {"id": 1, "user": {"login": "x"}}}
         assert parse_github_webhook("issue_comment", payload) is None
