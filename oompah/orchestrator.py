@@ -13875,9 +13875,20 @@ class Orchestrator:
                     # fact instead of collapsing it into a generic provider
                     # error that could keep scheduling delivery effects.
                     return provenance
+                if marker is None and canonicalize_status(current.state) == DONE:
+                    provenance["terminal_provenance"] = {
+                        "schema_version": 1,
+                        "marker_present": False,
+                        "project_id": project_id,
+                        "task_id": current.identifier,
+                        "retained": False,
+                        "malformed": False,
+                        "authority_generation": 0,
+                    }
                 if marker is not None:
                     provenance["terminal_provenance"] = {
                         "schema_version": 1,
+                        "marker_present": True,
                         "marker_version": marker.version,
                         "project_id": project_id,
                         "task_id": current.identifier,

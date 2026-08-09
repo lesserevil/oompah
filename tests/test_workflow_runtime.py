@@ -3453,6 +3453,7 @@ def test_runtime_retires_exhausted_landing_refresh_for_retained_provenance(
     binding.collector.sources[FactDomain.TERMINAL_AUDIT] = lambda _issue: {
         "terminal_provenance": {
             "schema_version": 1,
+            "marker_present": True,
             "marker_version": 1,
             "project_id": project_id,
             "task_id": task_id,
@@ -3542,10 +3543,13 @@ def test_runtime_retires_exhausted_landing_refresh_for_retained_provenance(
     reopened_store.close()
 
 
-@pytest.mark.parametrize("authority_changed", (False, True))
+@pytest.mark.parametrize(
+    "authority_change",
+    ("unchanged", "retained_to_revision", "absent_to_retained"),
+)
 def test_production_retained_provenance_publication_is_exact(
     tmp_path,
-    authority_changed,
+    authority_change,
 ):
     from oompah.orchestrator import Orchestrator
 
@@ -3640,13 +3644,14 @@ def test_production_retained_provenance_publication_is_exact(
 
     metadata = TerminalAuditMetadataStore(tracker, project_store, project_id)
     owner = ContributorIdentity("owner", "api")
-    mark_provenance_only(
-        metadata,
-        task_id,
-        owner,
-        "Retain completed work as historical provenance.",
-        now="2026-08-09T00:00:00+00:00",
-    )
+    if authority_change != "absent_to_retained":
+        mark_provenance_only(
+            metadata,
+            task_id,
+            owner,
+            "Retain completed work as historical provenance.",
+            now="2026-08-09T00:00:00+00:00",
+        )
     terminal_workflow = TerminalAuditWorkflow(store)
     controller = UniversalTotalityLivenessController(store=store)
 
@@ -3695,8 +3700,10 @@ def test_production_retained_provenance_publication_is_exact(
         proof_fences.append(
             (store._conn.in_transaction, store._authority_lock_depth > 0)
         )
-        assert observed["terminal_provenance"]["retained"] is True
-        if authority_changed:
+        provenance = observed["terminal_provenance"]
+        if authority_change == "retained_to_revision":
+            assert provenance["marker_present"] is True
+            assert provenance["retained"] is True
             authorize_new_revision(
                 metadata,
                 task_id,
@@ -3704,6 +3711,26 @@ def test_production_retained_provenance_publication_is_exact(
                 "Owner authorized a new revision before publication.",
                 now="2026-08-09T00:01:00+00:00",
             )
+        elif authority_change == "absent_to_retained":
+            assert provenance == {
+                "schema_version": 1,
+                "marker_present": False,
+                "project_id": project_id,
+                "task_id": task_id,
+                "retained": False,
+                "malformed": False,
+                "authority_generation": 0,
+            }
+            mark_provenance_only(
+                metadata,
+                task_id,
+                owner,
+                "Owner retained historical provenance before publication.",
+                now="2026-08-09T00:01:00+00:00",
+            )
+        else:
+            assert provenance["marker_present"] is True
+            assert provenance["retained"] is True
         return production_proof(decision, observed)
 
     binding.terminal_audit_snapshot_proof_source = change_before_proof
@@ -3712,7 +3739,7 @@ def test_production_retained_provenance_publication_is_exact(
     report = runtime.reconcile()
 
     assert proof_fences == [(True, True)]
-    if authority_changed:
+    if authority_change != "unchanged":
         assert report["requires_reconcile"] is True
         assert report["reconcile_reason"] == "publication_authority_changed"
         assert report["projects"][project_id] == {
@@ -3728,6 +3755,24 @@ def test_production_retained_provenance_publication_is_exact(
             (exhausted.job_id,),
         ).fetchone()
         assert retirement["count"] == 0
+        if authority_change == "absent_to_retained":
+            binding.terminal_audit_snapshot_proof_source = production_proof
+            retry_report = runtime.reconcile()
+
+            assert retry_report["projects"][project_id]["snapshot"]["published"]
+            assert runtime.projections()[0]["reason_code"] == (
+                "terminal.provenance_retained"
+            )
+            assert not store.current_exhausted_jobs(
+                project_id=project_id,
+                task_id=task_id,
+            )
+            retry_retirement = store._conn.execute(  # noqa: SLF001
+                "SELECT authority_kind FROM workflow_job_retirements "
+                "WHERE job_id = ?",
+                (exhausted.job_id,),
+            ).fetchone()
+            assert retry_retirement["authority_kind"] == "managed_zero_job"
     else:
         assert report["projects"][project_id]["snapshot"]["published"] is True
         assert runtime.projections()[0]["reason_code"] == (
