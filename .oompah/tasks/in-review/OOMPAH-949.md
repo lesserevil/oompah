@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-949
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Make fresh-waiter priority regression independent of host scheduling
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:18:16.575025Z'
-updated_at: '2026-08-09T12:19:16.902464Z'
+updated_at: '2026-08-09T12:21:13.934854Z'
 work_branch: OOMPAH-949
 target_branch: null
 review_url: null
