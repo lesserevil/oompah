@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:30:50.075307Z'
-updated_at: '2026-08-09T18:33:15.731925Z'
+updated_at: '2026-08-09T18:53:15.002575Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ A workflow snapshot collected while a task has no terminal-provenance marker cur
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 18:53
+---
+Implementation is pushed at 92ebd94c2 on OOMPAH-968, based on final OOMPAH-967 head 5adb50e55. Markerless Done tasks now project stable explicit absence authority; healthy absence preserves the normal landing decision, invalid/ambiguous absence fails closed, and the existing locked in-transaction proof detects absent-to-retained mutation. The production regression proves first publication supersedes and rolls back without retiring the exhausted row, then the retained retry publishes zero-job authority and retires it. Verification: 547 focused tests pass; critical Ruff/diff checks pass; three independent reviews are running.
+---
+<!-- COMMENTS:END -->
