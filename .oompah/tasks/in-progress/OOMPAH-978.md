@@ -12,12 +12,12 @@ labels:
 - reliability
 assignee: null
 created_at: '2026-08-09T23:14:00.520291Z'
-updated_at: '2026-08-09T23:22:06.737416Z'
+updated_at: '2026-08-09T23:24:56.546812Z'
 work_branch: OOMPAH-978
-target_branch: null
-review_url: null
-review_number: null
-review_head: null
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/787
+review_number: '787'
+review_head: a1f6ef58e7da26ba2cd5be8a1c470eab1bed7acd
 merged_at: null
 oompah.integration:
   version: 2
@@ -29,6 +29,10 @@ oompah.integration:
   submitted_at: '2026-08-09T23:20:56.655835+00:00'
   updated_at: '2026-08-09T23:20:56.655835+00:00'
 oompah.work_branch: OOMPAH-978
+oompah.review_url: https://github.com/lesserevil/oompah/pull/787
+oompah.review_number: '787'
+oompah.target_branch: main
+oompah.review_head: a1f6ef58e7da26ba2cd5be8a1c470eab1bed7acd
 ---
 ## Summary
 
@@ -58,5 +62,10 @@ author: oompah
 created: 2026-08-09 23:22
 ---
 Opened PR #787 for exact head a1f6ef58e7da26ba2cd5be8a1c470eab1bed7acd so protected checks can run while the queued workflow submission catches up.
+---
+author: oompah
+created: 2026-08-09 23:24
+---
+Branch quality gate passed for `a1f6ef58e7da26ba2cd5be8a1c470eab1bed7acd` using `make test` in 162.2s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
