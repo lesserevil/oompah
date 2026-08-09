@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:25:38.748132Z'
-updated_at: '2026-08-09T19:27:04.009987Z'
+updated_at: '2026-08-09T19:41:33.673878Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,5 +35,10 @@ author: oompah
 created: 2026-08-09 19:26
 ---
 Accepted for direct-owner implementation. Live evidence confirms the shared admission continuation is starved by ordinary-event coalescing while the reserved control lane remains correct.
+---
+author: oompah
+created: 2026-08-09 19:41
+---
+Implementation is pushed at exact head e513c7da36eaf240723a645d72147af2b7bb9d90. Workflow effect completion now wakes a single independently coalesced scheduler-loop admission owner, so shared capacity refills while ordinary world reconciliation remains in flight; ordinary fairness, stale-cut fallback, pause/quiesce/accepting fences, control isolation, and graceful drain remain intact. Validation: 235 focused orchestrator/runtime tests passed; changed-line Ruff and diff checks are clean. Holding final submit until the OOMPAH-968/OOMPAH-970 base settles and independent review completes.
 ---
 <!-- COMMENTS:END -->
