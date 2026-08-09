@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-974
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep lifecycle control recoverable when workflow reconciliation deadlocks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T21:05:55.099361Z'
+updated_at: '2026-08-09T21:11:41.476536Z'
 work_branch: null
 target_branch: null
 review_url: null
