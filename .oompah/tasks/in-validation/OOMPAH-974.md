@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T22:04:37.478137Z'
+updated_at: '2026-08-09T22:12:03.551303Z'
 work_branch: OOMPAH-974
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/783
@@ -45,6 +45,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-974
     digest: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-974","audit-d565b6a25f30","attempt-64bedb0842a2"]': '2026-08-09T22:11:47.822345+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-974
+    target_state: Done
+    evidence_fingerprint: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
+    audit_ids:
+    - audit-d565b6a25f30
+    kind: result
+    applied: true
+    retired_at: '2026-08-09T22:11:47.822373+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-974
+    audit_id: audit-d565b6a25f30
+    attempt_id: attempt-64bedb0842a2
+    target_state: Done
+    evidence_fingerprint: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
+    status: In Validation
+    audit_ids:
+    - audit-d565b6a25f30
+    kind: result
+    applied: true
+    created_at: '2026-08-09T22:11:47.822392+00:00'
+    applied_at: '2026-08-09T22:12:00.936224+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -52,7 +78,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-974
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -61,7 +87,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-64bedb0842a2
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -73,6 +99,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-974
       selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
       selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+      verdict: pass
+      completed_at: '2026-08-09T22:11:47.822065+00:00'
+      ended_at: '2026-08-09T22:11:47.822065+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -82,7 +111,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T21:59:24.029402+00:00'
     selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
     selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
-    updated_at: '2026-08-09T22:03:38.150577+00:00'
+    updated_at: '2026-08-09T22:11:47.822065+00:00'
   - version: 1
     audit_id: audit-e005f71194c1
     project_id: proj-14849f1b
@@ -183,5 +212,21 @@ author: oompah
 created: 2026-08-09 22:04
 ---
 Merged via protected PR #783 at 9ea2d4d07bfe2372b544989eaca47808e10e44c6 and deployed as exact service/CLI build. The old 312c process accepted restart but failed to settle; the newly merged HTTP-independent exact-identity force path boundedly quarantined it and started PID 2323184. Six consecutive health probes remained HTTP 200 throughout the cold 1,776-task initial reconciliation as state advanced from unavailable to live scan_complete=false snapshots. Independent review approved; 399 review tests, 335 focused tests, 8,580 additional no-failure full-gate tests, and protected Python 3.11/3.12/3.13 gates passed.
+---
+author: oompah
+created: 2026-08-09 22:11
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- verified_head_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+- commit_message: OOMPAH-974: keep lifecycle control recoverable
+- commit_trailer: Co-authored-by: oompah <lesserevil@users.noreply.github.com>
+- quality_gate: make test passed in 160.71s on exact HEAD, result: passed
+- implementation_scope: indexed read cache via _read_cache_by_id with cooperative GIL yields at 32-file intervals; cooperative checkpoints in _reconciliation_checkpoint; control_reserved_slots parameter; HTTP-independent force-restart in canonical_cli_cutover.py with --force flag; process identity verification via process_identity.py
+- test_coverage: test_large_reconcile_cooperatively_releases_lifecycle_drain, test_each_domain_collector_cooperates_with_drain, test_force_restart_uses_transaction_without_agent_drain, test_force_restart_recovers_verified_service_without_http, test_emergency_quarantine_bounds_sigterm_and_escalates_exact_identity, test_quarantine_capture_refuses_stale_process_identity, test_runtime_owner_identity_fences_reused_pid_generation, test_graceful_drain_does_not_poison_active_shadow_qualification
+- files_changed: 9 files, 815 net additions
 ---
 <!-- COMMENTS:END -->
