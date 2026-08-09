@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:39.515436Z'
-updated_at: '2026-08-09T09:55:22.613937Z'
+updated_at: '2026-08-09T09:55:35.368665Z'
 work_branch: OOMPAH-944
 target_branch: null
 review_url: null
@@ -26,9 +26,9 @@ oompah.integration:
   task_branch: OOMPAH-944
   base_branch: epic-OOMPAH-940
   base_sha: b7e7d9509a4e6025b48c54336098acef2dda4986
-  head_sha: 71e169737deb3c28382fa511edde6cc90542e54c
-  submitted_at: '2026-08-09T09:34:33.522333+00:00'
-  updated_at: '2026-08-09T09:34:33.522333+00:00'
+  head_sha: c07a3ba543bc9d731f4b67531c34b4e0c4bcf4ca
+  submitted_at: '2026-08-09T09:55:24.090326+00:00'
+  updated_at: '2026-08-09T09:55:24.090326+00:00'
 oompah.work_branch: OOMPAH-944
 ---
 ## Summary
@@ -72,5 +72,10 @@ author: oompah
 created: 2026-08-09 09:55
 ---
 Review found and fixed an under-lock cleanup mismatch: preselection accepted a pruned child via canonical durable landing evidence, but deletion still required a live tracker head. The deletion fence now revalidates the same unique exact durable source/target/revision proof while preserving child/epic authority-version checks. Added full apply_epic_effect coverage for live and pruned heads. Focused results: adapter 45 passed; cross-cleanup selection 38 passed. Pushed c07a3ba543bc9d731f4b67531c34b4e0c4bcf4ca.
+---
+author: oompah
+created: 2026-08-09 09:55
+---
+Fixed the pruned-head cleanup blocker by carrying canonical durable landing authority through the under-lock deletion fence; full effect regression and focused cleanup suites pass.
 ---
 <!-- COMMENTS:END -->
