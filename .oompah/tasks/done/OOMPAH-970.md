@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:37:32.521266Z'
-updated_at: '2026-08-09T19:58:54.360838Z'
+updated_at: '2026-08-09T19:59:05.078287Z'
 work_branch: OOMPAH-970
 target_branch: null
 review_url: null
@@ -59,7 +59,19 @@ oompah.terminal_audit:
     created_at: '2026-08-09T19:58:50.122021+00:00'
     selected_ref: 23a28b1f02319faff905d2733ef290c26d7cb097
     selected_sha: 23a28b1f02319faff905d2733ef290c26d7cb097
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-970
+    target_state: Done
+    evidence_fingerprint: 8a4300fa26305215ba607ef34385de5d9b0e9805a4906d3b923535d44d04aa35
+    audit_ids:
+    - audit-dbc0ee15412c
+    - audit-1cef3482ca27
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T19:58:58.381915+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -67,7 +79,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-970
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -97,13 +109,13 @@ oompah.terminal_audit:
     created_at: '2026-08-09T19:55:53.568484+00:00'
     selected_ref: 23a28b1f02319faff905d2733ef290c26d7cb097
     selected_sha: 23a28b1f02319faff905d2733ef290c26d7cb097
-    updated_at: '2026-08-09T19:57:33.700776+00:00'
+    updated_at: '2026-08-09T19:58:58.381870+00:00'
   - version: 1
     audit_id: audit-1cef3482ca27
     project_id: proj-14849f1b
     task_id: OOMPAH-970
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -118,6 +130,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T19:55:53.568484+00:00'
     selected_ref: 23a28b1f02319faff905d2733ef290c26d7cb097
     selected_sha: 23a28b1f02319faff905d2733ef290c26d7cb097
+    updated_at: '2026-08-09T19:58:58.381899+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a159950819f6
@@ -134,6 +147,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-970
     selected_ref: 23a28b1f02319faff905d2733ef290c26d7cb097
     selected_sha: 23a28b1f02319faff905d2733ef290c26d7cb097
+oompah.task_costs:
+  total_input_tokens: 150
+  total_output_tokens: 42
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 150
+      output_tokens: 42
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 150
+    output_tokens: 42
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T19:59:02.069921+00:00'
 ---
 ## Summary
 
@@ -195,5 +224,22 @@ author: oompah
 created: 2026-08-09 19:57
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 19:58
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: [REDACTED]
+---
+author: oompah
+created: 2026-08-09 19:59
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 8
+- Tokens: 150 in / 42 out [192 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 23s
+- Log: OOMPAH-970__20260809T195756Z.jsonl
 ---
 <!-- COMMENTS:END -->
