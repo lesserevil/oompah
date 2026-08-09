@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-967
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Honor retained terminal provenance in canonical workflow decisions
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:04:59.855533Z'
-updated_at: '2026-08-09T19:15:01.995103Z'
+updated_at: '2026-08-09T19:23:31.981954Z'
 work_branch: OOMPAH-967
 target_branch: null
 review_url: null
@@ -30,6 +30,62 @@ oompah.integration:
   submitted_at: '2026-08-09T18:47:01.258262+00:00'
   updated_at: '2026-08-09T18:47:01.258262+00:00'
 oompah.work_branch: OOMPAH-967
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-e269ff899599
+    project_id: proj-14849f1b
+    task_id: OOMPAH-967
+    digest: 0f5f7b03223019482b48a5ec4bf9fd6e406f685105651d30a704df7f97765d17
+  - version: 1
+    audit_id: audit-d4cb6310cc1e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-967
+    digest: 0f5f7b03223019482b48a5ec4bf9fd6e406f685105651d30a704df7f97765d17
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e269ff899599
+    project_id: proj-14849f1b
+    task_id: OOMPAH-967
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0f5f7b03223019482b48a5ec4bf9fd6e406f685105651d30a704df7f97765d17
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-09T19:23:23.368442+00:00'
+    selected_ref: 5adb50e55ebad53edcf3a7a3d7ffe9a42782d914
+    selected_sha: 5adb50e55ebad53edcf3a7a3d7ffe9a42782d914
+  - version: 1
+    audit_id: audit-d4cb6310cc1e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-967
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0f5f7b03223019482b48a5ec4bf9fd6e406f685105651d30a704df7f97765d17
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-09T19:23:23.368442+00:00'
+    selected_ref: 5adb50e55ebad53edcf3a7a3d7ffe9a42782d914
+    selected_sha: 5adb50e55ebad53edcf3a7a3d7ffe9a42782d914
+  attempt_history: []
 ---
 ## Summary
 
@@ -107,5 +163,10 @@ author: oompah
 created: 2026-08-09 19:15
 ---
 Direct-owner integration acceleration: the durable integration attempt is correctly queued at exact head 5adb50e55, but is behind a large legacy shared-lane workflow backlog. Created the exact-head GitHub PR directly so protected checks can run now; Oompah remains authoritative and will reconcile the PR/merge.
+---
+author: oompah
+created: 2026-08-09 19:23
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
