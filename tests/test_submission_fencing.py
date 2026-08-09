@@ -21,7 +21,7 @@ import pytest
 
 from oompah.config import ServiceConfig
 from oompah.integration import IntegrationRecord
-from oompah.models import Issue, RunningEntry
+from oompah.models import Issue, OwnerClaim, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.projects import RecoveryPublicationError
 from oompah.statuses import OPEN, READY_TO_INTEGRATE
@@ -744,6 +744,7 @@ async def test_durable_submission_fences_after_assignment_clear(tmp_path):
     orch.workflow_runtime = SimpleNamespace(enforce=True)
     orch.issue_transition_lock.return_value = asyncio.Lock()
     orch._current_running_entry.return_value = entry
+    orch._owner_claim_for_issue.return_value = None
     orch._schedule_implementation_workflow_event.return_value = SimpleNamespace(
         job_id="validation-job"
     )
@@ -772,10 +773,74 @@ async def test_durable_submission_fences_after_assignment_clear(tmp_path):
     assert scheduled["payload"]["assignment_id"] == ""
     assert scheduled["payload"]["prior_generation"] == "generation-1"
     assert scheduled["payload"]["run_id"] == "run-1"
+    assert scheduled["payload"]["owner_claim_id"] == ""
+    assert scheduled["payload"]["owner_login"] == ""
     assert scheduled["expected_evidence_revision"] == issue_authority_version(
         accepted.issue
     )
     assert scheduled["expected_evidence_revision"] != stale_revision
+
+
+@pytest.mark.asyncio
+async def test_owner_submission_captures_claim_before_awaited_verification():
+    from oompah.server import _accept_worker_submission
+
+    issue = _issue(state="In Progress")
+    issue.integration = None
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    tracker.get_metadata.return_value = {}
+    old_claim = OwnerClaim(
+        claim_id="owner-claim-before-submit",
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claimed_at=1.0,
+        expires_at=10_000.0,
+    )
+    replacement = replace(
+        old_claim,
+        claim_id="owner-claim-after-submit-await",
+        owner_login="bob",
+    )
+    authority = {"claim": old_claim}
+    orch = MagicMock()
+    orch.project_store = None
+    orch.config.parallel_epic_children_enabled = False
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch.issue_transition_lock.return_value = asyncio.Lock()
+    orch._current_running_entry.return_value = None
+    orch._owner_claim_for_issue.side_effect = lambda *_args: authority["claim"]
+    orch._schedule_implementation_workflow_event.return_value = SimpleNamespace(
+        job_id="validation-job"
+    )
+
+    async def replace_claim_during_verification(_orch, _issue, _project, record):
+        authority["claim"] = replacement
+        return record
+
+    with patch(
+        "oompah.server._verify_submission_git_authority",
+        side_effect=replace_claim_during_verification,
+    ):
+        await _accept_worker_submission(
+            orch,
+            tracker,
+            issue.identifier,
+            issue.project_id,
+            {
+                "summary": "Completed and tested",
+                "task_branch": issue.work_branch,
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+            },
+            initial_issue=issue,
+        )
+
+    scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+    assert scheduled["payload"]["owner_claim_id"] == old_claim.claim_id
+    assert scheduled["payload"]["owner_login"] == old_claim.owner_login
 
 
 @pytest.mark.asyncio
