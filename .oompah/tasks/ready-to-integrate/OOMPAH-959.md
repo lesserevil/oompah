@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-959
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Continue durable effects when concurrency fills before batch size
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T14:08:58.066871Z'
-updated_at: '2026-08-09T14:24:11.413062Z'
+updated_at: '2026-08-09T14:29:09.646573Z'
 work_branch: OOMPAH-959
 target_branch: null
 review_url: null
