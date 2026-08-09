@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-970
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Make detached workflow heartbeat proof deterministic under loaded CI
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:37:32.521266Z'
-updated_at: '2026-08-09T19:52:39.503629Z'
+updated_at: '2026-08-09T19:55:58.955459Z'
 work_branch: OOMPAH-970
 target_branch: null
 review_url: null
@@ -28,6 +28,62 @@ oompah.integration:
   submitted_at: '2026-08-09T19:46:50.424122+00:00'
   updated_at: '2026-08-09T19:46:50.424122+00:00'
 oompah.work_branch: OOMPAH-970
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-dbc0ee15412c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-970
+    digest: 8a4300fa26305215ba607ef34385de5d9b0e9805a4906d3b923535d44d04aa35
+  - version: 1
+    audit_id: audit-1cef3482ca27
+    project_id: proj-14849f1b
+    task_id: OOMPAH-970
+    digest: 8a4300fa26305215ba607ef34385de5d9b0e9805a4906d3b923535d44d04aa35
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-dbc0ee15412c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-970
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8a4300fa26305215ba607ef34385de5d9b0e9805a4906d3b923535d44d04aa35
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-09T19:55:53.568484+00:00'
+    selected_ref: 23a28b1f02319faff905d2733ef290c26d7cb097
+    selected_sha: 23a28b1f02319faff905d2733ef290c26d7cb097
+  - version: 1
+    audit_id: audit-1cef3482ca27
+    project_id: proj-14849f1b
+    task_id: OOMPAH-970
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8a4300fa26305215ba607ef34385de5d9b0e9805a4906d3b923535d44d04aa35
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-09T19:55:53.568484+00:00'
+    selected_ref: 23a28b1f02319faff905d2733ef290c26d7cb097
+    selected_sha: 23a28b1f02319faff905d2733ef290c26d7cb097
+  attempt_history: []
 ---
 ## Summary
 
@@ -74,5 +130,10 @@ Output tail:
 ```text
 Trusted quality-gate runtime corruption detected; candidate CI was not run: trusted editable source mapping is inconsistent: expected one of ['/home/shedwards/src/oompah'] or immutable candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-7tvpz6ed/run/workspace; actual /home/shedwards/src/oompah-967. Repair or replace the service test runtime before rerunning the branch gate.
 ```
+---
+author: oompah
+created: 2026-08-09 19:55
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
