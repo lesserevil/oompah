@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:14:31.760374Z'
-updated_at: '2026-08-09T21:50:37.329636Z'
+updated_at: '2026-08-09T21:53:57.286505Z'
 work_branch: OOMPAH-975
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/782
@@ -86,5 +86,10 @@ author: oompah
 created: 2026-08-09 21:50
 ---
 Resubmit updated exact head 0cbca98c1 after expanding the live corpus regression matrix to all 20 observed shapes; 644 focused tests pass.
+---
+author: oompah
+created: 2026-08-09 21:53
+---
+Security/replay review hardening pushed at ad70402ee. Supplied terminal-audit revision authority is now restricted to a mutation-guarded integrator request for a parented, headless, current-Done child targeting Merged; the exact SHA/ref/project must resolve identically in the managed repo. Wrong role/status/target/project, parentless/ordinary-head, missing guard, non-SHA ref, unavailable SHA, and resolution mismatch all reject before mutation. The transition-service exception separately requires observed Done, and native blank project IDs are normalized before the final authority CAS. Relevant five-file suite: 655 passed; independent affected-suite review: 548 passed, no remaining blocker.
 ---
 <!-- COMMENTS:END -->
