@@ -2760,12 +2760,10 @@ def _acquire_and_record(lease, owner, label: str, order: list[str]) -> None:
 
 def test_cancelled_aged_waiter_does_not_transfer_protection(tmp_path):
     state_path = tmp_path / "lease.sqlite3"
-    # Keep newly queued peers inside an explicit freshness window even when
-    # this test shares a saturated xdist host.  The old 10 ms interval made a
-    # 210 ms scheduling pause legitimately starvation-protect the worker, so
-    # worker-first ordering was correct production behavior rather than proof
-    # that the cancelled waiter's age leaked.
-    aging_seconds = 30.0
+    # Keep replacement requests provably fresh under scheduler contention.
+    # The old 10 ms interval let a 210 ms delay legitimately starvation-
+    # protect the worker, which made worker-first ordering correct behavior.
+    aging_seconds = 1.0
     starvation_seconds = aging_seconds * (
         EXACT_GATE_PRIORITY - WORKER_PRIORITY + 1
     )
@@ -2821,10 +2819,10 @@ def test_cancelled_aged_waiter_does_not_transfer_protection(tmp_path):
     )
     worker.start()
     _wait_for(lambda: lease.status().waiter_count == 1)
-    # Reproduce the hosted failure's scheduler gap.  This delay exceeded the
-    # former 210 ms starvation threshold; it remains well inside the explicit
-    # freshness window above.
-    time.sleep(0.25)
+    # Model substantial host scheduling latency without relying on real-time
+    # thread scheduling.  This waiter is still below its first one-second age
+    # boost and far below the 21-second starvation-protection boundary.
+    _age_waiter(state_path, "fresh-worker", seconds=0.25)
     exact.start()
     _wait_for(lambda: lease.status().waiter_count == 2)
     fresh = {row["task_id"]: row for row in lease.status().waiters}

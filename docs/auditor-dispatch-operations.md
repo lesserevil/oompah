@@ -150,11 +150,20 @@ OOMPAH_AUDIT_ATTEMPT_TTL=3600
 # is available. Recommended: 100–200.
 OOMPAH_AUDIT_PRIORITY=100
 
-# Maximum number of In Validation tasks scanned per scheduler tick.
-# Limits the audit lane's CPU time per tick. A durable cursor rotates through
-# later candidates across ticks and restart. Set to 0 for no cap.
+# Maximum number of In Validation tasks discovered in one scheduler window.
+# A durable cursor rotates through later candidates across ticks and restart.
+# Set to 0 for no discovery cap.
 # Recommended: 32–64.
 OOMPAH_AUDIT_LANE_SCAN_LIMIT=32
+
+# Maximum candidate transactions advanced per scheduler tick. This separately
+# bounds metadata, recovery, selector, revision-binding, and launch work.
+OOMPAH_AUDIT_LANE_OPERATION_LIMIT=8
+
+# Audit-lane runtime budget in seconds. Read-only preparation may time out;
+# fenced mutations finish before Oompah persists the cursor and posts one
+# coalesced continuation when the current health cycle still has work.
+OOMPAH_AUDIT_LANE_MAX_RUNTIME_SECONDS=15
 
 # Maximum auditor launches attempted in one scheduler tick. This separately
 # bounds provider-probe and dispatch work even when the scan window is larger.
@@ -222,7 +231,8 @@ OOMPAH_MAX_RETRY_BACKOFF_MS=300000
 ```
 
 The state snapshot exposes the audit/non-audit lane occupancy, reserved slot
-count, deferred audit count and cursor, and oldest runnable implementation age.
+count, operation/time budget state, continuation state, deferred audit count
+and cursor, and oldest runnable implementation age.
 A scan deferred only by these configured budgets is informational and advances
 automatically; tracker read failures remain actionable warnings.
 
@@ -572,6 +582,8 @@ OOMPAH_AUDIT_MAX_ATTEMPTS=2
 OOMPAH_AUDIT_ATTEMPT_TTL=3600
 OOMPAH_AUDIT_PRIORITY=100
 OOMPAH_AUDIT_LANE_SCAN_LIMIT=32
+OOMPAH_AUDIT_LANE_OPERATION_LIMIT=8
+OOMPAH_AUDIT_LANE_MAX_RUNTIME_SECONDS=15
 ```
 
 ### Large Setup (Four Providers)
@@ -594,6 +606,8 @@ OOMPAH_AUDIT_MAX_ATTEMPTS=4
 OOMPAH_AUDIT_ATTEMPT_TTL=3600
 OOMPAH_AUDIT_PRIORITY=150
 OOMPAH_AUDIT_LANE_SCAN_LIMIT=64
+OOMPAH_AUDIT_LANE_OPERATION_LIMIT=12
+OOMPAH_AUDIT_LANE_MAX_RUNTIME_SECONDS=15
 OOMPAH_MAX_CONCURRENT_AGENTS=20
 ```
 

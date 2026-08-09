@@ -18,8 +18,8 @@ import threading
 import time
 import urllib.parse
 import uuid
-from concurrent.futures import Future, ThreadPoolExecutor
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from fnmatch import fnmatchcase
@@ -2400,6 +2400,15 @@ class Orchestrator:
             "discovered_candidate_count": 0,
             "scanned_candidate_count": 0,
             "candidate_scan_complete": True,
+            "operation_limit": config.audit_lane_operation_limit,
+            "runtime_budget_seconds": config.audit_lane_max_runtime_seconds,
+            "budget_exhausted": False,
+            "budget_reason": None,
+            "budget_deferred": False,
+            "continuation_requested": False,
+            "runtime_overrun_ms": 0.0,
+            "health_cycle_seen_count": 0,
+            "health_cycle_candidate_count": 0,
             "launch_failure_count": 0,
             "transport_failure_count": 0,
             "policy_incompatibility_count": 0,
@@ -2415,6 +2424,10 @@ class Orchestrator:
         self._audit_health: TerminalAuditHealth = TerminalAuditHealth.from_dict(
             state_data.get("terminal_audit_health")
         )
+        self._audit_health_cycle_keys: tuple[str, ...] = ()
+        self._audit_health_cycle_observations: dict[
+            str, AuditHealthObservation
+        ] = {}
         # Maintenance lane scheduling state (TASK-466.4).
         # Maps job name → MaintenanceJobState for in-flight coalescing,
         # skip counters, throttle timestamps, and observability.
@@ -11103,6 +11116,27 @@ class Orchestrator:
             )
         return True
 
+    def _request_audit_lane_continuation(self) -> bool:
+        """Queue one coalesced follow-up for a budget-sliced audit scan."""
+
+        runtime = self.workflow_runtime
+        with self._provider_admission_lock:
+            if (
+                self._stopping
+                or self._quiesced
+                or self._paused
+                or (runtime is not None and not runtime.worker.accepting)
+            ):
+                return False
+            self._set_refresh_requested()
+            self._post_event(
+                DispatchEvent(
+                    event_type=DispatchEventType.REFRESH_REQUESTED,
+                    payload={"reason": "terminal_audit_budget_deferred"},
+                )
+            )
+        return True
+
     def _integration_executor(self) -> ThreadPoolExecutor:
         """Return the isolated integration executor once the service is live."""
 
@@ -16596,7 +16630,9 @@ class Orchestrator:
         project = None
         if issue.project_id:
             try:
-                project = self.project_store.get(issue.project_id)
+                project = await asyncio.to_thread(
+                    self.project_store.get, issue.project_id
+                )
             except Exception as exc:  # noqa: BLE001 - allowlist fails closed
                 return None, (
                     "Cannot read the project provider allowlist before auditor "
@@ -16617,7 +16653,9 @@ class Orchestrator:
                 "Repair or remove the health ledger, restart oompah, then retry."
             )
         try:
-            role = self.role_store.get(AUDITOR_ROLE_NAME)
+            role = await asyncio.to_thread(
+                self.role_store.get, AUDITOR_ROLE_NAME
+            )
         except Exception as exc:  # noqa: BLE001 - role authority fails closed
             return None, (
                 "Cannot read the live auditor role before dispatch "
@@ -16626,7 +16664,10 @@ class Orchestrator:
         if role is None or not role.candidates:
             # Let the selector produce the canonical actionable empty-role reason.
             try:
-                return self._audit_selector(issue, project=project), None
+                selector = await asyncio.to_thread(
+                    self._audit_selector, issue, project=project
+                )
+                return selector, None
             except Exception as exc:  # noqa: BLE001 - authority fails closed
                 return None, (
                     "Cannot snapshot provider health for auditor reservation "
@@ -16750,7 +16791,10 @@ class Orchestrator:
                 "provider-health authority."
             )
         try:
-            return self._audit_selector(issue, project=project), None
+            selector = await asyncio.to_thread(
+                self._audit_selector, issue, project=project
+            )
+            return selector, None
         except Exception as exc:  # noqa: BLE001 - authority fails closed
             return None, (
                 "Cannot snapshot provider health for auditor reservation "
@@ -16992,24 +17036,50 @@ class Orchestrator:
         self,
         candidates: Sequence[Issue],
     ) -> tuple[list[Issue], bool]:
-        """Return one fair, restart-safe window of audit candidates."""
+        """Return one priority-preserving, project-fair restart-safe window."""
 
-        ordered = sorted(
-            candidates,
-            key=lambda issue: (
-                -(
-                    self.config.audit_priority
-                    if issue.priority is None
-                    else int(issue.priority)
+        priorities: dict[int, dict[str, list[Issue]]] = {}
+        for issue in candidates:
+            priority = (
+                self.config.audit_priority
+                if issue.priority is None
+                else int(issue.priority)
+            )
+            project_id = str(issue.project_id or "legacy")
+            priorities.setdefault(priority, {}).setdefault(
+                project_id, []
+            ).append(issue)
+
+        ordered: list[Issue] = []
+        for priority in sorted(priorities, reverse=True):
+            project_queues = priorities[priority]
+            for queue in project_queues.values():
+                queue.sort(
+                    key=lambda issue: (
+                        issue.created_at
+                        or datetime.max.replace(tzinfo=timezone.utc),
+                        issue.identifier,
+                    )
+                )
+            project_ids = sorted(
+                project_queues,
+                key=lambda project_id: (
+                    project_queues[project_id][0].created_at
+                    or datetime.max.replace(tzinfo=timezone.utc),
+                    project_id,
                 ),
-                issue.created_at or datetime.max.replace(tzinfo=timezone.utc),
-                issue.identifier,
-            ),
-        )
-        limit = self.config.audit_lane_scan_limit
-        truncated = limit > 0 and len(ordered) > limit
-        if not truncated:
-            return ordered, False
+            )
+            project_offsets = {project_id: 0 for project_id in project_ids}
+            while True:
+                appended = False
+                for project_id in project_ids:
+                    offset = project_offsets[project_id]
+                    if offset < len(project_queues[project_id]):
+                        ordered.append(project_queues[project_id][offset])
+                        project_offsets[project_id] = offset + 1
+                        appended = True
+                if not appended:
+                    break
 
         cursor = str(
             getattr(self, "_maintenance_cursors", {}).get("audit_lane") or ""
@@ -17024,8 +17094,117 @@ class Orchestrator:
                 None,
             )
             if cursor_index is not None:
-                ordered = ordered[cursor_index + 1 :] + ordered[: cursor_index + 1]
+                cursor_issue = ordered[cursor_index]
+                cursor_priority = (
+                    self.config.audit_priority
+                    if cursor_issue.priority is None
+                    else int(cursor_issue.priority)
+                )
+                priority_positions = [
+                    index
+                    for index, issue in enumerate(ordered)
+                    if (
+                        self.config.audit_priority
+                        if issue.priority is None
+                        else int(issue.priority)
+                    )
+                    == cursor_priority
+                ]
+                priority_group = [ordered[index] for index in priority_positions]
+                group_cursor_index = priority_positions.index(cursor_index)
+                priority_group = (
+                    priority_group[group_cursor_index + 1 :]
+                    + priority_group[: group_cursor_index + 1]
+                )
+                for index, issue in zip(
+                    priority_positions, priority_group, strict=True
+                ):
+                    ordered[index] = issue
+        limit = self.config.audit_lane_scan_limit
+        truncated = limit > 0 and len(ordered) > limit
+        if not truncated:
+            return ordered, False
         return ordered[:limit], True
+
+    def _cached_audit_selector(
+        self,
+        issue: Issue,
+        cached: AuditorCandidateSelector,
+    ) -> AuditorCandidateSelector:
+        """Rebuild issue-specific budget state from cached lane authority."""
+
+        return AuditorCandidateSelector(
+            cached.role_store,
+            cached.provider_store,
+            project_config=cached.project_config,
+            health_results=cached.health_results,
+            health_checker=cached.health_checker,
+            budget_state=cached.budget_state,
+            budget_checker=cached.budget_checker,
+            budget_limit=self.config.budget_limit,
+            current_spend=(
+                self.state.agent_totals.estimated_cost
+                + self._audit_budget_reserved_total(
+                    exclude_issue_id=self._audit_reservation_key_for_issue(issue)
+                )
+            ),
+        )
+
+    async def _prepare_cached_audit_selector(
+        self,
+        issue: Issue,
+        cache: dict[
+            tuple[str, int],
+            tuple[AuditorCandidateSelector | None, str | None],
+        ],
+    ) -> tuple[AuditorCandidateSelector | None, str | None]:
+        """Prepare project/policy authority at most once per audit-lane cut."""
+
+        generation = AUDITOR_POLICY_AUTHORITY.generation()
+        key = (str(issue.project_id or "legacy"), generation)
+        if key in cache:
+            cached, cached_error = cache[key]
+            if cached is None:
+                return None, cached_error
+            return self._cached_audit_selector(issue, cached), cached_error
+        selector, error = await self._prepare_audit_selector(issue)
+        if (
+            selector is None
+            or isinstance(selector, AuditorCandidateSelector)
+        ) and AUDITOR_POLICY_AUTHORITY.generation() == generation:
+            cache[key] = (selector, error)
+        return selector, error
+
+    def _audit_health_cycle_update(
+        self,
+        candidates: Sequence[Issue],
+        observations: Sequence[AuditHealthObservation],
+        *,
+        authoritative: bool,
+    ) -> tuple[list[AuditHealthObservation], bool]:
+        """Accumulate rotating slices without presenting partial facts as full."""
+
+        candidate_keys = tuple(
+            sorted(self._audit_candidate_cursor_key(issue) for issue in candidates)
+        )
+        if getattr(self, "_audit_health_cycle_keys", None) != candidate_keys:
+            self._audit_health_cycle_keys = candidate_keys
+            self._audit_health_cycle_observations = {}
+        accumulated = getattr(self, "_audit_health_cycle_observations", {})
+        for observation in observations:
+            key = (
+                f"{str(observation.project_id or 'legacy')}\x1f"
+                f"{observation.issue_identifier}"
+            )
+            if key in candidate_keys:
+                accumulated[key] = observation
+        self._audit_health_cycle_observations = accumulated
+        complete = authoritative and len(accumulated) == len(candidate_keys)
+        if not complete:
+            return list(observations), False
+        complete_observations = [accumulated[key] for key in candidate_keys]
+        self._audit_health_cycle_observations = {}
+        return complete_observations, True
 
     def _audit_lane_reserved_slots(self, *, non_audit_ready: bool) -> int:
         """Return capacity unavailable to new auditors for this tick."""
@@ -17057,7 +17236,24 @@ class Orchestrator:
     ) -> dict[str, float]:
         """Dispatch one bounded, capacity-fenced terminal-audit window."""
 
-        started = time.monotonic()
+        monotonic = getattr(self, "_monotonic_clock", time.monotonic)
+        started = monotonic()
+        config = getattr(self, "config", None)
+        operation_limit = max(
+            int(getattr(config, "audit_lane_operation_limit", 8)),
+            1,
+        )
+        runtime_budget_seconds = max(
+            float(
+                getattr(
+                    config,
+                    "audit_lane_max_runtime_seconds",
+                    15.0,
+                )
+            ),
+            0.1,
+        )
+        deadline = started + runtime_budget_seconds
         metrics = self._audit_metrics
         self._refresh_terminal_audit_validation_configuration_alerts()
         # Rollback-pending launches retain their branch fence across outages
@@ -17124,8 +17320,22 @@ class Orchestrator:
         _audit_scan_error_count: int = 0
         processed_candidate_count = 0
         last_processed_cursor: str | None = None
+        budget_exhausted = False
+        budget_reason: str | None = None
+        selector_cache: dict[
+            tuple[str, int],
+            tuple[AuditorCandidateSelector | None, str | None],
+        ] = {}
 
         for issue in candidates:
+            if processed_candidate_count >= operation_limit:
+                budget_exhausted = True
+                budget_reason = "operation_limit"
+                break
+            if monotonic() >= deadline:
+                budget_exhausted = True
+                budget_reason = "runtime_limit"
+                break
             processed_candidate_count += 1
             cursor = self._audit_candidate_cursor_key(issue)
             last_processed_cursor = cursor
@@ -17135,9 +17345,25 @@ class Orchestrator:
                 continue
             try:
                 store = self._audit_store(issue)
-                document = await asyncio.get_running_loop().run_in_executor(
-                    self._tick_pool, store.read, issue.identifier
-                )
+                remaining = deadline - monotonic()
+                if remaining <= 0:
+                    budget_exhausted = True
+                    budget_reason = "metadata_timeout"
+                    break
+                try:
+                    document = await asyncio.wait_for(
+                        asyncio.get_running_loop().run_in_executor(
+                            self._tick_pool, store.read, issue.identifier
+                        ),
+                        timeout=remaining,
+                    )
+                except asyncio.TimeoutError:
+                    # Metadata discovery is read-only.  Yield the lane while
+                    # the underlying bounded-client call unwinds; the durable
+                    # cursor makes this candidate eligible again after peers.
+                    budget_exhausted = True
+                    budget_reason = "metadata_timeout"
+                    break
                 record = AuditorDispatchLane.pending_record(
                     document.pending_chain,
                     project_id=str(issue.project_id or "legacy"),
@@ -17243,7 +17469,25 @@ class Orchestrator:
                             type(exc).__name__,
                         )
                         continue
-                selector, selector_error = await self._prepare_audit_selector(issue)
+                remaining = deadline - monotonic()
+                if remaining <= 0:
+                    budget_exhausted = True
+                    budget_reason = "selector_timeout"
+                    break
+                try:
+                    selector, selector_error = await asyncio.wait_for(
+                        self._prepare_cached_audit_selector(
+                            issue, selector_cache
+                        ),
+                        timeout=remaining,
+                    )
+                except asyncio.TimeoutError:
+                    # Selector preparation performs reads and health probes
+                    # only.  It is safe to cancel at this boundary; no
+                    # tracker CAS, workflow lease, or launch is in flight.
+                    budget_exhausted = True
+                    budget_reason = "selector_timeout"
+                    break
                 if selector_error is not None or selector is None:
                     await self._route_no_auditor(
                         issue,
@@ -17447,12 +17691,25 @@ class Orchestrator:
                         metrics["in_progress_count"] += 1
                     continue
 
-                archive_snapshot = await asyncio.get_running_loop().run_in_executor(
-                    self._tick_pool,
-                    self._revisionless_archive_evidence,
-                    issue,
-                    record,
-                )
+                remaining = deadline - monotonic()
+                if remaining <= 0:
+                    budget_exhausted = True
+                    budget_reason = "archive_evidence_timeout"
+                    break
+                try:
+                    archive_snapshot = await asyncio.wait_for(
+                        asyncio.get_running_loop().run_in_executor(
+                            self._tick_pool,
+                            self._revisionless_archive_evidence,
+                            issue,
+                            record,
+                        ),
+                        timeout=remaining,
+                    )
+                except asyncio.TimeoutError:
+                    budget_exhausted = True
+                    budget_reason = "archive_evidence_timeout"
+                    break
                 if archive_snapshot is not None and not archive_snapshot.passed():
                     await self._route_unsafe_metadata_archive(
                         issue,
@@ -17485,12 +17742,25 @@ class Orchestrator:
                     )
                     continue
                 try:
-                    bound_record = await asyncio.get_running_loop().run_in_executor(
-                        self._tick_pool,
-                        self._bind_audit_record_revision,
-                        issue,
-                        record,
-                    )
+                    remaining = deadline - monotonic()
+                    if remaining <= 0:
+                        budget_exhausted = True
+                        budget_reason = "revision_binding_timeout"
+                        break
+                    try:
+                        bound_record = await asyncio.wait_for(
+                            asyncio.get_running_loop().run_in_executor(
+                                self._tick_pool,
+                                self._bind_audit_record_revision,
+                                issue,
+                                record,
+                            ),
+                            timeout=remaining,
+                        )
+                    except asyncio.TimeoutError:
+                        budget_exhausted = True
+                        budget_reason = "revision_binding_timeout"
+                        break
                 except Exception as exc:  # noqa: BLE001 - bounded infrastructure retry
                     retry_after = timestamp(
                         datetime.now(timezone.utc)
@@ -17546,11 +17816,24 @@ class Orchestrator:
                     if not binding_persisted:
                         continue
                     record = bound_record
-                metadata = await asyncio.get_running_loop().run_in_executor(
-                    self._tick_pool,
-                    self._tracker_for_issue(issue).get_metadata,
-                    issue.identifier,
-                )
+                remaining = deadline - monotonic()
+                if remaining <= 0:
+                    budget_exhausted = True
+                    budget_reason = "contributor_metadata_timeout"
+                    break
+                try:
+                    metadata = await asyncio.wait_for(
+                        asyncio.get_running_loop().run_in_executor(
+                            self._tick_pool,
+                            self._tracker_for_issue(issue).get_metadata,
+                            issue.identifier,
+                        ),
+                        timeout=remaining,
+                    )
+                except asyncio.TimeoutError:
+                    budget_exhausted = True
+                    budget_reason = "contributor_metadata_timeout"
+                    break
                 contributors = _load_work_contributors(metadata or {})
                 plan, no_candidate = lane.plan(
                     record, contributors, branch_key=branch_key
@@ -17698,28 +17981,84 @@ class Orchestrator:
             discovered_candidate_count - processed_candidate_count,
             0,
         )
-        # Rebuild health metrics and alerts from the durable audit observations.
-        # Filling the final slot while processing the final candidate is still
-        # a complete scan.  Only an early break leaves unobserved candidates.
-        scan_error_count = (
-            candidate_scan.scan_error_count + _audit_scan_error_count
+        # Rebuild health metrics and alerts from accumulated durable audit
+        # observations. A rotating slice is complete only after every live
+        # candidate has been observed in the current clean cycle.
+        scan_error_count = candidate_scan.scan_error_count + _audit_scan_error_count
+        if scan_error_count:
+            # Never combine observations across an authority failure.  A later
+            # clean cycle must re-observe every candidate before publishing.
+            self._audit_health_cycle_observations = {}
+        transaction_incomplete = budget_reason in {
+            "metadata_timeout",
+            "selector_timeout",
+            "archive_evidence_timeout",
+            "revision_binding_timeout",
+            "contributor_metadata_timeout",
+        }
+        if transaction_incomplete and last_processed_cursor is not None:
+            getattr(self, "_audit_health_cycle_observations", {}).pop(
+                last_processed_cursor, None
+            )
+            observations = [
+                observation
+                for observation in observations
+                if (
+                    f"{str(observation.project_id or 'legacy')}\x1f"
+                    f"{observation.issue_identifier}"
+                )
+                != last_processed_cursor
+            ]
+        health_observations, scan_complete = self._audit_health_cycle_update(
+            candidate_scan.candidates,
+            observations if scan_error_count == 0 else (),
+            authoritative=(
+                candidate_scan.scan_complete
+                and scan_error_count == 0
+                and not transaction_incomplete
+            ),
         )
-        scan_complete = (
-            candidate_scan.scan_complete
-            and not truncated
-            and processed_candidate_count == len(candidates)
+        budget_deferred = bool(
+            not scan_complete
             and scan_error_count == 0
+            and (
+                budget_exhausted
+                or truncated
+                or processed_candidate_count < len(candidates)
+            )
+        )
+        continuation_requested = bool(
+            budget_deferred and self._request_audit_lane_continuation()
         )
         metrics["scanned_candidate_count"] = processed_candidate_count
         metrics["candidate_scan_complete"] = scan_complete
+        metrics["operation_limit"] = operation_limit
+        metrics["runtime_budget_seconds"] = runtime_budget_seconds
+        metrics["budget_exhausted"] = budget_exhausted
+        metrics["budget_reason"] = budget_reason
+        metrics["budget_deferred"] = budget_deferred
+        metrics["continuation_requested"] = continuation_requested
+        metrics["health_cycle_seen_count"] = (
+            len(getattr(self, "_audit_health_cycle_observations", {}))
+            if not scan_complete
+            else discovered_candidate_count
+        )
+        metrics["health_cycle_candidate_count"] = discovered_candidate_count
+        if scan_complete:
+            metrics["deferred_candidate_count"] = 0
         self._refresh_terminal_audit_health(
-            observations,
+            health_observations,
             scan_complete=scan_complete,
             scan_error_count=scan_error_count,
         )
+        elapsed_ms = (monotonic() - started) * 1000
+        metrics["runtime_overrun_ms"] = max(
+            elapsed_ms - runtime_budget_seconds * 1000,
+            0.0,
+        )
         return {
-            "audit_scan": (time.monotonic() - started) * 1000,
-            "audit_dispatch": (time.monotonic() - started) * 1000,
+            "audit_scan": elapsed_ms,
+            "audit_dispatch": elapsed_ms,
         }
 
     async def _handle_dispatch_needed_locked(self) -> dict[str, float]:
