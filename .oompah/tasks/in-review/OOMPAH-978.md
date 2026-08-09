@@ -12,7 +12,7 @@ labels:
 - reliability
 assignee: null
 created_at: '2026-08-09T23:14:00.520291Z'
-updated_at: '2026-08-09T23:27:45.144518Z'
+updated_at: '2026-08-09T23:27:58.175278Z'
 work_branch: OOMPAH-978
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/787
@@ -67,5 +67,10 @@ author: oompah
 created: 2026-08-09 23:24
 ---
 Branch quality gate passed for `a1f6ef58e7da26ba2cd5be8a1c470eab1bed7acd` using `make test` in 162.2s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-09 23:27
+---
+Addressed independent review blocker and superseded a1f6ef58e with exact pushed head 409132582cb1c527ffa53efc174d3464289971a7, stacked directly on OOMPAH-974 exact 0006c430f566da7138f2958ed948e15d371cdf6d. Explicit bootstrap status/preview/apply is now tracker-aware while defaulting to native for CLI compatibility; real GitHub tracker regressions prove status/preview report drift without mutation and apply renders the GitHub integration block. Combined-head focused result: 198 passed; terminal scan 20/20.
 ---
 <!-- COMMENTS:END -->
