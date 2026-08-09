@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:26:10.227707Z'
-updated_at: '2026-08-09T14:26:21.315335Z'
+updated_at: '2026-08-09T14:27:13.347252Z'
 work_branch: OOMPAH-950
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/761
@@ -148,6 +148,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-950
     selected_ref: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
     selected_sha: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 359
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 10
+      output_tokens: 359
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 10
+    output_tokens: 359
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T14:27:09.103538+00:00'
 ---
 ## Summary
 
@@ -219,5 +235,15 @@ Safe evidence:
 - implementation_locations.retirement: oompah/orchestrator.py:5630
 - implementation_locations.action: oompah/implementation_workflow.py:82 AUTHORITY_REVOCATION
 - requirements_verified: atomic_handoff exact_claim_capture_fenced durable_retirement_intent idempotent_revocation crash_recovery aba_safety workflow_facts_cleared ready_integration_eligible
+---
+author: oompah
+created: 2026-08-09 14:27
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 143, Tool calls: 64
+- Tokens: 10 in / 359 out [369 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 59s
+- Log: OOMPAH-950__20260809T141519Z.jsonl
 ---
 <!-- COMMENTS:END -->
