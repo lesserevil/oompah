@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:29:27.319915Z'
-updated_at: '2026-08-09T11:51:14.854273Z'
+updated_at: '2026-08-09T11:51:27.451650Z'
 work_branch: OOMPAH-954
 target_branch: null
 review_url: null
@@ -26,9 +26,9 @@ oompah.integration:
   task_branch: OOMPAH-954
   base_branch: epic-OOMPAH-940
   base_sha: 41a158291ad932b232e9ebc4dcff5b0357d9f57b
-  head_sha: 9062f64273cdc0e14bac39b9d0c68f683707adae
-  submitted_at: '2026-08-09T11:40:04.612279+00:00'
-  updated_at: '2026-08-09T11:40:04.612279+00:00'
+  head_sha: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
+  submitted_at: '2026-08-09T11:51:17.689634+00:00'
+  updated_at: '2026-08-09T11:51:17.689634+00:00'
 oompah.work_branch: OOMPAH-954
 ---
 ## Summary
@@ -57,5 +57,10 @@ author: oompah
 created: 2026-08-09 11:51
 ---
 Independent review found and the branch now fixes a second production path at dccbeb5acbd3b17ee71ec2950e6583e824b2fdf3: WorkflowRuntime enforce-mode liveness now reuses epic_batch facts with the other owning-domain fact cuts. The new OOMPAH-748 runtime regression first proves the generic collector yields containment_malformed and an exhausted generic epic_terminal_validation row, then runs reconcile_async and proves the epic owner, runtime projection, and published decision all remain terminal.immediate_target_landing_proven while the stale exhausted row remains immutable. Focused runtime/incident/epic/decision/cache suite: 227 passed. No restart.
+---
+author: oompah
+created: 2026-08-09 11:51
+---
+Review blocker fixed at dccbeb5ac: enforce runtime liveness reuses canonical epic facts, and OOMPAH-748 cannot be falsely overridden by stale generic retry exhaustion; 227 focused tests pass.
 ---
 <!-- COMMENTS:END -->
