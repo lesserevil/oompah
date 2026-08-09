@@ -75,11 +75,10 @@ _BOUNDARY_GROUP_ENV = "OOMPAH_NATIVE_VALIDATION_BOUNDARY_GROUP"
 _CAPABILITY_FD_ENV = "OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD"
 _VALIDATION_MODE_ENV = "OOMPAH_VALIDATION_MODE"
 _VALIDATION_JUSTIFICATION_ENV = "OOMPAH_VALIDATION_JUSTIFICATION"
-# A light command reports its boundary before exec, while the owning command
-# item can consume that proof only after the process returns.  Preserve the
-# receipt through the configured execution budget plus a short scheduler/
-# event-handoff interval; the one-shot group and item bindings below still
-# prevent reuse by later work.
+# A command item normally consumes its receipt while the exact guarded process
+# is alive.  Allow only this short bounded handoff after the broker observes
+# that exact PID/start-tick generation exit; an orphan receipt must not remain
+# usable for the configured turn timeout.
 _BOUNDARY_HANDOFF_GRACE_SECONDS = 5.0
 NATIVE_VALIDATION_DISTINCT_MODE_INSTRUCTION = (
     "For a task-required full-suite mode that is genuinely distinct from the "
@@ -1099,6 +1098,16 @@ class _NativeValidationRun:
     terminal_publisher: threading.Thread | None = field(default=None, repr=False)
 
 
+@dataclass
+class _NativeBoundaryLiveness:
+    """Exact process-generation fence for one first-seen command boundary."""
+
+    pid: int
+    start_ticks: int
+    command_identity: str
+    observed_exit_at: float | None = None
+
+
 class _BrokerRequestFailure(RuntimeError):
     """A typed, bounded rejection that can cross the broker socket."""
 
@@ -1225,6 +1234,7 @@ class _NativeValidationLeaseBroker:
         self._seen_boundary_groups: set[str] = set()
         self._bound_item_ids: set[str] = set()
         self._boundary_items: dict[str, str] = {}
+        self._boundary_liveness: dict[str, _NativeBoundaryLiveness] = {}
         self._validation_runs: dict[str, _NativeValidationRun] = {}
         self._supervisor_observers: set[threading.Thread] = set()
         self._supervisor_processes: set[subprocess.Popen[bytes]] = set()
@@ -1280,6 +1290,7 @@ class _NativeValidationLeaseBroker:
 
     def _serve(self) -> None:
         while not self._stop.is_set():
+            self._refresh_boundary_liveness()
             try:
                 connection, _ = self._listener.accept()
             except socket.timeout:
@@ -1635,6 +1646,13 @@ class _NativeValidationLeaseBroker:
                                 "native validation boundary lacks a dedicated group"
                             )
                         self._seen_boundary_groups.add(boundary_group)
+                        self._boundary_liveness[boundary_group] = (
+                            _NativeBoundaryLiveness(
+                                pid=peer_pid,
+                                start_ticks=peer_start_ticks,
+                                command_identity=command_identity,
+                            )
+                        )
                         self._boundaries.append(
                             (time.monotonic(), boundary_group, command_identity)
                         )
@@ -2012,7 +2030,7 @@ class _NativeValidationLeaseBroker:
             if self._validation_runs.get(boundary_group) is not run:
                 return None
             self._validation_runs.pop(boundary_group, None)
-            self._boundary_items.pop(boundary_group, None)
+            self._retire_boundary_receipt_locked(boundary_group)
 
         def publish_terminal() -> bool:
             # Publication is deliberately outside the ACK boundary. The
@@ -2073,7 +2091,7 @@ class _NativeValidationLeaseBroker:
             with self._boundary_lock:
                 if self._validation_runs.get(boundary_group) is run:
                     self._validation_runs.pop(boundary_group, None)
-                    self._boundary_items.pop(boundary_group, None)
+                    self._retire_boundary_receipt_locked(boundary_group)
             with run.state_lock:
                 run.terminal_publication_state = "published"
 
@@ -2152,7 +2170,11 @@ class _NativeValidationLeaseBroker:
                     and (
                         self._validation_runs.get(group).command_identity
                         if self._validation_runs.get(group) is not None
-                        else ""
+                        else (
+                            self._boundary_liveness.get(group).command_identity
+                            if self._boundary_liveness.get(group) is not None
+                            else ""
+                        )
                     )
                     == command_identity
                 ),
@@ -2163,7 +2185,9 @@ class _NativeValidationLeaseBroker:
         with self._boundary_lock:
             run = self._validation_runs.get(boundary_group)
         if run is None:
-            return False
+            with self._boundary_lock:
+                self._retire_boundary_receipt_locked(boundary_group)
+            return True
         with run.state_lock:
             if run.terminal_outcome:
                 return False
@@ -2233,6 +2257,15 @@ class _NativeValidationLeaseBroker:
             self._capability_secret = None
             self._capability_identity = None
             cleanup_runs = tuple(self._validation_runs.values())
+            boundary_groups = (
+                set(self._boundary_liveness)
+                | self._seen_boundary_groups
+                | set(self._boundary_items)
+                | {boundary[1] for boundary in self._boundaries}
+            )
+            for boundary_group in boundary_groups:
+                self._retire_boundary_group_locked(boundary_group)
+            self._bound_item_ids.clear()
         # Close peers before taking a run's linearization lock so a blocked
         # descriptor send is interrupted. Preparing runs are then atomically
         # terminated before the cancellation fence wakes their supervisors.
@@ -2368,24 +2401,57 @@ class _NativeValidationLeaseBroker:
             and callbacks_published
         )
 
+    def _retire_boundary_receipt_locked(self, boundary_group: str) -> None:
+        """Make one receipt unconsumable and release its item indexes."""
+
+        item_id = self._boundary_items.pop(boundary_group, None)
+        if item_id is not None:
+            self._bound_item_ids.discard(item_id)
+        self._boundaries = deque(
+            boundary
+            for boundary in self._boundaries
+            if boundary[1] != boundary_group
+        )
+
+    def _retire_boundary_group_locked(self, boundary_group: str) -> None:
+        """Drop every replay, liveness, and process-fence index for a group."""
+
+        self._retire_boundary_receipt_locked(boundary_group)
+        self._boundary_liveness.pop(boundary_group, None)
+        self._seen_boundary_groups.discard(boundary_group)
+
+    def _refresh_boundary_liveness(self, *, now: float | None = None) -> None:
+        """Observe exact command exits and prune receipts after handoff grace."""
+
+        observed_at = time.monotonic() if now is None else float(now)
+        with self._boundary_lock:
+            records = tuple(self._boundary_liveness.items())
+        for boundary_group, record in records:
+            alive = _process_start_ticks(record.pid) == record.start_ticks
+            with self._boundary_lock:
+                current = self._boundary_liveness.get(boundary_group)
+                if current is not record:
+                    continue
+                if alive:
+                    continue
+                if record.observed_exit_at is None:
+                    record.observed_exit_at = observed_at
+                    continue
+                if (
+                    observed_at - record.observed_exit_at
+                    > _BOUNDARY_HANDOFF_GRACE_SECONDS
+                ):
+                    self._retire_boundary_group_locked(boundary_group)
+
     def consume_recent_boundary(
         self,
         command_identity: str,
         item_id: str,
-        *,
-        max_age_seconds: float | None = None,
     ) -> bool:
-        retention_seconds = (
-            self.timeout_seconds + _BOUNDARY_HANDOFF_GRACE_SECONDS
-            if max_age_seconds is None
-            else float(max_age_seconds)
-        )
-        cutoff = time.monotonic() - max(retention_seconds, 0.1)
+        self._refresh_boundary_liveness()
         with self._boundary_lock:
             if not item_id or item_id in self._bound_item_ids:
                 return False
-            while self._boundaries and self._boundaries[0][0] < cutoff:
-                self._boundaries.popleft()
             match = next(
                 (
                     boundary

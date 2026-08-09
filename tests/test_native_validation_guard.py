@@ -3036,22 +3036,6 @@ def test_parallel_native_command_boundaries_are_consumed_independently(
         assert first.returncode == 0
         assert second.returncode == 0
 
-        # Model both commands consuming their complete configured execution
-        # budget without sleeping. Boundary proof is published before exec and
-        # cannot be consumed by the command item until after process return, so
-        # it must survive that budget plus the bounded event-handoff grace.
-        with guard_module._BROKER_REGISTRY_LOCK:
-            broker = guard_module._BROKER_REGISTRY[root.resolve()]
-        with broker._boundary_lock:
-            assert len(broker._boundaries) == 2
-            aged_at = time.monotonic() - broker.timeout_seconds - 1.0
-            aged_boundaries = [
-                (aged_at, boundary_group, command_identity)
-                for _timestamp, boundary_group, command_identity in broker._boundaries
-            ]
-            broker._boundaries.clear()
-            broker._boundaries.extend(aged_boundaries)
-
         assert (
             consume_native_validation_boundary(root, "printf first", "item-1")
             is True
@@ -3075,7 +3059,9 @@ def test_parallel_native_command_boundaries_are_consumed_independently(
                 process.wait(timeout=2)
 
 
-def test_native_command_boundary_retention_remains_bounded(tmp_path: Path) -> None:
+def test_orphan_boundary_cannot_authorize_later_same_command_item(
+    tmp_path: Path,
+) -> None:
     lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
     guarded, root = install_native_validation_guard(
         {"PATH": os.environ.get("PATH", os.defpath)},
@@ -3089,33 +3075,142 @@ def test_native_command_boundary_retention_remains_bounded(tmp_path: Path) -> No
         timeout_seconds=10,
     )
 
-    completed = subprocess.run(
-        ["/bin/bash", "-c", "printf stale"],
+    command = "printf repeated"
+    orphan = subprocess.run(
+        ["/bin/bash", "-c", command],
         env={**os.environ, **guarded},
         pass_fds=_guard_pass_fds(guarded),
         capture_output=True,
         text=True,
         timeout=5,
     )
-    assert completed.stdout == "stale"
+    assert orphan.stdout == "repeated"
 
     with guard_module._BROKER_REGISTRY_LOCK:
         broker = guard_module._BROKER_REGISTRY[root.resolve()]
+
+    def orphan_exit_observed() -> bool:
+        with broker._boundary_lock:
+            return bool(broker._boundary_liveness) and all(
+                record.observed_exit_at is not None
+                for record in broker._boundary_liveness.values()
+            )
+
+    _wait_until(orphan_exit_observed)
     with broker._boundary_lock:
-        assert len(broker._boundaries) == 1
-        _timestamp, boundary_group, command_identity = broker._boundaries[0]
-        expired_at = (
+        [record] = broker._boundary_liveness.values()
+        record.observed_exit_at = (
             time.monotonic()
-            - broker.timeout_seconds
             - guard_module._BOUNDARY_HANDOFF_GRACE_SECONDS
             - 1.0
         )
-        broker._boundaries[0] = (expired_at, boundary_group, command_identity)
 
     assert (
-        consume_native_validation_boundary(root, "printf stale", "stale-item")
+        consume_native_validation_boundary(root, command, "later-item")
         is False
     )
+    with broker._boundary_lock:
+        assert not broker._boundaries
+        assert not broker._boundary_liveness
+        assert not broker._seen_boundary_groups
+        assert not broker._boundary_items
+        assert not broker._bound_item_ids
+
+    fresh = subprocess.run(
+        ["/bin/bash", "-c", command],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    assert fresh.stdout == "repeated"
+    assert consume_native_validation_boundary(root, command, "fresh-item") is True
+    assert broker.complete_validation_item(
+        guard_module._command_identity(command),
+        "fresh-item",
+        succeeded=True,
+        outcome="passed",
+    ) is True
+    with broker._boundary_lock:
+        assert not broker._boundaries
+        assert not broker._boundary_items
+        assert not broker._bound_item_ids
+
+    def fresh_exit_observed() -> bool:
+        with broker._boundary_lock:
+            return bool(broker._boundary_liveness) and all(
+                record.observed_exit_at is not None
+                for record in broker._boundary_liveness.values()
+            )
+
+    _wait_until(fresh_exit_observed)
+    with broker._boundary_lock:
+        for record in broker._boundary_liveness.values():
+            record.observed_exit_at = (
+                time.monotonic()
+                - guard_module._BOUNDARY_HANDOFF_GRACE_SECONDS
+                - 1.0
+            )
+    broker._refresh_boundary_liveness()
+    with broker._boundary_lock:
+        assert not broker._boundary_liveness
+        assert not broker._seen_boundary_groups
+
+
+def test_dead_orphan_boundary_storage_is_actively_bounded(tmp_path: Path) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    guarded, root = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=60,
+    )
+
+    for index in range(8):
+        command = f"printf orphan-{index}"
+        completed = subprocess.run(
+            ["/bin/bash", "-c", command],
+            env={**os.environ, **guarded},
+            pass_fds=_guard_pass_fds(guarded),
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        assert completed.stdout == f"orphan-{index}"
+
+    with guard_module._BROKER_REGISTRY_LOCK:
+        broker = guard_module._BROKER_REGISTRY[root.resolve()]
+
+    def all_exits_observed() -> bool:
+        with broker._boundary_lock:
+            return len(broker._boundary_liveness) == 8 and all(
+                record.observed_exit_at is not None
+                for record in broker._boundary_liveness.values()
+            )
+
+    _wait_until(all_exits_observed)
+    with broker._boundary_lock:
+        expired_at = (
+            time.monotonic()
+            - guard_module._BOUNDARY_HANDOFF_GRACE_SECONDS
+            - 1.0
+        )
+        for record in broker._boundary_liveness.values():
+            record.observed_exit_at = expired_at
+    broker._refresh_boundary_liveness()
+
+    with broker._boundary_lock:
+        assert not broker._boundaries
+        assert not broker._boundary_liveness
+        assert not broker._seen_boundary_groups
+        assert not broker._boundary_items
+        assert not broker._bound_item_ids
 
 
 def test_late_background_boundary_cannot_spoof_later_item(tmp_path: Path) -> None:
