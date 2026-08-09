@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T14:12:02.139679Z'
+updated_at: '2026-08-09T14:25:35.425052Z'
 work_branch: OOMPAH-957
 target_branch: null
 review_url: null
@@ -97,5 +97,10 @@ author: oompah
 created: 2026-08-09 14:12
 ---
 Hosted Python 3.11 on c59e01d exposed a genuine parallel handoff expiring under full-suite runner load (3.12/3.13 passed). Corrected head 7a2426104bd83f0f55e4fe012f7000a94931853a uses a 15-second exact-process post-exit handoff window, bounded below the test's configured 12-second shared startup budget plus scheduler handoff, rather than the prior 5 seconds. Also retained the process-group replay fence after item completion until that same grace expires, so a late background descendant cannot register a new receipt after correlation is cleared; the late-background regression now explicitly completes item-1 before the descendant reports. Verification: native guard module 138/138, focused six-test suite, and parallel/replay/delayed-completion/background suite five repetitions all passed. Fresh hosted checks running; auto-merge disabled pending re-review.
+---
+author: oompah
+created: 2026-08-09 14:25
+---
+Hosted head 7a242610 had Python 3.11/3.13 green; Python 3.12 exposed the parallel-boundary test's invalid timing model again (plus an unrelated workflow-runtime timing failure). Final candidate b53047ff632203a95af007cff7abf3a158617fca restores the tighter reviewer-preferred 5-second post-exit grace and makes the parallel test model provider item.started correctly: two independent commands stay alive after reporting their boundaries, both one-shot receipts are consumed while their exact generations are active, then the processes are cleaned up. This removes dependence on how long a full-suite runner deschedules the test after instant commands exit; orphan-after-exit behavior remains covered separately. Verification: parallel test passed 20 consecutive subprocess/xdist runs, focused lifecycle/replay suite 6/6, full native guard module 138/138. Fresh hosted checks running; auto-merge remains disabled.
 ---
 <!-- COMMENTS:END -->
