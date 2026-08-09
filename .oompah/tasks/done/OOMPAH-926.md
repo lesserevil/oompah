@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-926
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Do not invalidate shadow qualification during a mixed-mode graceful restart
 parent: OOMPAH-763
@@ -12,13 +12,35 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-08T21:02:52.502402Z'
-updated_at: '2026-08-08T21:48:59.700882Z'
+updated_at: '2026-08-09T05:15:32.548989Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-57a348c15e13
+    project_id: proj-14849f1b
+    task_id: OOMPAH-926
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c9c7ce12d8a38d8907861f9ef5519e9738876edc46dddf78968e9f1b8809846f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct project-owner completion after exact-head full-gate and live enforce
+      verification.
+    created_at: '2026-08-09T05:15:28.139441+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -41,5 +63,10 @@ author: oompah
 created: 2026-08-08 21:48
 ---
 Exact candidate 6c7a6eabe79d5ca92929203fb50c211e946257ba passed the complete Makefile gate: 18,803 passed, 7 skipped, 2 xfailed, 43 warnings in 1201.05s. The commit was atomically published to the systemic task/epic refs and deployed live in all-shadow mode. Post-restart authoritative readiness converged on the exact build with healthy service, zero global alerts, all four domains qualified, zero expired leases, and zero exhausted jobs. The five-minute live all-shadow canary is now running.
+---
+author: oompah
+created: 2026-08-09 05:15
+---
+Direct project-owner completion verified on composed rollout head dec2c35bb9e61bd286e271bcd03fcb0700f69a6e: exact full gate passed (18,874 passed, 7 skipped, 2 xfailed), all four durable workflow domains are live in enforce mode, no actionable global alerts remain, and current durable exhaustion/expired leases are zero.
 ---
 <!-- COMMENTS:END -->
