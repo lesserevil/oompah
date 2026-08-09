@@ -1288,6 +1288,172 @@ def test_unpublished_or_skipped_zero_job_cut_stays_fail_closed(store):
     ) == 1
 
 
+@pytest.mark.parametrize(
+    ("authority_kind", "decision_revision", "snapshot_shape"),
+    (
+        ("unknown_authority", "decision-zero", "null"),
+        ("managed_zero_job", "decision-zero", "null"),
+        ("terminal_audit_handoff", "missing-handoff", "null"),
+        ("terminal_audit_handoff", "decision-zero", "published"),
+        ("terminal_audit_handoff", " ", "null"),
+        ("lifecycle_final", "lifecycle-final:Open", "published"),
+        ("managed_zero_job", "wrong-decision", "published"),
+    ),
+)
+def test_malformed_retirement_proofs_fail_closed(
+    store,
+    authority_kind,
+    decision_revision,
+    snapshot_shape,
+):
+    project_id = "project-1"
+    task_id = "TASK-MALFORMED-PROOF"
+    first = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(first)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=first,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_id),),
+    ).accepted
+    cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="decision-job",
+        snapshot_generation=first,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=first,
+        job_generation=cursor.job_generation,
+        specs=(
+            WorkflowJobSpec(
+                project_id=project_id,
+                task_id=task_id,
+                generation=cursor.job_generation,
+                action="integration_landing_refresh",
+                idempotency_key="malformed:first",
+            ),
+        ),
+    ).accepted
+    assert store.publish_snapshot_generation(first, lambda: None)[0]
+    running = claim(store, task_id=task_id)
+    assert running is not None
+    exhausted = store.fail(
+        running.job_id,
+        running.lease_token,
+        error="terminal failure",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+
+    second = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(second)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=second,
+        authoritative_project_ids=(project_id,),
+        expected_identities=(),
+    ).accepted
+    zero_cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="decision-zero",
+        snapshot_generation=second,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=second,
+        job_generation=zero_cursor.job_generation,
+        specs=(),
+        record_authority_cut=True,
+    ).accepted
+    assert store.publish_snapshot_generation(second, lambda: None)[0]
+    assert not store.current_exhausted_jobs(
+        project_id=project_id, task_id=task_id
+    )
+
+    store._conn.execute(  # noqa: SLF001 - corrupt the persisted proof shape
+        """
+        UPDATE workflow_job_retirements
+           SET authority_kind = ?, decision_revision = ?,
+               snapshot_generation = ?
+         WHERE job_id = ?
+        """,
+        (
+            authority_kind,
+            decision_revision,
+            second if snapshot_shape == "published" else None,
+            exhausted.job_id,
+        ),
+    )
+    store._conn.commit()  # noqa: SLF001
+
+    assert store.current_exhausted_jobs(
+        project_id=project_id, task_id=task_id
+    ) == (exhausted,)
+    assert store.health_snapshot()["current_states"]["exhausted"] == 1
+
+
+def test_lifecycle_authority_rejects_nonfinal_status(store):
+    snapshot = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(snapshot)
+
+    with pytest.raises(ValueError, match="lifecycle-final"):
+        store.record_lifecycle_final_authority(
+            project_id="project-1",
+            task_id="TASK-NONFINAL",
+            status="Open",
+            snapshot_generation=snapshot,
+        )
+
+    assert store._conn.execute(  # noqa: SLF001 - no invalid proof persisted
+        "SELECT COUNT(*) FROM workflow_job_retirements"
+    ).fetchone()[0] == 0
+
+
+def test_lifecycle_authority_rejects_active_membership_relationship(store):
+    project_id = "project-1"
+    task_id = "TASK-STILL-ACTIVE"
+    snapshot = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(snapshot)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=snapshot,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_id),),
+    ).accepted
+
+    with pytest.raises(WorkflowJobStoreError, match="active membership"):
+        store.record_lifecycle_final_authority(
+            project_id=project_id,
+            task_id=task_id,
+            status="Merged",
+            snapshot_generation=snapshot,
+        )
+
+
+def test_managed_authority_kind_must_match_job_cut(store):
+    snapshot = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(snapshot)
+    cursor = store.activate_schedule(
+        project_id="project-1",
+        task_id="TASK-KIND-MISMATCH",
+        decision_revision="zero-job",
+        snapshot_generation=snapshot,
+    )
+
+    with pytest.raises(ValueError, match="does not match"):
+        store.reconcile_schedule(
+            project_id="project-1",
+            task_id="TASK-KIND-MISMATCH",
+            snapshot_generation=snapshot,
+            job_generation=cursor.job_generation,
+            specs=(),
+            record_authority_cut=True,
+            authority_kind="managed_decision",
+        )
+
+
 def test_published_replay_cannot_retire_its_own_exhausted_job(store):
     project_id = "project-1"
     task_id = "TASK-EXHAUSTED-REPLAY"

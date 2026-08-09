@@ -44,6 +44,9 @@ _AUTHORITY_RETIREMENT_KINDS = frozenset(
         "lifecycle_final",
     }
 )
+_LIFECYCLE_FINAL_AUTHORITY_REVISIONS = frozenset(
+    {"lifecycle-final:Merged", "lifecycle-final:Archived"}
+)
 
 # One exhausted ledger row stops being current only after an exact retirement
 # proof is published, or when a published durable lane cursor names another
@@ -63,12 +66,102 @@ AND NOT (
            AND retirement.project_id = job.project_id
            AND retirement.task_id = job.task_id
            AND (
-               retirement.snapshot_generation IS NULL
-               OR EXISTS (
-                   SELECT 1
-                     FROM workflow_snapshot_publications publication
-                    WHERE publication.snapshot_generation =
-                          retirement.snapshot_generation
+               (
+                   retirement.authority_kind = 'terminal_audit_handoff'
+                   AND retirement.snapshot_generation IS NULL
+                   AND EXISTS (
+                       SELECT 1
+                         FROM workflow_jobs handoff
+                        WHERE handoff.project_id = retirement.project_id
+                          AND handoff.task_id = retirement.task_id
+                          AND handoff.workflow_managed = 0
+                          AND handoff.action = 'terminal_audit'
+                          AND handoff.scheduling_lane LIKE 'terminal-audit:%'
+                          AND handoff.generation =
+                              retirement.decision_revision
+                   )
+               )
+               OR (
+                   retirement.authority_kind IN (
+                       'managed_decision', 'managed_zero_job'
+                   )
+                   AND retirement.snapshot_generation IS NOT NULL
+                   AND job.workflow_managed = 1
+                   AND EXISTS (
+                       SELECT 1
+                         FROM workflow_snapshot_publications publication
+                        WHERE publication.snapshot_generation =
+                              retirement.snapshot_generation
+                   )
+                   AND EXISTS (
+                       SELECT 1
+                         FROM workflow_schedule_cursors proof_cursor
+                        WHERE proof_cursor.project_id = retirement.project_id
+                          AND proof_cursor.task_id = retirement.task_id
+                          AND proof_cursor.snapshot_generation =
+                              retirement.snapshot_generation
+                          AND proof_cursor.decision_revision =
+                              retirement.decision_revision
+                          AND proof_cursor.materialized_job_generation =
+                              proof_cursor.job_generation
+                          AND proof_cursor.job_generation != job.generation
+                          AND (
+                              (
+                                  retirement.authority_kind =
+                                      'managed_zero_job'
+                                  AND NOT EXISTS (
+                                      SELECT 1
+                                        FROM workflow_jobs zero_job
+                                       WHERE zero_job.project_id =
+                                             retirement.project_id
+                                         AND zero_job.task_id =
+                                             retirement.task_id
+                                         AND zero_job.workflow_managed = 1
+                                         AND zero_job.generation =
+                                             proof_cursor.job_generation
+                                  )
+                              )
+                              OR (
+                                  retirement.authority_kind =
+                                      'managed_decision'
+                                  AND EXISTS (
+                                      SELECT 1
+                                        FROM workflow_jobs replacement
+                                       WHERE replacement.project_id =
+                                             retirement.project_id
+                                         AND replacement.task_id =
+                                             retirement.task_id
+                                         AND replacement.workflow_managed = 1
+                                         AND replacement.generation =
+                                             proof_cursor.job_generation
+                                         AND replacement.state IN (
+                                             'queued', 'running', 'retry_wait',
+                                             'completed', 'exhausted'
+                                         )
+                                  )
+                              )
+                          )
+                   )
+               )
+               OR (
+                   retirement.authority_kind = 'lifecycle_final'
+                   AND retirement.snapshot_generation IS NOT NULL
+                   AND retirement.decision_revision IN (
+                       'lifecycle-final:Merged',
+                       'lifecycle-final:Archived'
+                   )
+                   AND EXISTS (
+                       SELECT 1
+                         FROM workflow_snapshot_publications publication
+                        WHERE publication.snapshot_generation =
+                              retirement.snapshot_generation
+                   )
+                   AND NOT EXISTS (
+                       SELECT 1
+                         FROM workflow_snapshot_membership membership
+                        WHERE membership.project_id = retirement.project_id
+                          AND membership.task_id = retirement.task_id
+                   )
                )
            )
     )
@@ -4072,15 +4165,106 @@ class WorkflowJobStore:
         created or rearmed after this authority cut actionable.
         """
 
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        revision = _required_text(decision_revision, "decision_revision")
         if authority_kind not in _AUTHORITY_RETIREMENT_KINDS:
             raise ValueError("authority_kind is not supported")
+        if authority_kind == "terminal_audit_handoff":
+            if snapshot_generation is not None:
+                raise ValueError(
+                    "terminal_audit_handoff requires immediate authority"
+                )
+            if workflow_managed is not True:
+                raise ValueError(
+                    "terminal_audit_handoff must retire managed authority"
+                )
+            handoff = self._conn.execute(
+                """
+                SELECT 1 FROM workflow_jobs
+                 WHERE project_id = ? AND task_id = ?
+                   AND workflow_managed = 0
+                   AND action = 'terminal_audit'
+                   AND scheduling_lane LIKE 'terminal-audit:%'
+                   AND generation = ?
+                 LIMIT 1
+                """,
+                (project, task, revision),
+            ).fetchone()
+            if handoff is None:
+                raise WorkflowJobStoreError(
+                    "terminal-audit retirement lost its exact handoff job"
+                )
+        else:
+            if (
+                snapshot_generation is None
+                or isinstance(snapshot_generation, bool)
+                or int(snapshot_generation) < 1
+            ):
+                raise ValueError(
+                    f"{authority_kind} requires a positive snapshot generation"
+                )
+            snapshot_generation = int(snapshot_generation)
+            if authority_kind in {"managed_decision", "managed_zero_job"}:
+                if workflow_managed is not True:
+                    raise ValueError(
+                        "managed retirement proof must select managed jobs"
+                    )
+                cursor = self._conn.execute(
+                    """
+                    SELECT job_generation, materialized_job_generation
+                      FROM workflow_schedule_cursors
+                     WHERE project_id = ? AND task_id = ?
+                       AND snapshot_generation = ?
+                       AND decision_revision = ?
+                    """,
+                    (project, task, snapshot_generation, revision),
+                ).fetchone()
+                if (
+                    cursor is None
+                    or str(cursor["materialized_job_generation"] or "")
+                    != str(cursor["job_generation"])
+                ):
+                    raise WorkflowJobStoreError(
+                        "managed retirement lost its exact materialized cursor"
+                    )
+                replacement = self._conn.execute(
+                    """
+                    SELECT 1 FROM workflow_jobs
+                     WHERE project_id = ? AND task_id = ?
+                       AND workflow_managed = 1 AND generation = ?
+                     LIMIT 1
+                    """,
+                    (project, task, str(cursor["job_generation"])),
+                ).fetchone()
+                if (authority_kind == "managed_decision") != (
+                    replacement is not None
+                ):
+                    raise WorkflowJobStoreError(
+                        "managed retirement kind does not match its exact job cut"
+                    )
+            elif revision not in _LIFECYCLE_FINAL_AUTHORITY_REVISIONS:
+                raise ValueError(
+                    "lifecycle_final requires an exact final-status revision"
+                )
+            elif self._conn.execute(
+                """
+                SELECT 1 FROM workflow_snapshot_membership
+                 WHERE project_id = ? AND task_id = ?
+                 LIMIT 1
+                """,
+                (project, task),
+            ).fetchone() is not None:
+                raise WorkflowJobStoreError(
+                    "lifecycle-final authority conflicts with active membership"
+                )
         clauses = [
             "project_id = ?",
             "task_id = ?",
         ]
         values: list[object] = [
-            project_id,
-            task_id,
+            project,
+            task,
         ]
         if workflow_managed is not None:
             clauses.append("workflow_managed = ?")
@@ -4119,10 +4303,10 @@ class WorkflowJobStore:
                 """,
                 (
                     str(row["job_id"]),
-                    project_id,
-                    task_id,
+                    project,
+                    task,
                     authority_kind,
-                    decision_revision,
+                    revision,
                     snapshot_generation,
                     now,
                 ),
@@ -4143,6 +4327,9 @@ class WorkflowJobStore:
         project = _required_text(project_id, "project_id")
         task = _required_text(task_id, "task_id")
         final_status = _required_text(status, "status")
+        final_revision = f"lifecycle-final:{final_status}"
+        if final_revision not in _LIFECYCLE_FINAL_AUTHORITY_REVISIONS:
+            raise ValueError("status must be lifecycle-final (Merged or Archived)")
         if isinstance(snapshot_generation, bool) or int(snapshot_generation) < 1:
             raise ValueError("snapshot_generation must be a positive integer")
         snapshot = int(snapshot_generation)
@@ -4160,7 +4347,7 @@ class WorkflowJobStore:
                     project_id=project,
                     task_id=task,
                     authority_kind="lifecycle_final",
-                    decision_revision=f"lifecycle-final:{final_status}",
+                    decision_revision=final_revision,
                     snapshot_generation=snapshot,
                     now=timestamp,
                 )
@@ -4202,11 +4389,13 @@ class WorkflowJobStore:
             if authority_kind is not None
             else ("managed_decision" if normalized_specs else "managed_zero_job")
         )
-        if normalized_authority_kind not in {
-            "managed_decision",
-            "managed_zero_job",
-        }:
-            raise ValueError("managed authority_kind is not supported")
+        expected_authority_kind = (
+            "managed_decision" if normalized_specs else "managed_zero_job"
+        )
+        if normalized_authority_kind != expected_authority_kind:
+            raise ValueError(
+                "managed authority_kind does not match the scheduled job cut"
+            )
         if any(not isinstance(spec, WorkflowJobSpec) for spec in normalized_specs):
             raise TypeError("specs must contain WorkflowJobSpec values")
         for spec in normalized_specs:
@@ -4319,17 +4508,6 @@ class WorkflowJobStore:
                         now=timestamp,
                     )
                     superseded += 1
-                if record_authority_cut:
-                    self._record_job_retirements_locked(
-                        project_id=project,
-                        task_id=task,
-                        authority_kind=normalized_authority_kind,
-                        decision_revision=str(cursor["decision_revision"]),
-                        snapshot_generation=snapshot,
-                        workflow_managed=True,
-                        excluded_job_ids=tuple(authoritative_job_ids),
-                        now=timestamp,
-                    )
                 self._conn.execute(
                     """
                     UPDATE workflow_schedule_cursors
@@ -4346,6 +4524,17 @@ class WorkflowJobStore:
                         generation,
                     ),
                 )
+                if record_authority_cut:
+                    self._record_job_retirements_locked(
+                        project_id=project,
+                        task_id=task,
+                        authority_kind=normalized_authority_kind,
+                        decision_revision=str(cursor["decision_revision"]),
+                        snapshot_generation=snapshot,
+                        workflow_managed=True,
+                        excluded_job_ids=tuple(authoritative_job_ids),
+                        now=timestamp,
+                    )
                 if owns_transaction:
                     self._conn.commit()
                 return WorkflowScheduleWrite(

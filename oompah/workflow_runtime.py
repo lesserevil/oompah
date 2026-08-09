@@ -2363,6 +2363,7 @@ class WorkflowRuntime:
         expected_identities = tuple(
             sorted(identity for item in prepared for identity in item["expected"])
         )
+        expected_identity_set = set(expected_identities)
         evaluated_identities = tuple(
             sorted(identity for item in prepared for identity in item["evaluated"])
         )
@@ -2390,6 +2391,7 @@ class WorkflowRuntime:
                 for identity, statuses in lifecycle_statuses.items()
                 if len(statuses) == 1
                 and next(iter(statuses)) in LIFECYCLE_FINAL_STATUSES
+                and identity not in expected_identity_set
             )
         )
 
