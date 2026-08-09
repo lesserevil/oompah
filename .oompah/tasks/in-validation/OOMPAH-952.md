@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-952
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Retire obsolete landed reviews and exact capacity reservations
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:48:29.754525Z'
-updated_at: '2026-08-09T13:23:40.344249Z'
+updated_at: '2026-08-09T13:31:39.300972Z'
 work_branch: OOMPAH-952
 target_branch: null
 review_url: null
@@ -28,6 +28,62 @@ oompah.integration:
   submitted_at: '2026-08-09T11:17:06.915915+00:00'
   updated_at: '2026-08-09T11:17:06.915915+00:00'
 oompah.work_branch: OOMPAH-952
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-e95502a95243
+    project_id: proj-14849f1b
+    task_id: OOMPAH-952
+    digest: e660776e62cdcdd6173a2f5b5cec83a4051fbc25199331a3c513c188b4d8703c
+  - version: 1
+    audit_id: audit-347c8b8a5247
+    project_id: proj-14849f1b
+    task_id: OOMPAH-952
+    digest: e660776e62cdcdd6173a2f5b5cec83a4051fbc25199331a3c513c188b4d8703c
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e95502a95243
+    project_id: proj-14849f1b
+    task_id: OOMPAH-952
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e660776e62cdcdd6173a2f5b5cec83a4051fbc25199331a3c513c188b4d8703c
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-09T13:31:33.721362+00:00'
+    selected_ref: 8e1ac57e2ec2e8503fd380e75c05639badcc5fba
+    selected_sha: 8e1ac57e2ec2e8503fd380e75c05639badcc5fba
+  - version: 1
+    audit_id: audit-347c8b8a5247
+    project_id: proj-14849f1b
+    task_id: OOMPAH-952
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e660776e62cdcdd6173a2f5b5cec83a4051fbc25199331a3c513c188b4d8703c
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-09T13:31:33.721362+00:00'
+    selected_ref: 8e1ac57e2ec2e8503fd380e75c05639badcc5fba
+    selected_sha: 8e1ac57e2ec2e8503fd380e75c05639badcc5fba
+  attempt_history: []
 ---
 ## Summary
 
@@ -76,5 +132,10 @@ author: oompah
 created: 2026-08-09 13:23
 ---
 Composed the complete current-main OOMPAH-957 stabilization into PR #765 at exact head 64afe17c0. The two repaired effect/liveness contract tests plus all three known hosted timing regressions pass together; hosted matrix is rerunning this final composition.
+---
+author: oompah
+created: 2026-08-09 13:31
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
