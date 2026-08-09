@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-955
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Prevent long durable effects from head-of-line blocking control jobs
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:49:56.915594Z'
-updated_at: '2026-08-09T12:07:09.115357Z'
+updated_at: '2026-08-09T12:08:27.911941Z'
 work_branch: OOMPAH-955
 target_branch: null
 review_url: null
