@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:37:32.521266Z'
-updated_at: '2026-08-09T19:37:38.492499Z'
+updated_at: '2026-08-09T19:37:46.622244Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Hosted PR #776 exact head 6f3ee4170 reproduced a timing race in Python 3.12 afte
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 19:37
+---
+Accepted for direct-owner repair from PR #776 Python 3.12. The protected job is rerunning; this task removes the underlying sleep-based race regardless of retry outcome.
+---
+<!-- COMMENTS:END -->
