@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-978
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Stop project config updates from dirtying managed checkouts
 parent: null
@@ -12,7 +12,7 @@ labels:
 - reliability
 assignee: null
 created_at: '2026-08-09T23:14:00.520291Z'
-updated_at: '2026-08-09T23:45:40.496812Z'
+updated_at: '2026-08-09T23:54:41.245173Z'
 work_branch: OOMPAH-978
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/787
@@ -46,6 +46,29 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-978
     digest: 88a039ed4ac5abd74531c6b00318396dd21ce35fa374f154c028516ce7d40c99
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-ce1ebaefb5a9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-978
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 88a039ed4ac5abd74531c6b00318396dd21ce35fa374f154c028516ce7d40c99
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Protected combined PR #787 merged exact OOMPAH-978 head 409132582cb1c527ffa53efc174d3464289971a7
+      into main as eb3ca86e56dbe87a078d81f97cfa6054b94a5ee6. Protected Python 3.11/3.12/3.13
+      gates passed; implementation and independent final-review suites passed. The
+      exact final build is deployed, the managed clone is clean, and webhook self-heal
+      reports a sound fast-forward pull.'
+    created_at: '2026-08-09T23:54:37.272718+00:00'
+    selected_ref: a1f6ef58e7da26ba2cd5be8a1c470eab1bed7acd
+    selected_sha: a1f6ef58e7da26ba2cd5be8a1c470eab1bed7acd
+    applied: false
   version: 1
   pending_chain:
   - version: 1
