@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:48:29.754525Z'
-updated_at: '2026-08-09T12:47:23.454363Z'
+updated_at: '2026-08-09T13:00:43.936999Z'
 work_branch: OOMPAH-952
 target_branch: null
 review_url: null
@@ -66,5 +66,10 @@ author: oompah
 created: 2026-08-09 12:47
 ---
 Worked around the deployed pre-OOMPAH-953 remote-head polling deadlock by creating exact-head PR #765 and arming squash auto-merge. GitHub hosted checks are the exact review-head gate.
+---
+author: oompah
+created: 2026-08-09 13:00
+---
+All three PR #765 matrices reproduced the OOMPAH-954 production-stack contract failure. Composed the already-reviewed two-commit OOMPAH-954 fix into exact head d7cc48949; hosted checks are rerunning.
 ---
 <!-- COMMENTS:END -->
