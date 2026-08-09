@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:04:59.855533Z'
-updated_at: '2026-08-09T19:51:52.129797Z'
+updated_at: '2026-08-09T19:52:05.359761Z'
 work_branch: OOMPAH-967
 target_branch: null
 review_url: null
@@ -52,7 +52,8 @@ oompah.terminal_audit:
     evidence_fingerprint: 0f5f7b03223019482b48a5ec4bf9fd6e406f685105651d30a704df7f97765d17
     audit_ids:
     - audit-e269ff899599
-    kind: result
+    - audit-d4cb6310cc1e
+    kind: override
     applied: true
     retired_at: '2026-08-09T19:47:13.672046+00:00'
   oompah.terminal_audit_result_intents:
@@ -69,6 +70,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T19:47:13.672059+00:00'
     applied_at: '2026-08-09T19:47:20.740682+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-171c4a439c55
@@ -87,7 +89,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T19:51:47.968955+00:00'
     selected_ref: 5adb50e55ebad53edcf3a7a3d7ffe9a42782d914
     selected_sha: 5adb50e55ebad53edcf3a7a3d7ffe9a42782d914
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -135,7 +137,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-967
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -150,6 +152,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T19:23:23.368442+00:00'
     selected_ref: 5adb50e55ebad53edcf3a7a3d7ffe9a42782d914
     selected_sha: 5adb50e55ebad53edcf3a7a3d7ffe9a42782d914
+    updated_at: '2026-08-09T19:51:57.321472+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-22ec5f9cf43e
@@ -291,5 +294,17 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 24m 54s
 - Log: OOMPAH-967__20260809T192349Z.jsonl
+---
+author: oompah
+created: 2026-08-09 19:51
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: [REDACTED]
+---
+author: oompah
+created: 2026-08-09 19:52
+---
+Terminal-provenance canonical decision support is integrated on main via PR #775; exact hosted matrix and independent reviews passed. Detached-auditor harness failures are tracked separately in OOMPAH-971.
 ---
 <!-- COMMENTS:END -->
