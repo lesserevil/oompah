@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-961
 type: bug
-status: Open
+status: Done
 priority: 1
 title: Retire exhausted authority across zero-job and lifecycle handoffs
 parent: OOMPAH-940
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:20:19.752110Z'
-updated_at: '2026-08-09T17:32:39.985070Z'
+updated_at: '2026-08-09T17:42:10.006242Z'
 work_branch: OOMPAH-961
 target_branch: null
 review_url: null
@@ -31,6 +31,82 @@ oompah.integration:
   submitted_at: '2026-08-09T15:03:16.196887+00:00'
   updated_at: '2026-08-09T15:03:16.196887+00:00'
 oompah.work_branch: OOMPAH-961
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-27f83a2fcb9b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-961
+    digest: ec437060ca69f1d6bcea6931fd5a53a1b42b0ad7d3566aef0ccd130899c9f4cc
+  - version: 1
+    audit_id: audit-d86ef4ac6f35
+    project_id: proj-14849f1b
+    task_id: OOMPAH-961
+    digest: ec437060ca69f1d6bcea6931fd5a53a1b42b0ad7d3566aef0ccd130899c9f4cc
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-269d8d039c82
+    project_id: proj-14849f1b
+    task_id: OOMPAH-961
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ec437060ca69f1d6bcea6931fd5a53a1b42b0ad7d3566aef0ccd130899c9f4cc
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct-owner completion after exact combined hosted CI and independent
+      no-blocker review.
+    created_at: '2026-08-09T17:42:06.021455+00:00'
+    selected_ref: b4d84c207fe2160dfbd502ffd9b0f95ff561142a
+    selected_sha: b4d84c207fe2160dfbd502ffd9b0f95ff561142a
+    applied: false
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-27f83a2fcb9b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-961
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ec437060ca69f1d6bcea6931fd5a53a1b42b0ad7d3566aef0ccd130899c9f4cc
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-09T17:41:58.996428+00:00'
+    selected_ref: b4d84c207fe2160dfbd502ffd9b0f95ff561142a
+    selected_sha: b4d84c207fe2160dfbd502ffd9b0f95ff561142a
+  - version: 1
+    audit_id: audit-d86ef4ac6f35
+    project_id: proj-14849f1b
+    task_id: OOMPAH-961
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ec437060ca69f1d6bcea6931fd5a53a1b42b0ad7d3566aef0ccd130899c9f4cc
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-09T17:41:58.996428+00:00'
+    selected_ref: b4d84c207fe2160dfbd502ffd9b0f95ff561142a
+    selected_sha: b4d84c207fe2160dfbd502ffd9b0f95ff561142a
+  attempt_history: []
 ---
 ## Summary
 
@@ -98,5 +174,10 @@ author: oompah
 created: 2026-08-09 17:32
 ---
 Final no-rewrite composition pushed at exact head c5644a86a4ccd9e223f298ae8b6b50262340217a on PR #769, with exact combined OOMPAH-962 parent dd2e18fc263f16717a7b31802968f235a4401525 and landed OOMPAH-964/O965 main. Retirement proofs, quarantine restore fencing, callback settlement, and publication-supersession regressions are all present. Validation: 22 focused workflow tests, 269 intake/webhook tests, 1,193 combined tests, critical Ruff/compile, terminal mutation, secret, and diff checks pass. Hosted exact matrix and independent final composition review are running in parallel with PR #770.
+---
+author: oompah
+created: 2026-08-09 17:42
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
