@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-947
 type: task
-status: Needs Human
+status: Merged
 priority: null
 title: Bound terminal-audit lane cost beyond candidate count
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:38:30.732911Z'
-updated_at: '2026-08-09T13:35:03.633695Z'
+updated_at: '2026-08-09T13:35:43.283510Z'
 work_branch: OOMPAH-947
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/760
@@ -71,6 +71,26 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T13:33:52.531305+00:00'
     applied_at: '2026-08-09T13:33:59.122799+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-1a6070660158
+    project_id: proj-14849f1b
+    task_id: OOMPAH-947
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3cb0155dc2ddab63fd4b5a1626a6f9f44a79f70e1e6f977bf09dc53d605f47d1
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Operator reviewed terminal evidence after auditor tooling deadlock: PR
+      #760 is merged, focused OOMPAH-947 suites are green, and broad-suite failures
+      were isolated nested-runner infrastructure failures unrelated to this change.
+      Existing OOMPAH-831 and OOMPAH-862 track the systemic auditor defects.'
+    created_at: '2026-08-09T13:35:39.313793+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
