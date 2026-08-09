@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-975
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Carry trusted composed landing heads into rollup terminal transitions
 parent: null
@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:14:31.760374Z'
-updated_at: '2026-08-09T21:47:14.417082Z'
+updated_at: '2026-08-09T21:50:29.047895Z'
 work_branch: OOMPAH-975
-target_branch: null
-review_url: null
-review_number: null
-review_head: null
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/782
+review_number: '782'
+review_head: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
 merged_at: null
 oompah.integration:
   version: 2
@@ -28,6 +28,10 @@ oompah.integration:
   submitted_at: '2026-08-09T21:45:55.062482+00:00'
   updated_at: '2026-08-09T21:45:55.062482+00:00'
 oompah.work_branch: OOMPAH-975
+oompah.review_url: https://github.com/lesserevil/oompah/pull/782
+oompah.review_number: '782'
+oompah.target_branch: main
+oompah.review_head: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
 ---
 ## Summary
 
@@ -72,5 +76,10 @@ author: oompah
 created: 2026-08-09 21:47
 ---
 Updated exact head 0cbca98c1 expands the regression matrix to all 20 live composed Done child shapes, including newly observed OOMPAH-910/-911/-914 through -921/-926/-929 through -931 under OOMPAH-763. Relevant workflow/transition/runtime suites now pass 644 tests; terminal mutation scan passed. No exhausted row rearm or database edit is introduced; fresh owner scans retire/supersede historical generations.
+---
+author: oompah
+created: 2026-08-09 21:50
+---
+Branch quality gate passed for `0cbca98c1d6f6b3490a93b4164ef370ac01db432` using `make test` in 171.9s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
