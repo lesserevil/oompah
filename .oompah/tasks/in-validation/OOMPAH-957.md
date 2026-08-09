@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T14:45:09.460394Z'
+updated_at: '2026-08-09T16:03:29.978196Z'
 work_branch: OOMPAH-957
 target_branch: null
 review_url: null
@@ -173,5 +173,10 @@ author: oompah
 created: 2026-08-09 14:45
 ---
 Final exact head 0cb499dc5649929ae0d7789eb6d7326c293423d9 passed hosted CI on Python 3.11, 3.12, and 3.13 in run 31318849878, and independent final review reported no blockers. Squash auto-merge completed PR #766 at merge commit 4b31fb659dfcbebe7466676a8f80a60e65322355.
+---
+author: oompah
+created: 2026-08-09 16:03
+---
+Hosted PR #769 Python 3.13 and PR #770 Python 3.12 independently reproduced two loaded-suite timing defects while their other versions passed: the durable integration heartbeat proof used an 80ms real lease, and the long-delivery concurrency proof relied on unbounded polling under the global 5s timeout. Direct-owner correction is pushed at 561deed0f5bb9d897454b7b29756185100989968 on PR #772: monotonic fake-clock renewal proof plus bounded completion events. Exact tests passed 100 heartbeat repetitions, 50 delivery repetitions, and 189 combined module tests; hosted matrix and final independent review are running.
 ---
 <!-- COMMENTS:END -->

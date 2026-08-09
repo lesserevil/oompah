@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T14:35:21.482578Z'
-updated_at: '2026-08-09T15:54:00.508251Z'
+updated_at: '2026-08-09T16:03:40.895847Z'
 work_branch: OOMPAH-962
 target_branch: null
 review_url: null
@@ -148,5 +148,10 @@ author: oompah
 created: 2026-08-09 15:54
 ---
 Hardened quarantine recovery per independent review at exact head 8bea28656; 468 affected tests and scans pass.
+---
+author: oompah
+created: 2026-08-09 16:03
+---
+Corrected quarantine recovery head 8bea28656286d06fd254e8d6a39592ade981939f passed independent no-blocker re-review, 334 focused tests, and 20 repeated async runs. Hosted 3.11/3.13 passed; 3.12 failed only the unrelated durable heartbeat test race independently reproduced on OOMPAH-961 and fixed by OOMPAH-957 PR #772. Keep implementation closed; rebase onto the shared test repair and rerun exact hosted gates.
 ---
 <!-- COMMENTS:END -->

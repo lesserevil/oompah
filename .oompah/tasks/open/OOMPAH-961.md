@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:20:19.752110Z'
-updated_at: '2026-08-09T15:39:40.407087Z'
+updated_at: '2026-08-09T16:03:35.116592Z'
 work_branch: OOMPAH-961
 target_branch: null
 review_url: null
@@ -88,5 +88,10 @@ author: oompah
 created: 2026-08-09 15:39
 ---
 Exact corrected head c5cafe260119d383d4ff30055f82702db69e2c03 is pushed on PR #769. Durable immutable per-task authority cuts prevent later bounded-unselected cursor or membership-only publications from resurrecting retired exhaustion; explicit rearm remains the ABA boundary. Exact-tree validation: 98 workflow-job tests and 606 combined OOMPAH-960/961 tests passed; terminal-audit scan, secret scan, and diff check passed. origin/main be4ec5d95 is an ancestor; hosted CI is running on 3.11/3.12/3.13.
+---
+author: oompah
+created: 2026-08-09 16:03
+---
+Final exact head 2d693d7b17df91cb6fe781fa47451a72638bc4e2 fixes rollback-vs-explicit-rearm ABA with append-only event-sequence fencing. Independent re-review found no blockers: capture/rearm/rollback/fresh exhaustion remains actionable; all prior proof-shape/durable-cut cases and OOMPAH-960 composition pass. 443 affected review tests and 607 author tests passed. Hosted 3.13 failed only the unrelated loaded delivery-test race now corrected by OOMPAH-957 PR #772; compose after that merge.
 ---
 <!-- COMMENTS:END -->
