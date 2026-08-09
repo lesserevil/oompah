@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-935
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Resolve legacy Done-child landing refreshes against immediate parent targets
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T07:21:24.754079Z'
-updated_at: '2026-08-09T07:21:24.754079Z'
+updated_at: '2026-08-09T07:22:02.544827Z'
 work_branch: null
 target_branch: null
 review_url: null
