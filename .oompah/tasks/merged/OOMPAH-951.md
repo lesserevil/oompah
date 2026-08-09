@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-951
 type: task
-status: In Validation
+status: Merged
 priority: 0
 title: Align ACP auditor result tool schema with its advertised contract
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:46:27.644873Z'
-updated_at: '2026-08-09T13:03:22.754242Z'
+updated_at: '2026-08-09T16:32:47.640409Z'
 work_branch: OOMPAH-951
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/759
@@ -71,6 +71,28 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T13:02:56.343346+00:00'
     applied_at: '2026-08-09T13:03:05.953144+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-fb3d96855fde
+    project_id: proj-14849f1b
+    task_id: OOMPAH-951
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b517d9c92a02d37b7df7aa7fc3a1d6fc4b2fd5e54f8493da3d34a63b9c0db2f4
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner override after exact task head 5defaaa424e9a1303ee292ad523369e53e1b08e1
+      was proven to be PR #759 head and contained in main; PR #759 merged as 54dafeef05f236821f6ef676c97fe882ffb42385
+      with hosted Python 3.11/3.12/3.13 checks successful; the independent terminal
+      auditor also recorded PASS.'
+    created_at: '2026-08-09T16:32:43.694774+00:00'
+    selected_ref: 5defaaa424e9a1303ee292ad523369e53e1b08e1
+    selected_sha: 5defaaa424e9a1303ee292ad523369e53e1b08e1
+    applied: false
   version: 1
   pending_chain:
   - version: 1
