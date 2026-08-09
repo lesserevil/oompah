@@ -1695,6 +1695,91 @@ def test_fast_admission_cannot_observe_idle_before_callback_settlement(
     store.close()
 
 
+def test_quick_final_admission_preserves_one_queue_drain_reconcile(tmp_path):
+    """A same-pass completion is consumed by the observer's next fast turn."""
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="QUICK-FINAL-ADMISSION",
+            generation="quick-final-admission",
+            action="review_refresh",
+            idempotency_key="quick-final-admission",
+        )
+    )
+    generation = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(generation) is True
+    membership = store.reconcile_snapshot_membership(
+        snapshot_generation=generation,
+        authoritative_project_ids=("project-1",),
+        expected_identities=(("project-1", "QUICK-FINAL-ADMISSION"),),
+    )
+    assert membership.accepted is True
+    published, _result = store.publish_snapshot_generation(
+        generation, lambda: None
+    )
+    assert published is True
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+    )
+    runtime._refresh_admission_cut(
+        {
+            "projects": {
+                "project-1": {
+                    "snapshot": {"generation": generation, "published": True}
+                }
+            }
+        },
+        ("project-1",),
+    )
+
+    async def execute_immediately(job):
+        completed = store.complete(job.job_id, str(job.lease_token or ""))
+        return WorkflowRunResult(
+            WorkflowRunDisposition.COMPLETED,
+            completed.job_id,
+            completed.state,
+            "completed in same admission pass",
+            completed.attempts,
+        )
+
+    runtime.worker.execute_claimed = execute_immediately
+
+    async def exercise():
+        completion_published = asyncio.Event()
+        runtime._effect_completion_observer = (
+            lambda _result: completion_published.set()
+        )
+        await runtime.start()
+        first = await runtime.continue_admission_async()
+        await asyncio.wait_for(completion_published.wait(), 1)
+        second = await runtime.continue_admission_async()
+        third = await runtime.continue_admission_async()
+        return first, second, third
+
+    first, second, third = asyncio.run(exercise())
+
+    assert first["worker"]["scheduled"] == 1
+    assert first["worker"]["completed"] == 0
+    assert first["requires_reconcile"] is False
+    assert second["worker"]["scheduled"] == 0
+    assert second["worker"]["completed"] == 1
+    assert second["worker"]["active"] == 0
+    assert second["requires_reconcile"] is True
+    assert second["reconcile_reason"] == "published_queue_drained"
+    assert third["worker"]["completed"] == 0
+    assert third["requires_reconcile"] is False
+    runtime.close()
+    store.close()
+
+
 def test_fast_admission_rechecks_project_pause_before_claiming(tmp_path):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     tracker = NativeTracker([])

@@ -3512,7 +3512,7 @@ class WorkflowRuntime:
                             break
 
         with self._lock:
-            if self._effect_results:
+            if not scheduled and self._effect_results:
                 completed = (*completed, *self._effect_results)
                 self._effect_results.clear()
             active_by_lane = {
