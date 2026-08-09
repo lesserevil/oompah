@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:38:30.732911Z'
-updated_at: '2026-08-09T13:34:00.624753Z'
+updated_at: '2026-08-09T13:34:25.310959Z'
 work_branch: OOMPAH-947
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/760
@@ -149,6 +149,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-947
     selected_ref: 139a848cfbf8dfa605a9033a5b1dde3a3c1c84a5
     selected_sha: 139a848cfbf8dfa605a9033a5b1dde3a3c1c84a5
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 348
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 10
+      output_tokens: 348
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 10
+    output_tokens: 348
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T13:34:22.349408+00:00'
 ---
 ## Summary
 
@@ -213,5 +229,15 @@ created: 2026-08-09 13:33
 Needs Human — Done audit requires operator input.
 
 [REDACTED] Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-09 13:34
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 64, Tool calls: 26
+- Tokens: 10 in / 348 out [358 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 28m 27s
+- Log: OOMPAH-947__20260809T130605Z.jsonl
 ---
 <!-- COMMENTS:END -->
