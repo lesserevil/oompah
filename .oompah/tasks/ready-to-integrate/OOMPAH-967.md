@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-967
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Honor retained terminal provenance in canonical workflow decisions
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:04:59.855533Z'
-updated_at: '2026-08-09T18:27:33.442926Z'
+updated_at: '2026-08-09T18:28:08.716465Z'
 work_branch: OOMPAH-967
 target_branch: null
 review_url: null
