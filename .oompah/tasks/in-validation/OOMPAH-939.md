@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-939
 type: task
-status: In Progress
+status: In Validation
 priority: null
 title: Continue saturated durable workflow batches without full-sync delay
 parent: null
@@ -11,13 +11,69 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T08:54:39.101794Z'
-updated_at: '2026-08-09T09:19:15.496591Z'
+updated_at: '2026-08-09T09:39:33.609410Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-4827a2c0df9f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-939
+    digest: d5681f0cb4429f02b6f02dbf0f61ad858ed770de5ef84b193888026dc6cd6dec
+  - version: 1
+    audit_id: audit-bd560d2bb335
+    project_id: proj-14849f1b
+    task_id: OOMPAH-939
+    digest: d5681f0cb4429f02b6f02dbf0f61ad858ed770de5ef84b193888026dc6cd6dec
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-4827a2c0df9f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-939
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d5681f0cb4429f02b6f02dbf0f61ad858ed770de5ef84b193888026dc6cd6dec
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-09T09:39:27.270044+00:00'
+    selected_ref: origin/OOMPAH-939
+    selected_sha: b1fc26aa98edc4fdd53c2315906af7321d48a1eb
+  - version: 1
+    audit_id: audit-bd560d2bb335
+    project_id: proj-14849f1b
+    task_id: OOMPAH-939
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d5681f0cb4429f02b6f02dbf0f61ad858ed770de5ef84b193888026dc6cd6dec
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-09T09:39:27.270044+00:00'
+    selected_ref: origin/OOMPAH-939
+    selected_sha: b1fc26aa98edc4fdd53c2315906af7321d48a1eb
+  attempt_history: []
 ---
 ## Summary
 
@@ -64,5 +120,10 @@ author: oompah
 created: 2026-08-09 09:19
 ---
 Published reviewed head b1fc26aa on PR #751. The continuation path now preserves durable cross-project fairness with an explicit runnable-project allowlist; the production dispatch-loop test proves an exact-cap batch posts and consumes one coalesced refresh without waiting for the 5-minute full sync. Focused/adjacent result: 221 passed; targeted undefined-name lint passed. Independent re-review approved; hosted 3.11/3.12/3.13 gates are running with auto-merge enabled.
+---
+author: oompah
+created: 2026-08-09 09:39
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
