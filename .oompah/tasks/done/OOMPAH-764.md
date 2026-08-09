@@ -18,7 +18,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-07T21:42:03.287556Z'
+updated_at: '2026-08-09T10:47:31.718273Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/748
@@ -415,5 +415,10 @@ created: 2026-08-07 14:02
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: PR #743 is closed; prior PR #742 was also closed because the nested epic patch is already contained in epic-OOMPAH-763. All canonical children are terminal and prior validation/audit evidence passed. Restore audited Done after deploying OOMPAH-871 terminal-provenance fencing.
+---
+author: oompah
+created: 2026-08-09 10:47
+---
+Operator recovery for stale review #748: exact Git evidence shows all three source-only commits cc490d183, e34e3c58b, and 73f5aeb26 are patch-equivalent in the current authoritative immediate target origin/epic-OOMPAH-763 (git cherry marks each '-'). PR #748 is a conflicting replay with no checks or review activity, not a missing landing. Closing only #748 so its exact durable review-capacity reservation can retire; the systemic stale terminal-review retirement regression will be tracked separately.
 ---
 <!-- COMMENTS:END -->
