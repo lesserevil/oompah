@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T07:23:37.669062Z'
-updated_at: '2026-08-09T07:24:28.203097Z'
+updated_at: '2026-08-09T07:40:53.131707Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,3 +32,11 @@ Problem: ten authoritative pending terminal audits on intentionally paused Trick
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 07:40
+---
+Direct-owner implementation complete at clean pushed head 2e574619bea14021f537ab8c7c7f805e056d320d. Paused audit obligations remain durable but project as suspended/non-degrading across startup, periodic scans, persistence, restart, and resume; zero-capacity scans stay current and resume restores dispatch. Verification: 225 focused health/observability/enforcement tests + 601 audit-lane consumer tests passed; git diff --check passed. Awaiting combined protected-main integration with OOMPAH-935/OOMPAH-937.
+---
+<!-- COMMENTS:END -->
