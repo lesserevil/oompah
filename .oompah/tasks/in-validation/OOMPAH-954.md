@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:29:27.319915Z'
-updated_at: '2026-08-09T12:51:35.522753Z'
+updated_at: '2026-08-09T14:29:24.884879Z'
 work_branch: OOMPAH-954
 target_branch: null
 review_url: null
@@ -45,12 +45,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-954
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 6a65e99a38416f8a8fb971ec139006b80a90d105284f6e4b9d8967597b8c62f7
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-9908b9664e50
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 6a65e99a38416f8a8fb971ec139006b80a90d105284f6e4b9d8967597b8c62f7
+      created_at: '2026-08-09T14:29:16.239897+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-09T14:29:16.239897+00:00'
+      branch_key: OOMPAH-954
+      selected_ref: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
+      selected_sha: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
     source_generation: 1
     requested_by:
       version: 1
@@ -60,7 +75,23 @@ oompah.terminal_audit:
     created_at: '2026-08-09T12:51:29.097174+00:00'
     selected_ref: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
     selected_sha: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
-  attempt_history: []
+    updated_at: '2026-08-09T14:29:16.239897+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-9908b9664e50
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6a65e99a38416f8a8fb971ec139006b80a90d105284f6e4b9d8967597b8c62f7
+    created_at: '2026-08-09T14:29:16.239897+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-09T14:29:16.239897+00:00'
+    branch_key: OOMPAH-954
+    selected_ref: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
+    selected_sha: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
 ---
 ## Summary
 
@@ -103,5 +134,15 @@ author: oompah
 created: 2026-08-09 12:51
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-09 14:29
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-09 14:29
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
