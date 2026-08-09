@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-954
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Compose canonical epic facts in universal workflow decisions
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:29:27.319915Z'
-updated_at: '2026-08-09T11:29:43.281062Z'
+updated_at: '2026-08-09T11:30:12.452199Z'
 work_branch: null
 target_branch: null
 review_url: null
