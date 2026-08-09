@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-939
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Continue saturated durable workflow batches without full-sync delay
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T08:54:39.101794Z'
-updated_at: '2026-08-09T08:54:39.101794Z'
+updated_at: '2026-08-09T08:55:22.003489Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Triggered by: OOMPAH-785\n\nProduction regression observed on 2026-08-09 while r
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 08:55
+---
+Accepted as the live batch-continuation regression found during OOMPAH-935 rollout.
+---
+<!-- COMMENTS:END -->
