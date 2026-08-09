@@ -11,13 +11,23 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T14:08:58.066871Z'
-updated_at: '2026-08-09T14:23:55.460475Z'
-work_branch: null
+updated_at: '2026-08-09T14:24:11.413062Z'
+work_branch: OOMPAH-959
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-959
+  head_sha: 4bd555a74d78a1fb0324a3ed58bcd7c01d342b41
+  submitted_at: '2026-08-09T14:23:59.670559+00:00'
+  updated_at: '2026-08-09T14:23:59.670559+00:00'
+oompah.work_branch: OOMPAH-959
 ---
 ## Summary
 
@@ -35,5 +45,10 @@ author: oompah
 created: 2026-08-09 14:23
 ---
 Implemented exact non-mutating claimability probing shared with claim_next, concurrency-cap saturation signaling with a no-spin admission edge, and focused store/runtime regressions. Full workflow job/runtime modules pass: 155 tests. Ruff passes for changed surfaces aside from one pre-existing unused import excluded from the focused lint run.
+---
+author: oompah
+created: 2026-08-09 14:24
+---
+Exact claimability probe and concurrency-cap continuation implemented; 155 focused workflow job/runtime tests pass.
 ---
 <!-- COMMENTS:END -->
