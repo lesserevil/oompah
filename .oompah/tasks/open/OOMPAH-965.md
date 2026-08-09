@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T16:25:26.622591Z'
-updated_at: '2026-08-09T16:39:57.002521Z'
+updated_at: '2026-08-09T16:41:15.721685Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -74,5 +74,24 @@ author: oompah
 created: 2026-08-09 16:39
 ---
 Direct repair implemented on branch OOMPAH-965: terminal-audit proof invalidation now uses an explicit expected supersession type, restores the unpublished authority checkpoint, reports INFO-level bounded telemetry with requires_reconcile, and the orchestrator posts one fenced/coalesced ordinary full-scan continuation. Genuine publication failures retain ERROR behavior. Tests prove disposition/authority races reject stale publication without error logging, a fresh pass converges, continuation respects pause/quiesce/drain fences, and architecture bounds remain intact. 286 affected tests plus terminal mutation, secret, critical lint, and diff checks pass.
+---
+author: oompah
+created: 2026-08-09 16:41
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-965`
+Target: `main`
+Head: `unknown`
+Command: `make test`
+Result: `infrastructure_error`
+Process: ended without subprocess exit evidence
+
+Infrastructure action required: repair or replace the operator-owned quality-gate runtime. No candidate CI-fix status was applied because the candidate command did not run.
+
+Output tail:
+```text
+Candidate CI was not run because the submitted review branch tip is unavailable in the managed repository.
+```
 ---
 <!-- COMMENTS:END -->
