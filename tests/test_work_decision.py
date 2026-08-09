@@ -791,6 +791,12 @@ def test_done_retained_as_terminal_provenance_requires_no_landing_effect():
         {"authority_generation": True},
         {"marker_version": 2},
         {"malformed": True, "marker_version": None},
+        {"retained": False, "task_id": "OTHER"},
+        {"retained": False, "project_id": "other-project"},
+        {"retained": False, "authorized_by": ""},
+        {"retained": "false"},
+        {"malformed": "true"},
+        {"retained": None},
     ],
 )
 def test_invalid_terminal_provenance_never_becomes_delivery_proof(overrides):

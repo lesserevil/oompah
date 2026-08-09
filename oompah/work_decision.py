@@ -1742,10 +1742,13 @@ def _terminal_provenance_decision(
         return None
 
     generation = raw.get("authority_generation")
-    malformed = raw.get("malformed") is True
-    retained = raw.get("retained") is True
+    raw_malformed = raw.get("malformed")
+    raw_retained = raw.get("retained")
+    malformed = raw_malformed is True
     structurally_valid = bool(
-        raw.get("schema_version") == 1
+        isinstance(raw_retained, bool)
+        and isinstance(raw_malformed, bool)
+        and raw.get("schema_version") == 1
         and raw.get("marker_version") == 1
         and raw.get("project_id") == facts.project_id
         and raw.get("task_id") == facts.task_id
@@ -1761,7 +1764,7 @@ def _terminal_provenance_decision(
         and isinstance(raw.get("updated_at"), str)
         and str(raw.get("updated_at") or "").strip()
     )
-    if malformed or (retained and not structurally_valid):
+    if malformed or not structurally_valid:
         return _decision(
             task,
             facts,
@@ -1779,7 +1782,7 @@ def _terminal_provenance_decision(
             alert=AlertSeverity.WARNING,
             reassess=False,
         )
-    if not retained:
+    if not raw_retained:
         return None
     if task.status != DONE:
         return _decision(
