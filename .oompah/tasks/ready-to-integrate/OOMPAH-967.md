@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:04:59.855533Z'
-updated_at: '2026-08-09T18:47:10.794427Z'
+updated_at: '2026-08-09T19:15:01.995103Z'
 work_branch: OOMPAH-967
 target_branch: null
 review_url: null
@@ -102,5 +102,10 @@ author: oompah
 created: 2026-08-09 18:47
 ---
 Final exact head 5adb50e55 closes the complete terminal-provenance validation and publication pipeline. 534 focused tests and two independent adversarial reviews are green.
+---
+author: oompah
+created: 2026-08-09 19:15
+---
+Direct-owner integration acceleration: the durable integration attempt is correctly queued at exact head 5adb50e55, but is behind a large legacy shared-lane workflow backlog. Created the exact-head GitHub PR directly so protected checks can run now; Oompah remains authoritative and will reconcile the PR/merge.
 ---
 <!-- COMMENTS:END -->
