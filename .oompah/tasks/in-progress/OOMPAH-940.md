@@ -28,7 +28,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-09T21:19:08.190639Z'
+updated_at: '2026-08-09T21:45:46.960859Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -281,5 +281,10 @@ author: oompah
 created: 2026-08-09 21:19
 ---
 Baseline live make workflow-rollout-check on deployed 312c18ae3 fails exactly two gates: service health not healthy and current exhausted durable jobs remain. No source/auth error is present and action_required remains zero. OOMPAH-974 owns lifecycle responsiveness/health recovery; OOMPAH-975 owns the six current null-head exhausted rollup rows. This exact canary will be rerun after both fixes deploy.
+---
+author: oompah
+created: 2026-08-09 21:45
+---
+Fresh generation 864 retired the original six exhausted rows through supported terminal-provenance authority, proving the workaround path. It then exposed 14 older Done children (OOMPAH-910, -911, -914 through -921, -926, -929, -930, -931) with the same parent_rollup_review transition.head_required defect: all are parented by OOMPAH-763, have null mutable task heads, and retain exact durable parent-scoped landing facts. The owner applied the same supported terminal-provenance retain action to all 14; no implementation was reopened, and no task file or workflow database was edited directly. A post-deploy complete scan must retire these generations and reach zero current exhaustion.
 ---
 <!-- COMMENTS:END -->
