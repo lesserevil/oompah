@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-939
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Continue saturated durable workflow batches without full-sync delay
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T08:54:39.101794Z'
-updated_at: '2026-08-09T13:28:13.176196Z'
+updated_at: '2026-08-09T13:56:21.571422Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,6 +34,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-939","audit-4827a2c0df9f","attempt-8219358c7bea"]': '2026-08-09T11:10:55.552055+00:00'
     '["proj-14849f1b","OOMPAH-939","audit-bd560d2bb335","attempt-cd9094da20a7"]': '2026-08-09T11:52:12.431727+00:00'
+    '["proj-14849f1b","OOMPAH-939","audit-bd560d2bb335","attempt-289bbb15fed0"]': '2026-08-09T13:56:15.202250+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-939
@@ -44,6 +45,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-09T11:10:55.552071+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-939
+    target_state: Merged
+    evidence_fingerprint: d5681f0cb4429f02b6f02dbf0f61ad858ed770de5ef84b193888026dc6cd6dec
+    audit_ids:
+    - audit-bd560d2bb335
+    kind: result
+    applied: true
+    retired_at: '2026-08-09T13:56:15.202269+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-939
@@ -58,6 +68,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T11:10:55.552081+00:00'
     applied_at: '2026-08-09T11:11:05.730223+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-939
+    audit_id: audit-bd560d2bb335
+    attempt_id: attempt-289bbb15fed0
+    target_state: Merged
+    evidence_fingerprint: d5681f0cb4429f02b6f02dbf0f61ad858ed770de5ef84b193888026dc6cd6dec
+    status: Merged
+    audit_ids:
+    - audit-bd560d2bb335
+    kind: result
+    applied: false
+    created_at: '2026-08-09T13:56:15.202284+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -144,7 +166,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-939
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -172,7 +194,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-289bbb15fed0
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -185,6 +207,9 @@ oompah.terminal_audit:
       selected_ref: origin/OOMPAH-939
       selected_sha: b1fc26aa98edc4fdd53c2315906af7321d48a1eb
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-09T13:56:15.202125+00:00'
+      ended_at: '2026-08-09T13:56:15.202125+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -194,7 +219,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T09:39:27.270044+00:00'
     selected_ref: origin/OOMPAH-939
     selected_sha: b1fc26aa98edc4fdd53c2315906af7321d48a1eb
-    updated_at: '2026-08-09T13:05:42.998564+00:00'
+    updated_at: '2026-08-09T13:56:15.202125+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-70a86da90e2f
