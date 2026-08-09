@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-967
 type: bug
-status: Needs CI Fix
+status: Done
 priority: 1
 title: Honor retained terminal provenance in canonical workflow decisions
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:04:59.855533Z'
-updated_at: '2026-08-09T19:48:39.249925Z'
+updated_at: '2026-08-09T19:51:52.129797Z'
 work_branch: OOMPAH-967
 target_branch: null
 review_url: null
@@ -69,6 +69,25 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T19:47:13.672059+00:00'
     applied_at: '2026-08-09T19:47:20.740682+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-171c4a439c55
+    project_id: proj-14849f1b
+    task_id: OOMPAH-967
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0f5f7b03223019482b48a5ec4bf9fd6e406f685105651d30a704df7f97765d17
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-09T19:51:47.968955+00:00'
+    selected_ref: 5adb50e55ebad53edcf3a7a3d7ffe9a42782d914
+    selected_sha: 5adb50e55ebad53edcf3a7a3d7ffe9a42782d914
+    applied: false
   version: 1
   pending_chain:
   - version: 1
