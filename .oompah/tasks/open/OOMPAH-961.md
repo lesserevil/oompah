@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:20:19.752110Z'
-updated_at: '2026-08-09T15:21:36.608571Z'
+updated_at: '2026-08-09T15:25:27.378538Z'
 work_branch: OOMPAH-961
 target_branch: null
 review_url: null
@@ -73,5 +73,10 @@ author: oompah
 created: 2026-08-09 15:21
 ---
 Exact corrected head 5f2814dccf069fa8a65d74421a05621fdb31e6eb is pushed and PR #769 now targets it. 402 affected tests plus terminal mutation and secret scans pass; hosted CI is queued/running on the new head.
+---
+author: oompah
+created: 2026-08-09 15:25
+---
+Final composition head e62a46da73246fe7f27ff857e9a153f6dc008784 is pushed. It merges current main be4ec5d95 (including OOMPAH-960) into the corrected proof-validation head; origin/main is an ancestor. Combined overlap validation: 606 workflow/integration/epic tests passed, terminal mutation scan passed, and secret scan passed. PR #769 points to this exact head and hosted CI has restarted (3.11/3.12 running, 3.13 queued at observation).
 ---
 <!-- COMMENTS:END -->
