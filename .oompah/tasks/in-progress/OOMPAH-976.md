@@ -11,13 +11,23 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T22:15:32.098347Z'
-updated_at: '2026-08-09T22:38:20.961327Z'
-work_branch: null
+updated_at: '2026-08-09T22:40:01.145539Z'
+work_branch: OOMPAH-976
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-976
+  head_sha: 6af2014f97244e153ba3ea1ea70a4342d63ebc8b
+  submitted_at: '2026-08-09T22:39:52.268716+00:00'
+  updated_at: '2026-08-09T22:39:52.268716+00:00'
+oompah.work_branch: OOMPAH-976
 ---
 ## Summary
 
@@ -40,5 +50,10 @@ author: oompah
 created: 2026-08-09 22:38
 ---
 Implemented the race fix on OOMPAH-976 after rebasing onto merged main e8be4d38. The heavyweight shim now requires a broker-mediated ADMIT/ADMITTED handshake after SCM_RIGHTS descriptor transfer. Exec admission and exact terminal claims linearize on the same run lock; cancellation before admission is claimed exactly before the shim is denied, while later withdrawal terminates an already-admitted generation without allowing post-withdrawal workload effects. The admission handler joins the atomic terminal claim directly, so a delayed supervisor observer cannot strand it. Coverage includes deterministic pre-admission, post-admission, timeout, blocked observer, exact-cause precedence, no-workload-after-withdrawal, lease cleanup, FD cleanup, and bounded retirement. Checks: 234 affected tests passed; both withdrawal edge nodes passed 10/10 stress repetitions each; diff and compile checks clean.
+---
+author: oompah
+created: 2026-08-09 22:40
+---
+Implemented and pushed exact head 6af2014f97244e153ba3ea1ea70a4342d63ebc8b. Added authenticated post-transfer exec admission serialized with exact terminal claims; deterministic before/after-admission withdrawal coverage proves exact cause precedence, bounded termination, and no post-withdrawal workload, lease, or FD leak. Python 3.12 affected suites: 234 passed serial and 234 passed with xdist; withdrawal edge nodes passed 10/10 each under repeated serial stress. Ready for independent exact-head review.
 ---
 <!-- COMMENTS:END -->
