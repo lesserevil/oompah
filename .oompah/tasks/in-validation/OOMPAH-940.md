@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-940
 type: epic
-status: In Progress
+status: In Validation
 priority: 1
 title: Converge the legacy Done backlog from authoritative delivery evidence
 parent: null
@@ -21,13 +21,44 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-09T13:40:17.483871Z'
+updated_at: '2026-08-09T13:59:17.272776Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-fddacbaa91fb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-940
+    digest: 0a8f66ccd7cf1de072dd1b0feb8ac319adc1bf49c227fd03ebf4eaf1970e9daa
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-fddacbaa91fb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-940
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0a8f66ccd7cf1de072dd1b0feb8ac319adc1bf49c227fd03ebf4eaf1970e9daa
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-09T13:59:06.485551+00:00'
+    selected_ref: origin/epic-OOMPAH-940
+    selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
+  attempt_history: []
 ---
 ## Summary
 
@@ -50,5 +81,15 @@ author: oompah
 created: 2026-08-09 13:40
 ---
 Refreshed the systemic workflow epic onto composition merge 91bf64c57 at exact branch head 2dd74be288b81265ea4a242d7467ecc1ed9f1435. Resolved the workflow-worker/runtime seams while preserving atomic landing completion, restart-safe transition finalization, exact containment authority, and canonical runtime fact composition. Validation: 159 workflow/runtime/finalization tests, 202 integration/epic/decision tests, 8 targeted composed-seam tests, and terminal mutation scan all passed. PR #757 hosted matrix is refreshing; a final small main refresh will follow OOMPAH-957.
+---
+author: oompah
+created: 2026-08-09 13:59
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-09 13:59
+---
+Completed and merged systemic workflow convergence via PR #757 at ba0859da9. All child fixes are contained; Python 3.11/3.12/3.13 hosted gates passed, 369 focused composition tests and terminal scan passed, and independent semantic review found no blockers. Live rollout verification is running on the deployed exact merge.
 ---
 <!-- COMMENTS:END -->
