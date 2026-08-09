@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:26:10.227707Z'
-updated_at: '2026-08-09T14:15:15.481740Z'
+updated_at: '2026-08-09T14:26:21.315335Z'
 work_branch: OOMPAH-950
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/761
@@ -45,6 +45,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-950
     digest: aa9d2784e29afb4de27a2906a9807d18a2861b0728989590286b34ecc1597614
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-950","audit-e9fb81ea75df","attempt-845fde1daeb7"]': '2026-08-09T14:26:12.483794+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-950
+    target_state: Done
+    evidence_fingerprint: aa9d2784e29afb4de27a2906a9807d18a2861b0728989590286b34ecc1597614
+    audit_ids:
+    - audit-e9fb81ea75df
+    kind: result
+    applied: true
+    retired_at: '2026-08-09T14:26:12.483808+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-950
+    audit_id: audit-e9fb81ea75df
+    attempt_id: attempt-845fde1daeb7
+    target_state: Done
+    evidence_fingerprint: aa9d2784e29afb4de27a2906a9807d18a2861b0728989590286b34ecc1597614
+    status: In Validation
+    audit_ids:
+    - audit-e9fb81ea75df
+    kind: result
+    applied: true
+    created_at: '2026-08-09T14:26:12.483818+00:00'
+    applied_at: '2026-08-09T14:26:19.580788+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -52,7 +78,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-950
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -61,7 +87,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-845fde1daeb7
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -73,6 +99,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-950
       selected_ref: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
       selected_sha: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
+      verdict: pass
+      completed_at: '2026-08-09T14:26:12.483661+00:00'
+      ended_at: '2026-08-09T14:26:12.483661+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -82,7 +111,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T12:59:20.963658+00:00'
     selected_ref: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
     selected_sha: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
-    updated_at: '2026-08-09T14:15:03.026914+00:00'
+    updated_at: '2026-08-09T14:26:12.483661+00:00'
   - version: 1
     audit_id: audit-813b8f94cac1
     project_id: proj-14849f1b
@@ -173,5 +202,22 @@ author: oompah
 created: 2026-08-09 14:15
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 14:26
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- test_results.status: passed
+- test_results.duration_seconds: 161.08
+- test_results.test_count: 530+
+- test_results.test_files: tests/test_owner_claim.py tests/test_implementation_workflow_adapter.py
+- implementation_locations.hook: oompah/implementation_workflow_adapter.py:56008-56055
+- implementation_locations.retirement: oompah/orchestrator.py:5630
+- implementation_locations.action: oompah/implementation_workflow.py:82 AUTHORITY_REVOCATION
+- requirements_verified: atomic_handoff exact_claim_capture_fenced durable_retirement_intent idempotent_revocation crash_recovery aba_safety workflow_facts_cleared ready_integration_eligible
 ---
 <!-- COMMENTS:END -->
