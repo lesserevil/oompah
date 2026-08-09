@@ -1402,7 +1402,7 @@ def test_runtime_epic_facts_prevent_stale_generic_exhaustion_override(tmp_path):
         store=store,
     )
     generic = evaluate_task(epic, binding.collector.collect(task_id))
-    assert generic.reason_code == "evidence.containment_malformed"
+    assert generic.reason_code == "evidence.landing_missing"
     assert generic.durable_jobs == ("epic_terminal_validation",)
     stale = store.enqueue(
         WorkflowJobSpec(
