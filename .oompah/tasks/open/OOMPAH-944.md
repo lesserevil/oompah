@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:39.515436Z'
-updated_at: '2026-08-09T09:10:52.093053Z'
+updated_at: '2026-08-09T09:11:12.482554Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,6 +38,11 @@ This is a live regression against the completed shared-fact/cleanup contracts in
 ---
 author: oompah
 created: 2026-08-09 09:10
+---
+Accepted for direct-owner completion as part of the live legacy Done-backlog convergence program.
+---
+author: oompah
+created: 2026-08-09 09:11
 ---
 Accepted for direct-owner completion as part of the live legacy Done-backlog convergence program.
 ---

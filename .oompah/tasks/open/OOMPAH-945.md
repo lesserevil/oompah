@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:46.122749Z'
-updated_at: '2026-08-09T09:10:59.791343Z'
+updated_at: '2026-08-09T09:11:17.354717Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,6 +33,11 @@ Complete liveness generation 260 projects OOMPAH-476 and OOMPAH-763 as dispositi
 <!-- COMMENTS:BEGIN -->
 author: oompah
 created: 2026-08-09 09:10
+---
+Accepted for direct-owner completion as part of the live legacy Done-backlog convergence program.
+---
+author: oompah
+created: 2026-08-09 09:11
 ---
 Accepted for direct-owner completion as part of the live legacy Done-backlog convergence program.
 ---
