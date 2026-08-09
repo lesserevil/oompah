@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:44:46.874602Z'
-updated_at: '2026-08-09T13:10:05.511553Z'
+updated_at: '2026-08-09T13:10:09.789528Z'
 work_branch: OOMPAH-958
 target_branch: null
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-08-09 13:09
 ---
 Qualification complete on pushed exact head 44c2e40d0940f0c8f5edd859141b1b042eafd411, rebased onto composed epic head 1ab5776d8e191d7cf1e98696a322969485a7d35a. Production-shaped coverage now proves real WorkflowJobStore token/deadline expiry and ABA replacement, DurableWorkflowWorker heartbeat renewal, timeout quarantine and late-effect fencing, restart receipt replay without effect reexecution, exact attempt accounting, concurrent legacy/workflow one-winner ownership, invalid mixed/leased/generation-less authority rejection, candidate generation/owner fencing, and unchanged legacy owns_active_lease behavior. Validation: 515 focused tests passed; reviewer independently ran 405 combined tests plus 20 repeated timing-sensitive runs; terminal mutation scan, secret scan, and diff check passed. Independent re-review: no blockers.
+---
+author: oompah
+created: 2026-08-09 13:10
+---
+Bridge durable integration workflow jobs into the shared executor with explicit exact workflow authority, preserving unleased queue checkpoint semantics and the legacy queue-lease fence. Candidate quality-gate authority is bound to job generation, candidate head, and base; stale, expired, replaced, concurrent, timed-out, and restarted executions fail closed. 515 focused tests and independent no-blocker review passed.
 ---
 <!-- COMMENTS:END -->
