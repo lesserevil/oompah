@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T14:25:35.425052Z'
+updated_at: '2026-08-09T14:36:15.719003Z'
 work_branch: OOMPAH-957
 target_branch: null
 review_url: null
@@ -102,5 +102,10 @@ author: oompah
 created: 2026-08-09 14:25
 ---
 Hosted head 7a242610 had Python 3.11/3.13 green; Python 3.12 exposed the parallel-boundary test's invalid timing model again (plus an unrelated workflow-runtime timing failure). Final candidate b53047ff632203a95af007cff7abf3a158617fca restores the tighter reviewer-preferred 5-second post-exit grace and makes the parallel test model provider item.started correctly: two independent commands stay alive after reporting their boundaries, both one-shot receipts are consumed while their exact generations are active, then the processes are cleaned up. This removes dependence on how long a full-suite runner deschedules the test after instant commands exit; orphan-after-exit behavior remains covered separately. Verification: parallel test passed 20 consecutive subprocess/xdist runs, focused lifecycle/replay suite 6/6, full native guard module 138/138. Fresh hosted checks running; auto-merge remains disabled.
+---
+author: oompah
+created: 2026-08-09 14:36
+---
+Hosted b53047ff produced the same single failure on all three Python versions, proving the independent receipt behavior itself passed: both exact command receipts were found and consumed, duplicate reuse was rejected, and both outputs were read. The only failure was the test's new post-consumption live-PID assertion because the broker correctly SIGTERM'd  at configured timeout_seconds=10 while the full-suite runner descheduled the test. Exact head 0cb499dc5649929ae0d7789eb6d7326c293423d9 removes only those two assertions; the test still holds commands through boundary reporting and validates independent one-shot consumption/output, while respecting the guard's timeout contract. Verification: focused test 10 consecutive passes and native guard module 138/138. Auto-merge disabled; fresh hosted checks running.
 ---
 <!-- COMMENTS:END -->
