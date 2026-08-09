@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-977
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Keep managed worktree hook paths worktree-local
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T22:45:47.293153Z'
-updated_at: '2026-08-09T23:11:34.041678Z'
+updated_at: '2026-08-09T23:18:43.350520Z'
 work_branch: OOMPAH-977
 target_branch: null
 review_url: null
@@ -41,6 +41,25 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-977
     digest: d61b9504e61f8192ec0fce70a3dd27c167c43ea336253b93f1a0afc47f82f701
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-ff4569e932c7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-977
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d61b9504e61f8192ec0fce70a3dd27c167c43ea336253b93f1a0afc47f82f701
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-09T23:18:36.460312+00:00'
+    selected_ref: f8467e42bad3c7db6d47678539ec62fc852e464e
+    selected_sha: f8467e42bad3c7db6d47678539ec62fc852e464e
+    applied: false
   version: 1
   pending_chain:
   - version: 1
