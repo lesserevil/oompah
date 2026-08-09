@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:20:19.752110Z'
-updated_at: '2026-08-09T14:23:09.587773Z'
+updated_at: '2026-08-09T15:00:50.008927Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,5 +36,10 @@ author: oompah
 created: 2026-08-09 14:23
 ---
 Implementation started on dedicated branch OOMPAH-961 at ba0859da9. Mapping durable snapshot publication, managed/event cursor authority, and current-exhaustion invariants before adding the atomic no-job/handoff proof.
+---
+author: oompah
+created: 2026-08-09 15:00
+---
+Implemented durable exact-publication retirement proofs for managed zero-job/decision cuts, terminal-audit handoffs, and lifecycle-final cuts, including production runtime coordinator wiring. Proofs remain fail-closed until their exact snapshot publishes; immediate event handoffs survive snapshot rollback; active jobs are marked before late failure; current replay jobs and unrelated event lanes remain actionable; rearm clears proofs for ABA safety. Focused affected suites pass (301 + 84 tests), new targeted migration/runtime/race tests pass, terminal mutation scan and secret scan pass. Rebasing onto current main next, then repeating focused validation.
 ---
 <!-- COMMENTS:END -->
