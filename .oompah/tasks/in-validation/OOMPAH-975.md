@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-975
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Carry trusted composed landing heads into rollup terminal transitions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:14:31.760374Z'
-updated_at: '2026-08-09T22:06:28.650263Z'
+updated_at: '2026-08-09T22:26:17.588940Z'
 work_branch: OOMPAH-975
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/782
@@ -32,6 +32,62 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/782
 oompah.review_number: '782'
 oompah.target_branch: main
 oompah.review_head: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-8f62ad9b36f0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-975
+    digest: 359fd89c7c4eb5ac1aec11ed4c75a771a703477e08b7702059d2e1eea95a9fbf
+  - version: 1
+    audit_id: audit-b8647366926c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-975
+    digest: 359fd89c7c4eb5ac1aec11ed4c75a771a703477e08b7702059d2e1eea95a9fbf
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8f62ad9b36f0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-975
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 359fd89c7c4eb5ac1aec11ed4c75a771a703477e08b7702059d2e1eea95a9fbf
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-09T22:26:07.264673+00:00'
+    selected_ref: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
+    selected_sha: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
+  - version: 1
+    audit_id: audit-b8647366926c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-975
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 359fd89c7c4eb5ac1aec11ed4c75a771a703477e08b7702059d2e1eea95a9fbf
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-09T22:26:07.264673+00:00'
+    selected_ref: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
+    selected_sha: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
+  attempt_history: []
 ---
 ## Summary
 
@@ -96,5 +152,15 @@ author: oompah
 created: 2026-08-09 22:06
 ---
 Rebased after OOMPAH-974 merged/deployed. Exact combined head d173e88eec2552ee639ef235a772fceeed8b66e6 contains main merge 9ea2d4d07 plus the reviewed OOMPAH-975 patch. Combined affected suite: 953 passed in 25.18 seconds; terminal status mutation scan passed 20/20; diff check clean. PR #782 protected Python 3.11/3.12/3.13 checks are rerunning on this exact composition.
+---
+author: oompah
+created: 2026-08-09 22:26
+---
+Protected rerun is green: exact branch head d173e88eec2552ee639ef235a772fceeed8b66e6 passed Python 3.11/3.12/3.13 and PR #782 auto-merged to main as e8be4d38d15f13859acb13865102bdbd86a8ec23. The merged local/remote task branches and worktree were pruned. Deployment is intentionally batched with the active OOMPAH-974/OOMPAH-976 fixes to avoid an extra restart on the currently known-starving runtime.
+---
+author: oompah
+created: 2026-08-09 22:26
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->

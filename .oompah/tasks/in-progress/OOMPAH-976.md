@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-976
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Serialize native validation authority withdrawal with supervisor terminal claims
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T22:15:32.098347Z'
-updated_at: '2026-08-09T22:25:59.531823Z'
+updated_at: '2026-08-09T22:26:24.107568Z'
 work_branch: null
 target_branch: null
 review_url: null
