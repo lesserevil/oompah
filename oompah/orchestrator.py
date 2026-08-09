@@ -272,7 +272,11 @@ from oompah.workflow_contract import (
     TaskDisposition,
     WorkflowOwner,
 )
-from oompah.work_decision import PermittedAction, WorkDecision
+from oompah.work_decision import (
+    PermittedAction,
+    WorkDecision,
+    epic_immediate_target_landings,
+)
 from oompah.work_decision_projection import (
     operator_actionable_alerts,
 )
@@ -29648,18 +29652,9 @@ class Orchestrator:
     @staticmethod
     def _shared_epic_landing_proven(facts: Any) -> bool:
         """Check the epic's own immediate-target LandingFact, not its status."""
-        containment = facts.fact(FactDomain.CONTAINMENT)
-        if containment.state.value != "known" or not isinstance(containment.value, Mapping):
-            return False
-        source = str(containment.value.get("epic_branch") or "").strip()
-        target = str(containment.value.get("target_branch") or "").strip()
-        if not source or not target or facts.fact(FactDomain.LANDING).state.value != "known":
-            return False
         return any(
-            item.source == source
-            and item.target == target
-            and item.state is LandingState.LANDED
-            for item in facts.landings
+            item.state is LandingState.LANDED
+            for item in epic_immediate_target_landings(facts)
         )
 
     def _is_epic_rebase_task(

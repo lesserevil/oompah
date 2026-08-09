@@ -891,10 +891,50 @@ async def test_terminal_stage_refreshes_issue_inside_task_ownership_lock():
     assert error is None
     assert payload is not None
     assert coordinator.overrides[0]["current_issue"] is authoritative
+    assert authoritative.project_id == "proj-1"
     expected_fingerprint = server_module._terminal_evidence_fingerprint(
         authoritative, "proj-1"
     )
     assert coordinator.overrides[0]["evidence_fingerprint"] == expected_fingerprint
+
+
+@pytest.mark.asyncio
+async def test_terminal_stage_rejects_refreshed_issue_from_another_project():
+    stale = Issue(
+        "task-wrong-project",
+        "task-wrong-project",
+        "Task",
+        description="work",
+        state="Done",
+    )
+    authoritative = Issue(
+        "task-wrong-project",
+        "task-wrong-project",
+        "Task",
+        description="work",
+        state="Done",
+        project_id="proj-other",
+    )
+    orch, tracker, coordinator = _orchestrator(stale)
+    tracker.fetch_issue_detail = lambda identifier: authoritative
+    orch.issue_transition_lock = lambda _issue_id: asyncio.Lock()
+
+    payload, error = await server_module._stage_terminal_transition(
+        orch=orch,
+        tracker=tracker,
+        project_id="proj-1",
+        issue=stale,
+        target=TargetState.MERGED,
+        body={},
+    )
+
+    assert payload is None
+    assert error == (
+        "The terminal transition could not be staged. Retry the request or ask "
+        "a project owner to review it.",
+        503,
+    )
+    assert coordinator.requests == []
 
 
 @pytest.mark.asyncio

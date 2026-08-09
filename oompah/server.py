@@ -7712,6 +7712,21 @@ async def _stage_terminal_transition(
                     )
                 else:
                     if refreshed is not None:
+                        refreshed_project_id = str(
+                            getattr(refreshed, "project_id", None) or ""
+                        ).strip()
+                        if refreshed_project_id and refreshed_project_id != project_id:
+                            raise ProjectError(
+                                "Refreshed terminal-transition issue escaped its "
+                                "canonical managed project"
+                            )
+                        # Native Markdown records are already scoped by their
+                        # project tracker and intentionally omit this redundant
+                        # field.  Reattach the canonical API scope after the
+                        # ownership-lock refresh; otherwise downstream lifecycle
+                        # validation cannot resolve a parent through
+                        # ``_tracker_for_issue`` and falsely reports it missing.
+                        refreshed.project_id = project_id
                         locked_issue = refreshed
             locked_owner_claim = orch._owner_claim_for_issue(
                 locked_issue.id,

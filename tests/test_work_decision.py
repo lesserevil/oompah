@@ -756,6 +756,17 @@ def test_done_nested_epic_uses_its_own_immediate_target_landing():
         issue,
         _facts(
             issue,
+            overrides={
+                FactDomain.CONTAINMENT: _known(
+                    FactDomain.CONTAINMENT,
+                    {
+                        "parent_id": "EPIC-1",
+                        "epic_branch": "task-branch",
+                        "target_branch": "epic-parent",
+                        "children": [],
+                    },
+                )
+            },
             landings=(_landing(LandingState.LANDED, target="epic-parent"),),
         ),
     )
@@ -763,6 +774,115 @@ def test_done_nested_epic_uses_its_own_immediate_target_landing():
     assert decision.reason_code == "terminal.immediate_target_landing_proven"
     assert decision.recommended_status == MERGED
     assert decision.durable_jobs == ("epic_auto_close",)
+
+
+def test_done_epic_does_not_treat_child_landing_as_its_own_when_target_is_unset():
+    issue = _issue(
+        DONE,
+        issue_type="epic",
+        work_branch=None,
+        target_branch=None,
+    )
+    child_landing = LandingFact(
+        "CHILD-1",
+        "epic-TASK-1",
+        "a" * 40,
+        {"kind": "git_ancestry"},
+        NOW_ISO,
+        "project-1",
+        state=LandingState.LANDED,
+        durable=True,
+    )
+
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.CONTAINMENT: _known(
+                    FactDomain.CONTAINMENT,
+                    {
+                        "parent_id": None,
+                        "epic_branch": "epic-TASK-1",
+                        "target_branch": "main",
+                        "children": [
+                            {"identifier": "CHILD-1", "status": DONE}
+                        ],
+                    },
+                )
+            },
+            landings=(child_landing,),
+        ),
+    )
+
+    assert decision.disposition is TaskDisposition.RETRY_SCHEDULED
+    assert decision.reason_code == "landing.target_evidence_missing"
+    assert decision.durable_jobs == ("epic_terminal_validation",)
+    assert decision.recommended_status is None
+
+
+def test_done_epic_fails_closed_when_containment_is_not_current():
+    issue = _issue(
+        DONE,
+        issue_type="epic",
+        work_branch="epic-TASK-1",
+        target_branch="main",
+    )
+    own_landing = LandingFact(
+        "epic-TASK-1",
+        "main",
+        "a" * 40,
+        {"kind": "git_ancestry"},
+        NOW_ISO,
+        "project-1",
+        state=LandingState.LANDED,
+        durable=True,
+    )
+    missing_containment = FactObservation.missing(
+        FactDomain.CONTAINMENT,
+        observed_at=NOW_ISO,
+        source="tracker",
+    )
+
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={FactDomain.CONTAINMENT: missing_containment},
+            landings=(own_landing,),
+        ),
+    )
+
+    assert decision.disposition is TaskDisposition.RETRY_SCHEDULED
+    assert decision.reason_code == "evidence.containment_missing"
+    assert decision.durable_jobs == ("epic_terminal_validation",)
+    assert decision.recommended_status is None
+
+
+def test_done_epic_fails_closed_when_containment_has_no_exact_target():
+    issue = _issue(DONE, issue_type="epic")
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.CONTAINMENT: _known(
+                    FactDomain.CONTAINMENT,
+                    {
+                        "parent_id": None,
+                        "epic_branch": "epic-TASK-1",
+                        "target_branch": None,
+                        "children": [],
+                    },
+                )
+            },
+        ),
+    )
+
+    assert decision.disposition is TaskDisposition.RETRY_SCHEDULED
+    assert decision.reason_code == "evidence.containment_malformed"
+    assert decision.durable_jobs == ("epic_terminal_validation",)
+    assert decision.recommended_status is None
 
 
 def test_done_ignores_landing_proof_for_a_different_target():
