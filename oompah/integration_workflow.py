@@ -779,15 +779,11 @@ class IntegrationLandingRequestResolver:
             return None
         expected_revision = next(iter(current_revisions), None)
         try:
-            raw_facts = self.workflow_store.latest_landing_facts(
+            raw_facts = self.workflow_store.latest_landing_facts_for_pair(
                 project_id=self.project_id,
                 task_id=parent_id,
-                # One parent owns one source/target obligation per direct
-                # child.  Read the same bounded population the integration
-                # controller can evaluate so a large epic cannot hide a
-                # lexically later child's canonical proof behind an
-                # arbitrary small query window.
-                limit=DEFAULT_INTEGRATION_DECISION_LIMIT,
+                source=expected_source,
+                target=expected_target,
             )
         except Exception:  # noqa: BLE001 - durable evidence boundary
             return None

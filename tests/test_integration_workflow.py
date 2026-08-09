@@ -3520,17 +3520,21 @@ def test_parent_scoped_child_landing_requires_current_direct_containment(tmp_pat
 
 
 def test_parent_scoped_child_landing_is_not_hidden_by_large_epic(tmp_path):
-    task, parent, fact = _parent_scoped_child_fixture()
+    task, parent, _fact = _parent_scoped_child_fixture()
+    task.identifier = task.id = "TASK-Z"
+    task.title = "Integrate TASK-Z"
+    task.work_branch = "TASK-Z"
+    fact = _parent_scoped_child_fact(source="TASK-Z")
     distractors = tuple(
-        _parent_scoped_child_fact(source=f"NOISE-{index:03d}").to_dict()
-        for index in range(120)
+        _parent_scoped_child_fact(source=f"A-NOISE-{index:04d}").to_dict()
+        for index in range(1000)
     )
     store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
     assert store.record_landing_facts(
         project_id="project-1",
         task_id=parent.identifier,
         facts=(*distractors, fact.to_dict()),
-    ) == 121
+    ) == 1001
     resolver = IntegrationLandingRequestResolver(
         project_id="project-1",
         tracker=Tracker([task, parent]),
@@ -3543,6 +3547,14 @@ def test_parent_scoped_child_landing_is_not_hidden_by_large_epic(tmp_path):
     request = resolver(task)[0]
 
     assert request.prior == fact
+    assert all(
+        row["source"] != "TASK-Z"
+        for row in store.latest_landing_facts(
+            project_id="project-1",
+            task_id=parent.identifier,
+            limit=1000,
+        )
+    )
     store.close()
 
 
@@ -3551,7 +3563,7 @@ def test_parent_scoped_child_landing_rejects_foreign_project_fact():
     foreign = _parent_scoped_child_fact(project_id="foreign-project")
 
     class ForeignStore:
-        def latest_landing_facts(self, **_kwargs):
+        def latest_landing_facts_for_pair(self, **_kwargs):
             return (foreign.to_dict(),)
 
     resolver = IntegrationLandingRequestResolver(
@@ -3571,7 +3583,7 @@ def test_parent_scoped_child_landing_rejects_ambiguous_parent_rows():
     second = _parent_scoped_child_fact(revision="b" * 40)
 
     class AmbiguousStore:
-        def latest_landing_facts(self, **_kwargs):
+        def latest_landing_facts_for_pair(self, **_kwargs):
             return (first.to_dict(), second.to_dict())
 
     resolver = IntegrationLandingRequestResolver(
