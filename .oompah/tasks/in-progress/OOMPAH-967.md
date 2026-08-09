@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:04:59.855533Z'
-updated_at: '2026-08-09T18:14:06.070750Z'
+updated_at: '2026-08-09T18:26:25.972525Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-08-09 18:14
 ---
 Root cause and bounded recovery confirmed. The universal workflow fact source ignored OOMPAH-871's authenticated terminal-provenance marker, so historical Done records continued to schedule exact landing refreshes until exhaustion. Current implementation projects a project/task/generation/actor-bound marker into terminal-audit facts; retained Done records produce a terminal zero-job decision, malformed or status-conflicting markers fail closed to a named operator action, and a healthy new-revision marker resumes ordinary evaluation. The existing exact-publication retirement path is exercised end to end, including restart persistence. Live manifest: 6/68 already retained, 57/68 have durable applied owner overrides, OOMPAH-755 has exact ancestry, and OOMPAH-505/523/526/804 require the explicit owner decision that they are historical rather than a false landing claim. Validation: 474 focused provenance/decision/fact/integration/runtime/job tests pass; independent reviews are in progress.
+---
+author: oompah
+created: 2026-08-09 18:26
+---
+Corrective head 9dc053c7d is pushed. Terminal provenance and audit facts now share one metadata-store instance, preserving exact missing/error semantics while retained authority still short-circuits unrelated audit handling. Verification: 479 focused workflow tests pass (including all terminal-audit shadow regressions), critical Ruff checks pass, and git diff checks pass. Final independent re-review is in progress before submission.
 ---
 <!-- COMMENTS:END -->
