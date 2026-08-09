@@ -1258,6 +1258,89 @@ def test_reserved_lane_and_shared_concurrency_are_hard_bounded(tmp_path):
     store.close()
 
 
+@pytest.mark.parametrize(
+    ("shared_rows", "expected_saturated"),
+    ((3, False), (4, True)),
+)
+def test_due_continues_only_for_claimable_suffix_beyond_concurrency(
+    tmp_path, shared_rows, expected_saturated
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    release = asyncio.Event()
+    all_capacity_started = asyncio.Event()
+    active = 0
+
+    class BlockingHandler(CompleteHandler):
+        async def apply(self, context):
+            nonlocal active
+            active += 1
+            if active == 4:
+                all_capacity_started.set()
+            try:
+                await release.wait()
+                return await super().apply(context)
+            finally:
+                active -= 1
+
+    store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="CONTROL-SATURATION",
+            generation="control-saturation",
+            action="authority_revocation",
+            idempotency_key="control-saturation",
+            priority=100,
+        )
+    )
+    for index in range(shared_rows):
+        store.enqueue(
+            WorkflowJobSpec(
+                project_id="project-1",
+                task_id=f"DATA-SATURATION-{index}",
+                generation=f"data-saturation-{index}",
+                action="standalone_delivery",
+                idempotency_key=f"data-saturation-{index}",
+                priority=0,
+            )
+        )
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(BlockingHandler()),
+        batch_size=8,
+        max_concurrent=4,
+        control_reserved_slots=1,
+    )
+
+    async def exercise():
+        await runtime.start()
+        first = await runtime._run_due(("project-1",))
+        await asyncio.wait_for(all_capacity_started.wait(), 1)
+        while_busy = await runtime._run_due(("project-1",))
+        release.set()
+        await wait_for_runtime_effects(runtime)
+        replenished = await runtime._run_due(("project-1",))
+        await wait_for_runtime_effects(runtime)
+        return first, while_busy, replenished
+
+    first, while_busy, replenished = asyncio.run(exercise())
+
+    assert first["scheduled"] == 4
+    assert first["active_lanes"] == {"control": 1, "shared": 3}
+    assert first["batch_saturated"] is expected_saturated
+    assert while_busy["scheduled"] == 0
+    assert while_busy["batch_saturated"] is False
+    assert replenished["scheduled"] == shared_rows - 3
+    assert replenished["batch_saturated"] is False
+    assert not store.list_jobs(states=("queued", "retry_wait", "running"))
+    runtime.close()
+    store.close()
+
+
 def test_concurrent_due_callers_cannot_spend_the_same_lane_reservation(tmp_path):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     tracker = NativeTracker([])

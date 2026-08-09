@@ -1430,6 +1430,60 @@ def test_claim_filters_exact_project_task_generation_and_action(store):
     assert observed.job_id == wanted.job_id
 
 
+def test_claimable_probe_shares_exact_claim_eligibility_without_mutation(store, clock):
+    eligible = store.enqueue(spec("eligible", task="ELIGIBLE", action="review_refresh"))
+    future = store.enqueue(spec("future", task="FUTURE", action="review_refresh"))
+    future_claim = claim(store, task_id="FUTURE", actions=("review_refresh",))
+    store.fail(
+        future_claim.job_id,
+        future_claim.lease_token,
+        category=WorkflowFailureCategory.TRANSIENT,
+        error="not due",
+        retryable=True,
+        retry_delay_seconds=60,
+    )
+    store.enqueue(spec("serial-first", task="SERIAL", action="review_refresh"))
+    blocked = store.enqueue(
+        spec("serial-second", task="SERIAL", action="integration_attempt")
+    )
+    running = claim(store, task_id="SERIAL", actions=("review_refresh",))
+    before = {
+        job.job_id: (job.state, job.attempts, job.lease_token)
+        for job in store.list_jobs()
+    }
+
+    assert store.has_claimable(project_ids=("project-a",), actions=("review_refresh",))
+    assert not store.has_claimable(
+        project_id="project-a",
+        task_id="FUTURE",
+        actions=("review_refresh",),
+    )
+    assert not store.has_claimable(
+        project_id="project-a",
+        task_id="SERIAL",
+        actions=("integration_attempt",),
+    )
+    assert not store.has_claimable(project_id="project-a", actions=("terminal_audit",))
+    after = {
+        job.job_id: (job.state, job.attempts, job.lease_token)
+        for job in store.list_jobs()
+    }
+
+    assert before == after
+    assert (
+        claim(
+            store,
+            project_ids=("project-a",),
+            actions=("review_refresh",),
+        ).job_id
+        == eligible.job_id
+    )
+    assert store.get(future.job_id).state is WorkflowJobState.RETRY_WAIT
+    assert store.get(blocked.job_id).state is WorkflowJobState.QUEUED
+    assert store.get(running.job_id).state is WorkflowJobState.RUNNING
+    assert clock.now == 1000.0
+
+
 def test_claim_filters_allowed_projects_with_durable_fair_rotation(store):
     project_a_first = store.enqueue(
         spec("a-1", project="project-a", task="A-1")

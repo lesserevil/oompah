@@ -4559,92 +4559,29 @@ class WorkflowJobStore:
         if lease_seconds <= 0:
             raise ValueError("lease_seconds must be positive")
         bounded_recovery = _bounded_limit(recovery_limit)
-        if project_id is not None and project_ids is not None:
-            raise ValueError("project_id and project_ids are mutually exclusive")
-        if isinstance(project_ids, (str, bytes)):
-            raise TypeError("project_ids must be a sequence")
-        normalized_project_ids = (
-            tuple(
-                sorted(
-                    {
-                        _required_text(value, "project_id")
-                        for value in project_ids
-                    }
-                )
-            )
-            if project_ids is not None
-            else ()
-        )
-        if project_ids is not None and not normalized_project_ids:
-            raise ValueError("project_ids cannot be empty")
-        clauses = [
-            "(candidate.state = ? OR (candidate.state = ? "
-            "AND candidate.retry_at IS NOT NULL AND candidate.retry_at <= ?))",
-            "candidate.attempts < candidate.max_attempts",
-            "(candidate.workflow_managed = 0 OR ("
-            "EXISTS (SELECT 1 FROM workflow_snapshot_membership member "
-            "JOIN workflow_schedule_cursors cursor "
-            "ON cursor.project_id = member.project_id "
-            "AND cursor.task_id = member.task_id "
-            "WHERE member.project_id = candidate.project_id "
-            "AND member.task_id = candidate.task_id "
-            "AND cursor.snapshot_generation = member.snapshot_generation "
-            "AND cursor.job_generation = candidate.generation "
-            "AND cursor.materialized_job_generation = candidate.generation) "
-            "AND (SELECT CAST(value AS INTEGER) FROM schema_meta "
-            "WHERE key = 'workflow_snapshot_generation') = "
-            "(SELECT CAST(value AS INTEGER) FROM schema_meta "
-            "WHERE key = 'workflow_snapshot_accepted_generation') "
-            "AND (SELECT CAST(value AS INTEGER) FROM schema_meta "
-            "WHERE key = 'workflow_snapshot_accepted_generation') = "
-            "(SELECT CAST(value AS INTEGER) FROM schema_meta "
-            "WHERE key = 'workflow_snapshot_published_generation'))) ",
-            "NOT EXISTS ("
-            "SELECT 1 FROM workflow_jobs owned "
-            "WHERE owned.project_id = candidate.project_id "
-            "AND owned.task_id = candidate.task_id "
-            "AND owned.state = 'running'"
-            ")",
-        ]
-        values: list[object] = [
-            WorkflowJobState.QUEUED.value,
-            WorkflowJobState.RETRY_WAIT.value,
-            0.0,
-        ]
-        for column, value in (
-            ("project_id", project_id),
-            ("task_id", task_id),
-            ("generation", generation),
-        ):
-            if value is not None:
-                clauses.append(f"candidate.{column} = ?")
-                values.append(_required_text(value, column))
-        if normalized_project_ids:
-            clauses.append(
-                "candidate.project_id IN ("
-                + ",".join("?" for _ in normalized_project_ids)
-                + ")"
-            )
-            values.extend(normalized_project_ids)
-        if actions:
-            normalized_actions = tuple(
-                _required_text(action, "action") for action in actions
-            )
-            clauses.append(
-                f"candidate.action IN ({','.join('?' for _ in normalized_actions)})"
-            )
-            values.extend(normalized_actions)
-        fairness_order = (
-            "COALESCE((SELECT fairness.claim_sequence "
-            "FROM workflow_project_fairness fairness "
-            "WHERE fairness.project_id = candidate.project_id), 0),"
-            if fair_across_projects and project_id is None
-            else ""
-        )
         lease_token = uuid.uuid4().hex
         with self._authority_mutation_guard():
+            # Eligibility is evaluated only after the authority lock is held.
+            # A retry can become due while a concurrent writer owns that lock;
+            # sampling before the wait would incorrectly hide it for a pass.
             timestamp = float(self._clock() if now is None else now)
-            values[2] = timestamp
+            clauses, values, normalized_project_ids, normalized_actions = (
+                self._claim_candidate_filter(
+                    project_id=project_id,
+                    project_ids=project_ids,
+                    task_id=task_id,
+                    generation=generation,
+                    actions=actions,
+                    now=timestamp,
+                )
+            )
+            fairness_order = (
+                "COALESCE((SELECT fairness.claim_sequence "
+                "FROM workflow_project_fairness fairness "
+                "WHERE fairness.project_id = candidate.project_id), 0),"
+                if fair_across_projects and project_id is None
+                else ""
+            )
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 recovery_projects = normalized_project_ids or (project_id,)
@@ -4653,7 +4590,7 @@ class WorkflowJobStore:
                         now=timestamp,
                         limit=bounded_recovery,
                         project_id=recovery_project,
-                        actions=actions,
+                        actions=normalized_actions,
                     )
                 selected = self._conn.execute(
                     f"""
@@ -4719,6 +4656,141 @@ class WorkflowJobStore:
             except Exception:
                 self._conn.rollback()
                 raise
+
+    def has_claimable(
+        self,
+        *,
+        project_id: str | None = None,
+        project_ids: Sequence[str] | None = None,
+        task_id: str | None = None,
+        generation: str | None = None,
+        actions: Sequence[str] | None = None,
+        now: float | None = None,
+    ) -> bool:
+        """Return whether an exact claim candidate exists without mutating it.
+
+        Admission uses this probe only after filling a bounded execution lane.
+        Sharing the claim predicate is important: a broad queued-row count can
+        otherwise turn future retries, paused snapshot generations, or a
+        second effect for an already-running task into a continuation loop.
+        Expired lease recovery remains exclusive to :meth:`claim_next`.
+        """
+
+        timestamp = float(self._clock() if now is None else now)
+        clauses, values, _project_ids, _actions = self._claim_candidate_filter(
+            project_id=project_id,
+            project_ids=project_ids,
+            task_id=task_id,
+            generation=generation,
+            actions=actions,
+            now=timestamp,
+        )
+        with self._lock:
+            row = self._conn.execute(
+                f"""
+                SELECT 1 FROM workflow_jobs candidate
+                 WHERE {" AND ".join(clauses)}
+                 LIMIT 1
+                """,
+                values,
+            ).fetchone()
+        return row is not None
+
+    @staticmethod
+    def _claim_candidate_filter(
+        *,
+        project_id: str | None,
+        project_ids: Sequence[str] | None,
+        task_id: str | None,
+        generation: str | None,
+        actions: Sequence[str] | None,
+        now: float,
+    ) -> tuple[
+        list[str],
+        list[object],
+        tuple[str, ...],
+        tuple[str, ...] | None,
+    ]:
+        """Build the one authoritative claim-eligibility predicate."""
+
+        if project_id is not None and project_ids is not None:
+            raise ValueError("project_id and project_ids are mutually exclusive")
+        if isinstance(project_ids, (str, bytes)):
+            raise TypeError("project_ids must be a sequence")
+        normalized_project_ids = (
+            tuple(
+                sorted(
+                    {
+                        _required_text(value, "project_id")
+                        for value in project_ids
+                    }
+                )
+            )
+            if project_ids is not None
+            else ()
+        )
+        if project_ids is not None and not normalized_project_ids:
+            raise ValueError("project_ids cannot be empty")
+        clauses = [
+            "(candidate.state = ? OR (candidate.state = ? "
+            "AND candidate.retry_at IS NOT NULL AND candidate.retry_at <= ?))",
+            "candidate.attempts < candidate.max_attempts",
+            "(candidate.workflow_managed = 0 OR ("
+            "EXISTS (SELECT 1 FROM workflow_snapshot_membership member "
+            "JOIN workflow_schedule_cursors cursor "
+            "ON cursor.project_id = member.project_id "
+            "AND cursor.task_id = member.task_id "
+            "WHERE member.project_id = candidate.project_id "
+            "AND member.task_id = candidate.task_id "
+            "AND cursor.snapshot_generation = member.snapshot_generation "
+            "AND cursor.job_generation = candidate.generation "
+            "AND cursor.materialized_job_generation = candidate.generation) "
+            "AND (SELECT CAST(value AS INTEGER) FROM schema_meta "
+            "WHERE key = 'workflow_snapshot_generation') = "
+            "(SELECT CAST(value AS INTEGER) FROM schema_meta "
+            "WHERE key = 'workflow_snapshot_accepted_generation') "
+            "AND (SELECT CAST(value AS INTEGER) FROM schema_meta "
+            "WHERE key = 'workflow_snapshot_accepted_generation') = "
+            "(SELECT CAST(value AS INTEGER) FROM schema_meta "
+            "WHERE key = 'workflow_snapshot_published_generation'))) ",
+            "NOT EXISTS ("
+            "SELECT 1 FROM workflow_jobs owned "
+            "WHERE owned.project_id = candidate.project_id "
+            "AND owned.task_id = candidate.task_id "
+            "AND owned.state = 'running'"
+            ")",
+        ]
+        values: list[object] = [
+            WorkflowJobState.QUEUED.value,
+            WorkflowJobState.RETRY_WAIT.value,
+            now,
+        ]
+        for column, value in (
+            ("project_id", project_id),
+            ("task_id", task_id),
+            ("generation", generation),
+        ):
+            if value is not None:
+                clauses.append(f"candidate.{column} = ?")
+                values.append(_required_text(value, column))
+        if normalized_project_ids:
+            clauses.append(
+                "candidate.project_id IN ("
+                + ",".join("?" for _ in normalized_project_ids)
+                + ")"
+            )
+            values.extend(normalized_project_ids)
+        normalized_actions: tuple[str, ...] | None = (
+            tuple(_required_text(action, "action") for action in actions)
+            if actions
+            else None
+        )
+        if normalized_actions:
+            clauses.append(
+                f"candidate.action IN ({','.join('?' for _ in normalized_actions)})"
+            )
+            values.extend(normalized_actions)
+        return clauses, values, normalized_project_ids, normalized_actions
 
     def _owned_row_locked(
         self, job_id: str, lease_token: str, *, now: float
