@@ -12,13 +12,25 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:35:21.482578Z'
-updated_at: '2026-08-09T15:17:03.430579Z'
-work_branch: null
+updated_at: '2026-08-09T15:17:16.454918Z'
+work_branch: OOMPAH-962
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-962
+  base_branch: epic-OOMPAH-940
+  base_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
+  head_sha: d46e474e1a49a65b714c3304fc0fb6ccc35aea3d
+  submitted_at: '2026-08-09T15:17:04.691942+00:00'
+  updated_at: '2026-08-09T15:17:04.691942+00:00'
+oompah.work_branch: OOMPAH-962
 ---
 ## Summary
 
@@ -46,5 +58,10 @@ author: oompah
 created: 2026-08-09 15:17
 ---
 Completed and pushed commit d46e474e1a49a65b714c3304fc0fb6ccc35aea3d on origin/OOMPAH-962, rebased on current origin/main. Verification: 386 focused tests passed across config, workflow ledger, worker, production implementation adapter, and runtime; terminal-audit scan passed; secret scan exited clean. The branch preserves quarantine until exact late settlement/process recovery, checkpoints late apply receipts without duplicate mutation, terminalizes late failures, requests one durable bounded graceful recycle for permanent blocks, and fences same-PID exec/PID reuse.
+---
+author: oompah
+created: 2026-08-09 15:17
+---
+Implemented exact late quarantine settlement and bounded restart-safe recovery for timed-out workflow effects; pushed d46e474e1.
 ---
 <!-- COMMENTS:END -->
