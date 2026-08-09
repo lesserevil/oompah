@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-978
 type: bug
-status: In Progress
+status: In Review
 priority: 1
 title: Stop project config updates from dirtying managed checkouts
 parent: null
@@ -12,7 +12,7 @@ labels:
 - reliability
 assignee: null
 created_at: '2026-08-09T23:14:00.520291Z'
-updated_at: '2026-08-09T23:24:56.546812Z'
+updated_at: '2026-08-09T23:27:45.144518Z'
 work_branch: OOMPAH-978
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/787
