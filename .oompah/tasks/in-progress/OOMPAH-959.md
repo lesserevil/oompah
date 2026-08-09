@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:08:58.066871Z'
-updated_at: '2026-08-09T14:10:25.093628Z'
+updated_at: '2026-08-09T14:23:41.898294Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ Live rollout regression on build ba0859da9 after OOMPAH-939/OOMPAH-955: generati
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 14:23
+---
+Implemented exact non-mutating claimability probing shared with claim_next, concurrency-cap saturation signaling with a no-spin admission edge, and focused store/runtime regressions. Full workflow job/runtime modules pass: 155 tests. Ruff passes for changed surfaces aside from one pre-existing unused import excluded from the focused lint run.
+---
+<!-- COMMENTS:END -->
