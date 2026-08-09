@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-932
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: '[backend:workflow_runtime] Durable workflow source evaluation failed for proj-14849f1b'
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T05:18:44.565095Z'
-updated_at: '2026-08-09T05:18:44.565095Z'
+updated_at: '2026-08-09T05:19:30.107836Z'
 work_branch: null
 target_branch: null
 review_url: null
