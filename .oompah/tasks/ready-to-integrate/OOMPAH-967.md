@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:04:59.855533Z'
-updated_at: '2026-08-09T18:38:20.097987Z'
+updated_at: '2026-08-09T18:43:59.178057Z'
 work_branch: OOMPAH-967
 target_branch: null
 review_url: null
@@ -82,5 +82,10 @@ author: oompah
 created: 2026-08-09 18:38
 ---
 Final exact head 79192eea1 honors retained provenance, validates stored and projected authority fail closed, and fences publication races. 518 focused tests plus independent review are green.
+---
+author: oompah
+created: 2026-08-09 18:43
+---
+Final corrective head e0927912d is pushed: the canonical decision boundary now distinguishes an absent provenance key from explicit null/string/list/bool fact values, which fail closed as terminal.provenance_invalid with zero jobs. Persisted and projected validation is now end-to-end. Verification: 531 focused tests pass; independent 166-test adversarial review reports no blockers; critical Ruff/diff checks pass. Supersedes all prior submitted heads.
 ---
 <!-- COMMENTS:END -->
