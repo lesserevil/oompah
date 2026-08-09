@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T07:21:24.754079Z'
-updated_at: '2026-08-09T07:43:12.463009Z'
+updated_at: '2026-08-09T08:31:16.871164Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-08-09 07:43
 ---
 Direct-owner implementation complete at clean pushed head dec7e472ca653d5a35aa0ffba68a4f2e1c10947d. Legacy Done children now use durable integrated queue source revisions and immediate-parent targets; pruned parent refs are recovered only through an accepted final parent head plus fresh exact ancestry or complete non-empty git-cherry patch equivalence. Actual OOMPAH-476 has five of five equivalent patches against accepted parent head 95581aca. Verification: 191 affected tests passed plus focused negative cases; Ruff/diff checks clean. Awaiting combined protected-main integration with OOMPAH-936/OOMPAH-937.
+---
+author: oompah
+created: 2026-08-09 08:31
+---
+Combined delivery is pushed at final head cafc100c4 on PR #750. Protected hosted CI is running the complete gate on Python 3.11, 3.12, and 3.13.
 ---
 <!-- COMMENTS:END -->

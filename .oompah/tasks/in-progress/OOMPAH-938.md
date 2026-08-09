@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T08:25:48.619150Z'
-updated_at: '2026-08-09T08:29:01.068701Z'
+updated_at: '2026-08-09T08:31:25.479848Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-08-09 08:29
 ---
 Direct-owner fix committed in the combined integration at cafc100c4. The test now uses a 30-second aging band, explicitly backdates the old waiter beyond all 21 priority bands, and keeps fresh waiters unambiguously fresh under scheduler load. Verification: focused test passes; 32 repetitions at eight-way concurrency pass; all 499 validation-resource lease tests pass. Production lease code is unchanged. Awaiting protected-main integration.
+---
+author: oompah
+created: 2026-08-09 08:31
+---
+Combined delivery is pushed at final head cafc100c4 on PR #750. Protected hosted CI is running the complete gate on Python 3.11, 3.12, and 3.13.
 ---
 <!-- COMMENTS:END -->

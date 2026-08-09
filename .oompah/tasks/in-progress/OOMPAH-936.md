@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T07:23:37.669062Z'
-updated_at: '2026-08-09T07:40:53.131707Z'
+updated_at: '2026-08-09T08:31:19.649550Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-08-09 07:40
 ---
 Direct-owner implementation complete at clean pushed head 2e574619bea14021f537ab8c7c7f805e056d320d. Paused audit obligations remain durable but project as suspended/non-degrading across startup, periodic scans, persistence, restart, and resume; zero-capacity scans stay current and resume restores dispatch. Verification: 225 focused health/observability/enforcement tests + 601 audit-lane consumer tests passed; git diff --check passed. Awaiting combined protected-main integration with OOMPAH-935/OOMPAH-937.
+---
+author: oompah
+created: 2026-08-09 08:31
+---
+Combined delivery is pushed at final head cafc100c4 on PR #750. Protected hosted CI is running the complete gate on Python 3.11, 3.12, and 3.13.
 ---
 <!-- COMMENTS:END -->

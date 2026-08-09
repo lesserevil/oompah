@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T07:29:03.390818Z'
-updated_at: '2026-08-09T07:49:21.248506Z'
+updated_at: '2026-08-09T08:31:22.516906Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-08-09 07:49
 ---
 Direct-owner implementation complete at clean pushed head daea753e7. Global current_states.exhausted and per-task liveness now share one durable authority query; revision drift cannot hide current exhaustion; concrete replacement generations clear only historical rows; ambiguous/retired replacements fail closed; universal retry.exhausted overrides ordinary owner retry in API publication. Verification: 191 focused store/controller/runtime/state-projection tests passed; git diff --check passed. Awaiting combined protected-main integration with OOMPAH-935/OOMPAH-936.
+---
+author: oompah
+created: 2026-08-09 08:31
+---
+Combined delivery is pushed at final head cafc100c4 on PR #750. Protected hosted CI is running the complete gate on Python 3.11, 3.12, and 3.13.
 ---
 <!-- COMMENTS:END -->
