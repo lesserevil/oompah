@@ -2331,7 +2331,10 @@ def test_event_router_never_wakes_same_identifier_in_another_project():
         ),
     }
     runtime = SimpleNamespace(enforce=True, project_bindings=bindings)
-    orchestrator = SimpleNamespace(request_refresh=MagicMock())
+    orchestrator = SimpleNamespace(
+        request_refresh=MagicMock(),
+        _request_workflow_batch_continuation=MagicMock(return_value=True),
+    )
     router = EpicWorkflowEventRouter(orchestrator, runtime)
     decision = SimpleNamespace(
         durable_jobs=(EpicAction.ROLLUP_REVIEW_CREATION.value,),
@@ -2365,6 +2368,16 @@ def test_event_router_never_wakes_same_identifier_in_another_project():
     )
     assert review_call.kwargs["expected_evidence_revision"] == "evidence-1"
     controller_two.schedule_action.assert_not_called()
+    assert (
+        orchestrator._request_workflow_batch_continuation.call_count == 3
+    )
+    assert {
+        call.kwargs["reason"]
+        for call in (
+            orchestrator._request_workflow_batch_continuation.call_args_list
+        )
+    } == {"epic_workflow_event:issue-state-changed"}
+    orchestrator.request_refresh.assert_not_called()
     router.close()
 
 

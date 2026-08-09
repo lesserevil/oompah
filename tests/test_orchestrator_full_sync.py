@@ -18,8 +18,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from oompah.config import ServiceConfig
-from oompah.models import WorkflowDefinition
+from oompah.epic_workflow_adapter import EpicWorkflowEventRouter
+from oompah.events import EventType
+from oompah.models import Issue, WorkflowDefinition
 from oompah.orchestrator import DispatchEvent, DispatchEventType, Orchestrator
+from oompah.workflow_runtime import WorkflowRuntime
 
 
 # ---------------------------------------------------------------------------
@@ -257,28 +260,28 @@ class TestRunLoopUpdatesSyncTime:
         """The real dispatch loop consumes one coalesced continuation edge."""
 
         orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
-        reports = iter(
-            (
-                {"worker": {"processed": 2, "batch_saturated": True}},
-                {
-                    "worker": {
-                        "processed": suffix_processed,
-                        "batch_saturated": False,
-                    }
+        async def continue_admission_async():
+            orch._stopping = True
+            return {
+                "admission_only": True,
+                "requires_reconcile": False,
+                "worker": {
+                    "processed": suffix_processed,
+                    "batch_saturated": False,
                 },
-            )
-        )
-
-        async def reconcile_async():
-            report = next(reports)
-            if report["worker"]["batch_saturated"] is False:
-                orch._stopping = True
-            return report
+            }
 
         runtime = SimpleNamespace(
             started=True,
             start=AsyncMock(),
-            reconcile_async=AsyncMock(side_effect=reconcile_async),
+            reconcile_async=AsyncMock(
+                return_value={
+                    "worker": {"processed": 2, "batch_saturated": True}
+                }
+            ),
+            continue_admission_async=AsyncMock(
+                side_effect=continue_admission_async
+            ),
             worker=SimpleNamespace(accepting=True, active_count=0),
             pending_operation_count=0,
             drain=AsyncMock(return_value=True),
@@ -291,15 +294,278 @@ class TestRunLoopUpdatesSyncTime:
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
 
-        # An existing refresh edge proves the continuation uses the same
-        # coalescing key instead of appending a second world scan.
-        orch._post_event(
-            DispatchEvent(event_type=DispatchEventType.REFRESH_REQUESTED)
+        asyncio.run(orch.run())
+
+        assert runtime.reconcile_async.await_count == 1
+        runtime.continue_admission_async.assert_awaited_once_with()
+        assert orch._last_tick_metrics["workflow_admission_only"] is True
+        assert orch._dispatch_queue.empty()
+
+    def test_ordinary_event_subsumes_coalesced_admission_wake(self, tmp_path):
+        orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
+        reconcile_count = 0
+
+        async def reconcile_async():
+            nonlocal reconcile_count
+            reconcile_count += 1
+            if reconcile_count == 1:
+                orch._post_event(
+                    DispatchEvent(
+                        event_type=DispatchEventType.WORKFLOW_ADMISSION
+                    )
+                )
+                orch._post_event(
+                    DispatchEvent(
+                        event_type=DispatchEventType.REFRESH_REQUESTED
+                    )
+                )
+            else:
+                orch._stopping = True
+            return {"worker": {"processed": 0, "batch_saturated": False}}
+
+        runtime = SimpleNamespace(
+            started=True,
+            start=AsyncMock(),
+            reconcile_async=AsyncMock(side_effect=reconcile_async),
+            continue_admission_async=AsyncMock(),
+            worker=SimpleNamespace(accepting=True, active_count=0),
+            pending_operation_count=0,
+            drain=AsyncMock(return_value=True),
+            close=MagicMock(),
         )
+        orch.workflow_runtime = runtime
+        _stub_unrelated_run_startup(orch)
+        orch._dispatch_audit_lane = AsyncMock(return_value={"pending": 0})
+        orch._run_non_lifecycle_housekeeping = MagicMock()
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+
         asyncio.run(orch.run())
 
         assert runtime.reconcile_async.await_count == 2
+        runtime.continue_admission_async.assert_not_awaited()
         assert orch._last_coalesced_event_count == 1
+        assert orch._dispatch_queue.empty()
+
+    def test_transition_completions_keep_fast_admission_until_empty(
+        self, tmp_path
+    ):
+        """Production transition/completion callbacks share one fast wake."""
+
+        orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
+        production_runtime = WorkflowRuntime.from_orchestrator(
+            orch,
+            state_dir=tmp_path / "production-callbacks",
+        )
+        orch.request_refresh = MagicMock()
+        request_continuation = MagicMock(
+            wraps=orch._request_workflow_batch_continuation
+        )
+        orch._request_workflow_batch_continuation = request_continuation
+        observed_events = []
+
+        def observe_event(event, payload):
+            observed_events.append((event, dict(payload)))
+
+        parent = Issue(
+            id="EPIC-1",
+            identifier="EPIC-1",
+            title="epic",
+            description="fixture",
+            state="In Progress",
+            issue_type="epic",
+            project_id="legacy",
+        )
+        children = [
+            Issue(
+                id=f"TASK-{index}",
+                identifier=f"TASK-{index}",
+                title="child",
+                description="fixture",
+                state="Done",
+                issue_type="task",
+                project_id="legacy",
+                parent_id=parent.identifier,
+            )
+            for index in (1, 2)
+        ]
+
+        class TransitionTracker:
+            issues = {
+                issue.identifier: issue for issue in (parent, *children)
+            }
+
+            def fetch_issue_detail(self, identifier):
+                return self.issues.get(identifier)
+
+        epic_controller = MagicMock()
+        epic_controller.scheduler = MagicMock()
+        router_runtime = SimpleNamespace(
+            enforce=True,
+            project_bindings={
+                "legacy": SimpleNamespace(
+                    tracker=TransitionTracker(),
+                    epic_controller=epic_controller,
+                )
+            },
+        )
+        event_router = EpicWorkflowEventRouter(orch, router_runtime)
+        event_router._schedule_current_decision = MagicMock(return_value=0)
+        orch.event_bus.subscribe(EventType.ISSUE_STATE_CHANGED, observe_event)
+        orch.event_bus.subscribe(
+            EventType.ISSUE_STATE_CHANGED,
+            event_router.on_issue_changed,
+        )
+        reconcile_count = 0
+        admission_count = 0
+
+        async def reconcile_async():
+            nonlocal reconcile_count
+            reconcile_count += 1
+            if reconcile_count == 2:
+                orch._stopping = True
+            return {
+                "worker": {
+                    "processed": 2 if reconcile_count == 1 else 0,
+                    "batch_saturated": reconcile_count == 1,
+                }
+            }
+
+        async def completed_result(job_id):
+            return SimpleNamespace(job_id=job_id)
+
+        async def continue_admission_async():
+            nonlocal admission_count
+            admission_count += 1
+            if admission_count <= 2:
+                job = SimpleNamespace(
+                    job_id=f"job-{admission_count}",
+                    project_id="legacy",
+                    task_id=f"TASK-{admission_count}",
+                    action="implementation_dispatch",
+                )
+                production_runtime.record_event("transition_applied", job)
+                event_router.drain_events(timeout=5.0)
+                await asyncio.sleep(0)
+                completion = asyncio.create_task(completed_result(job.job_id))
+                await completion
+                production_runtime._effect_finished(completion)
+                return {
+                    "admission_only": True,
+                    "requires_reconcile": False,
+                    "worker": {
+                        "processed": 1,
+                        "batch_saturated": False,
+                    },
+                }
+            return {
+                "admission_only": True,
+                "requires_reconcile": True,
+                "reason": "published workflow queue drained",
+            }
+
+        runtime = SimpleNamespace(
+            started=True,
+            start=AsyncMock(),
+            reconcile_async=AsyncMock(side_effect=reconcile_async),
+            continue_admission_async=AsyncMock(
+                side_effect=continue_admission_async
+            ),
+            worker=SimpleNamespace(accepting=True, active_count=0),
+            pending_operation_count=0,
+            drain=AsyncMock(return_value=True),
+            close=MagicMock(),
+        )
+        orch.workflow_runtime = runtime
+        _stub_unrelated_run_startup(orch)
+        orch._dispatch_audit_lane = AsyncMock(return_value={"pending": 0})
+        orch._run_non_lifecycle_housekeeping = MagicMock()
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+
+        try:
+            asyncio.run(orch.run())
+        finally:
+            event_router.close()
+            production_runtime.close()
+
+        assert runtime.reconcile_async.await_count == 2
+        assert runtime.continue_admission_async.await_count == 3
+        assert observed_events == [
+            (
+                EventType.ISSUE_STATE_CHANGED,
+                {
+                    "project_id": "legacy",
+                    "identifier": f"TASK-{index}",
+                    "change": "durable-workflow-transition-applied",
+                },
+            )
+            for index in (1, 2)
+        ]
+        assert orch.request_refresh.call_count == 0
+        continuation_reasons = [
+            call.kwargs.get("reason")
+            for call in request_continuation.call_args_list
+        ]
+        assert continuation_reasons.count(None) == 1
+        assert continuation_reasons.count("workflow_transition_applied") == 2
+        assert continuation_reasons.count("workflow_effect_completed") == 2
+        assert (
+            continuation_reasons.count(
+                "epic_workflow_event:issue-state-changed"
+            )
+            == 4
+        )
+        assert epic_controller.schedule_action.call_count == 4
+        assert orch._dispatch_events_coalesced == 6
+        assert orch._last_coalesced_event_count == 3
+        assert orch._dispatch_queue.empty()
+
+    def test_stale_admission_cut_falls_back_to_one_world_reconcile(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
+        reconcile_count = 0
+
+        async def reconcile_async():
+            nonlocal reconcile_count
+            reconcile_count += 1
+            if reconcile_count == 2:
+                orch._stopping = True
+            return {
+                "worker": {
+                    "processed": 2 if reconcile_count == 1 else 0,
+                    "batch_saturated": reconcile_count == 1,
+                }
+            }
+
+        runtime = SimpleNamespace(
+            started=True,
+            start=AsyncMock(),
+            reconcile_async=AsyncMock(side_effect=reconcile_async),
+            continue_admission_async=AsyncMock(
+                return_value={
+                    "admission_only": True,
+                    "requires_reconcile": True,
+                    "reason": "workflow admission cut is stale",
+                }
+            ),
+            worker=SimpleNamespace(accepting=True, active_count=0),
+            pending_operation_count=0,
+            drain=AsyncMock(return_value=True),
+            close=MagicMock(),
+        )
+        orch.workflow_runtime = runtime
+        _stub_unrelated_run_startup(orch)
+        orch._dispatch_audit_lane = AsyncMock(return_value={"pending": 0})
+        orch._run_non_lifecycle_housekeeping = MagicMock()
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+
+        asyncio.run(orch.run())
+
+        runtime.continue_admission_async.assert_awaited_once_with()
+        assert runtime.reconcile_async.await_count == 2
         assert orch._dispatch_queue.empty()
 
 
