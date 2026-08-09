@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:18:16.575025Z'
-updated_at: '2026-08-09T12:57:18.528217Z'
+updated_at: '2026-08-09T14:15:07.179694Z'
 work_branch: OOMPAH-949
 target_branch: null
 review_url: null
@@ -48,7 +48,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-949
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -75,6 +75,22 @@ oompah.terminal_audit:
         auditor capability policy permits only read-only repository inspection and
         configured test commands; command denied'
       next_retry_at: '2026-08-09T12:57:12.602200+00:00'
+    - version: 1
+      attempt_id: attempt-a35d2d44bcef
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: a4a47f04bfa3a98181764fe8e565906643b9e7d9425ebcc97a48b51e23617224
+      created_at: '2026-08-09T14:14:56.957941+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-09T14:14:56.957941+00:00'
+      branch_key: OOMPAH-949
+      selected_ref: 27c3685dc3d2e4aba8e852a88569795acd300fe7
+      selected_sha: 27c3685dc3d2e4aba8e852a88569795acd300fe7
+      candidate_rotation_count: 1
     source_generation: 1
     requested_by:
       version: 1
@@ -84,7 +100,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T12:27:15.737526+00:00'
     selected_ref: 27c3685dc3d2e4aba8e852a88569795acd300fe7
     selected_sha: 27c3685dc3d2e4aba8e852a88569795acd300fe7
-    updated_at: '2026-08-09T12:57:02.602239+00:00'
+    updated_at: '2026-08-09T14:14:56.957941+00:00'
   - version: 1
     audit_id: audit-e418ec38f7a8
     project_id: proj-14849f1b
@@ -127,6 +143,22 @@ oompah.terminal_audit:
       auditor capability policy permits only read-only repository inspection and configured
       test commands; command denied'
     next_retry_at: '2026-08-09T12:57:12.602200+00:00'
+  - version: 1
+    attempt_id: attempt-a35d2d44bcef
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a4a47f04bfa3a98181764fe8e565906643b9e7d9425ebcc97a48b51e23617224
+    created_at: '2026-08-09T14:14:56.957941+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-09T14:14:56.957941+00:00'
+    branch_key: OOMPAH-949
+    selected_ref: 27c3685dc3d2e4aba8e852a88569795acd300fe7
+    selected_sha: 27c3685dc3d2e4aba8e852a88569795acd300fe7
+    candidate_rotation_count: 1
 oompah.task_costs:
   total_input_tokens: 294
   total_output_tokens: 60
@@ -202,5 +234,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 22m 38s
 - Log: OOMPAH-949__20260809T123439Z.jsonl
+---
+author: oompah
+created: 2026-08-09 14:15
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-09 14:15
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
