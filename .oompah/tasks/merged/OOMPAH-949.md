@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:18:16.575025Z'
-updated_at: '2026-08-09T16:31:44.167222Z'
+updated_at: '2026-08-09T16:31:56.775492Z'
 work_branch: OOMPAH-949
 target_branch: null
 review_url: null
@@ -61,7 +61,19 @@ oompah.terminal_audit:
     created_at: '2026-08-09T16:31:39.981869+00:00'
     selected_ref: 27c3685dc3d2e4aba8e852a88569795acd300fe7
     selected_sha: 27c3685dc3d2e4aba8e852a88569795acd300fe7
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-949
+    target_state: Merged
+    evidence_fingerprint: a4a47f04bfa3a98181764fe8e565906643b9e7d9425ebcc97a48b51e23617224
+    audit_ids:
+    - audit-b5437e001a05
+    - audit-e418ec38f7a8
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T16:31:48.346433+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -69,7 +81,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-949
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -124,13 +136,13 @@ oompah.terminal_audit:
     created_at: '2026-08-09T12:27:15.737526+00:00'
     selected_ref: 27c3685dc3d2e4aba8e852a88569795acd300fe7
     selected_sha: 27c3685dc3d2e4aba8e852a88569795acd300fe7
-    updated_at: '2026-08-09T15:50:49.470799+00:00'
+    updated_at: '2026-08-09T16:31:48.346390+00:00'
   - version: 1
     audit_id: audit-e418ec38f7a8
     project_id: proj-14849f1b
     task_id: OOMPAH-949
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -145,6 +157,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T12:27:15.737526+00:00'
     selected_ref: 27c3685dc3d2e4aba8e852a88569795acd300fe7
     selected_sha: 27c3685dc3d2e4aba8e852a88569795acd300fe7
+    updated_at: '2026-08-09T16:31:48.346418+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d2e60aa0a26e
@@ -292,5 +305,17 @@ author: oompah
 created: 2026-08-09 15:51
 ---
 Auditor attempt ended: graceful restart interrupted auditor before verdict. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-09 16:31
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Project-owner override after exact task head 27c3685dc3d2e4aba8e852a88569795acd300fe7 was proven to be PR #762 head and contained in main; PR #762 merged as 73705cea7523925b2bec19bc374e0399351e9e3d with hosted Python 3.11/3.12/3.13 checks successful.
+---
+author: oompah
+created: 2026-08-09 16:31
+---
+Merged: exact OOMPAH-949 head 27c3685dc landed through PR #762 as 73705cea7; all hosted Python matrices passed.
 ---
 <!-- COMMENTS:END -->
