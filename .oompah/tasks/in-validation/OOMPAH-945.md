@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:46.122749Z'
-updated_at: '2026-08-09T15:51:08.562758Z'
+updated_at: '2026-08-09T15:51:20.369291Z'
 work_branch: OOMPAH-945
 target_branch: null
 review_url: null
@@ -92,6 +92,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-945
     selected_ref: 748fd1da7f5c3c97e9ac9695092c477412ffea2b
     selected_sha: 748fd1da7f5c3c97e9ac9695092c477412ffea2b
+oompah.task_costs:
+  total_input_tokens: 238
+  total_output_tokens: 54
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 238
+      output_tokens: 54
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 238
+    output_tokens: 54
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T15:50:58.914882+00:00'
 ---
 ## Summary
 

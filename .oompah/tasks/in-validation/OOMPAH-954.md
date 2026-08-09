@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:29:27.319915Z'
-updated_at: '2026-08-09T15:51:05.987466Z'
+updated_at: '2026-08-09T15:51:29.939552Z'
 work_branch: OOMPAH-954
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-954
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -54,7 +54,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9908b9664e50
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -66,6 +66,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-954
       selected_ref: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
       selected_sha: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
+      failure_classification: scheduler_pause
+      ended_at: '2026-08-09T15:51:15.392111+00:00'
+      failure_reason: graceful restart interrupted auditor before verdict
     source_generation: 1
     requested_by:
       version: 1
@@ -75,12 +78,12 @@ oompah.terminal_audit:
     created_at: '2026-08-09T12:51:29.097174+00:00'
     selected_ref: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
     selected_sha: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
-    updated_at: '2026-08-09T14:29:16.239897+00:00'
+    updated_at: '2026-08-09T15:51:15.392111+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9908b9664e50
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -92,6 +95,25 @@ oompah.terminal_audit:
     branch_key: OOMPAH-954
     selected_ref: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
     selected_sha: dccbeb5ac4e1012d772ebfa366e586bdb6df76db
+    failure_classification: scheduler_pause
+    ended_at: '2026-08-09T15:51:15.392111+00:00'
+    failure_reason: graceful restart interrupted auditor before verdict
+oompah.task_costs:
+  total_input_tokens: 46
+  total_output_tokens: 5
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 46
+      output_tokens: 5
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 46
+    output_tokens: 5
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T15:50:58.812602+00:00'
 ---
 ## Summary
 
