@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-931
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Retire repaired exhausted workflow generations
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T04:24:02.309459Z'
-updated_at: '2026-08-09T04:24:02.309459Z'
+updated_at: '2026-08-09T04:24:15.837060Z'
 work_branch: null
 target_branch: null
 review_url: null
