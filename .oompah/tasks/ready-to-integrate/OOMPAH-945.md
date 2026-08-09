@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-945
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Unify terminal transition guards with exact-current work decisions
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:46.122749Z'
-updated_at: '2026-08-09T09:28:04.687547Z'
+updated_at: '2026-08-09T09:28:13.505927Z'
 work_branch: OOMPAH-945
 target_branch: null
 review_url: null
