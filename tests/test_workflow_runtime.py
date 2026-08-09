@@ -1341,6 +1341,183 @@ def test_due_continues_only_for_claimable_suffix_beyond_concurrency(
     store.close()
 
 
+def test_fast_admission_drains_multiple_slices_without_world_reconcile(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+
+    class CountingTracker(NativeTracker):
+        fetch_count = 0
+
+        def fetch_all_issues_enriched(self):
+            self.fetch_count += 1
+            return super().fetch_all_issues_enriched()
+
+    tracker = CountingTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    for index in range(5):
+        store.enqueue(
+            WorkflowJobSpec(
+                project_id="project-1",
+                task_id=f"FAST-SLICE-{index}",
+                generation=f"fast-slice-{index}",
+                action="review_refresh",
+                idempotency_key=f"fast-slice-{index}",
+            )
+        )
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        batch_size=8,
+        max_concurrent=2,
+        control_reserved_slots=1,
+    )
+
+    async def exercise():
+        await runtime.start()
+        first = await runtime.reconcile_async()
+        await wait_for_runtime_effects(runtime)
+        continuations = []
+        while store.list_jobs(states=("queued", "retry_wait", "running")):
+            continuations.append(await runtime.continue_admission_async())
+            await wait_for_runtime_effects(runtime)
+        return first, continuations
+
+    first, continuations = asyncio.run(exercise())
+
+    generation = first["projects"]["project-1"]["snapshot"]["generation"]
+    assert first["worker"]["scheduled"] == 1
+    assert len(continuations) == 4
+    assert all(report["admission_only"] is True for report in continuations)
+    assert all(report["requires_reconcile"] is False for report in continuations)
+    assert all(
+        report["snapshot_generation"] == generation
+        for report in continuations
+    )
+    assert tracker.fetch_count == 1
+    health = store.health_snapshot()
+    assert health["captured_snapshot_generation"] == generation
+    assert health["accepted_snapshot_generation"] == generation
+    assert health["published_snapshot_generation"] == generation
+    assert len(store.list_jobs(states=("completed",))) == 5
+    runtime.close()
+    store.close()
+
+
+def test_fast_admission_rejects_stale_snapshot_without_claiming(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+    )
+
+    asyncio.run(runtime.start())
+    first = asyncio.run(runtime.reconcile_async())
+    generation = first["projects"]["project-1"]["snapshot"]["generation"]
+    job = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="STALE-FAST-CUT",
+            generation="stale-fast-cut",
+            action="review_refresh",
+            idempotency_key="stale-fast-cut",
+        )
+    )
+    assert store.allocate_snapshot_generation() > generation
+
+    report = asyncio.run(runtime.continue_admission_async())
+
+    assert report["requires_reconcile"] is True
+    assert report["reason"] == "workflow admission cut is stale"
+    assert store.get(job.job_id).state is WorkflowJobState.QUEUED
+    runtime.close()
+    store.close()
+
+
+def test_fast_admission_requests_one_world_scan_after_queue_drains(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="FINAL-FAST-SLICE",
+            generation="final-fast-slice",
+            action="review_refresh",
+            idempotency_key="final-fast-slice",
+        )
+    )
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        max_concurrent=2,
+        control_reserved_slots=1,
+    )
+
+    async def exercise():
+        await runtime.start()
+        first = await runtime.reconcile_async()
+        await wait_for_runtime_effects(runtime)
+        final = await runtime.continue_admission_async()
+        return first, final
+
+    first, final = asyncio.run(exercise())
+
+    assert first["worker"]["scheduled"] == 1
+    assert final["worker"]["completed"] == 1
+    assert final["worker"]["scheduled"] == 0
+    assert final["worker"]["active"] == 0
+    assert final["requires_reconcile"] is True
+    assert final["reconcile_reason"] == "published_queue_drained"
+    runtime.close()
+    store.close()
+
+
+def test_fast_admission_rechecks_project_pause_before_claiming(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    enabled = True
+    binding.dispatch_enabled = lambda: enabled
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+    )
+
+    asyncio.run(runtime.start())
+    asyncio.run(runtime.reconcile_async())
+    job = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="PAUSED-FAST-CUT",
+            generation="paused-fast-cut",
+            action="review_refresh",
+            idempotency_key="paused-fast-cut",
+        )
+    )
+    enabled = False
+
+    report = asyncio.run(runtime.continue_admission_async())
+
+    assert report["requires_reconcile"] is True
+    assert report["reason"] == "workflow project admission changed"
+    assert store.get(job.job_id).state is WorkflowJobState.QUEUED
+    runtime.close()
+    store.close()
+
+
 def test_concurrent_due_callers_cannot_spend_the_same_lane_reservation(tmp_path):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     tracker = NativeTracker([])

@@ -2414,6 +2414,36 @@ def test_commit_error_after_durable_marker_does_not_rollback_coherent_publicatio
     assert store.health_snapshot()["published_snapshot_generation"] == generation
 
 
+def test_claim_is_atomically_bound_to_required_published_snapshot(store):
+    generation = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(generation)
+    published, _ = store.publish_snapshot_generation(generation, lambda: None)
+    assert published
+    assert store.published_snapshot_generation_is_current(generation)
+    first = store.enqueue(spec(key="snapshot-first", task="SNAPSHOT-FIRST"))
+
+    claimed = claim(store, required_snapshot_generation=generation)
+
+    assert claimed is not None and claimed.job_id == first.job_id
+    second = store.enqueue(spec(key="snapshot-second", task="SNAPSHOT-SECOND"))
+    replacement = store.allocate_snapshot_generation()
+    assert replacement > generation
+    assert not store.published_snapshot_generation_is_current(generation)
+    assert not store.has_claimable(
+        required_snapshot_generation=generation,
+        task_id="SNAPSHOT-SECOND",
+    )
+    assert (
+        claim(
+            store,
+            required_snapshot_generation=generation,
+            task_id="SNAPSHOT-SECOND",
+        )
+        is None
+    )
+    assert store.get(second.job_id).state is WorkflowJobState.QUEUED
+
+
 def test_integrity_check_detects_tampered_spec(store):
     job = store.enqueue(spec())
     store._conn.execute(  # noqa: SLF001 - deliberate corruption boundary test

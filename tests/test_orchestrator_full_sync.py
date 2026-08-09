@@ -257,28 +257,28 @@ class TestRunLoopUpdatesSyncTime:
         """The real dispatch loop consumes one coalesced continuation edge."""
 
         orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
-        reports = iter(
-            (
-                {"worker": {"processed": 2, "batch_saturated": True}},
-                {
-                    "worker": {
-                        "processed": suffix_processed,
-                        "batch_saturated": False,
-                    }
+        async def continue_admission_async():
+            orch._stopping = True
+            return {
+                "admission_only": True,
+                "requires_reconcile": False,
+                "worker": {
+                    "processed": suffix_processed,
+                    "batch_saturated": False,
                 },
-            )
-        )
-
-        async def reconcile_async():
-            report = next(reports)
-            if report["worker"]["batch_saturated"] is False:
-                orch._stopping = True
-            return report
+            }
 
         runtime = SimpleNamespace(
             started=True,
             start=AsyncMock(),
-            reconcile_async=AsyncMock(side_effect=reconcile_async),
+            reconcile_async=AsyncMock(
+                return_value={
+                    "worker": {"processed": 2, "batch_saturated": True}
+                }
+            ),
+            continue_admission_async=AsyncMock(
+                side_effect=continue_admission_async
+            ),
             worker=SimpleNamespace(accepting=True, active_count=0),
             pending_operation_count=0,
             drain=AsyncMock(return_value=True),
@@ -291,15 +291,104 @@ class TestRunLoopUpdatesSyncTime:
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
 
-        # An existing refresh edge proves the continuation uses the same
-        # coalescing key instead of appending a second world scan.
-        orch._post_event(
-            DispatchEvent(event_type=DispatchEventType.REFRESH_REQUESTED)
+        asyncio.run(orch.run())
+
+        assert runtime.reconcile_async.await_count == 1
+        runtime.continue_admission_async.assert_awaited_once_with()
+        assert orch._last_tick_metrics["workflow_admission_only"] is True
+        assert orch._dispatch_queue.empty()
+
+    def test_ordinary_event_subsumes_coalesced_admission_wake(self, tmp_path):
+        orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
+        reconcile_count = 0
+
+        async def reconcile_async():
+            nonlocal reconcile_count
+            reconcile_count += 1
+            if reconcile_count == 1:
+                orch._post_event(
+                    DispatchEvent(
+                        event_type=DispatchEventType.WORKFLOW_ADMISSION
+                    )
+                )
+                orch._post_event(
+                    DispatchEvent(
+                        event_type=DispatchEventType.REFRESH_REQUESTED
+                    )
+                )
+            else:
+                orch._stopping = True
+            return {"worker": {"processed": 0, "batch_saturated": False}}
+
+        runtime = SimpleNamespace(
+            started=True,
+            start=AsyncMock(),
+            reconcile_async=AsyncMock(side_effect=reconcile_async),
+            continue_admission_async=AsyncMock(),
+            worker=SimpleNamespace(accepting=True, active_count=0),
+            pending_operation_count=0,
+            drain=AsyncMock(return_value=True),
+            close=MagicMock(),
         )
+        orch.workflow_runtime = runtime
+        _stub_unrelated_run_startup(orch)
+        orch._dispatch_audit_lane = AsyncMock(return_value={"pending": 0})
+        orch._run_non_lifecycle_housekeeping = MagicMock()
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+
         asyncio.run(orch.run())
 
         assert runtime.reconcile_async.await_count == 2
+        runtime.continue_admission_async.assert_not_awaited()
         assert orch._last_coalesced_event_count == 1
+        assert orch._dispatch_queue.empty()
+
+    def test_stale_admission_cut_falls_back_to_one_world_reconcile(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
+        reconcile_count = 0
+
+        async def reconcile_async():
+            nonlocal reconcile_count
+            reconcile_count += 1
+            if reconcile_count == 2:
+                orch._stopping = True
+            return {
+                "worker": {
+                    "processed": 2 if reconcile_count == 1 else 0,
+                    "batch_saturated": reconcile_count == 1,
+                }
+            }
+
+        runtime = SimpleNamespace(
+            started=True,
+            start=AsyncMock(),
+            reconcile_async=AsyncMock(side_effect=reconcile_async),
+            continue_admission_async=AsyncMock(
+                return_value={
+                    "admission_only": True,
+                    "requires_reconcile": True,
+                    "reason": "workflow admission cut is stale",
+                }
+            ),
+            worker=SimpleNamespace(accepting=True, active_count=0),
+            pending_operation_count=0,
+            drain=AsyncMock(return_value=True),
+            close=MagicMock(),
+        )
+        orch.workflow_runtime = runtime
+        _stub_unrelated_run_startup(orch)
+        orch._dispatch_audit_lane = AsyncMock(return_value={"pending": 0})
+        orch._run_non_lifecycle_housekeeping = MagicMock()
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+
+        asyncio.run(orch.run())
+
+        runtime.continue_admission_async.assert_awaited_once_with()
+        assert runtime.reconcile_async.await_count == 2
         assert orch._dispatch_queue.empty()
 
 
