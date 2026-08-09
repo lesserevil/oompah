@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T22:45:47.293153Z'
-updated_at: '2026-08-09T23:18:43.350520Z'
+updated_at: '2026-08-09T23:18:53.007093Z'
 work_branch: OOMPAH-977
 target_branch: null
 review_url: null
@@ -59,7 +59,19 @@ oompah.terminal_audit:
     created_at: '2026-08-09T23:18:36.460312+00:00'
     selected_ref: f8467e42bad3c7db6d47678539ec62fc852e464e
     selected_sha: f8467e42bad3c7db6d47678539ec62fc852e464e
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-977
+    target_state: Merged
+    evidence_fingerprint: d61b9504e61f8192ec0fce70a3dd27c167c43ea336253b93f1a0afc47f82f701
+    audit_ids:
+    - audit-1b8d08d9006f
+    - audit-c5354a243a91
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T23:18:50.763317+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -67,7 +79,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-977
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -97,13 +109,13 @@ oompah.terminal_audit:
     created_at: '2026-08-09T23:08:32.944952+00:00'
     selected_ref: f8467e42bad3c7db6d47678539ec62fc852e464e
     selected_sha: f8467e42bad3c7db6d47678539ec62fc852e464e
-    updated_at: '2026-08-09T23:11:24.010630+00:00'
+    updated_at: '2026-08-09T23:18:50.763275+00:00'
   - version: 1
     audit_id: audit-c5354a243a91
     project_id: proj-14849f1b
     task_id: OOMPAH-977
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -118,6 +130,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T23:08:32.944952+00:00'
     selected_ref: f8467e42bad3c7db6d47678539ec62fc852e464e
     selected_sha: f8467e42bad3c7db6d47678539ec62fc852e464e
+    updated_at: '2026-08-09T23:18:50.763302+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-586512c1e66f
@@ -171,5 +184,12 @@ author: oompah
 created: 2026-08-09 23:11
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 23:18
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: [REDACTED]
 ---
 <!-- COMMENTS:END -->
