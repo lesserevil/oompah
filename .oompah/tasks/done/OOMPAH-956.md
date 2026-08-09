@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:50:18.472017Z'
-updated_at: '2026-08-09T16:30:20.450231Z'
+updated_at: '2026-08-09T16:30:31.746151Z'
 work_branch: OOMPAH-956
 target_branch: null
 review_url: null
@@ -60,7 +60,18 @@ oompah.terminal_audit:
     created_at: '2026-08-09T16:30:16.541673+00:00'
     selected_ref: 60b94b8844af30c1ff796869eeab3b68b98dbe1f
     selected_sha: 60b94b8844af30c1ff796869eeab3b68b98dbe1f
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-956
+    target_state: Done
+    evidence_fingerprint: 63b4d438cd1ac27bc9e42a318fb6f37af999c59f4f540a56fa343312be353f0a
+    audit_ids:
+    - audit-aa39a2da406b
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T16:30:24.840289+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -68,7 +79,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-956
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -120,7 +131,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T12:51:55.985811+00:00'
     selected_ref: 60b94b8844af30c1ff796869eeab3b68b98dbe1f
     selected_sha: 60b94b8844af30c1ff796869eeab3b68b98dbe1f
-    updated_at: '2026-08-09T16:25:35.293927+00:00'
+    updated_at: '2026-08-09T16:30:24.840248+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9b6cd3a95d81
@@ -268,5 +279,17 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 18m 28s
 - Log: OOMPAH-956__20260809T160803Z.jsonl
+---
+author: oompah
+created: 2026-08-09 16:30
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner override after exact range-diff mapped accepted head 60b94b8844af30c1ff796869eeab3b68b98dbe1f to aggregate commit cc9188123 (only a duplicate-import context adjustment after OOMPAH-955 composition); aggregate head 2dd74be288b81265ea4a242d7467ecc1ed9f1435 merged by PR #757 as ba0859da9d47d3417a50bfbaa2cb10a7a32f5f01 with hosted Python 3.11/3.12/3.13 checks successful.
+---
+author: oompah
+created: 2026-08-09 16:30
+---
+Done: OOMPAH-956 accepted change 60b94b884 is composition-equivalent to aggregate cc9188123 in merged epic PR #757 (ba0859da9); all hosted Python matrices passed.
 ---
 <!-- COMMENTS:END -->
