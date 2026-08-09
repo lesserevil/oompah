@@ -48,6 +48,7 @@ from oompah.statuses import (
 from oompah.task_transition_service import (
     TransitionAuthority,
     TransitionIntent,
+    TransitionOutcome,
     issue_authority_version,
     issue_exact_head,
 )
@@ -387,6 +388,18 @@ class OrchestratorImplementationEffects:
         async with lock:
             yield
 
+    @asynccontextmanager
+    async def _issue_authority_lane(self, issue: Any):
+        """Serialize owner-claim mutation with accepted submission capture."""
+
+        lock_factory = getattr(self.orchestrator, "issue_transition_lock", None)
+        lock = lock_factory(issue.id) if callable(lock_factory) else None
+        if lock is None or not hasattr(lock, "__aenter__"):
+            yield
+            return
+        async with lock:
+            yield
+
     async def _admit_dispatch(
         self,
         issue: Any,
@@ -609,11 +622,35 @@ class OrchestratorImplementationEffects:
     ) -> ImplementationDisposition | None:
         receipt = await asyncio.to_thread(self.receipts.get, context)
         if receipt is not None:
+            await self._publish_recovered_direct_owner_revocation(context)
             return receipt
         derived = await asyncio.to_thread(self._derive, context)
         if derived is not None:
-            return await asyncio.to_thread(self.receipts.record, context, derived)
+            receipt = await asyncio.to_thread(self.receipts.record, context, derived)
+            await self._publish_recovered_direct_owner_revocation(context)
+            return receipt
         return None
+
+    async def _publish_recovered_direct_owner_revocation(
+        self,
+        context: WorkflowJobContext,
+    ) -> None:
+        """Publish idempotent state after observing an applied exact release."""
+
+        if (
+            ImplementationAction(context.job.action)
+            is not ImplementationAction.AUTHORITY_REVOCATION
+        ):
+            return
+        payload = context.job.payload or {}
+        if not (
+            _text(payload.get("authority_kind")) == "direct_owner"
+            or "claim_id" in payload
+        ):
+            return
+        notify = getattr(self.orchestrator, "_notify_state_only", None)
+        if callable(notify):
+            await asyncio.to_thread(notify)
 
     async def apply(self, context: WorkflowJobContext) -> ImplementationDisposition:
         key = context.job.idempotency_key
@@ -719,18 +756,20 @@ class OrchestratorImplementationEffects:
                     )
                 self._assert_job_current(context)
             try:
-                claim = await asyncio.to_thread(
-                    self.orchestrator.grant_owner_claim,
-                    issue_id=issue.id,
-                    project_id=self.project_id,
-                    owner_login=owner,
-                    ttl_hours=(
-                        int(payload["ttl_hours"])
-                        if payload.get("ttl_hours")
-                        else None
-                    ),
-                    claim_id=_text(payload.get("claim_id")) or None,
-                )
+                async with self._issue_authority_lane(issue):
+                    self._assert_job_current(context)
+                    claim = await asyncio.to_thread(
+                        self.orchestrator.grant_owner_claim,
+                        issue_id=issue.id,
+                        project_id=self.project_id,
+                        owner_login=owner,
+                        ttl_hours=(
+                            int(payload["ttl_hours"])
+                            if payload.get("ttl_hours")
+                            else None
+                        ),
+                        claim_id=_text(payload.get("claim_id")) or None,
+                    )
             except ValueError as exc:
                 raise WorkflowActionError(
                     f"direct-owner claim is waiting for scheduler retirement: {exc}",
@@ -1046,11 +1085,14 @@ class OrchestratorImplementationEffects:
                     self._assert_job_current(context)
             if direct_owner_only:
                 try:
-                    removed = self.orchestrator.release_owner_claim(
-                        issue_id=issue.id,
-                        project_id=self.project_id,
-                        expected_claim_id=expected_claim_id,
-                    )
+                    async with self._issue_authority_lane(issue):
+                        self._assert_job_current(context)
+                        removed = await asyncio.to_thread(
+                            self.orchestrator.release_owner_claim,
+                            issue_id=issue.id,
+                            project_id=self.project_id,
+                            expected_claim_id=expected_claim_id,
+                        )
                 except OSError as exc:
                     raise WorkflowActionError(
                         "direct-owner claim release was not durably persisted",
@@ -1067,6 +1109,9 @@ class OrchestratorImplementationEffects:
                             category=WorkflowFailureCategory.TRANSIENT,
                             retryable=True,
                         )
+                notify = getattr(self.orchestrator, "_notify_state_only", None)
+                if removed and callable(notify):
+                    await asyncio.to_thread(notify)
             disposition = self._disposition(context, issue=issue)
         elif action is ImplementationAction.RETRY:
             disposition = self._disposition(context, issue=issue)
@@ -1263,6 +1308,47 @@ class ProductionImplementationWorkflowBackend:
                 else None
             ),
         )
+
+    async def finalize_transition(
+        self,
+        context: WorkflowJobContext,
+        transition: TransitionOutcome,
+    ) -> None:
+        """Retire direct-owner authority only after accepted Ready commit."""
+
+        if (
+            ImplementationAction(context.job.action)
+            is not ImplementationAction.VALIDATION_SUBMISSION
+        ):
+            return
+        if canonicalize_status(transition.observed_status) != READY_TO_INTEGRATE:
+            return
+        retire = getattr(
+            self.effects.orchestrator,
+            "_retire_owner_claim_after_validation_transition",
+            None,
+        )
+        if not callable(retire):
+            return
+        retired = await asyncio.to_thread(retire, context.job)
+        if retired:
+            return
+        payload = context.job.payload or {}
+        claim_id = _text(payload.get("owner_claim_id"))
+        if not claim_id:
+            return
+        issue = await asyncio.to_thread(self.effects._issue, context.job.task_id)
+        current = await asyncio.to_thread(
+            self.effects.orchestrator._owner_claim_for_issue,
+            issue.id,
+            self.effects.project_id,
+        )
+        if _text(getattr(current, "claim_id", None)) == claim_id:
+            raise WorkflowActionError(
+                "accepted direct-owner submission is waiting for exact claim retirement",
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            )
 
 
 def build_implementation_workflow_handlers(

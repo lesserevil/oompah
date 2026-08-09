@@ -40,7 +40,9 @@ from oompah.statuses import (
     READY_TO_INTEGRATE,
 )
 from oompah.task_transition_service import (
+    TransitionDisposition,
     TransitionJournal,
+    TransitionOutcome,
     issue_authority_version,
 )
 from oompah.workflow_runtime import WorkflowRuntime, WorkflowRuntimeError
@@ -83,6 +85,7 @@ class FakeOrchestrator:
         self.released = []
         self.enqueued = []
         self.duplicate_claims = []
+        self.state_notifications = 0
         self.admit_dispatch = True
         self.state = SimpleNamespace(owner_claims={}, reject_streak={})
         self._owner_claims_lock = __import__("threading").RLock()
@@ -160,6 +163,9 @@ class FakeOrchestrator:
 
     def enqueue_durable_worker_submission(self, project_id, issue, record):
         self.enqueued.append((project_id, issue.identifier, record.head_sha))
+
+    def _notify_state_only(self):
+        self.state_notifications += 1
 
     def _claim_duplicate_preflight(self, issue, **kwargs):
         self.duplicate_claims.append((issue.identifier, kwargs))
@@ -612,6 +618,129 @@ async def test_direct_owner_revocation_retries_durable_release_failure(tmp_path)
 
 
 @pytest.mark.asyncio
+async def test_owner_claim_mutation_rechecks_job_after_submission_authority_lane(
+    tmp_path,
+):
+    issue = make_issue(status=IN_PROGRESS)
+    orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
+    authority_lock = asyncio.Lock()
+    orch.issue_transition_lock = lambda _issue_id: authority_lock
+    jobs, _queued_context = make_context(
+        tmp_path,
+        action=ImplementationAction.DIRECT_OWNER_CLAIM,
+        payload={
+            "owner_id": "project-owner",
+            "claim_id": "claim-blocked-by-submission",
+        },
+    )
+    running = jobs.claim_next(
+        lease_owner="owner-claim-worker",
+        lease_seconds=30,
+    )
+    assert running is not None
+    context = WorkflowJobContext(running, asyncio.Event(), asyncio.Event())
+    orch.workflow_job_store = jobs
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    await authority_lock.acquire()
+    applying = asyncio.create_task(effects.apply(context))
+    await asyncio.sleep(0)
+    jobs.supersede(
+        running.job_id,
+        generation=running.generation,
+        replacement_generation="accepted-validation-submission",
+        reason="submission won the shared authority lane",
+    )
+    authority_lock.release()
+
+    with pytest.raises(WorkflowActionError, match="authority changed"):
+        await applying
+    assert orch.claims == {}
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_direct_owner_revocation_publishes_state_after_exact_release(tmp_path):
+    issue = make_issue()
+    orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
+    now = datetime.now(timezone.utc).timestamp()
+    claim = OwnerClaim(
+        "claim-notified-after-release",
+        issue.id,
+        "project-a",
+        "project-owner",
+        now,
+        now + 3600,
+    )
+    orch.claims[("project-a", issue.id)] = claim
+    _jobs, context = make_context(
+        tmp_path,
+        action=ImplementationAction.AUTHORITY_REVOCATION,
+        payload={
+            "authority_kind": "direct_owner",
+            "claim_id": claim.claim_id,
+            "owner_id": claim.owner_login,
+        },
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    await effects.apply(context)
+
+    assert ("project-a", issue.id) not in orch.claims
+    assert orch.state_notifications == 1
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_revocation_replay_publishes_after_release_before_notify_failure(
+    tmp_path,
+):
+    issue = make_issue()
+    orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
+    now = datetime.now(timezone.utc).timestamp()
+    claim = OwnerClaim(
+        "claim-released-before-notify",
+        issue.id,
+        "project-a",
+        "project-owner",
+        now,
+        now + 3600,
+    )
+    orch.claims[("project-a", issue.id)] = claim
+    _jobs, context = make_context(
+        tmp_path,
+        action=ImplementationAction.AUTHORITY_REVOCATION,
+        payload={
+            "authority_kind": "direct_owner",
+            "claim_id": claim.claim_id,
+            "owner_id": claim.owner_login,
+        },
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    publish = orch._notify_state_only
+    orch._notify_state_only = MagicMock(
+        side_effect=RuntimeError("process died before state publication")
+    )
+
+    with pytest.raises(RuntimeError, match="before state publication"):
+        await effects.apply(context)
+
+    assert ("project-a", issue.id) not in orch.claims
+    assert effects.receipts.get(context) is None
+
+    # A restarted worker observes the already-absent exact claim. That
+    # idempotent observation must publish the new state even though apply is
+    # skipped and no first-attempt receipt survived.
+    orch._notify_state_only = publish
+    recovered = OrchestratorImplementationEffects(orch, project_id="project-a")
+    observed = await recovered.observe(context)
+
+    assert observed is not None
+    assert orch.state_notifications == 1
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
 async def test_general_revocation_cannot_terminate_a_replacement_worker(tmp_path):
     issue = make_issue(status=IN_PROGRESS)
     orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
@@ -940,6 +1069,43 @@ async def test_submission_builds_only_transition_service_status_intent(tmp_path)
     assert tracker.status_writes == []
     assert intent.requested_status == READY_TO_INTEGRATE
     assert intent.evidence_generation == context.job.generation
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_submission_finalizes_exact_owner_handoff_off_event_loop(tmp_path):
+    issue = make_issue(status=READY_TO_INTEGRATE)
+    issue.integration = SimpleNamespace(state="ready", head_sha=HEAD_A)
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    retire = MagicMock(return_value=True)
+    orch._retire_owner_claim_after_validation_transition = retire
+    _jobs, context = make_context(
+        tmp_path,
+        action=ImplementationAction.VALIDATION_SUBMISSION,
+        payload={
+            "owner_claim_id": "claim-submitted",
+            "owner_login": "project-owner",
+            "head_sha": HEAD_A,
+        },
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    backend = ProductionImplementationWorkflowBackend(effects)
+    transition = TransitionOutcome(
+        transition_id="transition-ready",
+        project_id="project-a",
+        task_id=issue.identifier,
+        disposition=TransitionDisposition.APPLIED,
+        reason_code="transition.applied",
+        observed_status=READY_TO_INTEGRATE,
+        observed_version="ready-version",
+        requested_status=READY_TO_INTEGRATE,
+        applied_status=READY_TO_INTEGRATE,
+    )
+
+    await backend.finalize_transition(context, transition)
+
+    retire.assert_called_once_with(context.job)
     effects.receipts.close()
 
 

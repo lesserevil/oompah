@@ -586,6 +586,8 @@ class DurableWorkflowWorker:
 
             saved_effect = resume_checkpoint.get("effect")
             saved_verification = resume_checkpoint.get("verification")
+            saved_transition_intent = resume_checkpoint.get("transition_intent")
+            saved_transition = resume_checkpoint.get("transition")
             if isinstance(saved_effect, Mapping):
                 effect = EffectResult(dict(saved_effect))
             else:
@@ -680,11 +682,30 @@ class DurableWorkflowWorker:
                     },
                 )
 
-            intent = await self._bounded(
-                "build_transition", handler.build_transition(context, verification)
+            transition = (
+                TransitionOutcome.from_dict(saved_transition, replayed=True)
+                if isinstance(saved_transition, Mapping)
+                else None
             )
-            context.check_interrupted()
-            transition: TransitionOutcome | None = None
+            if transition is None:
+                try:
+                    intent = (
+                        TransitionIntent.from_dict(saved_transition_intent)
+                        if isinstance(saved_transition_intent, Mapping)
+                        else await self._bounded(
+                            "build_transition",
+                            handler.build_transition(context, verification),
+                        )
+                    )
+                except (TypeError, ValueError) as exc:
+                    raise WorkflowActionError(
+                        "workflow checkpoint contains an invalid transition intent",
+                        category=WorkflowFailureCategory.PERMANENT,
+                        retryable=False,
+                    ) from exc
+                context.check_interrupted()
+            else:
+                intent = None
             if intent is not None:
                 if not isinstance(intent, TransitionIntent):
                     raise WorkflowActionError(
@@ -700,6 +721,25 @@ class DurableWorkflowWorker:
                         "handler transition intent escaped the job scope",
                         category=WorkflowFailureCategory.POLICY,
                         retryable=False,
+                    )
+                if not isinstance(saved_transition_intent, Mapping):
+                    # Persist the exact immutable intent before entering the
+                    # transition service.  If the process dies after the
+                    # tracker commits but before either service or worker can
+                    # journal the outcome, restart must replay this original
+                    # pre-commit intent rather than rebuild one from the
+                    # already-mutated tracker projection.
+                    await self._checkpoint(
+                        context,
+                        phase="transition_intent",
+                        checkpoint={
+                            "revalidation": self._revalidation_checkpoint(
+                                revalidation
+                            ),
+                            "effect": dict(effect.receipt),
+                            "verification": dict(verification.receipt),
+                            "transition_intent": intent.to_dict(),
+                        },
                     )
                 service = self.transition_services.get(context.job.project_id)
                 if service is None:
@@ -756,9 +796,18 @@ class DurableWorkflowWorker:
                         "revalidation": self._revalidation_checkpoint(revalidation),
                         "effect": dict(effect.receipt),
                         "verification": dict(verification.receipt),
+                        "transition_intent": intent.to_dict(),
                         "transition": transition.to_dict(),
                     },
                 )
+
+            finalize_transition = getattr(handler, "finalize_transition", None)
+            if transition is not None and callable(finalize_transition):
+                await self._bounded(
+                    "finalize_transition",
+                    finalize_transition(context, transition),
+                )
+                context.check_interrupted()
 
             completed = await asyncio.to_thread(
                 self.store.complete,
