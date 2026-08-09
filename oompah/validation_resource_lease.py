@@ -4618,7 +4618,13 @@ class ValidationResourceLease:
         on_wait: Callable[[], object] | None = None,
         wait_timeout_seconds: float | None = None,
     ) -> ValidationLeaseHandle:
-        """Queue durably and wait without consuming command runtime timeout."""
+        """Queue durably and wait without consuming command runtime timeout.
+
+        ``is_cancelled`` is sampled on every short queue poll.  Callers must
+        therefore supply a bounded local predicate; tracker, forge, and other
+        network-backed revalidation belongs at the external-effect boundary
+        after this method returns.
+        """
 
         token = uuid.uuid4().hex
         requester_pid = os.getpid()

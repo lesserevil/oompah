@@ -88,11 +88,11 @@ async def _exercise_same_loop_bridge(
     tool = next(item for item in catalog if item.name == AUDITOR_RESULT_TOOL_NAME)
 
     first = await asyncio.wait_for(
-        tool.handler({"result": _payload()}),
+        tool.handler(_payload()),
         timeout=5,
     )
     second = await asyncio.wait_for(
-        tool.handler({"result": _payload()}),
+        tool.handler(_payload()),
         timeout=5,
     )
 
@@ -186,7 +186,7 @@ def test_claude_acp_submission_surfaces_coordinator_rejection() -> None:
             item for item in catalog if item.name == AUDITOR_RESULT_TOOL_NAME
         )
         result = await asyncio.wait_for(
-            tool.handler({"result": _payload()}),
+            tool.handler(_payload()),
             timeout=5,
         )
         return result["content"][0]["text"], calls

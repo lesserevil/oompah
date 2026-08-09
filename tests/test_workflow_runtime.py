@@ -1874,6 +1874,10 @@ def test_runtime_epic_facts_prevent_stale_generic_exhaustion_override(tmp_path):
         store=store,
     )
     generic = evaluate_task(epic, binding.collector.collect(task_id))
+    # The generic collector intentionally lacks the exact containment branch
+    # authority required by the epic decision path. Runtime composition below
+    # replaces this malformed snapshot with the epic collector's canonical
+    # facts before publishing liveness.
     assert generic.reason_code == "evidence.containment_malformed"
     assert generic.durable_jobs == ("epic_terminal_validation",)
     stale = store.enqueue(

@@ -286,6 +286,336 @@ class OrchestratorEpicWorkflowEffects:
             )
         return revision
 
+    def _landed_epic_head(self, epic: Issue, facts: WorkflowFacts) -> str:
+        """Return the exact current source revision proven on its target."""
+
+        source, target = self._branches(epic, facts)
+        landing = next(
+            (
+                item
+                for item in facts.landings
+                if item.source == source
+                and item.target == target
+                and item.state is LandingState.LANDED
+            ),
+            None,
+        )
+        revision = _text(getattr(landing, "revision", None)).lower()
+        if not _EXACT_HEAD_RE.fullmatch(revision):
+            raise WorkflowActionError(
+                "epic auto-close has no exact landed source revision",
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            )
+        return revision
+
+    def _landed_review_retirement_snapshot(
+        self,
+        epic: Issue,
+        facts: WorkflowFacts,
+    ) -> Mapping[str, Any]:
+        """Observe exact landed-review and capacity state for one epic.
+
+        A source branch can have historical reviews for several targets and
+        generations.  Landing of one exact source/target/head tuple authorizes
+        retirement only of that tuple.  Any live same-source mismatch fails
+        closed rather than freeing capacity or closing another generation.
+        """
+
+        source, target = self._branches(epic, facts)
+        expected_head = self._landed_epic_head(epic, facts)
+        _project, provider, slug = self._forge(epic)
+        try:
+            open_reviews = tuple(provider.list_open_reviews(slug) or ())
+            if getattr(provider, "last_open_reviews_fetch_ok", True) is False:
+                raise RuntimeError("forge open-review listing was not authoritative")
+            live_head = _text(provider.get_branch_head_sha(slug, source)).lower()
+        except Exception as exc:
+            raise WorkflowActionError(
+                f"landed epic review observation failed: {type(exc).__name__}",
+                category=WorkflowFailureCategory.TRANSPORT,
+                retryable=True,
+            ) from exc
+        if live_head and live_head != expected_head:
+            raise WorkflowActionSuperseded(
+                "epic source advanced after the landed auto-close decision",
+                replacement_generation=f"head:{live_head}",
+            )
+
+        exact_reviews: list[dict[str, str]] = []
+        for review in open_reviews:
+            if _text(getattr(review, "state", "open")).lower() not in {
+                "",
+                "open",
+            }:
+                continue
+            if _text(getattr(review, "source_branch", None)) != source:
+                continue
+            review_id = _text(getattr(review, "id", None))
+            review_target = _text(getattr(review, "target_branch", None))
+            review_head = _text(getattr(review, "head_sha", None)).lower()
+            if not review_id:
+                raise WorkflowActionError(
+                    "open landed-epic review has no exact identity",
+                    category=WorkflowFailureCategory.TRANSIENT,
+                    retryable=True,
+                )
+            if not _EXACT_HEAD_RE.fullmatch(review_head):
+                # GitHub's open-review list omits the immutable PR head even
+                # though the single-review endpoint exposes it.  Resolve that
+                # exact identity before authorizing close; the live branch tip
+                # alone is insufficient because it may have advanced.
+                try:
+                    detail = provider.get_review(slug, review_id)
+                except Exception as exc:
+                    raise WorkflowActionError(
+                        f"open epic review #{review_id} head lookup failed",
+                        category=WorkflowFailureCategory.TRANSPORT,
+                        retryable=True,
+                    ) from exc
+                if detail is None:
+                    raise WorkflowActionError(
+                        f"open epic review #{review_id} is no longer observable",
+                        category=WorkflowFailureCategory.TRANSIENT,
+                        retryable=True,
+                    )
+                detail_source = _text(getattr(detail, "source_branch", None))
+                detail_target = _text(getattr(detail, "target_branch", None))
+                if detail_source != source or detail_target != review_target:
+                    raise WorkflowActionError(
+                        f"open epic review #{review_id} identity changed during lookup",
+                        category=WorkflowFailureCategory.STALE_EVIDENCE,
+                        retryable=False,
+                    )
+                review_head = _text(getattr(detail, "head_sha", None)).lower()
+            if not _EXACT_HEAD_RE.fullmatch(review_head):
+                raise WorkflowActionError(
+                    f"open epic review #{review_id} has no exact head",
+                    category=WorkflowFailureCategory.TRANSIENT,
+                    retryable=True,
+                )
+            if review_target != target:
+                raise WorkflowActionError(
+                    f"open epic review #{review_id} targets {review_target or '<missing>'}, "
+                    f"not {target}",
+                    category=WorkflowFailureCategory.STALE_EVIDENCE,
+                    retryable=False,
+                )
+            if review_head != expected_head:
+                raise WorkflowActionSuperseded(
+                    f"open epic review #{review_id} belongs to a different source head",
+                    replacement_generation=f"head:{review_head}",
+                )
+            exact_reviews.append(
+                {
+                    "review_id": review_id,
+                    "source_branch": source,
+                    "target_branch": target,
+                    "source_head": review_head,
+                }
+            )
+
+        try:
+            active = tuple(
+                self.orchestrator.review_capacity_store.active(self.project_id)
+            )
+        except Exception as exc:
+            raise WorkflowActionError(
+                f"landed epic review capacity observation failed: {type(exc).__name__}",
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            ) from exc
+
+        exact_review_ids = {item["review_id"] for item in exact_reviews}
+        exact_reservations: list[dict[str, str | None]] = []
+        for reservation in active:
+            reservation_task = _text(getattr(reservation, "task_id", None))
+            reservation_source = _text(
+                getattr(reservation, "source_branch", None)
+            )
+            reservation_target = _text(
+                getattr(reservation, "target_branch", None)
+            )
+            reservation_review_id = _text(getattr(reservation, "review_id", None))
+            relevant = (
+                reservation_task == epic.identifier
+                or reservation_source == source
+                or reservation_review_id in exact_review_ids
+            )
+            if not relevant:
+                continue
+            if (
+                reservation_task != epic.identifier
+                or reservation_source != source
+                or reservation_target != target
+            ):
+                raise WorkflowActionError(
+                    "landed epic capacity reservation has a conflicting route",
+                    category=WorkflowFailureCategory.STALE_EVIDENCE,
+                    retryable=False,
+                )
+            reservation_id = _text(getattr(reservation, "reservation_id", None))
+            reservation_head = _text(getattr(reservation, "head_sha", None)).lower()
+            if reservation_head and reservation_head != expected_head:
+                raise WorkflowActionSuperseded(
+                    "landed epic capacity reservation belongs to a different head",
+                    replacement_generation=f"head:{reservation_head}",
+                )
+            if not reservation_head and reservation_review_id not in exact_review_ids:
+                # Compatibility rows written before exact-head capacity
+                # binding can still be recovered from their immutable review
+                # identity.  Query that exact review instead of inferring from
+                # a task or branch name.
+                if not reservation_review_id:
+                    raise WorkflowActionError(
+                        "legacy epic capacity reservation has no exact review identity",
+                        category=WorkflowFailureCategory.STALE_EVIDENCE,
+                        retryable=False,
+                    )
+                try:
+                    historical = provider.get_review(slug, reservation_review_id)
+                except Exception as exc:
+                    raise WorkflowActionError(
+                        "legacy epic capacity review could not be verified",
+                        category=WorkflowFailureCategory.TRANSPORT,
+                        retryable=True,
+                    ) from exc
+                if (
+                    historical is None
+                    or _text(getattr(historical, "source_branch", None)) != source
+                    or _text(getattr(historical, "target_branch", None)) != target
+                    or _text(getattr(historical, "head_sha", None)).lower()
+                    != expected_head
+                ):
+                    raise WorkflowActionError(
+                        "legacy epic capacity reservation does not match the exact landing",
+                        category=WorkflowFailureCategory.STALE_EVIDENCE,
+                        retryable=False,
+                    )
+            exact_reservations.append(
+                {
+                    "reservation_id": reservation_id,
+                    "review_id": reservation_review_id or None,
+                    "head_sha": reservation_head or expected_head,
+                }
+            )
+
+        return {
+            "effect": EpicAction.AUTO_CLOSE.value,
+            "source_branch": source,
+            "target_branch": target,
+            "source_head": expected_head,
+            "open_reviews": tuple(exact_reviews),
+            "active_reservations": tuple(exact_reservations),
+            "review_retired": not exact_reviews and not exact_reservations,
+        }
+
+    def _retire_landed_review_under_authority(
+        self,
+        epic: Issue,
+        facts: WorkflowFacts,
+        *,
+        idempotency_key: str,
+    ) -> Mapping[str, Any]:
+        """Close and release only reviews bound to the exact landed head."""
+
+        issue_id = _text(getattr(epic, "id", None)) or epic.identifier
+        with (
+            self.orchestrator.issue_transition_lock(issue_id).sync(),
+            self.orchestrator.project_store.project_write_lock(self.project_id),
+        ):
+                current = self._fresh_epic_authority(epic, facts)
+                self._assert_terminal_containment_current(
+                    current,
+                    facts,
+                    operation="landed review retirement",
+                )
+                snapshot = self._landed_review_retirement_snapshot(current, facts)
+                source = _text(snapshot.get("source_branch"))
+                target = _text(snapshot.get("target_branch"))
+                expected_head = _text(snapshot.get("source_head")).lower()
+                _project, provider, slug = self._forge(current)
+
+                # Upgrade any legacy committed row before the forge mutation.
+                # If the process exits after close but before release, restart
+                # reconciliation can still identify this exact head safely.
+                for review in snapshot.get("open_reviews", ()):
+                    review_id = _text(review.get("review_id"))
+                    existing = next(
+                        (
+                            item
+                            for item in snapshot.get("active_reservations", ())
+                            if _text(item.get("review_id")) == review_id
+                        ),
+                        None,
+                    )
+                    reservation_id = _text(
+                        existing.get("reservation_id") if existing else None
+                    ) or f"{idempotency_key}:landed-review:{review_id}"
+                    try:
+                        self.orchestrator.review_capacity_store.adopt(
+                            project_id=self.project_id,
+                            task_id=current.identifier,
+                            source_branch=source,
+                            target_branch=target,
+                            review_id=review_id,
+                            reservation_id=reservation_id,
+                            authority_generation=issue_authority_version(current),
+                            head_sha=expected_head,
+                        )
+                    except Exception as exc:
+                        raise WorkflowActionError(
+                            "exact landed-review capacity binding could not be persisted",
+                            category=WorkflowFailureCategory.TRANSIENT,
+                            retryable=True,
+                        ) from exc
+
+                for review in snapshot.get("open_reviews", ()):
+                    review_id = _text(review.get("review_id"))
+                    try:
+                        outcome = provider.close_review(slug, review_id)
+                    except Exception as exc:
+                        raise WorkflowActionError(
+                            f"landed epic review #{review_id} close failed: "
+                            f"{type(exc).__name__}",
+                            category=WorkflowFailureCategory.TRANSPORT,
+                            retryable=True,
+                        ) from exc
+                    success = (
+                        bool(outcome[0])
+                        if isinstance(outcome, tuple)
+                        else bool(outcome)
+                    )
+                    if not success:
+                        raise WorkflowActionError(
+                            f"landed epic review #{review_id} was not closed",
+                            category=WorkflowFailureCategory.TRANSIENT,
+                            retryable=True,
+                        )
+                    self.orchestrator.release_review_capacity(
+                        self.project_id,
+                        review_id,
+                    )
+
+                # Release by immutable reservation identity as well.  This is
+                # exact even for an uncommitted or already-closed review row.
+                for reservation in snapshot.get("active_reservations", ()):
+                    reservation_id = _text(reservation.get("reservation_id"))
+                    if reservation_id:
+                        self.orchestrator._release_review_capacity(
+                            self.project_id,
+                            reservation_id=reservation_id,
+                        )
+
+                verified = self._landed_review_retirement_snapshot(current, facts)
+                if not bool(verified.get("review_retired")):
+                    raise WorkflowActionError(
+                        "landed epic review retirement is not yet observable",
+                        category=WorkflowFailureCategory.TRANSIENT,
+                        retryable=True,
+                    )
+                return verified
+
     def _review_metadata_matches(
         self,
         epic: Issue,
@@ -1296,6 +1626,9 @@ class OrchestratorEpicWorkflowEffects:
         facts: WorkflowFacts,
         payload: Mapping[str, Any],
     ) -> Mapping[str, Any] | None:
+        if action is EpicAction.AUTO_CLOSE:
+            evidence = self._landed_review_retirement_snapshot(epic, facts)
+            return evidence if bool(evidence.get("review_retired")) else None
         if action is EpicAction.ROLLUP_REVIEW_CREATION:
             evidence = self._review_evidence(epic, facts)
             if evidence is None or not self._review_metadata_matches(epic, evidence):
@@ -1380,6 +1713,14 @@ class OrchestratorEpicWorkflowEffects:
         originating_job: str | None = None,
         evidence_generation: str | None = None,
     ) -> Mapping[str, Any]:
+        if action is EpicAction.AUTO_CLOSE:
+            return await self._blocking(
+                self._retire_landed_review_under_authority,
+                epic,
+                facts,
+                idempotency_key=idempotency_key,
+            )
+
         if action is EpicAction.ROLLUP_REVIEW_CREATION:
             before_head = self._expected_epic_head(epic, facts)
             await self._blocking(
@@ -1575,6 +1916,19 @@ class OrchestratorEpicWorkflowEffects:
         payload: Mapping[str, Any],
         receipt: Mapping[str, Any],
     ) -> Mapping[str, Any] | None:
+        if action is EpicAction.AUTO_CLOSE:
+            evidence = self._landed_review_retirement_snapshot(epic, facts)
+            if (
+                not bool(evidence.get("review_retired"))
+                or _text(evidence.get("source_head")).lower()
+                != _text(receipt.get("source_head")).lower()
+                or _text(evidence.get("source_branch"))
+                != _text(receipt.get("source_branch"))
+                or _text(evidence.get("target_branch"))
+                != _text(receipt.get("target_branch"))
+            ):
+                return None
+            return evidence
         if action is EpicAction.ROLLUP_REVIEW_CREATION:
             evidence = self._review_evidence(
                 epic,

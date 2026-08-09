@@ -3909,6 +3909,43 @@ class TestOpenEpicMainPrs:
             for row in orch.review_capacity_store.active("proj-1")
         ] == ["254"]
 
+    def test_epic_capacity_reservation_binds_exact_authority_and_head(self, tmp_path):
+        """Durable epic review jobs cannot reuse another source generation."""
+
+        orch, project = self._setup(tmp_path, strategy="shared")
+        project.max_in_flight_prs = 2
+        provider = MagicMock()
+        provider.list_open_reviews.return_value = []
+
+        reservation = orch._acquire_review_slot(
+            project=project,
+            provider=provider,
+            repo_slug="org/repo",
+            task_id="OOMPAH-952",
+            source_branch="epic-OOMPAH-952",
+            target_branch="main",
+            authority_generation="epic-authority-v1",
+            head_sha="a" * 40,
+        )
+
+        assert reservation is not None
+        assert reservation.acquired_new is True
+        assert reservation.authority_generation == "epic-authority-v1"
+        assert reservation.head_sha == "a" * 40
+
+        stale_generation = orch._acquire_review_slot(
+            project=project,
+            provider=provider,
+            repo_slug="org/repo",
+            task_id="OOMPAH-952",
+            source_branch="epic-OOMPAH-952",
+            target_branch="main",
+            authority_generation="epic-authority-v2",
+            head_sha="b" * 40,
+        )
+
+        assert stale_generation is None
+
     def test_epic_close_during_create_cannot_publish_in_review(self, tmp_path):
         """An immediate close wins over epic review tracker publication."""
 

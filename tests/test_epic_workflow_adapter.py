@@ -17,6 +17,7 @@ from oompah.epic_workflow_adapter import (
 )
 from oompah.models import EpicRebaseState, Issue
 from oompah.orchestrator import Orchestrator
+from oompah.review_capacity import ReviewCapacityReservation
 from oompah.statuses import (
     ARCHIVED,
     DONE,
@@ -240,6 +241,304 @@ def test_terminal_validation_rejects_superseded_review_identity():
             facts,
             {"review_id": "42", "merged": True},
         )
+
+
+def _landed_auto_close_fixture(*, target="main", head="a" * 40):
+    issue = epic()
+    issue.state = DONE
+    facts = containment_facts(
+        target=target,
+        landings=(
+            LandingFact(
+                "epic-TOP",
+                target,
+                head,
+                {
+                    "kind": "complete_patch_equivalence",
+                    "source_sha": head,
+                },
+                "2026-08-09T00:00:00+00:00",
+                "project-1",
+                state=LandingState.LANDED,
+            ),
+        ),
+    )
+    effects, orchestrator, tracker = effect_fixture(issue)
+    tracker.fetch_children.return_value = []
+    return issue, facts, effects, orchestrator
+
+
+@pytest.mark.asyncio
+async def test_auto_close_retires_exact_landed_review_and_capacity():
+    issue, facts, effects, orchestrator = _landed_auto_close_fixture()
+    review = SimpleNamespace(
+        id="748",
+        state="open",
+        source_branch="epic-TOP",
+        target_branch="main",
+        head_sha=None,
+    )
+    reservation = ReviewCapacityReservation(
+        reservation_id="legacy-748",
+        project_id="project-1",
+        task_id="TOP",
+        source_branch="epic-TOP",
+        target_branch="main",
+        review_id="748",
+        acquired_at=1.0,
+        lease_expires_at=None,
+    )
+    provider = MagicMock()
+    provider.list_open_reviews.side_effect = ([review], [])
+    provider.get_branch_head_sha.return_value = "a" * 40
+    provider.get_review.return_value = SimpleNamespace(
+        id="748",
+        state="open",
+        source_branch="epic-TOP",
+        target_branch="main",
+        head_sha="a" * 40,
+    )
+    provider.close_review.return_value = (True, "closed")
+    orchestrator.review_capacity_store.active.side_effect = ([reservation], [])
+    orchestrator.review_capacity_store.adopt.return_value = reservation
+
+    with patch("oompah.epic_workflow_adapter.detect_provider", return_value=provider):
+        receipt = await effects.apply_epic_effect(
+            EpicAction.AUTO_CLOSE,
+            issue,
+            facts,
+            {},
+            idempotency_key="auto-close-748",
+        )
+
+    assert receipt["review_retired"] is True
+    assert receipt["source_head"] == "a" * 40
+    provider.close_review.assert_called_once_with("owner/repo", "748")
+    provider.get_review.assert_called_once_with("owner/repo", "748")
+    orchestrator.review_capacity_store.adopt.assert_called_once_with(
+        project_id="project-1",
+        task_id="TOP",
+        source_branch="epic-TOP",
+        target_branch="main",
+        review_id="748",
+        reservation_id="legacy-748",
+        authority_generation=issue_authority_version(issue),
+        head_sha="a" * 40,
+    )
+    orchestrator.release_review_capacity.assert_called_once_with(
+        "project-1",
+        "748",
+    )
+    orchestrator._release_review_capacity.assert_called_once_with(
+        "project-1",
+        reservation_id="legacy-748",
+    )
+
+
+@pytest.mark.asyncio
+async def test_auto_close_restart_releases_exact_head_bound_reservation():
+    issue, facts, effects, orchestrator = _landed_auto_close_fixture()
+    reservation = ReviewCapacityReservation(
+        reservation_id="restart-748",
+        project_id="project-1",
+        task_id="TOP",
+        source_branch="epic-TOP",
+        target_branch="main",
+        review_id="748",
+        acquired_at=1.0,
+        lease_expires_at=None,
+        authority_generation="pre-close-authority",
+        head_sha="a" * 40,
+    )
+    provider = MagicMock()
+    provider.list_open_reviews.side_effect = ([], [])
+    provider.get_branch_head_sha.return_value = "a" * 40
+    orchestrator.review_capacity_store.active.side_effect = ([reservation], [])
+
+    with patch("oompah.epic_workflow_adapter.detect_provider", return_value=provider):
+        receipt = await effects.apply_epic_effect(
+            EpicAction.AUTO_CLOSE,
+            issue,
+            facts,
+            {},
+            idempotency_key="auto-close-restart",
+        )
+
+    assert receipt["review_retired"] is True
+    provider.close_review.assert_not_called()
+    orchestrator._release_review_capacity.assert_called_once_with(
+        "project-1",
+        reservation_id="restart-748",
+    )
+
+
+@pytest.mark.asyncio
+async def test_auto_close_restart_verifies_legacy_reservation_review_identity():
+    issue, facts, effects, orchestrator = _landed_auto_close_fixture()
+    reservation = ReviewCapacityReservation(
+        reservation_id="legacy-closed-748",
+        project_id="project-1",
+        task_id="TOP",
+        source_branch="epic-TOP",
+        target_branch="main",
+        review_id="748",
+        acquired_at=1.0,
+        lease_expires_at=None,
+    )
+    provider = MagicMock()
+    provider.list_open_reviews.side_effect = ([], [])
+    provider.get_branch_head_sha.return_value = "a" * 40
+    provider.get_review.return_value = SimpleNamespace(
+        id="748",
+        state="closed",
+        source_branch="epic-TOP",
+        target_branch="main",
+        head_sha="a" * 40,
+    )
+    orchestrator.review_capacity_store.active.side_effect = ([reservation], [])
+
+    with patch("oompah.epic_workflow_adapter.detect_provider", return_value=provider):
+        receipt = await effects.apply_epic_effect(
+            EpicAction.AUTO_CLOSE,
+            issue,
+            facts,
+            {},
+            idempotency_key="auto-close-legacy-restart",
+        )
+
+    assert receipt["review_retired"] is True
+    provider.get_review.assert_called_once_with("owner/repo", "748")
+    orchestrator._release_review_capacity.assert_called_once_with(
+        "project-1",
+        reservation_id="legacy-closed-748",
+    )
+
+
+@pytest.mark.asyncio
+async def test_auto_close_preserves_wrong_target_review_and_capacity():
+    issue, facts, effects, orchestrator = _landed_auto_close_fixture()
+    provider = MagicMock()
+    provider.list_open_reviews.return_value = [
+        SimpleNamespace(
+            id="748",
+            state="open",
+            source_branch="epic-TOP",
+            target_branch="release/other",
+            head_sha="a" * 40,
+        )
+    ]
+    provider.get_branch_head_sha.return_value = "a" * 40
+
+    with (
+        patch("oompah.epic_workflow_adapter.detect_provider", return_value=provider),
+        pytest.raises(WorkflowActionError) as exc_info,
+    ):
+        await effects.apply_epic_effect(
+            EpicAction.AUTO_CLOSE,
+            issue,
+            facts,
+            {},
+            idempotency_key="auto-close-wrong-target",
+        )
+
+    assert exc_info.value.category is WorkflowFailureCategory.STALE_EVIDENCE
+    provider.close_review.assert_not_called()
+    orchestrator.release_review_capacity.assert_not_called()
+    orchestrator._release_review_capacity.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_auto_close_preserves_conflicting_capacity_route():
+    issue, facts, effects, orchestrator = _landed_auto_close_fixture()
+    provider = MagicMock()
+    provider.list_open_reviews.return_value = [
+        SimpleNamespace(
+            id="748",
+            state="open",
+            source_branch="epic-TOP",
+            target_branch="main",
+            head_sha="a" * 40,
+        )
+    ]
+    provider.get_branch_head_sha.return_value = "a" * 40
+    orchestrator.review_capacity_store.active.return_value = [
+        ReviewCapacityReservation(
+            reservation_id="wrong-route-748",
+            project_id="project-1",
+            task_id="TOP",
+            source_branch="epic-TOP",
+            target_branch="release/other",
+            review_id="748",
+            acquired_at=1.0,
+            lease_expires_at=None,
+            head_sha="a" * 40,
+        )
+    ]
+
+    with (
+        patch("oompah.epic_workflow_adapter.detect_provider", return_value=provider),
+        pytest.raises(WorkflowActionError) as exc_info,
+    ):
+        await effects.apply_epic_effect(
+            EpicAction.AUTO_CLOSE,
+            issue,
+            facts,
+            {},
+            idempotency_key="auto-close-conflicting-capacity",
+        )
+
+    assert exc_info.value.category is WorkflowFailureCategory.STALE_EVIDENCE
+    provider.close_review.assert_not_called()
+    orchestrator.review_capacity_store.adopt.assert_not_called()
+    orchestrator.release_review_capacity.assert_not_called()
+    orchestrator._release_review_capacity.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_auto_close_rejects_advanced_source_before_review_retirement():
+    issue, facts, effects, orchestrator = _landed_auto_close_fixture()
+    provider = MagicMock()
+    provider.list_open_reviews.return_value = []
+    provider.get_branch_head_sha.return_value = "b" * 40
+
+    with (
+        patch("oompah.epic_workflow_adapter.detect_provider", return_value=provider),
+        pytest.raises(WorkflowActionSuperseded, match="source advanced"),
+    ):
+        await effects.apply_epic_effect(
+            EpicAction.AUTO_CLOSE,
+            issue,
+            facts,
+            {},
+            idempotency_key="auto-close-advanced",
+        )
+
+    provider.close_review.assert_not_called()
+    orchestrator.release_review_capacity.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_auto_close_fails_closed_when_live_forge_state_is_unavailable():
+    issue, facts, effects, orchestrator = _landed_auto_close_fixture()
+    provider = MagicMock()
+    provider.list_open_reviews.return_value = []
+    provider.last_open_reviews_fetch_ok = False
+
+    with (
+        patch("oompah.epic_workflow_adapter.detect_provider", return_value=provider),
+        pytest.raises(WorkflowActionError) as exc_info,
+    ):
+        await effects.apply_epic_effect(
+            EpicAction.AUTO_CLOSE,
+            issue,
+            facts,
+            {},
+            idempotency_key="auto-close-forge-down",
+        )
+
+    assert exc_info.value.category is WorkflowFailureCategory.TRANSPORT
+    provider.close_review.assert_not_called()
+    orchestrator.release_review_capacity.assert_not_called()
 
 
 @pytest.mark.asyncio

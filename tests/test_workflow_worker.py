@@ -186,6 +186,29 @@ class RecordingTransitionService:
         )
 
 
+class FinalizingHandler(ScriptedHandler):
+    def __init__(self) -> None:
+        super().__init__(transition=True)
+        self.finalized: list[TransitionOutcome] = []
+
+    async def finalize_transition(self, _context, transition):
+        self.finalized.append(transition)
+
+
+class LandingFinalizingHandler(FinalizingHandler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.completion_steps: list[str] = []
+
+    async def completion_landing_facts(self, _context, _verification):
+        self.completion_steps.append("landing_evidence")
+        return ()
+
+    async def finalize_transition(self, context, transition):
+        self.completion_steps.append("transition_finalizer")
+        await super().finalize_transition(context, transition)
+
+
 def job_spec(
     *,
     action: str = "forge_effect",
@@ -276,8 +299,81 @@ async def test_worker_routes_transition_and_persists_result(store):
     assert result.disposition is WorkflowRunDisposition.COMPLETED
     completed = store.get(queued.job_id)
     assert completed.result_transition["disposition"] == "applied"
+    assert completed.checkpoint["transition_intent"]["expected_status"] == "Open"
     assert completed.checkpoint["transition"]["transition_id"] == "transition-1"
     assert transitions.applied_count == 1
+
+
+@pytest.mark.asyncio
+async def test_transition_finalizer_runs_after_durable_checkpoint(store):
+    queued = store.enqueue(job_spec())
+    handler = FinalizingHandler()
+    transitions = RecordingTransitionService()
+
+    result = await worker(store, handler, transition_service=transitions).run_once()
+
+    assert result.disposition is WorkflowRunDisposition.COMPLETED
+    assert len(handler.finalized) == 1
+    assert handler.finalized[0].disposition is TransitionDisposition.APPLIED
+    assert store.get(queued.job_id).checkpoint["transition"]["disposition"] == "applied"
+
+
+@pytest.mark.asyncio
+async def test_completion_evidence_is_validated_before_transition_finalizer(store):
+    queued = store.enqueue(job_spec())
+    handler = LandingFinalizingHandler()
+    transitions = RecordingTransitionService()
+
+    result = await worker(store, handler, transition_service=transitions).run_once()
+
+    assert result.disposition is WorkflowRunDisposition.COMPLETED
+    assert handler.completion_steps == [
+        "landing_evidence",
+        "transition_finalizer",
+    ]
+    assert len(handler.finalized) == 1
+    assert store.get(queued.job_id).state is WorkflowJobState.COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_restart_replays_saved_transition_through_exact_finalizer(
+    tmp_path, clock
+):
+    path = str(tmp_path / "finalizer-restart.sqlite3")
+    store = WorkflowJobStore(path, clock=clock)
+    queued = store.enqueue(job_spec())
+    handler = FinalizingHandler()
+    transitions = RecordingTransitionService()
+
+    def crash_after_transition(phase, _job):
+        if phase == "transition_applied":
+            raise ProcessDeath(phase)
+
+    with pytest.raises(ProcessDeath):
+        await worker(
+            store,
+            handler,
+            transition_service=transitions,
+            phase_observer=crash_after_transition,
+        ).run_once()
+    store.close()
+
+    reopened = WorkflowJobStore(path, clock=clock)
+    try:
+        assert reopened.recover_abandoned() == 1
+        result = await worker(
+            reopened,
+            handler,
+            transition_service=transitions,
+        ).run_once()
+
+        assert result.disposition is WorkflowRunDisposition.COMPLETED
+        assert transitions.calls == 1
+        assert len(handler.finalized) == 1
+        assert handler.finalized[0].replayed is True
+        assert reopened.get(queued.job_id).state is WorkflowJobState.COMPLETED
+    finally:
+        reopened.close()
 
 
 @pytest.mark.asyncio
@@ -846,6 +942,7 @@ async def test_cancelled_invocation_quarantines_late_effect_authority(store):
         "effect_returned",
         "verify_returned",
         "effect_verified",
+        "transition_intent",
         "transition_returned",
         "transition_applied",
         "completed",

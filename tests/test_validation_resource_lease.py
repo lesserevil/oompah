@@ -52,6 +52,29 @@ def _wait_for(predicate, timeout: float = 3.0) -> None:
     raise AssertionError("condition did not become true")
 
 
+def _wait_for_subprocess_marker(
+    process: subprocess.Popen[str], marker: Path, *, timeout: float = 15.0
+) -> None:
+    """Wait for a child handshake while surfacing early startup failures."""
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if marker.exists():
+            return
+        returncode = process.poll()
+        if returncode is not None:
+            stderr = process.stderr.read() if process.stderr is not None else ""
+            raise AssertionError(
+                f"waiter subprocess exited with {returncode} before handshake: "
+                f"{stderr.strip()}"
+            )
+        time.sleep(0.01)
+    raise AssertionError(
+        f"waiter subprocess {process.pid} did not publish {marker.name} "
+        f"within {timeout:.1f}s"
+    )
+
+
 def _age_waiter(state_path: Path, task_id: str, *, seconds: float) -> None:
     """Move one durable waiter into a deterministic aging band."""
 
@@ -2760,8 +2783,15 @@ def _acquire_and_record(lease, owner, label: str, order: list[str]) -> None:
 
 def test_cancelled_aged_waiter_does_not_transfer_protection(tmp_path):
     state_path = tmp_path / "lease.sqlite3"
+    # Keep replacement requests provably fresh under scheduler contention.
+    # The old 10 ms interval let a 210 ms delay legitimately starvation-
+    # protect the worker, which made worker-first ordering correct behavior.
+    aging_seconds = 1.0
+    starvation_seconds = aging_seconds * (
+        EXACT_GATE_PRIORITY - WORKER_PRIORITY + 1
+    )
     lease = ValidationResourceLease(
-        state_path, aging_seconds=0.01, poll_seconds=0.005
+        state_path, aging_seconds=aging_seconds, poll_seconds=0.005
     )
     held = lease.acquire(_gate_owner("blocker", "held"))
     cancelled = threading.Event()
@@ -2779,7 +2809,15 @@ def test_cancelled_aged_waiter_does_not_transfer_protection(tmp_path):
     thread = threading.Thread(target=wait)
     thread.start()
     _wait_for(lambda: lease.status().waiter_count == 1)
-    _age_waiter(state_path, "cancelled-worker", seconds=0.22)
+    _age_waiter(
+        state_path,
+        "cancelled-worker",
+        seconds=starvation_seconds + aging_seconds,
+    )
+    aged = lease.status().waiters[0]
+    assert aged["task_id"] == "cancelled-worker"
+    assert aged["starvation_protected"] is True
+    assert aged["effective_priority"] > EXACT_GATE_PRIORITY
     cancelled.set()
     thread.join(timeout=3)
     assert isinstance(errors[0], ValidationLeaseCancelled)
@@ -2804,14 +2842,26 @@ def test_cancelled_aged_waiter_does_not_transfer_protection(tmp_path):
     )
     worker.start()
     _wait_for(lambda: lease.status().waiter_count == 1)
+    # Model substantial host scheduling latency without relying on real-time
+    # thread scheduling.  This waiter is still below its first one-second age
+    # boost and far below the 21-second starvation-protection boundary.
+    _age_waiter(state_path, "fresh-worker", seconds=0.25)
     exact.start()
     _wait_for(lambda: lease.status().waiter_count == 2)
+    fresh = {row["task_id"]: row for row in lease.status().waiters}
+    assert fresh["fresh-worker"]["starvation_protected"] is False
+    assert fresh["fresh-exact"]["starvation_protected"] is False
+    assert (
+        fresh["fresh-exact"]["effective_priority"]
+        > fresh["fresh-worker"]["effective_priority"]
+    )
     held.release()
     worker.join(timeout=3)
     exact.join(timeout=3)
     assert order == ["exact", "worker"]
 
 
+@pytest.mark.timeout(30)
 def test_dead_aged_waiter_is_pruned_before_fresh_priority_selection(tmp_path):
     state_path = tmp_path / "lease.sqlite3"
     lease = ValidationResourceLease(
@@ -2823,21 +2873,37 @@ def test_dead_aged_waiter_is_pruned_before_fresh_priority_selection(tmp_path):
         poll_seconds=0.005,
     )
     held = lease.acquire(_gate_owner("blocker", "held"))
+    ready_path = tmp_path / "dead-worker.waiting"
     script = """
 import sys
+from pathlib import Path
 from oompah.validation_resource_lease import ValidationLeaseOwner, ValidationResourceLease
 lease = ValidationResourceLease(sys.argv[1], aging_seconds=1.0, poll_seconds=0.005)
-lease.acquire(ValidationLeaseOwner.worker(project_id='repair', task_id='dead-worker', authority_generation='dead'))
+ready_path = Path(sys.argv[2])
+lease.acquire(
+    ValidationLeaseOwner.worker(project_id='repair', task_id='dead-worker', authority_generation='dead'),
+    on_wait=lambda: ready_path.touch(),
+)
 """
     dead = subprocess.Popen(
-        [sys.executable, "-c", script, str(state_path)],
+        [sys.executable, "-c", script, str(state_path), str(ready_path)],
         cwd=Path(__file__).parents[1],
         env={**os.environ, "PYTHONPATH": str(Path(__file__).parents[1])},
+        stderr=subprocess.PIPE,
+        text=True,
     )
-    _wait_for(lambda: lease.status().waiter_count == 1)
-    _age_waiter(state_path, "dead-worker", seconds=22.0)
-    dead.terminate()
-    dead.wait(timeout=3)
+    try:
+        # The marker is emitted by acquire's on_wait callback only after the
+        # durable waiter exists and the held slot has denied its first grant.
+        # This proves the production queue boundary without assuming that a
+        # saturated host can import and start a new interpreter within 3s.
+        _wait_for_subprocess_marker(dead, ready_path)
+        assert lease.status().waiter_count == 1
+        _age_waiter(state_path, "dead-worker", seconds=22.0)
+    finally:
+        if dead.poll() is None:
+            dead.terminate()
+        dead.wait(timeout=5)
     _wait_for(lambda: lease.status().waiter_count == 0)
 
     order: list[str] = []
@@ -2862,8 +2928,11 @@ lease.acquire(ValidationLeaseOwner.worker(project_id='repair', task_id='dead-wor
     exact.start()
     _wait_for(lambda: lease.status().waiter_count == 2)
     held.release()
-    worker.join(timeout=3)
-    exact.join(timeout=3)
+    completion_deadline = time.monotonic() + 15
+    for thread in (worker, exact):
+        thread.join(timeout=max(completion_deadline - time.monotonic(), 0.0))
+    assert not worker.is_alive()
+    assert not exact.is_alive()
     assert order == ["exact", "worker"]
 
 

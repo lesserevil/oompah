@@ -27,7 +27,11 @@ from oompah.statuses import (
     NEEDS_REBASE,
     OPEN,
 )
-from oompah.task_transition_service import TransitionIntent, issue_authority_version
+from oompah.task_transition_service import (
+    TransitionIntent,
+    TransitionOutcome,
+    issue_authority_version,
+)
 from oompah.work_decision import (
     IMPLEMENTATION_ACTION_JOBS,
     WorkDecision,
@@ -948,7 +952,6 @@ class ImplementationWorkflowBackend(Protocol):
         verification: VerificationResult,
     ) -> TransitionIntent | None | Awaitable[TransitionIntent | None]: ...
 
-
 async def _resolve(value: Any) -> Any:
     return await value if inspect.isawaitable(value) else value
 
@@ -1112,3 +1115,12 @@ class ImplementationWorkflowHandler:
                         retry_delay_seconds=delay,
                     )
         return await _resolve(self.backend.build_transition(context, verification))
+
+    async def finalize_transition(
+        self,
+        context: WorkflowJobContext,
+        transition: TransitionOutcome,
+    ) -> None:
+        finalize = getattr(self.backend, "finalize_transition", None)
+        if callable(finalize):
+            await _resolve(finalize(context, transition))
