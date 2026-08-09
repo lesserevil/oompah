@@ -448,6 +448,8 @@ class TestRunLoopUpdatesSyncTime:
                 event_router.drain_events(timeout=5.0)
                 await asyncio.sleep(0)
                 completion = asyncio.create_task(completed_result(job.job_id))
+                with production_runtime._lock:
+                    production_runtime._effect_tasks[completion] = "shared"
                 await completion
                 production_runtime._effect_finished(completion)
                 return {

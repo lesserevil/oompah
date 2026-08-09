@@ -3593,17 +3593,24 @@ class WorkflowRuntime:
     def _effect_finished(self, task: asyncio.Task[Any]) -> None:
         """Retire one retained invocation and publish a replenishment edge."""
 
-        with self._lock:
-            self._effect_tasks.pop(task, None)
         try:
             result = task.result()
         except asyncio.CancelledError:
+            with self._lock:
+                self._effect_tasks.pop(task, None)
             return
         except Exception:  # noqa: BLE001 - worker claim boundary stays observable
-            logger.exception("Detached durable workflow invocation failed")
+            with self._lock:
+                retained = task in self._effect_tasks
+                self._effect_tasks.pop(task, None)
+            if retained:
+                logger.exception("Detached durable workflow invocation failed")
             return
         with self._lock:
+            if task not in self._effect_tasks:
+                return
             self._effect_results.append(result)
+            self._effect_tasks.pop(task, None)
             draining = self._draining
         if not draining and self._effect_completion_observer is not None:
             try:
@@ -3635,9 +3642,7 @@ class WorkflowRuntime:
 
         with self._lock:
             active_reconciles = self._active_reconciles
-            retained_effects = sum(
-                not task.done() for task in self._effect_tasks
-            )
+            retained_effects = len(self._effect_tasks)
         return (
             active_reconciles
             + max(self.worker.active_count, retained_effects)
@@ -3693,21 +3698,35 @@ class WorkflowRuntime:
         if not worker_drained:
             return False
         with self._lock:
-            retained = tuple(
-                task for task in self._effect_tasks if not task.done()
-            )
+            retained = tuple(self._effect_tasks)
         if retained:
             remaining = None if deadline is None else max(0.0, deadline - loop.time())
             if remaining is not None and remaining <= 0:
                 return False
-            waiter = asyncio.gather(*retained, return_exceptions=True)
+            settlement = loop.create_future()
+            callback_pending = set(retained)
+
+            def observe_settlement(task: asyncio.Task[Any]) -> None:
+                callback_pending.discard(task)
+                if not callback_pending and not settlement.done():
+                    settlement.set_result(None)
+
+            # These callbacks are registered after ``_effect_finished`` and
+            # therefore run after its result publication and retained-entry
+            # removal.  Waiting on task completion alone is insufficient: a
+            # done task can still have its settlement callback queued.
+            for task in retained:
+                task.add_done_callback(observe_settlement)
             try:
                 if remaining is None:
-                    await waiter
+                    await settlement
                 else:
-                    await asyncio.wait_for(asyncio.shield(waiter), remaining)
+                    await asyncio.wait_for(asyncio.shield(settlement), remaining)
             except TimeoutError:
                 return False
+            with self._lock:
+                if any(task in self._effect_tasks for task in retained):
+                    return False
         remaining = None if deadline is None else max(0.0, deadline - loop.time())
         return await self._drain_handler_mutations(timeout_seconds=remaining)
 
@@ -3748,9 +3767,7 @@ class WorkflowRuntime:
         with self._lock:
             last = dict(self._last_reconcile)
             admission_cut = self._admission_cut
-            retained_effects = sum(
-                not task.done() for task in self._effect_tasks
-            )
+            retained_effects = len(self._effect_tasks)
         controller_health = (
             self.liveness_controller.health_snapshot()
             if self.liveness_controller is not None
