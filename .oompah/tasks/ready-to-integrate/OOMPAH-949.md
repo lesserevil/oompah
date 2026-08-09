@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:18:16.575025Z'
-updated_at: '2026-08-09T10:28:38.023157Z'
+updated_at: '2026-08-09T12:19:16.902464Z'
 work_branch: OOMPAH-949
 target_branch: null
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-08-09 10:28
 ---
 Made the cancelled-waiter aging regression independent of host scheduling by using explicit durable freshness/starvation windows, reproducing the hosted scheduling gap, and asserting effective-priority evidence before capacity release. Production fairness behavior remains unchanged. Commit 27c3685dc is pushed; 499 lease tests and 10 repeated reproductions pass.
+---
+author: oompah
+created: 2026-08-09 12:19
+---
+Exact branch gate passed at 27c3685dc3d2e4aba8e852a88569795acd300fe7: make test completed with 18,901 passed, 7 skipped, and 2 xfailed in 1,212.43 seconds. Opened protected-main PR #762 and enabled merge-when-green.
 ---
 <!-- COMMENTS:END -->
