@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-09T14:35:22.515618Z'
+updated_at: '2026-08-09T16:17:29.592265Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,12 +46,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-940
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 0a8f66ccd7cf1de072dd1b0feb8ac319adc1bf49c227fd03ebf4eaf1970e9daa
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-55037e98b910
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 0a8f66ccd7cf1de072dd1b0feb8ac319adc1bf49c227fd03ebf4eaf1970e9daa
+      created_at: '2026-08-09T16:17:21.412604+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-09T16:17:21.412604+00:00'
+      branch_key: OOMPAH-940
+      selected_ref: origin/epic-OOMPAH-940
+      selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
     source_generation: 1
     requested_by:
       version: 1
@@ -61,7 +76,23 @@ oompah.terminal_audit:
     created_at: '2026-08-09T13:59:06.485551+00:00'
     selected_ref: origin/epic-OOMPAH-940
     selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
-  attempt_history: []
+    updated_at: '2026-08-09T16:17:21.412604+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-55037e98b910
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0a8f66ccd7cf1de072dd1b0feb8ac319adc1bf49c227fd03ebf4eaf1970e9daa
+    created_at: '2026-08-09T16:17:21.412604+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-09T16:17:21.412604+00:00'
+    branch_key: OOMPAH-940
+    selected_ref: origin/epic-OOMPAH-940
+    selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
 ---
 ## Summary
 
@@ -94,5 +125,15 @@ author: oompah
 created: 2026-08-09 13:59
 ---
 Completed and merged systemic workflow convergence via PR #757 at ba0859da9. All child fixes are contained; Python 3.11/3.12/3.13 hosted gates passed, 369 focused composition tests and terminal scan passed, and independent semantic review found no blockers. Live rollout verification is running on the deployed exact merge.
+---
+author: oompah
+created: 2026-08-09 16:17
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-09 16:17
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
