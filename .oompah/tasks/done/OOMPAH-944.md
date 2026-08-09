@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:39.515436Z'
-updated_at: '2026-08-09T15:14:30.465185Z'
+updated_at: '2026-08-09T15:14:40.388071Z'
 work_branch: OOMPAH-944
 target_branch: null
 review_url: null
@@ -47,7 +47,7 @@ oompah.terminal_audit:
     evidence_fingerprint: a5ea3a6a0b3910eeb77ce134737842dbbaabe9829cce254bff04b95b8f7a0695
     audit_ids:
     - audit-2858f61fbee4
-    kind: result
+    kind: override
     applied: true
     retired_at: '2026-08-09T15:06:02.071871+00:00'
   oompah.terminal_audit_result_intents:
@@ -64,6 +64,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T15:06:02.071880+00:00'
     applied_at: '2026-08-09T15:06:09.122846+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-da5fc6255781
@@ -87,7 +88,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T15:14:22.314812+00:00'
     selected_ref: c07a3ba543bc9d731f4b67531c34b4e0c4bcf4ca
     selected_sha: c07a3ba543bc9d731f4b67531c34b4e0c4bcf4ca
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -246,5 +247,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1h 0m 1s
 - Log: OOMPAH-944__20260809T140708Z.jsonl
+---
+author: oompah
+created: 2026-08-09 15:14
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Accepted head c07a3ba543 is an exact ancestor of current main and was independently reviewed. Audit full gate passed 18,885 tests; seven failures are the known nested quality-gate Python path infrastructure tracked by OOMPAH-831/OOMPAH-862, while the validation-resource timing and workflow-mode expectations are stale-head suite failures corrected in the combined OOMPAH-940 main composition whose hosted Python 3.11/3.12/3.13 gates passed. No OOMPAH-944 behavior failure was identified.
 ---
 <!-- COMMENTS:END -->
