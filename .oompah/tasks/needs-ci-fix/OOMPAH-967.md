@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:04:59.855533Z'
-updated_at: '2026-08-09T19:47:22.368920Z'
+updated_at: '2026-08-09T19:48:39.249925Z'
 work_branch: OOMPAH-967
 target_branch: null
 review_url: null
@@ -147,6 +147,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-967
     selected_ref: 5adb50e55ebad53edcf3a7a3d7ffe9a42782d914
     selected_sha: 5adb50e55ebad53edcf3a7a3d7ffe9a42782d914
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 628
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 10
+      output_tokens: 628
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 10
+    output_tokens: 628
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T19:48:34.965358+00:00'
 ---
 ## Summary
 
@@ -246,5 +262,15 @@ created: 2026-08-09 19:47
 Audit FAIL — ci failure. Routing task to Needs CI Fix.
 
 make test failed with exit code 2: 10 test failures in test infrastructure modules (test_pytest_parallel.py, test_acp_codex_backend.py, test_oompah_md_tracker.py, test_validation_resource_lease.py). These failures appear to be environmental (Python path validation errors) rather than code defects in OOMPAH-967. All core tests for provenance suppression, work decision, and terminal audit metadata pass (19,144 passed total). However, the full gate did not pass as required by audit contract.
+---
+author: oompah
+created: 2026-08-09 19:48
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 44, Tool calls: 14
+- Tokens: 10 in / 628 out [638 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 24m 54s
+- Log: OOMPAH-967__20260809T192349Z.jsonl
 ---
 <!-- COMMENTS:END -->
