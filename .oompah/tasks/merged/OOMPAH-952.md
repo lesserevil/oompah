@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-952
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Retire obsolete landed reviews and exact capacity reservations
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:48:29.754525Z'
-updated_at: '2026-08-09T16:23:52.614172Z'
+updated_at: '2026-08-09T16:33:23.394074Z'
 work_branch: OOMPAH-952
 target_branch: null
 review_url: null
@@ -41,6 +41,28 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-952
     digest: e660776e62cdcdd6173a2f5b5cec83a4051fbc25199331a3c513c188b4d8703c
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6f2f9abe0440
+    project_id: proj-14849f1b
+    task_id: OOMPAH-952
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e660776e62cdcdd6173a2f5b5cec83a4051fbc25199331a3c513c188b4d8703c
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner override after accepted task head 8e1ac57e2ec2e8503fd380e75c05639badcc5fba
+      was proven contained in exact composed PR #765 head 64afe17c03741659c9b6d3ee8d47bb84f033e45e;
+      PR #765 merged as 91bf64c57c26baf2dfaaf355c33bb53f28230061 with hosted Python
+      3.11/3.12/3.13 checks successful.'
+    created_at: '2026-08-09T16:33:16.929663+00:00'
+    selected_ref: 8e1ac57e2ec2e8503fd380e75c05639badcc5fba
+    selected_sha: 8e1ac57e2ec2e8503fd380e75c05639badcc5fba
+    applied: false
   version: 1
   pending_chain:
   - version: 1
