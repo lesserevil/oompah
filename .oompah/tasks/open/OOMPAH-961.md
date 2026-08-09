@@ -12,13 +12,25 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-09T14:20:19.752110Z'
-updated_at: '2026-08-09T15:03:14.892152Z'
-work_branch: null
+updated_at: '2026-08-09T15:03:27.931317Z'
+work_branch: OOMPAH-961
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-961
+  base_branch: epic-OOMPAH-940
+  base_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
+  head_sha: b4d84c207fe2160dfbd502ffd9b0f95ff561142a
+  submitted_at: '2026-08-09T15:03:16.196887+00:00'
+  updated_at: '2026-08-09T15:03:16.196887+00:00'
+oompah.work_branch: OOMPAH-961
 ---
 ## Summary
 
@@ -46,5 +58,10 @@ author: oompah
 created: 2026-08-09 15:03
 ---
 Review-ready head b4d84c207fe2160dfbd502ffd9b0f95ff561142a is pushed on OOMPAH-961 after rebasing onto current main 4b31fb659. Validation: 392 affected workflow tests passed; make terminal-audit-scan passed; make check-secrets passed. The exact-publication proof covers blocked/action zero-job decisions, production Done landing.waiting, managed-to-terminal-audit, final task/epic lifecycle, rollback/restart, skipped generations, concurrent publication, late completion, cross-domain isolation, current replay, and ABA rearm.
+---
+author: oompah
+created: 2026-08-09 15:03
+---
+Implemented exact published retirement proofs for superseded exhausted authority across zero-job, terminal-audit, and lifecycle handoffs; 392 focused tests and safety scans pass at b4d84c207fe2160dfbd502ffd9b0f95ff561142a.
 ---
 <!-- COMMENTS:END -->
