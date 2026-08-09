@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T14:08:58.066871Z'
-updated_at: '2026-08-09T15:57:51.927083Z'
+updated_at: '2026-08-09T15:57:57.853808Z'
 work_branch: OOMPAH-959
 target_branch: null
 review_url: null
@@ -126,5 +126,10 @@ author: oompah
 created: 2026-08-09 15:57
 ---
 Corrected independent-review blocker at pushed head 42e5355de509b5768668ca2d4462862b57d39e44. Production transition_applied callbacks preserve real ISSUE_STATE_CHANGED delivery while routing scheduler wakes through WORKFLOW_ADMISSION. The actual EpicWorkflowEventRouter now routes its targeted durable-job wake through the same admission lane, preventing the UI event subscriber from recreating REFRESH_REQUESTED/full-scan bursts; compatibility fixtures retain their fallback. End-to-end coverage uses the real EventBus and actual epic router for two transition-bearing completions, proves UI delivery, wake coalescing, three fast slices, exactly one initial and one queue-empty full reconcile, and zero ordinary refreshes. Final verification: 556 affected tests passed; changed-surface Ruff and critical Python lint passed; task-status mutation scan passed 20/20; secret scan exited 0; independent re-review found no blocker.
+---
+author: oompah
+created: 2026-08-09 15:57
+---
+Corrected transition and subscriber wake routing; exact head 42e5355de with 556 affected tests and independent re-review clear
 ---
 <!-- COMMENTS:END -->
