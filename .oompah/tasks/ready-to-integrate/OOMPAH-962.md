@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-962
 type: bug
-status: Needs CI Fix
+status: Ready to Integrate
 priority: 1
 title: Recover quarantined control effects without task deadlock
 parent: OOMPAH-940
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T14:35:21.482578Z'
-updated_at: '2026-08-09T16:03:40.895847Z'
+updated_at: '2026-08-09T16:06:47.301310Z'
 work_branch: OOMPAH-962
 target_branch: null
 review_url: null
