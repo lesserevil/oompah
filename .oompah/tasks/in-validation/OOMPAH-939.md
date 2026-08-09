@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T08:54:39.101794Z'
-updated_at: '2026-08-09T10:45:26.775646Z'
+updated_at: '2026-08-09T11:11:08.963728Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,6 +31,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-939
     digest: d5681f0cb4429f02b6f02dbf0f61ad858ed770de5ef84b193888026dc6cd6dec
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-939","audit-4827a2c0df9f","attempt-8219358c7bea"]': '2026-08-09T11:10:55.552055+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-939
+    target_state: Done
+    evidence_fingerprint: d5681f0cb4429f02b6f02dbf0f61ad858ed770de5ef84b193888026dc6cd6dec
+    audit_ids:
+    - audit-4827a2c0df9f
+    kind: result
+    applied: true
+    retired_at: '2026-08-09T11:10:55.552071+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-939
+    audit_id: audit-4827a2c0df9f
+    attempt_id: attempt-8219358c7bea
+    target_state: Done
+    evidence_fingerprint: d5681f0cb4429f02b6f02dbf0f61ad858ed770de5ef84b193888026dc6cd6dec
+    status: In Validation
+    audit_ids:
+    - audit-4827a2c0df9f
+    kind: result
+    applied: true
+    created_at: '2026-08-09T11:10:55.552081+00:00'
+    applied_at: '2026-08-09T11:11:05.730223+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -38,7 +64,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-939
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -86,7 +112,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-8219358c7bea
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -99,6 +125,9 @@ oompah.terminal_audit:
       selected_ref: origin/OOMPAH-939
       selected_sha: b1fc26aa98edc4fdd53c2315906af7321d48a1eb
       candidate_rotation_count: 2
+      verdict: pass
+      completed_at: '2026-08-09T11:10:55.551930+00:00'
+      ended_at: '2026-08-09T11:10:55.551930+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -108,7 +137,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T09:39:27.270044+00:00'
     selected_ref: origin/OOMPAH-939
     selected_sha: b1fc26aa98edc4fdd53c2315906af7321d48a1eb
-    updated_at: '2026-08-09T10:45:18.785995+00:00'
+    updated_at: '2026-08-09T11:10:55.551930+00:00'
   - version: 1
     audit_id: audit-bd560d2bb335
     project_id: proj-14849f1b
@@ -318,5 +347,17 @@ author: oompah
 created: 2026-08-09 10:45
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 11:11
+---
+Audit PASS — Done
+
+OOMPAH-939 implementation verified: saturated durable workflow batches now continue immediately without 5-minute full-sync delay. Runtime reports batch_saturated, orchestrator posts coalesced REFRESH_REQUESTED with shutdown fencing. All 8 batch-continuation tests passed; 18,894 total tests passed (7 pre-existing infrastructure failures in test_pytest_parallel.py unrelated to this change). Acceptance criteria met: no starvation, bounded/coalesced continuation, non-recursive, multi-project fairness preserved.
+
+Safe evidence:
+- test_results: 18894_passed_7_failed_8_batch_continuation_tests_all_passed
+- implementation: runtime_batch_saturated_at_workflow_runtime_3087_orchestrator_refresh_requested_event_shutdown_fenced
+- acceptance_criteria: no_starvation_bounded_coalesced_non_recursive_fairness_preserved
 ---
 <!-- COMMENTS:END -->
