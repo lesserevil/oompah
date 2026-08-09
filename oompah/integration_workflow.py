@@ -514,7 +514,33 @@ class IntegrationWorkflowController:
     def landing_requests_for(
         self, task: Issue, *, include_ready: bool = False
     ) -> tuple[LandingRequest, ...]:
-        return tuple(self.landing_request_resolver(task, include_ready=include_ready))
+        requests = tuple(
+            self.landing_request_resolver(task, include_ready=include_ready)
+        )
+        if not requests:
+            return ()
+        prior_by_pair: dict[tuple[str, str], LandingFact] = {}
+        for raw in self.store.latest_landing_facts(
+            project_id=str(task.project_id or self.collector.project_id),
+            task_id=task.identifier,
+            limit=self.decision_limit,
+        ):
+            try:
+                prior = LandingFact.from_dict(raw)
+            except (TypeError, ValueError):
+                continue
+            if prior.durable:
+                prior_by_pair[(prior.source, prior.target)] = prior
+        return tuple(
+            replace(
+                request,
+                prior=(
+                    request.prior
+                    or prior_by_pair.get((request.source, request.target))
+                ),
+            )
+            for request in requests
+        )
 
     @staticmethod
     def _topological_batches(
@@ -911,6 +937,76 @@ class IntegrationActionHandler:
             verification,
         )
 
+    async def completion_landing_facts(
+        self,
+        context: WorkflowJobContext,
+        verification: VerificationResult,
+    ) -> tuple[dict[str, Any], ...]:
+        """Return exact immutable evidence for the worker's success commit."""
+
+        if self.action != "integration_landing_refresh":
+            return ()
+        receipt = verification.receipt
+        expected_receipt = {
+            "action": self.action,
+            "project_id": context.job.project_id,
+            "task_id": context.job.task_id,
+            "job_generation": context.job.generation,
+        }
+        if any(receipt.get(key) != value for key, value in expected_receipt.items()):
+            raise WorkflowActionError(
+                "landing completion receipt no longer matches job authority",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=True,
+            )
+        raw_landing = receipt.get("landing")
+        if not isinstance(raw_landing, Mapping):
+            raise WorkflowActionError(
+                "landing completion receipt lacks exact proof",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=True,
+            )
+        try:
+            landing = LandingFact.from_dict(raw_landing)
+        except (TypeError, ValueError) as exc:
+            raise WorkflowActionError(
+                "landing completion proof revision is invalid",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=True,
+            ) from exc
+        details = OrchestratorIntegrationActionBackend._revalidation_details(context)
+        revalidated_evidence = (
+            OrchestratorIntegrationActionBackend._revalidated_evidence_revision(
+                context
+            )
+        )
+        expected_revision = str(
+            details.get("landing_revision")
+            or details.get("task_head")
+            or context.job.expected_head_sha
+            or ""
+        ).strip()
+        expected_source = str(details.get("landing_source") or "").strip()
+        expected_target = str(details.get("landing_target") or "").strip()
+        expected_evidence = str(
+            context.job.expected_evidence_revision or ""
+        ).strip()
+        if (
+            landing.project_id != context.job.project_id
+            or landing.state is not LandingState.LANDED
+            or not landing.durable
+            or (expected_source and landing.source != expected_source)
+            or (expected_target and landing.target != expected_target)
+            or (expected_revision and landing.revision != expected_revision)
+            or (expected_evidence and revalidated_evidence != expected_evidence)
+        ):
+            raise WorkflowActionError(
+                "landing completion proof is stale or outside job scope",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=True,
+            )
+        return (landing.to_dict(),)
+
 
 _INTEGRATION_ACTION_DOMAINS = {
     "epic_branch_reconciliation": WorkflowActionDomain.GIT,
@@ -942,6 +1038,7 @@ class OrchestratorIntegrationActionBackend:
         self.project_id = str(binding.project_id)
         self.tracker = binding.tracker
         controller = getattr(binding, "integration_controller", None)
+        self.integration_controller = controller
         resolver = getattr(controller, "landing_request_resolver", None)
         self.landing_request_resolver = (
             resolver
@@ -986,6 +1083,9 @@ class OrchestratorIntegrationActionBackend:
     def _landing_request(
         self, issue: Issue, *, include_ready: bool = False
     ) -> tuple[LandingRequest, ...]:
+        resolve = getattr(self.integration_controller, "landing_requests_for", None)
+        if callable(resolve):
+            return tuple(resolve(issue, include_ready=include_ready))
         return tuple(self.landing_request_resolver(issue, include_ready=include_ready))
 
     def _landing(self, issue: Issue) -> LandingFact | None:
@@ -2038,6 +2138,15 @@ class OrchestratorIntegrationActionBackend:
             "durable_jobs": list(decision.durable_jobs),
             "integration_queue_present": row is not None,
         }
+        if requests:
+            request = requests[0]
+            details.update(
+                {
+                    "landing_source": request.source,
+                    "landing_target": request.target,
+                    "landing_revision": request.revision,
+                }
+            )
         if row is not None:
             details.update(
                 {
