@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-944
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Use canonical child landing proof in epic cleanup
 parent: OOMPAH-940
@@ -11,13 +11,25 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:39.515436Z'
-updated_at: '2026-08-09T09:34:30.243345Z'
-work_branch: null
+updated_at: '2026-08-09T09:34:51.708995Z'
+work_branch: OOMPAH-944
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-944
+  base_branch: epic-OOMPAH-940
+  base_sha: b7e7d9509a4e6025b48c54336098acef2dda4986
+  head_sha: 71e169737deb3c28382fa511edde6cc90542e54c
+  submitted_at: '2026-08-09T09:34:33.522333+00:00'
+  updated_at: '2026-08-09T09:34:33.522333+00:00'
+oompah.work_branch: OOMPAH-944
 ---
 ## Summary
 
@@ -50,5 +62,10 @@ author: oompah
 created: 2026-08-09 09:34
 ---
 Implemented/pushed 71e169737. Epic cleanup now consumes the same unique durable source/target/revision landing fact used by the canonical rollup path when a terminal child's ref and tracker head have been pruned. Live-head conflicts, multiple facts, wrong routes, non-durable proof, maintenance, and archived semantics remain fail-closed. Focused epic/integration result: 167 passed; targeted undefined-name lint passed.
+---
+author: oompah
+created: 2026-08-09 09:34
+---
+Unified epic cleanup with canonical exact child landing proof while preserving strict deletion safety; 167 focused tests pass.
 ---
 <!-- COMMENTS:END -->
