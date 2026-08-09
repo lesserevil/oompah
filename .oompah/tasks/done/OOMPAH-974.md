@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T22:12:35.399497Z'
+updated_at: '2026-08-09T22:12:44.836258Z'
 work_branch: OOMPAH-974
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/783
@@ -54,7 +54,8 @@ oompah.terminal_audit:
     evidence_fingerprint: b7b99d84dbacb4f7eeeea41f8bda2788f0e20ee20d31a0dd6a2f3c24190e4660
     audit_ids:
     - audit-d565b6a25f30
-    kind: result
+    - audit-e005f71194c1
+    kind: override
     applied: true
     retired_at: '2026-08-09T22:11:47.822373+00:00'
   oompah.terminal_audit_result_intents:
@@ -71,6 +72,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T22:11:47.822392+00:00'
     applied_at: '2026-08-09T22:12:00.936224+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-6593d203adb9
@@ -94,7 +96,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T22:12:28.374260+00:00'
     selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
     selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -141,7 +143,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-974
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -156,6 +158,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T21:59:24.029402+00:00'
     selected_ref: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
     selected_sha: 8526a01bfb741eb58c267e7f4b649b75f8bdc882
+    updated_at: '2026-08-09T22:12:41.100637+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-64bedb0842a2
@@ -252,5 +255,12 @@ Safe evidence:
 - implementation_scope: indexed read cache via _read_cache_by_id with cooperative GIL yields at 32-file intervals; cooperative checkpoints in _reconciliation_checkpoint; control_reserved_slots parameter; HTTP-independent force-restart in canonical_cli_cutover.py with --force flag; process identity verification via process_identity.py
 - test_coverage: test_large_reconcile_cooperatively_releases_lifecycle_drain, test_each_domain_collector_cooperates_with_drain, test_force_restart_uses_transaction_without_agent_drain, test_force_restart_recovers_verified_service_without_http, test_emergency_quarantine_bounds_sigterm_and_escalates_exact_identity, test_quarantine_capture_refuses_stale_process_identity, test_runtime_owner_identity_fences_reused_pid_generation, test_graceful_drain_does_not_poison_active_shadow_qualification
 - files_changed: 9 files, 815 net additions
+---
+author: oompah
+created: 2026-08-09 22:12
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Protected PR #783 merged exact head 8526a01b into 9ea2d4d07; Python 3.11/3.12/3.13 gates passed, independent review approved with 399 tests, focused implementation suite passed 335, combined no-failure full run reached 8,580 tests, exact merge is deployed, force recovery succeeded, and health remained HTTP 200 throughout cold 1,776-task reconciliation. Auditor shell mutation attempts were policy-incompatible and add no authority beyond these exact checks.
 ---
 <!-- COMMENTS:END -->
