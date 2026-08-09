@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:14:31.760374Z'
-updated_at: '2026-08-09T23:03:59.052475Z'
+updated_at: '2026-08-09T23:04:10.691555Z'
 work_branch: OOMPAH-975
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/782
@@ -68,7 +68,19 @@ oompah.terminal_audit:
     created_at: '2026-08-09T23:03:54.471449+00:00'
     selected_ref: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
     selected_sha: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-975
+    target_state: Merged
+    evidence_fingerprint: 359fd89c7c4eb5ac1aec11ed4c75a771a703477e08b7702059d2e1eea95a9fbf
+    audit_ids:
+    - audit-8f62ad9b36f0
+    - audit-b8647366926c
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T23:04:04.237724+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -76,7 +88,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-975
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -126,13 +138,13 @@ oompah.terminal_audit:
     created_at: '2026-08-09T22:26:07.264673+00:00'
     selected_ref: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
     selected_sha: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
-    updated_at: '2026-08-09T23:01:27.298881+00:00'
+    updated_at: '2026-08-09T23:04:04.237680+00:00'
   - version: 1
     audit_id: audit-b8647366926c
     project_id: proj-14849f1b
     task_id: OOMPAH-975
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -147,6 +159,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T22:26:07.264673+00:00'
     selected_ref: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
     selected_sha: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
+    updated_at: '2026-08-09T23:04:04.237708+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-b69cff5382a7
@@ -183,6 +196,22 @@ oompah.terminal_audit:
     selected_ref: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
     selected_sha: 0cbca98c1d6f6b3490a93b4164ef370ac01db432
     candidate_rotation_count: 1
+oompah.task_costs:
+  total_input_tokens: 310
+  total_output_tokens: 54
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 310
+      output_tokens: 54
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 310
+    output_tokens: 54
+    cost_usd: 0.0
+    recorded_at: '2026-08-09T23:04:07.543689+00:00'
 ---
 ## Summary
 
@@ -277,5 +306,22 @@ author: oompah
 created: 2026-08-09 23:01
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-09 23:04
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Exact implementation head d173e88eec2552ee639ef235a772fceeed8b66e6 passed protected Python 3.11/3.12/3.13 and independent 553-test review, merged via PR #782 as e8be4d38d15f13859acb13865102bdbd86a8ec23, and is deployed in exact running main 25154c8b709f5916d5a9744d2b2fe9979d64799f. The terminal auditor's duplicate full suite stalled in jbd2 after protected evidence was already green and its shell mutation is policy-incompatible.
+---
+author: oompah
+created: 2026-08-09 23:04
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 18
+- Tokens: 310 in / 54 out [364 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 37s
+- Log: OOMPAH-975__20260809T230139Z.jsonl
 ---
 <!-- COMMENTS:END -->
