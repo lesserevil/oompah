@@ -2223,6 +2223,7 @@ class WorkflowRuntime:
                     implementation_batch,
                     review_batch,
                     integration_batch,
+                    epic_batch,
                 ):
                     for task_decision in owning_batch.tasks:
                         identity = (

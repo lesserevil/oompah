@@ -75,6 +75,11 @@ from oompah.work_decision_projection import (
     operator_actionable_alerts,
     work_decision_alert,
 )
+from tests.fixtures_workflow_incidents import (
+    INCIDENTS_BY_ID,
+    materialize_git,
+    materialize_native_tracker,
+)
 
 
 class NativeTracker:
@@ -1338,6 +1343,129 @@ def test_runtime_current_exhaustion_overrides_normal_owner_retry_projection(
     assert operator_actionable_alerts((alert,)) == [alert]
     assert alert["task_id"] == task.identifier
     assert alert["reason_code"] == "retry.exhausted"
+    runtime.close()
+    store.close()
+
+
+def test_runtime_epic_facts_prevent_stale_generic_exhaustion_override(tmp_path):
+    scenario = INCIDENTS_BY_ID["OOMPAH-748"]
+    replay = materialize_native_tracker(tmp_path, scenario)
+    git = materialize_git(tmp_path, scenario)
+    task_id = replay.identifiers["child"]
+    epic = replay.tracker.fetch_issue_detail(task_id)
+    assert epic is not None and epic.parent_id
+    source = f"epic-{epic.identifier}"
+    target = f"epic-{epic.parent_id}"
+    revision = git.commits["child-head"]
+    subprocess.run(
+        [
+            "git",
+            "update-ref",
+            f"refs/heads/{target}",
+            git.commits["child-on-parent"],
+        ],
+        cwd=git.path,
+        check=True,
+    )
+    replay.tracker.set_metadata_field(
+        task_id,
+        "oompah.integration",
+        IntegrationRecord(
+            state="integrated",
+            mode="queue",
+            task_branch=source,
+            base_branch=target,
+            head_sha=revision,
+            integrated_sha=revision,
+        ).to_dict(),
+    )
+    replay.tracker.set_metadata_field(task_id, "oompah.work_branch", source)
+    replay.tracker.set_metadata_field(task_id, "oompah.target_branch", target)
+
+    project_id = "historical-incidents"
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    binding, journal = make_binding(
+        tmp_path,
+        replay.tracker,
+        store,
+        project_id=project_id,
+    )
+    epic_collector = EpicFactCollector(
+        project_id=project_id,
+        tracker=replay.tracker,
+        repo_path=str(git.path),
+        sources=binding.collector.sources,
+    )
+    binding.epic_collector = epic_collector
+    binding.epic_controller = EpicWorkflowController(
+        collector=epic_collector,
+        store=store,
+    )
+    generic = evaluate_task(epic, binding.collector.collect(task_id))
+    assert generic.reason_code == "evidence.containment_malformed"
+    assert generic.durable_jobs == ("epic_terminal_validation",)
+    stale = store.enqueue(
+        WorkflowJobSpec(
+            project_id=project_id,
+            task_id=task_id,
+            generation=generic.decision_revision,
+            action="epic_terminal_validation",
+            idempotency_key="stale-generic-terminal-validation",
+        )
+    )
+    running = store.claim_next(
+        lease_owner="failed-generic-validation",
+        lease_seconds=30,
+        task_id=task_id,
+        actions=("epic_terminal_validation",),
+    )
+    assert running is not None and running.job_id == stale.job_id
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="stale generic containment exhausted",
+        retryable=False,
+    )
+
+    publications = []
+
+    def publisher(decisions, generation, **_kwargs):
+        publications.append((tuple(decisions), generation))
+        return SimpleNamespace(
+            accepted=True,
+            rejection=None,
+            commit_memory=lambda: None,
+            rollback=lambda: None,
+        )
+
+    runtime = WorkflowRuntime(
+        project_bindings={project_id: binding},
+        store=store,
+        journals={project_id: journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=UniversalTotalityLivenessController(store=store),
+        projection_publisher=publisher,
+        projection_epoch_source=lambda: 1,
+    )
+
+    asyncio.run(runtime.start())
+    report = asyncio.run(runtime.reconcile_async())
+
+    projection = next(
+        item for item in runtime.projections() if item["task_id"] == task_id
+    )
+    published = next(
+        decision for decision in publications[-1][0] if decision.task_id == task_id
+    )
+    owner = binding.epic_controller._latest[task_id].decision
+    assert report["projects"][project_id]["epic"]["decisions_seen"] == 2
+    assert owner.reason_code == "terminal.immediate_target_landing_proven"
+    assert projection["reason_code"] == owner.reason_code
+    assert published.reason_code == owner.reason_code
+    assert not projection["action_required"]
+    assert store.get(stale.job_id).state is WorkflowJobState.EXHAUSTED
     runtime.close()
     store.close()
 
