@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-948
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Bound terminal branch cleanup as durable fair maintenance
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:56:00.569098Z'
-updated_at: '2026-08-09T10:43:26.525703Z'
+updated_at: '2026-08-09T10:43:42.516979Z'
 work_branch: OOMPAH-948
 target_branch: null
 review_url: null
