@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:39.515436Z'
-updated_at: '2026-08-09T09:08:39.515436Z'
+updated_at: '2026-08-09T09:09:14.007533Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Epic cleanup retains a separate exact-head path: live OOMPAH-459 continues retry
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-09 09:09
+---
+This is a live regression against the completed shared-fact/cleanup contracts in OOMPAH-791 and OOMPAH-837; no existing open task covers the observed canonical-proof drift.
+---
+<!-- COMMENTS:END -->
