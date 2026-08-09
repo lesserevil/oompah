@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-957
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Stabilize concurrent validation and review-capacity CI regressions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T14:36:15.719003Z'
+updated_at: '2026-08-09T14:45:09.460394Z'
 work_branch: OOMPAH-957
 target_branch: null
 review_url: null
@@ -28,6 +28,62 @@ oompah.integration:
   submitted_at: '2026-08-09T12:14:54.798015+00:00'
   updated_at: '2026-08-09T12:14:54.798015+00:00'
 oompah.work_branch: OOMPAH-957
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-fee0ad90fd0f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-957
+    digest: 395deaefdf523e61a4892a5aa578e0c64e2a260b52c7c3cb2d01f0badc629ddd
+  - version: 1
+    audit_id: audit-fa8de4cae680
+    project_id: proj-14849f1b
+    task_id: OOMPAH-957
+    digest: 395deaefdf523e61a4892a5aa578e0c64e2a260b52c7c3cb2d01f0badc629ddd
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-fee0ad90fd0f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-957
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 395deaefdf523e61a4892a5aa578e0c64e2a260b52c7c3cb2d01f0badc629ddd
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-09T14:45:00.549243+00:00'
+    selected_ref: 7d0807c2005cf299bc2a90a97909600d65171573
+    selected_sha: 7d0807c2005cf299bc2a90a97909600d65171573
+  - version: 1
+    audit_id: audit-fa8de4cae680
+    project_id: proj-14849f1b
+    task_id: OOMPAH-957
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 395deaefdf523e61a4892a5aa578e0c64e2a260b52c7c3cb2d01f0badc629ddd
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-09T14:45:00.549243+00:00'
+    selected_ref: 7d0807c2005cf299bc2a90a97909600d65171573
+    selected_sha: 7d0807c2005cf299bc2a90a97909600d65171573
+  attempt_history: []
 ---
 ## Summary
 
@@ -107,5 +163,15 @@ author: oompah
 created: 2026-08-09 14:36
 ---
 Hosted b53047ff produced the same single failure on all three Python versions, proving the independent receipt behavior itself passed: both exact command receipts were found and consumed, duplicate reuse was rejected, and both outputs were read. The only failure was the test's new post-consumption live-PID assertion because the broker correctly SIGTERM'd  at configured timeout_seconds=10 while the full-suite runner descheduled the test. Exact head 0cb499dc5649929ae0d7789eb6d7326c293423d9 removes only those two assertions; the test still holds commands through boundary reporting and validates independent one-shot consumption/output, while respecting the guard's timeout contract. Verification: focused test 10 consecutive passes and native guard module 138/138. Auto-merge disabled; fresh hosted checks running.
+---
+author: oompah
+created: 2026-08-09 14:45
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-09 14:45
+---
+Final exact head 0cb499dc5649929ae0d7789eb6d7326c293423d9 passed hosted CI on Python 3.11, 3.12, and 3.13 in run 31318849878, and independent final review reported no blockers. Squash auto-merge completed PR #766 at merge commit 4b31fb659dfcbebe7466676a8f80a60e65322355.
 ---
 <!-- COMMENTS:END -->
