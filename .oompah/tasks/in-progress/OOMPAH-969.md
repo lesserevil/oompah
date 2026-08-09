@@ -11,13 +11,22 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:25:38.748132Z'
-updated_at: '2026-08-09T19:41:33.673878Z'
+updated_at: '2026-08-09T19:57:46.798442Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-969
+  head_sha: ff13d997972b56cbab1b4202cc0eb9f62445cd1b
+  submitted_at: '2026-08-09T19:57:42.854981+00:00'
+  updated_at: '2026-08-09T19:57:42.854981+00:00'
 ---
 ## Summary
 
@@ -40,5 +49,10 @@ author: oompah
 created: 2026-08-09 19:41
 ---
 Implementation is pushed at exact head e513c7da36eaf240723a645d72147af2b7bb9d90. Workflow effect completion now wakes a single independently coalesced scheduler-loop admission owner, so shared capacity refills while ordinary world reconciliation remains in flight; ordinary fairness, stale-cut fallback, pause/quiesce/accepting fences, control isolation, and graceful drain remain intact. Validation: 235 focused orchestrator/runtime tests passed; changed-line Ruff and diff checks are clean. Holding final submit until the OOMPAH-968/OOMPAH-970 base settles and independent review completes.
+---
+author: oompah
+created: 2026-08-09 19:57
+---
+Final rebased head ff13d997972b56cbab1b4202cc0eb9f62445cd1b is pushed on merged OOMPAH-968/OOMPAH-970 main. Stable patch-id is unchanged from independently accepted e513c7da3. Post-rebase validation: 240 orchestrator/event-loop/workflow-runtime tests passed; diff check and worktree are clean. Touched-file Ruff output contains only the pre-existing baseline findings documented by the implementer; changed lines are clean.
 ---
 <!-- COMMENTS:END -->
