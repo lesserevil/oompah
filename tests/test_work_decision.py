@@ -742,6 +742,114 @@ def test_done_uses_immediate_target_landing_without_parent_status_cycle():
     assert unknown.alert_level is AlertSeverity.INFO
 
 
+def _terminal_provenance(**overrides):
+    payload = {
+        "schema_version": 1,
+        "marker_version": 1,
+        "project_id": "project-1",
+        "task_id": "TASK-1",
+        "retained": True,
+        "malformed": False,
+        "authority_generation": 3,
+        "authorized_by": "owner",
+        "actor_source": "api",
+        "marked_at": NOW_ISO,
+        "updated_at": NOW_ISO,
+    }
+    payload.update(overrides)
+    return _known(
+        FactDomain.TERMINAL_AUDIT,
+        {"terminal_provenance": payload},
+    )
+
+
+def test_done_retained_as_terminal_provenance_requires_no_landing_effect():
+    issue = _issue(DONE)
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={FactDomain.TERMINAL_AUDIT: _terminal_provenance()},
+            landings=(_landing(LandingState.UNKNOWN, error="git_timeout"),),
+        ),
+    )
+
+    assert decision.disposition is TaskDisposition.TERMINAL
+    assert decision.reason_code == "terminal.provenance_retained"
+    assert decision.responsible_owner is WorkflowOwner.NONE
+    assert decision.durable_jobs == ()
+    assert decision.recommended_status is None
+    assert decision.next_reassessment_at is None
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"task_id": "OTHER"},
+        {"project_id": "other-project"},
+        {"authorized_by": ""},
+        {"authority_generation": True},
+        {"marker_version": 2},
+        {"malformed": True, "marker_version": None},
+    ],
+)
+def test_invalid_terminal_provenance_never_becomes_delivery_proof(overrides):
+    issue = _issue(DONE)
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.TERMINAL_AUDIT: _terminal_provenance(**overrides)
+            },
+        ),
+    )
+
+    assert decision.disposition is TaskDisposition.ACTION_REQUIRED
+    assert decision.reason_code == "terminal.provenance_invalid"
+    assert decision.durable_jobs == ()
+    assert decision.alert_level is AlertSeverity.WARNING
+
+
+def test_owner_authorized_new_revision_resumes_normal_done_landing_decision():
+    issue = _issue(DONE)
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.TERMINAL_AUDIT: _terminal_provenance(
+                    retained=False,
+                    authority_generation=4,
+                )
+            },
+            landings=(_landing(LandingState.UNKNOWN, error="git_timeout"),),
+        ),
+    )
+
+    assert decision.disposition is TaskDisposition.RETRY_SCHEDULED
+    assert decision.reason_code == "landing.evidence_unknown"
+    assert decision.durable_jobs == ("integration_landing_refresh",)
+
+
+def test_retained_marker_on_nonterminal_status_fails_closed_without_dispatch():
+    issue = _issue(OPEN)
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={FactDomain.TERMINAL_AUDIT: _terminal_provenance()},
+        ),
+    )
+
+    assert decision.disposition is TaskDisposition.ACTION_REQUIRED
+    assert decision.reason_code == "terminal.provenance_invalid"
+    assert decision.durable_jobs == ()
+    assert decision.permitted_actions == (
+        PermittedAction.RESOLVE_OPERATOR_ACTION,
+    )
+
+
 def test_done_nested_epic_uses_its_own_immediate_target_landing():
     issue = _issue(
         DONE,

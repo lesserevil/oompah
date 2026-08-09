@@ -152,6 +152,8 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "terminal.final",
         "terminal.immediate_target_landing_proven",
         "terminal.preserve_verified_merged",
+        "terminal.provenance_invalid",
+        "terminal.provenance_retained",
         "ownership.conflict",
         "ownership.impossible",
         "validation.active",
@@ -1717,6 +1719,96 @@ def _landing_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
     )
 
 
+def _terminal_provenance_decision(
+    task: _TaskView,
+    facts: WorkflowFacts,
+) -> WorkDecision | None:
+    """Reduce an authenticated terminal-provenance marker, if present.
+
+    The fact adapter emits this payload only after parsing the durable marker,
+    but the decision boundary validates the complete identity again.  This
+    keeps a malformed, cross-project, or cross-task fact from becoming a
+    delivery bypass if a future adapter regresses.
+    """
+
+    observation = facts.fact(FactDomain.TERMINAL_AUDIT)
+    value = (
+        _mapping(observation.value)
+        if observation.state is FactState.KNOWN
+        else None
+    )
+    raw = _mapping(value.get("terminal_provenance")) if value is not None else None
+    if raw is None:
+        return None
+
+    generation = raw.get("authority_generation")
+    malformed = raw.get("malformed") is True
+    retained = raw.get("retained") is True
+    structurally_valid = bool(
+        raw.get("schema_version") == 1
+        and raw.get("marker_version") == 1
+        and raw.get("project_id") == facts.project_id
+        and raw.get("task_id") == facts.task_id
+        and isinstance(generation, int)
+        and not isinstance(generation, bool)
+        and generation >= 0
+        and isinstance(raw.get("authorized_by"), str)
+        and str(raw.get("authorized_by") or "").strip()
+        and isinstance(raw.get("actor_source"), str)
+        and str(raw.get("actor_source") or "").strip()
+        and isinstance(raw.get("marked_at"), str)
+        and str(raw.get("marked_at") or "").strip()
+        and isinstance(raw.get("updated_at"), str)
+        and str(raw.get("updated_at") or "").strip()
+    )
+    if malformed or (retained and not structurally_valid):
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.ACTION_REQUIRED,
+            reason_code="terminal.provenance_invalid",
+            owner=WorkflowOwner.OPERATOR,
+            prerequisites=(
+                UnmetPrerequisite(
+                    "terminal.provenance_invalid",
+                    task.task_id,
+                    "malformed" if malformed else "identity_or_authority_mismatch",
+                ),
+            ),
+            actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
+            alert=AlertSeverity.WARNING,
+            reassess=False,
+        )
+    if not retained:
+        return None
+    if task.status != DONE:
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.ACTION_REQUIRED,
+            reason_code="terminal.provenance_invalid",
+            owner=WorkflowOwner.OPERATOR,
+            prerequisites=(
+                UnmetPrerequisite(
+                    "terminal.provenance_invalid",
+                    task.task_id,
+                    f"retained_marker_with_{task.status}",
+                ),
+            ),
+            actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
+            alert=AlertSeverity.WARNING,
+            reassess=False,
+        )
+    return _decision(
+        task,
+        facts,
+        disposition=TaskDisposition.TERMINAL,
+        reason_code="terminal.provenance_retained",
+        owner=WorkflowOwner.NONE,
+        reassess=False,
+    )
+
+
 def _evaluate_task_default_policy(
     task: Issue | Mapping[str, Any],
     facts: WorkflowFacts,
@@ -1831,6 +1923,10 @@ def _evaluate_task_default_policy(
             actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
             alert=AlertSeverity.WARNING,
         )
+
+    provenance_decision = _terminal_provenance_decision(view, facts)
+    if provenance_decision is not None:
+        return provenance_decision
 
     # A Done nested epic has already completed its own containment rollup.  Its
     # remaining obligation is the exact landing on its immediate target, just

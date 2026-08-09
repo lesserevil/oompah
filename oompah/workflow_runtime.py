@@ -2904,8 +2904,14 @@ class WorkflowRuntime:
                 binding = bindings_by_project.get(decision.project_id)
                 if (
                     isinstance(observed, Mapping)
-                    and str(observed.get("request_state") or "")
-                    in {"pending", "in_progress"}
+                    and (
+                        str(observed.get("request_state") or "")
+                        in {"pending", "in_progress"}
+                        or isinstance(
+                            observed.get("terminal_provenance"),
+                            Mapping,
+                        )
+                    )
                 ):
                     if binding is None:
                         raise WorkflowRuntimeError(
