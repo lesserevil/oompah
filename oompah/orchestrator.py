@@ -30664,7 +30664,17 @@ class Orchestrator:
             expected_head_sha=expected_head_sha,
             priority=priority,
         )
-        self.request_refresh()
+        is_control_action = getattr(runtime, "is_control_action", None)
+        if callable(is_control_action) and is_control_action(action):
+            # A corpus reconciliation may already own the ordinary dispatch
+            # tick for minutes.  Wake the independent admission task so this
+            # imperative event can spend its reserved control slot now; its
+            # completion requests the authoritative follow-up world scan.
+            self._request_workflow_batch_continuation(
+                reason=f"workflow_control_event:{job.action}"
+            )
+        else:
+            self.request_refresh()
         return job
 
     def _durable_accepted_implementation_handoff(

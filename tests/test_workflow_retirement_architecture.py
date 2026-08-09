@@ -212,6 +212,39 @@ def test_legacy_event_conversion_always_targets_durable_ledger(mode: str) -> Non
     orchestrator.request_refresh.assert_called_once_with()
 
 
+def test_control_event_wakes_reserved_admission_instead_of_world_scan() -> None:
+    scheduled = SimpleNamespace(
+        job_id="job-control",
+        action="direct_owner_claim",
+    )
+    controller = SimpleNamespace(schedule_event=Mock(return_value=scheduled))
+    runtime = SimpleNamespace(
+        mode="enforce",
+        project_bindings={
+            "project-1": SimpleNamespace(implementation_controller=controller)
+        },
+        is_control_action=Mock(return_value=True),
+    )
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.workflow_runtime = runtime
+    orchestrator.request_refresh = Mock()
+    orchestrator._request_workflow_batch_continuation = Mock(return_value=True)
+
+    result = orchestrator._schedule_implementation_workflow_event(
+        project_id="project-1",
+        identifier="TASK-CONTROL",
+        action="direct_owner_claim",
+        priority=0,
+    )
+
+    assert result is scheduled
+    runtime.is_control_action.assert_called_once_with("direct_owner_claim")
+    orchestrator._request_workflow_batch_continuation.assert_called_once_with(
+        reason="workflow_control_event:direct_owner_claim"
+    )
+    orchestrator.request_refresh.assert_not_called()
+
+
 @pytest.mark.parametrize("mode", ["off", "shadow", "enforce"])
 def test_runtime_refresh_does_not_wake_legacy_integration_future(mode: str) -> None:
     orchestrator = object.__new__(Orchestrator)

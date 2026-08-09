@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
 
 import oompah.server as server_module
 from oompah.config import ServiceConfig
@@ -1611,6 +1612,94 @@ def test_owner_claim_api_enforce_routes_claim_and_release_through_workflow(tmp_p
     assert retiring.status_code == 200
     assert retiring.json()["active"] is False
     assert retiring.json()["retirement_pending"] is True
+
+
+def test_owner_claim_tracker_lookup_cannot_block_healthz(tmp_path):
+    """Native tracker locks stay off the shared ASGI event loop."""
+
+    orch, tracker, issue = _orchestrator(tmp_path)
+    lookup_entered = threading.Event()
+    release_lookup = threading.Event()
+
+    def blocked_detail(_identifier):
+        lookup_entered.set()
+        assert release_lookup.wait(3), "tracker lookup rescue timed out"
+        return issue
+
+    tracker.fetch_issue_detail.side_effect = blocked_detail
+    endpoint = "/api/v1/projects/proj-1/tasks/OOMPAH-1/owner-claim"
+    rescue = threading.Timer(2, release_lookup.set)
+    rescue.daemon = True
+
+    async def scenario():
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            owner_request = asyncio.create_task(client.get(endpoint))
+            assert await asyncio.to_thread(lookup_entered.wait, 1)
+            health = await asyncio.wait_for(client.get("/healthz"), 0.5)
+            assert health.status_code == 200
+            assert not release_lookup.is_set()
+            release_lookup.set()
+            owner_response = await asyncio.wait_for(owner_request, 1)
+            assert owner_response.status_code == 200
+
+    rescue.start()
+    try:
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            asyncio.run(scenario())
+    finally:
+        release_lookup.set()
+        rescue.cancel()
+
+
+def test_owner_claim_job_store_wait_cannot_block_healthz(tmp_path):
+    """Workflow publication locks stay off the shared ASGI event loop."""
+
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.state = "Open"
+    tracker.fetch_issue_detail.return_value = issue
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    schedule_entered = threading.Event()
+    release_schedule = threading.Event()
+
+    def blocked_schedule(**_kwargs):
+        schedule_entered.set()
+        assert release_schedule.wait(3), "workflow-store rescue timed out"
+        return SimpleNamespace(
+            job_id="claim-job",
+            generation="claim-generation",
+        )
+
+    orch._schedule_implementation_workflow_event = blocked_schedule
+    endpoint = "/api/v1/projects/proj-1/tasks/OOMPAH-1/owner-claim"
+    rescue = threading.Timer(2, release_schedule.set)
+    rescue.daemon = True
+
+    async def scenario():
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            owner_request = asyncio.create_task(
+                client.post(endpoint, json={"actor_login": "alice"})
+            )
+            assert await asyncio.to_thread(schedule_entered.wait, 1)
+            health = await asyncio.wait_for(client.get("/healthz"), 0.5)
+            assert health.status_code == 200
+            assert not release_schedule.is_set()
+            release_schedule.set()
+            owner_response = await asyncio.wait_for(owner_request, 1)
+            assert owner_response.status_code == 202
+
+    rescue.start()
+    try:
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            asyncio.run(scenario())
+    finally:
+        release_schedule.set()
+        rescue.cancel()
 
 
 def test_enforce_retry_cleanup_does_not_supersede_direct_owner_revocation(tmp_path):

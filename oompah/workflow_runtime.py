@@ -3409,9 +3409,11 @@ class WorkflowRuntime:
         """Admit one bounded slice from the exact last-published world cut.
 
         This path deliberately performs no tracker read, fact collection,
-        controller evaluation, or snapshot publication.  The cached cut is a
-        convenience only: the job-store claim transaction independently binds
-        every admitted row to the same exact published generation.
+        controller evaluation, or snapshot publication.  Managed decisions
+        remain bound to the cached published cut.  Imperative control events
+        may use the reserved lane before that cut exists (or while a new cut
+        is being assembled): their immutable event generation and the job
+        store's task-ownership predicate are their independent authority.
         """
 
         if not self._admit_reconcile():
@@ -3431,11 +3433,6 @@ class WorkflowRuntime:
                         cut.snapshot_generation if cut is not None else None
                     ),
                 )
-            if cut is None:
-                return self._admission_skip(
-                    "no published workflow admission cut is available",
-                    requires_reconcile=True,
-                )
             if not self._binding_topology_current():
                 with self._lock:
                     if self._admission_cut == cut:
@@ -3443,19 +3440,61 @@ class WorkflowRuntime:
                 return self._admission_skip(
                     "workflow project bindings changed",
                     requires_reconcile=True,
-                    snapshot_generation=cut.snapshot_generation,
+                    snapshot_generation=(
+                        cut.snapshot_generation if cut is not None else None
+                    ),
                 )
-            if not self.store.published_snapshot_generation_is_current(
-                cut.snapshot_generation
-            ):
+            cut_is_current = bool(
+                cut is not None
+                and self.store.published_snapshot_generation_is_current(
+                    cut.snapshot_generation
+                )
+            )
+            if not cut_is_current:
                 with self._lock:
                     if self._admission_cut == cut:
                         self._admission_cut = None
-                return self._admission_skip(
-                    "workflow admission cut is stale",
-                    requires_reconcile=True,
-                    snapshot_generation=cut.snapshot_generation,
+                enabled_project_rows: list[str] = []
+                for project_id, binding in sorted(self.project_bindings.items()):
+                    try:
+                        enabled = binding.read_enabled_state()
+                    except Exception:
+                        logger.exception(
+                            "Workflow control admission could not read pause "
+                            "authority for %s",
+                            project_id,
+                        )
+                        continue
+                    if enabled:
+                        enabled_project_rows.append(project_id)
+                enabled_projects = tuple(enabled_project_rows)
+                worker_report = (
+                    await self._run_due(enabled_projects, control_only=True)
+                    if self.enforce and self._handlers_configured
+                    else None
                 )
+                reason = (
+                    "no published workflow admission cut is available"
+                    if cut is None
+                    else "workflow admission cut is stale"
+                )
+                report = self._admission_skip(
+                    reason,
+                    requires_reconcile=True,
+                    snapshot_generation=(
+                        cut.snapshot_generation if cut is not None else None
+                    ),
+                )
+                if worker_report is not None:
+                    report["projects"] = list(enabled_projects)
+                    report["worker"] = worker_report
+                    with self._lock:
+                        last = dict(self._last_reconcile)
+                        last["worker"] = dict(worker_report)
+                        last["admission"] = dict(report)
+                        self._last_reconcile = last
+                return report
+            assert cut is not None
             try:
                 enabled_projects = tuple(
                     project_id
@@ -3598,6 +3637,7 @@ class WorkflowRuntime:
         project_ids: Sequence[str],
         *,
         required_snapshot_generation: int | None = None,
+        control_only: bool = False,
     ) -> dict[str, Any]:
         active_projects = tuple(
             dict.fromkeys(str(value) for value in project_ids)
@@ -3629,6 +3669,8 @@ class WorkflowRuntime:
                         tuple(sorted(RUNTIME_ACTIONS)),
                     ),
                 )
+                if control_only:
+                    lane_limits = lane_limits[:1]
                 for lane, capacity, actions in lane_limits:
                     with self._lock:
                         lane_active = sum(
@@ -3788,6 +3830,13 @@ class WorkflowRuntime:
             int(getattr(handler, "pending_mutation_count", 0) or 0)
             for handler in self._lifecycle_handlers()
         )
+
+    @staticmethod
+    def is_control_action(action: Any) -> bool:
+        """Return whether an effect owns reserved runtime capacity."""
+
+        normalized = str(getattr(action, "value", action) or "")
+        return normalized in RUNTIME_CONTROL_ACTIONS
 
     @property
     def pending_operation_count(self) -> int:

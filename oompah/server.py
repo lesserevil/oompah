@@ -13088,7 +13088,8 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
     if error is not None:
         return error
     assert body is not None
-    project, tracker, issue, error = _owner_claim_context(
+    project, tracker, issue, error = await _run_api_io(
+        _owner_claim_context,
         orch,
         project_id,
         identifier,
@@ -13168,7 +13169,8 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
     if getattr(getattr(orch, "workflow_runtime", None), "enforce", False) is True:
         from oompah.implementation_workflow import ImplementationAction
 
-        job = orch._schedule_implementation_workflow_event(
+        job = await _run_api_io(
+            orch._schedule_implementation_workflow_event,
             project_id=project_id,
             identifier=issue.identifier,
             action=ImplementationAction.DIRECT_OWNER_CLAIM,
@@ -13201,12 +13203,18 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
     # dispatch boundary also checks the durable owner lease granted below.
     added_dispatch_fence = False
     try:
-        with orch.project_store.project_write_lock(project_id):
-            labels = {str(label).strip().lower() for label in issue.labels or []}
-            if "human-only" not in labels:
+        def _install_temporary_owner_fence() -> bool:
+            with orch.project_store.project_write_lock(project_id):
+                labels = {
+                    str(label).strip().lower() for label in issue.labels or []
+                }
+                if "human-only" in labels:
+                    return False
                 tracker.add_label(issue.identifier, "human-only")
                 issue.labels = [*(issue.labels or []), "human-only"]
-                added_dispatch_fence = True
+                return True
+
+        added_dispatch_fence = await _run_api_io(_install_temporary_owner_fence)
     except Exception as exc:
         logger.warning(
             "Owner takeover fence failed for %s/%s: %s",
@@ -13220,7 +13228,8 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
         )
 
     if expected_validation_owner is not None:
-        retired, retirement_error = _retire_expected_legacy_validation_owner(
+        retired, retirement_error = await _run_api_io(
+            _retire_expected_legacy_validation_owner,
             orch,
             issue,
             expected_validation_owner,
@@ -13270,34 +13279,41 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
     claim = None
     current = None
     try:
-        with orch.project_store.project_write_lock(project_id):
-            try:
-                tracker.invalidate_read_cache()
-            except Exception:
-                pass
-            current = tracker.fetch_issue_detail(issue.identifier)
-            if (
-                current is None
-                or is_terminal_status(current.state)
-                or canonicalize_status(current.state) == IN_VALIDATION
-            ):
-                return JSONResponse(
-                    {
-                        "error": {
-                            "code": "invalid_state",
-                            "message": (
-                                "Task became terminal or In Validation during owner takeover."
-                            ),
-                        }
-                    },
-                    status_code=409,
+        def _grant_current_owner_claim():
+            with orch.project_store.project_write_lock(project_id):
+                try:
+                    tracker.invalidate_read_cache()
+                except Exception:
+                    pass
+                observed = tracker.fetch_issue_detail(issue.identifier)
+                if (
+                    observed is None
+                    or is_terminal_status(observed.state)
+                    or canonicalize_status(observed.state) == IN_VALIDATION
+                ):
+                    return observed, None
+                granted = orch.grant_owner_claim(
+                    issue_id=issue.id,
+                    project_id=project_id,
+                    owner_login=owner_login,
+                    ttl_hours=ttl_hours,
                 )
-            claim = orch.grant_owner_claim(
-                issue_id=issue.id,
-                project_id=project_id,
-                owner_login=owner_login,
-                ttl_hours=ttl_hours,
+                return observed, granted
+
+        current, claim = await _run_api_io(_grant_current_owner_claim)
+        if claim is None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_state",
+                        "message": (
+                            "Task became terminal or In Validation during owner takeover."
+                        ),
+                    }
+                },
+                status_code=409,
             )
+        assert current is not None
         if canonicalize_status(current.state) != IN_PROGRESS:
             try:
                 await _apply_task_status_transition_async(
@@ -13312,7 +13328,8 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
                     evidence_generation=claim.claim_id,
                 )
             except Exception:
-                orch.release_owner_claim(
+                await _run_api_io(
+                    orch.release_owner_claim,
                     issue_id=issue.id,
                     project_id=project_id,
                     expected_claim_id=claim.claim_id,
@@ -13363,7 +13380,8 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
     _api_cache.invalidate_prefix(f"detail:{project_id}:{issue.identifier}")
     await _publish_owner_claim_state(orch)
     await broadcast_issues()
-    return JSONResponse({"active": True, **_owner_claim_payload(orch, claim)})
+    claim_payload = await _run_api_io(_owner_claim_payload, orch, claim)
+    return JSONResponse({"active": True, **claim_payload})
 
 
 @app.get("/api/v1/projects/{project_id}/tasks/{identifier}/owner-claim")
@@ -13371,7 +13389,8 @@ async def api_get_owner_claim(project_id: str, identifier: str):
     """Return direct-owner ownership and expiry evidence for one task."""
 
     orch = _get_orchestrator()
-    _project, _tracker, issue, error = _owner_claim_context(
+    _project, _tracker, issue, error = await _run_api_io(
+        _owner_claim_context,
         orch,
         project_id,
         identifier,
@@ -13379,10 +13398,14 @@ async def api_get_owner_claim(project_id: str, identifier: str):
     if error is not None:
         return error
     assert issue is not None
-    claim = orch._owner_claim_for_issue(issue.id, project_id)
+    claim = await _run_api_io(
+        orch._owner_claim_for_issue,
+        issue.id,
+        project_id,
+    )
     if claim is None:
         return JSONResponse({"active": False, "ownership_source": None})
-    payload = _owner_claim_payload(orch, claim)
+    payload = await _run_api_io(_owner_claim_payload, orch, claim)
     return JSONResponse(
         {
             "active": not payload["is_expired"]
@@ -13401,7 +13424,12 @@ async def api_release_owner_claim(project_id: str, identifier: str, request: Req
     if error is not None:
         return error
     assert body is not None
-    project, _tracker, issue, error = _owner_claim_context(orch, project_id, identifier)
+    project, _tracker, issue, error = await _run_api_io(
+        _owner_claim_context,
+        orch,
+        project_id,
+        identifier,
+    )
     if error is not None:
         return error
     assert project is not None and issue is not None
@@ -13412,10 +13440,15 @@ async def api_release_owner_claim(project_id: str, identifier: str, request: Req
     if getattr(getattr(orch, "workflow_runtime", None), "enforce", False) is True:
         from oompah.implementation_workflow import ImplementationAction
 
-        claim = orch._owner_claim_for_issue(issue.id, project_id)
+        claim = await _run_api_io(
+            orch._owner_claim_for_issue,
+            issue.id,
+            project_id,
+        )
         if claim is not None:
             try:
-                orch.mark_owner_claim_retirement_pending(
+                await _run_api_io(
+                    orch.mark_owner_claim_retirement_pending,
                     issue_id=issue.id,
                     project_id=project_id,
                     expected_claim_id=claim.claim_id,
@@ -13435,7 +13468,8 @@ async def api_release_owner_claim(project_id: str, identifier: str, request: Req
                     },
                     status_code=503,
                 )
-        job = orch._schedule_implementation_workflow_event(
+        job = await _run_api_io(
+            orch._schedule_implementation_workflow_event,
             project_id=project_id,
             identifier=issue.identifier,
             action=ImplementationAction.AUTHORITY_REVOCATION,
@@ -13464,13 +13498,16 @@ async def api_release_owner_claim(project_id: str, identifier: str, request: Req
             status_code=202,
         )
 
-    claim = orch._owner_claim_for_issue(issue.id, project_id)
-    removed = orch.release_owner_claim(
+    claim = await _run_api_io(
+        orch._owner_claim_for_issue,
+        issue.id,
+        project_id,
+    )
+    removed = await _run_api_io(
+        orch.release_owner_claim,
         issue_id=issue.id,
         project_id=project_id,
-        expected_claim_id=(
-            str(getattr(claim, "claim_id", None) or "")
-        ),
+        expected_claim_id=(str(getattr(claim, "claim_id", None) or "")),
     )
     _api_cache.invalidate("issues:all")
     _api_cache.invalidate_prefix(f"detail:{project_id}:{issue.identifier}")
