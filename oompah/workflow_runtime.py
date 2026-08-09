@@ -1772,19 +1772,58 @@ class WorkflowRuntime:
             self._latest_decisions = retained
 
     @staticmethod
-    def _validate_domain_decisions(
+    def _scope_domain_decisions(
         domain: str,
         batch: Any,
         allowed_actions: Sequence[str],
-    ) -> None:
+    ) -> Any:
+        """Keep one managed batch inside its durable action ownership.
+
+        ``evaluate_task`` may return an explicitly unowned refresh hint when
+        the task list and its freshly collected task fact straddle a tracker
+        update.  The unified runtime itself provides the next authoritative
+        scan, so materializing that hint in a managed domain would be both
+        ownerless and incorrect.  Drop only actions registered to ``none``;
+        an action owned by another domain (or an unknown action) remains a
+        composition error.
+        """
+
         allowed = frozenset(allowed_actions)
+        scoped_tasks = []
+        changed = False
         for decision in batch.decisions:
             unknown = set(decision.durable_jobs) - allowed
-            if unknown:
+            forbidden = {
+                action
+                for action in unknown
+                if _LIVENESS_ACTION_OWNER.get(action) != "none"
+            }
+            if forbidden:
                 raise WorkflowRuntimeError(
                     f"{domain} decision produced non-{domain} durable jobs: "
-                    + ", ".join(sorted(unknown))
+                    + ", ".join(sorted(forbidden))
                 )
+        for item in batch.tasks:
+            durable_jobs = tuple(
+                action
+                for action in item.decision.durable_jobs
+                if action in allowed
+            )
+            if durable_jobs == item.decision.durable_jobs:
+                scoped_tasks.append(item)
+                continue
+            changed = True
+            scoped_tasks.append(
+                replace(
+                    item,
+                    decision=replace(
+                        item.decision,
+                        durable_jobs=durable_jobs,
+                        decision_revision=None,
+                    ),
+                )
+            )
+        return replace(batch, tasks=tuple(scoped_tasks)) if changed else batch
 
     def _admit_reconcile(self) -> bool:
         """Acquire one reconcile operation unless shutdown fenced admission."""
@@ -2075,7 +2114,7 @@ class WorkflowRuntime:
                     task_issues,
                     liveness_slo_seconds=liveness_slo_seconds,
                 )
-                self._validate_domain_decisions(
+                review_batch = self._scope_domain_decisions(
                     "review", review_batch, REVIEW_ACTION_JOBS
                 )
 
@@ -2091,7 +2130,7 @@ class WorkflowRuntime:
                     binding.integration_controller._latest = (
                         integration_checkpoint
                     )
-                self._validate_domain_decisions(
+                integration_batch = self._scope_domain_decisions(
                     "integration", integration_batch, INTEGRATION_ACTIONS
                 )
 
@@ -2111,7 +2150,9 @@ class WorkflowRuntime:
                     binding.epic_controller._landings = (
                         epic_landings_checkpoint
                     )
-                self._validate_domain_decisions("epic", epic_batch, EPIC_ACTIONS)
+                epic_batch = self._scope_domain_decisions(
+                    "epic", epic_batch, EPIC_ACTIONS
+                )
 
                 project_liveness_tasks = [
                     issue

@@ -14,7 +14,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from oompah.epic_workflow import EpicFactCollector, EpicWorkflowController
+from oompah.epic_workflow import (
+    EPIC_ACTIONS,
+    EpicFactCollector,
+    EpicWorkflowController,
+)
 from oompah.implementation_workflow import (
     ImplementationAction,
     ImplementationWorkflowController,
@@ -2737,6 +2741,58 @@ def test_epics_have_one_domain_owner_and_new_facts_supersede_old_job(tmp_path):
     assert sum(job.state is WorkflowJobState.SUPERSEDED for job in jobs) == 1
     runtime.close()
     store.close()
+
+
+def test_epic_task_fact_race_does_not_reject_the_project_snapshot(tmp_path):
+    stale = make_issue("EPIC-RACE", state="In Progress", issue_type="epic")
+    current = make_issue("EPIC-RACE", state="Done", issue_type="epic")
+
+    class RacingTracker(NativeTracker):
+        def fetch_all_issues_enriched(self):
+            return [stale]
+
+        fetch_all_issues = fetch_all_issues_enriched
+
+        def fetch_issue_detail(self, identifier):
+            assert identifier == current.identifier
+            return current
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = RacingTracker([current])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    project = report["projects"]["project-1"]
+    assert "error" not in project
+    assert project["snapshot"]["published"] is True
+    assert project["epic"]["decisions_seen"] == 1
+    assert project["epic"]["jobs_required"] == 0
+    assert binding.epic_controller.projections()[0].durable_jobs == ()
+    assert store.list_jobs(task_id=current.identifier) == ()
+    runtime.close()
+    store.close()
+
+
+@pytest.mark.parametrize("action", ["review_refresh", "unknown_action"])
+def test_domain_scoping_still_rejects_foreign_or_unknown_actions(action):
+    batch = SimpleNamespace(
+        decisions=(SimpleNamespace(durable_jobs=(action,)),),
+    )
+
+    with pytest.raises(
+        WorkflowRuntimeError,
+        match=f"epic decision produced non-epic durable jobs: {action}",
+    ):
+        WorkflowRuntime._scope_domain_decisions("epic", batch, EPIC_ACTIONS)
 
 
 def test_runtime_routes_direct_maintenance_audit_through_integration_domain(
