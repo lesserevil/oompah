@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-958
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Bridge durable integration workflow authority to exact queue leases
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:44:46.874602Z'
-updated_at: '2026-08-09T16:27:47.669825Z'
+updated_at: '2026-08-09T16:30:53.415115Z'
 work_branch: OOMPAH-958
 target_branch: null
 review_url: null
@@ -38,6 +38,28 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-958
     digest: f854211d29753504241eba273dd748323ab6a16e04c834bdb72f31c1614ad127
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-257bb7dbbea9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-958
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f854211d29753504241eba273dd748323ab6a16e04c834bdb72f31c1614ad127
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner override after exact accepted head 44c2e40d0940f0c8f5edd859141b1b042eafd411
+      was proven contained in aggregate head 2dd74be288b81265ea4a242d7467ecc1ed9f1435,
+      merged by PR #757 as ba0859da9d47d3417a50bfbaa2cb10a7a32f5f01, with hosted Python
+      3.11/3.12/3.13 checks successful.'
+    created_at: '2026-08-09T16:30:49.327582+00:00'
+    selected_ref: 44c2e40d0940f0c8f5edd859141b1b042eafd411
+    selected_sha: 44c2e40d0940f0c8f5edd859141b1b042eafd411
+    applied: false
   version: 1
   pending_chain:
   - version: 1
