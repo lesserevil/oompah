@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T14:01:20.817412Z'
+updated_at: '2026-08-09T14:12:02.139679Z'
 work_branch: OOMPAH-957
 target_branch: null
 review_url: null
@@ -92,5 +92,10 @@ author: oompah
 created: 2026-08-09 14:01
 ---
 Second review blocker corrected at c59e01d3e424bea743fe25c8a7e04c3e6ba73f46. Authorization-receipt expiry is now distinct from consumed item/run completion correlation: an expired unconsumed receipt is fully pruned, while a consumed receipt cannot authorize anything and its item mapping remains until terminal completion (or broker retirement) clears the complete group. Added the exact heavy-command regression consuming near the post-exit grace edge, delaying completion beyond expiry, and verifying the run completes rather than stranding. Verification: complete native validation guard module 138/138 passed with 2 workers; focused six-test lifecycle/replay suite passed; four-test replay/storage/delayed-completion suite passed five consecutive repetitions. Auto-merge remains disabled pending fresh review and hosted checks.
+---
+author: oompah
+created: 2026-08-09 14:12
+---
+Hosted Python 3.11 on c59e01d exposed a genuine parallel handoff expiring under full-suite runner load (3.12/3.13 passed). Corrected head 7a2426104bd83f0f55e4fe012f7000a94931853a uses a 15-second exact-process post-exit handoff window, bounded below the test's configured 12-second shared startup budget plus scheduler handoff, rather than the prior 5 seconds. Also retained the process-group replay fence after item completion until that same grace expires, so a late background descendant cannot register a new receipt after correlation is cleared; the late-background regression now explicitly completes item-1 before the descendant reports. Verification: native guard module 138/138, focused six-test suite, and parallel/replay/delayed-completion/background suite five repetitions all passed. Fresh hosted checks running; auto-merge disabled pending re-review.
 ---
 <!-- COMMENTS:END -->
