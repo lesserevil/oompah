@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import subprocess
 import threading
 import time
@@ -15,6 +16,8 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+
+import oompah.workflow_runtime as workflow_runtime_module
 
 from oompah.epic_workflow import (
     EPIC_ACTIONS,
@@ -74,6 +77,7 @@ from oompah.workflow_worker import (
     RevalidationResult,
     VerificationResult,
     WorkflowRunDisposition,
+    WorkflowRunResult,
 )
 from oompah.work_decision import evaluate_task
 from oompah.work_decision_projection import (
@@ -187,6 +191,7 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
         workflow_runtime_batch_size = 9
         workflow_runtime_max_concurrent = 6
         workflow_runtime_control_reserved_slots = 2
+        workflow_quarantine_recycle_seconds = 23
 
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     integration_queue = object()
@@ -217,6 +222,8 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
     assert runtime.batch_size == 9
     assert runtime.max_concurrent == 6
     assert runtime.control_reserved_slots == 2
+    assert runtime.worker.quarantine_recycle_seconds == 23
+    assert runtime.worker.quarantine_recycle_observer is not None
     assert tuple(runtime.project_bindings) == ("legacy",)
     binding = runtime.project_bindings["legacy"]
     assert binding.transition_service.project_id == "legacy"
@@ -1546,9 +1553,13 @@ def test_fast_admission_requests_one_world_scan_after_queue_drains(tmp_path):
     )
 
     async def exercise():
+        completion_published = asyncio.Event()
+        runtime._effect_completion_observer = (
+            lambda _result: completion_published.set()
+        )
         await runtime.start()
         first = await runtime.reconcile_async()
-        await wait_for_runtime_effects(runtime)
+        await asyncio.wait_for(completion_published.wait(), 1)
         final = await runtime.continue_admission_async()
         return first, final
 
@@ -1560,6 +1571,313 @@ def test_fast_admission_requests_one_world_scan_after_queue_drains(tmp_path):
     assert final["worker"]["active"] == 0
     assert final["requires_reconcile"] is True
     assert final["reconcile_reason"] == "published_queue_drained"
+    runtime.close()
+    store.close()
+
+
+def test_done_effect_remains_retained_until_completion_callback_settles(tmp_path):
+    """A done Task cannot open a close/drain gap before callback settlement."""
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    effect_entered = threading.Event()
+    release_effect = threading.Event()
+
+    class FencedHandler(CompleteHandler):
+        async def apply(self, context):
+            effect_entered.set()
+            assert await asyncio.to_thread(release_effect.wait, 2)
+            return await super().apply(context)
+
+    store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="CALLBACK-PENDING",
+            generation="callback-pending",
+            action="review_refresh",
+            idempotency_key="callback-pending",
+        )
+    )
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(FencedHandler()),
+    )
+    callback_entered = threading.Event()
+    release_callback = threading.Event()
+    drain_entered = threading.Event()
+    original_effect_finished = runtime._effect_finished
+    original_worker_drain = runtime.worker.drain
+    completed_task = None
+
+    def fenced_effect_finished(task):
+        nonlocal completed_task
+        completed_task = task
+        callback_entered.set()
+        assert release_callback.wait(2), "effect callback barrier timed out"
+        original_effect_finished(task)
+
+    runtime._effect_finished = fenced_effect_finished
+
+    async def observed_worker_drain(*, timeout_seconds=None):
+        drain_entered.set()
+        return await original_worker_drain(timeout_seconds=timeout_seconds)
+
+    runtime.worker.drain = observed_worker_drain
+
+    async def exercise():
+        await runtime.start()
+        report = await runtime.reconcile_async()
+        drained = await runtime.drain(timeout_seconds=2)
+        return report, drained
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        run = executor.submit(asyncio.run, exercise())
+        try:
+            assert effect_entered.wait(2), "workflow effect never entered"
+            assert drain_entered.wait(2), "runtime drain never entered"
+            release_effect.set()
+            assert callback_entered.wait(2), "effect callback never entered"
+            assert completed_task is not None and completed_task.done()
+            assert run.done() is False
+            assert runtime.health_snapshot()["worker"]["retained"] == 1
+            assert runtime.pending_operation_count == 1
+            with pytest.raises(
+                WorkflowRuntimeError,
+                match="cannot close workflow runtime while 1 operation",
+            ):
+                runtime.close()
+        finally:
+            release_effect.set()
+            release_callback.set()
+        report, drained = run.result(timeout=2)
+
+    assert report["worker"]["scheduled"] == 1
+    assert drained is True
+    assert runtime.health_snapshot()["worker"]["retained"] == 0
+    assert runtime.pending_operation_count == 0
+    assert len(runtime._effect_results) == 1
+    original_effect_finished(completed_task)
+    assert len(runtime._effect_results) == 1
+    runtime.close()
+    store.close()
+
+
+@pytest.mark.parametrize("settles_during_admission", (False, True))
+def test_fast_admission_cannot_observe_idle_before_callback_settlement(
+    tmp_path, settles_during_admission
+):
+    """A ready continuation cannot pass a completed callback in the same loop."""
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    effect_entered = asyncio.Event()
+    release_effect = asyncio.Event()
+    continuation_waiting = asyncio.Event()
+
+    store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="CALLBACK-GAP-ADMISSION",
+            generation="callback-gap-admission",
+            action="review_refresh",
+            idempotency_key="callback-gap-admission",
+        )
+    )
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        max_concurrent=4 if settles_during_admission else 2,
+        control_reserved_slots=1,
+    )
+
+    async def execute_immediately_after_release(job):
+        effect_entered.set()
+        await release_effect.wait()
+        completed = store.complete(job.job_id, str(job.lease_token or ""))
+        return WorkflowRunResult(
+            WorkflowRunDisposition.COMPLETED,
+            completed.job_id,
+            completed.state,
+            "completed in callback-gap proof",
+            completed.attempts,
+        )
+
+    runtime.worker.execute_claimed = execute_immediately_after_release
+
+    async def no_yield_claim(**_kwargs):
+        return None
+
+    async def continue_after_release():
+        continuation_waiting.set()
+        await release_effect.wait()
+        retained_task = next(iter(runtime._effect_tasks))
+        assert retained_task.done()
+        assert not runtime._effect_results
+        return await runtime.continue_admission_async()
+
+    async def exercise():
+        completion_published = asyncio.Event()
+        runtime._effect_completion_observer = (
+            lambda _result: completion_published.set()
+        )
+        await runtime.start()
+        first = await runtime.reconcile_async()
+        await asyncio.wait_for(effect_entered.wait(), 1)
+        if not settles_during_admission:
+            runtime.worker.claim_next = no_yield_claim
+        continuation = asyncio.create_task(continue_after_release())
+        await asyncio.wait_for(continuation_waiting.wait(), 1)
+        release_effect.set()
+        gap = await asyncio.wait_for(continuation, 1)
+        await asyncio.wait_for(completion_published.wait(), 1)
+        settled = await runtime.continue_admission_async()
+        return first, gap, settled
+
+    first, gap, settled = asyncio.run(exercise())
+
+    assert first["worker"]["scheduled"] == 1
+    assert gap["worker"]["completed"] == int(settles_during_admission)
+    assert gap["worker"]["scheduled"] == 0
+    assert gap["worker"]["active"] == int(not settles_during_admission)
+    assert gap["worker"]["active_lanes"] == {
+        "control": 0,
+        "shared": int(not settles_during_admission),
+    }
+    assert gap["requires_reconcile"] is settles_during_admission
+    assert settled["worker"]["completed"] == int(not settles_during_admission)
+    assert settled["worker"]["active"] == 0
+    assert settled["requires_reconcile"] is (not settles_during_admission)
+    if settles_during_admission:
+        assert gap["reconcile_reason"] == "published_queue_drained"
+    else:
+        assert settled["reconcile_reason"] == "published_queue_drained"
+    runtime.close()
+    store.close()
+
+
+def test_quick_final_admission_preserves_one_queue_drain_reconcile(tmp_path):
+    """A same-pass completion is consumed by the observer's next fast turn."""
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="QUICK-FINAL-ADMISSION",
+            generation="quick-final-admission",
+            action="review_refresh",
+            idempotency_key="quick-final-admission",
+        )
+    )
+    generation = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(generation) is True
+    membership = store.reconcile_snapshot_membership(
+        snapshot_generation=generation,
+        authoritative_project_ids=("project-1",),
+        expected_identities=(("project-1", "QUICK-FINAL-ADMISSION"),),
+    )
+    assert membership.accepted is True
+    published, _result = store.publish_snapshot_generation(
+        generation, lambda: None
+    )
+    assert published is True
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+    )
+    runtime._refresh_admission_cut(
+        {
+            "projects": {
+                "project-1": {
+                    "snapshot": {"generation": generation, "published": True}
+                }
+            }
+        },
+        ("project-1",),
+    )
+
+    async def execute_immediately(job):
+        completed = store.complete(job.job_id, str(job.lease_token or ""))
+        return WorkflowRunResult(
+            WorkflowRunDisposition.COMPLETED,
+            completed.job_id,
+            completed.state,
+            "completed in same admission pass",
+            completed.attempts,
+        )
+
+    runtime.worker.execute_claimed = execute_immediately
+    completion_published = asyncio.Event()
+    original_claim_next = runtime.worker.claim_next
+    claimed_job = False
+    post_schedule_empty_claims = 0
+    completion_notifications = 0
+
+    async def claim_after_callback_settlement(**kwargs):
+        """Hold the first post-schedule miss until the callback has settled."""
+
+        nonlocal claimed_job, post_schedule_empty_claims
+        job = await original_claim_next(**kwargs)
+        if job is not None:
+            claimed_job = True
+        elif claimed_job and post_schedule_empty_claims == 0:
+            post_schedule_empty_claims += 1
+            await asyncio.wait_for(completion_published.wait(), 1)
+        return job
+
+    runtime.worker.claim_next = claim_after_callback_settlement
+
+    def observe_completion(_result):
+        nonlocal completion_notifications
+        completion_notifications += 1
+        completion_published.set()
+
+    async def exercise():
+        runtime._effect_completion_observer = observe_completion
+        await runtime.start()
+        first = await runtime.continue_admission_async()
+        pending_after_first = len(runtime._effect_results)
+        retained_after_first = runtime.health_snapshot()["worker"]["retained"]
+        second = await runtime.continue_admission_async()
+        third = await runtime.continue_admission_async()
+        return first, second, third, pending_after_first, retained_after_first
+
+    first, second, third, pending_after_first, retained_after_first = asyncio.run(
+        exercise()
+    )
+
+    assert first["worker"]["scheduled"] == 1
+    assert first["worker"]["completed"] == 0
+    assert first["worker"]["active"] == 0
+    assert first["worker"]["active_lanes"] == {"control": 0, "shared": 0}
+    assert first["requires_reconcile"] is False
+    assert pending_after_first == 1
+    assert retained_after_first == 0
+    assert post_schedule_empty_claims == 1
+    assert completion_notifications == 1
+    assert second["worker"]["scheduled"] == 0
+    assert second["worker"]["completed"] == 1
+    assert second["worker"]["active"] == 0
+    assert second["requires_reconcile"] is True
+    assert second["reconcile_reason"] == "published_queue_drained"
+    assert third["worker"]["completed"] == 0
+    assert third["requires_reconcile"] is False
+    assert sum(
+        bool(report["requires_reconcile"])
+        for report in (first, second, third)
+    ) == 1
     runtime.close()
     store.close()
 
@@ -1879,6 +2197,183 @@ def test_claim_execution_gap_recovers_after_restart_without_lost_effect(tmp_path
     assert apply_calls == 1
     assert store.get(queued.job_id).state is WorkflowJobState.COMPLETED
     restarted.close()
+    store.close()
+
+
+def test_runtime_owner_identity_fences_reused_pid_generation(monkeypatch):
+    current_pid = os.getpid()
+    monkeypatch.setattr(
+        workflow_runtime_module,
+        "_process_start_ticks",
+        lambda pid: 9001 if pid in {123, current_pid} else None,
+    )
+
+    assert WorkflowRuntime._runtime_owner_is_dead(
+        "workflow-runtime:123:8999:deadbeef"
+    )
+    assert not WorkflowRuntime._runtime_owner_is_dead(
+        "workflow-runtime:123:9001:deadbeef"
+    )
+    assert not WorkflowRuntime._runtime_owner_is_dead(
+        "workflow-runtime:123:deadbeef"
+    )
+    assert not WorkflowRuntime._runtime_owner_is_dead("another-owner")
+    current_ticks = workflow_runtime_module._process_start_ticks(current_pid)
+    if current_ticks is not None:
+        assert WorkflowRuntime._runtime_owner_is_dead(
+            f"workflow-runtime:{current_pid}:{current_ticks}:"
+            f"p{'f' * 32}:deadbeef"
+        )
+        assert not WorkflowRuntime._runtime_owner_is_dead(
+            f"workflow-runtime:{current_pid}:{current_ticks}:"
+            f"p{workflow_runtime_module._RUNTIME_PROCESS_GENERATION}:deadbeef"
+        )
+
+
+def test_quarantine_recovers_after_same_pid_exec_without_duplicate_apply(
+    tmp_path,
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    process_ticks = workflow_runtime_module._process_start_ticks(os.getpid())
+    assert process_ticks is not None
+    current_generation = workflow_runtime_module._RUNTIME_PROCESS_GENERATION
+    previous_generation = (
+        "0" * 32 if current_generation != "0" * 32 else "1" * 32
+    )
+    old_owner = (
+        f"workflow-runtime:{os.getpid()}:{process_ticks}:"
+        f"p{previous_generation}:deadbeef"
+    )
+    first_worker = DurableWorkflowWorker(
+        store=store,
+        handlers=complete_handlers(),
+        transition_services={"project-1": binding.transition_service},
+        worker_id=old_owner,
+    )
+    queued = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-QUARANTINE-EXEC",
+            generation="quarantine-exec-1",
+            action="standalone_delivery",
+            idempotency_key="quarantine-exec-1",
+        )
+    )
+    claimed = asyncio.run(
+        first_worker.claim_next(
+            project_ids=("project-1",), actions=("standalone_delivery",)
+        )
+    )
+    assert claimed is not None
+    quarantined = store.quarantine_owned(
+        claimed.job_id,
+        claimed.lease_token,
+        category=WorkflowFailureCategory.TIMEOUT,
+        error="synchronous adapter did not return",
+    )
+    store.mark_quarantine_recycle_requested(
+        quarantined.job_id,
+        quarantined.lease_token,
+    )
+
+    class ObservingHandler(CompleteHandler):
+        def __init__(self):
+            self.apply_calls = 0
+
+        async def inspect(self, context):
+            return EffectObservation(True, {"accepted": True})
+
+        async def apply(self, context):
+            self.apply_calls += 1
+            return await super().apply(context)
+
+    handler = ObservingHandler()
+    restarted = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(handler),
+        max_concurrent=2,
+        control_reserved_slots=1,
+    )
+
+    async def recover_and_execute():
+        recovery = await restarted.start()
+        assert recovery == {"expired": 0, "abandoned": 1, "recovered": 1}
+        report = await restarted._run_due(("project-1",))
+        assert report["scheduled"] == 1
+        await wait_for_runtime_effects(restarted)
+
+    asyncio.run(recover_and_execute())
+
+    assert handler.apply_calls == 0
+    assert store.get(queued.job_id).state is WorkflowJobState.COMPLETED
+    restarted.close()
+    store.close()
+
+
+@pytest.mark.parametrize("same_worker_identity", (True, False))
+def test_live_same_process_quarantine_marker_never_proves_abandonment(
+    tmp_path,
+    same_worker_identity,
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        max_concurrent=2,
+        control_reserved_slots=1,
+    )
+    if same_worker_identity:
+        live_owner = runtime.worker.worker_id
+    else:
+        process_ticks = workflow_runtime_module._process_start_ticks(os.getpid())
+        assert process_ticks is not None
+        live_owner = (
+            f"workflow-runtime:{os.getpid()}:{process_ticks}:"
+            f"p{workflow_runtime_module._RUNTIME_PROCESS_GENERATION}:feedface"
+        )
+    queued = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-LIVE-QUARANTINE",
+            generation="live-quarantine-1",
+            action="standalone_delivery",
+            idempotency_key="live-quarantine-1",
+        )
+    )
+    claimed = store.claim_next(
+        lease_owner=live_owner,
+        lease_seconds=30,
+        actions=("standalone_delivery",),
+    )
+    assert claimed is not None
+    quarantined = store.quarantine_owned(
+        claimed.job_id,
+        claimed.lease_token,
+        category=WorkflowFailureCategory.TIMEOUT,
+        error="live adapter is still running",
+    )
+    store.mark_quarantine_recycle_requested(
+        quarantined.job_id,
+        quarantined.lease_token,
+    )
+
+    recovery = asyncio.run(runtime.start())
+
+    assert recovery == {"expired": 0, "abandoned": 0, "recovered": 0}
+    retained = store.get(queued.job_id)
+    assert retained.state is WorkflowJobState.RUNNING
+    assert retained.phase == "quarantined"
+    runtime.close()
     store.close()
 
 

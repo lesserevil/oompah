@@ -213,15 +213,20 @@ def job_spec(
     *,
     action: str = "forge_effect",
     max_attempts: int = 3,
+    generation: str = "g1",
+    evidence_revision: str | None = None,
+    head_sha: str | None = None,
 ) -> WorkflowJobSpec:
+    expected_evidence = evidence_revision or f"facts-{generation}"
+    expected_head = head_sha or ("a" * 40 if generation == "g1" else "b" * 40)
     return WorkflowJobSpec(
         project_id="project-a",
         task_id="OOMPAH-1",
-        generation="g1",
+        generation=generation,
         action=action,
-        idempotency_key=f"{action}:g1",
-        expected_evidence_revision="facts-g1",
-        expected_head_sha="a" * 40,
+        idempotency_key=f"{action}:{generation}",
+        expected_evidence_revision=expected_evidence,
+        expected_head_sha=expected_head,
         max_attempts=max_attempts,
     )
 
@@ -235,6 +240,9 @@ def worker(
     lease_seconds: float = 30,
     heartbeat_seconds: float = 10,
     operation_timeout_seconds: float = 1,
+    retry_delay_seconds: float = 5,
+    quarantine_recycle_seconds: float = 60,
+    quarantine_recycle_observer=None,
 ):
     services = (
         {"project-a": transition_service} if transition_service is not None else {}
@@ -247,8 +255,10 @@ def worker(
         lease_seconds=lease_seconds,
         heartbeat_seconds=heartbeat_seconds,
         operation_timeout_seconds=operation_timeout_seconds,
-        retry_delay_seconds=5,
+        retry_delay_seconds=retry_delay_seconds,
+        quarantine_recycle_seconds=quarantine_recycle_seconds,
         phase_observer=phase_observer,
+        quarantine_recycle_observer=quarantine_recycle_observer,
     )
 
 
@@ -637,6 +647,208 @@ async def test_timed_out_thread_effect_returns_without_releasing_retry_authority
     await asyncio.sleep(0.1)
     assert mutations == []
     assert (await replacement.run_once()).disposition is WorkflowRunDisposition.IDLE
+
+
+@pytest.mark.asyncio
+async def test_late_success_checkpoints_receipt_without_duplicate_apply(store):
+    queued = store.enqueue(job_spec())
+    handler = ScriptedHandler()
+    handler.started = asyncio.Event()
+    handler.release = asyncio.Event()
+
+    async def late_apply(_context):
+        handler.apply_calls += 1
+        handler.started.set()
+        await handler.release.wait()
+        handler.external_applied = True
+        return EffectResult(receipt=handler.external_receipt)
+
+    handler.apply = late_apply
+    runner = worker(store, handler, operation_timeout_seconds=0.01)
+
+    timed_out = await runner.run_once()
+    await handler.started.wait()
+
+    assert timed_out.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    assert store.get(queued.job_id).phase == "quarantined"
+    assert (await worker(store, ScriptedHandler()).run_once()).disposition is (
+        WorkflowRunDisposition.IDLE
+    )
+
+    handler.release.set()
+    async with asyncio.timeout(0.5):
+        while store.get(queued.job_id).phase != "effect_returned":
+            await asyncio.sleep(0.005)
+
+    recovered = store.get(queued.job_id)
+    assert recovered.state is WorkflowJobState.QUEUED
+    assert recovered.attempts == 0
+    assert recovered.checkpoint["effect"] == handler.external_receipt
+
+    resumed = await runner.run_once()
+    assert resumed.disposition is WorkflowRunDisposition.COMPLETED
+    assert handler.apply_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_late_failure_terminalizes_before_same_task_replacement(store):
+    original = store.enqueue(job_spec(max_attempts=1))
+    replacement = store.enqueue(job_spec(generation="g2"))
+    handler = ScriptedHandler()
+    handler.started = asyncio.Event()
+    handler.release = asyncio.Event()
+
+    async def late_failure(_context):
+        handler.apply_calls += 1
+        handler.started.set()
+        await handler.release.wait()
+        raise RuntimeError("late transport failure")
+
+    handler.apply = late_failure
+    runner = worker(store, handler, operation_timeout_seconds=0.01)
+
+    timed_out = await runner.run_once()
+    await handler.started.wait()
+    assert timed_out.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    assert (await runner.run_once()).disposition is WorkflowRunDisposition.IDLE
+    assert store.get(replacement.job_id).state is WorkflowJobState.QUEUED
+
+    handler.release.set()
+    async with asyncio.timeout(0.5):
+        while store.get(original.job_id).state is WorkflowJobState.RUNNING:
+            await asyncio.sleep(0.005)
+
+    failed = store.get(original.job_id)
+    assert failed.state is WorkflowJobState.EXHAUSTED
+    assert failed.attempts == 1
+    handler.generation = "g2"
+    handler.evidence_revision = "facts-g2"
+    handler.head_sha = "b" * 40
+    handler.apply = ScriptedHandler.apply.__get__(handler, ScriptedHandler)
+
+    flowed = await runner.run_once()
+    assert flowed.disposition is WorkflowRunDisposition.COMPLETED
+    assert store.get(replacement.job_id).state is WorkflowJobState.COMPLETED
+    assert handler.apply_calls == 2
+
+
+@pytest.mark.asyncio
+async def test_permanently_blocked_call_requests_one_bounded_recycle(store):
+    queued = store.enqueue(job_spec())
+    handler = ScriptedHandler()
+    handler.started = asyncio.Event()
+    handler.release = asyncio.Event()
+    requested = asyncio.Event()
+    recycle_calls = []
+
+    async def blocked_apply(_context):
+        handler.apply_calls += 1
+        handler.started.set()
+        await handler.release.wait()
+        handler.external_applied = True
+        return EffectResult(receipt=handler.external_receipt)
+
+    async def request_recycle(job):
+        recycle_calls.append(job.job_id)
+        requested.set()
+
+    handler.apply = blocked_apply
+    runner = worker(
+        store,
+        handler,
+        operation_timeout_seconds=0.01,
+        quarantine_recycle_seconds=0.02,
+        quarantine_recycle_observer=request_recycle,
+    )
+
+    timed_out = await runner.run_once()
+    await handler.started.wait()
+    assert timed_out.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    await asyncio.wait_for(requested.wait(), timeout=0.5)
+
+    quarantined = store.get(queued.job_id)
+    marker = quarantined.checkpoint["quarantine_recycle"]
+    assert marker["lease_token"] == quarantined.lease_token
+    assert marker["lease_owner"] == quarantined.lease_owner
+    assert recycle_calls == [queued.job_id]
+    for _ in range(3):
+        assert (await runner.run_once()).disposition is WorkflowRunDisposition.IDLE
+    await asyncio.sleep(0.05)
+    assert recycle_calls == [queued.job_id]
+
+    handler.release.set()
+    async with asyncio.timeout(0.5):
+        while store.get(queued.job_id).phase != "effect_returned":
+            await asyncio.sleep(0.005)
+    assert (await runner.run_once()).disposition is WorkflowRunDisposition.COMPLETED
+    assert handler.apply_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_completed_call_settlement_store_failure_requests_safe_recycle(
+    store,
+    monkeypatch,
+):
+    queued = store.enqueue(job_spec())
+    handler = ScriptedHandler()
+    handler.started = asyncio.Event()
+    handler.release = asyncio.Event()
+    requested = asyncio.Event()
+    recycle_calls = []
+
+    async def late_apply(_context):
+        handler.apply_calls += 1
+        handler.started.set()
+        await handler.release.wait()
+        handler.external_applied = True
+        return EffectResult(receipt=handler.external_receipt)
+
+    async def request_recycle(job):
+        recycle_calls.append(job.job_id)
+        requested.set()
+
+    handler.apply = late_apply
+    original_settle = store.settle_quarantined_call
+    settlement_calls = 0
+
+    def unavailable_settlement(*args, **kwargs):
+        nonlocal settlement_calls
+        settlement_calls += 1
+        raise OSError("transient SQLite transport failure")
+
+    runner = worker(
+        store,
+        handler,
+        operation_timeout_seconds=0.01,
+        quarantine_recycle_seconds=0.05,
+        quarantine_recycle_observer=request_recycle,
+    )
+    timed_out = await runner.run_once()
+    await handler.started.wait()
+    assert timed_out.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    monkeypatch.setattr(store, "settle_quarantined_call", unavailable_settlement)
+
+    handler.release.set()
+    await asyncio.wait_for(requested.wait(), timeout=0.5)
+
+    retained = store.get(queued.job_id)
+    assert settlement_calls == 1
+    assert retained.state is WorkflowJobState.RUNNING
+    assert retained.phase == "quarantined"
+    assert retained.checkpoint["quarantine_recycle"]["lease_token"] == (
+        retained.lease_token
+    )
+    assert recycle_calls == [queued.job_id]
+
+    monkeypatch.setattr(store, "settle_quarantined_call", original_settle)
+    recovered = original_settle(
+        retained.job_id,
+        retained.lease_token,
+        operation="apply",
+        effect_receipt=handler.external_receipt,
+    )
+    assert recovered.phase == "effect_returned"
+    assert "quarantine_recycle" not in recovered.checkpoint
 
 
 @pytest.mark.asyncio

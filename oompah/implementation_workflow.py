@@ -978,6 +978,15 @@ class ImplementationWorkflowHandler:
         resolved = await _resolve(result)
         return resolved is not False
 
+    async def prepare_quarantine_recycle(self, job: WorkflowJob) -> None:
+        """Detach an exact durable quarantine from graceful loop drain."""
+
+        effects = getattr(self.backend, "effects", None)
+        prepare = getattr(effects, "prepare_quarantine_recycle", None)
+        if not callable(prepare):
+            return
+        await _resolve(prepare(job))
+
     async def revalidate(self, context: WorkflowJobContext) -> RevalidationResult:
         result = await _resolve(self.backend.revalidate(context))
         if not isinstance(result, RevalidationResult):

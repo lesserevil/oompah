@@ -758,7 +758,12 @@ def test_health_snapshot_exposes_queue_lease_retry_and_cursor_state(store, clock
 
     health = scheduler.health_snapshot()
 
-    assert health["jobs"]["leases"] == {"running": 1, "expired": 1}
+    assert health["jobs"]["leases"] == {
+        "running": 1,
+        "expired": 1,
+        "quarantined": 0,
+        "oldest_quarantined_age_seconds": None,
+    }
     assert health["jobs"]["schedule_cursor_count"] == 1
     assert health["jobs"]["latest_snapshot_generation"] == 1
     assert health["jobs"]["captured_snapshot_generation"] == 1

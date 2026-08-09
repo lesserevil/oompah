@@ -131,9 +131,22 @@ RUNTIME_CONTROL_ACTIONS = frozenset(
         "terminal_audit_done",
     }
 )
+_RUNTIME_PROCESS_GENERATION = uuid.uuid4().hex
 _RUNTIME_OWNER_PATTERN = re.compile(
-    r"^workflow-runtime:(?P<pid>[1-9][0-9]*):[0-9a-f]+$"
+    r"^workflow-runtime:(?P<pid>[1-9][0-9]*):"
+    r"(?:(?P<start_ticks>[1-9][0-9]*):)?"
+    r"(?:p(?P<process_generation>[0-9a-f]{32}):)?[0-9a-f]+$"
 )
+
+
+def _process_start_ticks(pid: int) -> int | None:
+    """Return the Linux process generation used by durable owner fencing."""
+
+    try:
+        raw = Path(f"/proc/{int(pid)}/stat").read_text(encoding="utf-8")
+        return int(raw[raw.rfind(")") + 2 :].split()[19])
+    except (OSError, ValueError, IndexError):
+        return None
 
 if sum(len(actions) for actions in _DOMAIN_ACTIONS.values()) != len(RUNTIME_ACTIONS):
     raise RuntimeError("durable workflow domain action sets overlap")
@@ -381,6 +394,17 @@ class _ProjectRoutedHandler:
     ) -> Any:
         return await self._call("build_transition", context, verification)
 
+    async def prepare_quarantine_recycle(self, job: Any) -> None:
+        """Delegate durable process-boundary transfer to the owning leaf."""
+
+        handler = self.handlers.get(str(getattr(job, "project_id", "") or ""))
+        prepare = getattr(handler, "prepare_quarantine_recycle", None)
+        if not callable(prepare):
+            return
+        result = prepare(job)
+        if inspect.isawaitable(result):
+            await result
+
 
 class WorkflowRuntime:
     """Own the durable workflow services for the lifetime of one process."""
@@ -409,6 +433,8 @@ class WorkflowRuntime:
         topology_change_handler: Callable[[], Any] | None = None,
         transition_observer: Callable[[Any], None] | None = None,
         effect_completion_observer: Callable[[Any], None] | None = None,
+        quarantine_recycle_observer: Callable[[Any], Any] | None = None,
+        quarantine_recycle_seconds: float = 60,
         liveness_controller: UniversalTotalityLivenessController | None = None,
         persist_liveness_state: Callable[[Mapping[str, Any]], None] | None = None,
         projection_publisher: Callable[..., Any] | None = None,
@@ -526,6 +552,7 @@ class WorkflowRuntime:
         self._topology_change_handler = topology_change_handler
         self._transition_observer = transition_observer
         self._effect_completion_observer = effect_completion_observer
+        self._quarantine_recycle_observer = quarantine_recycle_observer
         self._abandoned_lease_owners = frozenset(
             str(owner).strip() for owner in abandoned_lease_owners if str(owner).strip()
         )
@@ -560,6 +587,17 @@ class WorkflowRuntime:
             for action in sorted(RUNTIME_ACTIONS)
         }
         self.handlers = supplied
+        process_start_ticks = _process_start_ticks(os.getpid())
+        runtime_owner = (
+            f"workflow-runtime:{os.getpid()}:{process_start_ticks}:"
+            f"p{_RUNTIME_PROCESS_GENERATION}:"
+            f"{uuid.uuid4().hex}"
+            if process_start_ticks is not None
+            else (
+                f"workflow-runtime:{os.getpid()}:p{_RUNTIME_PROCESS_GENERATION}:"
+                f"{uuid.uuid4().hex}"
+            )
+        )
         self.worker = worker or DurableWorkflowWorker(
             store=store,
             handlers=worker_handlers,
@@ -567,8 +605,10 @@ class WorkflowRuntime:
                 project_id: binding.transition_service
                 for project_id, binding in self.project_bindings.items()
             },
-            worker_id=f"workflow-runtime:{os.getpid()}:{uuid.uuid4().hex}",
+            worker_id=runtime_owner,
+            quarantine_recycle_seconds=quarantine_recycle_seconds,
             phase_observer=self.record_event,
+            quarantine_recycle_observer=quarantine_recycle_observer,
         )
         self._validate_enforce_ready()
 
@@ -1269,6 +1309,19 @@ class WorkflowRuntime:
                     reason="workflow_effect_completed"
                 )
 
+        async def quarantine_recycle_observer(job: Any) -> None:
+            """Coalesce one durable stuck-call recycle into service lifecycle."""
+
+            restart = getattr(orchestrator, "graceful_restart", None)
+            if not callable(restart):
+                raise WorkflowRuntimeError(
+                    "quarantined workflow call requires a service restart"
+                )
+            request_id = f"workflow-quarantine:{getattr(job, 'job_id', 'unknown')}"
+            result = restart(request_id=request_id)
+            if inspect.isawaitable(result):
+                await result
+
         def publish_projection(
             decisions: Sequence[Any],
             generation: int,
@@ -1334,6 +1387,14 @@ class WorkflowRuntime:
             topology_change_handler=topology_change_handler,
             transition_observer=transition_observer,
             effect_completion_observer=effect_completion_observer,
+            quarantine_recycle_observer=quarantine_recycle_observer,
+            quarantine_recycle_seconds=float(
+                getattr(
+                    orchestrator.config,
+                    "workflow_quarantine_recycle_seconds",
+                    60,
+                )
+            ),
             liveness_controller=getattr(
                 orchestrator, "workflow_controller", None
             ),
@@ -1484,7 +1545,26 @@ class WorkflowRuntime:
         if match is None:
             return False
         pid = int(match.group("pid"))
-        if pid == os.getpid():
+        expected_start = match.group("start_ticks")
+        expected_process_generation = match.group("process_generation")
+        observed_start = _process_start_ticks(pid)
+        if (
+            expected_start is not None
+            and observed_start is not None
+            and int(expected_start) != observed_start
+        ):
+            # PID reuse is a dead owner generation, never a live lease.
+            return True
+        if (
+            pid == os.getpid()
+            and expected_process_generation is not None
+            and expected_process_generation != _RUNTIME_PROCESS_GENERATION
+        ):
+            # ``exec`` preserves the PID and Linux start tick.  The module boot
+            # generation is therefore the remaining proof that the old
+            # runtime image (and every thread it owned) no longer exists.
+            return True
+        if observed_start is not None:
             return False
         try:
             os.kill(pid, 0)
@@ -3393,8 +3473,8 @@ class WorkflowRuntime:
             self._effect_results.clear()
             active_by_lane = {
                 lane: sum(
-                    task_lane == lane and not task.done()
-                    for task, task_lane in self._effect_tasks.items()
+                    task_lane == lane
+                    for task_lane in self._effect_tasks.values()
                 )
                 for lane in ("control", "shared")
             }
@@ -3418,8 +3498,8 @@ class WorkflowRuntime:
                 for lane, capacity, actions in lane_limits:
                     with self._lock:
                         lane_active = sum(
-                            task_lane == lane and not task.done()
-                            for task, task_lane in self._effect_tasks.items()
+                            task_lane == lane
+                            for task_lane in self._effect_tasks.values()
                         )
                     free = max(capacity - lane_active, 0)
                     for _index in range(min(free, remaining)):
@@ -3458,8 +3538,8 @@ class WorkflowRuntime:
                     for lane, capacity, actions in lane_limits:
                         with self._lock:
                             lane_active = sum(
-                                task_lane == lane and not task.done()
-                                for task, task_lane in self._effect_tasks.items()
+                                task_lane == lane
+                                for task_lane in self._effect_tasks.values()
                             )
                         if lane_active < capacity:
                             continue
@@ -3474,10 +3554,13 @@ class WorkflowRuntime:
                             break
 
         with self._lock:
+            if not scheduled and self._effect_results:
+                completed = (*completed, *self._effect_results)
+                self._effect_results.clear()
             active_by_lane = {
                 lane: sum(
-                    task_lane == lane and not task.done()
-                    for task, task_lane in self._effect_tasks.items()
+                    task_lane == lane
+                    for task_lane in self._effect_tasks.values()
                 )
                 for lane in ("control", "shared")
             }
@@ -3529,17 +3612,24 @@ class WorkflowRuntime:
     def _effect_finished(self, task: asyncio.Task[Any]) -> None:
         """Retire one retained invocation and publish a replenishment edge."""
 
-        with self._lock:
-            self._effect_tasks.pop(task, None)
         try:
             result = task.result()
         except asyncio.CancelledError:
+            with self._lock:
+                self._effect_tasks.pop(task, None)
             return
         except Exception:  # noqa: BLE001 - worker claim boundary stays observable
-            logger.exception("Detached durable workflow invocation failed")
+            with self._lock:
+                retained = task in self._effect_tasks
+                self._effect_tasks.pop(task, None)
+            if retained:
+                logger.exception("Detached durable workflow invocation failed")
             return
         with self._lock:
+            if task not in self._effect_tasks:
+                return
             self._effect_results.append(result)
+            self._effect_tasks.pop(task, None)
             draining = self._draining
         if not draining and self._effect_completion_observer is not None:
             try:
@@ -3571,9 +3661,7 @@ class WorkflowRuntime:
 
         with self._lock:
             active_reconciles = self._active_reconciles
-            retained_effects = sum(
-                not task.done() for task in self._effect_tasks
-            )
+            retained_effects = len(self._effect_tasks)
         return (
             active_reconciles
             + max(self.worker.active_count, retained_effects)
@@ -3629,21 +3717,35 @@ class WorkflowRuntime:
         if not worker_drained:
             return False
         with self._lock:
-            retained = tuple(
-                task for task in self._effect_tasks if not task.done()
-            )
+            retained = tuple(self._effect_tasks)
         if retained:
             remaining = None if deadline is None else max(0.0, deadline - loop.time())
             if remaining is not None and remaining <= 0:
                 return False
-            waiter = asyncio.gather(*retained, return_exceptions=True)
+            settlement = loop.create_future()
+            callback_pending = set(retained)
+
+            def observe_settlement(task: asyncio.Task[Any]) -> None:
+                callback_pending.discard(task)
+                if not callback_pending and not settlement.done():
+                    settlement.set_result(None)
+
+            # These callbacks are registered after ``_effect_finished`` and
+            # therefore run after its result publication and retained-entry
+            # removal.  Waiting on task completion alone is insufficient: a
+            # done task can still have its settlement callback queued.
+            for task in retained:
+                task.add_done_callback(observe_settlement)
             try:
                 if remaining is None:
-                    await waiter
+                    await settlement
                 else:
-                    await asyncio.wait_for(asyncio.shield(waiter), remaining)
+                    await asyncio.wait_for(asyncio.shield(settlement), remaining)
             except TimeoutError:
                 return False
+            with self._lock:
+                if any(task in self._effect_tasks for task in retained):
+                    return False
         remaining = None if deadline is None else max(0.0, deadline - loop.time())
         return await self._drain_handler_mutations(timeout_seconds=remaining)
 
@@ -3684,9 +3786,7 @@ class WorkflowRuntime:
         with self._lock:
             last = dict(self._last_reconcile)
             admission_cut = self._admission_cut
-            retained_effects = sum(
-                not task.done() for task in self._effect_tasks
-            )
+            retained_effects = len(self._effect_tasks)
         controller_health = (
             self.liveness_controller.health_snapshot()
             if self.liveness_controller is not None
@@ -3723,6 +3823,8 @@ class WorkflowRuntime:
             "worker": {
                 "accepting": self.worker.accepting,
                 "active": self.worker.active_count,
+                "quarantined_calls": self.worker.quarantined_call_count,
+                "quarantine_monitors": self.worker.quarantine_monitor_count,
                 "max_concurrent": self.max_concurrent,
                 "control_reserved_slots": self.control_reserved_slots,
                 "retained": retained_effects,
@@ -3760,6 +3862,17 @@ class WorkflowRuntime:
             except Exception:  # noqa: BLE001 - observation cannot fail the job
                 logger.exception(
                     "Failed to publish durable workflow transition for %s",
+                    getattr(job, "task_id", "unknown"),
+                )
+        if (
+            str(phase) == "quarantine_settled"
+            and self._effect_completion_observer is not None
+        ):
+            try:
+                self._effect_completion_observer(job)
+            except Exception:  # noqa: BLE001 - observation cannot fail recovery
+                logger.exception(
+                    "Failed to publish quarantined workflow recovery for %s",
                     getattr(job, "task_id", "unknown"),
                 )
 

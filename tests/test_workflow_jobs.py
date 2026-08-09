@@ -47,6 +47,7 @@ def spec(
     action: str = "terminal_audit",
     phase: str = "intent",
     payload: dict | None = None,
+    scheduling_lane: str = "decision",
     priority: int = 100,
     max_attempts: int = 3,
 ) -> WorkflowJobSpec:
@@ -58,6 +59,7 @@ def spec(
         idempotency_key=key,
         phase=phase,
         payload=payload,
+        scheduling_lane=scheduling_lane,
         expected_evidence_revision=f"facts-{generation}",
         expected_head_sha=f"head-{generation}",
         priority=priority,
@@ -1836,8 +1838,268 @@ def test_exact_owner_can_quarantine_after_deadline_before_replacement_claim(
     assert quarantined.lease_expires_at is None
     assert store.recover_expired() == 0
     assert claim(store) is None
+    with pytest.raises(WorkflowJobStoreError, match="quarantined"):
+        store.supersede(
+            running.job_id,
+            generation=running.generation,
+            replacement_generation="g2",
+            reason="newer generation",
+        )
+    with pytest.raises(WorkflowJobStoreError, match="quarantined"):
+        store.cancel(
+            running.job_id,
+            generation=running.generation,
+            reason="operator cancellation",
+        )
+    assert store.supersede_task_generation(
+        project_id=running.project_id,
+        task_id=running.task_id,
+        keep_generation="g2",
+        reason="newer generation",
+    ) == 0
     assert store.events(running.job_id)[-1].event_type == "quarantined"
     store.integrity_check()
+
+
+def test_late_quarantined_receipt_resumes_same_attempt_without_overlap(store):
+    store.enqueue(spec(max_attempts=1))
+    running = claim(store)
+    store.checkpoint(
+        running.job_id,
+        running.lease_token,
+        phase="effect_pending",
+        checkpoint={"effect_observed": False},
+    )
+    quarantined = store.quarantine_owned(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.TIMEOUT,
+        error="adapter did not return",
+    )
+
+    settled = store.settle_quarantined_call(
+        quarantined.job_id,
+        quarantined.lease_token,
+        operation="apply",
+        effect_receipt={"external_id": "late-effect"},
+    )
+
+    assert settled.state is WorkflowJobState.QUEUED
+    assert settled.phase == "effect_returned"
+    assert settled.attempts == 0
+    assert settled.checkpoint["effect"] == {"external_id": "late-effect"}
+    assert settled.lease_owner is None
+    resumed = claim(store)
+    assert resumed.job_id == running.job_id
+    assert resumed.attempts == 1
+    assert resumed.lease_token != running.lease_token
+    assert store.events(running.job_id)[-1].event_type == "claimed"
+    store.integrity_check()
+
+
+def test_quarantined_control_call_blocks_same_task_data_lane_only(store):
+    control = store.enqueue(
+        spec(
+            "revoke:g1",
+            action="authority_revocation",
+            scheduling_lane="event:implementation:direct-owner-revocation:claim-1",
+        )
+    )
+    running = claim(store, actions=("authority_revocation",))
+    assert running is not None and running.job_id == control.job_id
+    store.quarantine_owned(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.TIMEOUT,
+        error="direct-owner revocation adapter did not return",
+    )
+    blocked = store.enqueue(
+        spec(
+            "claim:g2",
+            generation="g2",
+            action="direct_owner_claim",
+            scheduling_lane="event:implementation:imperative",
+        )
+    )
+    unrelated = store.enqueue(
+        spec(
+            "claim:other",
+            task="OOMPAH-2",
+            action="direct_owner_claim",
+            scheduling_lane="event:implementation:imperative",
+        )
+    )
+
+    selected = claim(store, actions=("direct_owner_claim",))
+
+    assert selected is not None and selected.job_id == unrelated.job_id
+    assert store.get(blocked.job_id).state is WorkflowJobState.QUEUED
+    assert store.get(control.job_id).phase == "quarantined"
+
+
+def test_event_replacement_waits_for_exact_quarantine_settlement(store):
+    lane = "event:implementation:imperative"
+    first = store.materialize_event(
+        project_id="project-a",
+        task_id="OOMPAH-1",
+        decision_revision="revoke-1",
+        action="authority_revocation",
+        idempotency_namespace="implementation",
+        scheduling_lane=lane,
+        ordering_namespace="implementation-decision",
+        source_generation=store.allocate_event_generation(),
+        max_attempts=1,
+    ).job
+    assert first is not None
+    running = claim(store, actions=("authority_revocation",))
+    assert running is not None and running.job_id == first.job_id
+    quarantined = store.quarantine_owned(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.TIMEOUT,
+        error="authority revocation did not return",
+    )
+
+    replacement_write = store.materialize_event(
+        project_id="project-a",
+        task_id="OOMPAH-1",
+        decision_revision="claim-2",
+        action="direct_owner_claim",
+        idempotency_namespace="implementation",
+        scheduling_lane=lane,
+        ordering_namespace="implementation-decision",
+        source_generation=store.allocate_event_generation(),
+    )
+
+    assert replacement_write.job is not None
+    assert replacement_write.superseded == 0
+    assert store.get(first.job_id).phase == "quarantined"
+    assert claim(store, actions=("direct_owner_claim",)) is None
+
+    store.settle_quarantined_call(
+        quarantined.job_id,
+        quarantined.lease_token,
+        operation="apply",
+        failure_category=WorkflowFailureCategory.PERMANENT,
+        error="late authority revocation failed",
+        retryable=False,
+    )
+    replacement = claim(store, actions=("direct_owner_claim",))
+    assert replacement is not None
+    assert replacement.job_id == replacement_write.job.job_id
+
+
+def test_late_quarantined_failure_releases_task_and_spends_attempt(store):
+    store.enqueue(spec(max_attempts=1))
+    running = claim(store)
+    quarantined = store.quarantine_owned(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.TIMEOUT,
+        error="adapter did not return",
+    )
+
+    settled = store.settle_quarantined_call(
+        quarantined.job_id,
+        quarantined.lease_token,
+        operation="apply",
+        failure_category=WorkflowFailureCategory.UNKNOWN,
+        error="late apply failed: RuntimeError",
+        retryable=True,
+    )
+
+    assert settled.state is WorkflowJobState.EXHAUSTED
+    assert settled.phase == "quarantine_recovered"
+    assert settled.attempts == 1
+    assert settled.lease_owner is None
+    assert store.events(running.job_id)[-1].event_type == "quarantine_settled"
+    store.integrity_check()
+
+
+def test_quarantine_recycle_marker_is_exact_and_idempotent(store):
+    store.enqueue(spec())
+    running = claim(store)
+    quarantined = store.quarantine_owned(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.TIMEOUT,
+        error="adapter did not return",
+    )
+
+    first = store.mark_quarantine_recycle_requested(
+        quarantined.job_id, quarantined.lease_token
+    )
+    replay = store.mark_quarantine_recycle_requested(
+        quarantined.job_id, quarantined.lease_token
+    )
+
+    assert replay.checkpoint["quarantine_recycle"] == first.checkpoint[
+        "quarantine_recycle"
+    ]
+    assert [
+        event.event_type
+        for event in store.events(running.job_id)
+        if event.event_type == "quarantine_recycle_requested"
+    ] == ["quarantine_recycle_requested"]
+    assert store.health_snapshot()["leases"]["quarantined"] == 1
+    with pytest.raises(WorkflowJobLeaseLost):
+        store.mark_quarantine_recycle_requested(
+            quarantined.job_id, "wrong-token"
+        )
+
+
+def test_quarantine_recycle_marker_is_retired_and_replaced_across_lease_aba(store):
+    store.enqueue(spec())
+    first_claim = claim(store)
+    first_quarantine = store.quarantine_owned(
+        first_claim.job_id,
+        first_claim.lease_token,
+        category=WorkflowFailureCategory.TIMEOUT,
+        error="first adapter timeout",
+    )
+    first_marked = store.mark_quarantine_recycle_requested(
+        first_quarantine.job_id,
+        first_quarantine.lease_token,
+    )
+    stale_marker = dict(first_marked.checkpoint["quarantine_recycle"])
+
+    first_settlement = store.settle_quarantined_call(
+        first_quarantine.job_id,
+        first_quarantine.lease_token,
+        operation="inspect",
+    )
+    assert "quarantine_recycle" not in first_settlement.checkpoint
+
+    second_claim = claim(store)
+    assert second_claim.lease_token != first_claim.lease_token
+    store.checkpoint(
+        second_claim.job_id,
+        second_claim.lease_token,
+        phase="effect_pending",
+        checkpoint={"quarantine_recycle": stale_marker},
+    )
+    second_quarantine = store.quarantine_owned(
+        second_claim.job_id,
+        second_claim.lease_token,
+        category=WorkflowFailureCategory.TIMEOUT,
+        error="second adapter timeout",
+    )
+    second_marked = store.mark_quarantine_recycle_requested(
+        second_quarantine.job_id,
+        second_quarantine.lease_token,
+    )
+
+    replacement = second_marked.checkpoint["quarantine_recycle"]
+    assert replacement["lease_token"] == second_claim.lease_token
+    assert replacement["lease_owner"] == second_claim.lease_owner
+    assert replacement != stale_marker
+    requests = [
+        event
+        for event in store.events(first_claim.job_id)
+        if event.event_type == "quarantine_recycle_requested"
+    ]
+    assert len(requests) == 2
+    assert requests[-1].payload["replaced_stale_marker"] is True
 
 
 def test_expired_recovery_is_bounded(store, clock):

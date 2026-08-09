@@ -123,6 +123,24 @@ def test_quality_gate_status_facts_are_actionable_only_when_failed() -> None:
     assert facts[1]["severity"] == "error"
 
 
+def test_workflow_quarantine_health_fact_is_operator_actionable() -> None:
+    facts = Orchestrator._workflow_quarantine_dashboard_alerts(
+        {
+            "leases": {
+                "quarantined": 2,
+                "oldest_quarantined_age_seconds": 91.4,
+            }
+        }
+    )
+
+    assert len(facts) == 1
+    assert facts[0]["source"] == "workflow_jobs:quarantined_calls"
+    assert facts[0]["action_required"] is True
+    assert facts[0]["severity"] == "warning"
+    assert facts[0]["quarantined"] == 2
+    assert "91 seconds" in facts[0]["detail"]
+
+
 def test_api_enrichment_normalizes_cached_alerts() -> None:
     from oompah.server import _enrich_state_snapshot
 
