@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-973
 type: task
-status: In Review
+status: Done
 priority: null
 title: Make deferred gate cleanup proof deterministic under loaded CI
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T20:35:08.355449Z'
-updated_at: '2026-08-09T20:52:03.959962Z'
+updated_at: '2026-08-09T21:05:28.489023Z'
 work_branch: OOMPAH-973
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/781
@@ -32,6 +32,33 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/781
 oompah.review_number: '781'
 oompah.target_branch: main
 oompah.review_head: ddf671f9397b923acf628bfdf1cc74cf03cb5fd3
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d7ce04c939f2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-973
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8c4b71dd008ac3a10d9028875b96d4e2da38aaaf38e5d396b61108f598a7c15a
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner accepts exact merged review evidence: PR #781 merged exact head
+      ddf671f9397b923acf628bfdf1cc74cf03cb5fd3 into main as 312c18ae3d834f6566ca3cb62d71184f87af2265;
+      protected Python 3.11, 3.12, and 3.13 checks all passed; the full quality-gate
+      module passed 199 tests; focused deterministic repeats passed; changed-code
+      Ruff/diff checks passed; and independent semantic review found no blocker.'
+    created_at: '2026-08-09T21:05:24.327824+00:00'
+    selected_ref: ddf671f9397b923acf628bfdf1cc74cf03cb5fd3
+    selected_sha: ddf671f9397b923acf628bfdf1cc74cf03cb5fd3
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
