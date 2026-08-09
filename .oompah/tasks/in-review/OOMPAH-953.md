@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-953
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Keep quality-gate cancellation polling local and bounded
 parent: null
@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T11:17:05.346841Z'
-updated_at: '2026-08-09T12:31:26.281549Z'
+updated_at: '2026-08-09T12:31:44.264593Z'
 work_branch: OOMPAH-953
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/764
 review_number: '764'
-review_head: null
+review_head: 20ab5659fd0a2bc67c5d31577f3a9e969eb1df7c
 merged_at: null
 oompah.integration:
   version: 2
@@ -30,6 +30,8 @@ oompah.integration:
 oompah.work_branch: OOMPAH-953
 oompah.review_url: https://github.com/lesserevil/oompah/pull/764
 oompah.review_number: '764'
+oompah.target_branch: main
+oompah.review_head: 20ab5659fd0a2bc67c5d31577f3a9e969eb1df7c
 ---
 ## Summary
 
