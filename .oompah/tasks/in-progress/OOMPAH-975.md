@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:14:31.760374Z'
-updated_at: '2026-08-09T21:43:40.541298Z'
+updated_at: '2026-08-09T21:45:27.975880Z'
 work_branch: OOMPAH-975
 target_branch: null
 review_url: null
@@ -62,5 +62,10 @@ author: oompah
 created: 2026-08-09 21:43
 ---
 Committed and pushed 2fd04d272 on OOMPAH-975. Trusted composed parent landing heads now remain exact through rollup revalidation/effect/verification/transition and bind the terminal audit; all authority fields are rechecked at final mutation. Added six-shape, fail-closed, actual transition, restart/replay, coalescing, runtime-guard, and standalone-head regressions. Focused relevant suites: 630 passed; task mutation scan passed. Existing owner-projection retirement remains responsible for superseding old exhausted generations without unsafe rearm.
+---
+author: oompah
+created: 2026-08-09 21:45
+---
+Fresh post-implementation scan expanded the live same-shape corpus by 14 current exhausted Done children under OOMPAH-763: OOMPAH-910, -911, -914, -915, -916, -917, -918, -919, -920, -921, -926, -929, -930, and -931. Each has exact durable parent-scoped landing authority and the same historical null-head parent_rollup_review rejection. Supported terminal-provenance retain was applied externally to preserve owner authority; this change does not rearm or edit rows. Regression parameterization now names all 20 observed production shapes; the generic implementation path is identical across them.
 ---
 <!-- COMMENTS:END -->
