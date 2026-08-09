@@ -841,6 +841,28 @@ def test_non_mapping_terminal_provenance_never_resumes_delivery(payload):
     assert decision.alert_level is AlertSeverity.WARNING
 
 
+@pytest.mark.parametrize("value", ["invalid", [], True])
+def test_non_mapping_terminal_audit_fact_never_resumes_delivery(value):
+    issue = _issue(DONE)
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.TERMINAL_AUDIT: _known(
+                    FactDomain.TERMINAL_AUDIT,
+                    value,
+                )
+            },
+        ),
+    )
+
+    assert decision.disposition is TaskDisposition.ACTION_REQUIRED
+    assert decision.reason_code == "terminal.provenance_invalid"
+    assert decision.durable_jobs == ()
+    assert decision.alert_level is AlertSeverity.WARNING
+
+
 def test_owner_authorized_new_revision_resumes_normal_done_landing_decision():
     issue = _issue(DONE)
     decision = evaluate_task(

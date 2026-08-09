@@ -1731,15 +1731,6 @@ def _terminal_provenance_decision(
     delivery bypass if a future adapter regresses.
     """
 
-    observation = facts.fact(FactDomain.TERMINAL_AUDIT)
-    value = (
-        _mapping(observation.value)
-        if observation.state is FactState.KNOWN
-        else None
-    )
-    if value is None or "terminal_provenance" not in value:
-        return None
-
     def invalid(error_code: str) -> WorkDecision:
         return _decision(
             task,
@@ -1758,6 +1749,15 @@ def _terminal_provenance_decision(
             alert=AlertSeverity.WARNING,
             reassess=False,
         )
+
+    observation = facts.fact(FactDomain.TERMINAL_AUDIT)
+    if observation.state is not FactState.KNOWN:
+        return None
+    value = _mapping(observation.value)
+    if value is None:
+        return invalid("identity_or_authority_mismatch")
+    if "terminal_provenance" not in value:
+        return None
 
     raw = _mapping(value["terminal_provenance"])
     if raw is None:
