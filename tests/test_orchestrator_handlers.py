@@ -33,6 +33,7 @@ from oompah.models import AgentProfile, Issue, ModelProvider, RetryEntry, Runnin
 from oompah.orchestrator import DispatchTarget, Orchestrator, ProviderStartupError
 from oompah.projects import ProjectError
 from oompah.scm import ReviewRequest
+from oompah.statuses import canonicalize_status, status_key
 from oompah.terminal_audit import ContributorIdentity, EvidenceFingerprint, TargetState
 from oompah.terminal_transition_coordinator import TransitionResult
 
@@ -84,6 +85,36 @@ def _make_project(
     p.name = "test-project"
     p.yolo = yolo
     return p
+
+
+def _configure_bounded_cleanup_tracker(tracker: MagicMock) -> None:
+    """Give a tracker mock the cleanup lane's strict-after page contract."""
+
+    tracker.supports_bounded_state_reads = True
+
+    def read_page(states, *, after, limit):
+        wanted = {status_key(canonicalize_status(state)) for state in states}
+        issues = sorted(
+            (
+                issue
+                for issue in tracker.fetch_issues_by_states.return_value
+                if status_key(canonicalize_status(issue.state)) in wanted
+            ),
+            key=lambda issue: issue.identifier,
+        )
+        start = next(
+            (
+                index
+                for index, issue in enumerate(issues)
+                if after is None or issue.identifier > after
+            ),
+            len(issues),
+        )
+        selected = issues[start : start + limit]
+        cursor = selected[-1].identifier if selected else after
+        return selected, len(selected), cursor, start + len(selected) < len(issues)
+
+    tracker.fetch_issues_by_states_page.side_effect = read_page
 
 
 @pytest.mark.parametrize(
@@ -2130,7 +2161,7 @@ class TestTerminalWorktreeCleanup:
         orch._historical_done_has_passed_merged_audit.assert_called_once()
 
     class StaleCleanupStore:
-        def __init__(self, projects, cleanup_result=(0, False)):
+        def __init__(self, projects, cleanup_result=(0, 0, False, None)):
             self._projects = list(projects)
             self.cleanup_result = cleanup_result
             self.cleanup_calls = []
@@ -2143,8 +2174,10 @@ class TestTerminalWorktreeCleanup:
         def get(self, project_id):
             return next((p for p in self._projects if p.id == project_id), None)
 
-        def cleanup_stale_worktree_dirs(self, project_id, limit=None):
-            self.cleanup_calls.append((project_id, limit))
+        def cleanup_stale_worktree_dirs(
+            self, project_id, limit=None, *, after=None, should_stop=None
+        ):
+            self.cleanup_calls.append((project_id, limit, after))
             return self.cleanup_result
 
     class AggressiveCleanupStore(StaleCleanupStore):
@@ -2152,7 +2185,7 @@ class TestTerminalWorktreeCleanup:
             self,
             projects,
             terminal_results,
-            stale_branch_result=(0, False),
+            stale_branch_result=(0, 0, False, None),
         ):
             super().__init__(projects)
             self.terminal_results = iter(terminal_results)
@@ -2180,8 +2213,10 @@ class TestTerminalWorktreeCleanup:
             )
             return next(self.terminal_results)
 
-        def cleanup_stale_local_branches(self, project_id, limit=None):
-            self.stale_branch_calls.append((project_id, limit))
+        def cleanup_stale_local_branches(
+            self, project_id, limit=None, *, after=None, should_stop=None
+        ):
+            self.stale_branch_calls.append((project_id, limit, after))
             return self.stale_branch_result
 
     def test_cleanup_terminal_worktrees_removes_only_merged_and_archived_project_worktrees(
@@ -2195,12 +2230,13 @@ class TestTerminalWorktreeCleanup:
             _make_issue("TASK-2", state="Merged", project_id=project.id),
             _make_issue("TASK-3", state="Archived", project_id=project.id),
         ]
+        _configure_bounded_cleanup_tracker(tracker)
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         cleaned = orch._cleanup_terminal_worktrees()
 
         assert cleaned == 2
-        tracker.fetch_issues_by_states.assert_called_once_with(["Merged", "Archived"])
+        tracker.fetch_issues_by_states_page.assert_called()
         assert [
             call.args for call in orch.project_store.remove_worktree.call_args_list
         ] == [
@@ -2212,7 +2248,9 @@ class TestTerminalWorktreeCleanup:
         self, tmp_path
     ):
         project = _make_project()
-        store = self.StaleCleanupStore([project], cleanup_result=(2, False))
+        store = self.StaleCleanupStore(
+            [project], cleanup_result=(1, 1, False, None)
+        )
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch.project_store = store
         orch.config.worktree_cleanup_batch_size = 3
@@ -2220,15 +2258,16 @@ class TestTerminalWorktreeCleanup:
         tracker.fetch_issues_by_states.return_value = [
             _make_issue("TASK-1", state="Merged", project_id=project.id),
         ]
+        _configure_bounded_cleanup_tracker(tracker)
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         cleaned = orch._cleanup_terminal_worktrees()
 
-        assert cleaned == 3
+        assert cleaned == 2
         store.remove_worktree.assert_called_once_with(project.id, "TASK-1")
-        assert store.cleanup_calls == [(project.id, 2)]
+        assert store.cleanup_calls == [(project.id, 1, None)]
 
-    def test_cleanup_noop_does_not_consume_removal_budget(self, tmp_path):
+    def test_cleanup_noop_consumes_examined_budget_and_cursor_resumes(self, tmp_path):
         project = _make_project()
         store = self.AggressiveCleanupStore(
             [project],
@@ -2252,11 +2291,26 @@ class TestTerminalWorktreeCleanup:
         second.issue_number = "2"
         tracker = MagicMock()
         tracker.fetch_issues_by_states.return_value = [first, second]
+        _configure_bounded_cleanup_tracker(tracker)
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
-        cleaned = orch._cleanup_terminal_worktrees()
+        first_cleaned = orch._cleanup_terminal_worktrees()
 
-        assert cleaned == 1
+        assert first_cleaned == 0
+        assert store.terminal_calls == [
+            (project.id, "TASK-1", "TASK-1", False, None),
+        ]
+        status = orch._maintenance_status["worktree_cleanup"]
+        assert status["cleaned"] == 0
+        assert status["examined"] == 1
+        assert status["limit"] == 1
+        assert status["deferred"] is True
+        assert status["cursor"].startswith("terminal-v2:")
+        assert status["reason"] == "operation_budget"
+
+        second_cleaned = orch._cleanup_terminal_worktrees()
+
+        assert second_cleaned == 1
         assert store.terminal_calls == [
             (project.id, "TASK-1", "TASK-1", False, None),
             (
@@ -2268,49 +2322,203 @@ class TestTerminalWorktreeCleanup:
             ),
         ]
 
+    def test_cleanup_runtime_budget_yields_after_current_exact_candidate(
+        self, tmp_path
+    ):
+        project = _make_project()
+        store = self.AggressiveCleanupStore(
+            [project],
+            terminal_results=[False, False, False],
+        )
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store = store
+        orch.config.worktree_cleanup_batch_size = 100
+        orch._job_deadline_exceeded = MagicMock(return_value=True)
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [
+            _make_issue(f"TASK-{index}", state="Merged", project_id=project.id)
+            for index in range(3)
+        ]
+        _configure_bounded_cleanup_tracker(tracker)
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        assert orch._cleanup_terminal_worktrees() == 0
+
+        assert len(store.terminal_calls) == 1
+        assert orch._maintenance_status["worktree_cleanup"]["examined"] == 1
+        assert orch._maintenance_status["worktree_cleanup"]["reason"] == (
+            "runtime_budget"
+        )
+
+    def test_cleanup_round_robins_terminal_candidates_across_projects(self, tmp_path):
+        first_project = _make_project("proj-a")
+        second_project = _make_project("proj-b")
+        store = self.AggressiveCleanupStore(
+            [first_project, second_project],
+            terminal_results=[False, False],
+        )
+        orch = _make_orchestrator(
+            tmp_path, projects=[second_project, first_project]
+        )
+        orch.project_store = store
+        orch.config.worktree_cleanup_batch_size = 2
+        first_tracker = MagicMock()
+        first_tracker.fetch_issues_by_states.return_value = [
+            _make_issue(
+                f"A-{index:04d}", state="Merged", project_id=first_project.id
+            )
+            for index in range(1000)
+        ]
+        second_tracker = MagicMock()
+        second_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("B-0000", state="Merged", project_id=second_project.id)
+        ]
+        _configure_bounded_cleanup_tracker(first_tracker)
+        _configure_bounded_cleanup_tracker(second_tracker)
+        orch._tracker_for_project = MagicMock(
+            side_effect=lambda project_id: (
+                first_tracker if project_id == first_project.id else second_tracker
+            )
+        )
+
+        orch._cleanup_terminal_worktrees()
+
+        assert [call[0] for call in store.terminal_calls] == ["proj-a", "proj-b"]
+        assert orch._maintenance_status["worktree_cleanup"]["examined"] == 2
+
+    def test_cleanup_round_robins_deferred_stale_sweeps_across_projects(
+        self, tmp_path
+    ):
+        first_project = _make_project("proj-a")
+        second_project = _make_project("proj-b")
+        store = self.StaleCleanupStore([first_project, second_project])
+
+        def deferred_cleanup(project_id, limit=None, *, after=None, should_stop=None):
+            store.cleanup_calls.append((project_id, limit, after))
+            return 0, 1, True, f"{project_id}-cursor"
+
+        store.cleanup_stale_worktree_dirs = deferred_cleanup
+        orch = _make_orchestrator(
+            tmp_path, projects=[second_project, first_project]
+        )
+        orch.project_store = store
+        orch.config.worktree_cleanup_batch_size = 2
+        cursor = "dirs-v2:" + json.dumps(
+            {"frontiers": {}, "done": [], "next": 0}, separators=(",", ":")
+        )
+        assert orch._set_maintenance_cursor("worktree_cleanup", cursor)
+
+        orch._cleanup_terminal_worktrees()
+
+        assert [call[0] for call in store.cleanup_calls] == ["proj-a", "proj-b"]
+        assert orch._maintenance_status["worktree_cleanup"]["cursor"].startswith(
+            "dirs-v2:"
+        )
+
+    def test_cleanup_reports_unbounded_tracker_without_full_history_read(
+        self, tmp_path
+    ):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        tracker = MagicMock()
+        tracker.supports_bounded_state_reads = False
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        assert orch._cleanup_terminal_worktrees() == 0
+
+        tracker.fetch_issues_by_states.assert_not_called()
+        assert orch._maintenance_status["worktree_cleanup"]["deferred"] is True
+        assert orch._maintenance_status["worktree_cleanup"]["reason"] == (
+            "unbounded_source_scan"
+        )
+
+    def test_cleanup_zero_batch_is_disabled_without_continuation(self, tmp_path):
+        orch = _make_orchestrator(tmp_path, projects=[_make_project()])
+        orch.config.worktree_cleanup_batch_size = 0
+        orch._post_event = MagicMock()
+
+        orch._maybe_cleanup_worktrees()
+
+        assert orch._maintenance_status["worktree_cleanup"]["reason"] == "disabled"
+        assert orch._maintenance_status["worktree_cleanup"]["deferred"] is False
+        orch._post_event.assert_not_called()
+
+    def test_maintenance_cursor_is_durable_and_preserves_other_lane(self, tmp_path):
+        first = _make_orchestrator(tmp_path)
+        first._maintenance_cursors = {"audit": "audit-7"}
+
+        assert first._set_maintenance_cursor("worktree_cleanup", "terminal-v2:test")
+
+        restarted = _make_orchestrator(tmp_path)
+        assert restarted._maintenance_cursors == {
+            "audit": "audit-7",
+            "worktree_cleanup": "terminal-v2:test",
+        }
+
+    def test_cleanup_reports_cursor_persistence_failure_without_advancing_memory(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        orch._maintenance_cursors = {"audit": "audit-7"}
+        orch._save_state = MagicMock(return_value=False)
+
+        assert not orch._set_maintenance_cursor(
+            "worktree_cleanup", "terminal-v2:lost"
+        )
+
+        assert orch._maintenance_cursors == {"audit": "audit-7"}
+
     def test_cleanup_sweeps_gone_branches_after_stale_directories(self, tmp_path):
         project = _make_project()
         store = self.AggressiveCleanupStore(
             [project],
             terminal_results=[],
-            stale_branch_result=(2, False),
+            stale_branch_result=(1, 1, False, None),
         )
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch.project_store = store
         orch.config.worktree_cleanup_batch_size = 3
         tracker = MagicMock()
         tracker.fetch_issues_by_states.return_value = []
-        orch._tracker_for_project = MagicMock(return_value=tracker)
-
-        cleaned = orch._cleanup_terminal_worktrees()
-
-        assert cleaned == 2
-        assert store.cleanup_calls == [(project.id, 3)]
-        assert store.stale_branch_calls == [(project.id, 3)]
-
-    def test_cleanup_terminal_worktrees_reports_deferred_stale_dir_sweep(
-        self, tmp_path
-    ):
-        project = _make_project()
-        store = self.StaleCleanupStore([project], cleanup_result=(1, True))
-        orch = _make_orchestrator(tmp_path, projects=[project])
-        orch.project_store = store
-        orch.config.worktree_cleanup_batch_size = 1
-        tracker = MagicMock()
-        tracker.fetch_issues_by_states.return_value = []
+        _configure_bounded_cleanup_tracker(tracker)
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         cleaned = orch._cleanup_terminal_worktrees()
 
         assert cleaned == 1
-        assert store.cleanup_calls == [(project.id, 1)]
+        assert store.cleanup_calls == [(project.id, 1, None)]
+        assert store.stale_branch_calls == [(project.id, 1, None)]
+
+    def test_cleanup_terminal_worktrees_reports_deferred_stale_dir_sweep(
+        self, tmp_path
+    ):
+        project = _make_project()
+        store = self.StaleCleanupStore(
+            [project], cleanup_result=(1, 1, True, "stale-a")
+        )
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store = store
+        orch.config.worktree_cleanup_batch_size = 1
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = []
+        _configure_bounded_cleanup_tracker(tracker)
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        first_cleaned = orch._cleanup_terminal_worktrees()
+        cleaned = orch._cleanup_terminal_worktrees()
+
+        assert first_cleaned == 0
+        assert cleaned == 1
+        assert store.cleanup_calls == [(project.id, 1, None)]
         assert orch._maintenance_status["worktree_cleanup"]["deferred"] is True
 
     def test_cleanup_terminal_worktrees_skips_stale_sweep_without_budget(
         self, tmp_path
     ):
         project = _make_project()
-        store = self.StaleCleanupStore([project], cleanup_result=(1, True))
+        store = self.StaleCleanupStore(
+            [project], cleanup_result=(1, 1, True, "stale-a")
+        )
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch.project_store = store
         orch.config.worktree_cleanup_batch_size = 1
@@ -2318,13 +2526,17 @@ class TestTerminalWorktreeCleanup:
         tracker.fetch_issues_by_states.return_value = [
             _make_issue("TASK-1", state="Merged", project_id=project.id),
         ]
+        _configure_bounded_cleanup_tracker(tracker)
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         cleaned = orch._cleanup_terminal_worktrees()
 
         assert cleaned == 1
         assert store.cleanup_calls == []
-        assert orch._maintenance_status["worktree_cleanup"]["deferred"] is False
+        assert orch._maintenance_status["worktree_cleanup"]["deferred"] is True
+        assert orch._maintenance_status["worktree_cleanup"]["cursor"].startswith(
+            "dirs-v2:"
+        )
 
     def test_cleanup_terminal_worktrees_continues_after_remove_error(self, tmp_path):
         project = _make_project()
@@ -2334,6 +2546,7 @@ class TestTerminalWorktreeCleanup:
             _make_issue("TASK-1", state="Merged", project_id=project.id),
             _make_issue("TASK-2", state="Archived", project_id=project.id),
         ]
+        _configure_bounded_cleanup_tracker(tracker)
         orch._tracker_for_project = MagicMock(return_value=tracker)
         orch.project_store.remove_worktree.side_effect = [RuntimeError("busy"), None]
 
@@ -2351,6 +2564,7 @@ class TestTerminalWorktreeCleanup:
             _make_issue("TASK-1", state="Merged", project_id=project.id),
             _make_issue("TASK-2", state="Archived", project_id=project.id),
         ]
+        _configure_bounded_cleanup_tracker(tracker)
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         cleaned = orch._cleanup_terminal_worktrees()
@@ -2375,6 +2589,7 @@ class TestTerminalWorktreeCleanup:
                 project_id=project.id,
             ),
         ]
+        _configure_bounded_cleanup_tracker(tracker)
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         cleaned = orch._cleanup_terminal_worktrees()
@@ -2399,12 +2614,13 @@ class TestTerminalWorktreeCleanup:
                 project_id=project.id,
             ),
         ]
+        _configure_bounded_cleanup_tracker(tracker)
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         cleaned = orch._cleanup_terminal_worktrees()
 
         assert cleaned == 0
-        tracker.fetch_issues_by_states.assert_called_once_with(["Merged", "Archived"])
+        tracker.fetch_issues_by_states_page.assert_called()
         orch.project_store.remove_epic_worktree.assert_not_called()
         orch.project_store.remove_worktree.assert_not_called()
 
@@ -2418,13 +2634,12 @@ class TestTerminalWorktreeCleanup:
             _make_issue("TASK-1", state="Done"),
             _make_issue("TASK-2", state="Archived"),
         ]
+        _configure_bounded_cleanup_tracker(orch.tracker)
 
         cleaned = orch._cleanup_terminal_worktrees()
 
         assert cleaned == 1
-        orch.tracker.fetch_issues_by_states.assert_called_once_with(
-            ["Merged", "Archived"]
-        )
+        orch.tracker.fetch_issues_by_states_page.assert_called()
         orch.workspace_mgr.remove_workspace.assert_called_once_with("TASK-2")
 
     def test_cleanup_terminal_worktrees_aggregates_skip_reasons_without_per_issue_warnings(
@@ -2453,11 +2668,15 @@ class TestTerminalWorktreeCleanup:
                     # Epic task is removed
                     return True, None
             
-            def cleanup_stale_worktree_dirs(self, project_id, limit=None):
-                return 0, False
+            def cleanup_stale_worktree_dirs(
+                self, project_id, limit=None, *, after=None, should_stop=None
+            ):
+                return 0, 0, False, None
             
-            def cleanup_stale_local_branches(self, project_id, limit=None):
-                return 0, False
+            def cleanup_stale_local_branches(
+                self, project_id, limit=None, *, after=None, should_stop=None
+            ):
+                return 0, 0, False, None
         
         store = SkipTrackingStore([project])
         orch.project_store = store
@@ -2470,6 +2689,7 @@ class TestTerminalWorktreeCleanup:
             _make_issue("CHILD-2", state="Merged", project_id=project.id),
             _make_issue("CHILD-3", state="Merged", project_id=project.id),
         ]
+        _configure_bounded_cleanup_tracker(tracker)
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         cleaned = orch._cleanup_terminal_worktrees()
@@ -2521,6 +2741,76 @@ class TestTerminalWorktreeCleanup:
             orch._run_maintenance_job.call_args.kwargs["min_interval_s"]
             == 17
         )
+        assert (
+            orch._run_maintenance_job.call_args.kwargs["max_runtime_s"]
+            == orch.config.worktree_cleanup_max_runtime_seconds
+        )
+
+    def test_maybe_cleanup_worktrees_does_not_start_during_lifecycle_drain(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path, projects=[_make_project()])
+        orch._quiesced = True
+        orch._run_maintenance_job = MagicMock()
+
+        orch._maybe_cleanup_worktrees()
+
+        orch._run_maintenance_job.assert_not_called()
+        assert orch._maintenance_status["worktree_cleanup"]["reason"] == (
+            "lifecycle_drain"
+        )
+
+    def test_maybe_cleanup_worktrees_requests_one_deferred_continuation(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path, projects=[_make_project()])
+        orch._post_event = MagicMock()
+
+        def deferred_slice():
+            orch._maintenance_status["worktree_cleanup"] = {
+                "deferred": True,
+                "reason": "operation_budget",
+            }
+
+        orch._do_cleanup_worktrees = deferred_slice
+
+        orch._maybe_cleanup_worktrees()
+
+        event = orch._post_event.call_args.args[0]
+        assert event.payload == {"reason": "worktree_cleanup_deferred"}
+        assert orch._maintenance_jobs["worktree_cleanup"].next_run_monotonic == 0
+
+    def test_cleanup_source_error_waits_for_interval_instead_of_tight_retry(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path, projects=[_make_project()])
+        orch._post_event = MagicMock()
+
+        def failed_slice():
+            orch._maintenance_status["worktree_cleanup"] = {
+                "deferred": True,
+                "reason": "source_scan_error",
+            }
+
+        orch._do_cleanup_worktrees = failed_slice
+
+        orch._maybe_cleanup_worktrees()
+
+        orch._post_event.assert_not_called()
+        assert orch._maintenance_jobs["worktree_cleanup"].next_run_monotonic > 0
+
+    def test_skipped_cleanup_does_not_rearm_a_stale_deferred_status(self, tmp_path):
+        orch = _make_orchestrator(tmp_path, projects=[_make_project()])
+        state = orch._get_or_create_job_state("worktree_cleanup")
+        state.run_count = 1
+        state.next_run_monotonic = time.monotonic() + 60
+        orch._maintenance_status["worktree_cleanup"] = {"deferred": True}
+        orch._post_event = MagicMock()
+
+        orch._maybe_cleanup_worktrees()
+
+        orch._post_event.assert_not_called()
+        assert state.run_count == 1
 
     def test_maybe_heal_repos_skips_when_interval_not_reached(self, tmp_path):
         """_maybe_heal_repos() skips when the minimum interval has not elapsed."""
@@ -3061,6 +3351,7 @@ class TestMaintenancePreservesDoneWorktrees:
         tracker.fetch_issues_by_states.return_value = [
             _make_issue("TASK-1", state="Done", project_id=project.id),
         ]
+        _configure_bounded_cleanup_tracker(tracker)
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         cleaned = orch._cleanup_terminal_worktrees()
@@ -3076,6 +3367,7 @@ class TestMaintenancePreservesDoneWorktrees:
         tracker.fetch_issues_by_states.return_value = [
             _make_issue("TASK-1", state="Conflict", project_id=project.id),
         ]
+        _configure_bounded_cleanup_tracker(tracker)
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         cleaned = orch._cleanup_terminal_worktrees()
@@ -3089,12 +3381,15 @@ class TestMaintenancePreservesDoneWorktrees:
         orch = _make_orchestrator(tmp_path, projects=[project])
         tracker = MagicMock()
         tracker.fetch_issues_by_states.return_value = []
+        _configure_bounded_cleanup_tracker(tracker)
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         orch._cleanup_terminal_worktrees()
 
         # Must only query the two cleanable states
-        tracker.fetch_issues_by_states.assert_called_once_with(["Merged", "Archived"])
+        tracker.fetch_issues_by_states_page.assert_called_once_with(
+            ["Merged", "Archived"], after=None, limit=1
+        )
 
     def test_cleanup_removes_merged_but_not_done_mixed(self, tmp_path):
         """Mixed list: only Merged is removed, Done is preserved."""
@@ -3106,6 +3401,7 @@ class TestMaintenancePreservesDoneWorktrees:
             _make_issue("TASK-D", state="Done", project_id=project.id),
             _make_issue("TASK-A", state="Archived", project_id=project.id),
         ]
+        _configure_bounded_cleanup_tracker(tracker)
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         cleaned = orch._cleanup_terminal_worktrees()
@@ -3131,6 +3427,7 @@ class TestMaintenancePreservesDoneWorktrees:
             _make_issue("TASK-DONE", state="Done", project_id=project.id),
             _make_issue("TASK-MERGED", state="Merged", project_id=project.id),
         ]
+        _configure_bounded_cleanup_tracker(tracker)
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         orch._maybe_cleanup_worktrees()

@@ -2290,12 +2290,13 @@ class TestRemoveWorktreeCleanup:
             return MagicMock(returncode=0, stdout="", stderr="")
 
         with patch("oompah.projects.subprocess.run", side_effect=fake_run):
-            removed, deferred = store.cleanup_stale_worktree_dirs(
-                project.id, limit=1
+            removed, examined, deferred, cursor = store.cleanup_stale_worktree_dirs(
+                project.id, limit=2
             )
 
-        assert removed == 1
+        assert (removed, examined) == (1, 2)
         assert deferred is True
+        assert cursor == "TASK-STALE-A"
         assert os.path.isdir(active)
         assert not os.path.exists(stale_a)
         assert os.path.isdir(stale_b)
@@ -2325,13 +2326,46 @@ class TestRemoveWorktreeCleanup:
             return MagicMock(returncode=0, stdout="", stderr="")
 
         with patch("oompah.projects.subprocess.run", side_effect=fake_run):
-            removed, deferred = store.cleanup_stale_worktree_dirs(project.id)
+            removed, examined, deferred, cursor = (
+                store.cleanup_stale_worktree_dirs(project.id)
+            )
 
-        assert removed == 1
+        assert (removed, examined) == (1, 3)
         assert deferred is False
+        assert cursor is None
         assert os.path.isdir(active)
         assert os.path.isdir(valid_other)
         assert not os.path.exists(stale)
+
+    def test_cleanup_stale_worktree_dirs_honors_stop_after_registered_skip(
+        self, tmp_path
+    ):
+        store, project = self._store_and_project(tmp_path)
+        active = store.worktree_path_for(project.id, "TASK-ACTIVE")
+        stale = store.worktree_path_for(project.id, "TASK-STALE")
+        os.makedirs(active)
+        os.makedirs(stale)
+        stop_checks = iter([False, True])
+
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "worktree", "list"]:
+                return MagicMock(
+                    returncode=0,
+                    stdout=f"worktree {active}\nHEAD abc123\n",
+                    stderr="",
+                )
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            result = store.cleanup_stale_worktree_dirs(
+                project.id,
+                limit=10,
+                should_stop=lambda: next(stop_checks),
+            )
+
+        assert result == (0, 1, True, "TASK-ACTIVE")
+        assert os.path.isdir(active)
+        assert os.path.isdir(stale)
 
     def test_terminal_cleanup_deletes_owned_local_and_remote_branch(self, tmp_path):
         store, project = self._store_and_project(tmp_path)
@@ -2695,9 +2729,11 @@ class TestRemoveWorktreeCleanup:
             return MagicMock(returncode=0, stdout="", stderr="")
 
         with patch("oompah.projects.subprocess.run", side_effect=fake_run):
-            removed, deferred = store.cleanup_stale_local_branches(project.id)
+            removed, examined, deferred, cursor = (
+                store.cleanup_stale_local_branches(project.id)
+            )
 
-        assert (removed, deferred) == (1, False)
+        assert (removed, examined, deferred, cursor) == (1, 4, False, None)
         assert ["git", "branch", "-D", "--", "TASK-MERGED"] in calls
         assert ["git", "branch", "-D", "--", "TASK-UNMERGED"] not in calls
         assert ["git", "branch", "-D", "--", "TASK-CHECKED"] not in calls
@@ -2718,12 +2754,12 @@ class TestRemoveWorktreeCleanup:
             return MagicMock(returncode=0, stdout="", stderr="")
 
         with patch("oompah.projects.subprocess.run", side_effect=fake_run):
-            removed, deferred = store.cleanup_stale_local_branches(
+            removed, examined, deferred, cursor = store.cleanup_stale_local_branches(
                 project.id,
                 limit=1,
             )
 
-        assert (removed, deferred) == (1, True)
+        assert (removed, examined, deferred, cursor) == (1, 1, True, "TASK-1")
 
 
 # ---------------------------------------------------------------------------

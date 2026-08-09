@@ -5,7 +5,7 @@ import time
 from collections import namedtuple
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from oompah.config import ServiceConfig
 from oompah.coordination import CoordinationStore
@@ -309,7 +309,7 @@ def test_storage_cleanup_prunes_old_read_coordination_messages(tmp_path):
         (),
         {"list_all": lambda self: []},
     )()
-    orchestrator._cleanup_terminal_worktrees = lambda projects: 0
+    orchestrator._cleanup_terminal_worktrees = MagicMock()
     coordination = CoordinationStore(str(tmp_path / "coordination.sqlite3"))
     orchestrator.coordination_store = coordination
 
@@ -317,6 +317,7 @@ def test_storage_cleanup_prunes_old_read_coordination_messages(tmp_path):
         orchestrator._do_cleanup_storage()
 
     assert prune.call_count == 1
+    orchestrator._cleanup_terminal_worktrees.assert_not_called()
     cutoff = datetime.fromisoformat(prune.call_args.args[0])
     assert 55 <= (datetime.now(timezone.utc) - cutoff).total_seconds() <= 65
     assert orchestrator._maintenance_status["storage_cleanup"][
