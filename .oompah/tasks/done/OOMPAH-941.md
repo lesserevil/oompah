@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-941
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Project authorized owner delivery before requiring landing recovery
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:20.700706Z'
-updated_at: '2026-08-09T16:17:40.023124Z'
+updated_at: '2026-08-09T16:25:02.515621Z'
 work_branch: OOMPAH-941
 target_branch: null
 review_url: null
@@ -38,6 +38,28 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-941
     digest: 33b6bc646cffb9ddb9cf92ed12548373f29912c4e39c70fe4c34dd54ba065b20
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-bbac2c650597
+    project_id: proj-14849f1b
+    task_id: OOMPAH-941
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 33b6bc646cffb9ddb9cf92ed12548373f29912c4e39c70fe4c34dd54ba065b20
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner override after exact accepted head 9996c0f8e8b64d83ee59bd65d3552f034df6031a
+      was proven contained in aggregate head 2dd74be288b81265ea4a242d7467ecc1ed9f1435,
+      merged by PR #757 as ba0859da9d47d3417a50bfbaa2cb10a7a32f5f01, with hosted Python
+      3.11/3.12/3.13 checks successful.'
+    created_at: '2026-08-09T16:24:58.486779+00:00'
+    selected_ref: 9996c0f8e8b64d83ee59bd65d3552f034df6031a
+    selected_sha: 9996c0f8e8b64d83ee59bd65d3552f034df6031a
+    applied: false
   version: 1
   pending_chain:
   - version: 1
