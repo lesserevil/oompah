@@ -6,12 +6,13 @@ priority: 1
 title: Fence absent-to-retained provenance changes during workflow publication
 parent: OOMPAH-940
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-967
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:30:50.075307Z'
-updated_at: '2026-08-09T18:31:19.759642Z'
+updated_at: '2026-08-09T18:33:15.731925Z'
 work_branch: null
 target_branch: null
 review_url: null
