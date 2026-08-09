@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-950
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Retire direct-owner claim after durable validation submission
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:26:10.227707Z'
-updated_at: '2026-08-09T12:08:19.916683Z'
+updated_at: '2026-08-09T12:59:26.405828Z'
 work_branch: OOMPAH-950
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/761
@@ -32,6 +32,62 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/761
 oompah.review_number: '761'
 oompah.target_branch: main
 oompah.review_head: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-e9fb81ea75df
+    project_id: proj-14849f1b
+    task_id: OOMPAH-950
+    digest: aa9d2784e29afb4de27a2906a9807d18a2861b0728989590286b34ecc1597614
+  - version: 1
+    audit_id: audit-813b8f94cac1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-950
+    digest: aa9d2784e29afb4de27a2906a9807d18a2861b0728989590286b34ecc1597614
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e9fb81ea75df
+    project_id: proj-14849f1b
+    task_id: OOMPAH-950
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: aa9d2784e29afb4de27a2906a9807d18a2861b0728989590286b34ecc1597614
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Review
+    created_at: '2026-08-09T12:59:20.963658+00:00'
+    selected_ref: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
+    selected_sha: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
+  - version: 1
+    audit_id: audit-813b8f94cac1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-950
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: aa9d2784e29afb4de27a2906a9807d18a2861b0728989590286b34ecc1597614
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Review
+    created_at: '2026-08-09T12:59:20.963658+00:00'
+    selected_ref: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
+    selected_sha: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
+  attempt_history: []
 ---
 ## Summary
 
@@ -66,5 +122,15 @@ author: oompah
 created: 2026-08-09 12:07
 ---
 Branch quality gate passed for `fe66b5cfcdb4e0f448dec17f271fe2edebe04f33` using `make test` in 161.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-09 12:59
+---
+PR #761 is merged and its exact accepted work is contained in main. Advancing the stale In Review task to terminal validation manually while OOMPAH-955 removes workflow head-of-line blocking.
+---
+author: oompah
+created: 2026-08-09 12:59
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
