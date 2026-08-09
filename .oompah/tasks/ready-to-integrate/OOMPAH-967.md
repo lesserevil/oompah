@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T18:04:59.855533Z'
-updated_at: '2026-08-09T18:38:09.283152Z'
+updated_at: '2026-08-09T18:38:20.097987Z'
 work_branch: OOMPAH-967
 target_branch: null
 review_url: null
@@ -26,9 +26,9 @@ oompah.integration:
   task_branch: OOMPAH-967
   base_branch: epic-OOMPAH-940
   base_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
-  head_sha: 6ee3612311e3c26e2404b31895e876fb9a7cd33d
-  submitted_at: '2026-08-09T18:32:50.215094+00:00'
-  updated_at: '2026-08-09T18:32:50.215094+00:00'
+  head_sha: 79192eea194239c24024728de71921256e6553cf
+  submitted_at: '2026-08-09T18:38:10.411728+00:00'
+  updated_at: '2026-08-09T18:38:10.411728+00:00'
 oompah.work_branch: OOMPAH-967
 ---
 ## Summary
@@ -77,5 +77,10 @@ author: oompah
 created: 2026-08-09 18:38
 ---
 Exact submission head superseded again by pushed 79192eea1: persisted provenance marker, terminal-audit envelope, and quarantine versions now require non-boolean integers, preventing True/1.0 from being normalized into trusted version 1 before the decision boundary. Verification: 518 focused tests pass; independent 153-test review reports no blockers; critical Ruff/diff checks pass. Do not integrate prior heads.
+---
+author: oompah
+created: 2026-08-09 18:38
+---
+Final exact head 79192eea1 honors retained provenance, validates stored and projected authority fail closed, and fences publication races. 518 focused tests plus independent review are green.
 ---
 <!-- COMMENTS:END -->
