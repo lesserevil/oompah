@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T10:26:10.227707Z'
-updated_at: '2026-08-09T16:32:17.754729Z'
+updated_at: '2026-08-09T16:32:29.023812Z'
 work_branch: OOMPAH-950
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/761
@@ -57,6 +57,16 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-09T14:26:12.483808+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-950
+    target_state: Merged
+    evidence_fingerprint: aa9d2784e29afb4de27a2906a9807d18a2861b0728989590286b34ecc1597614
+    audit_ids:
+    - audit-e9fb81ea75df
+    - audit-813b8f94cac1
+    kind: override
+    applied: true
+    retired_at: '2026-08-09T16:32:21.897054+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-950
@@ -71,6 +81,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T14:26:12.483818+00:00'
     applied_at: '2026-08-09T14:26:19.580788+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-f1097582fba4
@@ -92,7 +103,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T16:32:13.541378+00:00'
     selected_ref: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
     selected_sha: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -139,7 +150,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-950
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -154,6 +165,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T12:59:20.963658+00:00'
     selected_ref: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
     selected_sha: fe66b5cfcdb4e0f448dec17f271fe2edebe04f33
+    updated_at: '2026-08-09T16:32:21.897019+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-845fde1daeb7
@@ -267,5 +279,17 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 11m 59s
 - Log: OOMPAH-950__20260809T141519Z.jsonl
+---
+author: oompah
+created: 2026-08-09 16:32
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Project-owner override after exact task head fe66b5cfcdb4e0f448dec17f271fe2edebe04f33 was proven to be PR #761 head and contained in main; PR #761 merged as 8670daf38ba56646266eb074a4e609bddb3501a8 with hosted Python 3.11/3.12/3.13 checks successful; the independent terminal auditor also recorded PASS.
+---
+author: oompah
+created: 2026-08-09 16:32
+---
+Merged: exact OOMPAH-950 head fe66b5cfc landed through PR #761 as 8670daf38; all hosted Python matrices and independent audit passed.
 ---
 <!-- COMMENTS:END -->
