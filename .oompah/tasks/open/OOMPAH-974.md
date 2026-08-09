@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T21:05:01.679955Z'
-updated_at: '2026-08-09T22:19:14.141357Z'
+updated_at: '2026-08-09T22:19:20.290528Z'
 work_branch: OOMPAH-974
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/783
@@ -99,12 +99,12 @@ oompah.terminal_audit:
     applied: true
   oompah.terminal_provenance_suppression:
     version: 1
-    suppressed: true
-    authority_generation: 0
+    suppressed: false
+    authority_generation: 1
     reason: Retain the deployed 9ea2d4d07 terminal audit as historical provenance
       while authorizing a new revision for the reproduced post-scan lifecycle deadlock.
     marked_at: '2026-08-09T22:19:05.593435+00:00'
-    updated_at: '2026-08-09T22:19:05.593435+00:00'
+    updated_at: '2026-08-09T22:19:17.641419+00:00'
     history:
     - kind: mark
       actor:
@@ -115,6 +115,19 @@ oompah.terminal_audit:
         while authorizing a new revision for the reproduced post-scan lifecycle deadlock.
       recorded_at: '2026-08-09T22:19:05.593435+00:00'
       authority_generation: 0
+    - kind: revise
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: The deployed 9ea2d4d07 fix kept health responsive during early cold-read
+        reconciliation, but after approximately 15 minutes and a concurrent Open/owner-claim
+        mutation exact service PID 2323184 again collapsed to one thread blocked in
+        futex_do_wait; /healthz returned no bytes and no worker children existed.
+        Exact-identity force-restart recovered. The original acceptance is not satisfied,
+        so reopen a fresh implementation revision.
+      recorded_at: '2026-08-09T22:19:17.641419+00:00'
+      authority_generation: 1
     actor:
       version: 1
       identity: oompah-cli
