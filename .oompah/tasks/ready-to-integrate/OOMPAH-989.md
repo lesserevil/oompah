@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T14:54:32.362310Z'
+updated_at: '2026-08-10T14:55:03.855604Z'
 work_branch: OOMPAH-989
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/798
@@ -24,9 +24,11 @@ oompah.integration:
   attempts: 0
   mode: standalone
   task_branch: OOMPAH-989
-  head_sha: 2c26f79aa49240cbf7731d6de8e201356106c1ed
-  submitted_at: '2026-08-10T12:29:30.205757+00:00'
-  updated_at: '2026-08-10T12:29:30.205757+00:00'
+  base_branch: main
+  base_sha: 41ac37dbd3148b167ae2f2917f19734ad037eb10
+  head_sha: bb81282585fa91b1a88ae4409aaa58b99133482a
+  submitted_at: '2026-08-10T14:54:51.866399+00:00'
+  updated_at: '2026-08-10T14:54:51.866399+00:00'
 oompah.work_branch: OOMPAH-989
 oompah.review_url: https://github.com/lesserevil/oompah/pull/798
 oompah.review_number: '798'
@@ -205,5 +207,10 @@ author: oompah
 created: 2026-08-10 14:54
 ---
 Replacement exact head bb81282585fa91b1a88ae4409aaa58b99133482a is pushed and includes the OOMPAH-996 process-retirement repair. Exact full Makefile gate passed: 19,427 passed, 7 skipped, 2 xfailed, 43 warnings, zero failures in 1,262.13s. Independent review approved; focused Python 3.11/3.12 and 100-run adversarial stress evidence is recorded on OOMPAH-996.
+---
+author: oompah
+created: 2026-08-10 14:55
+---
+Integrate bounded lifecycle publication, lock-free workflow mutations, WebSocket isolation, and exact process-tree/stderr retirement. Exact head bb81282585fa91b1a88ae4409aaa58b99133482a passed independent review and the full gate: 19,427 passed, zero failures.
 ---
 <!-- COMMENTS:END -->
