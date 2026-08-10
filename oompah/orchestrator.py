@@ -32884,6 +32884,138 @@ class Orchestrator:
             logger.debug("Auditor quality evidence was not reusable: %s", exc)
             return False
 
+    @staticmethod
+    def _terminal_audit_issue_quality_gate_identity(
+        issue: Issue,
+        project: Project | None,
+    ) -> tuple[str, str, str, str]:
+        """Return the ordinary task-owned exact-head gate identity."""
+
+        integration = getattr(issue, "integration", None)
+        accepted_head = str(
+            issue_exact_head(issue)
+            or getattr(issue, "source_sha", "")
+            or ""
+        ).strip().lower()
+        work_branch = str(
+            getattr(integration, "task_branch", "")
+            or assigned_work_branch(issue)
+            or getattr(issue, "source_branch", "")
+            or getattr(issue, "work_branch", "")
+            or getattr(issue, "branch_name", "")
+            or ""
+        ).strip()
+        target_branch = str(
+            getattr(integration, "base_branch", "")
+            or getattr(issue, "target_branch", "")
+            or (getattr(project, "default_branch", "") if project else "")
+            or ""
+        ).strip()
+        repo_identity = str(
+            (getattr(project, "repo_url", "") if project else "")
+            or (getattr(project, "repo_path", "") if project else "")
+            or (getattr(project, "id", "") if project else "")
+            or ""
+        ).strip()
+        return accepted_head, work_branch, target_branch, repo_identity
+
+    def _terminal_audit_quality_gate_identity(
+        self,
+        issue: Issue,
+        project: Project,
+        target: AuditorTargetContract,
+        tracker: Any,
+    ) -> tuple[str, str, str, str, bool]:
+        """Resolve one exact gate identity without granting passing authority.
+
+        Ordinary accepted-head metadata remains authoritative.  A direct
+        recovery can lose that projection while its running audit still owns
+        an immutable revision.  Only in that absence may the exact, freshly
+        reloaded durable attempt supply the head and branch cache key.
+        """
+
+        accepted_head, work_branch, target_branch, repo_identity = (
+            self._terminal_audit_issue_quality_gate_identity(issue, project)
+        )
+        if accepted_head:
+            if target.selected_sha and target.selected_sha != accepted_head:
+                raise ValueError(
+                    "terminal audit revision conflicts with the accepted exact head"
+                )
+            return (
+                accepted_head,
+                work_branch,
+                target_branch,
+                repo_identity,
+                False,
+            )
+
+        if not target.attempt_id or not target.selected_ref or not target.selected_sha:
+            return accepted_head, work_branch, target_branch, repo_identity, False
+
+        document = TerminalAuditMetadataStore(
+            tracker,
+            self.project_store,
+            target.project_id,
+        ).read(target.task_id)
+        target_state = TargetState.from_raw(target.target_state)
+        target_fingerprint = EvidenceFingerprint(target.evidence_fingerprint)
+        records = [
+            record
+            for record in document.pending_chain
+            if record.project_id == target.project_id
+            and record.task_id == target.task_id
+            and record.audit_id == target.audit_id
+        ]
+        if len(records) != 1:
+            raise ValueError(
+                "durable terminal audit identity is missing or ambiguous"
+            )
+        record = records[0]
+        if (
+            record.request_state is not RequestState.IN_PROGRESS
+            or record.target_state is not target_state
+            or record.evidence_fingerprint != target_fingerprint
+            or str(record.previous_state or "")
+            != str(target.previous_state or "")
+            or record.selected_ref != target.selected_ref
+            or record.selected_sha != target.selected_sha
+        ):
+            raise ValueError("durable terminal audit identity is stale")
+
+        active_attempts = [
+            attempt
+            for attempt in record.attempts
+            if attempt.request_state is RequestState.IN_PROGRESS
+            and not attempt.ended_at
+            and not attempt.completed_at
+        ]
+        if (
+            len(active_attempts) != 1
+            or active_attempts[0].attempt_id != target.attempt_id
+        ):
+            raise ValueError("durable terminal audit attempt is stale or ambiguous")
+        attempt = active_attempts[0]
+        branch_key = str(attempt.branch_key or "").strip()
+        if (
+            attempt.target_state is not target_state
+            or attempt.evidence_fingerprint != target_fingerprint
+            or attempt.selected_ref != target.selected_ref
+            or attempt.selected_sha != target.selected_sha
+            or attempt.verdict is not None
+            or attempt.failure_classification is not None
+            or not branch_key
+        ):
+            raise ValueError("durable terminal audit attempt identity is stale")
+
+        return (
+            target.selected_sha,
+            branch_key,
+            target_branch,
+            repo_identity,
+            True,
+        )
+
     def _terminal_audit_quality_gate_evidence(
         self,
         issue: Issue,
@@ -32903,36 +33035,9 @@ class Orchestrator:
 
         command = self._quality_gate_command(project) if project is not None else ""
 
-        def _identity(source: Issue) -> tuple[str, str, str, str]:
-            integration = getattr(source, "integration", None)
-            accepted = str(
-                issue_exact_head(source)
-                or getattr(source, "source_sha", "")
-                or ""
-            ).strip().lower()
-            branch = str(
-                getattr(integration, "task_branch", "")
-                or assigned_work_branch(source)
-                or getattr(source, "source_branch", "")
-                or getattr(source, "work_branch", "")
-                or getattr(source, "branch_name", "")
-                or ""
-            ).strip()
-            target = str(
-                getattr(integration, "base_branch", "")
-                or getattr(source, "target_branch", "")
-                or (getattr(project, "default_branch", "") if project else "")
-                or ""
-            ).strip()
-            repository = str(
-                (getattr(project, "repo_url", "") if project else "")
-                or (getattr(project, "repo_path", "") if project else "")
-                or (getattr(project, "id", "") if project else "")
-                or ""
-            ).strip()
-            return accepted, branch, target, repository
-
-        accepted_head, work_branch, target_branch, repo_identity = _identity(issue)
+        accepted_head, work_branch, target_branch, repo_identity = (
+            self._terminal_audit_issue_quality_gate_identity(issue, project)
+        )
         result: QualityGateResult | None = None
         reason = ""
         authority_current = False
@@ -32944,6 +33049,8 @@ class Orchestrator:
             decision = "full_gate_required"
             status = "stale"
             try:
+                if project is None:
+                    raise ValueError("authoritative project is unavailable")
                 target = auditor_target_contract(
                     audit_target,
                     task_id=issue.identifier,
@@ -32954,6 +33061,10 @@ class Orchestrator:
                     or target.project_id != str(issue.project_id or "legacy")
                 ):
                     raise ValueError("auditor target identity does not match task")
+                if str(project.id or "") != target.project_id:
+                    raise ValueError(
+                        "authoritative project identity does not match audit target"
+                    )
                 tracker = self._tracker_for_project(target.project_id)
                 invalidate = getattr(tracker, "invalidate_read_cache", None)
                 if callable(invalidate):
@@ -32963,6 +33074,10 @@ class Orchestrator:
                     raise ValueError("authoritative task is unavailable")
                 if not current_issue.project_id:
                     current_issue.project_id = issue.project_id
+                if str(current_issue.project_id or "") != target.project_id:
+                    raise ValueError(
+                        "authoritative task project does not match audit target"
+                    )
                 if canonicalize_status(current_issue.state) != IN_VALIDATION:
                     raise ValueError(
                         "authoritative task is no longer In Validation"
@@ -32974,8 +33089,17 @@ class Orchestrator:
                 if current_fingerprint != target.evidence_fingerprint:
                     raise ValueError("auditor evidence fingerprint is stale")
 
-                accepted_head, work_branch, target_branch, repo_identity = (
-                    _identity(current_issue)
+                (
+                    accepted_head,
+                    work_branch,
+                    target_branch,
+                    repo_identity,
+                    staged_attempt_identity,
+                ) = self._terminal_audit_quality_gate_identity(
+                    current_issue,
+                    project,
+                    target,
+                    tracker,
                 )
                 if not all(
                     (accepted_head, work_branch, target_branch, repo_identity)
@@ -32983,41 +33107,42 @@ class Orchestrator:
                     status = "missing"
                     raise ValueError("authoritative exact-head identity is incomplete")
 
-                integration = getattr(current_issue, "integration", None)
-                integrated_sha = str(
-                    getattr(integration, "integrated_sha", "") or ""
-                ).strip().lower()
-                integration_head_changed = (
-                    str(getattr(integration, "state", "") or "").casefold()
-                    == "integrated"
-                    and integrated_sha
-                    and integrated_sha != accepted_head
-                )
-
-                branch_head = self._quality_gate_branch_head(
-                    project,
-                    work_branch,
-                ).strip().lower()
-                branch_authority_current = (
-                    branch_head == accepted_head and not integration_head_changed
-                )
-                if not branch_authority_current and branch_head:
-                    raise ValueError(
-                        "authoritative work branch no longer names the accepted head"
+                if not staged_attempt_identity:
+                    integration = getattr(current_issue, "integration", None)
+                    integrated_sha = str(
+                        getattr(integration, "integrated_sha", "") or ""
+                    ).strip().lower()
+                    integration_head_changed = (
+                        str(getattr(integration, "state", "") or "").casefold()
+                        == "integrated"
+                        and integrated_sha
+                        and integrated_sha != accepted_head
                     )
-                if not branch_authority_current:
-                    landed, landed_reason = (
-                        self._terminal_audit_landed_gate_authority(
-                            current_issue,
-                            project,
-                            target,
-                            accepted_head=accepted_head,
-                            work_branch=work_branch,
-                            target_branch=target_branch,
+                    branch_head = self._quality_gate_branch_head(
+                        project,
+                        work_branch,
+                    ).strip().lower()
+                    branch_authority_current = (
+                        branch_head == accepted_head
+                        and not integration_head_changed
+                    )
+                    if not branch_authority_current and branch_head:
+                        raise ValueError(
+                            "authoritative work branch no longer names the accepted head"
                         )
-                    )
-                    if not landed:
-                        raise ValueError(landed_reason)
+                    if not branch_authority_current:
+                        landed, landed_reason = (
+                            self._terminal_audit_landed_gate_authority(
+                                current_issue,
+                                project,
+                                target,
+                                accepted_head=accepted_head,
+                                work_branch=work_branch,
+                                target_branch=target_branch,
+                            )
+                        )
+                        if not landed:
+                            raise ValueError(landed_reason)
                 authority_current = True
 
                 result = self._branch_quality_gate.lookup(

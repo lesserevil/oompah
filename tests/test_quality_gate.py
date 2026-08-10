@@ -51,7 +51,15 @@ from oompah.statuses import (
     OPEN,
     READY_TO_INTEGRATE,
 )
-from oompah.terminal_audit import compute_issue_evidence_fingerprint
+from oompah.terminal_audit import (
+    AuditAttempt,
+    EvidenceFingerprint,
+    RequestState,
+    TargetState,
+    TerminalAuditRecord,
+    compute_issue_evidence_fingerprint,
+)
+from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
 from oompah.validation_resource_lease import (
     ValidationLeaseOwner,
     ValidationResourceLease,
@@ -589,6 +597,313 @@ def test_terminal_audit_quality_gate_bundle_reuses_review_head_without_integrati
     )
 
 
+def _direct_recovery_quality_gate_context(
+    *,
+    gate_result: QualityGateResult | None,
+):
+    """Build an OOMPAH-999-shaped live audit without ordinary head metadata."""
+
+    head = "a" * 40
+    branch_key = "work"
+    project = Project(
+        id="project",
+        name="project",
+        repo_url="repo",
+        repo_path="/managed/repo",
+        default_branch="main",
+        test_command_full="make test",
+    )
+    issue = Issue(
+        id="task",
+        identifier="TASK-1",
+        title="Task",
+        project_id="project",
+        state=IN_VALIDATION,
+    )
+    fingerprint = EvidenceFingerprint(
+        compute_issue_evidence_fingerprint(issue, "project").digest
+    )
+    attempt = AuditAttempt(
+        attempt_id="attempt-1",
+        target_state=TargetState.MERGED,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        branch_key=branch_key,
+        selected_ref=head,
+        selected_sha=head,
+    )
+    record = TerminalAuditRecord(
+        audit_id="audit-1",
+        project_id="project",
+        task_id="TASK-1",
+        target_state=TargetState.MERGED,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        attempts=[attempt],
+        previous_state=READY_TO_INTEGRATE,
+        selected_ref=head,
+        selected_sha=head,
+    )
+    tracker = MagicMock(fetch_issue_detail=MagicMock(return_value=issue))
+    tracker.get_metadata.return_value = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
+    }
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.project_store = MagicMock()
+    orchestrator.project_store.project_write_lock.return_value = nullcontext()
+    orchestrator._tracker_for_project = MagicMock(return_value=tracker)
+    orchestrator._quality_gate_branch_head = MagicMock()
+    orchestrator._branch_quality_gate = MagicMock()
+    orchestrator._branch_quality_gate.lookup.return_value = gate_result
+    orchestrator._terminal_audit_metrics = MagicMock()
+    target = SimpleNamespace(
+        project_id="project",
+        task_id="TASK-1",
+        audit_id="audit-1",
+        attempt_id="attempt-1",
+        target_state="Merged",
+        previous_state=READY_TO_INTEGRATE,
+        evidence_fingerprint=fingerprint.digest,
+        selected_ref=head,
+        selected_sha=head,
+    )
+    return orchestrator, project, issue, target, tracker, record
+
+
+@pytest.mark.parametrize(
+    ("gate_result", "expected_decision"),
+    [
+        (
+            QualityGateResult(
+                "passed",
+                "a" * 40,
+                "make test",
+                10.0,
+                recorded_at=9_999.0,
+            ),
+            "reuse_authoritative_gate",
+        ),
+        (None, "full_gate_required"),
+    ],
+)
+def test_terminal_audit_quality_gate_uses_live_direct_recovery_attempt_identity(
+    gate_result,
+    expected_decision,
+    monkeypatch,
+):
+    monkeypatch.setattr(time, "time", lambda: 10_000.0)
+    orchestrator, project, issue, target, tracker, _record = (
+        _direct_recovery_quality_gate_context(gate_result=gate_result)
+    )
+
+    bundle = orchestrator._terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        target,
+    )
+
+    assert bundle["decision"] == expected_decision
+    assert bundle["accepted_head_sha"] == "a" * 40
+    assert bundle["head_sha"] == "a" * 40
+    assert bundle["work_branch"] == "work"
+    assert bundle["target_branch"] == "main"
+    assert bundle["authority_current"] is True
+    orchestrator._branch_quality_gate.lookup.assert_called_once_with(
+        repo_identity="repo",
+        target_branch="main",
+        work_branch="work",
+        head_sha="a" * 40,
+        command="make test",
+    )
+    orchestrator._quality_gate_branch_head.assert_not_called()
+    tracker.get_metadata.assert_called()
+
+
+@pytest.mark.parametrize(
+    "stale_surface",
+    [
+        "task_state",
+        "target_project",
+        "target_task",
+        "target_fingerprint",
+        "record_project",
+        "record_task",
+        "record_audit",
+        "record_state",
+        "record_target",
+        "record_fingerprint",
+        "record_binding",
+        "attempt_id",
+        "attempt_state",
+        "attempt_target",
+        "attempt_fingerprint",
+        "attempt_binding",
+        "attempt_ended",
+        "attempt_duplicate",
+        "branch_key",
+        "invalid_binding",
+    ],
+)
+def test_terminal_audit_quality_gate_direct_recovery_identity_fails_closed(
+    stale_surface,
+):
+    orchestrator, project, issue, target, tracker, record = (
+        _direct_recovery_quality_gate_context(
+            gate_result=QualityGateResult(
+                "passed",
+                "a" * 40,
+                "make test",
+                recorded_at=time.time(),
+            )
+        )
+    )
+    attempt = record.attempts[0]
+    other_fingerprint = EvidenceFingerprint("b" * 64)
+    if stale_surface == "task_state":
+        issue.state = OPEN
+    elif stale_surface == "target_project":
+        target.project_id = "other-project"
+    elif stale_surface == "target_task":
+        target.task_id = "TASK-2"
+    elif stale_surface == "target_fingerprint":
+        target.evidence_fingerprint = "c" * 64
+    elif stale_surface == "record_project":
+        record.project_id = "other-project"
+    elif stale_surface == "record_task":
+        record.task_id = "TASK-2"
+    elif stale_surface == "record_audit":
+        record.audit_id = "audit-2"
+    elif stale_surface == "record_state":
+        record.request_state = RequestState.PENDING
+    elif stale_surface == "record_target":
+        record.target_state = TargetState.DONE
+    elif stale_surface == "record_fingerprint":
+        record.evidence_fingerprint = other_fingerprint
+    elif stale_surface == "record_binding":
+        record.selected_ref = record.selected_sha = "b" * 40
+    elif stale_surface == "attempt_id":
+        attempt.attempt_id = "attempt-2"
+    elif stale_surface == "attempt_state":
+        attempt.request_state = RequestState.COMPLETED
+    elif stale_surface == "attempt_target":
+        attempt.target_state = TargetState.DONE
+    elif stale_surface == "attempt_fingerprint":
+        attempt.evidence_fingerprint = other_fingerprint
+    elif stale_surface == "attempt_binding":
+        attempt.selected_ref = attempt.selected_sha = "b" * 40
+    elif stale_surface == "attempt_ended":
+        attempt.ended_at = "2026-08-10T17:33:00+00:00"
+    elif stale_surface == "attempt_duplicate":
+        record.attempts.append(replace(attempt))
+    elif stale_surface == "branch_key":
+        attempt.branch_key = ""
+
+    raw_metadata = TerminalAuditMetadata(pending_chain=[record]).to_dict()
+    if stale_surface == "invalid_binding":
+        raw_metadata["pending_chain"][0]["selected_sha"] = "invalid"
+    tracker.get_metadata.return_value = {METADATA_KEY: raw_metadata}
+
+    bundle = orchestrator._terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        target,
+    )
+
+    assert bundle["decision"] == "full_gate_required"
+    assert bundle["authority_current"] is False
+    orchestrator._branch_quality_gate.lookup.assert_not_called()
+    orchestrator._quality_gate_branch_head.assert_not_called()
+
+
+def test_terminal_audit_quality_gate_rejects_conflicting_ordinary_and_bound_heads():
+    orchestrator, project, issue, target, _tracker, _record = (
+        _direct_recovery_quality_gate_context(
+            gate_result=QualityGateResult(
+                "passed",
+                "b" * 40,
+                "make test",
+                recorded_at=time.time(),
+            )
+        )
+    )
+    issue.integration = IntegrationRecord(
+        state="ready",
+        task_branch="work",
+        base_branch="main",
+        head_sha="b" * 40,
+    )
+    target.evidence_fingerprint = compute_issue_evidence_fingerprint(
+        issue,
+        "project",
+    ).digest
+    orchestrator._tracker_for_project.return_value.fetch_issue_detail.return_value = issue
+
+    bundle = orchestrator._terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        target,
+    )
+
+    assert bundle["decision"] == "full_gate_required"
+    assert "conflicts with the accepted exact head" in bundle["reason"]
+    orchestrator._branch_quality_gate.lookup.assert_not_called()
+
+
+def test_terminal_audit_quality_gate_rejects_mismatched_project_object():
+    orchestrator, project, issue, target, _tracker, _record = (
+        _direct_recovery_quality_gate_context(
+            gate_result=QualityGateResult(
+                "passed",
+                "a" * 40,
+                "make test",
+                recorded_at=time.time(),
+            )
+        )
+    )
+    wrong_project = replace(project, id="other-project", repo_url="other-repo")
+
+    bundle = orchestrator._terminal_audit_quality_gate_evidence(
+        issue,
+        wrong_project,
+        target,
+    )
+
+    assert bundle["decision"] == "full_gate_required"
+    assert "project identity does not match audit target" in bundle["reason"]
+    assert bundle["authority_current"] is False
+    orchestrator._branch_quality_gate.lookup.assert_not_called()
+    orchestrator._quality_gate_branch_head.assert_not_called()
+
+
+def test_terminal_audit_quality_gate_rejects_reloaded_issue_from_other_project():
+    orchestrator, project, issue, target, tracker, _record = (
+        _direct_recovery_quality_gate_context(
+            gate_result=QualityGateResult(
+                "passed",
+                "a" * 40,
+                "make test",
+                recorded_at=time.time(),
+            )
+        )
+    )
+    tracker.fetch_issue_detail.return_value = replace(
+        issue,
+        project_id="other-project",
+    )
+
+    bundle = orchestrator._terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        target,
+    )
+
+    assert bundle["decision"] == "full_gate_required"
+    assert "task project does not match audit target" in bundle["reason"]
+    assert bundle["authority_current"] is False
+    orchestrator._branch_quality_gate.lookup.assert_not_called()
+    orchestrator._quality_gate_branch_head.assert_not_called()
+
+
 @pytest.mark.parametrize("target_state", ["Done", "Merged"])
 def test_terminal_audit_quality_gate_reuses_landed_head_after_branch_deletion(
     target_state,
@@ -781,7 +1096,10 @@ def test_terminal_audit_quality_gate_requires_exact_landed_audit_binding(
     )
 
     assert bundle["decision"] == "full_gate_required"
-    assert "audit revision is not the accepted exact head" in bundle["reason"]
+    assert (
+        "audit revision is not the accepted exact head" in bundle["reason"]
+        or "revision conflicts with the accepted exact head" in bundle["reason"]
+    )
     orchestrator._branch_quality_gate.lookup.assert_not_called()
 
 
