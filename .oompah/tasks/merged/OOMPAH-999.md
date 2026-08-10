@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-999
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Do not revoke healthy quality gates on project-lock contention
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T16:13:42.956499Z'
-updated_at: '2026-08-10T17:26:13.951523Z'
+updated_at: '2026-08-10T17:33:02.778261Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,6 +37,31 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-999
     digest: 807aaf8e132e5bf7583701aa44b3db22f8edb5929a01df77d5bc97ec6a772bf5
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-81f370fcabc2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-999
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 807aaf8e132e5bf7583701aa44b3db22f8edb5929a01df77d5bc97ec6a772bf5
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner completion override after exact recovery head 6418a935de7b4aab93a24af4756a54b344463513
+      passed the complete local make test gate (19,472 passed, 7 skipped, 2 xfailed),
+      815 focused tests, terminal/secret/diff checks, and independent adversarial
+      review; protected PR #799 passed Python 3.11, 3.12, and 3.13 CI and merged as
+      0ce6c3131af200ab89090c13255c3606fc8d753b. The running terminal audit was repeating
+      the same full gate because recovery-PR evidence was not imported into the branch-gate
+      store.'
+    created_at: '2026-08-10T17:32:58.280323+00:00'
+    selected_ref: origin/OOMPAH-999
+    selected_sha: 6418a935de7b4aab93a24af4756a54b344463513
+    applied: false
   version: 1
   pending_chain:
   - version: 1
