@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-985
 type: task
-status: Ready to Integrate
+status: Merged
 priority: null
 title: Make backlog refresh retry proof wait for exact completion
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T04:20:13.834988Z'
-updated_at: '2026-08-10T05:37:14.393274Z'
+updated_at: '2026-08-10T05:46:59.750412Z'
 work_branch: OOMPAH-985
 target_branch: null
 review_url: null
@@ -28,6 +28,29 @@ oompah.integration:
   submitted_at: '2026-08-10T05:37:01.036213+00:00'
   updated_at: '2026-08-10T05:37:01.036213+00:00'
 oompah.work_branch: OOMPAH-985
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-e0ba7923c746
+    project_id: proj-14849f1b
+    task_id: OOMPAH-985
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a867cb0ccf3fd7ad055b872f68d606f0372bdb68727259a42a922eff3b225c0f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-10T05:46:55.571267+00:00'
+    selected_ref: 2a255c5c0d2f8d9850c4135809422c33f9409571
+    selected_sha: 2a255c5c0d2f8d9850c4135809422c33f9409571
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
