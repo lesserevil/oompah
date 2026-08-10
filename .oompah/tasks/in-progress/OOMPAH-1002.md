@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1002
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep expected bounded terminal-audit continuation out of degraded service health
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T17:51:08.587712Z'
-updated_at: '2026-08-10T17:52:26.349384Z'
+updated_at: '2026-08-10T17:52:38.794516Z'
 work_branch: null
 target_branch: null
 review_url: null
