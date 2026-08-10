@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T17:36:32.614914Z'
-updated_at: '2026-08-10T17:52:34.241209Z'
+updated_at: '2026-08-10T18:02:11.640925Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,3 +37,11 @@ Triggered by OOMPAH-999. Problem: a durable terminal-audit attempt was exactly b
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 18:02
+---
+Implementation handoff: branch OOMPAH-1000 is pushed at b17cfe56e3782bd02d01204ab9377eefd2ea871b. The patch binds terminal quality-gate identity to a freshly reloaded exact live audit attempt only when ordinary accepted-head metadata is absent; all scope, state, fingerprint, binding, and attempt mismatches fail closed, and selected_sha alone never implies PASS. Verification: 332 focused quality-gate/terminal-observability tests passed; 28/28 direct-recovery and retained review/deleted-branch regression slice passed after final test fixture adjustment; terminal task-status mutation scan passed (20/20 allowlisted); paranoid secret scan and commit hooks passed. Awaiting independent parent review; task intentionally not submitted or terminalized.
+---
+<!-- COMMENTS:END -->
