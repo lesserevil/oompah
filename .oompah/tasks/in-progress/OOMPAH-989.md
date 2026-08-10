@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T09:45:17.270799Z'
+updated_at: '2026-08-10T09:51:13.852977Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -77,5 +77,10 @@ author: oompah
 created: 2026-08-10 09:45
 ---
 Full-gate repair pushed at exact head dde652463d3ef5a732c229640c84ae42ecd59bca. Prior exact full make test on d2cbe93047a08085f784699f7ffb88cae703af0a failed 3 tests after 19,368 passed, 7 skipped, 2 xfailed, 48 warnings in 1,255.30s: lightweight workflow-store shutdown compatibility, daemon-publication subprocess startup/exit timing, and replacement vs blocked IPC predicate. Root cause repair: cooperative source_is_current now runs before OrchestratorIPC._lock (test asserts mutex is free), while exact source+epoch+generation INSERT...SELECT remains the authoritative commit fence; source revocation has bounded Python-lock and SQLite busy timeouts using the remaining lifecycle deadline; undrained callback shutdown fails closed before persistent stores close. Tests now use event-ordered barriers: subprocess startup readiness is separated from the 2s post-ready exit proof, and replacement synchronously revokes authority before the cached-true writer resumes and is rejected by SQL. Evidence: original failed trio plus new Python-lock/SQLite-lock/store-close cases pass 6/6 post-commit; five race cases passed 10x (50/50); affected core including full epic workflow adapter passes 167; broad focused selection passes 1,415 with 3 existing warnings; py_compile, static lock scan, diff check, commit secret hooks all pass. Branch is clean/up to date. Full gate intentionally not rerun pending re-review.
+---
+author: oompah
+created: 2026-08-10 09:51
+---
+Reviewer reconnect-deadline blocker fixed at exact pushed head 7b5f28ac3bdc10cd6ae244af943acf6768e07207. Previous dde652463 bounded deactivate could call normal _ensure_conn/_open after close, inheriting sqlite3.connect(timeout=5) and schema writes before the remaining lifecycle deadline was installed; real close()+BEGIN IMMEDIATE repro took ~5.006s for a 0.05s request. Revocation now uses a deactivation-only reconnect to the existing authority DB: no schema writes, connect uses the remaining budget, SQLite busy timeout is installed before exact publication_sources schema validation and DELETE, missing/incompatible schema fails closed, and the normal 5000ms busy timeout is restored before returning the handle to ordinary callers. Exact regression proves disconnected+BEGIN IMMEDIATE returns False under 1s for timeout=0.05, preserves old epoch/generation authority, and restores busy_timeout=5000. Evidence: reconnect/Python-lock/SQLite-lock/replacement pack passed 10x (40/40); post-commit exact pack 4/4; affected core 168 passed with 2 existing warnings; broad focused selection 1,417 passed with 3 existing warnings; diff check, py_compile, and commit secret hooks passed. Branch clean/up to date. Full gate not launched pending re-review.
 ---
 <!-- COMMENTS:END -->
