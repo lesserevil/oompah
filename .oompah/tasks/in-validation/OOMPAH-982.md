@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-982
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Retire implementation recovery when direct owner holds authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T02:54:36.526201Z'
-updated_at: '2026-08-10T06:25:50.657084Z'
+updated_at: '2026-08-10T06:26:46.383369Z'
 work_branch: OOMPAH-982
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/790
@@ -45,6 +45,62 @@ oompah.work_contributors:
     source_branch: OOMPAH-982
     source_sha: null
     completed_at: ''
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-18dbb68ac73b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-982
+    digest: b591ef7d63f4a3fc1f6cb91a452df51f37015ea241c1904a830da921d6957006
+  - version: 1
+    audit_id: audit-759471ea069e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-982
+    digest: b591ef7d63f4a3fc1f6cb91a452df51f37015ea241c1904a830da921d6957006
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-18dbb68ac73b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-982
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b591ef7d63f4a3fc1f6cb91a452df51f37015ea241c1904a830da921d6957006
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-10T06:26:40.489947+00:00'
+    selected_ref: e96ed93c944bca7c5f5ac8e65aede731b5ab862d
+    selected_sha: e96ed93c944bca7c5f5ac8e65aede731b5ab862d
+  - version: 1
+    audit_id: audit-759471ea069e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-982
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b591ef7d63f4a3fc1f6cb91a452df51f37015ea241c1904a830da921d6957006
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-10T06:26:40.489947+00:00'
+    selected_ref: e96ed93c944bca7c5f5ac8e65aede731b5ab862d
+    selected_sha: e96ed93c944bca7c5f5ac8e65aede731b5ab862d
+  attempt_history: []
 ---
 ## Summary
 
@@ -124,5 +180,10 @@ author: oompah
 created: 2026-08-10 06:25
 ---
 Exact full branch gate passed at unchanged pushed head e96ed93c944bca7c5f5ac8e65aede731b5ab862d after OOMPAH-986 deployment: make test completed with 19,302 passed, 7 skipped, 2 xfailed, 48 warnings in 1,385.42s. Worktree is clean and origin/OOMPAH-982 resolves to the same exact head. This directly validates the replacement delivery after the stale implementation-recovery row moved the task back to In Progress during restart.
+---
+author: oompah
+created: 2026-08-10 06:26
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
