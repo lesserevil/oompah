@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T04:50:28.752372Z'
-updated_at: '2026-08-10T04:51:47.727446Z'
+updated_at: '2026-08-10T05:21:12.547475Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,5 +37,10 @@ author: oompah
 created: 2026-08-10 04:51
 ---
 Direct owner claim active as 6e38711da07b4fb995f0775852d4c0b6. Live OOMPAH-983 evidence confirms the exact failure mode: its successful full-gate result was delivered, then inspection-shaped Git was classified heavyweight/opaque from executable effective Git config and queued with no child behind OOMPAH-981. Implementation is intentionally deferred until the current OOMPAH-981/OOMPAH-983/OOMPAH-984 validation activity drains so this repair does not contend with or invalidate in-flight exact evidence.
+---
+author: oompah
+created: 2026-08-10 05:21
+---
+Implemented and pushed exact head d22d5d4a4fc4897241dba03ac62fdea2758459df on branch OOMPAH-987. The fix remembers a successful required full gate only within the exact active auditor session, denies later opaque/non-focused heavyweight inspection before validation-capacity acquisition, preserves focused and explicitly justified distinct validation, applies the fence to bridged API and native Codex command paths, and records denied_post_gate_inspection telemetry. Fail-closed Git helper/config classification and capacity=1 behavior are unchanged. Validation: 902 passed across test_validation_resource_lease.py, test_native_validation_guard.py, test_quality_gate.py, and test_auditor_contract.py; 73 passed in test_terminal_audit_observability.py; 4 focused ACP policy-threading tests passed; 6 focused end-to-end policy/queue/telemetry regressions passed; make terminal-audit-scan passed; make check-secrets passed; git diff --check passed; pre-commit hooks passed. Branch is clean and up to date with origin. Awaiting independent review before submission.
 ---
 <!-- COMMENTS:END -->
