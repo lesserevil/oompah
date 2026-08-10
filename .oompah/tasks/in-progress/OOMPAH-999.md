@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-999
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Do not revoke healthy quality gates on project-lock contention
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T16:13:42.956499Z'
-updated_at: '2026-08-10T16:13:42.956499Z'
+updated_at: '2026-08-10T16:14:55.613085Z'
 work_branch: null
 target_branch: null
 review_url: null
