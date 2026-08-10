@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T00:01:51.280685Z'
-updated_at: '2026-08-10T00:02:14.132184Z'
+updated_at: '2026-08-10T00:02:23.996445Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Triggered by OOMPAH-974 live rollout on 2026-08-09. On exact deployed main eb3ca
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 00:02
+---
+Direct owner claimed this live control-plane starvation regression. Implementation will use an isolated OOMPAH-979 worktree while root continues the deployed rollout and provenance retirement checks.
+---
+<!-- COMMENTS:END -->
