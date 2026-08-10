@@ -425,6 +425,11 @@ def test_workflow_timeout_fences_late_standalone_review_tracker_writes(harness):
     provider.create_review.assert_called_once()
     tracker.set_metadata_field.assert_not_called()
     tracker.update_issue.assert_not_called()
+    reservations = orch.review_capacity_store.active(project.id)
+    assert len(reservations) == 1
+    assert reservations[0].task_id == task.identifier
+    assert reservations[0].review_id == "720"
+    assert reservations[0].head_sha == accepted_head
     authority = orch._standalone_delivery_authorities[(project.id, task.identifier)]
     assert authority.workflow_generation == "job-1:1:lease-1"
     assert not orch._standalone_delivery_authorized(authority, tracker)
@@ -507,6 +512,53 @@ def test_parent_advance_before_noop_persist_fences_tracker_and_terminal(harness)
     )
     assert canonical.mode == "standalone"
     assert canonical.post_landed_parent_id == "E-1"
+
+
+def test_noop_terminal_preflight_rejects_revocation_during_tracker_read(harness):
+    orch, project, tracker, _provider, _detect, _gate = harness
+    accepted_head = "e" * 40
+    task = _issue(
+        "TASK-NOOP-REVOKED",
+        branch="feature/noop-revoked",
+        head_sha=accepted_head,
+    )
+    task.target_branch = project.default_branch
+    tracker.fetch_issues_by_states.return_value = [task]
+    authority = orch._claim_standalone_delivery_authority(project, task)
+    assert authority is not None
+    assert orch._set_standalone_delivery_head(
+        authority,
+        task.work_branch or "",
+        accepted_head,
+        lambda: accepted_head,
+    )
+    # The contained-landing path writes this record without refreshing the
+    # Ready evidence revision, then performs its special terminal preflight.
+    task.integration = IntegrationRecord(
+        state="integrated",
+        mode="standalone",
+        task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        head_sha=accepted_head,
+        integrated_sha=accepted_head,
+    )
+
+    def revoke_during_read(_identifier):
+        assert orch._revoke_standalone_delivery_authority(
+            project.id,
+            task.identifier,
+        )
+        return task
+
+    tracker.fetch_issue_detail.side_effect = revoke_during_read
+
+    assert not orch._standalone_noop_terminal_authorized(
+        authority,
+        tracker,
+        work_branch=task.work_branch or "",
+        target_branch=project.default_branch,
+    )
+    assert authority.revoked
 
 
 def test_standalone_authority_generation_includes_delivery_mode(harness):

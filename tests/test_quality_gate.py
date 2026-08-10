@@ -2353,6 +2353,38 @@ def test_terminal_revocation_stays_responsive_during_result_publication_prefligh
     assert orch._quality_gate_state_snapshot()["recent"] == []
 
 
+def test_admitted_delivery_fences_concurrent_quality_result_publication():
+    orch = _outcome_fence_orchestrator()
+    authority = _outcome_authority()
+    key = (authority.project_id, authority.task_id)
+    authority.active_operations = 1
+    authority.active_operation_thread_id = threading.get_ident()
+    authority.revocation_pending = True
+    orch._standalone_delivery_authorities[key] = authority
+    tracker = MagicMock()
+    project_store = MagicMock()
+    orch.project_store = project_store
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+
+    assert not orch._publish_quality_gate_result(
+        *key,
+        _interrupted_outcome(authority),
+        authority=authority,
+        producer=_outcome_producer(authority),
+        issue=authority.issue,
+        branch=authority.branch,
+        target_branch=authority.target_branch,
+        observed_status=READY_TO_INTEGRATE,
+    )
+
+    # A quality outcome is not part of the already-admitted irreversible unit.
+    # It must fail at the in-memory authority fence instead of performing new
+    # tracker/project preflight after terminal ownership is pending.
+    tracker.fetch_issue_detail.assert_not_called()
+    project_store.get.assert_not_called()
+    assert orch._quality_gate_state_snapshot()["recent"] == []
+
+
 def test_external_task_creation_supersedes_publication_without_blocking(tmp_path):
     orch = _outcome_fence_orchestrator()
     issue = _outcome_authority().issue

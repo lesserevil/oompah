@@ -22314,14 +22314,41 @@ class Orchestrator:
                     description=description,
                 ),
             )
-            if not created:
-                return (
-                    "superseded",
-                    None,
-                    "delivery authority was revoked before review creation",
-                )
             if result is None:
                 return "retry", None, "forge provider returned no review"
+
+            created_review_id = str(getattr(result, "id", "") or "").strip()
+            # A non-None forge response represents a review that now exists,
+            # even when the post-create authority check lost. Bind capacity
+            # before inspecting the response or publishing tracker state so a
+            # late authority change can never make the caller release and
+            # forget that external effect.
+            review_closed_before_publication = False
+            if created_review_id:
+                with self._review_lifecycle_lock:
+                    if (
+                        authority.project_id,
+                        created_review_id,
+                    ) in self._closed_review_fences:
+                        review_closed_before_publication = True
+                    else:
+                        self._commit_review_slot(reservation, created_review_id)
+            if review_closed_before_publication:
+                self._release_review_capacity(
+                    authority.project_id,
+                    reservation_id=reservation.reservation_id,
+                )
+                return (
+                    "created",
+                    result,
+                    "created review closed before tracker publication",
+                )
+            if not created:
+                return (
+                    "created",
+                    result,
+                    "created review but authority changed before tracker publication",
+                )
 
             created_source = str(
                 getattr(result, "source_branch", "") or ""
@@ -22340,7 +22367,7 @@ class Orchestrator:
                 or created_head != expected_head
             ):
                 return (
-                    "retry",
+                    "created",
                     result,
                     "created review did not preserve the exact accepted source, "
                     "target, and head "
@@ -22351,35 +22378,12 @@ class Orchestrator:
                     f"{expected_head})",
                 )
 
-            created_review_id = str(getattr(result, "id", "") or "").strip()
             if not created_review_id:
-                return (
-                    "retry",
-                    result,
-                    "forge provider returned a review without an identity",
-                )
-
-            # The forge review exists from this point forward.  Commit its
-            # capacity reservation with a constant-time close-fence CAS, then
-            # publish tracker state without retaining the lifecycle lock.
-            review_closed_before_publication = False
-            with self._review_lifecycle_lock:
-                if (
-                    authority.project_id,
-                    created_review_id,
-                ) in self._closed_review_fences:
-                    review_closed_before_publication = True
-                else:
-                    self._commit_review_slot(reservation, created_review_id)
-            if review_closed_before_publication:
-                self._release_review_capacity(
-                    authority.project_id,
-                    reservation_id=reservation.reservation_id,
-                )
                 return (
                     "created",
                     result,
-                    "created review closed before tracker publication",
+                    "created review has no stable identity; live forge capacity "
+                    "will remain authoritative until it can be recovered",
                 )
 
             def publish_tracker_state() -> tuple[str, ReviewRequest | None, str]:
@@ -23514,21 +23518,42 @@ class Orchestrator:
         """Validate terminal authority after the integration evidence write."""
 
         with self._standalone_delivery_authority_lock:
-            key = (authority.project_id, authority.task_id)
-            if (
-                authority.revoked
-                or self._standalone_delivery_authorities.get(key) is not authority
-            ):
+            if not self._standalone_delivery_authority_current_locked(authority):
                 return False
+            authority_snapshot = (
+                authority.generation,
+                authority.expected_state,
+                authority.evidence_revision,
+                authority.dependency_revision,
+                authority.branch,
+                authority.target_branch,
+                authority.allows_parent,
+                authority.head_sha,
+                authority.head_resolver,
+                authority.workflow_authority_check,
+            )
+            (
+                _generation,
+                expected_state,
+                _expected_evidence_revision,
+                expected_dependency_revision,
+                expected_branch,
+                expected_target_branch,
+                allows_parent,
+                expected_head,
+                head_resolver,
+                workflow_authority_check,
+            ) = authority_snapshot
         current = self._fresh_standalone_delivery_issue(authority, tracker)
         if current is None:
             return False
-        if canonicalize_status(current.state) != authority.expected_state:
+        if canonicalize_status(current.state) != expected_state:
             return False
         integration = getattr(current, "integration", None)
         parent_id = str(getattr(current, "parent_id", "") or "").strip()
         if (
-            str(getattr(integration, "mode", "") or "").strip().lower()
+            (parent_id and not allows_parent)
+            or str(getattr(integration, "mode", "") or "").strip().lower()
             != "standalone"
             or str(
                 getattr(integration, "post_landed_parent_id", "") or ""
@@ -23536,9 +23561,9 @@ class Orchestrator:
             != parent_id
         ):
             return False
-        if authority.workflow_authority_check is not None:
+        if workflow_authority_check is not None:
             try:
-                if not authority.workflow_authority_check():
+                if not workflow_authority_check():
                     return False
             except Exception:
                 return False
@@ -23546,7 +23571,9 @@ class Orchestrator:
         if project is None:
             return False
         if (
-            self._branch_for_issue(current, project) != work_branch
+            expected_branch != work_branch
+            or expected_target_branch != target_branch
+            or self._branch_for_issue(current, project) != work_branch
             or str(current.target_branch or project.default_branch or "").strip()
             != target_branch
             or _is_epic_issue(current)
@@ -23556,7 +23583,7 @@ class Orchestrator:
             current,
             work_branch,
             target_branch,
-            authority.head_sha,
+            expected_head,
         ):
             return False
         dependency_state = self._current_standalone_finish_dependency_state(
@@ -23565,19 +23592,40 @@ class Orchestrator:
         )
         if (
             dependency_state is None
-            or dependency_state.revision != authority.dependency_revision
+            or dependency_state.revision != expected_dependency_revision
         ):
             return False
         try:
-            current_head = authority.head_resolver()
+            current_head = head_resolver()
         except Exception:  # noqa: BLE001 - remote head is authoritative
             return False
         if str(current_head or "").strip().lower() != str(
-            authority.head_sha or ""
+            expected_head or ""
         ).strip().lower():
             return False
-        authority.issue = current
-        return True
+        with self._standalone_delivery_authority_lock:
+            final_snapshot = (
+                authority.generation,
+                authority.expected_state,
+                authority.evidence_revision,
+                authority.dependency_revision,
+                authority.branch,
+                authority.target_branch,
+                authority.allows_parent,
+                authority.head_sha,
+                authority.head_resolver,
+                authority.workflow_authority_check,
+            )
+            if (
+                not self._standalone_delivery_authority_current_locked(authority)
+                or final_snapshot != authority_snapshot
+            ):
+                return False
+            authority.issue = current
+            authority.evidence_revision = (
+                self._standalone_delivery_evidence_revision(current)
+            )
+            return True
 
     def _standalone_noop_integration_record(
         self,
@@ -33877,10 +33925,9 @@ class Orchestrator:
             if authority_lock is None:
                 return False
             with authority_lock:
-                key = (str(project_id), str(task_id))
                 if (
-                    authority.revoked
-                    or self._standalone_delivery_authorities.get(key) is not authority
+                    not self._standalone_delivery_authority_current_locked(authority)
+                    or authority.active_operations
                 ):
                     return False
                 authority_snapshot = (
@@ -34055,7 +34102,6 @@ class Orchestrator:
                 assert authority_snapshot is not None
                 authority_lock = self._standalone_delivery_authority_lock
                 with authority_lock:
-                    key = (str(project_id), str(task_id))
                     final_snapshot = (
                         authority.generation,
                         authority.expected_state,
@@ -34070,9 +34116,10 @@ class Orchestrator:
                     )
                     if (
                         current_command != result.command
-                        or authority.revoked
-                        or self._standalone_delivery_authorities.get(key)
-                        is not authority
+                        or not self._standalone_delivery_authority_current_locked(
+                            authority
+                        )
+                        or authority.active_operations
                         or final_snapshot != authority_snapshot
                     ):
                         return False
