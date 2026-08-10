@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-08-03T20:04:28.011851Z'
+updated_at: '2026-08-10T01:19:10.520243Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -204,6 +204,30 @@ oompah.terminal_audit:
     done_audit_ids:
     - audit-9d2b8fdef6e6
     created_at: '2026-08-03T20:04:25.453169+00:00'
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Historical audited Done record lacks safe exact current landing proof;
+      retain immutable terminal provenance and retire recurring reassessment without
+      creating new work.
+    marked_at: '2026-08-10T01:19:08.893624+00:00'
+    updated_at: '2026-08-10T01:19:08.893624+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Historical audited Done record lacks safe exact current landing proof;
+        retain immutable terminal provenance and retire recurring reassessment without
+        creating new work.
+      recorded_at: '2026-08-10T01:19:08.893624+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -241,6 +265,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T22:35:56.651693+00:00'
     updated_at: '2026-07-30T22:43:19.717931+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-6c317899bd61
     project_id: proj-14849f1b
@@ -276,6 +301,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-31T06:21:52.455730+00:00'
     updated_at: '2026-07-31T06:25:23.085081+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-9d2b8fdef6e6
     project_id: proj-14849f1b
@@ -310,6 +336,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-31T07:26:03.489345+00:00'
     updated_at: '2026-07-31T08:10:37.426958+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-8a79c55ddcf1

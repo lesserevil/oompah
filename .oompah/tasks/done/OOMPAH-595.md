@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-08-03T20:03:30.301552Z'
+updated_at: '2026-08-10T01:19:03.050639Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -201,6 +201,30 @@ oompah.terminal_audit:
     done_audit_ids:
     - audit-fe55bbb31db6
     created_at: '2026-08-03T20:03:27.989511+00:00'
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Historical audited Done record lacks safe exact current landing proof;
+      retain immutable terminal provenance and retire recurring reassessment without
+      creating new work.
+    marked_at: '2026-08-10T01:19:01.570229+00:00'
+    updated_at: '2026-08-10T01:19:01.570229+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Historical audited Done record lacks safe exact current landing proof;
+        retain immutable terminal provenance and retire recurring reassessment without
+        creating new work.
+      recorded_at: '2026-08-10T01:19:01.570229+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -237,6 +261,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-31T00:13:50.602334+00:00'
     updated_at: '2026-07-31T00:18:20.982531+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-612591e71deb
     project_id: proj-14849f1b
@@ -271,6 +296,7 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-31T00:38:54.738900+00:00'
     updated_at: '2026-07-31T00:44:24.685068+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-77e603230884
     project_id: proj-14849f1b
@@ -305,6 +331,7 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-31T00:44:54.940604+00:00'
     updated_at: '2026-07-31T00:50:15.225537+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-fe55bbb31db6
     project_id: proj-14849f1b
@@ -339,6 +366,7 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-31T01:03:27.513877+00:00'
     updated_at: '2026-07-31T01:09:41.702110+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-e7bb1375c3e2
