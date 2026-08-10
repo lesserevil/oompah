@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-983
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Make reserved workflow control-capacity proof deterministic on Python 3.13
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T03:38:07.660153Z'
-updated_at: '2026-08-10T03:59:49.381242Z'
+updated_at: '2026-08-10T04:18:14.699581Z'
 work_branch: OOMPAH-983
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/791
@@ -32,6 +32,62 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/791
 oompah.review_number: '791'
 oompah.target_branch: main
 oompah.review_head: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-5d61600eb469
+    project_id: proj-14849f1b
+    task_id: OOMPAH-983
+    digest: 4d63c3ce2dbe33ac32df122b78d36b7bf1b705d2274474c1fe6da59f293b2aaa
+  - version: 1
+    audit_id: audit-6462080061c4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-983
+    digest: 4d63c3ce2dbe33ac32df122b78d36b7bf1b705d2274474c1fe6da59f293b2aaa
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-5d61600eb469
+    project_id: proj-14849f1b
+    task_id: OOMPAH-983
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4d63c3ce2dbe33ac32df122b78d36b7bf1b705d2274474c1fe6da59f293b2aaa
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-10T04:18:07.261452+00:00'
+    selected_ref: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
+    selected_sha: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
+  - version: 1
+    audit_id: audit-6462080061c4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-983
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4d63c3ce2dbe33ac32df122b78d36b7bf1b705d2274474c1fe6da59f293b2aaa
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-10T04:18:07.261452+00:00'
+    selected_ref: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
+    selected_sha: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
+  attempt_history: []
 ---
 ## Summary
 
@@ -59,5 +115,10 @@ author: oompah
 created: 2026-08-10 03:59
 ---
 Branch quality gate passed for `2a10a77a32b2b38e11b78b3137e13d289dc866d9` using `make test` in 169.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-10 04:18
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
