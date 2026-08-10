@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-983
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Make reserved workflow control-capacity proof deterministic on Python 3.13
 parent: null
@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T03:38:07.660153Z'
-updated_at: '2026-08-10T03:59:30.475383Z'
+updated_at: '2026-08-10T03:59:49.381242Z'
 work_branch: OOMPAH-983
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/791
 review_number: '791'
-review_head: null
+review_head: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
 merged_at: null
 oompah.integration:
   version: 2
@@ -30,6 +30,8 @@ oompah.integration:
 oompah.work_branch: OOMPAH-983
 oompah.review_url: https://github.com/lesserevil/oompah/pull/791
 oompah.review_number: '791'
+oompah.target_branch: main
+oompah.review_head: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
 ---
 ## Summary
 
