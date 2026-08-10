@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T07:14:46.970035Z'
+updated_at: '2026-08-10T07:15:10.131923Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-10 07:14
 ---
 Independent-review blockers at 53b413f are fixed and pushed at replacement head 8ec9c3e760aa5f276426726f797825576e66e978. Lifecycle state mutation is now separated from heavyweight publication: API quiesce commits under cooperative admission with synchronous notification suppressed; API resume mutates on the dedicated lifecycle executor with notification suppressed; both queue full observer snapshots on a separate publication pool. Resume notification always occurs after provider admission is released. graceful_restart moves both observer snapshots and restart-journal merge/persistence off the event loop, including rollback persistence/notification. Failed restart drain cleanup now performs only its in-memory CAS synchronously and always delegates save/notification after releasing admission, including the uncontended path. New deterministic regressions use a real Orchestrator/full get_snapshot project-authority hold and explicit snapshot, restart-journal, and failed-cleanup persistence barriers; they prove health plus claim/cancel/resume remain responsive and admission is not stranded. Validation: 1613 passed, 3 non-failing warnings, 0 failures across OOMPAH-989 and adjacent OOMPAH-987/OOMPAH-988 gate/server/orchestrator/event/retry/termination suites; compileall, git diff --check, terminal-audit scan, Makefile secret scan, and commit hooks passed. Task remains In Progress and unsubmitted for another independent review.
+---
+author: oompah
+created: 2026-08-10 07:15
+---
+Correction to the preceding review-fix comment: the exact pushed replacement head is 8ec9c3e76704908c7f350517c975765158818cad (local HEAD and origin/OOMPAH-989 match). The prior comment's expanded SHA was a transcription error; its implementation and validation details are otherwise accurate.
 ---
 <!-- COMMENTS:END -->
