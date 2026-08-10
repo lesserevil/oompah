@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T04:41:10.778919Z'
-updated_at: '2026-08-10T04:41:33.306226Z'
+updated_at: '2026-08-10T04:52:47.134895Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ Live regression on 2026-08-10 after OOMPAH-979: OOMPAH-981 PR #793 reached green
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 04:52
+---
+Direct-owner implementation is committed and pushed at exact head 54c318df1856316862ae8e398f98bbfa3611848a on branch OOMPAH-986 in /home/shedwards/src/oompah-986. The runtime now journals terminal-authority mutations by exact task. If a racing change is scoped only to active audit tasks and each existing durable audit lane still proves under the publication lock, those stale task projections are preserved as explicitly incomplete while unrelated review/integration decisions publish. Unscoped changes, tracker generation changes, provenance changes, failed same-task lane proofs, workflow owner changes, and pause changes retain fail-closed supersession. A deterministic 200-task regression performs two consecutive audit-revision races and proves the unrelated green review materializes exactly one review_merge job with no stale audit projection. Verification: 325 focused workflow runtime/controller/job-store/project-lock/terminal-metadata tests passed; make check-secrets and git diff --check passed. Branch is clean and up to date; task is intentionally not submitted pending independent review/full exact gate.
+---
+<!-- COMMENTS:END -->
