@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T19:36:11.713277Z'
-updated_at: '2026-08-10T21:02:11.023774Z'
+updated_at: '2026-08-10T21:02:20.746054Z'
 work_branch: OOMPAH-1004
 target_branch: null
 review_url: null
@@ -55,7 +55,17 @@ oompah.terminal_audit:
     created_at: '2026-08-10T21:02:04.539874+00:00'
     selected_ref: 5d4439b495f17b3dc324d9bf339ccf57457af84a
     selected_sha: 5d4439b495f17b3dc324d9bf339ccf57457af84a
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1004
+    target_state: Merged
+    evidence_fingerprint: 7aeb3d1c38ec60408d38ce9f232bf8ff3ec27ed5b074de0ae7a9ba5cbda9e687
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T21:02:18.106220+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -88,5 +98,12 @@ author: oompah
 created: 2026-08-10 20:49
 ---
 Exact combined recovery head 1d35b2e922b59077dc4b0d758e7e0c823affe027 passed the complete make test gate: 19,650 passed, 7 skipped, 2 xfailed in 21m07s. Protected delivery PR #803 is open for hosted Python 3.11/3.12/3.13 checks.
+---
+author: oompah
+created: 2026-08-10 21:02
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Delivered in protected PR #803 at merge a9e6cf0047af5d2e37a53853cf49467b2cf16f22; exact review head 1d35b2e922b59077dc4b0d758e7e0c823affe027 passed local complete gate and hosted Python 3.11/3.12/3.13 checks.
 ---
 <!-- COMMENTS:END -->
