@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T19:09:44.116383Z'
-updated_at: '2026-08-09T23:56:40.214519Z'
+updated_at: '2026-08-10T01:12:58.782518Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-865
 target_branch: null
 review_url: null
@@ -155,6 +155,30 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-865
     digest: 8405317f59886583c342a88864467740b040e241c2f740913c236a8543ac255a
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Historical audited Done work is complete, but current parent-landing evidence
+      cannot be reconstructed safely enough to promote it to Merged; retain immutable
+      terminal provenance and retire reassessment.
+    marked_at: '2026-08-10T01:12:57.156064+00:00'
+    updated_at: '2026-08-10T01:12:57.156064+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Historical audited Done work is complete, but current parent-landing
+        evidence cannot be reconstructed safely enough to promote it to Merged; retain
+        immutable terminal provenance and retire reassessment.
+      recorded_at: '2026-08-10T01:12:57.156064+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
