@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T07:15:10.131923Z'
+updated_at: '2026-08-10T07:50:48.519140Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,5 +47,10 @@ author: oompah
 created: 2026-08-10 07:15
 ---
 Correction to the preceding review-fix comment: the exact pushed replacement head is 8ec9c3e76704908c7f350517c975765158818cad (local HEAD and origin/OOMPAH-989 match). The prior comment's expanded SHA was a transcription error; its implementation and validation details are otherwise accurate.
+---
+author: oompah
+created: 2026-08-10 07:50
+---
+Final re-review blockers are fixed at exact pushed head 27b21eb9dac8340c3a97c1a791e83205ed4d58ac. Lifecycle publication is now owned per Orchestrator: one running full snapshot plus only the latest monotonic generation is coalesced; restart success and exception paths enqueue without awaiting; a publication epoch and provider-admission generation fence prevent blocked old snapshots from emitting after lifecycle change or teardown; shutdown cancels queued work and performs non-waiting executor shutdown; replacing the server orchestrator fences the old publisher. The process-global lifecycle publication executor was removed. Pause/unpause and failed-drain rollback persistence now use a generation-CAS write held through the state-file replace, and rollback generations are monotonic, so newer operator pause intent either writes after the older rollback or makes that rollback stale before disk mutation. Deterministic real-Orchestrator regressions prove: journal and drain completion while a full snapshot remains permanently blocked; exception rollback completion under the same block; latest-generation coalescing; teardown rejection and no stale observer emission after release; health/cancel responsiveness; and blocked rollback False followed by concurrent pause finishes with durable/memory True and ordered writes False then True. Validation: 1667 passed, 3 non-failing warnings, 0 failures across OOMPAH-989 plus adjacent OOMPAH-987/OOMPAH-988 lifecycle/gate/server/event/retry/termination and set_orchestrator suites. Focused blocker rerun 4 passed. compileall, git diff --check, graceful_restart observer-await static scan, terminal-audit scan, Makefile secret scan, and commit hooks passed. Task remains In Progress and unsubmitted pending final independent review.
 ---
 <!-- COMMENTS:END -->
