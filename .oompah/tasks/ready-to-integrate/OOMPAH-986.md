@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-986
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Prevent terminal-audit churn from starving unrelated workflow publication
 parent: null
@@ -11,13 +11,23 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T04:41:10.778919Z'
-updated_at: '2026-08-10T05:04:45.596338Z'
-work_branch: null
+updated_at: '2026-08-10T05:12:56.602685Z'
+work_branch: OOMPAH-986
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-986
+  head_sha: 4c1b1fb3f52345048207f11bc2389db54f9da96b
+  submitted_at: '2026-08-10T05:12:42.829013+00:00'
+  updated_at: '2026-08-10T05:12:42.829013+00:00'
+oompah.work_branch: OOMPAH-986
 ---
 ## Summary
 
@@ -42,5 +52,10 @@ author: oompah
 created: 2026-08-10 05:04
 ---
 Supersedes prior head 54c318df1/c1e82283f after independent review exposed two production-shape blockers. Corrected exact head 4c1b1fb3f52345048207f11bc2389db54f9da96b is pushed. First, excluded active-audit identities are removed from runtime projections and omitted/masked incomplete in the canonical cut rather than retaining prior stale decisions. Second, paired NativeTracker state-branch generation changes are now proved through a bounded shared mutation journal plus exact Git task-file diff; only post-write oompah.terminal_audit mutations carry task scope. Pre-write uncached reads clear only local cache and no-op metadata writes no longer create phantom tracker authority. Runtime requires the tracker changed-task set to exactly match the ProjectStore terminal changed-task set and an active durable lane proof. Unrelated/unscoped tracker writes, provenance changes, failed lane proofs, and owner/pause changes remain fail-closed. Verification: 497 focused workflow runtime/controller/job-store/native tracker/state-branch/project-lock/terminal-metadata tests passed; make check-secrets and git diff --check passed. Branch/worktree are clean and up to date; not submitted pending final independent review/full exact gate.
+---
+author: oompah
+created: 2026-08-10 05:12
+---
+Prevent terminal-audit churn from starving unrelated workflow publication; exact paired tracker/terminal authority proof, stale audit projection exclusion, and fail-closed unrelated mutation fences implemented and independently approved.
 ---
 <!-- COMMENTS:END -->
