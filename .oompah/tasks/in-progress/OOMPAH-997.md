@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T15:04:29.205558Z'
-updated_at: '2026-08-10T15:28:49.901427Z'
+updated_at: '2026-08-10T15:29:38.220089Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,3 +58,11 @@ The operation in `backend:workflow_runtime` should complete successfully, or deg
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 15:29
+---
+Direct-owner hotfix is committed locally at exact head 94f1f5b84aa60bebf02cdd7d049de698df1e79ee on branch OOMPAH-997. Transient None publication revisions now cleanly supersede source/preflight/finalization snapshots; superseded async reconciles clear admission and cannot claim prior shared work; active projects and controller caches are preserved for stable retry. Regressions cover five None windows, integer revision change, production composition, multi-project reporting, and real prior-generation job fencing with zero attempts/effects until a newer cut republishes. Full workflow-runtime suite: 130 passed; Python 3.11 focused new regressions: 10 passed; independent adversarial review approved; terminal mutation scan and secret checks passed. Exact complete Makefile gate is now running before push/submission.
+---
+<!-- COMMENTS:END -->
