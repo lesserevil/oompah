@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-993
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Make standalone delivery mutations lock-safe across thread offloads
 parent: OOMPAH-992
@@ -11,13 +11,39 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T10:52:26.512449Z'
-updated_at: '2026-08-10T11:37:12.236732Z'
+updated_at: '2026-08-10T15:40:06.155711Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-54fa91e7a4ae
+    project_id: proj-14849f1b
+    task_id: OOMPAH-993
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 15613530be903765a84644ff8615657d25e7110b967f7a4fb7e40791dce9fbce
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #798 merged as 2ab880be5; parent OOMPAH-992 is authoritatively terminal;
+      contained 9c595c5b2 is stable-patch-identical to reviewed OOMPAH-993 head 03c67abb8.
+      Recording child completion as Done because shared-child Merged requires a parent
+      review record that this direct-owner integration intentionally did not create.'
+    created_at: '2026-08-10T15:40:01.330912+00:00'
+    selected_ref: origin/OOMPAH-993
+    selected_sha: 03c67abb83d15442bc1e72862d632d3b2108de51
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
