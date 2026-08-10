@@ -1078,6 +1078,7 @@ class _NativeValidationRun:
     invocation_id: str
     scope: str
     started_at: float
+    records_session_gate: bool = False
     callback_lock: Any = field(default_factory=threading.Lock, repr=False)
     state_lock: Any = field(default_factory=threading.Lock, repr=False)
     launch_state: str = "preparing"
@@ -1683,7 +1684,10 @@ class _NativeValidationLeaseBroker:
                 # authority in the trusted broker immediately before capacity
                 # acquisition so the native subscription path has the same
                 # exact/full/focused policy as bridged command tools.
-                from oompah.api_agent import _validation_reuse_policy_decision
+                from oompah.api_agent import (
+                    _session_full_gate_candidate,
+                    _validation_reuse_policy_decision,
+                )
 
                 policy_args = _native_validation_policy_args(
                     command,
@@ -1782,6 +1786,10 @@ class _NativeValidationLeaseBroker:
                     command_identity=command_identity,
                     classification=classification,
                     invocation_id=validation_invocation_id,
+                    records_session_gate=_session_full_gate_candidate(
+                        self.validation_reuse_policy,
+                        classification,
+                    ),
                 )
                 lifecycle_group = boundary_group
                 pending_cancellation = cancellation_outcome()
@@ -1974,6 +1982,7 @@ class _NativeValidationLeaseBroker:
         command_identity: str,
         classification: ValidationCommandClassification,
         invocation_id: str,
+        records_session_gate: bool = False,
     ) -> _NativeValidationRun:
         run = _NativeValidationRun(
             command=command,
@@ -1981,6 +1990,7 @@ class _NativeValidationLeaseBroker:
             invocation_id=invocation_id,
             scope=classification.scope,
             started_at=time.monotonic(),
+            records_session_gate=records_session_gate,
         )
         # Publish while owning this invocation's callback lock. A concurrent
         # retirement can claim the run, but its completion callback cannot
@@ -2163,6 +2173,15 @@ class _NativeValidationLeaseBroker:
                 run.terminal_succeeded = succeeded
             outcome = run.terminal_outcome
             succeeded = run.terminal_succeeded
+            if (
+                succeeded
+                and run.records_session_gate
+                and self.validation_reuse_policy is not None
+            ):
+                # Native command sessions use the same in-memory completion
+                # fence as bridged tools. A later provider session still has
+                # to prove durable exact-head authority normally.
+                self.validation_reuse_policy["_session_full_gate_passed"] = True
             # This is the sole terminal-publication ownership transfer for
             # both direct item completion and bounded retirement.  In
             # particular, a synchronous caller cannot read ``None`` and then

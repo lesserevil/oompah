@@ -157,6 +157,8 @@ def test_auditor_prompt_requires_full_gate_when_exact_evidence_is_missing():
 
     assert "current passing exact-head full-gate result was not found" in prompt
     assert "configured full gate is required" in prompt
+    assert "Finish repository inspection before starting a required full gate" in prompt
+    assert "do not request another non-focused run_command" in prompt
 
 
 def test_metadata_archive_prompt_does_not_require_fake_code_revision():

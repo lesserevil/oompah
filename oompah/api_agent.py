@@ -28,7 +28,7 @@ import threading
 import time
 import urllib.request
 import urllib.error
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -174,6 +174,28 @@ _TOOL_RESULT_MAX_CHARS = 64_000
 _COMMAND_OUTPUT_PAGE_CHARS = 32_000
 _COMMAND_OUTPUT_MAX_RECORDS = 32
 _DISTINCT_VALIDATION_MODE = "task_required_distinct"
+_SESSION_FULL_GATE_PASSED = "_session_full_gate_passed"
+
+
+def _session_full_gate_candidate(
+    policy: Mapping[str, Any] | None,
+    classification: ValidationCommandClassification | None,
+) -> bool:
+    """Return whether a successful command completes this session's full gate."""
+
+    if (
+        not isinstance(policy, Mapping)
+        or str(policy.get("decision") or "") != "full_gate_required"
+        or classification is None
+    ):
+        return False
+    return bool(
+        classification.contains_configured
+        or (
+            not str(policy.get("command") or "").strip()
+            and classification.full_suite
+        )
+    )
 
 
 def _validation_reuse_policy_decision(
@@ -185,15 +207,22 @@ def _validation_reuse_policy_decision(
 ) -> tuple[str, str | None, str]:
     """Return a durable decision, optional denial, and bounded-mode reason.
 
-    A policy is present only when prompt construction observed reusable exact
-    gate evidence.  Heavy commands revalidate that authority at invocation
-    time.  If the proof has disappeared while task authority remains current,
-    the configured gate is required again and execution is allowed.
+    A policy is present when prompt construction resolved the configured exact
+    gate identity. Heavy commands revalidate reusable durable authority at
+    invocation time. When this same auditor had to run the configured gate,
+    its successful result is also remembered for the rest of the session so a
+    later opaque inspection cannot queue behind an unrelated full gate before
+    the auditor submits its verdict.
     """
 
-    if not isinstance(policy, Mapping) or (
-        str(policy.get("decision") or "") != "reuse_authoritative_gate"
-    ):
+    if not isinstance(policy, Mapping):
+        return "", None, ""
+    policy_decision = str(policy.get("decision") or "")
+    session_gate_passed = bool(policy.get(_SESSION_FULL_GATE_PASSED))
+    if policy_decision not in {
+        "reuse_authoritative_gate",
+        "full_gate_required",
+    } or (policy_decision == "full_gate_required" and not session_gate_passed):
         return "", None, ""
     if classification is None:
         return (
@@ -204,24 +233,34 @@ def _validation_reuse_policy_decision(
         )
     if not classification.heavyweight:
         return "", None, ""
-    try:
-        authority = authority_check() if callable(authority_check) else "stale_authority"
-    except Exception:  # the distinct-mode escape must fail closed
-        authority = "stale_authority"
-    if authority is True:
-        authority = "reuse_authoritative_gate"
-    elif authority is False:
-        authority = "stale_authority"
-    if authority == "full_gate_required":
-        return "allowed_gate_now_required", None, ""
-    if authority != "reuse_authoritative_gate":
-        return (
-            "denied_stale_authority",
-            "Error: validation authority is stale; this heavyweight command was denied.",
-            "",
-        )
+    if policy_decision == "reuse_authoritative_gate":
+        try:
+            authority = (
+                authority_check() if callable(authority_check) else "stale_authority"
+            )
+        except Exception:  # the distinct-mode escape must fail closed
+            authority = "stale_authority"
+        if authority is True:
+            authority = "reuse_authoritative_gate"
+        elif authority is False:
+            authority = "stale_authority"
+        if authority == "full_gate_required":
+            return "allowed_gate_now_required", None, ""
+        if authority != "reuse_authoritative_gate":
+            return (
+                "denied_stale_authority",
+                "Error: validation authority is stale; this heavyweight command was denied.",
+                "",
+            )
 
     if classification.contains_configured:
+        if session_gate_passed and policy_decision == "full_gate_required":
+            return (
+                "denied_session_gate_rerun",
+                "Error: this audit session's configured full gate already passed; "
+                "rerunning that configured gate is denied.",
+                "",
+            )
         return (
             "denied_reused_gate",
             "Error: the authoritative exact-head quality gate already passed; "
@@ -234,6 +273,18 @@ def _validation_reuse_policy_decision(
     mode = str(args.get("validation_mode") or "").strip()
     justification = str(args.get("validation_justification") or "").strip()
     if mode != _DISTINCT_VALIDATION_MODE or not justification:
+        if session_gate_passed and policy_decision == "full_gate_required":
+            return (
+                "denied_post_gate_inspection",
+                "Error: this audit session's configured full gate passed; this "
+                "later non-focused heavyweight command was not executed. Use "
+                "read_file, search_files, or previously captured command output "
+                "for repository inspection, then submit the verdict. A genuinely "
+                "task-required distinct full-suite mode requires "
+                "validation_mode='task_required_distinct' and a non-empty "
+                "validation_justification.",
+                "",
+            )
         return (
             "denied_distinct_mode_required",
             "Error: authoritative full-gate evidence is reusable. A different "
@@ -1338,6 +1389,19 @@ def _exec_run_command(
             ),
             duration_seconds=time.monotonic() - command_started,
         )
+        if (
+            command_succeeded
+            and isinstance(validation_reuse_policy, MutableMapping)
+            and _session_full_gate_candidate(
+                validation_reuse_policy,
+                validation_classification,
+            )
+        ):
+            # Remember the pass only for this target-bound in-memory session.
+            # Durable reuse still has to pass the normal exact authority check
+            # on a later session. This closes the post-gate queue window
+            # without retaining the scarce lease while the model reasons.
+            validation_reuse_policy[_SESSION_FULL_GATE_PASSED] = True
 
         parts: list[str] = []
         if stdout:

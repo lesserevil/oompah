@@ -823,6 +823,32 @@ def test_reusable_gate_policy_marks_missing_attempt_authority_invalid():
     assert policy["attempt_id"] == ""
 
 
+def test_missing_gate_policy_preserves_identity_for_session_completion():
+    policy = Orchestrator._auditor_validation_reuse_policy(
+        {
+            "decision": "full_gate_required",
+            "command": "make test",
+            "accepted_head_sha": "a" * 40,
+            "target_branch": "main",
+            "work_branch": "work",
+        },
+        SimpleNamespace(
+            project_id="project",
+            task_id="TASK-1",
+            audit_id="audit-1",
+            attempt_id="attempt-1",
+            target_state="Done",
+            evidence_fingerprint="f" * 64,
+        ),
+    )
+
+    assert policy is not None
+    assert policy["decision"] == "full_gate_required"
+    assert policy["command"] == "make test"
+    assert policy["accepted_head_sha"] == "a" * 40
+    assert policy["invalid_authority"] is False
+
+
 @pytest.mark.parametrize(
     ("authority_surface", "expected"),
     [
