@@ -9,6 +9,7 @@ import functools
 import inspect
 import json
 import logging
+import math
 import os
 import re
 import signal
@@ -177,7 +178,11 @@ from oompah.work_decision_projection import (
     project_work_decision_payload,
 )
 from oompah.label_auth import is_authorized_status_actor
-from oompah.tracker import TrackerError, normalize_priority_int
+from oompah.tracker import (
+    CreateOnceConflictError,
+    TrackerError,
+    normalize_priority_int,
+)
 from oompah.providers import ProviderStore
 from oompah.roles import Candidate, RoleError, RoleStore, VALID_STRATEGIES, DEFAULT_STRATEGY
 from oompah.statuses import (
@@ -1858,6 +1863,73 @@ _api_lifecycle_thread_pool = ThreadPoolExecutor(
     max_workers=2,
     thread_name_prefix="api-lifecycle",
 )
+
+
+def _positive_env_number(name: str, default: float) -> float:
+    """Read a finite positive numeric environment setting."""
+    try:
+        value = float(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+    return value if math.isfinite(value) and value > 0 else default
+
+
+_TASK_CREATE_WORKERS = max(
+    1,
+    int(_positive_env_number("OOMPAH_TASK_CREATE_WORKERS", 2)),
+)
+_TASK_CREATE_ADMISSION_TIMEOUT_SECONDS = _positive_env_number(
+    "OOMPAH_TASK_CREATE_ADMISSION_TIMEOUT_SECONDS",
+    5.0,
+)
+_TASK_CREATE_ADMISSION_POLL_SECONDS = 0.01
+_api_task_create_thread_pool = ThreadPoolExecutor(
+    max_workers=_TASK_CREATE_WORKERS,
+    thread_name_prefix="api-task-create",
+)
+_task_create_slots = threading.BoundedSemaphore(_TASK_CREATE_WORKERS)
+
+
+class TaskCreateAdmissionUnavailable(RuntimeError):
+    """A task create could not enter its bounded mutation lane."""
+
+
+class _TaskCreateCancelledBeforeAdmission(RuntimeError):
+    """The caller disappeared before its create acquired mutation authority."""
+
+
+def _run_admitted_task_create(
+    creation_lock: threading.RLock,
+    cancelled: threading.Event,
+    operation: Callable[[], Any],
+) -> Any:
+    """Cross one bounded project-lock boundary, then finish one create."""
+    deadline = time.monotonic() + _TASK_CREATE_ADMISSION_TIMEOUT_SECONDS
+    acquired = False
+    while not acquired:
+        if cancelled.is_set():
+            raise _TaskCreateCancelledBeforeAdmission(
+                "Task creation was cancelled before mutation admission."
+            )
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TaskCreateAdmissionUnavailable(
+                "Project task mutation is busy; retry the request."
+            )
+        acquired = creation_lock.acquire(
+            timeout=min(_TASK_CREATE_ADMISSION_POLL_SECONDS, remaining)
+        )
+    if cancelled.is_set():
+        creation_lock.release()
+        raise _TaskCreateCancelledBeforeAdmission(
+            "Task creation was cancelled before mutation admission."
+        )
+    try:
+        return operation()
+    finally:
+        creation_lock.release()
+
+
 # The credential-safe lifecycle client has a 30 second HTTP deadline.  Lock
 # admission must resolve before that deadline so a caller receives an explicit,
 # retryable rejection instead of an ambiguous transport timeout.
@@ -1895,6 +1967,54 @@ async def _run_lifecycle_api_io(
     loop = asyncio.get_running_loop()
     call = functools.partial(func, *args, **kwargs)
     return await loop.run_in_executor(_api_lifecycle_thread_pool, call)
+
+
+async def _run_task_create_io(
+    func: Callable[[threading.Event], Any],
+) -> Any:
+    """Run one cancellation-aware create without queueing behind general I/O.
+
+    Slot admission is non-blocking and matches the dedicated pool width, so
+    every accepted future starts immediately. Cancellation before the worker
+    crosses its project-lock boundary is cooperative; cancellation after that
+    boundary leaves the durable create-once operation running for replay.
+    """
+    if not _task_create_slots.acquire(blocking=False):
+        raise TaskCreateAdmissionUnavailable(
+            "Task creation is busy; retry the request."
+        )
+    cancelled = threading.Event()
+    try:
+        future = _api_task_create_thread_pool.submit(func, cancelled)
+    except BaseException:
+        _task_create_slots.release()
+        raise
+
+    def _release_slot(_future) -> None:
+        try:
+            _future.exception()
+        except BaseException:
+            pass
+        finally:
+            _task_create_slots.release()
+
+    future.add_done_callback(_release_slot)
+    wrapped = asyncio.wrap_future(future)
+
+    def _consume_detached_exception(done: asyncio.Future) -> None:
+        if done.cancelled():
+            return
+        try:
+            done.exception()
+        except BaseException:
+            pass
+
+    wrapped.add_done_callback(_consume_detached_exception)
+    try:
+        return await asyncio.shield(wrapped)
+    except asyncio.CancelledError:
+        cancelled.set()
+        raise
 
 
 def _submit_lifecycle_api_io(func: Callable[..., Any], /) -> None:
@@ -8897,6 +9017,32 @@ async def api_create_issue(request: Request):
     """
     try:
         orch = _get_orchestrator()
+        raw_idempotency_key = request.headers.get("Idempotency-Key")
+        idempotency_key = (
+            raw_idempotency_key.strip()
+            if raw_idempotency_key is not None
+            else None
+        )
+        if raw_idempotency_key is not None and not idempotency_key:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_idempotency_key",
+                        "message": "Idempotency-Key must not be empty.",
+                    }
+                },
+                status_code=400,
+            )
+        if idempotency_key is not None and len(idempotency_key) > 512:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_idempotency_key",
+                        "message": "Idempotency-Key must not exceed 512 characters.",
+                    }
+                },
+                status_code=400,
+            )
         try:
             body = await request.json()
         except (json.JSONDecodeError, ValueError) as exc:
@@ -9073,14 +9219,35 @@ async def api_create_issue(request: Request):
             else:
                 description = source_header
 
-        def _create_issue_under_project_lock():
-            creation_lock = (
-                orch.project_store.project_write_lock(project_id)
-                if project_id
-                else contextlib.nullcontext()
+        supports_durable_create = bool(
+            idempotency_key
+            and getattr(tracker, "supports_atomic_create_once", False) is True
+        )
+        if idempotency_key and not supports_durable_create:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "idempotency_unsupported",
+                        "message": (
+                            "This project tracker cannot durably replay keyed task "
+                            "creation. Omit Idempotency-Key for legacy best-effort "
+                            "creation or use a native oompah task project."
+                        ),
+                    }
+                },
+                status_code=501,
             )
-            with creation_lock:
-                return tracker.create_issue(
+
+        def _create_issue_under_project_lock(cancelled: threading.Event):
+            creation_lock = orch.project_store.project_write_lock(project_id)
+
+            def _create():
+                create = (
+                    tracker.create_issue_once
+                    if supports_durable_create
+                    else tracker.create_issue
+                )
+                fields = dict(
                     title=title,
                     issue_type=issue_type,
                     description=description,
@@ -9089,8 +9256,21 @@ async def api_create_issue(request: Request):
                     labels=initial_labels,
                     parent=parent_id,
                 )
+                if supports_durable_create:
+                    fields.update(
+                        project_id=str(project_id),
+                        operation_kind="api_task_create",
+                        creation_marker=idempotency_key,
+                    )
+                return create(**fields)
 
-        issue = await _run_api_io(_create_issue_under_project_lock)
+            return _run_admitted_task_create(
+                creation_lock,
+                cancelled,
+                _create,
+            )
+
+        issue = await _run_task_create_io(_create_issue_under_project_lock)
         issue.project_id = project_id
         # Persist tracker-identity fields onto the returned issue so the
         # response carries the full schema even when the tracker adapter
@@ -9116,6 +9296,10 @@ async def api_create_issue(request: Request):
         return JSONResponse(
             {
                 "ok": True,
+                "operation": {
+                    "idempotency_key": idempotency_key,
+                    "durable": supports_durable_create,
+                },
                 "issue": {
                     "id": issue.id,
                     "identifier": issue.identifier,
@@ -9136,6 +9320,32 @@ async def api_create_issue(request: Request):
                 },
             },
             status_code=201,
+        )
+    except CreateOnceConflictError as exc:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "idempotency_conflict",
+                    "message": str(exc),
+                }
+            },
+            status_code=409,
+        )
+    except (TaskCreateAdmissionUnavailable, _TaskCreateCancelledBeforeAdmission) as exc:
+        retry_message = str(exc)
+        if idempotency_key:
+            retry_message = (
+                f"{retry_message} Retry with the same Idempotency-Key."
+            )
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "task_create_busy",
+                    "message": retry_message,
+                    "retryable": True,
+                }
+            },
+            status_code=503,
         )
     except Exception as exc:
         logger.error("Create issue API error: %s", exc)

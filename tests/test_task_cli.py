@@ -171,6 +171,34 @@ class TestHttpErrorHandling:
         call_kwargs = client_cls.call_args.kwargs
         assert call_kwargs.get("timeout") == 75.0
 
+    def test_keyed_timeout_retries_and_surfaces_same_key(self):
+        import httpx
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.post.side_effect = httpx.ReadTimeout("response lost")
+
+        with (
+            patch("httpx.Client", return_value=mock_client) as client_cls,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            task_cli._http(
+                "POST",
+                "http://127.0.0.1:8080/api/v1/issues",
+                data={"title": "Durable"},
+                headers={"Idempotency-Key": "stable-create-key"},
+            )
+
+        assert mock_client.post.call_count == 2
+        assert client_cls.call_count == 2
+        assert all(
+            request_call.kwargs["headers"]["Idempotency-Key"]
+            == "stable-create-key"
+            for request_call in client_cls.call_args_list
+        )
+        assert "--idempotency-key 'stable-create-key'" in str(exc_info.value)
+
     def test_http_uses_basic_auth_when_configured(self):
         import httpx
 
@@ -481,6 +509,67 @@ class TestCmdCreate:
         assert "/issues" in url
         assert m.call_args.args[0] == "POST"
 
+    def test_supplied_idempotency_key_is_sent_as_header(self):
+        args = _make_args(
+            subcommand="create",
+            title="New task",
+            project="proj-1",
+            issue_type="task",
+            description="Durable create.",
+            priority=None,
+            labels=None,
+            idempotency_key="caller-stable-key",
+        )
+        with _make_http_mock(
+            {"ok": True, "issue": {"identifier": "T-99", "title": "New task"}}
+        ) as request:
+            task_cli._cmd_create("http://localhost:8080", args)
+
+        assert request.call_args.kwargs["headers"] == {
+            "Idempotency-Key": "caller-stable-key"
+        }
+
+    def test_generated_key_is_reused_by_transport_retry(self):
+        import httpx
+
+        response = MagicMock()
+        response.json.return_value = {
+            "ok": True,
+            "issue": {"identifier": "T-99", "title": "New task"},
+        }
+        response.is_success = True
+        response.status_code = 201
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.post.side_effect = [httpx.ReadTimeout("response lost"), response]
+        args = _make_args(
+            subcommand="create",
+            title="New task",
+            project="proj-1",
+            issue_type="task",
+            description="Durable create.",
+            priority=None,
+            labels=None,
+            idempotency_key=None,
+        )
+
+        with (
+            patch("httpx.Client", return_value=mock_client) as client_cls,
+            patch.object(
+                task_cli.uuid,
+                "uuid4",
+                return_value="11111111-2222-3333-4444-555555555555",
+            ),
+        ):
+            task_cli._cmd_create("http://localhost:8080", args)
+
+        assert mock_client.post.call_count == 2
+        assert {
+            request_call.kwargs["headers"]["Idempotency-Key"]
+            for request_call in client_cls.call_args_list
+        } == {"11111111-2222-3333-4444-555555555555"}
+
     def test_body_contains_title_and_project(self):
         args = _make_args(
             subcommand="create",
@@ -580,6 +669,24 @@ class TestCmdChildCreate:
         data = m.call_args.kwargs.get("data", {})
         assert data["parent_id"] == "TASK-10"
         assert data["title"] == "Child"
+
+    def test_child_create_generates_idempotency_header(self):
+        args = _make_args(
+            subcommand="child-create",
+            parent_id="TASK-10",
+            title="Child",
+            project="proj-1",
+            issue_type="task",
+            description="Durable child.",
+            priority=None,
+        )
+        with _make_http_mock(
+            {"ok": True, "issue": {"identifier": "T-11", "title": "Child"}}
+        ) as request:
+            task_cli._cmd_child_create("http://localhost:8080", args)
+
+        key = request.call_args.kwargs["headers"]["Idempotency-Key"]
+        assert len(key) == 36
 
     def test_project_id_included_when_given(self):
         args = _make_args(
@@ -1546,6 +1653,23 @@ class TestBuildParser:
             ["create", "--title", "No source", "--description", "No source description", "--project", "p"]
         )
         assert args.source is None
+
+    def test_create_idempotency_key_parses(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(
+            [
+                "create",
+                "--title",
+                "Durable",
+                "--description",
+                "Durable description",
+                "--project",
+                "p",
+                "--idempotency-key",
+                "stable-key",
+            ]
+        )
+        assert args.idempotency_key == "stable-key"
 
     def test_child_create_subcommand_parses(self):
         parser = task_cli.build_parser()

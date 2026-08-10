@@ -1249,7 +1249,7 @@
       color: var(--text-muted);
     }
     .epic-addendum-commit-list li { padding: 0.02rem 0; }
-    
+
         /* Release branches dialog (OOMPAH-180) */
     .rab-fieldset {
       border: 1px solid var(--border);
@@ -7745,7 +7745,7 @@ async function archiveIssueFromDetail(identifier) {
 
 async function performIntakeAction(identifier, action) {
   const projectId = document.getElementById('detail-panel-body').dataset.projectId;
-  
+
   // When auth is enabled, omit actor so server derives from authenticated principal.
   // When auth is disabled, collect actor for backward compatibility.
   let actor = null;
@@ -8138,6 +8138,19 @@ function closeDetailPanel() {
 
 // --- Create dialog ---
 let createParentId = null;
+let _createIdempotency = null;
+
+function createIdempotencyKey(body) {
+  const payload = JSON.stringify(body);
+  if (_createIdempotency && _createIdempotency.payload === payload) {
+    return _createIdempotency.key;
+  }
+  const key = (window.crypto && typeof window.crypto.randomUUID === 'function')
+    ? window.crypto.randomUUID()
+    : 'create-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+  _createIdempotency = {payload, key};
+  return key;
+}
 let createParentProjectId = null;
 
 function createParentIssue() {
@@ -8249,6 +8262,7 @@ function updateGitHubFieldsVisibility() {
 }
 
 function openCreateDialog() {
+  _createIdempotency = null;
   createParentId = null;
   createParentProjectId = null;
   document.getElementById('create-dialog-title').textContent = 'Create Issue';
@@ -8275,6 +8289,7 @@ function openCreateDialog() {
 }
 
 function openCreateDialogForEpic(epicId, projectId = '') {
+  _createIdempotency = null;
   createParentId = epicId;
   createParentProjectId = String(projectId || '');
   const epic = createParentIssue();
@@ -8305,6 +8320,7 @@ function closeCreateDialog() {
   document.getElementById('create-dialog').classList.remove('open');
   createParentId = null;
   createParentProjectId = null;
+  _createIdempotency = null;
   dismissEnhancePreview();
 }
 
@@ -8506,7 +8522,10 @@ async function submitCreateDialog() {
     }
     const res = await fetch('/api/v1/issues', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': createIdempotencyKey(body),
+      },
       body: JSON.stringify(body),
     });
     if (res.ok) {

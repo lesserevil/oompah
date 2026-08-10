@@ -45,6 +45,7 @@ from oompah.statuses import (
     status_key,
 )
 from oompah.tracker import (
+    CreateOnceConflictError,
     StateBranchFetchError,
     StateBranchMissingError,
     TrackerError,
@@ -949,7 +950,7 @@ class OompahMarkdownTracker:
                     str(record["meta"].get("id") or Path(record["path"]).stem)
                     for record in matches
                 )
-                raise TrackerError(
+                raise CreateOnceConflictError(
                     "Atomic create-once key resolves to multiple native tasks: "
                     + ", ".join(identifiers)
                 )
@@ -961,7 +962,7 @@ class OompahMarkdownTracker:
                     or ""
                 )
                 if recorded_fingerprint != request_fingerprint:
-                    raise TrackerError(
+                    raise CreateOnceConflictError(
                         "Atomic create-once key was already used with a different payload"
                     )
                 # The first request may have written the task and then lost
