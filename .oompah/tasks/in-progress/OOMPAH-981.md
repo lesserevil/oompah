@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-981
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Route post-landing epic follow-ups to the live target branch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T02:42:39.740073Z'
-updated_at: '2026-08-10T02:42:39.740073Z'
+updated_at: '2026-08-10T02:43:00.044965Z'
 work_branch: null
 target_branch: null
 review_url: null
