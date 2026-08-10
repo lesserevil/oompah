@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1003
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Revalidate root epic auto-close from durable landing authority without a mutable
   issue head
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T19:11:49.831627Z'
-updated_at: '2026-08-10T20:59:34.657767Z'
+updated_at: '2026-08-10T21:03:11.626192Z'
 work_branch: OOMPAH-1003
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/802
@@ -55,6 +55,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1003
     digest: 780e5db61a3579be824065d17d777e80957e88b3d96a56ab896654b90016db2b
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-aa968107ae7e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1003
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 780e5db61a3579be824065d17d777e80957e88b3d96a56ab896654b90016db2b
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Implementation is delivered in protected PR #803 at merge a9e6cf0047af5d2e37a53853cf49467b2cf16f22
+      with exact local and hosted gates green. Done is the topology-valid child terminal
+      lane while parent epic OOMPAH-940 remains the live natural auto-close canary.'
+    created_at: '2026-08-10T21:03:06.800777+00:00'
+    selected_ref: 7186cce68e1ad569bd2e0f2dec225787902100bd
+    selected_sha: 7186cce68e1ad569bd2e0f2dec225787902100bd
+    applied: false
   version: 1
   pending_chain:
   - version: 1
