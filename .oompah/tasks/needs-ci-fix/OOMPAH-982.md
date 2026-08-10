@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T02:54:36.526201Z'
-updated_at: '2026-08-10T04:10:30.179554Z'
+updated_at: '2026-08-10T04:10:41.413971Z'
 work_branch: OOMPAH-982
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/790
@@ -33,6 +33,16 @@ oompah.review_number: '790'
 oompah.target_branch: main
 oompah.review_head: 450f909a18cc42b97d7c91619cd55a07e14445e0
 oompah.agent_run_id: 8ad80a14-8b5c-4d34-8cc6-0d98f1304e57
+oompah.work_contributors:
+  runs:
+  - run_id: a1e1fbab0ebd4f37ac8a8d39ddb6b9d4--contributor-9efe7fcc211b
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
+    focus: general
+    source_branch: OOMPAH-982
+    source_sha: null
+    completed_at: ''
 ---
 ## Summary
 
@@ -72,5 +82,10 @@ author: oompah
 created: 2026-08-10 04:10
 ---
 Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-10 04:10
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
