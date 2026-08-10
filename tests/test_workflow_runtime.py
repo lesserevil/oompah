@@ -2149,6 +2149,7 @@ def test_long_delivery_cannot_block_control_jobs_or_projection_generations(tmp_p
     binding, journal = make_binding(tmp_path, tracker, store)
     delivery_started = asyncio.Event()
     release_delivery = asyncio.Event()
+    control_slot_replenished = asyncio.Event()
     completed = set()
     completed_events = {
         action: asyncio.Event()
@@ -2168,12 +2169,13 @@ def test_long_delivery_cannot_block_control_jobs_or_projection_generations(tmp_p
             completed_events[context.job.action].set()
             return await super().apply(context)
 
+    jobs_by_action = {}
     for task_id, action, priority in (
         ("TASK-DELIVERY", "standalone_delivery", 0),
         ("TASK-REVOKE", "authority_revocation", 0),
         ("TASK-SUBMIT", "validation_submission", 10),
     ):
-        store.enqueue(
+        jobs_by_action[action] = store.enqueue(
             WorkflowJobSpec(
                 project_id="project-1",
                 task_id=task_id,
@@ -2183,6 +2185,14 @@ def test_long_delivery_cannot_block_control_jobs_or_projection_generations(tmp_p
                 priority=priority,
             )
         )
+
+    def observe_completion(result):
+        if result.job_id == jobs_by_action["authority_revocation"].job_id:
+            # The runtime invokes this observer only after removing the
+            # completed task from its retained lane.  Waiting here, instead
+            # of at the handler's earlier apply boundary, proves that the
+            # reserved slot is observably available to the next admission.
+            control_slot_replenished.set()
 
     publications = []
 
@@ -2206,6 +2216,7 @@ def test_long_delivery_cannot_block_control_jobs_or_projection_generations(tmp_p
         liveness_controller=UniversalTotalityLivenessController(store=store),
         projection_publisher=publisher,
         projection_epoch_source=lambda: 1,
+        effect_completion_observer=observe_completion,
     )
 
     async def exercise():
@@ -2214,7 +2225,11 @@ def test_long_delivery_cannot_block_control_jobs_or_projection_generations(tmp_p
         await asyncio.wait_for(delivery_started.wait(), 1)
         await asyncio.wait_for(
             completed_events["authority_revocation"].wait(),
-            10,
+            1,
+        )
+        await asyncio.wait_for(
+            control_slot_replenished.wait(),
+            1,
         )
 
         # The long shared-lane delivery remains leased. A second complete
