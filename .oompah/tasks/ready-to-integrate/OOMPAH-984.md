@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T03:51:51.943285Z'
-updated_at: '2026-08-10T05:31:00.417453Z'
+updated_at: '2026-08-10T05:35:55.318384Z'
 work_branch: OOMPAH-984
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/792
@@ -76,5 +76,10 @@ author: oompah
 created: 2026-08-10 05:31
 ---
 Branch quality gate passed for `6473c14fdf8e148472c917ec3f1695c98713f074` using `make test` in 174.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-10 05:35
+---
+Direct-owner exact-head gate workaround: make test passed on 6473c14fdf8e148472c917ec3f1695c98713f074 with 19,279 passed, 7 skipped, 2 xfailed, 44 warnings in 1121.79s (exit 0). Protected PR #792 Python 3.11/3.12/3.13 CI is green. This exact head contains OOMPAH-985 commit 2a255c5c0d2f8d9850c4135809422c33f9409571. The service admission loop was blocked by OOMPAH-986; exact evidence was run directly before merge.
 ---
 <!-- COMMENTS:END -->
