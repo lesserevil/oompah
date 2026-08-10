@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T08:37:10.354642Z'
+updated_at: '2026-08-10T09:03:51.915732Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,5 +62,10 @@ author: oompah
 created: 2026-08-10 08:37
 ---
 The final post-permit/pre-sink replacement race is fixed at exact pushed head 6f32efb14ac3ead1b8392985180c96a7bc5cb7ab, rebased cleanly onto origin/main 41ac37dbd3148b167ae2f2917f19734ad037eb10 (merged OOMPAH-990). Lifecycle publication now propagates an exact revocable source permit into each sink. IPC state publication uses an atomic SQLite source-ID compare-and-replace, with set_orchestrator atomically activating the replacement source; an old process that cached a True Python predicate still cannot mutate after the replacement claim. EventBus propagates the permit to handlers for narrow mutation-time CAS and rechecks source before dispatch. Server full/state observer wrappers are bound to the exact Orchestrator and perform source+permit validation under the same owner lock as cache mutation/replacement; old callbacks cannot overwrite the replacement cache. No provider/lifecycle lock is held across IPC, EventBus handlers, or legacy callbacks. Deterministic barriers now pause (1) after IPC's Python guard but before SQL, (2) inside EventBus handler entry before permit mutation, and (3) inside the source-aware legacy wrapper before server cache CAS; shutdown+set_orchestrator completes, all old mutations are rejected, current pre/post-cutover deliveries succeed, and callback lock availability is proved. Post-rebase focused combined lifecycle/server/EventBus/IPC/pause/retry/auditor plus OOMPAH-990 quality-gate/OOMPAH-988 validation-lease suite: 1356 passed, 3 existing warnings. The three sink barriers passed 10 repeated runs. py_compile, diff-check, and commit secret hooks passed. Full Makefile gate intentionally remains deferred until independent approval. Task remains In Progress and unsubmitted for final re-review.
+---
+author: oompah
+created: 2026-08-10 09:03
+---
+Implementation checkpoint pushed at b865539bf on OOMPAH-989. Replacement now serializes whole cutovers, drains sink-local admitted EventBus and legacy callbacks outside provider/lifecycle/ownership locks, preserves supported plain callbacks, and rolls back on bounded timeout without switching the installed owner. IPC state publication is fenced by exact source+epoch+generation; lifecycle requests advance that authority and shutdown revokes it. Added migration and deterministic gen0-to-gen1 cached-true, plain-callback drain, timeout rollback, and concurrent replacement ABA tests. Verification: 1,359 focused regressions passed (3 existing warnings); 110 post-commit core tests passed; exact six-case race pack passed 10/10 repetitions (60/60). origin/main remains 41ac37dbd; branch is pushed/up to date. Full make test intentionally deferred to the configured review-ready branch gate; task left In Progress for review.
 ---
 <!-- COMMENTS:END -->
