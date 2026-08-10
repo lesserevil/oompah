@@ -690,6 +690,17 @@ _EPIC_REVIEW_REPAIR_STATUSES: frozenset[str] = frozenset({NEEDS_CI_FIX, NEEDS_RE
 _EPIC_REVIEW_REPAIR_RUNNING_STATUSES: frozenset[str] = frozenset(
     {NEEDS_CI_FIX, NEEDS_REBASE, IN_PROGRESS}
 )
+_QUALITY_GATE_PUBLICATION_STATUSES: frozenset[str] = frozenset(
+    {
+        DONE,
+        IN_PROGRESS,
+        IN_REVIEW,
+        IN_VALIDATION,
+        NEEDS_CI_FIX,
+        NEEDS_REBASE,
+        READY_TO_INTEGRATE,
+    }
+)
 _EPIC_REVIEW_REPAIR_LABELS: frozenset[str] = frozenset({"ci-fix", "merge-conflict"})
 _EPIC_REVIEW_READY_CHILD_STATES: frozenset[str] = frozenset(
     {IN_REVIEW, DONE, MERGED, ARCHIVED}
@@ -33184,21 +33195,6 @@ class Orchestrator:
                 authority_generation=producer.authority_generation,
             )
 
-        def owned_by_producer(candidate: QualityGateResult) -> bool:
-            if producer is None or not isinstance(candidate.owner, Mapping):
-                return False
-            owner = candidate.owner
-            return (
-                str(owner.get("project_id") or "") == producer.project_id
-                and str(owner.get("task_id") or "") == producer.task_id
-                and str(owner.get("head_sha") or "").strip().lower()
-                == str(producer.head_sha or "").strip().lower()
-                and str(owner.get("authority_generation") or "")
-                == producer.authority_generation
-                and str(candidate.authority_generation or "")
-                == producer.authority_generation
-            )
-
         def remember() -> bool:
             if authority is not None:
                 current = self._standalone_delivery_authorities.get(key)
@@ -33221,7 +33217,10 @@ class Orchestrator:
                     if (
                         producer is not None
                         and existing is not None
-                        and not owned_by_producer(existing)
+                        and not self._quality_gate_result_owned_by(
+                            existing,
+                            producer,
+                        )
                     ):
                         return False
                     outcomes.pop(key, None)
@@ -33242,6 +33241,52 @@ class Orchestrator:
         with authority_lock:
             return remember()
 
+    @staticmethod
+    def _quality_gate_result_owned_by(
+        result: QualityGateResult,
+        producer: QualityGateOwner,
+    ) -> bool:
+        """Return whether one transient row has the exact producer identity."""
+
+        if not isinstance(result.owner, Mapping):
+            return False
+        owner = result.owner
+        return (
+            str(owner.get("project_id") or "") == producer.project_id
+            and str(owner.get("task_id") or "") == producer.task_id
+            and str(owner.get("head_sha") or "").strip().lower()
+            == str(producer.head_sha or "").strip().lower()
+            and str(owner.get("authority_generation") or "")
+            == producer.authority_generation
+            and str(result.authority_generation or "")
+            == producer.authority_generation
+        )
+
+    @staticmethod
+    def _quality_gate_publication_generation(
+        project_id: str,
+        task_id: str,
+        branch: str,
+        target_branch: str,
+        head_sha: str,
+        command: str,
+        observed_status: str,
+    ) -> str:
+        """Return the exact identity of one authority-less gate producer."""
+
+        payload = "\0".join(
+            (
+                str(project_id),
+                str(task_id),
+                str(branch),
+                str(target_branch),
+                str(head_sha),
+                str(command),
+                canonicalize_status(observed_status),
+            )
+        )
+        return "review:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
     def _clear_quality_gate_result(self, project_id: str, task_id: str) -> None:
         """Forget a transient outcome once delivery has consumed it."""
         lock = getattr(self, "_quality_gate_outcomes_lock", None)
@@ -33259,10 +33304,10 @@ class Orchestrator:
         *,
         authority: StandaloneDeliveryAuthority | None,
         producer: QualityGateOwner,
-        project: Project,
         issue: Issue,
         branch: str,
         target_branch: str,
+        observed_status: str,
     ) -> bool:
         """Publish a result at a tracker/terminal-authority boundary.
 
@@ -33291,6 +33336,9 @@ class Orchestrator:
                 if not self._standalone_delivery_authorized(authority, tracker):
                     return False
             else:
+                current_project = self.project_store.get(str(project_id))
+                if not isinstance(current_project, Project):
+                    return False
                 try:
                     current = tracker.fetch_issue_detail(str(task_id))
                 except Exception as exc:  # noqa: BLE001 - fail closed
@@ -33300,6 +33348,16 @@ class Orchestrator:
                         exc,
                     )
                     return False
+
+                def reject_stale_producer() -> bool:
+                    stored = self._quality_gate_result_for(project_id, task_id)
+                    if (
+                        stored is not None
+                        and self._quality_gate_result_owned_by(stored, producer)
+                    ):
+                        self._clear_quality_gate_result(project_id, task_id)
+                    return False
+
                 if (
                     not isinstance(current, Issue)
                     or str(current.identifier or "") != str(task_id)
@@ -33307,33 +33365,52 @@ class Orchestrator:
                         str(current.project_id or "")
                         and str(current.project_id) != str(project_id)
                     )
-                    or canonicalize_status(current.state) in {MERGED, ARCHIVED}
+                    or canonicalize_status(observed_status)
+                    not in _QUALITY_GATE_PUBLICATION_STATUSES
+                    or canonicalize_status(current.state)
+                    != canonicalize_status(observed_status)
                     or self._standalone_delivery_evidence_revision(current)
                     != self._standalone_delivery_evidence_revision(issue)
-                    or self._branch_for_issue(current, project) != str(branch)
+                    or self._branch_for_issue(current, current_project) != str(branch)
                     or str(
-                        current.target_branch or project.default_branch or ""
+                        current.target_branch
+                        or current_project.default_branch
+                        or ""
                     ).strip()
                     != str(target_branch)
                 ):
-                    return False
+                    return reject_stale_producer()
+                current_command = self._quality_gate_command(current_project)
+                if (
+                    current_command != result.command
+                    or producer.authority_generation
+                    != self._quality_gate_publication_generation(
+                        str(project_id),
+                        str(task_id),
+                        str(branch),
+                        str(target_branch),
+                        str(producer.head_sha),
+                        current_command,
+                        observed_status,
+                    )
+                ):
+                    return reject_stale_producer()
                 producer_head = str(producer.head_sha or "").strip().lower()
                 if not producer_head.startswith("unresolved:"):
                     current_head = str(
-                        self._quality_gate_branch_head(project, branch) or ""
+                        self._quality_gate_branch_head(current_project, branch) or ""
                     ).strip().lower()
                     if current_head != producer_head:
-                        return False
+                        return reject_stale_producer()
 
-                # A newly-current head retires an older head's transient row.
-                # This is currentness cleanup, not PASS consumption: the PASS
-                # below may clear only its own exact producer generation.
+                # The project/status/evidence/head/command checks above prove
+                # this exact producer is current. Retire any prior producer,
+                # including an older command at the same immutable head, before
+                # the PASS below consumes only its own generation.
                 stored = self._quality_gate_result_for(project_id, task_id)
                 if (
-                    result.passed
-                    and stored is not None
-                    and str(stored.head_sha or "").strip().lower()
-                    != producer_head
+                    stored is not None
+                    and not self._quality_gate_result_owned_by(stored, producer)
                 ):
                     self._clear_quality_gate_result(project_id, task_id)
             return self._remember_quality_gate_result(
@@ -33377,6 +33454,7 @@ class Orchestrator:
     ) -> bool:
         """Run or reuse the exact-head full check before creating a review."""
         project_id = str(project.id)
+        observed_status = canonicalize_status(issue.state)
         authority = self._standalone_delivery_authorities.get(
             (project_id, str(issue.identifier))
         )
@@ -33489,19 +33567,15 @@ class Orchestrator:
         gate_generation = (
             authority.generation
             if authority is not None
-            else "review:"
-            + hashlib.sha256(
-                "\0".join(
-                    (
-                        project_id,
-                        str(issue.identifier),
-                        str(branch),
-                        str(target_branch),
-                        publication_head,
-                        str(command),
-                    )
-                ).encode("utf-8")
-            ).hexdigest()
+            else self._quality_gate_publication_generation(
+                project_id,
+                str(issue.identifier),
+                str(branch),
+                str(target_branch),
+                publication_head,
+                str(command),
+                observed_status,
+            )
         )
         gate_owner = QualityGateOwner(
             project_id=project_id,
@@ -33595,10 +33669,10 @@ class Orchestrator:
             result,
             authority=authority,
             producer=gate_owner,
-            project=project,
             issue=issue,
             branch=branch,
             target_branch=target_branch,
+            observed_status=observed_status,
         ):
             logger.info(
                 "Discarding quality gate outcome for superseded delivery %s at %s",

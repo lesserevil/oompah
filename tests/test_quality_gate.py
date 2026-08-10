@@ -41,7 +41,14 @@ from oompah.quality_gate import (
     _editable_oompah_source,
     _validate_trusted_runtime_source,
 )
-from oompah.statuses import IN_VALIDATION, MERGED, OPEN, READY_TO_INTEGRATE
+from oompah.statuses import (
+    IN_PROGRESS,
+    IN_VALIDATION,
+    MERGED,
+    NEEDS_HUMAN,
+    OPEN,
+    READY_TO_INTEGRATE,
+)
 from oompah.terminal_audit import compute_issue_evidence_fingerprint
 from oompah.validation_resource_lease import (
     ValidationLeaseOwner,
@@ -2166,6 +2173,7 @@ def _outcome_project() -> Project:
         repo_url="https://example.test/org/repo.git",
         repo_path="/unused",
         default_branch="main",
+        test_command="make test",
     )
 
 
@@ -2177,6 +2185,30 @@ def _outcome_producer(
         authority.task_id,
         str(authority.head_sha),
         authority.generation,
+    )
+
+
+def _authorityless_producer(
+    orch: Orchestrator,
+    *,
+    head_sha: str,
+    command: str = "make test",
+    observed_status: str = READY_TO_INTEGRATE,
+) -> QualityGateOwner:
+    generation = orch._quality_gate_publication_generation(
+        "project-1",
+        "task-1",
+        "task-1",
+        "main",
+        head_sha,
+        command,
+        observed_status,
+    )
+    return QualityGateOwner(
+        "project-1",
+        "task-1",
+        head_sha,
+        generation,
     )
 
 
@@ -2256,10 +2288,10 @@ def test_stale_ready_snapshot_cannot_publish_after_terminal_persistence():
         _interrupted_outcome(authority),
         authority=authority,
         producer=_outcome_producer(authority),
-        project=project,
         issue=authority.issue,
         branch=authority.branch,
         target_branch=authority.target_branch,
+        observed_status=READY_TO_INTEGRATE,
     )
 
     assert orch._quality_gate_state_snapshot()["recent"] == []
@@ -2296,10 +2328,10 @@ def test_terminal_project_fence_orders_result_publication_before_revocation():
             _interrupted_outcome(authority),
             authority=authority,
             producer=_outcome_producer(authority),
-            project=_outcome_project(),
             issue=authority.issue,
             branch=authority.branch,
             target_branch=authority.target_branch,
+            observed_status=READY_TO_INTEGRATE,
         )
         assert checked.wait(timeout=5)
         terminal = pool.submit(reconcile_terminal)
@@ -2323,11 +2355,9 @@ def test_authorityless_production_publication_is_fenced_by_terminal_state(
     project = _outcome_project()
     key = (project.id, issue.identifier)
     head_sha = "a" * 40
-    producer = QualityGateOwner(
-        project.id,
-        issue.identifier,
-        head_sha,
-        "review-current",
+    producer = _authorityless_producer(
+        orch,
+        head_sha=head_sha,
     )
     tracker = MagicMock()
     tracker.fetch_issue_detail.side_effect = lambda _identifier: issue
@@ -2352,10 +2382,10 @@ def test_authorityless_production_publication_is_fenced_by_terminal_state(
             result,
             authority=None,
             producer=producer,
-            project=project,
             issue=replace(issue, state=READY_TO_INTEGRATE),
             branch=issue.identifier,
             target_branch="main",
+            observed_status=READY_TO_INTEGRATE,
         )
     else:
         assert orch._publish_quality_gate_result(
@@ -2363,10 +2393,10 @@ def test_authorityless_production_publication_is_fenced_by_terminal_state(
             result,
             authority=None,
             producer=producer,
-            project=project,
             issue=issue,
             branch=issue.identifier,
             target_branch="main",
+            observed_status=READY_TO_INTEGRATE,
         )
         assert orch._quality_gate_result_for(*key) is not None
         issue.state = MERGED
@@ -2375,11 +2405,60 @@ def test_authorityless_production_publication_is_fenced_by_terminal_state(
     assert orch._quality_gate_state_snapshot()["recent"] == []
 
 
+@pytest.mark.parametrize("current_status", [OPEN, IN_PROGRESS, NEEDS_HUMAN])
+def test_authorityless_publication_rejects_nonterminal_status_drift(
+    current_status,
+):
+    orch = _outcome_fence_orchestrator()
+    observed = _outcome_authority().issue
+    current = replace(observed, state=current_status)
+    project = _outcome_project()
+    key = (project.id, observed.identifier)
+    producer = _authorityless_producer(orch, head_sha="a" * 40)
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = current
+    project_store = MagicMock()
+    project_store.get.return_value = project
+    project_store.project_write_lock.return_value = threading.RLock()
+    orch.project_store = project_store
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._quality_gate_branch_head = MagicMock(return_value="a" * 40)
+    interrupted = QualityGateResult(
+        status="interrupted",
+        head_sha="a" * 40,
+        command="make test",
+        interrupted=True,
+    )
+    assert orch._remember_quality_gate_result(
+        *key,
+        interrupted,
+        producer=producer,
+    )
+
+    # Status is deliberately outside the older evidence revision, reproducing
+    # the gap where this transition previously remained publishable.
+    assert orch._standalone_delivery_evidence_revision(current) == (
+        orch._standalone_delivery_evidence_revision(observed)
+    )
+    assert not orch._publish_quality_gate_result(
+        *key,
+        interrupted,
+        authority=None,
+        producer=producer,
+        issue=observed,
+        branch=observed.identifier,
+        target_branch="main",
+        observed_status=READY_TO_INTEGRATE,
+    )
+
+    assert orch._quality_gate_state_snapshot()["recent"] == []
+
+
 def test_authorityless_old_head_pass_cannot_clear_current_head_failure():
     orch = _outcome_fence_orchestrator()
     key = ("project-1", "task-1")
-    current = QualityGateOwner(*key, "b" * 40, "review-current")
-    old = QualityGateOwner(*key, "a" * 40, "review-old")
+    current = _authorityless_producer(orch, head_sha="b" * 40)
+    old = _authorityless_producer(orch, head_sha="a" * 40)
     failure = QualityGateResult(
         status="failed",
         head_sha=current.head_sha,
@@ -2412,8 +2491,8 @@ def test_authorityless_production_publisher_rejects_old_head_pass():
     issue = _outcome_authority().issue
     project = _outcome_project()
     key = (project.id, issue.identifier)
-    current = QualityGateOwner(*key, "b" * 40, "review-current")
-    old = QualityGateOwner(*key, "a" * 40, "review-old")
+    current = _authorityless_producer(orch, head_sha="b" * 40)
+    old = _authorityless_producer(orch, head_sha="a" * 40)
     tracker = MagicMock()
     tracker.fetch_issue_detail.return_value = issue
     project_store = MagicMock()
@@ -2432,10 +2511,10 @@ def test_authorityless_production_publisher_rejects_old_head_pass():
         ),
         authority=None,
         producer=current,
-        project=project,
         issue=issue,
         branch=issue.identifier,
         target_branch="main",
+        observed_status=READY_TO_INTEGRATE,
     )
     assert not orch._publish_quality_gate_result(
         *key,
@@ -2446,16 +2525,75 @@ def test_authorityless_production_publisher_rejects_old_head_pass():
         ),
         authority=None,
         producer=old,
-        project=project,
         issue=issue,
         branch=issue.identifier,
         target_branch="main",
+        observed_status=READY_TO_INTEGRATE,
     )
 
     assert orch._quality_gate_result_for(
         *key,
         head_sha=current.head_sha,
     ) is not None
+
+
+def test_current_same_head_command_generation_recovers_older_failure():
+    orch = _outcome_fence_orchestrator()
+    issue = _outcome_authority().issue
+    project = _outcome_project()
+    project.test_command = "old check"
+    key = (project.id, issue.identifier)
+    head_sha = "b" * 40
+    old = _authorityless_producer(
+        orch,
+        head_sha=head_sha,
+        command="old check",
+    )
+    current = _authorityless_producer(
+        orch,
+        head_sha=head_sha,
+        command="new check",
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    project_store = MagicMock()
+    project_store.get.return_value = project
+    project_store.project_write_lock.return_value = threading.RLock()
+    orch.project_store = project_store
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._quality_gate_branch_head = MagicMock(return_value=head_sha)
+
+    def publish(result, producer):
+        return orch._publish_quality_gate_result(
+            *key,
+            result,
+            authority=None,
+            producer=producer,
+            issue=issue,
+            branch=issue.identifier,
+            target_branch="main",
+            observed_status=READY_TO_INTEGRATE,
+        )
+
+    assert publish(
+        QualityGateResult("failed", head_sha, "old check"),
+        old,
+    )
+    project.test_command = "new check"
+    assert publish(
+        QualityGateResult("passed", head_sha, "new check"),
+        current,
+    )
+    assert orch._quality_gate_state_snapshot()["recent"] == []
+
+    current_failure = QualityGateResult("failed", head_sha, "new check")
+    assert publish(current_failure, current)
+    assert not publish(
+        QualityGateResult("passed", head_sha, "old check"),
+        old,
+    )
+    assert orch._quality_gate_result_for(*key) is not None
+    assert orch._quality_gate_result_for(*key).command == "new check"
 
 
 def test_authorityless_review_terminal_first_cannot_recreate_retry_alert(tmp_path):
@@ -6500,6 +6638,7 @@ def test_orchestrator_resolves_exact_branch_worktree_and_posts_evidence(tmp_path
         identifier="task-1",
         title="Task",
         project_id=project.id,
+        state=IN_PROGRESS,
         work_branch="work",
     )
     tracker = MagicMock()
@@ -6662,6 +6801,7 @@ def test_orchestrator_gates_remote_head_without_canonical_worktree(tmp_path):
         identifier="task-1",
         title="Task",
         project_id=project.id,
+        state=IN_PROGRESS,
         work_branch="work",
     )
     tracker = MagicMock()
@@ -6797,6 +6937,7 @@ def test_orchestrator_missing_review_head_is_infrastructure_not_ci_fix(tmp_path)
         identifier="task-1",
         title="Task",
         project_id=project.id,
+        state=IN_PROGRESS,
         work_branch="missing",
     )
     tracker = MagicMock()
