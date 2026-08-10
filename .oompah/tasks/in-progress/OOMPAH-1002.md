@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T17:51:08.587712Z'
-updated_at: '2026-08-10T17:52:38.794516Z'
+updated_at: '2026-08-10T17:52:56.321762Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,3 +37,11 @@ Triggered by the live OOMPAH-940 rollout canary on 2026-08-10. A healthy generat
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 17:52
+---
+Implementation correction after reviewing OOMPAH-947: preserve the accepted invariant that partial terminal-audit health cuts never claim complete/healthy. Do not change TerminalAuditHealth.degraded to treat scan_complete=false as healthy. Instead make scripts/workflow_rollout_check.py stateful: a sample whose only non-healthy cause is expected bounded audit continuation may be provisional only when terminal_audit.scan_complete=false, scan_error_count=0, every real terminal-audit failure/stale/quarantine/retry count is zero, workflow liveness is complete/healthy, current exhausted/expired/quarantined jobs are zero, topology/rollout evidence is current, and global_alerts is empty. The canary must still require at least one scan_complete=true overall-healthy sample during its configured window and must fail at the deadline if none arrives. Any actionable alert, scan error, real audit failure, other component degradation, or workflow failure remains an immediate failure. Add sequence tests for healthy -> provisional -> healthy pass; provisional -> healthy pass; all-provisional timeout fail; provisional with scan error/real audit failure fail; unrelated degraded health fail. This correction supersedes the description preference to change authoritative TerminalAuditHealth classification.
+---
+<!-- COMMENTS:END -->
