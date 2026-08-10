@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-980
 type: bug
-status: Needs Rebase
+status: In Validation
 priority: 1
 title: Reuse authoritative full branch gates in terminal audits
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T01:42:03.823626Z'
-updated_at: '2026-08-10T02:30:31.375068Z'
+updated_at: '2026-08-10T02:33:53.810596Z'
 work_branch: OOMPAH-980
 target_branch: null
 review_url: null
@@ -32,6 +32,62 @@ oompah.integration:
     accepted submission change; rebase the private branch explicitly and submit the
     resulting exact head
 oompah.work_branch: OOMPAH-980
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-cd3df7f6baa7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-980
+    digest: 3e8483858cb6678a11d1ad45db692f279d49ed26910557e96c6f56631b4c52a4
+  - version: 1
+    audit_id: audit-aca2a9199109
+    project_id: proj-14849f1b
+    task_id: OOMPAH-980
+    digest: 3e8483858cb6678a11d1ad45db692f279d49ed26910557e96c6f56631b4c52a4
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-cd3df7f6baa7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-980
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3e8483858cb6678a11d1ad45db692f279d49ed26910557e96c6f56631b4c52a4
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Needs Rebase
+    created_at: '2026-08-10T02:33:48.003361+00:00'
+    selected_ref: 10f586bbcdd87287f486906840e4a5405de4bddd
+    selected_sha: 10f586bbcdd87287f486906840e4a5405de4bddd
+  - version: 1
+    audit_id: audit-aca2a9199109
+    project_id: proj-14849f1b
+    task_id: OOMPAH-980
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3e8483858cb6678a11d1ad45db692f279d49ed26910557e96c6f56631b4c52a4
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Needs Rebase
+    created_at: '2026-08-10T02:33:48.003361+00:00'
+    selected_ref: 10f586bbcdd87287f486906840e4a5405de4bddd
+    selected_sha: 10f586bbcdd87287f486906840e4a5405de4bddd
+  attempt_history: []
 ---
 ## Summary
 
@@ -64,5 +120,10 @@ author: oompah
 created: 2026-08-10 02:23
 ---
 Canonical review heads now reuse durable exact gate evidence, and inherited Make control channels are removed at the agent boundary while explicit hostile controls remain fail closed.
+---
+author: oompah
+created: 2026-08-10 02:33
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
