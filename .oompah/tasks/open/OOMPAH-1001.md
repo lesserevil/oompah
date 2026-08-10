@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1001
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Import trusted protected recovery-PR exact-head gates before terminal-audit
   dispatch
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-10T17:36:35.101810Z'
-updated_at: '2026-08-10T17:36:43.833730Z'
+updated_at: '2026-08-10T17:52:20.959342Z'
 work_branch: null
 target_branch: null
 review_url: null

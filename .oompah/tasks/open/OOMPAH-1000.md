@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1000
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Bind direct-recovery terminal gate identity to the immutable audit revision
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T17:36:32.614914Z'
-updated_at: '2026-08-10T17:36:32.614914Z'
+updated_at: '2026-08-10T17:52:16.564626Z'
 work_branch: null
 target_branch: null
 review_url: null
