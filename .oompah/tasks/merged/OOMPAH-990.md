@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-990
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Retire late interrupted quality-gate alerts after terminal task reconciliation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:46:32.018670Z'
-updated_at: '2026-08-10T08:28:39.020868Z'
+updated_at: '2026-08-10T08:28:50.434229Z'
 work_branch: OOMPAH-990
 target_branch: null
 review_url: null
@@ -41,6 +41,25 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-990
     digest: c8f34240c21f29a6e7d7e11ad45ffd44992d088705b2d0bd9c55e9339f34a2d6
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-db361f53df51
+    project_id: proj-14849f1b
+    task_id: OOMPAH-990
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c8f34240c21f29a6e7d7e11ad45ffd44992d088705b2d0bd9c55e9339f34a2d6
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-10T08:28:46.198021+00:00'
+    selected_ref: 1ef734b2561f48070d005782f5f63ebbd94a05d9
+    selected_sha: 1ef734b2561f48070d005782f5f63ebbd94a05d9
+    applied: false
   version: 1
   pending_chain:
   - version: 1
