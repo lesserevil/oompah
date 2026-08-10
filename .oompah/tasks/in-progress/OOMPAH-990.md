@@ -11,13 +11,22 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:46:32.018670Z'
-updated_at: '2026-08-10T07:52:36.253721Z'
+updated_at: '2026-08-10T08:18:18.863929Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-990
+  head_sha: 1ef734b2561f48070d005782f5f63ebbd94a05d9
+  submitted_at: '2026-08-10T08:18:15.069600+00:00'
+  updated_at: '2026-08-10T08:18:15.069600+00:00'
 ---
 ## Summary
 
@@ -57,5 +66,10 @@ author: oompah
 created: 2026-08-10 07:52
 ---
 Replacement head 1ef734b2561f48070d005782f5f63ebbd94a05d9 pushed after final blocker fix. Publication now re-resolves the latest project quality-gate command under the common project fence for explicit-authority and authority-less producers, rejecting late old-command results before they can mutate current evidence. Added a real standalone-authority lifecycle regression proving old-command PASS is rejected while current-command failure remains and current-command PASS consumes it. Verification: targeted 4 passed; affected suites 363 passed; compileall; terminal audit 20/20; paranoid secret scan and commit hooks passed. Full gate and submission intentionally deferred pending final independent re-review.
+---
+author: oompah
+created: 2026-08-10 08:18
+---
+Exact full branch gate passed at independently approved pushed head 1ef734b2561f48070d005782f5f63ebbd94a05d9: make test completed with 19,351 passed, 7 skipped, 2 xfailed, 48 warnings in 1,254.13s. Worktree is clean and origin/OOMPAH-990 resolves to the same exact head. Proceeding to protected PR CI.
 ---
 <!-- COMMENTS:END -->
