@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T08:12:06.397574Z'
+updated_at: '2026-08-10T08:37:10.354642Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,5 +57,10 @@ author: oompah
 created: 2026-08-10 08:12
 ---
 Final three independent-review blockers are fixed and pushed at exact head 8ef2a699da97a7e594bef6162bb2dafa7e32580b. Lifecycle snapshots now use a per-Orchestrator coalescing daemon thread, so a permanently blocked advisory snapshot cannot keep interpreter shutdown alive. Generation/epoch authority is committed at the observer sink entry; shutdown revokes work blocked before that boundary without waiting, and no provider/lifecycle lock is held across IPC, EventBus, or legacy observer callbacks. The pause API now performs pause authority and generation-CAS persistence on the lifecycle executor with synchronous snapshot notification disabled, preserves running-agent retirement by scheduling it on the captured live API loop, then queues fenced publication. New deterministic regressions prove bounded shutdown and available admission with a sink-boundary barrier plus no late stale observer emission, health responsiveness while older persistence owns provider admission for 300ms, and normal subprocess exit with a permanently blocked snapshot worker. Focused combined lifecycle/restart/server/pause/event/retry/auditor/IPC compatibility suite: 509 passed, 3 non-failing warnings; the two concurrency regressions passed 10 repeated runs; py_compile and git diff --check passed; commit secret hooks passed. Per final-review coordination, the full Makefile gate was not run at this head and should wait until independent approval. Task remains In Progress and unsubmitted for independent final re-review.
+---
+author: oompah
+created: 2026-08-10 08:37
+---
+The final post-permit/pre-sink replacement race is fixed at exact pushed head 6f32efb14ac3ead1b8392985180c96a7bc5cb7ab, rebased cleanly onto origin/main 41ac37dbd3148b167ae2f2917f19734ad037eb10 (merged OOMPAH-990). Lifecycle publication now propagates an exact revocable source permit into each sink. IPC state publication uses an atomic SQLite source-ID compare-and-replace, with set_orchestrator atomically activating the replacement source; an old process that cached a True Python predicate still cannot mutate after the replacement claim. EventBus propagates the permit to handlers for narrow mutation-time CAS and rechecks source before dispatch. Server full/state observer wrappers are bound to the exact Orchestrator and perform source+permit validation under the same owner lock as cache mutation/replacement; old callbacks cannot overwrite the replacement cache. No provider/lifecycle lock is held across IPC, EventBus handlers, or legacy callbacks. Deterministic barriers now pause (1) after IPC's Python guard but before SQL, (2) inside EventBus handler entry before permit mutation, and (3) inside the source-aware legacy wrapper before server cache CAS; shutdown+set_orchestrator completes, all old mutations are rejected, current pre/post-cutover deliveries succeed, and callback lock availability is proved. Post-rebase focused combined lifecycle/server/EventBus/IPC/pause/retry/auditor plus OOMPAH-990 quality-gate/OOMPAH-988 validation-lease suite: 1356 passed, 3 existing warnings. The three sink barriers passed 10 repeated runs. py_compile, diff-check, and commit secret hooks passed. Full Makefile gate intentionally remains deferred until independent approval. Task remains In Progress and unsubmitted for final re-review.
 ---
 <!-- COMMENTS:END -->
