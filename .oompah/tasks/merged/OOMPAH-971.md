@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:50:52.737789Z'
-updated_at: '2026-08-10T01:17:06.320085Z'
+updated_at: '2026-08-10T01:17:13.269942Z'
 work_branch: OOMPAH-971
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/779
@@ -82,7 +82,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T01:17:01.715628+00:00'
     selected_ref: 125d19edd8b6c4e3bb001b675cf77da084ea25a2
     selected_sha: 125d19edd8b6c4e3bb001b675cf77da084ea25a2
-    applied: false
+    applied: true
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-971
@@ -94,6 +94,16 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-08-09T20:23:46.763717+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-971
+    target_state: Merged
+    evidence_fingerprint: edc8243811c44553d088cc96cd3076abb4145ebcafe791a69427168b99faa0ea
+    audit_ids:
+    - audit-11f362ee6fd3
+    - audit-e1e1e9549d39
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T01:17:11.674067+00:00'
   oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
@@ -184,5 +194,12 @@ created: 2026-08-09 20:23
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: [REDACTED]
+---
+author: oompah
+created: 2026-08-10 01:17
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Selected or integrated head 125d19e is an ancestor of current main and the completed audit evidence is preserved; retire the historical record as Merged.
 ---
 <!-- COMMENTS:END -->

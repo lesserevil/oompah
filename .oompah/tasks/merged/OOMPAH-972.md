@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-972
 type: task
-status: Done
+status: Merged
 priority: null
 title: Repair stale editable installs after worktree retirement
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T20:03:49.482603Z'
-updated_at: '2026-08-09T20:45:16.524775Z'
+updated_at: '2026-08-10T01:17:20.394202Z'
 work_branch: OOMPAH-972
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/780
@@ -64,6 +64,25 @@ oompah.terminal_audit:
     selected_ref: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
     selected_sha: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
     applied: true
+  - version: 1
+    override_id: override-40b4a68f2fad
+    project_id: proj-14849f1b
+    task_id: OOMPAH-972
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7b7bc1bca3f3a6b5c7665b44fa302e34ebec9b426087ff6170d80c119fc8a269
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Selected or integrated head 9f5bc28 is an ancestor of current main and
+      the completed audit evidence is preserved; retire the historical record as Merged.
+    created_at: '2026-08-10T01:17:15.326556+00:00'
+    selected_ref: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
+    selected_sha: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
+    applied: false
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-972
