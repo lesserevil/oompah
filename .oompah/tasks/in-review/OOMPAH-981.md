@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-981
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Route post-landing epic follow-ups to the live target branch
 parent: null
@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T02:42:39.740073Z'
-updated_at: '2026-08-10T04:21:31.227984Z'
+updated_at: '2026-08-10T04:21:49.597297Z'
 work_branch: OOMPAH-981
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/793
 review_number: '793'
-review_head: null
+review_head: ca2a1dc03822a181b57f153f60bbff851004d061
 merged_at: null
 oompah.integration:
   version: 2
@@ -30,6 +30,8 @@ oompah.integration:
 oompah.work_branch: OOMPAH-981
 oompah.review_url: https://github.com/lesserevil/oompah/pull/793
 oompah.review_number: '793'
+oompah.target_branch: main
+oompah.review_head: ca2a1dc03822a181b57f153f60bbff851004d061
 ---
 ## Summary
 
