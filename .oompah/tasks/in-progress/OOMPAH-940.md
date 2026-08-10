@@ -26,11 +26,12 @@ blocked_by:
 - OOMPAH-939
 - OOMPAH-974
 - OOMPAH-975
+- OOMPAH-1002
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-10T02:58:51.913493Z'
+updated_at: '2026-08-10T17:51:44.974129Z'
 work_branch: null
 target_branch: null
 review_url: null
