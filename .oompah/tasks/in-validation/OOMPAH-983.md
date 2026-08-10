@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T03:38:07.660153Z'
-updated_at: '2026-08-10T04:19:17.363963Z'
+updated_at: '2026-08-10T05:05:35.497280Z'
 work_branch: OOMPAH-983
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/791
@@ -45,6 +45,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-983
     digest: 4d63c3ce2dbe33ac32df122b78d36b7bf1b705d2274474c1fe6da59f293b2aaa
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-983","audit-5d61600eb469","attempt-315a836a8421"]': '2026-08-10T05:05:25.244631+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-983
+    target_state: Done
+    evidence_fingerprint: 4d63c3ce2dbe33ac32df122b78d36b7bf1b705d2274474c1fe6da59f293b2aaa
+    audit_ids:
+    - audit-5d61600eb469
+    kind: result
+    applied: true
+    retired_at: '2026-08-10T05:05:25.244646+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-983
+    audit_id: audit-5d61600eb469
+    attempt_id: attempt-315a836a8421
+    target_state: Done
+    evidence_fingerprint: 4d63c3ce2dbe33ac32df122b78d36b7bf1b705d2274474c1fe6da59f293b2aaa
+    status: In Validation
+    audit_ids:
+    - audit-5d61600eb469
+    kind: result
+    applied: true
+    created_at: '2026-08-10T05:05:25.244657+00:00'
+    applied_at: '2026-08-10T05:05:33.810171+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -52,7 +78,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-983
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -61,7 +87,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-315a836a8421
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -73,6 +99,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-983
       selected_ref: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
       selected_sha: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
+      verdict: pass
+      completed_at: '2026-08-10T05:05:25.244498+00:00'
+      ended_at: '2026-08-10T05:05:25.244498+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -82,7 +111,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T04:18:07.261452+00:00'
     selected_ref: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
     selected_sha: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
-    updated_at: '2026-08-10T04:19:08.873970+00:00'
+    updated_at: '2026-08-10T05:05:25.244498+00:00'
   - version: 1
     audit_id: audit-6462080061c4
     project_id: proj-14849f1b
@@ -161,5 +190,20 @@ author: oompah
 created: 2026-08-10 04:19
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-10 05:05
+---
+Audit PASS — Done
+
+OOMPAH-983 implementation verified. Full test suite passed (19279 passed). The fix replaces race-prone scheduler-timing waits with deterministic asyncio.Event barriers keyed to authority_revocation completion. Uses existing effect_completion_observer infrastructure; no production code changes. Test timeouts reduced from 10s to 1s. Solves Python 3.13 timeout in test_long_delivery_cannot_block_control_jobs_or_projection_generations while preserving capacity behavior.
+
+Safe evidence:
+- test_results: 19279 passed, 7 skipped, 2 xfailed in 1248.38s
+- target_test: test_long_delivery_cannot_block_control_jobs_or_projection_generations PASSED in 2.08s
+- commit: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
+- changes: test-only, 17 insertions in tests/test_workflow_runtime.py
+- python_version: 3.12.12
+- working_tree: clean
 ---
 <!-- COMMENTS:END -->
