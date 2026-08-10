@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-10T17:36:35.101810Z'
-updated_at: '2026-08-10T17:52:20.959342Z'
+updated_at: '2026-08-10T18:09:09.657281Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,3 +40,11 @@ Triggered by OOMPAH-999. Problem: recovery head 6418a935de7b4aab93a24af4756a54b3
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 18:09
+---
+Trust-boundary refinement from live PR #799 evidence: do not treat GitHub run.head_sha as proof that test_command_full executed at the PR head because current pull_request CI uses bare actions/checkout@v4 and normally checks out a synthetic merge revision. The importer must require an operator-pinned workflow identity/blob plus exact required jobs/app/attempt and either (a) an explicit workflow checkout of github.event.pull_request.head.sha whose pinned definition attests the command, or (b) for historical recovery PRs, verified merge parents and exact PR-head/merge tree equality. PR #799 satisfies the historical tree-equality rule: head 6418a935..., merge 0ce6c313..., workflow blob 492e9289..., and all three attempt-2 jobs completed successfully. Add the explicit PR-head checkout to .github/workflows/ci.yml for future evidence, pin its new trusted blob through .env-only configuration, keep default import disabled, never use aggregate CIStatus.PASSED, and fail closed on any API/pagination/config/tree/workflow/job mismatch.
+---
+<!-- COMMENTS:END -->
