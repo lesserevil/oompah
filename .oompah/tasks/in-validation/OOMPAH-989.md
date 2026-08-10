@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T15:04:26.948139Z'
+updated_at: '2026-08-10T15:26:57.982953Z'
 work_branch: OOMPAH-989
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/798
@@ -47,6 +47,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-989
     digest: 7d9ff7a0d41517e1b658cab6c487fcc8dc251d5210dbb4737c3a46f5abeb785d
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-989","audit-d381c946060e","attempt-22be73620625"]': '2026-08-10T15:26:42.278963+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-989
+    target_state: Done
+    evidence_fingerprint: 7d9ff7a0d41517e1b658cab6c487fcc8dc251d5210dbb4737c3a46f5abeb785d
+    audit_ids:
+    - audit-d381c946060e
+    kind: result
+    applied: true
+    retired_at: '2026-08-10T15:26:42.278979+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-989
+    audit_id: audit-d381c946060e
+    attempt_id: attempt-22be73620625
+    target_state: Done
+    evidence_fingerprint: 7d9ff7a0d41517e1b658cab6c487fcc8dc251d5210dbb4737c3a46f5abeb785d
+    status: In Validation
+    audit_ids:
+    - audit-d381c946060e
+    kind: result
+    applied: true
+    created_at: '2026-08-10T15:26:42.278990+00:00'
+    applied_at: '2026-08-10T15:26:50.126339+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -54,7 +80,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-989
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -63,7 +89,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-22be73620625
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -75,6 +101,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-989
       selected_ref: bb81282585fa91b1a88ae4409aaa58b99133482a
       selected_sha: bb81282585fa91b1a88ae4409aaa58b99133482a
+      verdict: pass
+      completed_at: '2026-08-10T15:26:42.278808+00:00'
+      ended_at: '2026-08-10T15:26:42.278808+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -84,7 +113,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T15:02:13.626824+00:00'
     selected_ref: bb81282585fa91b1a88ae4409aaa58b99133482a
     selected_sha: bb81282585fa91b1a88ae4409aaa58b99133482a
-    updated_at: '2026-08-10T15:04:16.734861+00:00'
+    updated_at: '2026-08-10T15:26:42.278808+00:00'
   - version: 1
     audit_id: audit-9bd39662036b
     project_id: proj-14849f1b
@@ -121,6 +150,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-989
     selected_ref: bb81282585fa91b1a88ae4409aaa58b99133482a
     selected_sha: bb81282585fa91b1a88ae4409aaa58b99133482a
+oompah.task_costs:
+  total_input_tokens: 66
+  total_output_tokens: 2966
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 66
+      output_tokens: 2966
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 66
+    output_tokens: 2966
+    cost_usd: 0.0
+    recorded_at: '2026-08-10T15:26:56.215344+00:00'
 ---
 ## Summary
 
@@ -314,5 +359,24 @@ author: oompah
 created: 2026-08-10 15:04
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-10 15:26
+---
+Audit PASS — Done
+
+Exact head bb81282585fa91b1a88ae4409aaa58b99133482a passes full make test gate: 19427 passed, 7 skipped, 2 xfailed, 50 warnings, 0 failures in 1264.55s. All acceptance criteria met: graceful restart remains responsive while quiesce drains, bounded failures leave service responsive or complete exact cutover, lifecycle/runtime/server tests pass, full Makefile gate passes.
+
+Safe evidence:
+- test_gate.command: make test
+- test_gate.passed: 19427
+- test_gate.skipped: 7
+- test_gate.xfailed: 2
+- test_gate.warnings: 50
+- test_gate.failures: 0
+- test_gate.duration_seconds: 1264.55
+- test_gate.branch: OOMPAH-989
+- test_gate.head_sha: bb81282585fa91b1a88ae4409aaa58b99133482a
+- acceptance_criteria: make_graceful_not_wedging_control_plane, bounded_failures_leave_responsive_service, lifecycle_runtime_server_tests_passing, full_makefile_gate_passing
 ---
 <!-- COMMENTS:END -->
