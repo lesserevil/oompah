@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T21:29:22.606379Z'
-updated_at: '2026-08-10T22:46:09.587036Z'
+updated_at: '2026-08-10T22:57:46.432742Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,31 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 623bf5a4-7de8-4bd2-9ea3-8eb97160db76
   request_fingerprint: edb0abe4fbe3045cc119e008b887fe52bf238967b68b705f99f7386480db9791
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-edc69b9442f7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1006
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b30f95df9c402e407d3266d0aa11a5bfa0f7f8694163b17ee2c535ede9850527
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Protected PR #804 merged exact reviewed and fully gated implementation
+      into main at 74e68a020357615c81cf7c7b5cff808763dc34d3; direct owner is terminalizing
+      the claimed repair after hosted Python 3.11/3.12/3.13 success.'
+    created_at: '2026-08-10T22:57:44.709550+00:00'
+    selected_ref: origin/OOMPAH-1006
+    selected_sha: 074c0330902cc3356519d6adb2a4725613c652e9
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
