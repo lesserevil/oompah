@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:25:38.748132Z'
-updated_at: '2026-08-09T20:07:21.595136Z'
+updated_at: '2026-08-10T01:16:34.485293Z'
 work_branch: OOMPAH-969
 target_branch: null
 review_url: null
@@ -60,6 +60,25 @@ oompah.terminal_audit:
     selected_ref: ff13d997972b56cbab1b4202cc0eb9f62445cd1b
     selected_sha: ff13d997972b56cbab1b4202cc0eb9f62445cd1b
     applied: true
+  - version: 1
+    override_id: override-7b40860450bf
+    project_id: proj-14849f1b
+    task_id: OOMPAH-969
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 73c65f709aa2a61069c82dbc5fbc961e1575e2b4a7d18b6a4a2273b4a85236c7
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Selected or integrated head ff13d99 is an ancestor of current main and
+      the completed audit evidence is preserved; retire the historical record as Merged.
+    created_at: '2026-08-10T01:16:32.947586+00:00'
+    selected_ref: ff13d997972b56cbab1b4202cc0eb9f62445cd1b
+    selected_sha: ff13d997972b56cbab1b4202cc0eb9f62445cd1b
+    applied: false
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-969
