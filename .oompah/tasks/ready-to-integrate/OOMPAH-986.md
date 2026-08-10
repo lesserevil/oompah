@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T04:41:10.778919Z'
-updated_at: '2026-08-10T06:00:46.040956Z'
+updated_at: '2026-08-10T06:01:06.520366Z'
 work_branch: OOMPAH-986
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/794
 review_number: '794'
-review_head: null
+review_head: 4c1b1fb3f52345048207f11bc2389db54f9da96b
 merged_at: null
 oompah.integration:
   version: 2
@@ -30,6 +30,8 @@ oompah.integration:
 oompah.work_branch: OOMPAH-986
 oompah.review_url: https://github.com/lesserevil/oompah/pull/794
 oompah.review_number: '794'
+oompah.target_branch: main
+oompah.review_head: 4c1b1fb3f52345048207f11bc2389db54f9da96b
 ---
 ## Summary
 
@@ -64,5 +66,10 @@ author: oompah
 created: 2026-08-10 06:00
 ---
 Branch quality gate passed for `4c1b1fb3f52345048207f11bc2389db54f9da96b` using `make test` in 171.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-10 06:00
+---
+Exact full branch gate passed at pushed head 4c1b1fb3f52345048207f11bc2389db54f9da96b: make test completed with 19,295 passed, 7 skipped, 2 xfailed, 49 warnings in 1,267.73s. Worktree is clean and origin/OOMPAH-986 resolves to the same exact head. Proceeding to protected PR CI.
 ---
 <!-- COMMENTS:END -->
