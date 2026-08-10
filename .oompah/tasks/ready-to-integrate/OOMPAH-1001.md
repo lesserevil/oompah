@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1001
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Import trusted protected recovery-PR exact-head gates before terminal-audit
   dispatch
@@ -13,8 +13,8 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-10T17:36:35.101810Z'
-updated_at: '2026-08-10T18:40:50.900352Z'
-work_branch: null
+updated_at: '2026-08-10T19:23:07.266753Z'
+work_branch: OOMPAH-1001
 target_branch: null
 review_url: null
 review_number: null
@@ -27,6 +27,16 @@ oompah.create_once:
   creation_marker: o999-protected-recovery-pr-gate-import-v1
   request_fingerprint: ea272e3261553b0afbf6159e7cf5993e453800bc18863cb9a23339b827c4abb9
 oompah.start_blocked_by: *id001
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1001
+  head_sha: 1e8edb7bc7f8579e17d02610fd751ff9b5f812c2
+  submitted_at: '2026-08-10T19:22:54.922877+00:00'
+  updated_at: '2026-08-10T19:22:54.922877+00:00'
+oompah.work_branch: OOMPAH-1001
 ---
 ## Summary
 
@@ -46,5 +56,15 @@ author: oompah
 created: 2026-08-10 18:09
 ---
 Trust-boundary refinement from live PR #799 evidence: do not treat GitHub run.head_sha as proof that test_command_full executed at the PR head because current pull_request CI uses bare actions/checkout@v4 and normally checks out a synthetic merge revision. The importer must require an operator-pinned workflow identity/blob plus exact required jobs/app/attempt and either (a) an explicit workflow checkout of github.event.pull_request.head.sha whose pinned definition attests the command, or (b) for historical recovery PRs, verified merge parents and exact PR-head/merge tree equality. PR #799 satisfies the historical tree-equality rule: head 6418a935..., merge 0ce6c313..., workflow blob 492e9289..., and all three attempt-2 jobs completed successfully. Add the explicit PR-head checkout to .github/workflows/ci.yml for future evidence, pin its new trusted blob through .env-only configuration, keep default import disabled, never use aggregate CIStatus.PASSED, and fail closed on any API/pagination/config/tree/workflow/job mismatch.
+---
+author: oompah
+created: 2026-08-10 19:22
+---
+Implementation is complete and pushed at exact head 1e8edb7bc. The launch-only bridge imports strict protected-workflow evidence under the live audit attempt, current environment trust fingerprint, exact PR/source/head/target identity, canonical project URL, fresh target containment, and a post-I/O task/project/config recheck; command-time reuse is local-only and config revocation is immediate. The actual PR #799 probe returned COMPLETE and passed the independent binder for run 31411330877 attempt 2. Validation: 81 focused terminal/protected tests and 771 affected config/SCM/quality/workflow tests passed; terminal mutation scan and paranoid secret scan passed. Independent adversarial review reports no remaining blocker.
+---
+author: oompah
+created: 2026-08-10 19:23
+---
+Implemented and pushed exact protected recovery-PR gate import at 1e8edb7bc. Real PR #799 evidence binds successfully; 771 affected tests, terminal mutation scan, secret scan, and independent adversarial review are green.
 ---
 <!-- COMMENTS:END -->
