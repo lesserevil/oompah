@@ -471,6 +471,7 @@ class OverrideRejection:
     METADATA_WRITE_FAILED = "metadata_write_failed"
     COMMENT_FAILED = "comment_failed"
     STATUS_UPDATE_FAILED = "status_update_failed"
+    DELIVERY_MUTATION_IN_PROGRESS = "delivery_mutation_in_progress"
     LIFECYCLE_INCOMPATIBLE = "lifecycle_incompatible"
 
 
@@ -727,7 +728,7 @@ class TerminalTransitionCoordinator:
         *,
         post_comments: bool = True,
         metrics: Any | None = None,
-        revoke_delivery_authority: Callable[[str, str], None] | None = None,
+        revoke_delivery_authority: Callable[[str, str], bool | None] | None = None,
         revoke_auditor_authority: Callable[[str, str], None] | None = None,
         release_audit_budget_reservation: Callable[[str, str], None] | None = None,
         clear_audit_alert: Callable[[str, str, str], None] | None = None,
@@ -917,14 +918,14 @@ class TerminalTransitionCoordinator:
         self,
         project_id: str,
         task_id: str,
-    ) -> None:
-        """Synchronously withdraw in-flight delivery ownership, best effort."""
+    ) -> bool:
+        """Withdraw delivery ownership or reject while an effect is admitted."""
 
         callback = self._revoke_delivery_authority
         if callback is None:
-            return
+            return True
         try:
-            callback(project_id, task_id)
+            return callback(project_id, task_id) is not False
         except Exception:  # terminal correctness must not depend on diagnostics
             logger.warning(
                 "failed to revoke delivery authority for %s/%s",
@@ -932,6 +933,7 @@ class TerminalTransitionCoordinator:
                 task_id,
                 exc_info=True,
             )
+            return False
 
     def _revoke_auditor_for_owner_override(
         self,
@@ -1355,10 +1357,14 @@ class TerminalTransitionCoordinator:
                     )
                 except Exception as exc:  # noqa: BLE001 - fail closed before mutation
                     return TransitionResult(success=False, reason=str(exc))
-            self._revoke_delivery_for_terminal_transition(
+            if not self._revoke_delivery_for_terminal_transition(
                 project_id,
                 current_issue.identifier,
-            )
+            ):
+                return TransitionResult(
+                    success=False,
+                    reason="delivery_mutation_in_progress",
+                )
             outcome = self._transition_locked(
                 store,
                 tracker,
@@ -1462,10 +1468,14 @@ class TerminalTransitionCoordinator:
                 )
             except Exception as exc:  # noqa: BLE001 - fail closed before mutation
                 return TransitionResult(success=False, reason=str(exc))
-            self._revoke_delivery_for_terminal_transition(
+            if not self._revoke_delivery_for_terminal_transition(
                 project_id,
                 current_issue.identifier,
-            )
+            ):
+                return TransitionResult(
+                    success=False,
+                    reason="delivery_mutation_in_progress",
+                )
             return self._transition_locked(
                 store,
                 tracker,
@@ -1630,10 +1640,15 @@ class TerminalTransitionCoordinator:
                     audit_id=record.audit_id,
                     reason=lifecycle_conflict,
                 )
-            self._revoke_delivery_for_terminal_transition(
+            if not self._revoke_delivery_for_terminal_transition(
                 project_id,
                 current_issue.identifier,
-            )
+            ):
+                return TransitionResult(
+                    success=False,
+                    audit_id=record.audit_id,
+                    reason="delivery_mutation_in_progress",
+                )
             store = TerminalAuditMetadataStore(
                 tracker,
                 self._project_store,
@@ -2013,10 +2028,14 @@ class TerminalTransitionCoordinator:
             )
             if lifecycle_conflict is not None:
                 return TransitionResult(success=False, reason=lifecycle_conflict)
-            self._revoke_delivery_for_terminal_transition(
+            if not self._revoke_delivery_for_terminal_transition(
                 project_id,
                 current_issue.identifier,
-            )
+            ):
+                return TransitionResult(
+                    success=False,
+                    reason="delivery_mutation_in_progress",
+                )
             if evidence_addendum is not None:
                 addendum_fingerprint = evidence_addendum.get(
                     "evidence_fingerprint",
@@ -3905,10 +3924,16 @@ class TerminalTransitionCoordinator:
             # disposition now own this transition under the project lock.
             # Revoke delivery only after those fences, so stale, foreign, or
             # malformed callbacks are observationally read-only.
-            self._revoke_delivery_for_terminal_transition(
+            if not self._revoke_delivery_for_terminal_transition(
                 project_id,
                 identifier,
-            )
+            ):
+                decision.outcome = ResultOutcome(
+                    success=False,
+                    audit_id=result.audit_id,
+                    reason="delivery_mutation_in_progress",
+                )
+                return doc
 
             # Record the attempt on the audit record.  The verdict, message,
             # and safe evidence are all captured before we commit any tracker
@@ -4332,9 +4357,17 @@ class TerminalTransitionCoordinator:
                     if canonicalize_status(
                         getattr(latest_issue, "state", "") or ""
                     ) != canonicalize_status(target_status):
-                        self._revoke_delivery_for_terminal_transition(
+                        if not self._revoke_delivery_for_terminal_transition(
                             project_id, identifier
-                        )
+                        ):
+                            return OverrideResult(
+                                success=False,
+                                override_id=str(raw_override.get("override_id")),
+                                reason="delivery mutation in progress",
+                                error_code=(
+                                    OverrideRejection.DELIVERY_MUTATION_IN_PROGRESS
+                                ),
+                            )
                         try:
                             # TERMINAL-AUDIT-ALLOW OOMPAH-704: repair tracker
                             # state regressed after a persisted owner override.
@@ -4437,7 +4470,12 @@ class TerminalTransitionCoordinator:
         # durable mutation, so a concurrent standalone gate cannot publish a
         # stale outcome.  Invalid or stale override attempts intentionally do
         # not disturb a valid delivery claim.
-        self._revoke_delivery_for_terminal_transition(project_id, identifier)
+        if not self._revoke_delivery_for_terminal_transition(project_id, identifier):
+            return OverrideResult(
+                success=False,
+                reason="delivery mutation in progress",
+                error_code=OverrideRejection.DELIVERY_MUTATION_IN_PROGRESS,
+            )
         self._revoke_auditor_for_owner_override(project_id, identifier)
 
         overridden_audit_ids = [

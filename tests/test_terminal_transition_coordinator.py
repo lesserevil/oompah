@@ -647,6 +647,40 @@ def test_aged_done_auto_archive_binds_main_before_coalesced_retry() -> None:
     assert project_store.resolve_calls == ["origin/main"]
 
 
+def test_terminal_transition_fails_closed_while_delivery_effect_is_admitted() -> None:
+    """A busy delivery generation is retryable and no audit mutation begins."""
+
+    tracker = _MemoryTracker()
+    project_store = _RevisionLockStore({"origin/main": "d" * 40})
+    revoke_calls: list[tuple[str, str]] = []
+
+    def defer_revocation(project_id: str, task_id: str) -> bool:
+        revoke_calls.append((project_id, task_id))
+        return False
+
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+        revoke_delivery_authority=defer_revocation,
+    )
+    issue = _issue(DONE)
+
+    result = coordinator.request_transition_sync(
+        issue,
+        TargetState.ARCHIVED,
+        ContributorIdentity("oompah", "auto_archive"),
+        PROJECT_ID,
+        _fingerprint(),
+    )
+
+    assert result.success is False
+    assert result.reason == "delivery_mutation_in_progress"
+    assert revoke_calls == [(PROJECT_ID, TASK_ID)]
+    assert tracker.get_metadata(TASK_ID) == {}
+    assert tracker.update_calls == []
+
+
 @pytest.mark.parametrize(
     ("record_state", "current_state"),
     [

@@ -1467,6 +1467,14 @@ class StandaloneDeliveryAuthority:
     head_resolver: Any | None = None
     dependency_checked_monotonic: float = 0.0
     revoked: bool = False
+    # Tracker mutations are admitted while the authority is current, then run
+    # without retaining either the authority lock or the thread-owned project
+    # lock.  Terminal ownership marks an admitted generation for revocation
+    # and retries after the exact operation finishes; it must never wait for a
+    # helper-thread tracker write while holding the project lock.
+    active_operations: int = 0
+    active_operation_thread_id: int | None = None
+    revocation_pending: bool = False
 
 
 @dataclass(slots=True)
@@ -21285,14 +21293,12 @@ class Orchestrator:
                     # before even asking the gate for evidence; the gate's
                     # own callback and the owned adoption transaction provide
                     # the during- and after-command barriers.
-                    issue_id = str(
-                        getattr(authority.issue, "id", "") or authority.task_id
-                    )
-                    with self.issue_transition_lock(issue_id).sync():
-                        gate_authorized = self._standalone_delivery_authorized(
+                    gate_authorized = (
+                        self._standalone_delivery_authorized_at_issue_boundary(
                             authority,
                             tracker,
                         )
+                    )
                     if not gate_authorized:
                         self._record_superseded_standalone_delivery(
                             authority,
@@ -21361,14 +21367,12 @@ class Orchestrator:
                     # accepted submission has already superseded.  Terminal
                     # staging performs the final review/generation CAS after
                     # the exact-head gate returns.
-                    issue_id = str(
-                        getattr(authority.issue, "id", "") or authority.task_id
-                    )
-                    with self.issue_transition_lock(issue_id).sync():
-                        gate_authorized = self._standalone_delivery_authorized(
+                    gate_authorized = (
+                        self._standalone_delivery_authorized_at_issue_boundary(
                             authority,
                             tracker,
                         )
+                    )
                     if not gate_authorized:
                         self._record_superseded_standalone_delivery(
                             authority,
@@ -21777,16 +21781,9 @@ class Orchestrator:
         authority: StandaloneDeliveryAuthority | None = None,
     ) -> bool:
         """Surface one idempotent actionable alert for a stranded submission."""
-        with self._standalone_delivery_authority_lock:
-            if authority is not None and not self._standalone_delivery_authorized(
-                authority
-            ):
-                self._record_superseded_standalone_delivery(
-                    authority,
-                    "delivery authority was revoked before alerting",
-                )
-                return False
-            source = f"standalone_ready_delivery:{project_id}:{task_id}"
+        source = f"standalone_ready_delivery:{project_id}:{task_id}"
+
+        def publish() -> None:
             self._replace_alert_source(
                 source,
                 {
@@ -21803,7 +21800,12 @@ class Orchestrator:
                     "action_required": True,
                 }
             )
-            return True
+
+        return self._standalone_delivery_side_effect(
+            authority,
+            publish,
+            superseded_reason="delivery authority was revoked before alerting",
+        )
 
     def _arm_standalone_dependency_wait(
         self,
@@ -21815,16 +21817,9 @@ class Orchestrator:
     ) -> bool:
         """Publish one non-actionable, retry-safe dependency wait reason."""
 
-        with self._standalone_delivery_authority_lock:
-            if authority is not None and not self._standalone_delivery_authorized(
-                authority
-            ):
-                self._record_superseded_standalone_delivery(
-                    authority,
-                    "delivery authority was revoked before dependency wait",
-                )
-                return False
-            source = f"standalone_ready_delivery:{project_id}:{task_id}"
+        source = f"standalone_ready_delivery:{project_id}:{task_id}"
+
+        def publish() -> None:
             self._replace_alert_source(
                 source,
                 {
@@ -21836,7 +21831,12 @@ class Orchestrator:
                     ),
                 },
             )
-            return True
+
+        return self._standalone_delivery_side_effect(
+            authority,
+            publish,
+            superseded_reason=("delivery authority was revoked before dependency wait"),
+        )
 
     def _arm_standalone_capacity_wait(
         self,
@@ -21849,16 +21849,9 @@ class Orchestrator:
     ) -> bool:
         """Publish a retry-safe informational wait for project capacity."""
 
-        with self._standalone_delivery_authority_lock:
-            if authority is not None and not self._standalone_delivery_authorized(
-                authority
-            ):
-                self._record_superseded_standalone_delivery(
-                    authority,
-                    "delivery authority was revoked before capacity wait",
-                )
-                return False
-            source = f"standalone_ready_delivery:{project_id}:{task_id}"
+        source = f"standalone_ready_delivery:{project_id}:{task_id}"
+
+        def publish() -> None:
             self._replace_alert_source(
                 source,
                 {
@@ -21871,7 +21864,12 @@ class Orchestrator:
                     ),
                 },
             )
-            return True
+
+        return self._standalone_delivery_side_effect(
+            authority,
+            publish,
+            superseded_reason="delivery authority was revoked before capacity wait",
+        )
 
     def _clear_standalone_delivery_alert(
         self,
@@ -21882,22 +21880,18 @@ class Orchestrator:
     ) -> bool:
         """Clear the stranded-submission alert once a delivery path exists."""
         source = f"standalone_ready_delivery:{project_id}:{task_id}"
-        with self._standalone_delivery_authority_lock:
-            if not any(
-                alert.get("source") == source
-                for alert in self._alerts_snapshot()
-            ):
-                return True
-            if authority is not None and not self._standalone_delivery_authorized(
-                authority
-            ):
-                self._record_superseded_standalone_delivery(
-                    authority,
-                    "delivery authority was revoked before clearing an alert",
-                )
-                return False
-            self._replace_alert_source(source)
-            return True
+
+        def clear() -> None:
+            if any(alert.get("source") == source for alert in self._alerts_snapshot()):
+                self._replace_alert_source(source)
+
+        return self._standalone_delivery_side_effect(
+            authority,
+            clear,
+            superseded_reason=(
+                "delivery authority was revoked before clearing an alert"
+            ),
+        )
 
     @staticmethod
     def _standalone_integration_generation_revision(
@@ -22098,46 +22092,44 @@ class Orchestrator:
     ) -> bool:
         """Preserve historical review evidence as one task-owned transaction."""
 
-        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
-        with self.issue_transition_lock(issue_id).sync():
-            if not self._standalone_delivery_authorized(authority, tracker):
-                return False
-            try:
-                current_review = provider.find_pr_for_branch(repo_slug, work_branch)
-            except Exception:  # noqa: BLE001 - final forge CAS fails closed
-                return False
-            if self._standalone_review_observation(
-                current_review
-            ) != self._standalone_review_observation(expected_review):
-                return False
-            if current_review is None:
-                return False
-            disposition, _head, _current_reason = (
-                self._standalone_review_matches_submission(
-                    project,
-                    authority.issue,
-                    current_review,
-                    authority,
-                )
-            )
-            if disposition != "historical":
-                return False
-            if not self._preserve_superseded_standalone_review(
-                tracker,
-                authority,
+        if not self._standalone_delivery_authorized(authority, tracker):
+            return False
+        try:
+            current_review = provider.find_pr_for_branch(repo_slug, work_branch)
+        except Exception:  # noqa: BLE001 - final forge CAS fails closed
+            return False
+        if not self._standalone_delivery_authorized(authority, tracker):
+            return False
+        if self._standalone_review_observation(
+            current_review
+        ) != self._standalone_review_observation(expected_review):
+            return False
+        if current_review is None:
+            return False
+        disposition, _head, _current_reason = (
+            self._standalone_review_matches_submission(
+                project,
+                authority.issue,
                 current_review,
-                reason,
-            ):
-                return False
-            review_state = str(
-                getattr(current_review, "state", "") or ""
-            ).strip().lower()
-            if review_state in {"closed", "merged"}:
-                self._release_review_capacity(
-                    authority.project_id,
-                    review_id=getattr(current_review, "id", None),
-                )
-            return True
+                authority,
+            )
+        )
+        if disposition != "historical":
+            return False
+        if not self._preserve_superseded_standalone_review(
+            tracker,
+            authority,
+            current_review,
+            reason,
+        ):
+            return False
+        review_state = str(getattr(current_review, "state", "") or "").strip().lower()
+        if review_state in {"closed", "merged"}:
+            self._release_review_capacity(
+                authority.project_id,
+                review_id=getattr(current_review, "id", None),
+            )
+        return True
 
     def _adopt_standalone_open_review_owned(
         self,
@@ -22153,99 +22145,92 @@ class Orchestrator:
     ) -> tuple[bool, str]:
         """Adopt an exact open review and its tracker state under task ownership."""
 
-        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
-        with self.issue_transition_lock(issue_id).sync():
-            if not self._standalone_delivery_authorized(authority, tracker):
-                return False, "delivery authority changed before open-review adoption"
-            observed_review_generation = self._review_generation(
-                authority.project_id
+        if not self._standalone_delivery_authorized(authority, tracker):
+            return False, "delivery authority changed before open-review adoption"
+        observed_review_generation = self._review_generation(authority.project_id)
+        try:
+            current_review = provider.find_pr_for_branch(repo_slug, work_branch)
+        except Exception as exc:  # noqa: BLE001 - final forge CAS fails closed
+            return False, f"final open-review lookup failed: {exc}"
+        if not self._standalone_delivery_authorized(authority, tracker):
+            return False, "delivery authority changed during open-review lookup"
+        if (
+            self._standalone_review_observation(current_review)
+            != self._standalone_review_observation(expected_review)
+            or current_review is None
+        ):
+            return False, "review changed before open-review adoption"
+        review_state = str(getattr(current_review, "state", "") or "").strip().lower()
+        disposition, review_head, mismatch_reason = (
+            self._standalone_review_matches_submission(
+                project,
+                authority.issue,
+                current_review,
+                authority,
             )
-            try:
-                current_review = provider.find_pr_for_branch(repo_slug, work_branch)
-            except Exception as exc:  # noqa: BLE001 - final forge CAS fails closed
-                return False, f"final open-review lookup failed: {exc}"
-            if not self._standalone_delivery_authorized(authority, tracker):
-                return False, "delivery authority changed during open-review lookup"
-            if (
-                self._standalone_review_observation(current_review)
-                != self._standalone_review_observation(expected_review)
-                or current_review is None
-            ):
-                return False, "review changed before open-review adoption"
-            review_state = str(
-                getattr(current_review, "state", "") or ""
-            ).strip().lower()
-            disposition, review_head, mismatch_reason = (
-                self._standalone_review_matches_submission(
-                    project,
-                    authority.issue,
-                    current_review,
-                    authority,
-                )
+        )
+        if review_state != "open" or disposition != "exact":
+            return (
+                False,
+                "review changed before open-review adoption"
+                + (f": {mismatch_reason}" if mismatch_reason else ""),
             )
-            if review_state != "open" or disposition != "exact":
-                return (
-                    False,
-                    "review changed before open-review adoption"
-                    + (f": {mismatch_reason}" if mismatch_reason else ""),
+        review_id = str(getattr(current_review, "id", "") or "").strip()
+        # Capacity adoption performs its own constant-time lifecycle CAS.
+        # Tracker publication then uses exact delivery admission, allowing a
+        # concurrent close/terminal transition to retry instead of waiting on
+        # a lock held across tracker callbacks.
+        if not getattr(current_review, "draft", False) and not (
+            self._adopt_open_review_capacity(
+                project_id=authority.project_id,
+                task_id=authority.task_id,
+                source_branch=work_branch,
+                target_branch=target_branch,
+                review_id=review_id,
+                authority_generation=authority.generation,
+                head_sha=review_head,
+                authoritative=True,
+                observed_generation=observed_review_generation,
+                allow_reopen=True,
             )
-            review_id = str(getattr(current_review, "id", "") or "").strip()
-            # Linearize the final capacity + tracker publication against a
-            # close webhook.  If close won first its fence rejects adoption;
-            # if this live-open observation won first, close runs afterwards
-            # and releases the just-published generation normally.
-            with self._review_lifecycle_lock:
-                if not getattr(current_review, "draft", False) and not (
-                    self._adopt_open_review_capacity(
-                        project_id=authority.project_id,
-                        task_id=authority.task_id,
-                        source_branch=work_branch,
-                        target_branch=target_branch,
-                        review_id=review_id,
-                        authority_generation=authority.generation,
-                        head_sha=review_head,
-                        authoritative=True,
-                        observed_generation=observed_review_generation,
-                        allow_reopen=True,
-                    )
-                ):
-                    return False, "review closed before capacity adoption"
-                if not self._clear_standalone_delivery_alert(
-                    authority.project_id,
-                    authority.task_id,
-                    authority=authority,
-                ):
-                    return False, "delivery authority changed before alert cleanup"
-                if not self._write_review_metadata(
-                    tracker,
-                    authority.task_id,
-                    review_id=review_id or None,
-                    review_url=getattr(current_review, "url", None),
-                    source_branch=work_branch,
-                    target_branch=target_branch,
-                    review_head=review_head,
-                    authority=authority,
-                ):
-                    return (
-                        False,
-                        "delivery authority changed during review metadata write",
-                    )
-                if not self._standalone_delivery_mutation(
-                    authority,
-                    tracker,
-                    lambda: self._transition_identifier_status(
-                        authority.task_id,
-                        IN_REVIEW,
-                        project_id=authority.project_id,
-                        tracker=tracker,
-                        authority=TransitionAuthority.INTEGRATOR,
-                        reason_code="review.standalone_review_adopted",
-                        exact_head=review_head,
-                    ),
-                    next_state=IN_REVIEW,
-                ):
-                    return False, "delivery authority changed before In Review update"
-                return True, ""
+        ):
+            return False, "review closed before capacity adoption"
+        if not self._clear_standalone_delivery_alert(
+            authority.project_id,
+            authority.task_id,
+            authority=authority,
+        ):
+            return False, "delivery authority changed before alert cleanup"
+        if not self._write_review_metadata(
+            tracker,
+            authority.task_id,
+            review_id=review_id or None,
+            review_url=getattr(current_review, "url", None),
+            source_branch=work_branch,
+            target_branch=target_branch,
+            review_head=review_head,
+            authority=authority,
+        ):
+            return (
+                False,
+                "delivery authority changed during review metadata write",
+            )
+        if not self._standalone_delivery_mutation(
+            authority,
+            tracker,
+            lambda: self._transition_identifier_status(
+                authority.task_id,
+                IN_REVIEW,
+                project_id=authority.project_id,
+                tracker=tracker,
+                authority=TransitionAuthority.INTEGRATOR,
+                reason_code="review.standalone_review_adopted",
+                exact_head=review_head,
+            ),
+            next_state=IN_REVIEW,
+        ):
+            return False, "delivery authority changed before In Review update"
+        return True, ""
 
     def _create_standalone_review_owned(
         self,
@@ -22270,9 +22255,15 @@ class Orchestrator:
         and In Review transition with submit and terminal webhook ownership.
         """
 
-        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
-        with self.issue_transition_lock(issue_id).sync():
-            if not self._standalone_delivery_authorized(authority, tracker):
+        # Exact-generation admissions around each forge/tracker effect replace
+        # the old issue lock.  Terminal work can now fail retryably instead of
+        # waiting behind a lock whose callback may hop to another thread.
+        def create_and_publish() -> tuple[str, ReviewRequest | None, str]:
+            if not self._standalone_delivery_authorized(
+                authority,
+                tracker,
+                allow_active_operation=True,
+            ):
                 return (
                     "superseded",
                     None,
@@ -22368,25 +22359,30 @@ class Orchestrator:
                     "forge provider returned a review without an identity",
                 )
 
-            # The forge review exists from this point forward.  A close
-            # webhook may already have observed it while ``create_review`` was
-            # in flight.  Commit capacity and publish tracker state in the
-            # same lifecycle generation as that close observation.
+            # The forge review exists from this point forward.  Commit its
+            # capacity reservation with a constant-time close-fence CAS, then
+            # publish tracker state without retaining the lifecycle lock.
+            review_closed_before_publication = False
             with self._review_lifecycle_lock:
                 if (
                     authority.project_id,
                     created_review_id,
                 ) in self._closed_review_fences:
-                    self._release_review_capacity(
-                        authority.project_id,
-                        reservation_id=reservation.reservation_id,
-                    )
-                    return (
-                        "created",
-                        result,
-                        "created review closed before tracker publication",
-                    )
-                self._commit_review_slot(reservation, created_review_id)
+                    review_closed_before_publication = True
+                else:
+                    self._commit_review_slot(reservation, created_review_id)
+            if review_closed_before_publication:
+                self._release_review_capacity(
+                    authority.project_id,
+                    reservation_id=reservation.reservation_id,
+                )
+                return (
+                    "created",
+                    result,
+                    "created review closed before tracker publication",
+                )
+
+            def publish_tracker_state() -> tuple[str, ReviewRequest | None, str]:
                 try:
                     if not self._clear_standalone_delivery_alert(
                         authority.project_id,
@@ -22438,7 +22434,22 @@ class Orchestrator:
                         result,
                         f"created review but tracker update failed: {exc}",
                     )
-            return "created", result, ""
+                return "created", result, ""
+
+            return publish_tracker_state()
+
+        admitted, outcome = self._run_standalone_delivery_operation(
+            authority,
+            tracker,
+            create_and_publish,
+        )
+        if not admitted or outcome is None:
+            return (
+                "superseded",
+                None,
+                "delivery authority was revoked before review creation",
+            )
+        return outcome
 
     def _preserve_superseded_standalone_review(
         self,
@@ -22686,10 +22697,18 @@ class Orchestrator:
                 and existing.dependency_revision == dependency_revision
                 and existing.allows_parent == allows_parent
                 and existing.workflow_generation == durable_generation
+                and not existing.revocation_pending
             ):
                 existing.workflow_authority_check = workflow_authority_check
                 return existing
             if existing is not None:
+                if existing.active_operations:
+                    # Do not replace an admitted generation while its tracker
+                    # effect is outside the authority lock.  Retire it when the
+                    # operation finalizes; the next reconciliation can claim
+                    # the new evidence with a fresh generation.
+                    existing.revocation_pending = True
+                    return None
                 existing.revoked = True
                 superseded_generation = existing.generation
                 self._clear_quality_gate_result(project_id, task_id)
@@ -22858,8 +22877,10 @@ class Orchestrator:
     ) -> bool:
         """Bind a claim to the exact remote head used by the delivery."""
 
+        if not self._standalone_delivery_authorized(authority):
+            return False
         with self._standalone_delivery_authority_lock:
-            if not self._standalone_delivery_authorized(authority):
+            if not self._standalone_delivery_authority_current_locked(authority):
                 return False
             if authority.branch != branch or not head_sha:
                 return False
@@ -22890,75 +22911,157 @@ class Orchestrator:
             pass
         return None
 
+    def _standalone_delivery_authority_current_locked(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        *,
+        allow_revocation_pending: bool = False,
+    ) -> bool:
+        """Check one exact in-memory generation while its lock is held."""
+
+        key = (authority.project_id, authority.task_id)
+        return bool(
+            not authority.revoked
+            and (allow_revocation_pending or not authority.revocation_pending)
+            and self._standalone_delivery_authorities.get(key) is authority
+        )
+
+    def _retire_exact_standalone_delivery_authority(
+        self,
+        authority: StandaloneDeliveryAuthority,
+    ) -> bool:
+        """Retire only *authority*, deferring while its operation is admitted."""
+
+        key = (authority.project_id, authority.task_id)
+        with self._standalone_delivery_authority_lock:
+            if self._standalone_delivery_authorities.get(key) is not authority:
+                return False
+            if authority.active_operations:
+                authority.revocation_pending = True
+                return False
+            self._standalone_delivery_authorities.pop(key, None)
+            authority.revoked = True
+            authority.revocation_pending = False
+            self._clear_quality_gate_result(*key)
+        self._cancel_standalone_delivery_gate(authority)
+        source = f"standalone_ready_delivery:{key[0]}:{key[1]}"
+        self._replace_alert_source(source)
+        return True
+
     def _standalone_delivery_authorized(
         self,
         authority: StandaloneDeliveryAuthority,
         tracker: TrackerProtocol | None = None,
         *,
         refresh_dependencies: bool = True,
+        allow_active_operation: bool = False,
     ) -> bool:
         """Compare the current task evidence with a delivery authority claim."""
 
+        # Capture the claim under the in-memory lock, perform tracker/project/
+        # SCM callbacks outside it, then publish the refreshed issue only if
+        # the exact generation is still current.
         with self._standalone_delivery_authority_lock:
-            if not self._standalone_delivery_locally_authorized(authority):
+            allow_revocation_pending = bool(
+                allow_active_operation
+                and authority.active_operations
+                and authority.active_operation_thread_id == threading.get_ident()
+            )
+            if not self._standalone_delivery_authority_current_locked(
+                authority,
+                allow_revocation_pending=allow_revocation_pending,
+            ):
                 return False
-            if tracker is None:
-                try:
-                    tracker = self._tracker_for_project(authority.project_id)
-                except Exception:  # noqa: BLE001 - authority must fail closed
+            generation = authority.generation
+            expected_state = authority.expected_state
+            allows_parent = authority.allows_parent
+            evidence_revision = authority.evidence_revision
+            dependency_revision = authority.dependency_revision
+            dependency_checked_monotonic = authority.dependency_checked_monotonic
+            branch = authority.branch
+            target_branch = authority.target_branch
+            head_sha = authority.head_sha
+            head_resolver = authority.head_resolver
+            workflow_authority_check = authority.workflow_authority_check
+
+        if workflow_authority_check is not None:
+            try:
+                if not workflow_authority_check():
                     return False
-            current = self._fresh_standalone_delivery_issue(authority, tracker)
-            if current is None:
+            except Exception:
                 return False
+        if tracker is None:
+            try:
+                tracker = self._tracker_for_project(authority.project_id)
+            except Exception:  # noqa: BLE001 - authority must fail closed
+                return False
+        current = self._fresh_standalone_delivery_issue(authority, tracker)
+        if current is None:
+            return False
+        if (
+            canonicalize_status(current.state) != expected_state
+            or (str(current.parent_id or "").strip() and not allows_parent)
+            or _is_epic_issue(current)
+            or self._standalone_delivery_evidence_revision(current) != evidence_revision
+        ):
+            return False
+        dependency_checked_at: float | None = None
+        if (
+            refresh_dependencies
+            or time.monotonic() - dependency_checked_monotonic >= 0.5
+        ):
+            dependency_state = self._current_standalone_finish_dependency_state(
+                current,
+                tracker,
+            )
+            dependency_checked_at = time.monotonic()
             if (
-                canonicalize_status(current.state) != authority.expected_state
-                or (
-                    str(current.parent_id or "").strip() and not authority.allows_parent
+                dependency_state is None
+                or dependency_state.revision != dependency_revision
+            ):
+                # Retire this exact object; a replacement may have won while
+                # the dependency corpus was being refreshed.
+                self._retire_exact_standalone_delivery_authority(authority)
+                return False
+        project = self.project_store.get(authority.project_id)
+        if project is None:
+            return False
+        if self._branch_for_issue(current, project) != branch:
+            return False
+        if (
+            str(current.target_branch or project.default_branch or "").strip()
+            != target_branch
+        ):
+            return False
+        if head_sha:
+            try:
+                current_head = head_resolver()
+            except Exception:  # noqa: BLE001 - remote head is authoritative
+                return False
+            if str(current_head or "") != head_sha:
+                return False
+
+        with self._standalone_delivery_authority_lock:
+            if (
+                not self._standalone_delivery_authority_current_locked(
+                    authority,
+                    allow_revocation_pending=allow_revocation_pending,
                 )
-                or _is_epic_issue(current)
-                or self._standalone_delivery_evidence_revision(current)
-                != authority.evidence_revision
+                or authority.generation != generation
+                or authority.expected_state != expected_state
+                or authority.allows_parent != allows_parent
+                or authority.evidence_revision != evidence_revision
+                or authority.dependency_revision != dependency_revision
+                or authority.branch != branch
+                or authority.target_branch != target_branch
+                or authority.head_sha != head_sha
+                or authority.head_resolver is not head_resolver
+                or authority.workflow_authority_check is not workflow_authority_check
             ):
                 return False
-            if (
-                refresh_dependencies
-                or time.monotonic() - authority.dependency_checked_monotonic >= 0.5
-            ):
-                dependency_state = self._current_standalone_finish_dependency_state(
-                    current,
-                    tracker,
-                )
-                authority.dependency_checked_monotonic = time.monotonic()
-                if (
-                    dependency_state is None
-                    or dependency_state.revision != authority.dependency_revision
-                ):
-                    # A dependency status or inherited edge changed while this
-                    # task owned a gate.  Fence its exact generation immediately;
-                    # the next Ready reconciliation will claim the new evidence.
-                    self._revoke_standalone_delivery_authority(
-                        authority.project_id,
-                        authority.task_id,
-                    )
-                    return False
-            project = self.project_store.get(authority.project_id)
-            if project is None:
-                return False
-            if self._branch_for_issue(current, project) != authority.branch:
-                return False
-            if (
-                str(current.target_branch or project.default_branch or "").strip()
-                != authority.target_branch
-            ):
-                return False
-            if authority.head_sha:
-                try:
-                    current_head = authority.head_resolver()
-                except Exception:  # noqa: BLE001 - remote head is authoritative
-                    return False
-                if str(current_head or "") != authority.head_sha:
-                    return False
             authority.issue = current
+            if dependency_checked_at is not None:
+                authority.dependency_checked_monotonic = dependency_checked_at
             return True
 
     def _standalone_delivery_locally_authorized(
@@ -22974,19 +23077,56 @@ class Orchestrator:
         """
 
         with self._standalone_delivery_authority_lock:
-            key = (authority.project_id, authority.task_id)
-            if (
-                authority.revoked
-                or self._standalone_delivery_authorities.get(key) is not authority
-            ):
+            if not self._standalone_delivery_authority_current_locked(authority):
                 return False
-            if authority.workflow_authority_check is not None:
-                try:
-                    if not authority.workflow_authority_check():
-                        return False
-                except Exception:
+            generation = authority.generation
+            workflow_authority_check = authority.workflow_authority_check
+        if workflow_authority_check is not None:
+            try:
+                if not workflow_authority_check():
                     return False
-            return True
+            except Exception:
+                return False
+        with self._standalone_delivery_authority_lock:
+            return bool(
+                self._standalone_delivery_authority_current_locked(authority)
+                and authority.generation == generation
+                and authority.workflow_authority_check is workflow_authority_check
+            )
+
+    def _standalone_delivery_cached_evidence_current_locked(
+        self,
+        authority: StandaloneDeliveryAuthority,
+    ) -> bool:
+        """Check cached tracker evidence with only in-process comparisons."""
+
+        issue = authority.issue
+        return bool(
+            self._standalone_delivery_authority_current_locked(authority)
+            and canonicalize_status(issue.state) == authority.expected_state
+            and (not str(issue.parent_id or "").strip() or authority.allows_parent)
+            and not _is_epic_issue(issue)
+            and self._standalone_delivery_evidence_revision(issue)
+            == authority.evidence_revision
+        )
+
+    def _standalone_delivery_authorized_at_issue_boundary(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+    ) -> bool:
+        """Recheck external evidence, then cross the issue boundary by CAS only."""
+
+        if not self._standalone_delivery_authorized(authority, tracker):
+            return False
+        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
+        with self.issue_transition_lock(issue_id).sync(blocking=False) as acquired:
+            if acquired is None:
+                return False
+            with self._standalone_delivery_authority_lock:
+                return self._standalone_delivery_cached_evidence_current_locked(
+                    authority
+                )
 
     def _refresh_standalone_delivery_authority(
         self,
@@ -22999,35 +23139,132 @@ class Orchestrator:
 
         current = self._fresh_standalone_delivery_issue(authority, tracker)
         if current is None:
-            authority.revoked = True
-            self._standalone_delivery_authorities.pop(
-                (authority.project_id, authority.task_id), None
-            )
-            self._clear_quality_gate_result(
-                authority.project_id,
-                authority.task_id,
-            )
+            self._retire_exact_standalone_delivery_authority(authority)
             return False
         current_generation = self._standalone_integration_generation_revision(current)
-        expected_generation = authority.evidence_revision[-len(current_generation) :]
+        with self._standalone_delivery_authority_lock:
+            allow_revocation_pending = bool(
+                authority.active_operations
+                and authority.active_operation_thread_id == threading.get_ident()
+            )
+            if not self._standalone_delivery_authority_current_locked(
+                authority,
+                allow_revocation_pending=allow_revocation_pending,
+            ):
+                return False
+            generation = authority.generation
+            evidence_revision = authority.evidence_revision
+        expected_generation = evidence_revision[-len(current_generation) :]
         if current_generation != expected_generation:
-            authority.revoked = True
-            self._standalone_delivery_authorities.pop(
-                (authority.project_id, authority.task_id),
-                None,
-            )
-            self._clear_quality_gate_result(
-                authority.project_id,
-                authority.task_id,
-            )
+            self._retire_exact_standalone_delivery_authority(authority)
             return False
-        authority.issue = current
-        authority.evidence_revision = self._standalone_delivery_evidence_revision(
-            current
-        )
-        if next_state is not None:
-            authority.expected_state = canonicalize_status(next_state)
-        return True
+        refreshed_revision = self._standalone_delivery_evidence_revision(current)
+        with self._standalone_delivery_authority_lock:
+            if (
+                not self._standalone_delivery_authority_current_locked(
+                    authority,
+                    allow_revocation_pending=allow_revocation_pending,
+                )
+                or authority.generation != generation
+                or authority.evidence_revision != evidence_revision
+            ):
+                return False
+            authority.issue = current
+            authority.evidence_revision = refreshed_revision
+            if next_state is not None:
+                authority.expected_state = canonicalize_status(next_state)
+            return True
+
+    def _admit_standalone_delivery_operation(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+    ) -> str | None:
+        """Admit one exact operation after lock-free external preflight."""
+
+        thread_id = threading.get_ident()
+        with self._standalone_delivery_authority_lock:
+            if authority.active_operations:
+                if (
+                    authority.active_operation_thread_id == thread_id
+                    and self._standalone_delivery_authority_current_locked(
+                        authority,
+                        allow_revocation_pending=True,
+                    )
+                ):
+                    authority.active_operations += 1
+                    return authority.generation
+                return None
+        if not self._standalone_delivery_authorized(authority, tracker):
+            return None
+        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
+        with self.issue_transition_lock(issue_id).sync(blocking=False) as acquired:
+            if acquired is None:
+                return None
+            with self._standalone_delivery_authority_lock:
+                if (
+                    not self._standalone_delivery_cached_evidence_current_locked(
+                        authority
+                    )
+                    or authority.active_operations
+                ):
+                    return None
+                authority.active_operations = 1
+                authority.active_operation_thread_id = thread_id
+                return authority.generation
+
+    def _finish_standalone_delivery_operation(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        generation: str,
+    ) -> bool:
+        """Release one admission and retire a pending exact generation."""
+
+        key = (authority.project_id, authority.task_id)
+        retire = False
+        with self._standalone_delivery_authority_lock:
+            if authority.active_operations <= 0:
+                raise RuntimeError("standalone delivery operation was not admitted")
+            authority.active_operations -= 1
+            if authority.active_operations == 0:
+                authority.active_operation_thread_id = None
+            current = bool(
+                self._standalone_delivery_authorities.get(key) is authority
+                and authority.generation == generation
+                and not authority.revoked
+            )
+            if (
+                current
+                and authority.revocation_pending
+                and authority.active_operations == 0
+            ):
+                self._standalone_delivery_authorities.pop(key, None)
+                authority.revoked = True
+                authority.revocation_pending = False
+                self._clear_quality_gate_result(*key)
+                retire = True
+                current = False
+        if retire:
+            self._cancel_standalone_delivery_gate(authority)
+            source = f"standalone_ready_delivery:{key[0]}:{key[1]}"
+            self._replace_alert_source(source)
+        return current
+
+    def _run_standalone_delivery_operation(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+        operation: Any,
+    ) -> tuple[bool, Any | None]:
+        """Run a complete irreversible effect and its publication as one unit."""
+
+        generation = self._admit_standalone_delivery_operation(authority, tracker)
+        if generation is None:
+            return False, None
+        try:
+            return True, operation()
+        finally:
+            self._finish_standalone_delivery_operation(authority, generation)
 
     def _standalone_delivery_mutation(
         self,
@@ -23038,35 +23275,63 @@ class Orchestrator:
         next_state: str | None = None,
         refresh_authority: bool = True,
     ) -> bool:
-        """Run one tracker mutation while terminal revocation is excluded."""
+        """Run one generation-bound tracker mutation without spanning locks."""
 
-        with self._standalone_delivery_authority_lock:
-            lock_factory = getattr(self.project_store, "project_write_lock", None)
-            project_lock = (
-                lock_factory(authority.project_id)
-                if callable(lock_factory)
-                else None
+        generation = self._admit_standalone_delivery_operation(authority, tracker)
+        if generation is None:
+            self._record_superseded_standalone_delivery(
+                authority,
+                "delivery authority was revoked before tracker mutation",
             )
-            if project_lock is not None and not project_lock.acquire(blocking=False):
-                return False
-            try:
-                if not self._standalone_delivery_authorized(authority, tracker):
-                    self._record_superseded_standalone_delivery(
-                        authority,
-                        "delivery authority was revoked before tracker mutation",
-                    )
-                    return False
-                mutation()
-                if not refresh_authority:
-                    return True
-                return self._refresh_standalone_delivery_authority(
+            return False
+        refreshed = True
+        try:
+            mutation()
+            if refresh_authority:
+                refreshed = self._refresh_standalone_delivery_authority(
                     authority,
                     tracker,
                     next_state=next_state,
                 )
-            finally:
-                if project_lock is not None:
-                    project_lock.release()
+        finally:
+            current = self._finish_standalone_delivery_operation(
+                authority,
+                generation,
+            )
+        return bool(refreshed and current)
+
+    def _standalone_delivery_side_effect(
+        self,
+        authority: StandaloneDeliveryAuthority | None,
+        effect: Any,
+        *,
+        superseded_reason: str,
+    ) -> bool:
+        """Publish a short side effect under exact delivery admission."""
+
+        if authority is None:
+            effect()
+            return True
+        try:
+            tracker = self._tracker_for_project(authority.project_id)
+        except Exception:  # noqa: BLE001 - an unverified effect must not publish
+            self._record_superseded_standalone_delivery(
+                authority,
+                superseded_reason,
+            )
+            return False
+        if self._standalone_delivery_mutation(
+            authority,
+            tracker,
+            effect,
+            refresh_authority=False,
+        ):
+            return True
+        self._record_superseded_standalone_delivery(
+            authority,
+            superseded_reason,
+        )
+        return False
 
     def _standalone_delivery_action(
         self,
@@ -23074,31 +23339,28 @@ class Orchestrator:
         tracker: TrackerProtocol,
         action: Any,
     ) -> tuple[bool, Any | None]:
-        """Run one forge delivery action only while the claim is current."""
+        """Run one forge action under the same generation-bound admission."""
 
-        with self._standalone_delivery_authority_lock:
-            lock_factory = getattr(self.project_store, "project_write_lock", None)
-            project_lock = (
-                lock_factory(authority.project_id)
-                if callable(lock_factory)
-                else None
+        generation = self._admit_standalone_delivery_operation(authority, tracker)
+        if generation is None:
+            return False, None
+        result: Any | None = None
+        authorized_after = False
+        try:
+            result = action()
+            # Preserve a late forge result for idempotent adoption, but never
+            # let a revoked generation proceed to tracker publication.
+            authorized_after = self._standalone_delivery_authorized(
+                authority,
+                tracker,
+                allow_active_operation=True,
             )
-            if project_lock is not None and not project_lock.acquire(blocking=False):
-                return False, None
-            try:
-                if not self._standalone_delivery_authorized(authority, tracker):
-                    return False, None
-                result = action()
-                # A blocking forge adapter can return after the durable workflow
-                # lease was timed out or superseded.  Preserve the forge result for
-                # later idempotent adoption, but never let this late invocation
-                # proceed to capacity or tracker mutations.
-                if not self._standalone_delivery_authorized(authority, tracker):
-                    return False, result
-                return True, result
-            finally:
-                if project_lock is not None:
-                    project_lock.release()
+        finally:
+            current = self._finish_standalone_delivery_operation(
+                authority,
+                generation,
+            )
+        return bool(authorized_after and current), result
 
     @staticmethod
     def _is_standalone_noop_landing(
@@ -23362,10 +23624,9 @@ class Orchestrator:
     ) -> tuple[bool, TransitionResult | None]:
         """Persist zero-diff evidence and stage the normal terminal audit chain."""
 
-        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
-        async with self.issue_transition_lock(issue_id):
+        async def stage() -> tuple[bool, TransitionResult | None]:
             if not await asyncio.to_thread(
-                self._standalone_delivery_authorized,
+                self._standalone_delivery_authorized_at_issue_boundary,
                 authority,
                 tracker,
             ):
@@ -23491,6 +23752,8 @@ class Orchestrator:
                 return True, None
             return True, transition
 
+        return await stage()
+
     async def _request_standalone_contained_with_authority_async(
         self,
         authority: StandaloneDeliveryAuthority,
@@ -23580,18 +23843,16 @@ class Orchestrator:
         review_url: str | None,
         review_head: str,
     ) -> tuple[bool, TransitionResult | None]:
-        """Stage Merged after a final generation CAS under task ownership.
+        """Stage Merged after a final generation-bound evidence CAS.
 
-        Accepted submissions and terminal API operations use the same per-issue
-        cross-loop lock. Re-read the delivery evidence inside that serialization
-        boundary, then release the delivery authority ``RLock`` before awaiting
-        the coordinator.  The coordinator revokes delivery authority from its
-        project worker thread, so retaining that thread-owned lock across the
-        await would deadlock.
+        Forge and tracker observations run without the per-issue lock.  The
+        final issue-boundary check is a constant-time cached CAS, and the task
+        transition service independently rechecks the exact tracker version.
+        This lets the coordinator revoke delivery authority from its project
+        worker without waiting behind a lock held by this coroutine.
         """
 
-        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
-        async with self.issue_transition_lock(issue_id):
+        async def stage() -> tuple[bool, TransitionResult | None]:
             authorized = await asyncio.to_thread(
                 self._standalone_delivery_authorized,
                 authority,
@@ -23646,7 +23907,7 @@ class Orchestrator:
             # Re-run the full state/generation/head/dependency CAS before the
             # coordinator obtains project authority.
             if not await asyncio.to_thread(
-                self._standalone_delivery_authorized,
+                self._standalone_delivery_authorized_at_issue_boundary,
                 authority,
                 tracker,
             ):
@@ -23685,18 +23946,20 @@ class Orchestrator:
                 return True, None
             return True, transition
 
+        return await stage()
+
     async def _request_standalone_merged_with_authority_async(
         self,
         authority: StandaloneDeliveryAuthority,
         tracker: TrackerProtocol,
         **kwargs: Any,
     ) -> tuple[bool, TransitionResult | None]:
-        """Keep the lock-owning operation alive if its outer bridge is cancelled.
+        """Keep terminal staging alive if its outer bridge is cancelled.
 
         ``asyncio.to_thread`` work is not cancelled with its awaiting task.  The
-        inner task therefore owns the cross-loop mutex, while the bridge awaits it
-        through ``shield``.  A timeout or caller cancellation can stop waiting but
-        cannot release ownership around still-running tracker/coordinator effects.
+        inner task therefore owns the admitted evidence sequence, while the bridge
+        awaits it through ``shield``. A timeout or caller cancellation can stop
+        waiting but cannot cancel already-running tracker/coordinator effects.
         """
 
         operation = asyncio.create_task(
@@ -23775,24 +24038,35 @@ class Orchestrator:
         self,
         project_id: str,
         task_id: str,
-    ) -> None:
+    ) -> bool:
         """Synchronously fence stale standalone work before terminal ownership."""
 
         key = (str(project_id), str(task_id))
         with self._standalone_delivery_authority_lock:
+            authority = self._standalone_delivery_authorities.get(key)
+            if authority is not None and authority.active_operations:
+                # The terminal coordinator owns the project lock at this
+                # boundary.  Waiting here would deadlock a provenance-guarded
+                # helper-thread write.  Mark the exact generation for
+                # retirement and require the terminal mutation to retry after
+                # finalization.
+                authority.revocation_pending = True
+                return False
             authority = self._standalone_delivery_authorities.pop(key, None)
             if authority is not None:
                 authority.revoked = True
-                # Rejection/reopen is a generation change.  Stop only the
-                # gate owned by this claim; a replacement claim may already
-                # be running for the new head.
-                self._cancel_standalone_delivery_gate(authority)
+                authority.revocation_pending = False
             # Publication takes this authority lock before the outcome lock.
             # Therefore either a result is stored first and retired here, or
             # revocation wins first and the late producer refuses to store it.
             self._clear_quality_gate_result(*key)
-            source = f"standalone_ready_delivery:{key[0]}:{key[1]}"
-            self._replace_alert_source(source)
+        if authority is not None:
+            # Rejection/reopen is a generation change.  Stop only the gate
+            # owned by this claim; a replacement claim may already be running.
+            self._cancel_standalone_delivery_gate(authority)
+        source = f"standalone_ready_delivery:{key[0]}:{key[1]}"
+        self._replace_alert_source(source)
+        return True
 
     def _revoke_auditor_authority(
         self,
