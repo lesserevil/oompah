@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-995
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Move gate and workflow publication I/O outside project locks
 parent: OOMPAH-992
@@ -11,13 +11,39 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T10:52:35.641259Z'
-updated_at: '2026-08-10T11:21:53.622437Z'
+updated_at: '2026-08-10T15:40:53.505171Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-3b4cff748c2c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-995
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ddd78a1176e804f72ad080fa150040718b71142804e515fd552a271ed0404008
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #798 merged as 2ab880be5; parent OOMPAH-992 is authoritatively terminal;
+      contained 6e3d69765 and 277b833cc are aggregate-patch-identical to reviewed
+      OOMPAH-995 branch through c57295dce. Recording shared-child completion as Done
+      because no separate parent review record exists.'
+    created_at: '2026-08-10T15:40:46.903841+00:00'
+    selected_ref: origin/OOMPAH-995
+    selected_sha: c57295dce36f0d0a529aef5b6c9f904ec343af6d
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
