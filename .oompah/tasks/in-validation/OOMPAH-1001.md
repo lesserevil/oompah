@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1001
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Import trusted protected recovery-PR exact-head gates before terminal-audit
   dispatch
@@ -12,7 +12,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-10T17:36:35.101810Z'
-updated_at: '2026-08-10T19:50:12.193792Z'
+updated_at: '2026-08-10T19:51:06.470688Z'
 work_branch: OOMPAH-1001
 target_branch: null
 review_url: null
@@ -36,6 +36,62 @@ oompah.integration:
   submitted_at: '2026-08-10T19:22:54.922877+00:00'
   updated_at: '2026-08-10T19:22:54.922877+00:00'
 oompah.work_branch: OOMPAH-1001
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-d765f0c89989
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1001
+    digest: b11b65e16b38d16d503cfa549a9010ea24103e06e70a9b87f7e31d37491c6bfa
+  - version: 1
+    audit_id: audit-32e7c981afdc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1001
+    digest: b11b65e16b38d16d503cfa549a9010ea24103e06e70a9b87f7e31d37491c6bfa
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d765f0c89989
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1001
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b11b65e16b38d16d503cfa549a9010ea24103e06e70a9b87f7e31d37491c6bfa
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-10T19:51:00.663431+00:00'
+    selected_ref: 1e8edb7bc7f8579e17d02610fd751ff9b5f812c2
+    selected_sha: 1e8edb7bc7f8579e17d02610fd751ff9b5f812c2
+  - version: 1
+    audit_id: audit-32e7c981afdc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1001
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b11b65e16b38d16d503cfa549a9010ea24103e06e70a9b87f7e31d37491c6bfa
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-10T19:51:00.663431+00:00'
+    selected_ref: 1e8edb7bc7f8579e17d02610fd751ff9b5f812c2
+    selected_sha: 1e8edb7bc7f8579e17d02610fd751ff9b5f812c2
+  attempt_history: []
 ---
 ## Summary
 
@@ -80,5 +136,10 @@ author: oompah
 created: 2026-08-10 19:50
 ---
 Branch quality gate passed for `1e8edb7bc7f8579e17d02610fd751ff9b5f812c2` using `make test` in 181.4s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-10 19:51
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
