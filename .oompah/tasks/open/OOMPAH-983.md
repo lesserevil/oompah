@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-983
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Make reserved workflow control-capacity proof deterministic on Python 3.13
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T03:38:07.660153Z'
-updated_at: '2026-08-10T03:38:07.660153Z'
+updated_at: '2026-08-10T03:38:26.939941Z'
 work_branch: null
 target_branch: null
 review_url: null
