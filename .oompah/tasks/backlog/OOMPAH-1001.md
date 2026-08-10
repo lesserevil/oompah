@@ -8,11 +8,12 @@ title: Import trusted protected recovery-PR exact-head gates before terminal-aud
 parent: null
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-1000
 labels: []
 assignee: null
 created_at: '2026-08-10T17:36:35.101810Z'
-updated_at: '2026-08-10T17:36:35.101810Z'
+updated_at: '2026-08-10T17:36:43.833730Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,6 +26,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: o999-protected-recovery-pr-gate-import-v1
   request_fingerprint: ea272e3261553b0afbf6159e7cf5993e453800bc18863cb9a23339b827c4abb9
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
