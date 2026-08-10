@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T16:13:42.956499Z'
-updated_at: '2026-08-10T16:14:55.613085Z'
+updated_at: '2026-08-10T16:54:17.130346Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,3 +37,25 @@ Regression of OOMPAH-953 observed during live OOMPAH-997 standalone delivery. Br
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 16:54
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-999`
+Target: `main`
+Head: `unknown`
+Command: `make test`
+Result: `infrastructure_error`
+Process: ended without subprocess exit evidence
+
+Infrastructure action required: repair or replace the operator-owned quality-gate runtime. No candidate CI-fix status was applied because the candidate command did not run.
+
+Output tail:
+```text
+Candidate CI was not run because the submitted review branch tip is unavailable in the managed repository.
+```
+---
+<!-- COMMENTS:END -->
