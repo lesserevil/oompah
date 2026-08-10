@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-986
 type: bug
-status: Ready to Integrate
+status: Merged
 priority: 1
 title: Prevent terminal-audit churn from starving unrelated workflow publication
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T04:41:10.778919Z'
-updated_at: '2026-08-10T06:01:06.520366Z'
+updated_at: '2026-08-10T06:17:12.425457Z'
 work_branch: OOMPAH-986
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/794
@@ -32,6 +32,35 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/794
 oompah.review_number: '794'
 oompah.target_branch: main
 oompah.review_head: 4c1b1fb3f52345048207f11bc2389db54f9da96b
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-7cf4a03baeb5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-986
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c4548ef77b3df343589114481820057562c904b85a649d578e136ff20fa6461e
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner reconciliation of already-landed exact delivery. Branch
+      head 4c1b1fb3f52345048207f11bc2389db54f9da96b passed the exact full Makefile
+      gate with 19,295 passed, 7 skipped, and 2 expected failures; protected PR #794
+      Python 3.11, 3.12, and 3.13 checks all succeeded; GitHub merged that exact head
+      to main as e7fa85dbe952917f1a293ac641104d4db5d5a3f2. The merged build is now
+      the healthy running service revision. This records verified delivery without
+      launching a redundant post-merge corpus gate.'
+    created_at: '2026-08-10T06:17:08.308819+00:00'
+    selected_ref: 4c1b1fb3f52345048207f11bc2389db54f9da96b
+    selected_sha: 4c1b1fb3f52345048207f11bc2389db54f9da96b
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
