@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T04:50:28.752372Z'
-updated_at: '2026-08-10T05:21:12.547475Z'
+updated_at: '2026-08-10T05:40:31.448738Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-10 05:21
 ---
 Implemented and pushed exact head d22d5d4a4fc4897241dba03ac62fdea2758459df on branch OOMPAH-987. The fix remembers a successful required full gate only within the exact active auditor session, denies later opaque/non-focused heavyweight inspection before validation-capacity acquisition, preserves focused and explicitly justified distinct validation, applies the fence to bridged API and native Codex command paths, and records denied_post_gate_inspection telemetry. Fail-closed Git helper/config classification and capacity=1 behavior are unchanged. Validation: 902 passed across test_validation_resource_lease.py, test_native_validation_guard.py, test_quality_gate.py, and test_auditor_contract.py; 73 passed in test_terminal_audit_observability.py; 4 focused ACP policy-threading tests passed; 6 focused end-to-end policy/queue/telemetry regressions passed; make terminal-audit-scan passed; make check-secrets passed; git diff --check passed; pre-commit hooks passed. Branch is clean and up to date with origin. Awaiting independent review before submission.
+---
+author: oompah
+created: 2026-08-10 05:40
+---
+Independent-review blocker fixed and pushed at exact head dcfbceebeab1e489e88a87dc9e8da6b6ddff8623. Session-local gate completion now requires a nonempty configured command and exact outer-whitespace-normalized command identity; classification.contains_configured is no longer pass proof. Regressions cover configured make test exiting 17 while make test || true exits 0 on both bridged API and native Codex paths: the compound command remains fail-closed/capacity-bearing, never sets _session_full_gate_passed, and the next opaque Git command is not misclassified as post-gate. Exact gate success still fences redundant inspection. Validation: 909 passed across the four affected modules in 136.09s; 7 exact identity/masked-failure regressions passed; make terminal-audit-scan passed; make check-secrets passed; git diff --check and pre-commit hooks passed. Branch is clean and up to date with origin. Awaiting renewed independent review before submission.
 ---
 <!-- COMMENTS:END -->
