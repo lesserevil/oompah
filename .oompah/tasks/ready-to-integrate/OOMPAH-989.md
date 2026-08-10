@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T10:37:51.650351Z'
+updated_at: '2026-08-10T10:46:42.659089Z'
 work_branch: OOMPAH-989
 target_branch: null
 review_url: null
@@ -176,5 +176,10 @@ author: oompah
 created: 2026-08-10 10:37
 ---
 PR 798's order-dependent quality-gate blocker is repaired and pushed at replacement head f2a3a397273c5d6f051ff6754b715bb4e64e2b8d. The OOMPAH-991 change is intentionally a narrow test-isolation commit on this same OOMPAH-989 branch/head because OOMPAH-989 remains the integration vehicle and its branch gate exposed the leak. It restores all restart-test cache/protocol globals and makes WebSocket bootstrap isolation clear to unavailable then restore exact prior state; production behavior is unchanged. Validation: deterministic former failure passes serial and xdist n=1, affected files 44/44, all known leakers then victim 10/10 repeated xdist runs, compileall and diff check green. Branch is clean, pushed, and exactly matches origin/OOMPAH-989 at f2a3a397273c5d6f051ff6754b715bb4e64e2b8d.
+---
+author: oompah
+created: 2026-08-10 10:46
+---
+OOMPAH-991 reviewer correction is pushed on the shared integration branch at replacement exact head c4ad83e47b1492e7526098dcf5816b3dfd3eb50b. The rejected f2a helper could rewind issue_revision without restoring the issue snapshot. The corrected helper isolates only state snapshot fields plus state_revision, preserves protocol_epoch and all issue-side state, and binds unavailable state to the current protocol epoch under the required locks. Restart-callback and live-WebSocket regressions prove issue invalidation generations remain coherent. Validation: affected files 45/45; original order failure serial and xdist green; complete 7-test leak/coherence pack passed 10/10 repeated xdist runs; compileall/diff/hooks green. Branch is clean, pushed, and matches origin/OOMPAH-989. Full gate remains deferred per the narrow PR 798 blocker direction.
 ---
 <!-- COMMENTS:END -->
