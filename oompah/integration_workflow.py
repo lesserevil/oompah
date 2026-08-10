@@ -5266,10 +5266,15 @@ class OrchestratorIntegrationActionBackend:
                 self._exact_standalone_submission, context
             )
 
-            def _workflow_authority_current() -> bool:
+            def _workflow_authority_locally_current() -> bool:
                 try:
                     context.check_interrupted()
                 except Exception:
+                    return False
+                return True
+
+            def _workflow_authority_current() -> bool:
+                if not _workflow_authority_locally_current():
                     return False
                 store = getattr(
                     self.landing_request_resolver,
@@ -5282,14 +5287,17 @@ class OrchestratorIntegrationActionBackend:
                     if callable(lock_factory)
                     else None
                 )
-                if project_lock is not None and not project_lock.acquire(
-                    blocking=False
-                ):
-                    return False
-                try:
+                lock_context = project_lock or contextlib.nullcontext()
+                with lock_context:
+                    # The lease can be revoked while this exact barrier waits
+                    # for an unrelated project mutation.  Recheck after lock
+                    # acquisition and again after the route read so contention
+                    # cannot hide a concurrent durable-workflow cancellation.
+                    if not _workflow_authority_locally_current():
+                        return False
                     issue = self._fresh_issue(context)
                     record = self._record(issue)
-                    return bool(
+                    current = bool(
                         issue is not None
                         and isinstance(record, IntegrationRecord)
                         and canonicalize_status(issue.state)
@@ -5299,9 +5307,9 @@ class OrchestratorIntegrationActionBackend:
                         and record.head_sha == expected_head
                         and self._standalone_route_is_current(issue, record)
                     )
-                finally:
-                    if project_lock is not None:
-                        project_lock.release()
+                    return bool(
+                        current and _workflow_authority_locally_current()
+                    )
 
             await asyncio.to_thread(
                 self.orchestrator._reconcile_one_standalone_ready_to_integrate_task,
@@ -5314,6 +5322,9 @@ class OrchestratorIntegrationActionBackend:
                     f"{str(getattr(context.job, 'lease_token', '') or '')}"
                 ),
                 workflow_authority_check=_workflow_authority_current,
+                workflow_local_authority_check=(
+                    _workflow_authority_locally_current
+                ),
             )
             observation = await asyncio.to_thread(
                 self._standalone_observation,

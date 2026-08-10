@@ -7304,8 +7304,16 @@ def test_standalone_review_gate_keeps_hot_polling_local_and_bounded(tmp_path):
     orch._branch_quality_gate = gate
     orch._quality_gate_worktree = MagicMock(return_value=str(repo))
     orch._quality_gate_branch_head = MagicMock(return_value=head)
+    workflow_full = MagicMock(return_value=True)
+    workflow_local = MagicMock(return_value=True)
 
-    authority = orch._claim_standalone_delivery_authority(project, issue)
+    authority = orch._claim_standalone_delivery_authority(
+        project,
+        issue,
+        workflow_generation="job-1:generation-1:lease-1",
+        workflow_authority_check=workflow_full,
+        workflow_local_authority_check=workflow_local,
+    )
     assert authority is not None
     remote_head = MagicMock(return_value=head)
     assert orch._set_standalone_delivery_head(
@@ -7316,6 +7324,8 @@ def test_standalone_review_gate_keeps_hot_polling_local_and_bounded(tmp_path):
     )
     tracker.reset_mock()
     remote_head.reset_mock()
+    workflow_full.reset_mock()
+    workflow_local.reset_mock()
 
     assert orch._review_quality_gate_passes(project, issue, "work", "main")
     is_current = gate.kwargs["is_current"]
@@ -7329,6 +7339,8 @@ def test_standalone_review_gate_keeps_hot_polling_local_and_bounded(tmp_path):
     assert tracker.fetch_issue_detail.call_count == 5
     assert tracker.fetch_all_issues.call_count == 5
     assert remote_head.call_count == 5
+    assert workflow_full.call_count == 5
+    assert workflow_local.call_count == 201
 
     issue.state = OPEN
     authority.revoked = True
@@ -7343,6 +7355,212 @@ def test_standalone_review_gate_keeps_hot_polling_local_and_bounded(tmp_path):
         tracker.fetch_all_issues.call_count,
         remote_head.call_count,
     )
+
+
+@pytest.mark.parametrize("revoke_while_contended", [False, True])
+def test_real_standalone_gate_distinguishes_project_contention_from_revocation(
+    tmp_path,
+    revoke_while_contended,
+):
+    """A running process survives a busy project fence until real lease loss."""
+
+    repo = _git_repo(tmp_path)
+    head = BranchQualityGate._head_sha(str(repo))
+    project = Project(
+        id="project-1",
+        name="project",
+        repo_url="https://example.test/org/repo",
+        repo_path=str(repo),
+        test_command="sleep 2" if revoke_while_contended else "sleep 0.4",
+    )
+    issue = Issue(
+        id="task-1",
+        identifier="task-1",
+        title="Task",
+        project_id=project.id,
+        state=READY_TO_INTEGRATE,
+        work_branch="work",
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    tracker.fetch_all_issues.return_value = [issue]
+    project_lock = threading.RLock()
+    project_store = MagicMock()
+    project_store.get.return_value = project
+    project_store.project_write_lock.return_value = project_lock
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.project_store = project_store
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._standalone_delivery_authority_lock = threading.RLock()
+    orch._standalone_delivery_authorities = {}
+    orch._branch_quality_gate = _gate(tmp_path / "quality.json", repo)
+    orch._quality_gate_worktree = MagicMock(return_value=str(repo))
+    orch._quality_gate_branch_head = MagicMock(return_value=head)
+    workflow_live = [True]
+    full_calls = 0
+    local_calls = 0
+
+    def workflow_full() -> bool:
+        nonlocal full_calls
+        full_calls += 1
+        with project_lock:
+            return workflow_live[0]
+
+    def workflow_local() -> bool:
+        nonlocal local_calls
+        local_calls += 1
+        return workflow_live[0]
+
+    authority = orch._claim_standalone_delivery_authority(
+        project,
+        issue,
+        workflow_generation="job-1:generation-1:lease-1",
+        workflow_authority_check=workflow_full,
+        workflow_local_authority_check=workflow_local,
+    )
+    assert authority is not None
+    remote_head = MagicMock(return_value=head)
+    assert orch._set_standalone_delivery_head(authority, "work", head, remote_head)
+    full_calls = 0
+    local_calls = 0
+    tracker.reset_mock()
+    remote_head.reset_mock()
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(
+                orch._review_quality_gate_passes,
+                project,
+                issue,
+                "work",
+                "main",
+            )
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline:
+                with BranchQualityGate._processes_lock:
+                    if BranchQualityGate._active_processes:
+                        break
+                time.sleep(0.01)
+            else:
+                raise AssertionError("quality gate process did not start")
+
+            with project_lock:
+                baseline_local_calls = local_calls
+                if revoke_while_contended:
+                    workflow_live[0] = False
+                    deadline = time.monotonic() + 1
+                    while time.monotonic() < deadline:
+                        with BranchQualityGate._processes_lock:
+                            if not BranchQualityGate._active_processes:
+                                break
+                        time.sleep(0.01)
+                    else:
+                        raise AssertionError(
+                            "confirmed workflow revocation did not stop gate"
+                        )
+                else:
+                    time.sleep(0.15)
+                    assert not future.done()
+            assert future.result(timeout=3) is (not revoke_while_contended)
+
+        assert local_calls > baseline_local_calls
+        if revoke_while_contended:
+            assert full_calls <= 5
+            assert orch._quality_gate_result_for(project.id, issue.id) is None
+        else:
+            assert 4 <= full_calls <= 5
+            # Passing evidence is consumed without leaving a transient
+            # outcome row; the True result above is the delivery handoff.
+            assert orch._quality_gate_result_for(project.id, issue.id) is None
+        # Full graph/head reads remain bounded to deterministic barriers;
+        # repeated local process polls never multiply them.
+        assert tracker.fetch_issue_detail.call_count <= 5
+        assert tracker.fetch_all_issues.call_count <= 5
+        assert remote_head.call_count <= 5
+    finally:
+        BranchQualityGate.cleanup_active_processes()
+
+
+@pytest.mark.parametrize(
+    ("failed_barrier", "command_ran"),
+    [(1, False), (3, True)],
+)
+def test_standalone_workflow_full_gate_barriers_remain_fail_closed(
+    tmp_path,
+    failed_barrier,
+    command_ran,
+):
+    """Exact workflow authority is still required pre-spawn and post-PASS."""
+
+    repo = _git_repo(tmp_path)
+    head = BranchQualityGate._head_sha(str(repo))
+    marker = tmp_path / "gate-ran"
+    project = Project(
+        id="project-1",
+        name="project",
+        repo_url="https://example.test/org/repo",
+        repo_path=str(repo),
+        test_command=f"touch {shlex.quote(str(marker))}",
+    )
+    issue = Issue(
+        id="task-1",
+        identifier="task-1",
+        title="Task",
+        project_id=project.id,
+        state=READY_TO_INTEGRATE,
+        work_branch="work",
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    tracker.fetch_all_issues.return_value = [issue]
+    project_store = MagicMock()
+    project_store.get.return_value = project
+    project_store.project_write_lock.return_value = threading.RLock()
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.project_store = project_store
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._standalone_delivery_authority_lock = threading.RLock()
+    orch._standalone_delivery_authorities = {}
+    orch._branch_quality_gate = _gate(tmp_path / "quality.json", repo)
+    orch._quality_gate_worktree = MagicMock(return_value=str(repo))
+    orch._quality_gate_branch_head = MagicMock(return_value=head)
+    barrier_calls = 0
+    failure_armed = False
+
+    def workflow_full() -> bool:
+        nonlocal barrier_calls, failure_armed
+        barrier_calls += 1
+        return not failure_armed or barrier_calls != failed_barrier
+
+    authority = orch._claim_standalone_delivery_authority(
+        project,
+        issue,
+        workflow_generation="job-1:generation-1:lease-1",
+        workflow_authority_check=workflow_full,
+        workflow_local_authority_check=lambda: True,
+    )
+    assert authority is not None
+    assert orch._set_standalone_delivery_head(
+        authority,
+        "work",
+        head,
+        lambda: head,
+    )
+    barrier_calls = 0
+    failure_armed = True
+
+    try:
+        assert not orch._review_quality_gate_passes(
+            project,
+            issue,
+            "work",
+            "main",
+        )
+    finally:
+        BranchQualityGate.cleanup_active_processes()
+
+    assert marker.exists() is command_ran
+    tracker.add_comment.assert_not_called()
 
 
 def test_capacity_wait_and_running_gate_keep_full_revalidation_o1(tmp_path):

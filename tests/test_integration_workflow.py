@@ -166,6 +166,7 @@ async def test_production_standalone_handler_invokes_only_exact_task_scope():
         expected_head_sha,
         workflow_generation,
         workflow_authority_check,
+        workflow_local_authority_check,
     ):
         calls.append(
             (
@@ -175,6 +176,7 @@ async def test_production_standalone_handler_invokes_only_exact_task_scope():
                 expected_head_sha,
                 workflow_generation,
                 workflow_authority_check(),
+                workflow_local_authority_check(),
             )
         )
         delivered = tracker.fetch_issue_detail(task_id)
@@ -225,6 +227,7 @@ async def test_production_standalone_handler_invokes_only_exact_task_scope():
             "a" * 40,
             "job-1:generation-1:lease-1",
             True,
+            True,
         )
     ]
     assert effect.receipt["review_number"] == "17"
@@ -233,6 +236,207 @@ async def test_production_standalone_handler_invokes_only_exact_task_scope():
     assert not backend.verify_action(
         "standalone_delivery", context, effect
     ).verified
+
+
+@pytest.mark.asyncio
+async def test_standalone_workflow_hot_check_ignores_project_lock_contention():
+    """A busy project fence is unknown to the hot poll, not revocation."""
+
+    selected = issue("TASK-CONTENTION")
+    selected.parent_id = None
+    selected.integration = replace(selected.integration, mode="standalone")
+    tracker = Tracker([selected])
+    project_lock = threading.RLock()
+    lock_held = threading.Event()
+    release_lock = threading.Event()
+    full_started = threading.Event()
+    full_result: list[bool] = []
+    workflow_live = [True]
+
+    def hold_project_lock() -> None:
+        with project_lock:
+            lock_held.set()
+            assert release_lock.wait(timeout=2)
+
+    holder = threading.Thread(target=hold_project_lock)
+    holder.start()
+    assert lock_held.wait(timeout=1)
+
+    def deliver(
+        _project_id,
+        task_id,
+        *,
+        workflow_authority_check,
+        workflow_local_authority_check,
+        **_kwargs,
+    ):
+        assert workflow_local_authority_check()
+
+        def run_full_check() -> None:
+            full_started.set()
+            full_result.append(workflow_authority_check())
+
+        full = threading.Thread(target=run_full_check)
+        full.start()
+        assert full_started.wait(timeout=1)
+        full.join(timeout=0.05)
+        assert full.is_alive(), "full authority check did not wait for project lock"
+        assert workflow_local_authority_check()
+        release_lock.set()
+        full.join(timeout=1)
+        assert not full.is_alive()
+        assert full_result == [True]
+        delivered = tracker.fetch_issue_detail(task_id)
+        delivered.state = "In Review"
+        delivered.review_number = "17"
+        delivered.review_head = delivered.integration.head_sha
+
+    project = SimpleNamespace(default_branch="main")
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            project_store=SimpleNamespace(
+                get=lambda _project_id: project,
+                project_write_lock=lambda _project_id: project_lock,
+            ),
+            _reconcile_one_standalone_ready_to_integrate_task=deliver,
+        ),
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=collector(tracker),
+        ),
+    )
+    decision = evaluate_task(selected, backend.binding.collector.collect(selected.id))
+    context = SimpleNamespace(
+        job=SimpleNamespace(
+            project_id="project-1",
+            task_id=selected.identifier,
+            generation="generation-1",
+            job_id="job-1",
+            lease_token="lease-1",
+            checkpoint={
+                "revalidation": {
+                    "evidence_revision": decision.evidence_revision,
+                    "details": {
+                        "task_branch": selected.integration.task_branch,
+                        "task_head": selected.integration.head_sha,
+                        "task_target": "main",
+                    },
+                }
+            },
+        ),
+        check_interrupted=lambda: (
+            None
+            if workflow_live[0]
+            else (_ for _ in ()).throw(RuntimeError("lease revoked"))
+        ),
+    )
+
+    try:
+        effect = await backend.apply_action("standalone_delivery", context)
+    finally:
+        release_lock.set()
+        holder.join(timeout=1)
+
+    assert not holder.is_alive()
+    assert effect.receipt["review_number"] == "17"
+
+
+@pytest.mark.asyncio
+async def test_standalone_workflow_revocation_wins_during_project_contention():
+    """A confirmed local lease loss still cancels while the project is busy."""
+
+    selected = issue("TASK-CONTENTION-REVOKED")
+    selected.parent_id = None
+    selected.integration = replace(selected.integration, mode="standalone")
+    tracker = Tracker([selected])
+    project_lock = threading.RLock()
+    lock_held = threading.Event()
+    release_lock = threading.Event()
+    workflow_live = [True]
+
+    def hold_project_lock() -> None:
+        with project_lock:
+            lock_held.set()
+            assert release_lock.wait(timeout=2)
+
+    holder = threading.Thread(target=hold_project_lock)
+    holder.start()
+    assert lock_held.wait(timeout=1)
+
+    def deliver(
+        *_args,
+        workflow_authority_check,
+        workflow_local_authority_check,
+        **_kwargs,
+    ):
+        assert workflow_local_authority_check()
+        full_result: list[bool] = []
+
+        def run_full_check() -> None:
+            full_result.append(workflow_authority_check())
+
+        full = threading.Thread(target=run_full_check)
+        full.start()
+        full.join(timeout=0.05)
+        assert full.is_alive(), "full authority check did not wait for project lock"
+        workflow_live[0] = False
+        assert not workflow_local_authority_check()
+        release_lock.set()
+        full.join(timeout=1)
+        assert not full.is_alive()
+        assert full_result == [False]
+
+    project = SimpleNamespace(default_branch="main")
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            project_store=SimpleNamespace(
+                get=lambda _project_id: project,
+                project_write_lock=lambda _project_id: project_lock,
+            ),
+            _reconcile_one_standalone_ready_to_integrate_task=deliver,
+        ),
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=collector(tracker),
+        ),
+    )
+    decision = evaluate_task(selected, backend.binding.collector.collect(selected.id))
+    context = SimpleNamespace(
+        job=SimpleNamespace(
+            project_id="project-1",
+            task_id=selected.identifier,
+            generation="generation-1",
+            job_id="job-1",
+            lease_token="lease-1",
+            checkpoint={
+                "revalidation": {
+                    "evidence_revision": decision.evidence_revision,
+                    "details": {
+                        "task_branch": selected.integration.task_branch,
+                        "task_head": selected.integration.head_sha,
+                        "task_target": "main",
+                    },
+                }
+            },
+        ),
+        check_interrupted=lambda: (
+            None
+            if workflow_live[0]
+            else (_ for _ in ()).throw(RuntimeError("lease revoked"))
+        ),
+    )
+
+    try:
+        with pytest.raises(WorkflowActionError, match="waiting for an exact"):
+            await backend.apply_action("standalone_delivery", context)
+    finally:
+        release_lock.set()
+        holder.join(timeout=1)
+
+    assert not holder.is_alive()
+    assert tracker.fetch_issue_detail(selected.id).state == READY_TO_INTEGRATE
 
 
 @pytest.mark.asyncio
