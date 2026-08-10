@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-999
 type: bug
-status: In Progress
+status: In Validation
 priority: 1
 title: Do not revoke healthy quality gates on project-lock contention
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T16:13:42.956499Z'
-updated_at: '2026-08-10T16:54:30.305982Z'
+updated_at: '2026-08-10T17:23:01.312570Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,62 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: oompah-997-gate-lock-contention-20260810
   request_fingerprint: 153fd005967abae58db03e565a0dda2ec93c87e3bf24c07ecaa9e6e381dbfee6
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-8b68e42682a2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-999
+    digest: 807aaf8e132e5bf7583701aa44b3db22f8edb5929a01df77d5bc97ec6a772bf5
+  - version: 1
+    audit_id: audit-31373eb67eb6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-999
+    digest: 807aaf8e132e5bf7583701aa44b3db22f8edb5929a01df77d5bc97ec6a772bf5
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8b68e42682a2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-999
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 807aaf8e132e5bf7583701aa44b3db22f8edb5929a01df77d5bc97ec6a772bf5
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-10T17:22:55.380838+00:00'
+    selected_ref: origin/OOMPAH-999
+    selected_sha: 6418a935de7b4aab93a24af4756a54b344463513
+  - version: 1
+    audit_id: audit-31373eb67eb6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-999
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 807aaf8e132e5bf7583701aa44b3db22f8edb5929a01df77d5bc97ec6a772bf5
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-10T17:22:55.380838+00:00'
+    selected_ref: origin/OOMPAH-999
+    selected_sha: 6418a935de7b4aab93a24af4756a54b344463513
+  attempt_history: []
 ---
 ## Summary
 
@@ -62,5 +118,10 @@ author: oompah
 created: 2026-08-10 16:54
 ---
 Recovery head 6418a935de7b4aab93a24af4756a54b344463513 is pushed and protected PR #799 is open: https://github.com/lesserevil/oompah/pull/799. It preserves exact OOMPAH-997 94f1f5b84aa60bebf02cdd7d049de698df1e79ee, OOMPAH-998 9bf6011ac2481cbf3f73fe23085788814aa69434, and OOMPAH-999 76c86f0d760e4fa03361031d2055e02ade116b08 commits as ancestors. Exact-head verification: 815 combined focused tests passed; complete make test passed 19,472 tests with 7 skipped and 2 xfailed, zero failures, in 21m05s; terminal status-write scan, secret scan, diff check, and independent adversarial review passed. Project remains paused while protected Python 3.11/3.12/3.13 CI runs.
+---
+author: oompah
+created: 2026-08-10 17:23
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
