@@ -5,13 +5,16 @@ status: In Progress
 priority: 1
 title: Bound task creation when quality-gate reconciliation owns project mutation
 parent: null
-children: []
+children:
+- OOMPAH-993
+- OOMPAH-994
+- OOMPAH-995
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T10:32:43.695792Z'
-updated_at: '2026-08-10T10:33:02.359804Z'
+updated_at: '2026-08-10T10:52:36.702274Z'
 work_branch: null
 target_branch: null
 review_url: null
