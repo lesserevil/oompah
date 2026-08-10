@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T09:03:51.915732Z'
+updated_at: '2026-08-10T09:12:07.010994Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,5 +67,10 @@ author: oompah
 created: 2026-08-10 09:03
 ---
 Implementation checkpoint pushed at b865539bf on OOMPAH-989. Replacement now serializes whole cutovers, drains sink-local admitted EventBus and legacy callbacks outside provider/lifecycle/ownership locks, preserves supported plain callbacks, and rolls back on bounded timeout without switching the installed owner. IPC state publication is fenced by exact source+epoch+generation; lifecycle requests advance that authority and shutdown revokes it. Added migration and deterministic gen0-to-gen1 cached-true, plain-callback drain, timeout rollback, and concurrent replacement ABA tests. Verification: 1,359 focused regressions passed (3 existing warnings); 110 post-commit core tests passed; exact six-case race pack passed 10/10 repetitions (60/60). origin/main remains 41ac37dbd; branch is pushed/up to date. Full make test intentionally deferred to the configured review-ready branch gate; task left In Progress for review.
+---
+author: oompah
+created: 2026-08-10 09:12
+---
+Reviewer fail-open blocker fixed and pushed at exact head d2cbe93047a08085f784699f7ffb88cae703af0a. Lifecycle IPC writes now require a non-empty activated source ID plus explicit epoch and generation whenever source_is_current is supplied; missing authority is rejected at OrchestratorIPC.put_kv, and Orchestrator skips the lifecycle IPC sink when set_orchestrator source activation failed. Non-lifecycle source-less publish_state compatibility remains unchanged and is explicitly tested. Real shared-SQLite activation-failure regression proves an unclaimed lifecycle publisher cannot overwrite replacement-owned state. Rollback re-audit found no other partial-advance, ABA, or lock-order blocker. Evidence: exact fail-open/generation/replacement selector 4 passed; restart+EventBus+IPC core 112 passed; broad focused regression selection 1,361 passed with 3 existing warnings; git diff/check and commit hooks passed. Branch OOMPAH-989 is clean and up to date with origin. Full gate not launched pending re-review.
 ---
 <!-- COMMENTS:END -->
