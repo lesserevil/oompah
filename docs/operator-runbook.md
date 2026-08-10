@@ -122,6 +122,34 @@ it does not make release branches normal task targets. See
 [Release Delivery](release-addendums.md) for configuration, commit selection,
 status evidence, retry, and migration procedures.
 
+### 1.4 Protected workflow quality evidence
+
+Oompah can reuse a protected pull-request workflow as the full terminal-audit
+gate for an exact recovery revision. This is disabled by default. Enable it
+only through `OOMPAH_PROTECTED_WORKFLOW_QUALITY_EVIDENCE_JSON` in `.env`; the
+strict schema and a complete example are documented in `.env.example`.
+
+Treat each allowlist entry as a security policy. Pin the repository, target
+branch, workflow ID and path, workflow blob SHA, GitHub App identity, exact
+matrix job names, command-bearing step names, and the project's full test
+command. Use `explicit_review_head` only when the pinned workflow explicitly
+checks out the pull request head before running that command. The
+`merge_tree_equivalent` mode is for historical recovery runs and is accepted
+only when the verified merge tree is byte-for-byte equal to the review-head
+tree.
+
+When the workflow, job names, step names, app, or test command changes:
+
+1. Review the new workflow definition and obtain its exact Git blob SHA.
+2. Replace the complete matching allowlist entry in `.env`; do not append an
+   overlapping entry.
+3. Run `make restart` so the new operator policy is loaded.
+
+Invalid or ambiguous policy prevents startup. Disabling or changing the policy
+also revokes prior imported evidence immediately: an auditor already holding a
+reuse policy must run the ordinary full gate if its exact trust fingerprint is
+no longer current. Aggregate CI status is never sufficient for this path.
+
 ---
 
 ## 2. Installation
