@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-984
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Make completed-call settlement recycle proof deterministic on Python 3.13
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T03:51:51.943285Z'
-updated_at: '2026-08-10T05:39:39.419710Z'
+updated_at: '2026-08-10T05:46:38.807602Z'
 work_branch: OOMPAH-984
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/792
@@ -47,6 +47,29 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-984
     digest: 89e451e4399203f69f3c2ca3ba3e04385e0e0c6d611a21e73dee232c14705e6b
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-049781466642
+    project_id: proj-14849f1b
+    task_id: OOMPAH-984
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 89e451e4399203f69f3c2ca3ba3e04385e0e0c6d611a21e73dee232c14705e6b
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner terminal override after exact accepted head 6473c14fdf8e148472c917ec3f1695c98713f074
+      passed direct make test with 19,279 tests, protected Python 3.11/3.12/3.13 CI,
+      and PR #792 merged as 148db44a97e42140160a428bd11eed2c50f75381. The service
+      then launched a redundant post-merge full gate despite authoritative exact evidence;
+      OOMPAH-988 tracks the deployed post-integration gate-reuse defect.'
+    created_at: '2026-08-10T05:46:34.185421+00:00'
+    selected_ref: 6473c14fdf8e148472c917ec3f1695c98713f074
+    selected_sha: 6473c14fdf8e148472c917ec3f1695c98713f074
+    applied: false
   version: 1
   pending_chain:
   - version: 1
