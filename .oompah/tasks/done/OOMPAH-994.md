@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-994
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Make API task creation durable, idempotent, and bounded
 parent: OOMPAH-992
@@ -11,13 +11,39 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T10:52:30.794441Z'
-updated_at: '2026-08-10T11:11:59.171051Z'
+updated_at: '2026-08-10T15:40:33.482994Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-82c1785cd257
+    project_id: proj-14849f1b
+    task_id: OOMPAH-994
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e08269f0228e329a40c19efb50000eee1cf784f00ab6e3dfb7c3b5d2654e8868
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #798 merged as 2ab880be5; parent OOMPAH-992 is authoritatively terminal;
+      contained 5daf54016 is stable-patch-identical to reviewed OOMPAH-994 head 3d5716069.
+      Recording shared-child completion as Done because no separate parent review
+      record exists.'
+    created_at: '2026-08-10T15:40:27.721463+00:00'
+    selected_ref: origin/OOMPAH-994
+    selected_sha: 3d5716069ebb80fe3bad5121c44912cc76d4ccda
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
