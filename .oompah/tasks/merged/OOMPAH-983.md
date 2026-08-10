@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T03:38:07.660153Z'
-updated_at: '2026-08-10T05:14:55.944711Z'
+updated_at: '2026-08-10T05:15:09.628453Z'
 work_branch: OOMPAH-983
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/791
@@ -57,6 +57,16 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-10T05:05:25.244646+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-983
+    target_state: Merged
+    evidence_fingerprint: 4d63c3ce2dbe33ac32df122b78d36b7bf1b705d2274474c1fe6da59f293b2aaa
+    audit_ids:
+    - audit-5d61600eb469
+    - audit-6462080061c4
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T05:15:01.128530+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-983
@@ -71,6 +81,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-10T05:05:25.244657+00:00'
     applied_at: '2026-08-10T05:05:33.810171+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-e670fa37e677
@@ -94,7 +105,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T05:14:51.095799+00:00'
     selected_ref: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
     selected_sha: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -141,7 +152,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-983
     target_state: Merged
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -171,7 +182,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T04:18:07.261452+00:00'
     selected_ref: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
     selected_sha: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
-    updated_at: '2026-08-10T05:09:58.244981+00:00'
+    updated_at: '2026-08-10T05:15:01.128486+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-315a836a8421
@@ -204,13 +215,13 @@ oompah.terminal_audit:
     selected_ref: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
     selected_sha: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
 oompah.task_costs:
-  total_input_tokens: 210
-  total_output_tokens: 6398
+  total_input_tokens: 328
+  total_output_tokens: 6422
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 210
-      output_tokens: 6398
+      input_tokens: 328
+      output_tokens: 6422
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -219,6 +230,12 @@ oompah.task_costs:
     output_tokens: 6398
     cost_usd: 0.0
     recorded_at: '2026-08-10T05:05:43.723601+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 118
+    output_tokens: 24
+    cost_usd: 0.0
+    recorded_at: '2026-08-10T05:15:06.561092+00:00'
 ---
 ## Summary
 
@@ -296,5 +313,22 @@ author: oompah
 created: 2026-08-10 05:10
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-10 05:15
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Project-owner terminal override after exact accepted head 2a10a77a32b2b38e11b78b3137e13d289dc866d9 passed the authoritative branch gate, protected Python 3.11/3.12/3.13 CI, and an independent Done audit with 19,279 passing tests; PR #791 merged as 0b1b035c882ffc5f1fe411168b425f3eaf127bae and the exact head is contained in origin/main. The Merged-stage auditor redundantly launched another full make test despite deployed OOMPAH-980 gate reuse; OOMPAH-988 tracks that regression.
+---
+author: oompah
+created: 2026-08-10 05:15
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 6
+- Tokens: 118 in / 24 out [142 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 5s
+- Log: OOMPAH-983__20260810T051010Z.jsonl
 ---
 <!-- COMMENTS:END -->
