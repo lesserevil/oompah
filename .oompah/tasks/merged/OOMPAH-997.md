@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-997
 type: bug
-status: Ready to Integrate
+status: Merged
 priority: 2
 title: '[backend:workflow_runtime] Durable workflow source evaluation failed for proj-14849f1b'
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T15:04:29.205558Z'
-updated_at: '2026-08-10T15:34:30.268325Z'
+updated_at: '2026-08-10T17:50:12.292724Z'
 work_branch: OOMPAH-997
 target_branch: null
 review_url: null
@@ -28,6 +28,29 @@ oompah.integration:
   submitted_at: '2026-08-10T15:34:15.105659+00:00'
   updated_at: '2026-08-10T15:34:15.105659+00:00'
 oompah.work_branch: OOMPAH-997
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-4b9d123ce987
+    project_id: proj-14849f1b
+    task_id: OOMPAH-997
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fdafcf1a520b0a6900094f68884facb42470b5db466e7a56038d6e5770d757c2
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-10T17:50:08.081293+00:00'
+    selected_ref: 94f1f5b84aa60bebf02cdd7d049de698df1e79ee
+    selected_sha: 94f1f5b84aa60bebf02cdd7d049de698df1e79ee
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
