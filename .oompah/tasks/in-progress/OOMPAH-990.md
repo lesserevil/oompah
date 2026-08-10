@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:46:32.018670Z'
-updated_at: '2026-08-10T07:42:37.587346Z'
+updated_at: '2026-08-10T07:52:36.253721Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-08-10 07:42
 ---
 Second re-review replacement is pushed at exact head 7690005cfd0ba845e42752b8c5b5c30f7efa735d, superseding 46cc659bb. Authority-less producer identity now binds canonical observed lifecycle status in addition to project/task/branch/target/head/command. Publication re-resolves the current project command and task under the project lock, requires an eligible unchanged status, and rejects/retire only the stale producer row on Ready→Open/In Progress/Needs Human drift. A fully current generation can retire an older same-head command outcome so its PASS recovers, while a late old-command PASS cannot clear a current failure. Broad affected evidence: 362 passed across quality gate, standalone delivery, and delivery recovery modules (one unrelated warning); terminal mutation scan 20/20; compile, secrets, and commit hooks passed. Worktree is clean/synchronized. No full gate or submit pending re-review.
+---
+author: oompah
+created: 2026-08-10 07:52
+---
+Replacement head 1ef734b2561f48070d005782f5f63ebbd94a05d9 pushed after final blocker fix. Publication now re-resolves the latest project quality-gate command under the common project fence for explicit-authority and authority-less producers, rejecting late old-command results before they can mutate current evidence. Added a real standalone-authority lifecycle regression proving old-command PASS is rejected while current-command failure remains and current-command PASS consumes it. Verification: targeted 4 passed; affected suites 363 passed; compileall; terminal audit 20/20; paranoid secret scan and commit hooks passed. Full gate and submission intentionally deferred pending final independent re-review.
 ---
 <!-- COMMENTS:END -->
