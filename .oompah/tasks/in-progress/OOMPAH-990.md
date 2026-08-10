@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-990
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Retire late interrupted quality-gate alerts after terminal task reconciliation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:46:32.018670Z'
-updated_at: '2026-08-10T06:46:32.018670Z'
+updated_at: '2026-08-10T06:46:52.902312Z'
 work_branch: null
 target_branch: null
 review_url: null
