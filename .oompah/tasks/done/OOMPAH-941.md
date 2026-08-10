@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:20.700706Z'
-updated_at: '2026-08-09T16:26:38.460642Z'
+updated_at: '2026-08-10T00:11:02.217024Z'
 work_branch: OOMPAH-941
 target_branch: null
 review_url: null
@@ -35,6 +35,16 @@ oompah.terminal_audit:
   oompah.terminal_audit_tracker_projections:
   - version: 1
     audit_id: audit-aec6dc669619
+    project_id: proj-14849f1b
+    task_id: OOMPAH-941
+    digest: 33b6bc646cffb9ddb9cf92ed12548373f29912c4e39c70fe4c34dd54ba065b20
+  - version: 1
+    audit_id: audit-9c89946caa26
+    project_id: proj-14849f1b
+    task_id: OOMPAH-941
+    digest: 33b6bc646cffb9ddb9cf92ed12548373f29912c4e39c70fe4c34dd54ba065b20
+  - version: 1
+    audit_id: audit-24922aae5509
     project_id: proj-14849f1b
     task_id: OOMPAH-941
     digest: 33b6bc646cffb9ddb9cf92ed12548373f29912c4e39c70fe4c34dd54ba065b20
@@ -109,6 +119,46 @@ oompah.terminal_audit:
     selected_ref: 9996c0f8e8b64d83ee59bd65d3552f034df6031a
     selected_sha: 9996c0f8e8b64d83ee59bd65d3552f034df6031a
     updated_at: '2026-08-09T16:25:07.746314+00:00'
+  - version: 1
+    audit_id: audit-9c89946caa26
+    project_id: proj-14849f1b
+    task_id: OOMPAH-941
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 33b6bc646cffb9ddb9cf92ed12548373f29912c4e39c70fe4c34dd54ba065b20
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-workflow-rollup
+      source: integrator
+    previous_state: Done
+    created_at: '2026-08-10T00:11:00.665341+00:00'
+    selected_ref: 9996c0f8e8b64d83ee59bd65d3552f034df6031a
+    selected_sha: 9996c0f8e8b64d83ee59bd65d3552f034df6031a
+  - version: 1
+    audit_id: audit-24922aae5509
+    project_id: proj-14849f1b
+    task_id: OOMPAH-941
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 33b6bc646cffb9ddb9cf92ed12548373f29912c4e39c70fe4c34dd54ba065b20
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-workflow-rollup
+      source: integrator
+    previous_state: Done
+    created_at: '2026-08-10T00:11:00.665341+00:00'
+    selected_ref: 9996c0f8e8b64d83ee59bd65d3552f034df6031a
+    selected_sha: 9996c0f8e8b64d83ee59bd65d3552f034df6031a
   attempt_history:
   - version: 1
     attempt_id: attempt-e5838e77fa33
