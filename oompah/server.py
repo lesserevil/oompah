@@ -1764,6 +1764,18 @@ _api_control_thread_pool = ThreadPoolExecutor(
     max_workers=2,
     thread_name_prefix="api-control",
 )
+# Resume may need to finish persistence recovery while status-changing webhook
+# work owns the control pool.  Keep that lifecycle repair independently
+# schedulable so a saturated webhook lane cannot strand a cancelled cutover.
+_api_lifecycle_thread_pool = ThreadPoolExecutor(
+    max_workers=2,
+    thread_name_prefix="api-lifecycle",
+)
+# The credential-safe lifecycle client has a 30 second HTTP deadline.  Lock
+# admission must resolve before that deadline so a caller receives an explicit,
+# retryable rejection instead of an ambiguous transport timeout.
+_LIFECYCLE_ADMISSION_TIMEOUT_SECONDS = 20.0
+_LIFECYCLE_ADMISSION_POLL_SECONDS = 0.01
 _issues_broadcast_pending = False
 _STATE_THROTTLE_MS = 500  # Don't broadcast state more than every 500ms
 _state_broadcast_scheduled = False
@@ -1786,6 +1798,58 @@ async def _run_control_api_io(
     loop = asyncio.get_running_loop()
     call = functools.partial(func, *args, **kwargs)
     return await loop.run_in_executor(_api_control_thread_pool, call)
+
+
+async def _run_lifecycle_api_io(
+    func: Callable[..., Any], /, *args: Any, **kwargs: Any
+) -> Any:
+    """Run lifecycle recovery outside webhook and ordinary API queues."""
+
+    loop = asyncio.get_running_loop()
+    call = functools.partial(func, *args, **kwargs)
+    return await loop.run_in_executor(_api_lifecycle_thread_pool, call)
+
+
+class _LifecycleAdmissionBusy(RuntimeError):
+    """The lifecycle fence could not acquire its cross-thread lock in time."""
+
+
+@contextlib.asynccontextmanager
+async def _lifecycle_admission(
+    orch: Any,
+    *,
+    timeout_seconds: float | None = _LIFECYCLE_ADMISSION_TIMEOUT_SECONDS,
+):
+    """Acquire the provider fence without ever parking the HTTP event loop."""
+
+    lock = getattr(orch, "_provider_admission_lock", None)
+    if lock is None:
+        yield
+        return
+    loop = asyncio.get_running_loop()
+    deadline = (
+        None
+        if timeout_seconds is None
+        else loop.time() + max(float(timeout_seconds), 0.0)
+    )
+    while not lock.acquire(blocking=False):
+        if deadline is not None and loop.time() >= deadline:
+            raise _LifecycleAdmissionBusy(
+                "lifecycle admission is busy; retry the request"
+            )
+        remaining = (
+            _LIFECYCLE_ADMISSION_POLL_SECONDS
+            if deadline is None
+            else min(
+                _LIFECYCLE_ADMISSION_POLL_SECONDS,
+                max(deadline - loop.time(), 0.0),
+            )
+        )
+        await asyncio.sleep(max(remaining, 0.0))
+    try:
+        yield
+    finally:
+        lock.release()
 
 
 async def _run_task_handoff_mutation(
@@ -3262,8 +3326,10 @@ async def _ensure_issues_snapshot_refresh(
     # Generation reads may take a native tracker's repository lock.  Never
     # take that lock while holding the snapshot lock: lifecycle mutations
     # notify cache invalidation in the opposite tracker -> snapshot order.
-    observed_sources_match = not observed_source_generations or (
-        _issues_snapshot_sources_match(orch, observed_source_generations)
+    observed_sources_match = not observed_source_generations or await _run_api_io(
+        _issues_snapshot_sources_match,
+        orch,
+        observed_source_generations,
     )
 
     with _issues_snapshot_lock:
@@ -3328,16 +3394,24 @@ async def _ensure_issues_snapshot_refresh(
                         _fetch_and_serialize_issues,
                         orch,
                     )
-                    result = (board, _current_tracker_source_generations(orch))
+                    source_generations = await _run_api_io(
+                        _current_tracker_source_generations,
+                        orch,
+                    )
+                    result = (board, source_generations)
                 duration_ms = (time.monotonic() - start) * 1000
                 board, source_generations = result
-                accepted = _set_issues_snapshot(
-                    board,
-                    duration_ms=duration_ms,
-                    orch_id=id(orch),
-                    source_generations=source_generations,
-                    source_authority=orch,
-                    expected_issue_revision=expected_issue_revision,
+                accepted = await loop.run_in_executor(
+                    _api_thread_pool,
+                    functools.partial(
+                        _set_issues_snapshot,
+                        board,
+                        duration_ms=duration_ms,
+                        orch_id=id(orch),
+                        source_generations=source_generations,
+                        source_authority=orch,
+                        expected_issue_revision=expected_issue_revision,
+                    ),
                 )
                 if duration_ms > 1000:
                     logger.warning(
@@ -3346,8 +3420,10 @@ async def _ensure_issues_snapshot_refresh(
                         _issue_count_from_board(board),
                     )
                 if accepted and broadcast and _ws_clients:
-                    payload, revision = _issues_snapshot_payload_with_revision(
-                        allow_empty=False, orch=orch
+                    payload, revision = await _run_api_io(
+                        _issues_snapshot_payload_with_revision,
+                        allow_empty=False,
+                        orch=orch,
                     )
                     if payload is not None:
                         await _broadcast(
@@ -3364,8 +3440,10 @@ async def _ensure_issues_snapshot_refresh(
                     _issues_snapshot["error"] = str(exc)
                     _issues_snapshot["duration_ms"] = round(duration_ms, 3)
                 if broadcast and _ws_clients:
-                    payload, revision = _issues_snapshot_payload_with_revision(
-                        allow_empty=False, orch=orch
+                    payload, revision = await _run_api_io(
+                        _issues_snapshot_payload_with_revision,
+                        allow_empty=False,
+                        orch=orch,
                     )
                     if payload is not None:
                         await _broadcast(
@@ -4454,8 +4532,10 @@ async def _do_broadcast_issues() -> None:
         # Only broadcast if refresh completed — this prevents stale payloads from
         # overwriting newer state (critical for duplicate-screening sync).
         if refresh_completed and _ws_clients:
-            payload, revision = _issues_snapshot_payload_with_revision(
-                allow_empty=False, orch=orch
+            payload, revision = await _run_api_io(
+                _issues_snapshot_payload_with_revision,
+                allow_empty=False,
+                orch=orch,
             )
             if payload is not None:
                 await _broadcast(
@@ -4581,8 +4661,10 @@ async def websocket_endpoint(ws: WebSocket):
         # Send initial state + issues immediately
         orch = _get_orchestrator()
         await _send_ws(ws, _current_state_message())
-        payload, issue_revision = _issues_snapshot_payload_with_revision(
-            allow_empty=False, orch=orch
+        payload, issue_revision = await _run_api_io(
+            _issues_snapshot_payload_with_revision,
+            allow_empty=False,
+            orch=orch,
         )
         if payload is not None:
             await _send_ws(
@@ -4694,8 +4776,10 @@ async def _handle_full_sync(ws: "WebSocket", orch: Any) -> None:
             # 3. Read issues + revision atomically.  The lock inside
             #    _issues_snapshot_payload_with_revision ensures the payload and
             #    its ``data_revision`` come from the same snapshot generation.
-            issues_payload, issue_revision = _issues_snapshot_payload_with_revision(
-                allow_empty=False, orch=orch
+            issues_payload, issue_revision = await _run_api_io(
+                _issues_snapshot_payload_with_revision,
+                allow_empty=False,
+                orch=orch,
             )
             if issues_payload is None:
                 raise RuntimeError("fresh issue snapshot is unavailable")
@@ -7356,17 +7440,24 @@ async def api_issues(request: Request):
         orch = _get_orchestrator()
         filter_project = request.query_params.get("project_id")
         await _ensure_issues_snapshot_refresh(orch, broadcast=bool(_ws_clients))
-        payload = _issues_snapshot_payload(
-            filter_project=filter_project, allow_empty=False, orch=orch
+        payload = await _run_api_io(
+            _issues_snapshot_payload,
+            filter_project=filter_project,
+            allow_empty=False,
+            orch=orch,
         )
         if payload is None:
             await _wait_for_issues_snapshot_refresh()
-            payload = _issues_snapshot_payload(
-                filter_project=filter_project, allow_empty=False, orch=orch
+            payload = await _run_api_io(
+                _issues_snapshot_payload,
+                filter_project=filter_project,
+                allow_empty=False,
+                orch=orch,
             )
         if payload is None:
             duration_ms = (time.monotonic() - t_start) * 1000
             _record_api_latency("/api/v1/issues", duration_ms, ok=False)
+            headers = await _run_api_io(_issues_snapshot_headers, orch)
             return JSONResponse(
                 {
                     "error": {
@@ -7375,11 +7466,12 @@ async def api_issues(request: Request):
                     }
                 },
                 status_code=503,
-                headers=_issues_snapshot_headers(orch),
+                headers=headers,
             )
         duration_ms = (time.monotonic() - t_start) * 1000
         _record_api_latency("/api/v1/issues", duration_ms)
-        return JSONResponse(payload, headers=_issues_snapshot_headers(orch))
+        headers = await _run_api_io(_issues_snapshot_headers, orch)
+        return JSONResponse(payload, headers=headers)
     except Exception as exc:
         _record_api_latency(
             "/api/v1/issues", (time.monotonic() - t_start) * 1000, ok=False
@@ -17059,8 +17151,21 @@ async def api_orchestrator_quiesce():
                 {"ok": True, "quiesced": True, "ipc_command_id": cmd_id}
             )
         orch = _get_orchestrator()
-        orch.quiesce()
+        async with _lifecycle_admission(
+            orch,
+            timeout_seconds=_LIFECYCLE_ADMISSION_TIMEOUT_SECONDS,
+        ):
+            # ``quiesce`` re-enters the real orchestrator's RLock.  The outer
+            # cooperative acquisition is the important boundary: a workflow
+            # thread may own that lock, but HTTP health and cancellation keep
+            # receiving event-loop turns while we wait.
+            orch.quiesce()
         return JSONResponse({"ok": True, "quiesced": True})
+    except _LifecycleAdmissionBusy as exc:
+        return JSONResponse(
+            {"ok": False, "quiesced": False, "retryable": True, "error": str(exc)},
+            status_code=503,
+        )
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
@@ -17077,7 +17182,7 @@ async def api_orchestrator_resume():
             cmd_id = _ipc.enqueue_command("unpause")
             return JSONResponse({"ok": True, "paused": False, "ipc_command_id": cmd_id})
         orch = _get_orchestrator()
-        resumed = orch.unpause()
+        resumed = await _run_lifecycle_api_io(orch.unpause)
         if resumed is False:
             return JSONResponse(
                 {
@@ -17151,7 +17256,10 @@ async def api_orchestrator_restart(request: Request):
             )
         request_id = supplied_request_id or str(uuid.uuid4())
         admission_lock = getattr(orch, "_provider_admission_lock", None)
-        with admission_lock or contextlib.nullcontext():
+        async with _lifecycle_admission(
+            orch,
+            timeout_seconds=_LIFECYCLE_ADMISSION_TIMEOUT_SECONDS,
+        ):
             running_count = len(orch.state.running)
             in_progress = bool(getattr(orch, "_restart_in_progress", False))
             existing_request_id = getattr(orch, "_restart_request_id", None)
@@ -17354,19 +17462,51 @@ async def api_orchestrator_restart(request: Request):
                             failed = completed.exception() is not None
                         except BaseException:
                             failed = True
-                    with admission_lock or contextlib.nullcontext():
+
+                    def _clear_locked() -> None:
                         if getattr(orch, "_restart_drain_task", None) is completed:
                             if failed:
                                 _restore_restart_snapshot()
                             else:
                                 orch._restart_drain_task = None
-                    if failed:
+
+                    def _after_clear() -> None:
+                        if not failed:
+                            return
                         save_paused = getattr(orch, "_save_paused_state", None)
                         if callable(save_paused):
                             save_paused()
                         notify = getattr(orch, "_notify_observers", None)
                         if callable(notify):
                             notify()
+
+                    # The common uncontended path retains synchronous callback
+                    # semantics used by lightweight embedders and tests.  A
+                    # workflow thread owning the fence must never park the API
+                    # event loop, so only that contended path is deferred.
+                    if admission_lock is None or admission_lock.acquire(
+                        blocking=False
+                    ):
+                        try:
+                            _clear_locked()
+                        finally:
+                            if admission_lock is not None:
+                                admission_lock.release()
+                        _after_clear()
+                        return
+
+                    async def _clear_when_available() -> None:
+                        async with _lifecycle_admission(
+                            orch, timeout_seconds=None
+                        ):
+                            _clear_locked()
+                        if failed:
+                            await _run_lifecycle_api_io(_after_clear)
+
+                    asyncio.create_task(
+                        _clear_when_available(),
+                        name=f"restart-drain-cleanup-{existing_request_id}",
+                    )
 
                 drain_task.add_done_callback(_clear_drain_task)
                 publication_gate.set()
@@ -17412,6 +17552,11 @@ async def api_orchestrator_restart(request: Request):
                 "draining": running_count,
                 "drain_timeout_s": drain_timeout,
             }
+        )
+    except _LifecycleAdmissionBusy as exc:
+        return JSONResponse(
+            {"ok": False, "retryable": True, "error": str(exc)},
+            status_code=503,
         )
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)

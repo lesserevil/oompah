@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import logging
+import threading
 import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -402,6 +404,55 @@ async def test_refresh_validates_tracker_sources_outside_snapshot_lock(monkeypat
         with server_module._issues_snapshot_lock:
             assert server_module._issues_refresh_task is None
     finally:
+        await _reset_issue_snapshot()
+
+
+@pytest.mark.asyncio
+async def test_slow_snapshot_authority_probe_never_blocks_event_loop(monkeypatch):
+    """Workflow publication may hold tracker authority while HTTP stays live."""
+
+    await _reset_issue_snapshot()
+    orch = MagicMock()
+    orch.project_store.list_all.return_value = []
+    entered = threading.Event()
+    release = threading.Event()
+
+    def _slow_sources_match(_orch, _generations):
+        entered.set()
+        assert release.wait(timeout=2)
+        return True
+
+    monkeypatch.setattr(
+        server_module,
+        "_issues_snapshot_sources_match",
+        _slow_sources_match,
+    )
+    try:
+        with server_module._issues_snapshot_lock:
+            server_module._issues_snapshot.update(
+                {
+                    "data": {"Open": []},
+                    "orch_id": id(orch),
+                    "created_at_monotonic": time.monotonic(),
+                    "source_generations": {"proj-1": "commit-a:1"},
+                    "invalidated": False,
+                    "error": None,
+                }
+            )
+
+        refresh = asyncio.create_task(
+            server_module._ensure_issues_snapshot_refresh(orch)
+        )
+        assert await asyncio.to_thread(entered.wait, 1)
+        started = time.monotonic()
+        health = await asyncio.wait_for(server_module.healthz(), timeout=0.1)
+        elapsed = time.monotonic() - started
+        assert json.loads(health.body)["status"] == "ok"
+        assert elapsed < 0.1
+    finally:
+        release.set()
+        if "refresh" in locals():
+            await asyncio.wait_for(refresh, timeout=1)
         await _reset_issue_snapshot()
 
 

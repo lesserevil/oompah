@@ -6787,6 +6787,26 @@ class Orchestrator:
         self._notify_observers()
         logger.info("Orchestrator quiesced — new dispatch stopped for lifecycle drain")
 
+    @contextlib.asynccontextmanager
+    async def _provider_admission_async(self):
+        """Own the cross-thread admission fence without blocking this loop.
+
+        Provider setup and lifecycle maintenance run on worker threads and use
+        a ``threading.RLock`` for their final linearization boundary.  Awaiting
+        that lock with a normal ``with`` from an asyncio loop parks the entire
+        HTTP or scheduler control plane in ``futex_wait``.  Cooperative
+        non-blocking acquisition preserves the same lock ownership and
+        ordering while allowing health, cancellation, and state requests to
+        run until the short critical section becomes available.
+        """
+
+        while not self._provider_admission_lock.acquire(blocking=False):
+            await asyncio.sleep(0.01)
+        try:
+            yield
+        finally:
+            self._provider_admission_lock.release()
+
     def _dispatch_is_blocked(self, issue: Issue | None = None) -> bool:
         """Return whether ordinary or retry dispatch is currently blocked."""
         # ``getattr`` keeps lightweight ``Orchestrator.__new__`` test doubles
@@ -8863,7 +8883,7 @@ class Orchestrator:
         restart_snapshot: dict[str, Any]
         restart_rollback_generation: int
         restart_staging_failed = False
-        with self._provider_admission_lock:
+        async with self._provider_admission_async():
             restart_snapshot = {
                 "in_progress": self._restart_in_progress,
                 "request_id": self._restart_request_id,
@@ -8955,7 +8975,7 @@ class Orchestrator:
             for issue_id, entry in self._running_items_snapshot():
                 if not entry.is_auditor:
                     continue
-                with self._provider_admission_lock:
+                async with self._provider_admission_async():
                     if (
                         self._current_running_entry(issue_id) is not entry
                         or self._auditor_provider_admission_committed(entry)
@@ -9005,7 +9025,7 @@ class Orchestrator:
             # lifecycle-owned before publishing restart recovery authority.
             # A result that wins concurrently remains durable and causes
             # ``_finish_audit_attempt`` to no-op.
-            with self._provider_admission_lock:
+            async with self._provider_admission_async():
                 self._mark_running_auditors_for_lifecycle_retirement_locked(
                     reason="scheduler_pause",
                     error="graceful restart interrupted auditor before verdict",
@@ -9043,14 +9063,14 @@ class Orchestrator:
                     "graceful restart recovery authority was not durably persisted"
                 )
 
-            with self._provider_admission_lock:
+            async with self._provider_admission_async():
                 self._restart_requested = True
                 self._stopping = True
                 self._arm_safe_stop_acknowledgement_locked()
                 self._provider_admission_generation += 1
             self._post_event(DispatchEvent(event_type=DispatchEventType.SHUTDOWN))
         except BaseException:
-            with self._provider_admission_lock:
+            async with self._provider_admission_async():
                 # Restore only while this exact coroutine still owns the drain.
                 # A replacement restart transaction must never be overwritten.
                 if self._restart_drain_task is current_task:

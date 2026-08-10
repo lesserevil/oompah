@@ -121,22 +121,28 @@ class _DispatchAdmissionBarrier:
         self._lock = threading.RLock()
         self._dispatch_enters = 0
         self.reached = threading.Event()
-        self.release = threading.Event()
+        self.release_gate = threading.Event()
 
     def __enter__(self):
+        self.acquire()
+        return self
+
+    def acquire(self, blocking: bool = True) -> bool:
         if threading.current_thread().name == "audit-dispatch":
             self._dispatch_enters += 1
             # First acquisition is the early blocked-state read.  The second
             # is the final worker-task/RunningEntry admission transaction.
             if self._dispatch_enters == 2:
                 self.reached.set()
-                if not self.release.wait(timeout=3):
+                if not self.release_gate.wait(timeout=3):
                     raise AssertionError("final admission barrier was not released")
-        self._lock.acquire()
-        return self
+        return self._lock.acquire(blocking=blocking)
+
+    def release(self) -> None:
+        self._lock.release()
 
     def __exit__(self, _exc_type, _exc, _tb) -> None:
-        self._lock.release()
+        self.release()
 
 
 class _EagerFirstTurnTask:
@@ -264,7 +270,7 @@ def test_quiesce_wins_at_final_admission_and_restores_exact_attempt(tmp_path) ->
         thread, result = _run_dispatch_in_thread(orch, issue, plan)
         assert barrier.reached.wait(timeout=3)
         orch.quiesce()
-        barrier.release.set()
+        barrier.release_gate.set()
         thread.join(timeout=3)
 
     assert not thread.is_alive()
@@ -510,7 +516,7 @@ def test_restart_api_claim_wins_before_drain_task_starts(tmp_path) -> None:
             )
         finally:
             server_module._orchestrator = original_orchestrator
-            barrier.release.set()
+            barrier.release_gate.set()
         dispatch_thread.join(timeout=3)
 
     assert response.status_code == 200
@@ -553,7 +559,7 @@ def test_stop_wins_at_final_admission_and_restores_attempt(tmp_path) -> None:
         )
         stop_thread.start()
         stop_thread.join(timeout=3)
-        barrier.release.set()
+        barrier.release_gate.set()
         dispatch_thread.join(timeout=3)
 
     assert not stop_thread.is_alive()

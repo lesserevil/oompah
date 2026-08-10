@@ -1,10 +1,15 @@
 """API contracts for coalesced, configurable graceful restarts (OOMPAH-507)."""
 
 import asyncio
+import json
+import threading
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
 from oompah import server
 from oompah.server import app
@@ -343,3 +348,99 @@ def test_quiesce_api_preserves_running_workers():
     assert response.status_code == 200
     assert response.json()["quiesced"] is True
     fake.quiesce.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_quiesce_lock_contention_is_bounded_without_blocking_health(monkeypatch):
+    """A workflow thread cannot park the HTTP loop while quiesce fences."""
+
+    original = server._orchestrator
+    fake = _fake_orchestrator()
+    fake.quiesce = MagicMock()
+    fake._provider_admission_lock = threading.RLock()
+    lock_owned = threading.Event()
+    release_lock = threading.Event()
+
+    def _hold_publication_fence() -> None:
+        with fake._provider_admission_lock:
+            lock_owned.set()
+            assert release_lock.wait(timeout=2)
+
+    holder = threading.Thread(target=_hold_publication_fence)
+    holder.start()
+    assert lock_owned.wait(timeout=1)
+    monkeypatch.setattr(server, "_LIFECYCLE_ADMISSION_TIMEOUT_SECONDS", 0.05)
+    server._orchestrator = fake
+    try:
+        quiesce = asyncio.create_task(server.api_orchestrator_quiesce())
+        await asyncio.sleep(0.01)
+        started = time.monotonic()
+        health = await asyncio.wait_for(server.healthz(), timeout=0.1)
+        elapsed = time.monotonic() - started
+        response = await asyncio.wait_for(quiesce, timeout=0.2)
+    finally:
+        release_lock.set()
+        holder.join(timeout=1)
+        server._orchestrator = original
+
+    assert json.loads(health.body)["status"] == "ok"
+    assert elapsed < 0.1
+    assert response.status_code == 503
+    assert json.loads(response.body)["retryable"] is True
+    fake.quiesce.assert_not_called()
+    assert fake._restart_in_progress is False
+
+
+@pytest.mark.asyncio
+async def test_restart_claim_contention_is_bounded_without_blocking_health(
+    monkeypatch,
+):
+    """A slow publication fence cannot wedge restart claim or health I/O."""
+
+    original = server._orchestrator
+    fake = _fake_orchestrator()
+    fake._provider_admission_lock = threading.RLock()
+    lock_owned = threading.Event()
+    release_lock = threading.Event()
+
+    def _hold_publication_fence() -> None:
+        with fake._provider_admission_lock:
+            lock_owned.set()
+            assert release_lock.wait(timeout=2)
+
+    async def _receive() -> dict[str, object]:
+        return {"type": "http.request", "body": b"{}", "more_body": False}
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v1/orchestrator/restart",
+            "headers": [(b"content-type", b"application/json")],
+            "query_string": b"",
+        },
+        _receive,
+    )
+    holder = threading.Thread(target=_hold_publication_fence)
+    holder.start()
+    assert lock_owned.wait(timeout=1)
+    monkeypatch.setattr(server, "_LIFECYCLE_ADMISSION_TIMEOUT_SECONDS", 0.05)
+    server._orchestrator = fake
+    try:
+        restart = asyncio.create_task(server.api_orchestrator_restart(request))
+        await asyncio.sleep(0.01)
+        started = time.monotonic()
+        health = await asyncio.wait_for(server.healthz(), timeout=0.1)
+        elapsed = time.monotonic() - started
+        response = await asyncio.wait_for(restart, timeout=0.2)
+    finally:
+        release_lock.set()
+        holder.join(timeout=1)
+        server._orchestrator = original
+
+    assert json.loads(health.body)["status"] == "ok"
+    assert elapsed < 0.1
+    assert response.status_code == 503
+    assert json.loads(response.body)["retryable"] is True
+    assert fake._restart_in_progress is False
+    fake.graceful_restart.assert_not_awaited()
