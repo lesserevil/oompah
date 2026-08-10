@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:25:38.748132Z'
-updated_at: '2026-08-10T01:16:38.863122Z'
+updated_at: '2026-08-10T01:16:45.589824Z'
 work_branch: OOMPAH-969
 target_branch: null
 review_url: null
@@ -78,7 +78,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T01:16:32.947586+00:00'
     selected_ref: ff13d997972b56cbab1b4202cc0eb9f62445cd1b
     selected_sha: ff13d997972b56cbab1b4202cc0eb9f62445cd1b
-    applied: false
+    applied: true
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-969
@@ -90,6 +90,16 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-08-09T20:07:16.220225+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-969
+    target_state: Merged
+    evidence_fingerprint: 73c65f709aa2a61069c82dbc5fbc961e1575e2b4a7d18b6a4a2273b4a85236c7
+    audit_ids:
+    - audit-0f553a9141b1
+    - audit-a5f59964669f
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T01:16:44.102007+00:00'
   oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
@@ -204,5 +214,12 @@ author: oompah
 created: 2026-08-09 20:07
 ---
 Prompt shared-lane workflow admission is merged via PR #778 with the full protected matrix green and independent semantic review complete; detached-auditor harness portability is fixed separately in OOMPAH-971.
+---
+author: oompah
+created: 2026-08-10 01:16
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Selected or integrated head ff13d99 is an ancestor of current main and the completed audit evidence is preserved; retire the historical record as Merged.
 ---
 <!-- COMMENTS:END -->

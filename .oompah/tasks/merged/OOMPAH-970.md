@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-970
 type: task
-status: Done
+status: Merged
 priority: null
 title: Make detached workflow heartbeat proof deterministic under loaded CI
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:37:32.521266Z'
-updated_at: '2026-08-09T19:59:13.120915Z'
+updated_at: '2026-08-10T01:16:52.313856Z'
 work_branch: OOMPAH-970
 target_branch: null
 review_url: null
@@ -60,6 +60,25 @@ oompah.terminal_audit:
     selected_ref: 23a28b1f02319faff905d2733ef290c26d7cb097
     selected_sha: 23a28b1f02319faff905d2733ef290c26d7cb097
     applied: true
+  - version: 1
+    override_id: override-2c888329b076
+    project_id: proj-14849f1b
+    task_id: OOMPAH-970
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8a4300fa26305215ba607ef34385de5d9b0e9805a4906d3b923535d44d04aa35
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Selected or integrated head 23a28b1 is an ancestor of current main and
+      the completed audit evidence is preserved; retire the historical record as Merged.
+    created_at: '2026-08-10T01:16:47.610381+00:00'
+    selected_ref: 23a28b1f02319faff905d2733ef290c26d7cb097
+    selected_sha: 23a28b1f02319faff905d2733ef290c26d7cb097
+    applied: false
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-970
