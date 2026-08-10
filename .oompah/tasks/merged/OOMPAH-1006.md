@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T21:29:22.606379Z'
-updated_at: '2026-08-10T22:57:57.672539Z'
+updated_at: '2026-08-10T22:58:07.848573Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -111,5 +111,10 @@ created: 2026-08-10 22:57
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Protected PR #804 merged exact reviewed and fully gated implementation into main at 74e68a020357615c81cf7c7b5cff808763dc34d3; direct owner is terminalizing the claimed repair after hosted Python 3.11/3.12/3.13 success.
+---
+author: oompah
+created: 2026-08-10 22:58
+---
+Normalize native Markdown project scope at epic mutation revalidation while keeping conflicts fail closed.
 ---
 <!-- COMMENTS:END -->
