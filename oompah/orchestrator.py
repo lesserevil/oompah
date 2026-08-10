@@ -690,6 +690,17 @@ _EPIC_REVIEW_REPAIR_STATUSES: frozenset[str] = frozenset({NEEDS_CI_FIX, NEEDS_RE
 _EPIC_REVIEW_REPAIR_RUNNING_STATUSES: frozenset[str] = frozenset(
     {NEEDS_CI_FIX, NEEDS_REBASE, IN_PROGRESS}
 )
+_QUALITY_GATE_PUBLICATION_STATUSES: frozenset[str] = frozenset(
+    {
+        DONE,
+        IN_PROGRESS,
+        IN_REVIEW,
+        IN_VALIDATION,
+        NEEDS_CI_FIX,
+        NEEDS_REBASE,
+        READY_TO_INTEGRATE,
+    }
+)
 _EPIC_REVIEW_REPAIR_LABELS: frozenset[str] = frozenset({"ci-fix", "merge-conflict"})
 _EPIC_REVIEW_READY_CHILD_STATES: frozenset[str] = frozenset(
     {IN_REVIEW, DONE, MERGED, ARCHIVED}
@@ -21302,16 +21313,16 @@ class Orchestrator:
                     if gate_result is not None and gate_result.status == "interrupted":
                         # A lifecycle cancellation is retryable.  Keep the
                         # task Ready and let the next reconciliation retry
-                        # the same accepted head instead of stranding it with
-                        # a false test-failure warning.
-                        self._clear_quality_gate_result(project_id, task_id)
+                        # the same accepted head.  Retain the bounded outcome
+                        # until that retry passes or authority changes so the
+                        # dashboard truthfully shows scheduled recovery.
                         self._clear_standalone_delivery_alert(
                             project_id,
                             task_id,
                             authority=authority,
                         )
                         logger.info(
-                            "Retrying interrupted standalone quality gate "
+                            "Scheduled retry for interrupted standalone quality gate "
                             "project=%s task=%s head=%s",
                             project_id,
                             task_id,
@@ -22454,6 +22465,7 @@ class Orchestrator:
             if existing is not None:
                 existing.revoked = True
                 superseded_generation = existing.generation
+                self._clear_quality_gate_result(project_id, task_id)
             authority = StandaloneDeliveryAuthority(
                 project_id=project_id,
                 task_id=task_id,
@@ -22764,6 +22776,10 @@ class Orchestrator:
             self._standalone_delivery_authorities.pop(
                 (authority.project_id, authority.task_id), None
             )
+            self._clear_quality_gate_result(
+                authority.project_id,
+                authority.task_id,
+            )
             return False
         current_generation = self._standalone_integration_generation_revision(current)
         expected_generation = authority.evidence_revision[-len(current_generation) :]
@@ -22772,6 +22788,10 @@ class Orchestrator:
             self._standalone_delivery_authorities.pop(
                 (authority.project_id, authority.task_id),
                 None,
+            )
+            self._clear_quality_gate_result(
+                authority.project_id,
+                authority.task_id,
             )
             return False
         authority.issue = current
@@ -23540,6 +23560,10 @@ class Orchestrator:
                 # gate owned by this claim; a replacement claim may already
                 # be running for the new head.
                 self._cancel_standalone_delivery_gate(authority)
+            # Publication takes this authority lock before the outcome lock.
+            # Therefore either a result is stored first and retired here, or
+            # revocation wins first and the late producer refuses to store it.
+            self._clear_quality_gate_result(*key)
             source = f"standalone_ready_delivery:{key[0]}:{key[1]}"
             self._replace_alert_source(source)
 
@@ -33137,24 +33161,131 @@ class Orchestrator:
         project_id: str,
         task_id: str,
         result: QualityGateResult,
-    ) -> None:
-        """Expose the latest gate disposition to delivery reconciliation."""
+        *,
+        authority: StandaloneDeliveryAuthority | None = None,
+        producer: QualityGateOwner | None = None,
+    ) -> bool:
+        """Expose a current gate disposition to delivery reconciliation.
+
+        Standalone gates can finish after terminal reconciliation has revoked
+        their delivery authority.  Serialize their publication with that
+        revocation so a late result cannot recreate an outcome that no longer
+        has a retry owner.  The same fence prevents an obsolete generation's
+        passing result from clearing a failure for a replacement exact head.
+        """
         lock = getattr(self, "_quality_gate_outcomes_lock", None)
         outcomes = getattr(self, "_quality_gate_outcomes", None)
         if lock is None or outcomes is None:
-            return
-        with lock:
-            key = (str(project_id), str(task_id))
+            return True
+        key = (str(project_id), str(task_id))
+        published_result = result
+        if producer is not None:
+            result_head = str(result.head_sha or "").strip().lower()
+            producer_head = str(producer.head_sha or "").strip().lower()
+            if (
+                not producer.complete
+                or producer.project_id != key[0]
+                or producer.task_id != key[1]
+                or (result_head and result_head != producer_head)
+            ):
+                return False
+            published_result = replace(
+                result,
+                owner=producer.to_dict(),
+                authority_generation=producer.authority_generation,
+            )
+
+        def remember() -> bool:
+            if authority is not None:
+                current = self._standalone_delivery_authorities.get(key)
+                result_head = str(result.head_sha or "").strip().lower()
+                authority_head = str(authority.head_sha or "").strip().lower()
+                if (
+                    authority.revoked
+                    or current is not authority
+                    or authority.project_id != key[0]
+                    or authority.task_id != key[1]
+                    or (authority_head and result_head != authority_head)
+                ):
+                    return False
             # A passing retry is the recovery boundary for prior transient
             # interruptions. Do not keep a stale outcome around to make a
             # later reconciliation look degraded.
-            if result.passed:
+            with lock:
+                if published_result.passed:
+                    existing = outcomes.get(key)
+                    if (
+                        producer is not None
+                        and existing is not None
+                        and not self._quality_gate_result_owned_by(
+                            existing,
+                            producer,
+                        )
+                    ):
+                        return False
+                    outcomes.pop(key, None)
+                    return True
                 outcomes.pop(key, None)
-                return
-            outcomes.pop(key, None)
-            outcomes[key] = result
-            while len(outcomes) > self._QUALITY_GATE_OUTCOME_LIMIT:
-                outcomes.pop(next(iter(outcomes)))
+                outcomes[key] = published_result
+                while len(outcomes) > self._QUALITY_GATE_OUTCOME_LIMIT:
+                    outcomes.pop(next(iter(outcomes)))
+            return True
+
+        if authority is None:
+            return remember()
+        authority_lock = getattr(self, "_standalone_delivery_authority_lock", None)
+        if authority_lock is None:
+            return False
+        # Lock ordering is authority -> outcome everywhere that needs both.
+        # Terminal revocation uses the same ordering before it clears a row.
+        with authority_lock:
+            return remember()
+
+    @staticmethod
+    def _quality_gate_result_owned_by(
+        result: QualityGateResult,
+        producer: QualityGateOwner,
+    ) -> bool:
+        """Return whether one transient row has the exact producer identity."""
+
+        if not isinstance(result.owner, Mapping):
+            return False
+        owner = result.owner
+        return (
+            str(owner.get("project_id") or "") == producer.project_id
+            and str(owner.get("task_id") or "") == producer.task_id
+            and str(owner.get("head_sha") or "").strip().lower()
+            == str(producer.head_sha or "").strip().lower()
+            and str(owner.get("authority_generation") or "")
+            == producer.authority_generation
+            and str(result.authority_generation or "")
+            == producer.authority_generation
+        )
+
+    @staticmethod
+    def _quality_gate_publication_generation(
+        project_id: str,
+        task_id: str,
+        branch: str,
+        target_branch: str,
+        head_sha: str,
+        command: str,
+        observed_status: str,
+    ) -> str:
+        """Return the exact identity of one authority-less gate producer."""
+
+        payload = "\0".join(
+            (
+                str(project_id),
+                str(task_id),
+                str(branch),
+                str(target_branch),
+                str(head_sha),
+                str(command),
+                canonicalize_status(observed_status),
+            )
+        )
+        return "review:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     def _clear_quality_gate_result(self, project_id: str, task_id: str) -> None:
         """Forget a transient outcome once delivery has consumed it."""
@@ -33164,6 +33295,134 @@ class Orchestrator:
             return
         with lock:
             outcomes.pop((str(project_id), str(task_id)), None)
+
+    def _publish_quality_gate_result(
+        self,
+        project_id: str,
+        task_id: str,
+        result: QualityGateResult,
+        *,
+        authority: StandaloneDeliveryAuthority | None,
+        producer: QualityGateOwner,
+        issue: Issue,
+        branch: str,
+        target_branch: str,
+        observed_status: str,
+    ) -> bool:
+        """Publish a result at a tracker/terminal-authority boundary.
+
+        A Ready scan may hold an old issue snapshot while terminal ownership
+        commits under the project write lock.  Revalidate standalone results
+        while holding that same project fence: publication either precedes
+        the terminal operation and is cleared by its revocation, or follows
+        the terminal write and observes that the claim is no longer current.
+        """
+
+        try:
+            tracker = self._tracker_for_project(str(project_id))
+        except Exception as exc:  # noqa: BLE001 - publication must fail closed
+            logger.warning(
+                "Could not revalidate quality gate authority for %s: %s",
+                task_id,
+                exc,
+            )
+            return False
+        lock_factory = getattr(self.project_store, "project_write_lock", None)
+        project_lock = (
+            lock_factory(str(project_id)) if callable(lock_factory) else None
+        ) or contextlib.nullcontext()
+        with project_lock:
+            current_project = self.project_store.get(str(project_id))
+            if not isinstance(current_project, Project):
+                return False
+            current_command = self._quality_gate_command(current_project)
+            if authority is not None:
+                if (
+                    current_command != result.command
+                    or not self._standalone_delivery_authorized(authority, tracker)
+                ):
+                    return False
+            else:
+                try:
+                    current = tracker.fetch_issue_detail(str(task_id))
+                except Exception as exc:  # noqa: BLE001 - fail closed
+                    logger.warning(
+                        "Could not refresh quality gate task %s: %s",
+                        task_id,
+                        exc,
+                    )
+                    return False
+
+                def reject_stale_producer() -> bool:
+                    stored = self._quality_gate_result_for(project_id, task_id)
+                    if (
+                        stored is not None
+                        and self._quality_gate_result_owned_by(stored, producer)
+                    ):
+                        self._clear_quality_gate_result(project_id, task_id)
+                    return False
+
+                if (
+                    not isinstance(current, Issue)
+                    or str(current.identifier or "") != str(task_id)
+                    or (
+                        str(current.project_id or "")
+                        and str(current.project_id) != str(project_id)
+                    )
+                    or canonicalize_status(observed_status)
+                    not in _QUALITY_GATE_PUBLICATION_STATUSES
+                    or canonicalize_status(current.state)
+                    != canonicalize_status(observed_status)
+                    or self._standalone_delivery_evidence_revision(current)
+                    != self._standalone_delivery_evidence_revision(issue)
+                    or self._branch_for_issue(current, current_project) != str(branch)
+                    or str(
+                        current.target_branch
+                        or current_project.default_branch
+                        or ""
+                    ).strip()
+                    != str(target_branch)
+                ):
+                    return reject_stale_producer()
+                if (
+                    current_command != result.command
+                    or producer.authority_generation
+                    != self._quality_gate_publication_generation(
+                        str(project_id),
+                        str(task_id),
+                        str(branch),
+                        str(target_branch),
+                        str(producer.head_sha),
+                        current_command,
+                        observed_status,
+                    )
+                ):
+                    return reject_stale_producer()
+                producer_head = str(producer.head_sha or "").strip().lower()
+                if not producer_head.startswith("unresolved:"):
+                    current_head = str(
+                        self._quality_gate_branch_head(current_project, branch) or ""
+                    ).strip().lower()
+                    if current_head != producer_head:
+                        return reject_stale_producer()
+
+                # The project/status/evidence/head/command checks above prove
+                # this exact producer is current. Retire any prior producer,
+                # including an older command at the same immutable head, before
+                # the PASS below consumes only its own generation.
+                stored = self._quality_gate_result_for(project_id, task_id)
+                if (
+                    stored is not None
+                    and not self._quality_gate_result_owned_by(stored, producer)
+                ):
+                    self._clear_quality_gate_result(project_id, task_id)
+            return self._remember_quality_gate_result(
+                project_id,
+                task_id,
+                result,
+                authority=authority,
+                producer=producer,
+            )
 
     def _quality_gate_result_for(
         self,
@@ -33198,6 +33457,7 @@ class Orchestrator:
     ) -> bool:
         """Run or reuse the exact-head full check before creating a review."""
         project_id = str(project.id)
+        observed_status = canonicalize_status(issue.state)
         authority = self._standalone_delivery_authorities.get(
             (project_id, str(issue.identifier))
         )
@@ -33302,6 +33562,30 @@ class Orchestrator:
         )
         source_requires_head_match = bool(worktree)
         gate_source = worktree or str(project.repo_path or "")
+        publication_head = str(
+            authority.head_sha
+            if authority is not None and authority.head_sha
+            else expected_head or f"unresolved:{branch}"
+        )
+        gate_generation = (
+            authority.generation
+            if authority is not None
+            else self._quality_gate_publication_generation(
+                project_id,
+                str(issue.identifier),
+                str(branch),
+                str(target_branch),
+                publication_head,
+                str(command),
+                observed_status,
+            )
+        )
+        gate_owner = QualityGateOwner(
+            project_id=project_id,
+            task_id=str(issue.identifier),
+            head_sha=publication_head,
+            authority_generation=gate_generation,
+        )
         if materialize_status:
             result = QualityGateResult(
                 status=materialize_status,
@@ -33331,21 +33615,6 @@ class Orchestrator:
                 ),
             )
         else:
-            gate_generation = (
-                authority.generation
-                if authority is not None
-                else f"review:{project_id}:{issue.identifier}:{branch}:{expected_head}"
-            )
-            gate_owner = QualityGateOwner(
-                project_id=project_id,
-                task_id=str(issue.identifier),
-                head_sha=str(
-                    authority.head_sha
-                    if authority is not None and authority.head_sha
-                    else expected_head
-                ),
-                authority_generation=gate_generation,
-            )
             result = self._branch_quality_gate.run(
                 repo_path=gate_source,
                 repo_identity=project.repo_url or project.repo_path or str(project.id),
@@ -33394,29 +33663,26 @@ class Orchestrator:
                         f"to {current_head or 'unknown'} during the gate."
                     ),
                 )
-            elif authority is not None:
-                try:
-                    tracker = self._tracker_for_project(project_id)
-                    if not self._standalone_delivery_authorized(
-                        authority,
-                        tracker,
-                    ):
-                        self._record_superseded_standalone_delivery(
-                            authority,
-                            "delivery authority changed while quality gate ran",
-                        )
-                        return False
-                except Exception as exc:  # noqa: BLE001 - fail closed
-                    logger.warning(
-                        "Could not revalidate quality gate authority for %s: %s",
-                        issue.identifier,
-                        exc,
-                    )
-                    return False
         # Record the final disposition after the exact-head revalidation. In
         # particular, a passed gate that discovers a branch advance must be
         # visible as stale rather than leaving a misleading passed row.
-        self._remember_quality_gate_result(project_id, str(issue.identifier), result)
+        if not self._publish_quality_gate_result(
+            project_id,
+            str(issue.identifier),
+            result,
+            authority=authority,
+            producer=gate_owner,
+            issue=issue,
+            branch=branch,
+            target_branch=target_branch,
+            observed_status=observed_status,
+        ):
+            logger.info(
+                "Discarding quality gate outcome for superseded delivery %s at %s",
+                issue.identifier,
+                result.head_sha or "unknown",
+            )
+            return False
         if not result.passed:
             # Obsolete/cancelled evidence must not create a new CI-fix state;
             # the replacement generation owns the next attempt.

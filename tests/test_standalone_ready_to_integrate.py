@@ -19,7 +19,7 @@ from oompah.config import ServiceConfig
 from oompah.integration import IntegrationRecord
 from oompah.models import BlockerRef, Issue, Project
 from oompah.orchestrator import Orchestrator
-from oompah.quality_gate import BranchQualityGate, QualityGateOwner
+from oompah.quality_gate import BranchQualityGate, QualityGateOwner, QualityGateResult
 from oompah.providers import ProviderStore
 from oompah.scm import ReviewRequest, SCMProvider
 from oompah.statuses import (
@@ -1825,6 +1825,64 @@ def test_gate_failure_blocks_review_and_ready_retry_can_succeed(harness):
     provider.create_review.assert_called_once()
     tracker.update_issue.assert_called_once_with("TASK-8", status=IN_REVIEW)
     assert not _delivery_alerts(orch)
+
+
+def test_interrupted_gate_remains_visible_between_real_standalone_attempts(harness):
+    """The production Ready consumer retains its bounded scheduled retry."""
+
+    orch, project, tracker, provider, _detect, _gate = harness
+    task = _issue("TASK-INTERRUPTED", branch="feature/interrupted")
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.find_pr_for_branch.return_value = None
+    project.test_command = "make test"
+    delattr(orch, "_review_quality_gate_passes")
+    orch._quality_gate_worktree = mock.MagicMock(return_value=project.repo_path)
+    orch._quality_gate_branch_head = mock.MagicMock(return_value="a" * 40)
+    orch._materialize_submitted_quality_gate_head = mock.MagicMock(
+        return_value=("a" * 40, "", ""),
+    )
+    orch._branch_quality_gate = mock.MagicMock()
+    orch._branch_quality_gate.run.return_value = QualityGateResult(
+        status="interrupted",
+        head_sha="a" * 40,
+        command="make test",
+        interrupted=True,
+        interruption_source="owner_cancellation",
+    )
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    snapshot = orch._quality_gate_state_snapshot()
+    alert = next(
+        alert
+        for alert in orch._quality_gate_dashboard_alerts(snapshot)
+        if alert.get("task_id") == task.identifier
+    )
+    assert task.state == READY_TO_INTEGRATE
+    assert snapshot["status"] == "interrupted_for_retry"
+    assert alert["recovery_state"] == "scheduled_retry"
+    assert alert["action_required"] is False
+    provider.create_review.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    assert not _delivery_alerts(orch)
+
+    orch._branch_quality_gate.run.return_value = QualityGateResult(
+        status="passed",
+        head_sha="a" * 40,
+        command="make test",
+        cached=True,
+    )
+    provider.create_review.return_value = _review(
+        task.identifier,
+        source_branch=task.work_branch,
+        head_sha="a" * 40,
+    )
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    assert orch._quality_gate_state_snapshot()["status"] == "idle"
+    assert orch._quality_gate_state_snapshot()["recent"] == []
+    assert task.state == IN_REVIEW
 
 
 def test_owner_override_during_failed_gate_cancels_stale_delivery(harness):
