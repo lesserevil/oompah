@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1005
 type: task
-status: In Progress
+status: Merged
 priority: null
 title: Wake durable workflow admission after asynchronous supersession
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T21:14:15.251946Z'
-updated_at: '2026-08-10T22:46:04.957764Z'
+updated_at: '2026-08-10T22:57:26.922619Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,31 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 366e40d8-e159-470e-acc7-edf805f13e50
   request_fingerprint: 7229ac1d63d12bb628dc737c92f1580a61dbfeed38f4aa2568f969080eb115c5
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-de07ca92991b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1005
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 741fc72be49dab4de6957d18f2137cabb0c715e23464d61799ed2a4ba52424a4
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Protected PR #804 merged exact reviewed and fully gated implementation
+      into main at 74e68a020357615c81cf7c7b5cff808763dc34d3; direct owner is terminalizing
+      the claimed repair after hosted Python 3.11/3.12/3.13 success.'
+    created_at: '2026-08-10T22:57:22.700432+00:00'
+    selected_ref: origin/OOMPAH-1005
+    selected_sha: 2f0eb05f4798107e07876469386b9060a0cb9ba9
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
