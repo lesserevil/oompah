@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T17:36:32.614914Z'
-updated_at: '2026-08-10T18:02:11.640925Z'
+updated_at: '2026-08-10T18:13:02.389841Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,5 +43,10 @@ author: oompah
 created: 2026-08-10 18:02
 ---
 Implementation handoff: branch OOMPAH-1000 is pushed at b17cfe56e3782bd02d01204ab9377eefd2ea871b. The patch binds terminal quality-gate identity to a freshly reloaded exact live audit attempt only when ordinary accepted-head metadata is absent; all scope, state, fingerprint, binding, and attempt mismatches fail closed, and selected_sha alone never implies PASS. Verification: 332 focused quality-gate/terminal-observability tests passed; 28/28 direct-recovery and retained review/deleted-branch regression slice passed after final test fixture adjustment; terminal task-status mutation scan passed (20/20 allowlisted); paranoid secret scan and commit hooks passed. Awaiting independent parent review; task intentionally not submitted or terminalized.
+---
+author: oompah
+created: 2026-08-10 18:13
+---
+Review correction pushed as d8232d4f250fade0da5603f0ed31dfa043b0d258. Terminal quality-gate fallback now verifies both the supplied Project.id and the freshly reloaded task project_id match the audit target project before deriving or looking up gate identity; both mismatch paths fail closed without a gate or branch-head lookup. Verification: 334 focused tests passed across tests/test_quality_gate.py and tests/test_terminal_audit_observability.py; targeted authority regressions 30 passed; terminal-audit mutation scan 20/20; git diff --check and secret scan passed. Branch OOMPAH-1000 is clean and exactly synchronized with origin. Task intentionally remains In Progress pending integration review.
 ---
 <!-- COMMENTS:END -->
