@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T21:29:22.606379Z'
-updated_at: '2026-08-10T21:40:30.693213Z'
+updated_at: '2026-08-10T21:44:14.465370Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-08-10 21:40
 ---
 Implementation in progress on branch OOMPAH-1006. The fix normalizes only blank native Markdown project identities to the bound workflow project using immutable Issue replacement, while conflicting non-empty identities remain fail-closed. It covers backend and fresh effect authority plus child cleanup, with a real on-disk OompahMarkdownTracker headless-root auto-close regression and mutation-authority negatives under independent review.
+---
+author: oompah
+created: 2026-08-10 21:44
+---
+Implementation is committed and pushed at exact head 074c0330902cc3356519d6adb2a4725613c652e9. Focused validation: 152 epic workflow/adapter tests passed; 120 transition/audit-contract tests passed with 2 expected xfails; terminal mutation scan passed 20/20; diff, gitleaks, attribution, and worktree sync checks are green. Independent final exact-head review is in progress before combined protected delivery.
 ---
 <!-- COMMENTS:END -->
