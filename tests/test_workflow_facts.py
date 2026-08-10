@@ -198,6 +198,33 @@ def test_ready_queue_derives_required_base_from_exact_dependency_head(tmp_path):
     assert value["required_base_missing"] == ("dependency",)
 
 
+def test_parented_service_standalone_mode_requires_exact_explicit_target():
+    issue = _issue(
+        target_branch="main",
+        integration=IntegrationRecord(
+            state="ready",
+            mode="standalone",
+            post_landed_parent_id="EPIC-1",
+            task_branch="task-1",
+            base_branch="main",
+            head_sha="a" * 40,
+        ),
+    )
+    collector = WorkflowFactCollector(
+        project_id="project-1", tracker=FakeTracker(issue)
+    )
+    exact = collector.collect(issue.identifier).fact(FactDomain.INTEGRATION).value
+    issue.target_branch = "release"
+    mismatch = collector.collect(issue.identifier).fact(FactDomain.INTEGRATION).value
+    issue.target_branch = "main"
+    issue.integration = issue.integration.to_dict()
+    synthetic = collector.collect(issue.identifier).fact(FactDomain.INTEGRATION).value
+
+    assert exact["mode"] == "standalone"
+    assert mismatch["mode"] == "queue"
+    assert synthetic["mode"] == "queue"
+
+
 class _FixedDependencyLandingCollector:
     project_id = "project-1"
 

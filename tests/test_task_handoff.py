@@ -617,6 +617,73 @@ class TestTaskScopeDirectPath:
 
         assert record.mode == expected_mode
 
+    def test_submit_routes_post_landed_child_without_queue_enqueue(self):
+        resolver = SimpleNamespace(
+            post_landed_parent_target=MagicMock(
+                side_effect=[None, "main", "main"]
+            )
+        )
+        binding = SimpleNamespace(
+            integration_controller=SimpleNamespace(
+                landing_request_resolver=resolver
+            )
+        )
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+            parent_id="EPIC-1",
+            work_branch="TASK-1",
+            target_branch="epic-EPIC-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        tracker.get_metadata.return_value = {}
+        persisted = []
+        tracker.set_metadata_field.side_effect = (
+            lambda _identifier, field, value: persisted.append((field, value))
+        )
+        accept, orch = self._authoritative_submission_handler(tracker)
+        orch.config.parallel_epic_children_enabled = True
+        orch.workflow_runtime = SimpleNamespace(
+            enforce=False,
+            project_bindings={"proj-a": binding},
+        )
+
+        accepted = accept(
+            tracker=tracker,
+            identifier=issue.identifier,
+            project_id="proj-a",
+            body={
+                "summary": "Completed and tested",
+                "task_branch": "TASK-1",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "base_branch": "epic-EPIC-1",
+                "base_sha": "b" * 40,
+                "worktree_clean": True,
+            },
+        )
+
+        assert resolver.post_landed_parent_target.call_args_list == [
+            call(issue),
+            call(issue),
+            call(issue),
+        ]
+        assert accepted.record.mode == "standalone"
+        assert accepted.record.post_landed_parent_id == "EPIC-1"
+        assert accepted.record.base_branch == "main"
+        assert accepted.record.base_sha is None
+        assert issue.target_branch == "main"
+        assert [field for field, _value in persisted[:2]] == [
+            "oompah.target_branch",
+            "oompah.integration",
+        ]
+        orch.integration_queue.enqueue.assert_not_called()
+
     def test_direct_acp_command_allows_only_assigned_task_and_actions(self):
         from oompah.acp_tools import _exec_oompah_task_command
 
@@ -1706,6 +1773,77 @@ class TestTaskHandoffEndpoint:
             orch.integration_queue.enqueue.call_args.kwargs["rearm_integrated"]
             is False
         )
+
+    def test_service_standalone_child_skips_both_queue_enqueue_paths(self):
+        from oompah.integration import IntegrationRecord
+        from oompah.orchestrator import Orchestrator
+        from oompah.server import _enqueue_worker_submission
+
+        orch = SimpleNamespace(
+            config=SimpleNamespace(parallel_epic_children_enabled=True),
+            integration_queue=MagicMock(),
+        )
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            state="Ready to Integrate",
+            project_id="proj-a",
+            parent_id="EPIC-1",
+            priority=1,
+        )
+        record = IntegrationRecord(
+            state="ready",
+            mode="standalone",
+            post_landed_parent_id="EPIC-1",
+            task_branch="TASK-1",
+            head_sha="a" * 40,
+            base_branch="main",
+        )
+
+        _enqueue_worker_submission(orch, "proj-a", issue, record)
+        Orchestrator.enqueue_durable_worker_submission(
+            orch, "proj-a", issue, record
+        )
+
+        orch.integration_queue.enqueue.assert_not_called()
+
+    def test_parented_standalone_delivery_filter_requires_exact_typed_route(self):
+        from dataclasses import replace
+
+        from oompah.integration import IntegrationRecord
+        from oompah.orchestrator import Orchestrator
+
+        parent = Issue(
+            id="EPIC-1",
+            identifier="EPIC-1",
+            title="Epic",
+            state="In Progress",
+            issue_type="epic",
+            project_id="proj-a",
+        )
+        child = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            state="Ready to Integrate",
+            project_id="proj-a",
+            parent_id=parent.identifier,
+            target_branch="main",
+            integration=IntegrationRecord(
+                state="ready",
+                mode="standalone",
+                post_landed_parent_id="EPIC-1",
+                task_branch="TASK-1",
+                base_branch="main",
+                head_sha="a" * 40,
+            ),
+        )
+        issues = {parent.identifier: parent, child.identifier: child}
+
+        assert Orchestrator._is_standalone_ready_delivery_issue(child, issues)
+        child.integration = replace(child.integration, base_branch="release")
+        assert not Orchestrator._is_standalone_ready_delivery_issue(child, issues)
 
     def test_scoped_submit_remote_rejection_precedes_tracker_mutation(self):
         from fastapi.testclient import TestClient

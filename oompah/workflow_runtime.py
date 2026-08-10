@@ -1006,6 +1006,12 @@ class WorkflowRuntime:
                     project_store=project_store,
                     workflow_store=store,
                     forge_review_resolver=forge_review_resolver,
+                    landing_collector=landing,
+                    parent_source_head_resolver=(
+                        lambda branch, _project_id=project_id: (
+                            project_store.remote_branch_head(_project_id, branch)
+                        )
+                    ),
                     project_default_branch=str(
                         getattr(project, "default_branch", None)
                         or getattr(project, "branch", None)

@@ -500,15 +500,27 @@ def _integration_value(issue: Issue) -> Any:
             )
         }
     # Delivery mode is service authority, not caller-controlled tracker text.
-    # Accepted children always use the ordered epic queue.  Top-level records
-    # carry their server-selected mode durably; legacy records default to
-    # standalone delivery.  A synthetic mapping cannot opt itself into queue
-    # delivery because only the typed service record exposes ``mode`` here.
+    # Children normally use the ordered epic queue.  The service may reclassify
+    # an exact child generation after its parent landed; that typed record is
+    # standalone authority only while its explicit target matches its base.
+    # Synthetic mappings cannot opt into this exception.
     parent_id = str(getattr(issue, "parent_id", "") or "").strip()
     carried_mode = str(getattr(integration, "mode", "") or "").strip().lower()
+    carried_base = str(getattr(integration, "base_branch", "") or "").strip()
+    explicit_target = str(getattr(issue, "target_branch", "") or "").strip()
+    parent_standalone = bool(
+        parent_id
+        and carried_mode == "standalone"
+        and str(
+            getattr(integration, "post_landed_parent_id", "") or ""
+        ).strip()
+        == parent_id
+        and explicit_target
+        and carried_base == explicit_target
+    )
     value["mode"] = (
         "queue"
-        if parent_id
+        if parent_id and not parent_standalone
         else (
             carried_mode
             if carried_mode in {"queue", "standalone"}

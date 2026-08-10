@@ -5243,7 +5243,28 @@ async def api_workflow_diagnostic(project_id: str, identifier: str):
     )
 
 
-def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
+def _post_landed_submission_target(
+    orch: Any, project_id: str, issue: Any
+) -> str | None:
+    """Resolve the durable workflow's exact post-parent landing route."""
+
+    runtime = getattr(orch, "workflow_runtime", None)
+    bindings = getattr(runtime, "project_bindings", None)
+    binding = bindings.get(str(project_id)) if isinstance(bindings, Mapping) else None
+    controller = getattr(binding, "integration_controller", None)
+    resolver = getattr(controller, "landing_request_resolver", None)
+    resolve = getattr(resolver, "post_landed_parent_target", None)
+    if not callable(resolve):
+        return None
+    return str(resolve(issue) or "").strip() or None
+
+
+def _submission_record(
+    issue,
+    body: dict[str, Any],
+    *,
+    service_delivery_target: str | None = None,
+) -> IntegrationRecord:
     """Build validated durable evidence for one worker submission."""
 
     summary = str(body.get("summary") or "").strip()
@@ -5298,8 +5319,17 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
         and str(getattr(existing, "task_branch", "") or "").strip()
         == task_branch
     )
+    selected_target = str(service_delivery_target or "").strip() or None
+    selected_parent = (
+        str(getattr(issue, "parent_id", "") or "").strip()
+        if selected_target
+        else None
+    )
     delivery_mode = (
-        "queue" if str(getattr(issue, "parent_id", "") or "").strip()
+        "standalone"
+        if selected_target
+        else "queue"
+        if str(getattr(issue, "parent_id", "") or "").strip()
         else "standalone"
     )
     supplied_base_branch = str(body.get("base_branch") or "").strip()
@@ -5314,14 +5344,16 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
         )
     )
     supplied_base_sha = str(body.get("base_sha") or "").strip().lower()
-    base_sha = supplied_base_sha or (
+    base_sha = None if selected_target else supplied_base_sha or (
         str(getattr(existing, "base_sha", "") or "").strip().lower()
         if preserves_existing_base_authority
         else None
     ) or None
     if base_sha is not None and not re.fullmatch(r"[0-9a-f]{40,64}", base_sha):
         raise ValueError("base_sha must be a full hexadecimal git object id")
-    if supplied_base_branch:
+    if selected_target:
+        base_branch = selected_target
+    elif supplied_base_branch:
         base_branch = supplied_base_branch
     elif same_task_head:
         # A legacy accepted generation may legitimately predate persisted base
@@ -5364,6 +5396,8 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
         and existing.task_branch == task_branch
         and existing.base_branch == base_branch
         and existing.base_sha == base_sha
+        and str(getattr(existing, "post_landed_parent_id", "") or "").strip()
+        == str(selected_parent or "")
     ):
         existing_mode = getattr(existing, "mode", None)
         return (
@@ -5375,6 +5409,7 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
     return IntegrationRecord(
         state="ready",
         mode=delivery_mode,
+        post_landed_parent_id=selected_parent,
         task_branch=task_branch,
         base_branch=base_branch,
         base_sha=base_sha,
@@ -5426,6 +5461,25 @@ async def _persist_worker_submission(
         and existing.head_sha == record.head_sha
         and existing.task_branch == record.task_branch
     )
+    parented_standalone_target = str(
+        record.base_branch
+        if str(getattr(issue, "parent_id", "") or "").strip()
+        and str(record.mode or "").strip().lower() == "standalone"
+        else ""
+    ).strip()
+    if parented_standalone_target and (
+        str(getattr(issue, "target_branch", "") or "").strip()
+        != parented_standalone_target
+    ):
+        # Target first is fail-safe: an interrupted write still leaves the old
+        # queue-mode record authoritative until the integration write lands.
+        await _run_api_io(
+            tracker.set_metadata_field,
+            issue.identifier,
+            "oompah.target_branch",
+            parented_standalone_target,
+        )
+        issue.target_branch = parented_standalone_target
     if record is not existing:
         # Persist new-generation evidence and canonical repairs (for example,
         # an explicitly conflicting service-derived delivery mode).
@@ -5642,6 +5696,8 @@ def _enqueue_worker_submission(
         # ask the ordinary child executor to merge the helper into the epic it
         # just rewrote.
         return
+    if str(getattr(record, "mode", "") or "").strip().lower() == "standalone":
+        return
     if not getattr(orch.config, "parallel_epic_children_enabled", False):
         return
     epic_id = str(getattr(issue, "parent_id", None) or "").strip()
@@ -5782,13 +5838,57 @@ async def _accept_worker_submission(
         )
         if not isinstance(submitted_owner_claim, OwnerClaim):
             submitted_owner_claim = None
-        record = _submission_record(issue, body)
+        post_landed_target = (
+            None
+            if direct_maintenance
+            else await _run_api_io(
+                _post_landed_submission_target,
+                orch,
+                project_id,
+                issue,
+            )
+        )
+        record = _submission_record(
+            issue,
+            body,
+            service_delivery_target=post_landed_target,
+        )
         record = await _verify_submission_git_authority(
             orch,
             issue,
             project_id,
             record,
         )
+        if not direct_maintenance:
+            confirmed_target = await _run_api_io(
+                _post_landed_submission_target,
+                orch,
+                project_id,
+                issue,
+            )
+            if confirmed_target != post_landed_target:
+                post_landed_target = confirmed_target
+                record = _submission_record(
+                    issue,
+                    body,
+                    service_delivery_target=post_landed_target,
+                )
+                record = await _verify_submission_git_authority(
+                    orch,
+                    issue,
+                    project_id,
+                    record,
+                )
+                stable_target = await _run_api_io(
+                    _post_landed_submission_target,
+                    orch,
+                    project_id,
+                    issue,
+                )
+                if stable_target != post_landed_target:
+                    raise ValueError(
+                        "parent landing route changed repeatedly during submission"
+                    )
         direct_failure_message: str | None = None
         if direct_maintenance:
             # Direct maintenance owns its durable completion and revocation in

@@ -94,6 +94,7 @@ from oompah.duplicate_screening import (
     save_record as save_duplicate_screening_record,
 )
 from oompah.integration import (
+    ACCEPTED_SUBMISSION_STATES,
     CanonicalChildLandingEvidence,
     CanonicalLandingEvidence,
     IntegrationRecord,
@@ -20663,9 +20664,15 @@ class Orchestrator:
                     and queue_item.state == "cancelled"
                     and queue_item.last_error
                     == STANDALONE_RECLASSIFICATION_REASON
-                    and not str(getattr(issue, "parent_id", "") or "").strip()
                     and str(getattr(integration, "mode", "") or "").strip()
                     == "standalone"
+                    and str(
+                        getattr(integration, "post_landed_parent_id", "") or ""
+                    ).strip()
+                    == str(getattr(issue, "parent_id", "") or "").strip()
+                    and str(getattr(integration, "base_branch", "") or "").strip()
+                    == str(getattr(issue, "target_branch", "") or "").strip()
+                    and str(getattr(issue, "target_branch", "") or "").strip()
                     and str(getattr(integration, "task_branch", "") or "").strip()
                     == queue_item.task_branch
                     and str(getattr(integration, "head_sha", "") or "").strip()
@@ -21664,6 +21671,7 @@ class Orchestrator:
             str(getattr(integration, "version", "") or ""),
             str(getattr(integration, "state", "") or ""),
             str(getattr(integration, "mode", "") or ""),
+            str(getattr(integration, "post_landed_parent_id", "") or ""),
             str(getattr(integration, "task_branch", "") or ""),
             str(getattr(integration, "base_branch", "") or ""),
             str(getattr(integration, "base_sha", "") or ""),
@@ -22266,10 +22274,9 @@ class Orchestrator:
         """Whether a Ready task uses direct review delivery rather than an epic.
 
         Most direct tasks have no parent.  A non-epic hierarchy is also direct
-        delivery, however: its parent can contribute normalized finish-order
-        constraints.  A task with private integration metadata, an epic
-        ancestor, or an unresolved parent remains outside this path and cannot
-        accidentally bypass ordered integration.
+        delivery.  A task with private integration metadata or an active epic
+        route remains outside this path.  The one parented exception is an
+        exact typed standalone generation persisted after its epic landed.
         """
 
         if _is_epic_issue(issue):
@@ -22277,8 +22284,27 @@ class Orchestrator:
         parent_id = str(issue.parent_id or "").strip()
         if not parent_id:
             return True
-        if getattr(issue, "integration", None) is not None:
+        integration = getattr(issue, "integration", None)
+        parented_standalone = bool(
+            isinstance(integration, IntegrationRecord)
+            and str(integration.state or "").strip().lower()
+            in ACCEPTED_SUBMISSION_STATES
+            and str(integration.mode or "").strip().lower() == "standalone"
+            and str(integration.post_landed_parent_id or "").strip() == parent_id
+            and str(integration.task_branch or "").strip()
+            and re.fullmatch(
+                r"[0-9a-f]{40}|[0-9a-f]{64}",
+                str(integration.head_sha or "").strip().lower(),
+            )
+            and str(integration.base_branch or "").strip()
+            == str(issue.target_branch or "").strip()
+            and str(issue.target_branch or "").strip()
+        )
+        if integration is not None and not parented_standalone:
             return False
+        if parented_standalone:
+            parent = issues_by_id.get(parent_id)
+            return bool(parent is not None and _is_epic_issue(parent))
 
         seen_ancestors: set[str] = set()
         current = issue
@@ -22762,22 +22788,37 @@ class Orchestrator:
         mutation: Any,
         *,
         next_state: str | None = None,
+        refresh_authority: bool = True,
     ) -> bool:
         """Run one tracker mutation while terminal revocation is excluded."""
 
         with self._standalone_delivery_authority_lock:
-            if not self._standalone_delivery_authorized(authority, tracker):
-                self._record_superseded_standalone_delivery(
-                    authority,
-                    "delivery authority was revoked before tracker mutation",
-                )
-                return False
-            mutation()
-            return self._refresh_standalone_delivery_authority(
-                authority,
-                tracker,
-                next_state=next_state,
+            lock_factory = getattr(self.project_store, "project_write_lock", None)
+            project_lock = (
+                lock_factory(authority.project_id)
+                if callable(lock_factory)
+                else None
             )
+            if project_lock is not None and not project_lock.acquire(blocking=False):
+                return False
+            try:
+                if not self._standalone_delivery_authorized(authority, tracker):
+                    self._record_superseded_standalone_delivery(
+                        authority,
+                        "delivery authority was revoked before tracker mutation",
+                    )
+                    return False
+                mutation()
+                if not refresh_authority:
+                    return True
+                return self._refresh_standalone_delivery_authority(
+                    authority,
+                    tracker,
+                    next_state=next_state,
+                )
+            finally:
+                if project_lock is not None:
+                    project_lock.release()
 
     def _standalone_delivery_action(
         self,
@@ -22788,16 +22829,28 @@ class Orchestrator:
         """Run one forge delivery action only while the claim is current."""
 
         with self._standalone_delivery_authority_lock:
-            if not self._standalone_delivery_authorized(authority, tracker):
+            lock_factory = getattr(self.project_store, "project_write_lock", None)
+            project_lock = (
+                lock_factory(authority.project_id)
+                if callable(lock_factory)
+                else None
+            )
+            if project_lock is not None and not project_lock.acquire(blocking=False):
                 return False, None
-            result = action()
-            # A blocking forge adapter can return after the durable workflow
-            # lease was timed out or superseded.  Preserve the forge result for
-            # later idempotent adoption, but never let this late invocation
-            # proceed to capacity or tracker mutations.
-            if not self._standalone_delivery_authorized(authority, tracker):
-                return False, result
-            return True, result
+            try:
+                if not self._standalone_delivery_authorized(authority, tracker):
+                    return False, None
+                result = action()
+                # A blocking forge adapter can return after the durable workflow
+                # lease was timed out or superseded.  Preserve the forge result for
+                # later idempotent adoption, but never let this late invocation
+                # proceed to capacity or tracker mutations.
+                if not self._standalone_delivery_authorized(authority, tracker):
+                    return False, result
+                return True, result
+            finally:
+                if project_lock is not None:
+                    project_lock.release()
 
     @staticmethod
     def _is_standalone_noop_landing(
@@ -22962,6 +23015,23 @@ class Orchestrator:
             return False
         if canonicalize_status(current.state) != authority.expected_state:
             return False
+        integration = getattr(current, "integration", None)
+        parent_id = str(getattr(current, "parent_id", "") or "").strip()
+        if (
+            str(getattr(integration, "mode", "") or "").strip().lower()
+            != "standalone"
+            or str(
+                getattr(integration, "post_landed_parent_id", "") or ""
+            ).strip()
+            != parent_id
+        ):
+            return False
+        if authority.workflow_authority_check is not None:
+            try:
+                if not authority.workflow_authority_check():
+                    return False
+            except Exception:
+                return False
         project = self.project_store.get(authority.project_id)
         if project is None:
             return False
@@ -23012,6 +23082,16 @@ class Orchestrator:
         existing = getattr(issue, "integration", None)
         return IntegrationRecord(
             state="integrated",
+            mode=(
+                str(getattr(existing, "mode", "") or "").strip()
+                or "standalone"
+            ),
+            post_landed_parent_id=(
+                str(
+                    getattr(existing, "post_landed_parent_id", "") or ""
+                ).strip()
+                or None
+            ),
             task_branch=work_branch,
             base_branch=target_branch,
             base_sha=getattr(existing, "base_sha", None),
@@ -23090,7 +23170,15 @@ class Orchestrator:
                             canonical_record.to_dict(),
                         )
 
-                    await asyncio.to_thread(persist_noop_evidence)
+                    persisted = await asyncio.to_thread(
+                        self._standalone_delivery_mutation,
+                        authority,
+                        tracker,
+                        persist_noop_evidence,
+                        refresh_authority=False,
+                    )
+                    if not persisted:
+                        return False, None
                 except Exception as exc:  # noqa: BLE001 - durable proof is required
                     logger.warning(
                         "Could not persist contained landing evidence for %s: %s",
@@ -30762,6 +30850,8 @@ class Orchestrator:
         """One-task queue effect used only by the durable implementation adapter."""
 
         if is_direct_epic_maintenance_issue(issue):
+            return
+        if str(getattr(record, "mode", "") or "").strip().lower() == "standalone":
             return
         if not self.config.parallel_epic_children_enabled:
             return

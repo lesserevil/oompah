@@ -322,6 +322,8 @@ class IntegrationLandingRequestResolver:
         project_default_branch: str | None = None,
         workflow_store: WorkflowJobStore | None = None,
         forge_review_resolver: Callable[[str], Any | None] | None = None,
+        landing_collector: Any | None = None,
+        parent_source_head_resolver: Callable[[str], str | None] | None = None,
     ) -> None:
         self.project_id = str(project_id or "").strip()
         self.tracker = tracker
@@ -330,6 +332,8 @@ class IntegrationLandingRequestResolver:
         self.project_default_branch = str(project_default_branch or "").strip()
         self.workflow_store = workflow_store
         self.forge_review_resolver = forge_review_resolver
+        self.landing_collector = landing_collector
+        self.parent_source_head_resolver = parent_source_head_resolver
 
     @staticmethod
     def _git_revision(value: object) -> str | None:
@@ -363,7 +367,228 @@ class IntegrationLandingRequestResolver:
         source = self._parent_source_branch(parent)
         if base_branch and base_branch != source:
             return base_branch
+        parent_id = str(getattr(parent, "parent_id", "") or "").strip()
+        branch_name = getattr(self.project_store, "epic_branch_name", None)
+        if parent_id and callable(branch_name):
+            try:
+                return str(branch_name(parent_id) or "").strip()
+            except Exception:  # noqa: BLE001 - optional authority source
+                return ""
         return self.project_default_branch
+
+    def post_landed_parent_target(self, task: Issue) -> str | None:
+        """Return a parent's exact already-landed immediate target, or fail closed."""
+
+        lock_factory = getattr(self.project_store, "project_write_lock", None)
+        lock = (
+            lock_factory(self.project_id)
+            if callable(lock_factory)
+            else contextlib.nullcontext()
+        )
+        try:
+            with lock:
+                return self._post_landed_parent_target_locked(task)
+        except Exception:  # noqa: BLE001 - complete authority cut fails closed
+            return None
+
+    def current_parent_queue_target(self, task: Issue) -> str | None:
+        """Return the exact current parent branch for queue compensation.
+
+        This deliberately does not require the parent's former landing proof.
+        It is the recovery route used when that proof changes after a child was
+        classified for standalone delivery.  Direct containment and the
+        child's complete tracker authority are still checked under the project
+        write lock, so a concurrent reparent cannot redirect the submission.
+        """
+
+        lock_factory = getattr(self.project_store, "project_write_lock", None)
+        lock = (
+            lock_factory(self.project_id)
+            if callable(lock_factory)
+            else contextlib.nullcontext()
+        )
+        try:
+            with lock:
+                parent_id = str(getattr(task, "parent_id", "") or "").strip()
+                fetch = getattr(self.tracker, "fetch_issue_detail", None)
+                fetch_children = getattr(self.tracker, "fetch_children", None)
+                if (
+                    not parent_id
+                    or not callable(fetch)
+                    or not callable(fetch_children)
+                ):
+                    return None
+                parent = fetch(parent_id)
+                parent_identity = str(
+                    getattr(parent, "identifier", "")
+                    or getattr(parent, "id", "")
+                    or ""
+                ).strip()
+                parent_project = str(
+                    getattr(parent, "project_id", "") or ""
+                ).strip()
+                if (
+                    parent is None
+                    or parent_identity != parent_id
+                    or str(
+                        getattr(parent, "issue_type", "") or ""
+                    ).strip().lower()
+                    != "epic"
+                    or (
+                        parent_project
+                        and self.project_id
+                        and parent_project != self.project_id
+                    )
+                ):
+                    return None
+                matching = tuple(
+                    child
+                    for child in fetch_children(parent_id)
+                    if str(
+                        getattr(child, "identifier", "")
+                        or getattr(child, "id", "")
+                        or ""
+                    ).strip()
+                    == task.identifier
+                    and str(getattr(child, "parent_id", "") or "").strip()
+                    == parent_id
+                )
+                if len(matching) != 1:
+                    return None
+                current_child = matching[0]
+                authority_child = (
+                    current_child
+                    if current_child.project_id
+                    else replace(current_child, project_id=self.project_id)
+                )
+                authority_task = (
+                    task
+                    if task.project_id
+                    else replace(task, project_id=self.project_id)
+                )
+                if issue_authority_version(
+                    authority_child
+                ) != issue_authority_version(authority_task):
+                    return None
+                return self._parent_source_branch(parent) or None
+        except Exception:  # noqa: BLE001 - complete authority cut fails closed
+            return None
+
+    def _post_landed_parent_target_locked(self, task: Issue) -> str | None:
+        parent_id = str(getattr(task, "parent_id", "") or "").strip()
+        fetch = getattr(self.tracker, "fetch_issue_detail", None)
+        fetch_children = getattr(self.tracker, "fetch_children", None)
+        if (
+            not parent_id
+            or self.workflow_store is None
+            or not callable(fetch)
+            or not callable(fetch_children)
+        ):
+            return None
+        parent = fetch(parent_id)
+        children = tuple(fetch_children(parent_id))
+        parent_identity = str(
+            getattr(parent, "identifier", "") or getattr(parent, "id", "") or ""
+        ).strip()
+        parent_project = str(getattr(parent, "project_id", "") or "").strip()
+        if (
+            parent is None
+            or parent_identity != parent_id
+            or str(getattr(parent, "issue_type", "") or "").strip().lower()
+            != "epic"
+            or (parent_project and self.project_id and parent_project != self.project_id)
+        ):
+            return None
+        matching = tuple(
+            child
+            for child in children
+            if str(
+                getattr(child, "identifier", "")
+                or getattr(child, "id", "")
+                or ""
+            ).strip()
+            == task.identifier
+            and str(getattr(child, "parent_id", "") or "").strip() == parent_id
+        )
+        if len(matching) != 1:
+            return None
+        current_child = matching[0]
+        authority_child = (
+            current_child
+            if current_child.project_id
+            else replace(current_child, project_id=self.project_id)
+        )
+        authority_task = (
+            task if task.project_id else replace(task, project_id=self.project_id)
+        )
+        if issue_authority_version(authority_child) != issue_authority_version(
+            authority_task
+        ):
+            return None
+        source = self._parent_source_branch(parent)
+        target = self._parent_landing_target(parent)
+        if not source or not target or source == target:
+            return None
+        rows = self.workflow_store.latest_landing_facts_for_pair(
+            project_id=self.project_id,
+            task_id=parent_id,
+            source=source,
+            target=target,
+        )
+        if len(rows) != 1:
+            return None
+        try:
+            fact = LandingFact.from_dict(rows[0])
+        except (TypeError, ValueError):
+            return None
+        revision = self._git_revision(fact.revision)
+        proof_revision = fact.proof.get("source_sha")
+        if (
+            fact.project_id != self.project_id
+            or fact.source != source
+            or fact.target != target
+            or fact.state is not LandingState.LANDED
+            or not fact.durable
+            or revision is None
+            or (
+                proof_revision is not None
+                and self._git_revision(proof_revision) != revision
+            )
+        ):
+            return None
+        current_parent_head = self._git_revision(issue_exact_head(parent))
+        if current_parent_head is not None and current_parent_head != revision:
+            return None
+        if (
+            not callable(self.parent_source_head_resolver)
+            or self.landing_collector is None
+        ):
+            return None
+        live_source_head = self.parent_source_head_resolver(source)
+        if live_source_head is not None:
+            live_source_head = self._git_revision(live_source_head)
+            if live_source_head != revision:
+                return None
+        observed = self.landing_collector.collect(
+            LandingRequest(
+                source,
+                target,
+                revision,
+                prior=fact,
+                prefer_live_source=live_source_head is not None,
+                authoritative_target=True,
+            )
+        )
+        if (
+            observed.project_id != self.project_id
+            or observed.source != source
+            or observed.target != target
+            or observed.revision != revision
+            or observed.state is not LandingState.LANDED
+            or not observed.durable
+        ):
+            return None
+        return target
 
     @staticmethod
     def _one_exact_head(values: Sequence[object]) -> tuple[str | None, bool]:
@@ -1620,6 +1845,500 @@ class OrchestratorIntegrationActionBackend:
             return tuple(resolve(issue, include_ready=include_ready))
         return tuple(self.landing_request_resolver(issue, include_ready=include_ready))
 
+    def _post_landed_parent_target(self, issue: Issue | None) -> str | None:
+        resolve = getattr(
+            self.landing_request_resolver,
+            "post_landed_parent_target",
+            None,
+        )
+        if issue is None or not callable(resolve):
+            return None
+        try:
+            return str(resolve(issue) or "").strip() or None
+        except Exception:  # noqa: BLE001 - routing evidence fails closed
+            return None
+
+    def _standalone_route_is_current(self, issue: Issue | None, record: Any) -> bool:
+        if issue is None or record is None:
+            return False
+        if not str(getattr(issue, "parent_id", "") or "").strip():
+            return True
+        target = self._post_landed_parent_target(issue)
+        return bool(
+            target
+            and str(getattr(record, "post_landed_parent_id", "") or "").strip()
+            == str(getattr(issue, "parent_id", "") or "").strip()
+            and str(getattr(issue, "target_branch", "") or "").strip() == target
+            and str(getattr(record, "base_branch", "") or "").strip() == target
+        )
+
+    def _current_parent_queue_target(self, issue: Issue | None) -> str | None:
+        resolve = getattr(
+            self.landing_request_resolver,
+            "current_parent_queue_target",
+            None,
+        )
+        if issue is None or not callable(resolve):
+            return None
+        try:
+            return str(resolve(issue) or "").strip() or None
+        except Exception:  # noqa: BLE001 - recovery authority fails closed
+            return None
+
+    def _project_route_authority_lock(self):
+        store = getattr(self.landing_request_resolver, "project_store", None)
+        if store is None:
+            store = getattr(self.orchestrator, "project_store", None)
+        lock_factory = getattr(store, "project_write_lock", None)
+        return (
+            lock_factory(self.project_id)
+            if callable(lock_factory)
+            else contextlib.nullcontext()
+        )
+
+    def _reclassify_invalid_parented_standalone(
+        self,
+        context: WorkflowJobContext,
+        issue: Issue,
+        record: IntegrationRecord,
+        *,
+        expected_branch: str,
+        expected_head: str,
+    ) -> None:
+        """Return stale post-parent standalone authority to natural routing.
+
+        The tracker is the accepted-submission authority and is intentionally
+        written before the SQLite queue. The replacement integration-attempt
+        generation owns exact absent/cancelled queue repair, avoiding a
+        cross-store transaction or a queue-to-project lock inversion.
+        """
+
+        parent_id = str(getattr(issue, "parent_id", "") or "").strip()
+        if (
+            not parent_id
+            or record.mode != "standalone"
+            or str(record.post_landed_parent_id or "").strip() != parent_id
+            or record.task_branch != expected_branch
+            or record.head_sha != expected_head
+        ):
+            raise WorkflowActionError(
+                "standalone route changed outside compensable parent authority",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=True,
+            )
+
+        # _exact_standalone_submission already holds the issue-transition lock.
+        # Take the project lock next and retain it through the final route check
+        # and tracker writes. Parent Git authority cannot cross this cut.
+        with self._project_route_authority_lock():
+            context.check_interrupted()
+            current_issue = self._fresh_issue(context)
+            current_record = self._record(current_issue)
+            if (
+                current_issue is None
+                or not isinstance(current_record, IntegrationRecord)
+                or canonicalize_status(current_issue.state)
+                != READY_TO_INTEGRATE
+                or str(getattr(current_issue, "parent_id", "") or "").strip()
+                != parent_id
+                or current_record.mode != "standalone"
+                or str(current_record.post_landed_parent_id or "").strip()
+                != parent_id
+                or current_record.task_branch != expected_branch
+                or current_record.head_sha != expected_head
+            ):
+                raise WorkflowActionError(
+                    "standalone route changed before parent authority fencing",
+                    category=WorkflowFailureCategory.STALE_EVIDENCE,
+                    retryable=True,
+                )
+
+            landed_target = self._post_landed_parent_target(current_issue)
+            if landed_target:
+                # The inverse race won before the compensation cut. Preserve
+                # standalone authority, retargeting only if the parent's actual
+                # immediate destination changed.
+                if (
+                    str(getattr(current_issue, "target_branch", "") or "").strip()
+                    != landed_target
+                    or current_record.base_branch != landed_target
+                ):
+                    self.tracker.set_metadata_field(
+                        context.job.task_id,
+                        "oompah.target_branch",
+                        landed_target,
+                    )
+                    current_issue = self._fresh_issue(context)
+                    current_record = self._record(current_issue)
+                    if (
+                        current_issue is None
+                        or not isinstance(current_record, IntegrationRecord)
+                        or self._post_landed_parent_target(current_issue)
+                        != landed_target
+                        or current_record.mode != "standalone"
+                        or str(
+                            current_record.post_landed_parent_id or ""
+                        ).strip()
+                        != parent_id
+                        or current_record.task_branch != expected_branch
+                        or current_record.head_sha != expected_head
+                    ):
+                        raise WorkflowActionError(
+                            "parent re-landing changed during standalone retargeting",
+                            category=WorkflowFailureCategory.STALE_EVIDENCE,
+                            retryable=True,
+                        )
+                    self.tracker.set_metadata_field(
+                        context.job.task_id,
+                        "oompah.integration",
+                        replace(
+                            current_record,
+                            base_branch=landed_target,
+                            base_sha=None,
+                        ).to_dict(),
+                    )
+                current_issue = self._fresh_issue(context)
+                current_record = self._record(current_issue)
+                facts = self.binding.collector.collect(
+                    context.job.task_id,
+                    landing_requests=(
+                        self._landing_request(current_issue)
+                        if current_issue is not None
+                        else ()
+                    ),
+                )
+                decision = (
+                    evaluate_task(current_issue, facts)
+                    if current_issue is not None
+                    else None
+                )
+                if (
+                    current_issue is None
+                    or current_record is None
+                    or not self._standalone_route_is_current(
+                        current_issue,
+                        current_record,
+                    )
+                    or decision is None
+                    or "standalone_delivery" not in decision.durable_jobs
+                ):
+                    raise WorkflowActionError(
+                        "re-landed parent standalone route is not observable",
+                        category=WorkflowFailureCategory.TRANSIENT,
+                        retryable=True,
+                    )
+                self._request_refresh()
+                raise WorkflowActionSuperseded(
+                    "parent landing became current before queue compensation",
+                    replacement_generation=(
+                        f"standalone:{decision.decision_revision}"
+                    ),
+                )
+
+            queue_target = self._current_parent_queue_target(current_issue)
+            if (
+                not queue_target
+                or self._post_landed_parent_target(current_issue) is not None
+            ):
+                raise WorkflowActionError(
+                    "stale standalone parent route could not be fenced",
+                    category=WorkflowFailureCategory.TRANSIENT,
+                    retryable=True,
+                )
+            self.tracker.set_metadata_field(
+                context.job.task_id,
+                "oompah.target_branch",
+                queue_target,
+            )
+            targeted = self._fresh_issue(context)
+            targeted_record = self._record(targeted)
+            if (
+                targeted is None
+                or not isinstance(targeted_record, IntegrationRecord)
+                or str(getattr(targeted, "parent_id", "") or "").strip()
+                != parent_id
+                or str(getattr(targeted, "target_branch", "") or "").strip()
+                != queue_target
+                or self._current_parent_queue_target(targeted) != queue_target
+                or self._post_landed_parent_target(targeted) is not None
+                or targeted_record.mode != "standalone"
+                or str(targeted_record.post_landed_parent_id or "").strip()
+                != parent_id
+                or targeted_record.task_branch != expected_branch
+                or targeted_record.head_sha != expected_head
+            ):
+                raise WorkflowActionError(
+                    "stale standalone target changed during queue compensation",
+                    category=WorkflowFailureCategory.STALE_EVIDENCE,
+                    retryable=True,
+                )
+            self.tracker.set_metadata_field(
+                context.job.task_id,
+                "oompah.integration",
+                replace(
+                    targeted_record,
+                    mode="queue",
+                    post_landed_parent_id=None,
+                    base_branch=queue_target,
+                    base_sha=None,
+                ).to_dict(),
+            )
+            current_issue = self._fresh_issue(context)
+            current_record = self._record(current_issue)
+            facts = self.binding.collector.collect(
+                context.job.task_id,
+                landing_requests=(
+                    self._landing_request(current_issue)
+                    if current_issue is not None
+                    else ()
+                ),
+            )
+            decision = (
+                evaluate_task(current_issue, facts)
+                if current_issue is not None
+                else None
+            )
+            if (
+                current_issue is None
+                or not isinstance(current_record, IntegrationRecord)
+                or current_record.mode != "queue"
+                or current_record.post_landed_parent_id is not None
+                or current_record.base_branch != queue_target
+                or current_record.base_sha is not None
+                or self._post_landed_parent_target(current_issue) is not None
+                or decision is None
+                or "integration_attempt" not in decision.durable_jobs
+            ):
+                raise WorkflowActionError(
+                    "parent queue compensation is not observable",
+                    category=WorkflowFailureCategory.TRANSIENT,
+                    retryable=True,
+                )
+            self._request_refresh()
+            raise WorkflowActionSuperseded(
+                "stale standalone delivery returned to its current parent queue",
+                replacement_generation=f"queue-parent:{decision.decision_revision}",
+            )
+
+    def _reclassify_queue_submission_if_needed(
+        self,
+        context: WorkflowJobContext,
+        *,
+        observed_present: bool,
+        observed_generation: str,
+        observed_parent: str,
+        expected_branch: str,
+        expected_head: str,
+        expected_evidence: str,
+    ) -> None:
+        """Move an exact queue record to standalone without lock inversion."""
+
+        with self._project_route_authority_lock():
+            context.check_interrupted()
+            issue = self._fresh_issue(context)
+            record = self._record(issue)
+            if (
+                issue is None
+                or not isinstance(record, IntegrationRecord)
+                or canonicalize_status(issue.state) != READY_TO_INTEGRATE
+                or is_direct_epic_maintenance_issue(issue)
+                or record.mode != "queue"
+                or str(record.state or "").strip().lower() != "ready"
+                or record.task_branch != expected_branch
+                or record.head_sha != expected_head
+            ):
+                return
+            parent_id = str(getattr(issue, "parent_id", "") or "").strip()
+            if parent_id != observed_parent:
+                return
+            post_landed_target = (
+                self._post_landed_parent_target(issue) if parent_id else None
+            )
+            if parent_id and not post_landed_target:
+                return
+            project_store = getattr(self.orchestrator, "project_store", None)
+            get_project = getattr(project_store, "get", None)
+            try:
+                project = (
+                    get_project(self.project_id) if callable(get_project) else None
+                )
+            except Exception as exc:  # noqa: BLE001 - project lookup boundary
+                raise WorkflowActionError(
+                    f"standalone target project is unavailable: {exc}",
+                    category=WorkflowFailureCategory.TRANSIENT,
+                    retryable=True,
+                ) from exc
+            standalone_base = str(
+                post_landed_target
+                or getattr(issue, "target_branch", "")
+                or getattr(project, "default_branch", "")
+                or ""
+            ).strip()
+            original_target = str(
+                getattr(issue, "target_branch", "") or ""
+            ).strip()
+            if not standalone_base:
+                raise WorkflowActionError(
+                    "queue delivery has no standalone target branch",
+                    category=WorkflowFailureCategory.PERMANENT,
+                    retryable=False,
+                )
+            facts = self.binding.collector.collect(
+                issue.identifier,
+                landing_requests=self._landing_request(issue),
+            )
+            decision = evaluate_task(issue, facts)
+            if (
+                decision.evidence_revision != expected_evidence
+                or "integration_attempt" not in decision.durable_jobs
+            ):
+                raise WorkflowActionError(
+                    "integration attempt evidence changed before reclassification",
+                    category=WorkflowFailureCategory.STALE_EVIDENCE,
+                    retryable=True,
+                )
+            queue = self.orchestrator.integration_queue
+            row = queue.get(self.project_id, context.job.task_id)
+            if row is None:
+                if observed_present or observed_generation:
+                    raise WorkflowActionError(
+                        "queue generation disappeared before reclassification",
+                        category=WorkflowFailureCategory.STALE_EVIDENCE,
+                        retryable=True,
+                    )
+            elif (
+                not observed_generation
+                or row.authority_generation() != observed_generation
+                or row.state != "ready"
+                or row.lease_owner is not None
+                or row.rebase_intent_pending
+                or row.rebased_publication_pending
+                or row.task_branch != expected_branch
+                or row.head_sha != expected_head
+                or (parent_id and row.epic_id != parent_id)
+            ):
+                raise WorkflowActionError(
+                    "queue generation changed before reclassification",
+                    category=WorkflowFailureCategory.STALE_EVIDENCE,
+                    retryable=True,
+                )
+
+            if post_landed_target:
+                self.tracker.set_metadata_field(
+                    context.job.task_id,
+                    "oompah.target_branch",
+                    standalone_base,
+                )
+                issue = self._fresh_issue(context)
+                record = self._record(issue)
+                if (
+                    issue is None
+                    or not isinstance(record, IntegrationRecord)
+                    or str(getattr(issue, "parent_id", "") or "").strip()
+                    != parent_id
+                    or str(getattr(issue, "target_branch", "") or "").strip()
+                    != standalone_base
+                    or self._post_landed_parent_target(issue) != standalone_base
+                    or record.mode != "queue"
+                    or record.task_branch != expected_branch
+                    or record.head_sha != expected_head
+                ):
+                    raise WorkflowActionError(
+                        "parent landing changed during tracker-first reclassification",
+                        category=WorkflowFailureCategory.STALE_EVIDENCE,
+                        retryable=True,
+                    )
+            self.tracker.set_metadata_field(
+                context.job.task_id,
+                "oompah.integration",
+                replace(
+                    record,
+                    mode="standalone",
+                    post_landed_parent_id=(parent_id or None),
+                    base_branch=standalone_base,
+                    base_sha=None,
+                ).to_dict(),
+            )
+            if row is None:
+                retired = queue.run_if_absent(
+                    self.project_id,
+                    context.job.task_id,
+                    action=lambda: True,
+                )
+            else:
+                retired = (
+                    queue.retire_task_generation(
+                        self.project_id,
+                        context.job.task_id,
+                        expected_generation=observed_generation,
+                        reason=STANDALONE_RECLASSIFICATION_REASON,
+                    )
+                    is not None
+                )
+            if not retired:
+                # The tracker-first write is safe while the row remains
+                # unclaimable by current metadata, but an exact queue CAS can
+                # still lose to a concurrent generation. Restore the accepted
+                # queue record before yielding; a process exit during this
+                # rollback is handled by the same partial-write repair path.
+                if post_landed_target:
+                    self.tracker.set_metadata_field(
+                        context.job.task_id,
+                        "oompah.target_branch",
+                        original_target,
+                    )
+                self.tracker.set_metadata_field(
+                    context.job.task_id,
+                    "oompah.integration",
+                    record.to_dict(),
+                )
+                raise WorkflowActionError(
+                    "queue authority changed after tracker-first reclassification",
+                    category=WorkflowFailureCategory.STALE_EVIDENCE,
+                    retryable=True,
+                )
+            current_issue = self._fresh_issue(context)
+            current_record = self._record(current_issue)
+            current_facts = self.binding.collector.collect(
+                context.job.task_id,
+                landing_requests=(
+                    self._landing_request(current_issue)
+                    if current_issue is not None
+                    else ()
+                ),
+            )
+            replacement = (
+                evaluate_task(current_issue, current_facts)
+                if current_issue is not None
+                else None
+            )
+            if (
+                current_issue is None
+                or not isinstance(current_record, IntegrationRecord)
+                or not self._standalone_route_is_current(
+                    current_issue,
+                    current_record,
+                )
+                or replacement is None
+                or "standalone_delivery" not in replacement.durable_jobs
+            ):
+                raise WorkflowActionError(
+                    "standalone delivery reclassification is not observable",
+                    category=WorkflowFailureCategory.TRANSIENT,
+                    retryable=True,
+                )
+            self._request_refresh()
+            raise WorkflowActionSuperseded(
+                (
+                    "queued delivery was reclassified because its parent landed"
+                    if post_landed_target
+                    else "queued delivery was reclassified after parent removal"
+                ),
+                replacement_generation=(
+                    f"standalone:{replacement.decision_revision}"
+                ),
+            )
+
     def _landing(self, issue: Issue) -> LandingFact | None:
         requests = self._landing_request(issue, include_ready=True)
         if not requests:
@@ -2187,147 +2906,137 @@ class OrchestratorIntegrationActionBackend:
                 _require_current_attempt_evidence()
                 return row
 
-            if not parent_id:
-                _require_current_attempt_evidence()
-                record_mode = (
-                    str(getattr(record, "mode", "") or "").strip().lower()
+            if (
+                parent_id
+                and isinstance(record, IntegrationRecord)
+                and record.mode == "standalone"
+                and str(record.post_landed_parent_id or "").strip()
+                == parent_id
+                and record.task_branch == branch
+                and record.head_sha == head
+                and not self._standalone_route_is_current(issue, record)
+            ):
+                # Restart repair for a process that wrote the parent queue
+                # target but exited before changing the integration record.
+                # Finish the tracker-first compensation; its replacement
+                # integration attempt will own cancelled-row revival.
+                self._reclassify_invalid_parented_standalone(
+                    context,
+                    issue,
+                    record,
+                    expected_branch=branch,
+                    expected_head=head,
                 )
-                record_state = (
-                    str(getattr(record, "state", "") or "").strip().lower()
-                )
-                if record_mode != "queue" or record_state != "ready":
-                    raise WorkflowActionError(
-                        "unparented integration record is not queue reclassifiable",
-                        category=WorkflowFailureCategory.STALE_EVIDENCE,
-                        retryable=True,
-                    )
-                project_store = getattr(self.orchestrator, "project_store", None)
-                get_project = getattr(project_store, "get", None)
-                try:
-                    project = (
-                        get_project(self.project_id)
-                        if callable(get_project)
-                        else None
-                    )
-                except Exception as exc:  # noqa: BLE001 - project lookup boundary
-                    raise WorkflowActionError(
-                        f"standalone target project is unavailable: {exc}",
-                        category=WorkflowFailureCategory.TRANSIENT,
-                        retryable=True,
-                    ) from exc
-                standalone_base = str(
-                    getattr(issue, "target_branch", "")
-                    or getattr(project, "default_branch", "")
-                    or ""
-                ).strip()
-                if not standalone_base:
-                    raise WorkflowActionError(
-                        "unparented delivery has no standalone target branch",
-                        category=WorkflowFailureCategory.PERMANENT,
-                        retryable=False,
-                    )
 
-                def _write_standalone_mode(_current: Any | None = None) -> bool:
+            self._reclassify_queue_submission_if_needed(
+                context,
+                observed_present=observed_present,
+                observed_generation=observed_generation,
+                observed_parent=observed_parent,
+                expected_branch=branch,
+                expected_head=head,
+                expected_evidence=expected_evidence,
+            )
+
+            if (
+                row is not None
+                and observed_generation
+                and row.authority_generation() == observed_generation
+                and row.state == "cancelled"
+                and row.last_error == STANDALONE_RECLASSIFICATION_REASON
+                and row.lease_owner is None
+                and not row.rebase_intent_pending
+                and not row.rebased_publication_pending
+                and row.epic_id == parent_id
+                and row.task_branch == branch
+                and row.head_sha == head
+                and str(getattr(record, "mode", "") or "").strip().lower()
+                == "queue"
+                and str(getattr(record, "state", "") or "").strip().lower()
+                == "ready"
+            ):
+                # Tracker-first standalone compensation deliberately leaves
+                # the retired row untouched.  The replacement queue decision
+                # revives only that exact cancelled generation under the
+                # issue -> project -> queue lock order.
+                with self._project_route_authority_lock():
                     context.check_interrupted()
                     current_issue = self._fresh_issue(context)
                     current_record = self._record(current_issue)
+                    queue_target = self._current_parent_queue_target(current_issue)
                     if (
                         current_issue is None
-                        or not isinstance(current_record, IntegrationRecord)
+                        or current_record is None
                         or canonicalize_status(current_issue.state)
                         != READY_TO_INTEGRATE
-                        or str(getattr(current_issue, "parent_id", "") or "").strip()
                         or str(
-                            getattr(current_issue, "target_branch", "")
-                            or getattr(project, "default_branch", "")
-                            or ""
+                            getattr(current_issue, "parent_id", "") or ""
                         ).strip()
-                        != standalone_base
-                        or str(current_record.state or "").strip().lower() != "ready"
-                        or str(current_record.mode or "").strip().lower() != "queue"
-                        or str(current_record.task_branch or "").strip() != branch
-                        or str(current_record.head_sha or "").strip() != head
+                        != parent_id
+                        or self._post_landed_parent_target(current_issue) is not None
+                        or not queue_target
+                        or str(
+                            getattr(current_issue, "target_branch", "") or ""
+                        ).strip()
+                        != queue_target
+                        or str(
+                            getattr(current_record, "base_branch", "") or ""
+                        ).strip()
+                        != queue_target
+                        or str(
+                            getattr(current_record, "mode", "") or ""
+                        ).strip().lower()
+                        != "queue"
+                        or str(
+                            getattr(current_record, "task_branch", "") or ""
+                        ).strip()
+                        != branch
+                        or str(
+                            getattr(current_record, "head_sha", "") or ""
+                        ).strip()
+                        != head
                     ):
-                        return False
-                    self.tracker.set_metadata_field(
-                        context.job.task_id,
-                        "oompah.integration",
-                        replace(
-                            current_record,
-                            mode="standalone",
-                            base_branch=standalone_base,
+                        raise WorkflowActionError(
+                            "cancelled parent queue route changed before repair",
+                            category=WorkflowFailureCategory.STALE_EVIDENCE,
+                            retryable=True,
+                        )
+                    _require_current_attempt_evidence()
+                    recovered = (
+                        self.orchestrator.integration_queue.replace_task_identity(
+                            self.project_id,
+                            context.job.task_id,
+                            expected_generation=observed_generation,
+                            epic_id=parent_id,
+                            task_branch=branch,
+                            head_sha=head,
+                            base_branch=queue_target,
                             base_sha=None,
-                        ).to_dict(),
-                    )
-                    return True
-
-                if row is None:
-                    if observed_present or observed_generation:
-                        raise WorkflowActionError(
-                            "unparented queue generation disappeared before reclassification",
-                            category=WorkflowFailureCategory.STALE_EVIDENCE,
-                            retryable=True,
+                            priority=getattr(issue, "priority", None),
+                            submitted_at=getattr(record, "submitted_at", None),
                         )
-                    reclassified = self.orchestrator.integration_queue.run_if_absent(
-                        self.project_id,
-                        context.job.task_id,
-                        action=lambda: _write_standalone_mode(),
                     )
-                else:
                     if (
-                        not observed_generation
-                        or row.authority_generation() != observed_generation
-                        or row.task_branch != branch
-                        or row.head_sha != head
+                        recovered is None
+                        or recovered.state != "ready"
+                        or recovered.epic_id != parent_id
+                        or recovered.task_branch != branch
+                        or recovered.head_sha != head
+                        or str(recovered.base_branch or "").strip()
+                        != queue_target
+                        or self._post_landed_parent_target(current_issue) is not None
                     ):
                         raise WorkflowActionError(
-                            "unparented queue generation changed before reclassification",
+                            "cancelled parent queue generation changed during repair",
                             category=WorkflowFailureCategory.STALE_EVIDENCE,
                             retryable=True,
                         )
-                    retired = self.orchestrator.integration_queue.retire_task_generation(
-                        self.project_id,
-                        context.job.task_id,
-                        expected_generation=observed_generation,
-                        reason=STANDALONE_RECLASSIFICATION_REASON,
-                        action=_write_standalone_mode,
-                    )
-                    reclassified = retired is not None
-                if not reclassified:
-                    raise WorkflowActionError(
-                        "unparented delivery authority changed during reclassification",
-                        category=WorkflowFailureCategory.STALE_EVIDENCE,
-                        retryable=True,
-                    )
-                current_issue = self._fresh_issue(context)
-                current_facts = self.binding.collector.collect(
-                    context.job.task_id,
-                    landing_requests=(
-                        self._landing_request(current_issue)
-                        if current_issue is not None
-                        else ()
-                    ),
-                )
-                replacement_decision = (
-                    evaluate_task(current_issue, current_facts)
-                    if current_issue is not None
-                    else None
-                )
-                if (
-                    replacement_decision is None
-                    or "standalone_delivery"
-                    not in replacement_decision.durable_jobs
-                ):
-                    raise WorkflowActionError(
-                        "standalone delivery reclassification is not observable",
-                        category=WorkflowFailureCategory.TRANSIENT,
-                        retryable=True,
-                    )
                 self._request_refresh()
                 raise WorkflowActionSuperseded(
-                    "queued delivery was reclassified after parent removal",
+                    "cancelled standalone generation was restored to the parent queue",
                     replacement_generation=(
-                        f"standalone:{replacement_decision.decision_revision}"
+                        f"queue-parent:{parent_id}:"
+                        f"{recovered.authority_generation()}"
                     ),
                 )
 
@@ -3158,11 +3867,31 @@ class OrchestratorIntegrationActionBackend:
             record_mode = str(
                 getattr(record, "mode", "") or ""
             ).strip().lower()
+            route_current = self._standalone_route_is_current(issue, record)
+            parent_id = str(getattr(issue, "parent_id", "") or "").strip()
+            if (
+                issue is not None
+                and isinstance(record, IntegrationRecord)
+                and parent_id
+                and canonicalize_status(issue.state) == READY_TO_INTEGRATE
+                and record_mode == "standalone"
+                and str(record.post_landed_parent_id or "").strip() == parent_id
+                and record.task_branch == expected_branch
+                and record.head_sha == expected_head
+                and not route_current
+            ):
+                self._reclassify_invalid_parented_standalone(
+                    context,
+                    issue,
+                    record,
+                    expected_branch=expected_branch,
+                    expected_head=expected_head,
+                )
             if (
                 issue is None
                 or canonicalize_status(issue.state) != READY_TO_INTEGRATE
                 or record is None
-                or str(getattr(issue, "parent_id", "") or "").strip()
+                or not route_current
                 or record_mode not in {"", "standalone"}
                 or str(getattr(record, "task_branch", "") or "").strip()
                 != expected_branch
@@ -3282,9 +4011,10 @@ class OrchestratorIntegrationActionBackend:
             or record_branch
             or ""
         ).strip()
+        route_current = self._standalone_route_is_current(issue, record)
         exact_submission = bool(
             issue is not None
-            and not str(getattr(issue, "parent_id", "") or "").strip()
+            and route_current
             and record_mode == "standalone"
             and required_branch
             and expected_head
@@ -4541,7 +5271,37 @@ class OrchestratorIntegrationActionBackend:
                     context.check_interrupted()
                 except Exception:
                     return False
-                return True
+                store = getattr(
+                    self.landing_request_resolver,
+                    "project_store",
+                    None,
+                ) or getattr(self.orchestrator, "project_store", None)
+                lock_factory = getattr(store, "project_write_lock", None)
+                project_lock = (
+                    lock_factory(self.project_id)
+                    if callable(lock_factory)
+                    else None
+                )
+                if project_lock is not None and not project_lock.acquire(
+                    blocking=False
+                ):
+                    return False
+                try:
+                    issue = self._fresh_issue(context)
+                    record = self._record(issue)
+                    return bool(
+                        issue is not None
+                        and isinstance(record, IntegrationRecord)
+                        and canonicalize_status(issue.state)
+                        == READY_TO_INTEGRATE
+                        and record.mode == "standalone"
+                        and record.task_branch == expected_branch
+                        and record.head_sha == expected_head
+                        and self._standalone_route_is_current(issue, record)
+                    )
+                finally:
+                    if project_lock is not None:
+                        project_lock.release()
 
             await asyncio.to_thread(
                 self.orchestrator._reconcile_one_standalone_ready_to_integrate_task,

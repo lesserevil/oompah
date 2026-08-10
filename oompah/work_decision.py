@@ -1259,7 +1259,19 @@ def _integration_decision(
     mode = str(value.get("mode") or "").strip().lower()
     state = str(value.get("state") or "").strip().lower()
     has_parent = bool(str(task.parent_id or "").strip())
-    if mode == "standalone" and state == "ready" and not has_parent:
+    explicit_target = str(task.target_branch or "").strip()
+    integration_target = str(value.get("base_branch") or "").strip()
+    exact_standalone_route = bool(
+        not has_parent
+        or (
+            explicit_target
+            and integration_target
+            and explicit_target == integration_target
+            and str(value.get("post_landed_parent_id") or "").strip()
+            == str(task.parent_id or "").strip()
+        )
+    )
+    if mode == "standalone" and state == "ready" and exact_standalone_route:
         return _decision(
             task,
             facts,

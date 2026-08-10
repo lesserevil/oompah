@@ -424,6 +424,85 @@ def test_workflow_timeout_fences_late_standalone_review_tracker_writes(harness):
     assert not orch._standalone_delivery_authorized(authority, tracker)
 
 
+def test_parent_advance_before_noop_persist_fences_tracker_and_terminal(harness):
+    """A parent-route change after containment cannot publish no-op evidence."""
+
+    orch, project, tracker, _provider, _detect, _gate = harness
+    accepted_head = "f" * 40
+    task = _issue(
+        "TASK-PARENT-NOOP-RACE",
+        branch="feature/parent-noop-race",
+    )
+    task.target_branch = project.default_branch
+    task.integration = IntegrationRecord(
+        state="ready",
+        mode="standalone",
+        task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        head_sha=accepted_head,
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    tracker.fetch_issue_detail.return_value = task
+    workflow_current = [True]
+    authority = orch._claim_standalone_delivery_authority(
+        project,
+        task,
+        workflow_generation="job-parent-noop:1:lease",
+        workflow_authority_check=lambda: workflow_current[0],
+    )
+    assert authority is not None
+    assert orch._set_standalone_delivery_head(
+        authority,
+        task.work_branch or "",
+        accepted_head,
+        lambda: accepted_head,
+    )
+
+    def parent_advances_after_containment(*_args, **_kwargs):
+        workflow_current[0] = False
+        return "contained", ""
+
+    orch._standalone_accepted_head_containment = mock.MagicMock(
+        side_effect=parent_advances_after_containment,
+    )
+    orch.request_terminal_transition = mock.AsyncMock()
+
+    staged, transition = asyncio.run(
+        orch._request_standalone_contained_with_authority_inner(
+            authority,
+            tracker,
+            project=project,
+            work_branch=task.work_branch or "",
+            target_branch=project.default_branch,
+        )
+    )
+
+    assert not staged
+    assert transition is None
+    assert task.integration.state == "ready"
+    assert task.integration.mode == "standalone"
+    assert task.integration.post_landed_parent_id is None
+    tracker.set_metadata_field.assert_not_called()
+    orch.request_terminal_transition.assert_not_awaited()
+
+    parented = replace(
+        task,
+        parent_id="E-1",
+        integration=replace(
+            task.integration,
+            post_landed_parent_id="E-1",
+        ),
+    )
+    canonical = orch._standalone_noop_integration_record(
+        parented,
+        work_branch=task.work_branch or "",
+        target_branch=project.default_branch,
+        accepted_head=accepted_head,
+    )
+    assert canonical.mode == "standalone"
+    assert canonical.post_landed_parent_id == "E-1"
+
+
 def test_standalone_authority_generation_includes_delivery_mode(harness):
     orch, project, tracker, _provider, _detect, _gate = harness
     accepted_head = "b" * 40

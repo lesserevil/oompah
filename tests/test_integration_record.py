@@ -17,7 +17,8 @@ from oompah.integration import (
 def test_integration_record_round_trips_all_supported_evidence():
     record = IntegrationRecord(
         state="ready",
-        mode="queue",
+        mode="standalone",
+        post_landed_parent_id="ABC-1",
         task_branch="oompah/task/ABC-2",
         base_branch="epic-ABC-1",
         base_sha="a" * 40,

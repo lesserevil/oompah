@@ -6519,6 +6519,90 @@ class ProjectStore:
                 expected_head_sha=expected_head_sha,
             )
 
+    def remote_branch_head(self, project_id: str, branch: str) -> str | None:
+        """Return one stable advertised remote head, or ``None`` if pruned."""
+
+        project = self._projects.get(project_id)
+        if project is None:
+            raise ProjectError(f"Unknown project: {project_id}")
+        branch_name = str(branch or "").strip()
+        checked = subprocess.run(
+            ["git", "check-ref-format", f"refs/heads/{branch_name}"],
+            cwd=project.repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        if not branch_name or checked.returncode != 0:
+            raise ProjectError(f"invalid remote branch {branch_name!r}")
+        remote_ref = f"refs/heads/{branch_name}"
+
+        def advertised() -> str | None:
+            result = self._run_network_git(
+                project,
+                ["git", "ls-remote", "--heads", "origin", remote_ref],
+                timeout=30,
+            )
+            if result.returncode != 0:
+                raise ProjectError(
+                    "could not verify remote branch: "
+                    f"{result.stderr.strip()[:500]}"
+                )
+            heads = {
+                fields[0].strip().lower()
+                for line in result.stdout.splitlines()
+                if len(fields := line.split()) >= 2 and fields[1] == remote_ref
+            }
+            if not heads:
+                return None
+            if len(heads) != 1:
+                raise ProjectError(f"remote branch {branch_name!r} is ambiguous")
+            head = next(iter(heads))
+            if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", head):
+                raise ProjectError(f"remote branch {branch_name!r} has an invalid head")
+            return head
+
+        with self.project_write_lock(project_id):
+            first = advertised()
+            if first is None:
+                return None
+            tracking_ref = f"refs/remotes/origin/{branch_name}"
+            fetched = self._run_network_git(
+                project,
+                [
+                    "git",
+                    "fetch",
+                    "--no-tags",
+                    "--quiet",
+                    "origin",
+                    f"+{remote_ref}:{tracking_ref}",
+                ],
+                timeout=60,
+            )
+            if fetched.returncode != 0:
+                raise ProjectError(
+                    f"could not fetch remote branch {branch_name!r}: "
+                    f"{fetched.stderr.strip()[:500]}"
+                )
+            resolved = subprocess.run(
+                ["git", "rev-parse", "--verify", f"{tracking_ref}^{{commit}}"],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            observed = str(resolved.stdout or "").strip().lower()
+            second = advertised()
+            if resolved.returncode != 0 or observed != first or second != first:
+                raise ProjectError(
+                    f"remote branch {branch_name!r} moved while being observed"
+                )
+            return first
+
     def verify_submission_git_authority(
         self,
         project_id: str,
