@@ -540,17 +540,31 @@ class TestRefreshManagerTriggerRefresh:
 
         # First run fails
         await manager.get_or_start(_PROJECT_ID, _BRANCH, service=svc_fail)
-        await asyncio.sleep(0.05)
-        assert manager.get_status(_PROJECT_ID, _BRANCH).phase == "failed"
+        failed = await manager.wait_for_completion(_PROJECT_ID, _BRANCH)
+        assert failed is not None
+        assert failed.phase == "failed"
+        assert failed.error == "network error"
+        assert failed.has_result is False
+        assert failed.result_completed_at is None
+        assert svc_fail.get_backlog.call_count == 1
 
         # Retry via trigger_refresh
         backlog = _make_backlog_result()
         svc_ok = _make_service_mock(backlog)
         status = await manager.trigger_refresh(_PROJECT_ID, _BRANCH, service=svc_ok)
         assert status.phase in ("pending", "loading_merged")
+        assert status.error is None
+        assert status.has_result is False
 
-        await asyncio.sleep(0.05)
-        assert manager.get_status(_PROJECT_ID, _BRANCH).phase == "complete"
+        completed = await manager.wait_for_completion(_PROJECT_ID, _BRANCH)
+        assert completed is not None
+        assert completed.phase == "complete"
+        assert completed.error is None
+        assert completed.has_result is True
+        assert completed.result_completed_at is not None
+        assert manager.get_cached_result(_PROJECT_ID, _BRANCH) is backlog
+        assert svc_fail.get_backlog.call_count == 1
+        assert svc_ok.get_backlog.call_count == 1
 
     @pytest.mark.asyncio
     async def test_trigger_refresh_cancels_in_flight_job(self):
