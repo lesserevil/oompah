@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-10T01:10:11.560423Z'
+updated_at: '2026-08-10T01:10:18.702715Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -200,6 +200,22 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-08-07T07:22:52.281249+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-581
+    target_state: Merged
+    evidence_fingerprint: ac50dd1408cb83f5fd74ec4c1f108cc67f4c9357df36939155b796e4af499100
+    audit_ids:
+    - audit-76320220fb0e
+    - audit-263be5fb2c13
+    - audit-d7244a8797ac
+    - audit-92362c1c4018
+    - audit-c2ccc4272c2f
+    - audit-995a3dbfef87
+    - audit-1ed4580274d8
+    - audit-5028ccb3344d
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T01:10:17.038070+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-581
@@ -278,7 +294,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T01:10:06.978362+00:00'
     selected_ref: f2b319c1182cd654112db622a0498171e508dead
     selected_sha: f2b319c1182cd654112db622a0498171e508dead
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -527,7 +543,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-581
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -542,6 +558,7 @@ oompah.terminal_audit:
     selected_ref: f2b319c1182cd654112db622a0498171e508dead
     selected_sha: f2b319c1182cd654112db622a0498171e508dead
     source_generation: 1
+    updated_at: '2026-08-10T01:10:17.038032+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-200d14f6c680
@@ -1208,5 +1225,12 @@ created: 2026-08-07 09:43
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Owner recovery: PR #600 is merged and both reviewed head 741a7d88b2ad409575a0b3577564b98f57733f87 and accepted head f2b319c1182cd654112db622a0498171e508dead are ancestors of origin/main with zero target diff. Auditor attempts terminated before a verdict; OOMPAH-876 tracks transport retries without candidate exhaustion.
+---
+author: oompah
+created: 2026-08-10 01:10
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Generation 927 exact workflow evidence proves this audited Done result landed on its immediate target; retire the historical record as Merged.
 ---
 <!-- COMMENTS:END -->
