@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-989
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep graceful restart responsive while quiesce drains workflow work
 parent: null
@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T10:14:32.010159Z'
-work_branch: null
+updated_at: '2026-08-10T10:14:43.892182Z'
+work_branch: OOMPAH-989
 target_branch: null
 review_url: null
 review_number: null
@@ -27,6 +27,7 @@ oompah.integration:
   head_sha: 7b5f28ac3bdc10cd6ae244af943acf6768e07207
   submitted_at: '2026-08-10T10:14:27.838130+00:00'
   updated_at: '2026-08-10T10:14:27.838130+00:00'
+oompah.work_branch: OOMPAH-989
 ---
 ## Summary
 
@@ -96,5 +97,10 @@ author: oompah
 created: 2026-08-10 10:14
 ---
 Final exact branch gate passed at 7b5f28ac3bdc10cd6ae244af943acf6768e07207: make test completed with 19,375 passed, 7 skipped, 2 xfailed, 49 warnings in 1,255.13s. Independent exact-head review approved the lifecycle publication, bounded IPC revocation/reconnect, authority rollback, and compatibility repairs; focused evidence is recorded in prior comments.
+---
+author: oompah
+created: 2026-08-10 10:14
+---
+Keep graceful restart responsive and fence lifecycle publication. Exact head 7b5f28ac3bdc10cd6ae244af943acf6768e07207 passed independent review and the full Makefile gate: 19,375 passed, 7 skipped, 2 xfailed.
 ---
 <!-- COMMENTS:END -->
