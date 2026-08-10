@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-732
 type: task
-status: Done
+status: Merged
 priority: null
 title: Prevent standalone Ready delivery starvation after restart
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-10T01:14:52.573096Z'
+updated_at: '2026-08-10T01:14:57.911447Z'
 work_branch: OOMPAH-732
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/688
