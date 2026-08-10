@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T02:42:39.740073Z'
-updated_at: '2026-08-10T02:43:00.044965Z'
+updated_at: '2026-08-10T02:58:54.733821Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ Triggered by OOMPAH-980 under already-landed epic OOMPAH-940. OOMPAH-940's revie
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 02:58
+---
+Forward invariant added from the live parent decision: a service-authorized post-landing standalone child must project its accepted task branch and live target into EpicFactCollector. Otherwise the already-landed parent remains blocked on the stale epic branch even after the child review lands. Regression coverage now includes that parent rollup flow as well as submit routing.
+---
+<!-- COMMENTS:END -->

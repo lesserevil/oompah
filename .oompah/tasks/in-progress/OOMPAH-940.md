@@ -30,7 +30,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-10T01:42:04.886294Z'
+updated_at: '2026-08-10T02:58:51.913493Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -298,5 +298,10 @@ author: oompah
 created: 2026-08-10 00:21
 ---
 Correction to comment 16: the missing text is: make workflow-rollout-check now fails only because service health is not healthy. All numeric evidence and the historical Done classification in comment 16 are unchanged.
+---
+author: oompah
+created: 2026-08-10 02:58
+---
+Live rollout reached healthy generation 986: complete liveness and terminal-audit scans, zero current divergence, zero overdue/action-required work, and zero active operator alerts. The five-minute canary was then invalidated by a new implementation_recovery row exhausting against OOMPAH-981's valid direct-owner claim; OOMPAH-982 now owns that independently reproduced race. OOMPAH-940's remaining semantic blocker is also exact: seven later Done children are still projected against the already-landed epic branch, including direct-main follow-ups OOMPAH-979/980. OOMPAH-981 is being extended so authoritative post-landing children use protected standalone delivery and project their live-target landing back into parent rollup facts. No database/task-file edits or stale-branch reuse are being used.
 ---
 <!-- COMMENTS:END -->
