@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T17:51:08.587712Z'
-updated_at: '2026-08-10T17:52:56.321762Z'
+updated_at: '2026-08-10T18:02:42.008552Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,5 +43,10 @@ author: oompah
 created: 2026-08-10 17:52
 ---
 Implementation correction after reviewing OOMPAH-947: preserve the accepted invariant that partial terminal-audit health cuts never claim complete/healthy. Do not change TerminalAuditHealth.degraded to treat scan_complete=false as healthy. Instead make scripts/workflow_rollout_check.py stateful: a sample whose only non-healthy cause is expected bounded audit continuation may be provisional only when terminal_audit.scan_complete=false, scan_error_count=0, every real terminal-audit failure/stale/quarantine/retry count is zero, workflow liveness is complete/healthy, current exhausted/expired/quarantined jobs are zero, topology/rollout evidence is current, and global_alerts is empty. The canary must still require at least one scan_complete=true overall-healthy sample during its configured window and must fail at the deadline if none arrives. Any actionable alert, scan error, real audit failure, other component degradation, or workflow failure remains an immediate failure. Add sequence tests for healthy -> provisional -> healthy pass; provisional -> healthy pass; all-provisional timeout fail; provisional with scan error/real audit failure fail; unrelated degraded health fail. This correction supersedes the description preference to change authoritative TerminalAuditHealth classification.
+---
+author: oompah
+created: 2026-08-10 18:02
+---
+Implementation is pushed for independent review at exact head 7cfcf162352a308c0cbabb18f617a9d688641d7b on origin/OOMPAH-1002. The canary preserves fail-closed TerminalAuditHealth semantics, treats only exact machine-verified budget-deferred continuation samples as provisional, requires at least one complete healthy terminal-audit sample during the configured window, and fails --once plus every scan/audit/workflow/unrelated degradation. Validation: 36 rollout-canary tests passed; 165 combined rollout and terminal-audit health/API/observability tests passed; Ruff, py_compile, git diff check, make terminal-audit-scan (20/20), make check-secrets, and commit hooks passed. Branch is clean and synchronized. Task intentionally remains In Progress and unsubmitted pending independent review.
 ---
 <!-- COMMENTS:END -->
