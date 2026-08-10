@@ -27,7 +27,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:55:59.817364Z'
-updated_at: '2026-08-08T07:23:17.481015Z'
+updated_at: '2026-08-10T01:20:11.157163Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -82,6 +82,30 @@ oompah.terminal_audit:
       and required scans; all accepted OOMPAH-768 child implementations are patch-contained.'
     created_at: '2026-08-08T07:22:53.856595+00:00'
     applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Historical audited Done record lacks safe exact current landing proof;
+      retain immutable terminal provenance and retire recurring reassessment without
+      creating new work.
+    marked_at: '2026-08-10T01:20:09.628643+00:00'
+    updated_at: '2026-08-10T01:20:09.628643+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Historical audited Done record lacks safe exact current landing proof;
+        retain immutable terminal provenance and retire recurring reassessment without
+        creating new work.
+      recorded_at: '2026-08-10T01:20:09.628643+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -131,6 +155,7 @@ oompah.terminal_audit:
     previous_state: Open
     created_at: '2026-08-06T22:15:02.037452+00:00'
     updated_at: '2026-08-06T22:16:10.385378+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-ce475e01ee0b
