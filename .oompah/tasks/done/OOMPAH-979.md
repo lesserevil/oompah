@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-979
 type: task
-status: Needs CI Fix
+status: Done
 priority: null
 title: Bound terminal publication locks so owner control cannot starve
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T00:01:51.280685Z'
-updated_at: '2026-08-10T01:29:44.350037Z'
+updated_at: '2026-08-10T01:30:12.916173Z'
 work_branch: OOMPAH-979
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/788
@@ -62,6 +62,29 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-10T01:29:22.070386+00:00'
     applied_at: '2026-08-10T01:29:28.678507+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-ee3d560ea645
+    project_id: proj-14849f1b
+    task_id: OOMPAH-979
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: afd8ddcd70579812b8ac85a46768653c33469edb1027f13555242afcaf04a8fe
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Exact head 7fc8bc8ea4a36c952a96349406a173c6b85ec94e is merged to main
+      as 7f9d2bf37624badc6537789cb65be7d21ffa2a85; the exact-head full make test gate
+      passed in 169.1s, 760 focused tests passed independently, and protected Python
+      3.11, 3.12, and 3.13 CI all passed. The later redundant rerun overlapped documented
+      ext4 journal stalls and exited without a verdict.
+    created_at: '2026-08-10T01:30:07.843006+00:00'
+    selected_ref: origin/OOMPAH-979
+    selected_sha: 7fc8bc8ea4a36c952a96349406a173c6b85ec94e
+    applied: false
   version: 1
   pending_chain:
   - version: 1
