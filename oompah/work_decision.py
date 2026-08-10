@@ -1363,6 +1363,62 @@ def _integration_decision(
     )
 
 
+def retained_terminal_child_waiver(
+    child: Mapping[str, Any],
+    *,
+    project_id: str,
+    parent_id: str,
+) -> Mapping[str, Any] | None:
+    """Return one exact owner-retention waiver or fail closed with ``None``."""
+
+    raw = _mapping(child.get("retained_terminal_provenance"))
+    if raw is None:
+        return None
+    generation = raw.get("provenance_authority_generation")
+    identifier = str(child.get("identifier") or "").strip()
+    source = str(child.get("landing_source") or "").strip()
+    target = str(child.get("landing_target") or "").strip()
+    child_revision = str(child.get("revision") or "").strip().lower()
+    authority_version = str(child.get("authority_version") or "").strip().lower()
+    status = canonicalize_status(child.get("status"))
+    valid = bool(
+        project_id
+        and parent_id
+        and identifier
+        and source
+        and target
+        and raw.get("schema_version") == 1
+        and not isinstance(raw.get("schema_version"), bool)
+        and raw.get("kind") == "owner_terminal_provenance"
+        and raw.get("project_id") == project_id
+        and raw.get("parent_id") == parent_id
+        and raw.get("parent_id") == child.get("parent_id")
+        and raw.get("task_id") == identifier
+        and raw.get("status") == status == DONE
+        and raw.get("landing_source") == source
+        and raw.get("landing_target") == target
+        and isinstance(raw.get("revision"), str)
+        and str(raw.get("revision") or "").strip().lower() == child_revision
+        and 40 <= len(child_revision) <= 64
+        and all(character in "0123456789abcdef" for character in child_revision)
+        and isinstance(raw.get("authority_version"), str)
+        and raw.get("authority_version") == authority_version
+        and len(authority_version) == 64
+        and all(character in "0123456789abcdef" for character in authority_version)
+        and isinstance(raw.get("marker_version"), int)
+        and not isinstance(raw.get("marker_version"), bool)
+        and raw.get("marker_version") == 1
+        and isinstance(generation, int)
+        and not isinstance(generation, bool)
+        and generation >= 0
+        and isinstance(raw.get("authorized_by"), str)
+        and str(raw.get("authorized_by") or "").strip()
+        and isinstance(raw.get("actor_source"), str)
+        and str(raw.get("actor_source") or "").strip()
+    )
+    return raw if valid else None
+
+
 def _rollup_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
     containment = facts.fact(FactDomain.CONTAINMENT)
     value = (
@@ -1447,6 +1503,7 @@ def _rollup_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
     incomplete: list[UnmetPrerequisite] = []
     landing_unknown: list[UnmetPrerequisite] = []
     landing_observation = facts.fact(FactDomain.LANDING)
+
     for raw_child in raw_children:
         child = _mapping(raw_child) or {}
         identifier = str(child.get("identifier") or "unknown")
@@ -1491,6 +1548,16 @@ def _rollup_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
                 continue
 
         if not requires_landing:
+            continue
+        if retained_terminal_child_waiver(
+            child,
+            project_id=facts.project_id,
+            parent_id=facts.task_id,
+        ) is not None:
+            # Owner retention is an explicit, scoped waiver of this child's
+            # delivery obligation.  It never creates or substitutes a Git
+            # LandingFact, and any mismatch falls through to normal landing
+            # evidence below.
             continue
         source = str(child.get("landing_source") or "").strip()
         target = str(child.get("landing_target") or "").strip()

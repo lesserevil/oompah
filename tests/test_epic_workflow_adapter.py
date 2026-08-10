@@ -646,6 +646,90 @@ def test_review_creation_holds_project_fence_through_forge_mutation():
     assert competing_mutation_acquired.is_set()
 
 
+def test_review_creation_supersedes_retained_child_revoked_under_project_fence():
+    issue = epic()
+    child = Issue(
+        id="CHILD",
+        identifier="CHILD",
+        title="child",
+        description="fixture",
+        state=DONE,
+        issue_type="task",
+        project_id="project-1",
+        parent_id="TOP",
+        work_branch="epic-TOP--task-CHILD",
+        head_sha="b" * 40,
+    )
+    authority = issue_authority_version(child)
+    child_fact = {
+        "identifier": child.identifier,
+        "status": DONE,
+        "parent_id": issue.identifier,
+        "maintenance": False,
+        "requires_landing": True,
+        "landing_source": child.work_branch,
+        "landing_target": "epic-TOP",
+        "revision": child.head_sha,
+        "authority_version": authority,
+        "retained_terminal_provenance": {
+            "schema_version": 1,
+            "kind": "owner_terminal_provenance",
+            "project_id": "project-1",
+            "parent_id": issue.identifier,
+            "task_id": child.identifier,
+            "status": DONE,
+            "landing_source": child.work_branch,
+            "landing_target": "epic-TOP",
+            "revision": child.head_sha,
+            "authority_version": authority,
+            "marker_version": 1,
+            "provenance_authority_generation": 0,
+            "authorized_by": "owner",
+            "actor_source": "api",
+        },
+    }
+    facts = containment_facts(children=(child_fact,))
+    effects, orchestrator, tracker = effect_fixture(issue)
+    tracker.fetch_issue_detail.return_value = issue
+    tracker.fetch_children.return_value = [child]
+    orchestrator._provenance_suppression_status.return_value = SimpleNamespace(
+        malformed=False,
+        suppressed=True,
+        marker=SimpleNamespace(
+            version=1,
+            suppressed=True,
+            authority_generation=0,
+            actor=SimpleNamespace(identity="owner", source="api"),
+        ),
+    )
+    orchestrator._open_one_epic_main_pr.return_value = 1
+
+    assert effects._open_review_under_authority(issue, facts, "a" * 40) == 1
+
+    orchestrator._provenance_suppression_status.reset_mock()
+    orchestrator._open_one_epic_main_pr.reset_mock()
+    orchestrator._provenance_suppression_status.return_value = SimpleNamespace(
+        malformed=False,
+        suppressed=False,
+        marker=SimpleNamespace(
+            version=1,
+            suppressed=False,
+            authority_generation=1,
+            actor=SimpleNamespace(identity="owner", source="api"),
+        ),
+    )
+
+    with pytest.raises(WorkflowActionSuperseded, match="provenance changed"):
+        effects._open_review_under_authority(issue, facts, "a" * 40)
+
+    orchestrator._provenance_suppression_status.assert_called_once_with(
+        child,
+        "project-1",
+        tracker,
+    )
+    orchestrator._open_one_epic_main_pr.assert_not_called()
+
+
 def test_review_effect_requires_durable_exact_metadata_before_observed():
     issue = epic()
     facts = containment_facts()
@@ -1749,6 +1833,60 @@ def test_cleanup_fails_closed_for_done_child_without_landing():
                 )
             ),
         )
+
+
+def test_retained_child_waiver_is_never_cleanup_or_branch_deletion_authority():
+    issue = epic()
+    child = Issue(
+        id="CHILD",
+        identifier="CHILD",
+        title="child",
+        description="fixture",
+        state=DONE,
+        issue_type="task",
+        project_id="project-1",
+        parent_id="TOP",
+        work_branch="epic-TOP--task-CHILD",
+        head_sha="a" * 40,
+    )
+    authority = issue_authority_version(child)
+    child_fact = {
+        "identifier": child.identifier,
+        "status": DONE,
+        "parent_id": issue.identifier,
+        "maintenance": False,
+        "requires_landing": True,
+        "landing_source": child.work_branch,
+        "landing_target": "epic-TOP",
+        "revision": child.head_sha,
+        "authority_version": authority,
+        "retained_terminal_provenance": {
+            "schema_version": 1,
+            "kind": "owner_terminal_provenance",
+            "project_id": "project-1",
+            "parent_id": issue.identifier,
+            "task_id": child.identifier,
+            "status": DONE,
+            "landing_source": child.work_branch,
+            "landing_target": "epic-TOP",
+            "revision": child.head_sha,
+            "authority_version": authority,
+            "marker_version": 1,
+            "provenance_authority_generation": 0,
+            "authorized_by": "owner",
+            "actor_source": "api",
+        },
+    }
+    effects, orchestrator, tracker = effect_fixture(issue)
+    tracker.fetch_issue_detail.return_value = child
+
+    selected = effects._cleanup_children(
+        issue,
+        containment_facts(children=(child_fact,)),
+    )
+
+    assert selected == ()
+    orchestrator.project_store.delete_epic_child_branch.assert_not_called()
 
 
 @pytest.mark.asyncio

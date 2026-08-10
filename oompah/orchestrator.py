@@ -1463,6 +1463,12 @@ class StandaloneDeliveryAuthority:
     # a currentness callback backed by WorkflowJobStore ownership.
     workflow_generation: str | None = None
     workflow_authority_check: Callable[[], bool] | None = None
+    # Tight validation-capacity and process-liveness loops must not invoke the
+    # full workflow callback above: it may take the project mutation fence and
+    # refresh tracker/routing evidence.  This separate callback proves only
+    # local workflow lease/interruption authority and is therefore safe to
+    # poll while a long gate is waiting or running.
+    workflow_local_authority_check: Callable[[], bool] | None = None
     head_sha: str | None = None
     head_resolver: Any | None = None
     dependency_checked_monotonic: float = 0.0
@@ -20734,6 +20740,7 @@ class Orchestrator:
             expected_head_sha=None,
             workflow_generation=None,
             workflow_authority_check=None,
+            workflow_local_authority_check=None,
         )
 
     def _reconcile_one_standalone_ready_to_integrate_task(
@@ -20745,6 +20752,7 @@ class Orchestrator:
         expected_head_sha: str | None = None,
         workflow_generation: str | None = None,
         workflow_authority_check: Callable[[], bool] | None = None,
+        workflow_local_authority_check: Callable[[], bool] | None = None,
     ) -> None:
         """Deliver one exact standalone generation without entering the sweep."""
 
@@ -20763,6 +20771,9 @@ class Orchestrator:
                     str(workflow_generation or "").strip() or None
                 ),
                 workflow_authority_check=workflow_authority_check,
+                workflow_local_authority_check=(
+                    workflow_local_authority_check
+                ),
             )
 
     def _reconcile_standalone_delivery_scope(
@@ -20774,6 +20785,7 @@ class Orchestrator:
         expected_head_sha: str | None,
         workflow_generation: str | None,
         workflow_authority_check: Callable[[], bool] | None,
+        workflow_local_authority_check: Callable[[], bool] | None,
     ) -> None:
         """Shared delivery body over an explicitly supplied candidate scope."""
 
@@ -21030,6 +21042,9 @@ class Orchestrator:
                     allows_parent=bool(str(issue.parent_id or "").strip()),
                     workflow_generation=workflow_generation,
                     workflow_authority_check=workflow_authority_check,
+                    workflow_local_authority_check=(
+                        workflow_local_authority_check
+                    ),
                 )
                 if authority is None:
                     continue
@@ -22705,6 +22720,7 @@ class Orchestrator:
         allows_parent: bool = False,
         workflow_generation: str | None = None,
         workflow_authority_check: Callable[[], bool] | None = None,
+        workflow_local_authority_check: Callable[[], bool] | None = None,
     ) -> StandaloneDeliveryAuthority | None:
         """Claim the current standalone task revision for delivery work."""
 
@@ -22714,6 +22730,15 @@ class Orchestrator:
         target_branch = str(issue.target_branch or project.default_branch or "").strip()
         expected_state = canonicalize_status(expected_state)
         durable_generation = str(workflow_generation or "").strip() or None
+        # ``workflow_authority_check`` was the original hot-poll contract.
+        # Keep full-only embedders prompt and fail-closed, while production
+        # supplies the new dedicated local callback so its project-fenced full
+        # revalidation never runs from a 50/100ms liveness loop.
+        local_workflow_authority_check = (
+            workflow_local_authority_check
+            if workflow_local_authority_check is not None
+            else workflow_authority_check
+        )
         if (
             not task_id
             or not project_id
@@ -22742,6 +22767,9 @@ class Orchestrator:
                 and not existing.revocation_pending
             ):
                 existing.workflow_authority_check = workflow_authority_check
+                existing.workflow_local_authority_check = (
+                    local_workflow_authority_check
+                )
                 return existing
             if existing is not None:
                 if existing.active_operations:
@@ -22767,6 +22795,9 @@ class Orchestrator:
                 generation=uuid.uuid4().hex,
                 workflow_generation=durable_generation,
                 workflow_authority_check=workflow_authority_check,
+                workflow_local_authority_check=(
+                    local_workflow_authority_check
+                ),
             )
             self._standalone_delivery_authorities[key] = authority
         if superseded_generation is not None:
@@ -23025,6 +23056,9 @@ class Orchestrator:
             head_sha = authority.head_sha
             head_resolver = authority.head_resolver
             workflow_authority_check = authority.workflow_authority_check
+            workflow_local_authority_check = (
+                authority.workflow_local_authority_check
+            )
 
         if workflow_authority_check is not None:
             try:
@@ -23099,6 +23133,8 @@ class Orchestrator:
                 or authority.head_sha != head_sha
                 or authority.head_resolver is not head_resolver
                 or authority.workflow_authority_check is not workflow_authority_check
+                or authority.workflow_local_authority_check
+                is not workflow_local_authority_check
             ):
                 return False
             authority.issue = current
@@ -23122,10 +23158,12 @@ class Orchestrator:
             if not self._standalone_delivery_authority_current_locked(authority):
                 return False
             generation = authority.generation
-            workflow_authority_check = authority.workflow_authority_check
-        if workflow_authority_check is not None:
+            workflow_local_authority_check = (
+                authority.workflow_local_authority_check
+            )
+        if workflow_local_authority_check is not None:
             try:
-                if not workflow_authority_check():
+                if not workflow_local_authority_check():
                     return False
             except Exception:
                 return False
@@ -23133,7 +23171,8 @@ class Orchestrator:
             return bool(
                 self._standalone_delivery_authority_current_locked(authority)
                 and authority.generation == generation
-                and authority.workflow_authority_check is workflow_authority_check
+                and authority.workflow_local_authority_check
+                is workflow_local_authority_check
             )
 
     def _standalone_delivery_cached_evidence_current_locked(
@@ -23570,6 +23609,7 @@ class Orchestrator:
                 authority.head_sha,
                 authority.head_resolver,
                 authority.workflow_authority_check,
+                authority.workflow_local_authority_check,
             )
             (
                 _generation,
@@ -23582,6 +23622,7 @@ class Orchestrator:
                 expected_head,
                 head_resolver,
                 workflow_authority_check,
+                _workflow_local_authority_check,
             ) = authority_snapshot
         current = self._fresh_standalone_delivery_issue(authority, tracker)
         if current is None:
@@ -23659,6 +23700,7 @@ class Orchestrator:
                     authority.head_sha,
                     authority.head_resolver,
                     authority.workflow_authority_check,
+                    authority.workflow_local_authority_check,
                 )
                 if (
                     not self._standalone_delivery_authority_current_locked(authority)
@@ -31319,6 +31361,7 @@ class Orchestrator:
         project = self.project_store.get(epic.project_id) if epic.project_id else None
         tracker = self._tracker_for_issue(epic)
         project_id = str(epic.project_id or getattr(project, "id", None) or "legacy")
+        shadow_sources = getattr(self, "_workflow_shadow_sources", None)
         collector = EpicFactCollector(
             project_id=project_id,
             tracker=tracker,
@@ -31328,6 +31371,7 @@ class Orchestrator:
                 or "main"
             ),
             repo_path=getattr(project, "repo_path", None) if project else None,
+            sources=(shadow_sources(epic) if callable(shadow_sources) else None),
         )
         controller = EpicWorkflowController(
             collector=collector,
@@ -34036,6 +34080,8 @@ class Orchestrator:
                     authority.workflow_generation,
                     authority.head_sha,
                     authority.head_resolver,
+                    authority.workflow_authority_check,
+                    authority.workflow_local_authority_check,
                 )
                 workflow_authority_check = authority.workflow_authority_check
 
@@ -34079,6 +34125,8 @@ class Orchestrator:
                 _workflow_generation,
                 expected_head,
                 head_resolver,
+                _workflow_authority_check,
+                _workflow_local_authority_check,
             ) = authority_snapshot
             if workflow_authority_check is not None:
                 try:
@@ -34208,6 +34256,8 @@ class Orchestrator:
                         authority.workflow_generation,
                         authority.head_sha,
                         authority.head_resolver,
+                        authority.workflow_authority_check,
+                        authority.workflow_local_authority_check,
                     )
                     if (
                         current_command != result.command

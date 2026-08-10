@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -34,6 +35,9 @@ from oompah.task_transition_service import (
 )
 from oompah.work_decision import decision_scheduling_revision, evaluate_task
 from oompah.workflow_facts import (
+    CollectedValue,
+    FactDomain,
+    FactObservation,
     FactState,
     GitLandingCollector,
     LandingFact,
@@ -83,6 +87,55 @@ def issue(
         project_id=project_id,
         work_branch=work_branch,
     )
+
+
+def retained_terminal_source(overrides=None):
+    """Return authenticated terminal-provenance facts for Done fixtures."""
+
+    overrides = overrides or {}
+
+    def source(current: Issue):
+        if current.state != DONE:
+            return None
+        payload = {
+            "schema_version": 1,
+            "marker_present": True,
+            "marker_version": 1,
+            "project_id": current.project_id,
+            "task_id": current.identifier,
+            "retained": True,
+            "malformed": False,
+            "authority_generation": 0,
+            "authorized_by": "owner",
+            "actor_source": "api",
+            "marked_at": "2026-08-10T12:00:00+00:00",
+            "updated_at": "2026-08-10T12:00:00+00:00",
+        }
+        payload.update(overrides)
+        return {"terminal_provenance": payload}
+
+    return source
+
+
+def retained_historical_epic(tmp_path, identifiers):
+    git(tmp_path, "init", "-b", "main")
+    (tmp_path / "base.txt").write_text("base\n")
+    git(tmp_path, "add", "base.txt")
+    git(tmp_path, "commit", "-m", "base")
+    git(tmp_path, "branch", "epic-OOMPAH-940")
+    parent = issue("OOMPAH-940", state=IN_PROGRESS, issue_type="epic")
+    children = []
+    for index, identifier in enumerate(identifiers, start=1):
+        child = issue(
+            identifier,
+            state=DONE,
+            parent_id=parent.identifier,
+            work_branch=identifier,
+        )
+        child.head_sha = f"{index:040x}"
+        children.append(child)
+    tracker = Tracker([parent, *children])
+    return parent, tracker
 
 
 def git(repo: Path, *args: str) -> str:
@@ -962,6 +1015,351 @@ def test_post_landed_child_rollup_uses_exact_standalone_target_route():
         standalone["revision"],
     ) == ("leaf", "main", "a" * 40)
     assert queued["landing_target"] == "epic-TOP"
+
+
+def test_retained_historical_children_compose_exact_parent_rollup_waivers(
+    tmp_path,
+):
+    identifiers = (
+        "OOMPAH-956",
+        "OOMPAH-960",
+        "OOMPAH-961",
+        "OOMPAH-962",
+        "OOMPAH-967",
+        "OOMPAH-968",
+        "OOMPAH-979",
+        "OOMPAH-980",
+    )
+    parent, tracker = retained_historical_epic(tmp_path, identifiers)
+    tracker.issues["OOMPAH-962"].title = "Rebase OOMPAH-940 onto main"
+    for identifier in ("OOMPAH-979", "OOMPAH-980"):
+        child = tracker.issues[identifier]
+        child.target_branch = "main"
+        child.integration = IntegrationRecord(
+            state="ready",
+            mode="standalone",
+            post_landed_parent_id=parent.identifier,
+            task_branch=identifier,
+            base_branch="main",
+            head_sha=child.head_sha,
+        )
+    collector = EpicFactCollector(
+        project_id="project-1",
+        tracker=tracker,
+        repo_path=str(tmp_path),
+        sources={FactDomain.TERMINAL_AUDIT: retained_terminal_source()},
+    )
+
+    facts = collector.collect(parent.identifier)
+    children = facts.fact(FactDomain.CONTAINMENT).value["children"]
+    proofs = {
+        child["identifier"]: child["retained_terminal_provenance"]
+        for child in children
+        if "retained_terminal_provenance" in child
+    }
+    decision = evaluate_task(parent, facts)
+
+    assert set(proofs) == set(identifiers) - {"OOMPAH-962"}
+    for child in children:
+        if child["identifier"] == "OOMPAH-962":
+            assert child["kind"] == "maintenance"
+            assert child["requires_landing"] is False
+            assert "retained_terminal_provenance" not in child
+            continue
+        proof = proofs[child["identifier"]]
+        assert proof["kind"] == "owner_terminal_provenance"
+        assert proof["project_id"] == "project-1"
+        assert proof["parent_id"] == parent.identifier
+        assert proof["task_id"] == child["identifier"]
+        assert proof["status"] == DONE
+        assert proof["landing_source"] == child["landing_source"]
+        assert proof["landing_target"] == child["landing_target"]
+        assert proof["revision"] == child["revision"]
+        assert proof["authority_version"] == child["authority_version"]
+        assert proof["marker_version"] == 1
+        assert proof["provenance_authority_generation"] == 0
+    assert {
+        child["landing_target"]
+        for child in children
+        if child["identifier"] in {"OOMPAH-979", "OOMPAH-980"}
+    } == {"main"}
+    # Retention is an explicit rollup waiver, never a forged Git landing.
+    assert not any(landing.source in identifiers for landing in facts.landings)
+    assert decision.disposition is TaskDisposition.RUNNABLE
+    assert decision.reason_code == "terminal.immediate_target_landing_proven"
+    assert decision.durable_jobs == (EpicAction.AUTO_CLOSE.value,)
+
+
+def test_retained_child_with_native_blank_project_uses_collector_scope(tmp_path):
+    parent, tracker = retained_historical_epic(tmp_path, ("OOMPAH-956",))
+    tracker.issues["OOMPAH-956"].project_id = None
+    facts = EpicFactCollector(
+        project_id="project-1",
+        tracker=tracker,
+        repo_path=str(tmp_path),
+        sources={FactDomain.TERMINAL_AUDIT: retained_terminal_source()},
+    ).collect(parent.identifier)
+
+    child = facts.fact(FactDomain.CONTAINMENT).value["children"][0]
+
+    assert child["retained_terminal_provenance"]["project_id"] == "project-1"
+    assert evaluate_task(parent, facts).durable_jobs == (EpicAction.AUTO_CLOSE.value,)
+
+
+@pytest.mark.parametrize("wrapper", ("observation", "collected"))
+def test_retained_child_accepts_normalized_terminal_fact_sources(tmp_path, wrapper):
+    parent, tracker = retained_historical_epic(tmp_path, ("OOMPAH-956",))
+    raw_source = retained_terminal_source()
+
+    def source(current):
+        value = raw_source(current)
+        if value is None:
+            return None
+        if wrapper == "observation":
+            return FactObservation.known(
+                FactDomain.TERMINAL_AUDIT,
+                value,
+                observed_at="2026-08-10T12:00:00+00:00",
+                source="terminal-audit",
+            )
+        return CollectedValue(
+            value,
+            observed_at="2026-08-10T12:00:00+00:00",
+            source="terminal-audit",
+            stale_after_seconds=60,
+        )
+
+    facts = EpicFactCollector(
+        project_id="project-1",
+        tracker=tracker,
+        repo_path=str(tmp_path),
+        sources={FactDomain.TERMINAL_AUDIT: source},
+        clock=lambda: datetime(2026, 8, 10, 12, tzinfo=timezone.utc),
+    ).collect(parent.identifier)
+
+    child = facts.fact(FactDomain.CONTAINMENT).value["children"][0]
+
+    assert child["retained_terminal_provenance"]["task_id"] == "OOMPAH-956"
+    assert evaluate_task(parent, facts).durable_jobs == (EpicAction.AUTO_CLOSE.value,)
+
+
+def test_stale_terminal_fact_source_cannot_waive_child_landing(tmp_path):
+    parent, tracker = retained_historical_epic(tmp_path, ("OOMPAH-956",))
+    raw_source = retained_terminal_source()
+
+    def stale_source(current):
+        value = raw_source(current)
+        if value is None:
+            return None
+        return CollectedValue(
+            value,
+            observed_at="2026-08-10T11:00:00+00:00",
+            source="terminal-audit",
+            stale_after_seconds=60,
+        )
+
+    facts = EpicFactCollector(
+        project_id="project-1",
+        tracker=tracker,
+        repo_path=str(tmp_path),
+        sources={FactDomain.TERMINAL_AUDIT: stale_source},
+        clock=lambda: datetime(2026, 8, 10, 12, tzinfo=timezone.utc),
+    ).collect(parent.identifier)
+
+    child = facts.fact(FactDomain.CONTAINMENT).value["children"][0]
+    decision = evaluate_task(parent, facts)
+
+    assert "retained_terminal_provenance" not in child
+    assert decision.durable_jobs == (EpicAction.CHILD_LANDING_VERIFICATION.value,)
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"marker_present": False},
+        {"retained": False, "authority_generation": 4},
+        {"malformed": True},
+        {"project_id": "other-project"},
+        {"task_id": "OTHER"},
+        {"authority_generation": -1},
+        {"authorized_by": ""},
+    ],
+)
+def test_invalid_or_revoked_child_retention_keeps_normal_landing_requirement(
+    tmp_path,
+    override,
+):
+    parent, tracker = retained_historical_epic(tmp_path, ("OOMPAH-956",))
+    facts = EpicFactCollector(
+        project_id="project-1",
+        tracker=tracker,
+        repo_path=str(tmp_path),
+        sources={
+            FactDomain.TERMINAL_AUDIT: retained_terminal_source(override)
+        },
+    ).collect(parent.identifier)
+    child = facts.fact(FactDomain.CONTAINMENT).value["children"][0]
+
+    decision = evaluate_task(parent, facts)
+
+    assert "retained_terminal_provenance" not in child
+    assert decision.disposition is TaskDisposition.RETRY_SCHEDULED
+    assert decision.reason_code == "landing.evidence_unknown"
+    assert decision.durable_jobs == (EpicAction.CHILD_LANDING_VERIFICATION.value,)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("project_id", "other-project"),
+        ("parent_id", "OTHER-EPIC"),
+        ("task_id", "OTHER"),
+        ("status", OPEN),
+        ("landing_source", "other-source"),
+        ("landing_target", "other-target"),
+        ("revision", "f" * 40),
+        ("authority_version", "f" * 64),
+        ("provenance_authority_generation", -1),
+    ],
+)
+def test_mismatched_child_retention_proof_cannot_bypass_landing(
+    tmp_path,
+    field,
+    value,
+):
+    parent, tracker = retained_historical_epic(tmp_path, ("OOMPAH-956",))
+    facts = EpicFactCollector(
+        project_id="project-1",
+        tracker=tracker,
+        repo_path=str(tmp_path),
+        sources={FactDomain.TERMINAL_AUDIT: retained_terminal_source()},
+    ).collect(parent.identifier)
+    containment = facts.fact(FactDomain.CONTAINMENT)
+    containment_value = dict(containment.value)
+    child = dict(containment_value["children"][0])
+    proof = dict(child["retained_terminal_provenance"])
+    proof[field] = value
+    child["retained_terminal_provenance"] = proof
+    containment_value["children"] = [child]
+    observations = dict(facts.observations)
+    observations[FactDomain.CONTAINMENT] = FactObservation.known(
+        FactDomain.CONTAINMENT,
+        containment_value,
+        observed_at=containment.observed_at,
+        source=containment.source,
+    )
+    mismatched = replace(facts, observations=observations, facts_version=None)
+
+    decision = evaluate_task(parent, mismatched)
+
+    assert decision.disposition is TaskDisposition.RETRY_SCHEDULED
+    assert decision.reason_code == "landing.evidence_unknown"
+    assert decision.durable_jobs == (EpicAction.CHILD_LANDING_VERIFICATION.value,)
+
+
+@pytest.mark.parametrize(
+    "field",
+    ("identifier", "landing_source", "landing_target", "authority_version"),
+)
+def test_empty_child_retention_identity_cannot_bypass_landing(tmp_path, field):
+    parent, tracker = retained_historical_epic(tmp_path, ("OOMPAH-956",))
+    facts = EpicFactCollector(
+        project_id="project-1",
+        tracker=tracker,
+        repo_path=str(tmp_path),
+        sources={FactDomain.TERMINAL_AUDIT: retained_terminal_source()},
+    ).collect(parent.identifier)
+    containment = facts.fact(FactDomain.CONTAINMENT)
+    containment_value = dict(containment.value)
+    child = dict(containment_value["children"][0])
+    proof = dict(child["retained_terminal_provenance"])
+    child[field] = ""
+    proof["task_id" if field == "identifier" else field] = ""
+    child["retained_terminal_provenance"] = proof
+    containment_value["children"] = [child]
+    observations = dict(facts.observations)
+    observations[FactDomain.CONTAINMENT] = FactObservation.known(
+        FactDomain.CONTAINMENT,
+        containment_value,
+        observed_at=containment.observed_at,
+        source=containment.source,
+    )
+    malformed = replace(facts, observations=observations, facts_version=None)
+
+    decision = evaluate_task(parent, malformed)
+
+    assert decision.disposition is TaskDisposition.RETRY_SCHEDULED
+    assert decision.reason_code == "landing.evidence_unknown"
+    assert decision.durable_jobs == (EpicAction.CHILD_LANDING_VERIFICATION.value,)
+
+
+def test_retained_child_does_not_replace_parent_epic_landing(tmp_path):
+    make_git_fixture(tmp_path)
+    parent = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    child = issue(
+        "HISTORICAL",
+        state=DONE,
+        parent_id=parent.identifier,
+        work_branch="pruned-historical",
+    )
+    child.head_sha = "f" * 40
+    facts = EpicFactCollector(
+        project_id="project-1",
+        tracker=Tracker([parent, child]),
+        repo_path=str(tmp_path),
+        sources={FactDomain.TERMINAL_AUDIT: retained_terminal_source()},
+    ).collect(parent.identifier)
+
+    decision = evaluate_task(parent, facts)
+    own_landing = next(
+        landing for landing in facts.landings if landing.source == "epic-TOP"
+    )
+
+    assert own_landing.state is LandingState.NOT_LANDED
+    assert decision.reason_code == "rollup.children_complete"
+    assert decision.durable_jobs == (EpicAction.ROLLUP_REVIEW_CREATION.value,)
+
+
+def test_retained_child_rollup_is_total_and_idempotent_after_restart(tmp_path):
+    parent, tracker = retained_historical_epic(tmp_path, ("OOMPAH-956",))
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = EpicWorkflowController(
+        collector=EpicFactCollector(
+            project_id="project-1",
+            tracker=tracker,
+            repo_path=str(tmp_path),
+            sources={FactDomain.TERMINAL_AUDIT: retained_terminal_source()},
+            clock=lambda: datetime(2026, 8, 10, 12, tzinfo=timezone.utc),
+        ),
+        store=store,
+    )
+
+    first, scheduled = controller.reconcile([parent])
+    recovered, restarted, replay = controller.reconcile_after_restart(
+        [parent], lease_owner="replaced-worker"
+    )
+
+    first_decision = first.tasks[0].decision
+    restarted_decision = restarted.tasks[0].decision
+    jobs = store.list_jobs(limit=20)
+    assert scheduled.jobs_created == 1
+    assert recovered == 0
+    assert replay.jobs_created == 0
+    assert restarted_decision.to_dict() == first_decision.to_dict()
+    assert [job.action for job in jobs] == [EpicAction.AUTO_CLOSE.value]
+    assert all(
+        job.action != EpicAction.CHILD_LANDING_VERIFICATION.value for job in jobs
+    )
+    persisted = store.latest_landing_facts(
+        project_id="project-1",
+        task_id=parent.identifier,
+        limit=20,
+    )
+    assert all(
+        fact.get("proof", {}).get("kind") != "owner_terminal_provenance"
+        for fact in persisted
+    )
+    store.close()
 
 
 def test_archived_direct_child_has_no_invented_landing_obligation(tmp_path):
