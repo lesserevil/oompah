@@ -2,7 +2,10 @@
 
 import asyncio
 import json
+import subprocess
+import sys
 import threading
+import textwrap
 import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -677,6 +680,148 @@ async def test_restart_drain_snapshot_and_journal_work_stay_off_http_loop(
     assert orch._stopping is True
     assert orch._restart_requested is True
     assert observer_published.is_set() is False
+
+
+def test_shutdown_revokes_snapshot_blocked_before_external_publication(
+    tmp_path,
+    monkeypatch,
+):
+    """A bounded shutdown fences a worker paused at the sink boundary."""
+
+    orch = _real_orchestrator(tmp_path)
+    sink_entered = threading.Event()
+    release_sink = threading.Event()
+    observer_published = threading.Event()
+    original_publish = orch._publish_observer_snapshot
+
+    def _blocked_publish(snapshot, **authority):
+        sink_entered.set()
+        assert release_sink.wait(timeout=3)
+        return original_publish(snapshot, **authority)
+
+    monkeypatch.setattr(orch, "get_snapshot", lambda: {"paused": True})
+    monkeypatch.setattr(orch, "_publish_observer_snapshot", _blocked_publish)
+    orch._observers.append(lambda _snapshot: observer_published.set())
+
+    assert orch.request_lifecycle_publication(expected_generation=0)
+    assert sink_entered.wait(timeout=1)
+    with orch._lifecycle_publication_lock:
+        worker = orch._lifecycle_publication_thread
+    assert worker is not None
+    assert worker.daemon is True
+
+    started = time.monotonic()
+    orch._shutdown_lifecycle_publications()
+    shutdown_elapsed = time.monotonic() - started
+    assert shutdown_elapsed < 0.1
+    assert orch._provider_admission_lock.acquire(blocking=False)
+    orch._provider_admission_lock.release()
+
+    release_sink.set()
+    worker.join(timeout=1)
+    assert worker.is_alive() is False
+    assert observer_published.is_set() is False
+
+
+def test_blocked_lifecycle_publication_worker_does_not_hold_interpreter_open(
+    tmp_path,
+):
+    """A permanently blocked advisory snapshot worker is process-exit safe."""
+
+    script = textwrap.dedent(
+        """
+        import sys
+        import threading
+        from unittest.mock import MagicMock
+
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        store = MagicMock()
+        store.list_all.return_value = []
+        store.get.return_value = None
+        orch = Orchestrator(
+            config=ServiceConfig(duplicate_preflight_max_agents=0),
+            workflow_path="WORKFLOW.md",
+            project_store=store,
+            state_path=sys.argv[1],
+        )
+        entered = threading.Event()
+        blocked = threading.Event()
+
+        def get_snapshot():
+            entered.set()
+            blocked.wait()
+            return {}
+
+        orch.get_snapshot = get_snapshot
+        assert orch.request_lifecycle_publication(expected_generation=0)
+        assert entered.wait(timeout=1)
+        """
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", script, str(tmp_path / "state.json")],
+        capture_output=True,
+        text=True,
+        timeout=2,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+
+
+@pytest.mark.asyncio
+async def test_pause_persistence_contention_does_not_block_health(
+    tmp_path,
+    monkeypatch,
+):
+    """Pause waits for lifecycle authority away from the HTTP event loop."""
+
+    original = server._orchestrator
+    orch = _real_orchestrator(tmp_path)
+    save_entered = threading.Event()
+    release_save = threading.Event()
+    save_calls = 0
+    save_calls_lock = threading.Lock()
+
+    def _contended_save(**_updates: object) -> bool:
+        nonlocal save_calls
+        with save_calls_lock:
+            save_calls += 1
+            call_number = save_calls
+        if call_number == 1:
+            save_entered.set()
+            assert release_save.wait(timeout=3)
+        return True
+
+    monkeypatch.setattr(orch, "_save_state", _contended_save)
+    holder = threading.Thread(
+        target=orch._save_paused_state_if_generation,
+        args=(orch._provider_admission_generation, False),
+        name="older-lifecycle-persistence",
+    )
+    holder.start()
+    assert save_entered.wait(timeout=1)
+    release_timer = threading.Timer(0.3, release_save.set)
+    release_timer.start()
+    server._orchestrator = orch
+    try:
+        started = time.monotonic()
+        pause_task = asyncio.create_task(server.api_orchestrator_pause())
+        health_task = asyncio.create_task(server.healthz())
+        health = await asyncio.wait_for(health_task, timeout=0.5)
+        health_elapsed = time.monotonic() - started
+        response = await asyncio.wait_for(pause_task, timeout=1)
+    finally:
+        release_save.set()
+        release_timer.cancel()
+        holder.join(timeout=1)
+        orch._shutdown_lifecycle_publications()
+        server._orchestrator = original
+
+    assert json.loads(health.body)["status"] == "ok"
+    assert health_elapsed < 0.15
+    assert response.status_code == 200
+    assert orch._paused is True
 
 
 @pytest.mark.asyncio

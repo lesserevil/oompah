@@ -2113,16 +2113,12 @@ class Orchestrator:
         # latest-generation request is coalesced behind it. Shutdown advances
         # the publication epoch and cancels queued work, so a snapshot blocked
         # in an old orchestrator becomes inert when it eventually unwinds.
-        self._lifecycle_publication_lock = threading.Lock()
-        self._lifecycle_publication_pool = ThreadPoolExecutor(
-            max_workers=1,
-            thread_name_prefix="lifecycle-publication",
-        )
+        self._lifecycle_publication_lock = threading.RLock()
         self._lifecycle_publication_epoch = 0
         self._lifecycle_publication_closed = False
         self._lifecycle_publication_running = False
         self._lifecycle_publication_pending_generation: int | None = None
-        self._lifecycle_publication_future: Future[None] | None = None
+        self._lifecycle_publication_thread: threading.Thread | None = None
         # Bug fix: load persisted paused state from disk so it survives
         # service restarts. Previously _paused was always initialized to False.
         self._paused = self._load_paused_state()
@@ -6741,12 +6737,20 @@ class Orchestrator:
     def set_prompt_template(self, template: str) -> None:
         self._prompt_template = template
 
-    def pause(self) -> None:
+    def pause(
+        self,
+        *,
+        notify: bool = True,
+        termination_loop: asyncio.AbstractEventLoop | None = None,
+    ) -> int:
         """Pause agents and dispatch without forgetting recovery authority.
 
         Ordinary retry intents are cancelled. A pre-admission recovery owns a
         tracker mutation that has not yet been rolled back, so pause suspends
-        its timer but preserves the durable owner for resume/restart.
+        its timer but preserves the durable owner for resume/restart.  The
+        optional loop lets an HTTP caller perform the blocking authority and
+        persistence transaction on a worker while still publishing agent
+        retirement on its live asyncio loop.
         """
         with self._provider_admission_lock:
             self._paused = True
@@ -6798,14 +6802,33 @@ class Orchestrator:
         # Use get_running_loop() so we don't accidentally create a new
         # event loop when called from a synchronous context (e.g. tests).
         try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(self._terminate_all_running())
+            running_loop = asyncio.get_running_loop()
         except RuntimeError:
-            # No running event loop — no active agents to terminate.
-            pass
+            running_loop = None
+        loop = termination_loop
+        if loop is None:
+            dispatch_loop = getattr(self, "_dispatch_loop", None)
+            loop = (
+                dispatch_loop
+                if dispatch_loop is not None and dispatch_loop.is_running()
+                else running_loop
+            )
+        if loop is not None and loop.is_running():
+            def _schedule_termination() -> None:
+                loop.create_task(
+                    self._terminate_all_running(),
+                    name="operator-pause-retire-running",
+                )
+
+            if running_loop is loop:
+                _schedule_termination()
+            else:
+                loop.call_soon_threadsafe(_schedule_termination)
         logger.info("Orchestrator paused — all agents stopped")
         self.event_bus.emit(EventType.ORCHESTRATOR_PAUSED, {})
-        self._notify_observers()
+        if notify:
+            self._notify_observers()
+        return pause_generation
 
     def quiesce(self, *, notify: bool = True) -> int:
         """Stop new dispatch while allowing running workers to finish.
@@ -67566,8 +67589,39 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         return None
 
-    def _publish_observer_snapshot(self, snapshot: dict[str, Any]) -> None:
-        """Publish one already-built full snapshot to every observer."""
+    def _publish_observer_snapshot(
+        self,
+        snapshot: dict[str, Any],
+        *,
+        lifecycle_epoch: int | None = None,
+        expected_generation: int | None = None,
+    ) -> bool:
+        """Publish one already-built full snapshot to every observer.
+
+        Lifecycle publications carry a narrow commit permit.  The permit is
+        consumed here, immediately before the first external sink, rather
+        than in the snapshot-building worker.  Shutdown can consequently
+        revoke a worker paused anywhere before this method without waiting
+        for it, and releasing that worker cannot publish old-orchestrator
+        state.  No lifecycle or provider lock is held while IPC, EventBus, or
+        legacy callbacks execute.
+        """
+
+        if lifecycle_epoch is not None:
+            if expected_generation is None:
+                return False
+            # Provider -> lifecycle is the common lifecycle lock ordering.
+            # This short critical section is the publication commit point;
+            # every potentially blocking external callback remains below it.
+            with self._provider_admission_lock:
+                with self._lifecycle_publication_lock:
+                    if (
+                        self._lifecycle_publication_closed
+                        or self._lifecycle_publication_epoch != lifecycle_epoch
+                        or self._provider_admission_generation
+                        != expected_generation
+                    ):
+                        return False
 
         # Publish to IPC before notifying local observers so the API process
         # can serve reads as soon as the tick completes.
@@ -67586,6 +67640,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 observer(snapshot)
             except Exception:
                 pass
+        return True
 
     def _notify_observers(self) -> None:
         """Notify any registered observers of state changes (includes issues refresh).
@@ -67600,45 +67655,23 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         self._publish_observer_snapshot(self.get_snapshot())
 
-    def _lifecycle_publication_is_current(
-        self,
-        epoch: int,
-        expected_generation: int,
-    ) -> bool:
-        """Return whether a built lifecycle snapshot still owns publication."""
-
-        with self._lifecycle_publication_lock:
-            if (
-                self._lifecycle_publication_closed
-                or self._lifecycle_publication_epoch != epoch
-            ):
-                return False
-        with self._provider_admission_lock:
-            if self._provider_admission_generation != expected_generation:
-                return False
-        with self._lifecycle_publication_lock:
-            return bool(
-                not self._lifecycle_publication_closed
-                and self._lifecycle_publication_epoch == epoch
-            )
-
     def _run_lifecycle_publication(
         self,
         epoch: int,
         expected_generation: int,
     ) -> None:
-        """Build and conditionally publish one generation-fenced snapshot."""
+        """Build and conditionally publish coalesced lifecycle snapshots."""
 
-        try:
-            snapshot = self.get_snapshot()
-            if self._lifecycle_publication_is_current(
-                epoch,
-                expected_generation,
-            ):
-                self._publish_observer_snapshot(snapshot)
-        except Exception:
-            logger.exception("Lifecycle state publication failed")
-        finally:
+        while True:
+            try:
+                snapshot = self.get_snapshot()
+                self._publish_observer_snapshot(
+                    snapshot,
+                    lifecycle_epoch=epoch,
+                    expected_generation=expected_generation,
+                )
+            except Exception:
+                logger.exception("Lifecycle state publication failed")
             with self._lifecycle_publication_lock:
                 if (
                     self._lifecycle_publication_closed
@@ -67649,22 +67682,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 self._lifecycle_publication_pending_generation = None
                 if pending is None or pending == expected_generation:
                     self._lifecycle_publication_running = False
-                    self._lifecycle_publication_future = None
+                    self._lifecycle_publication_thread = None
                     return
-                try:
-                    self._lifecycle_publication_future = (
-                        self._lifecycle_publication_pool.submit(
-                            self._run_lifecycle_publication,
-                            epoch,
-                            pending,
-                        )
-                    )
-                except RuntimeError:
-                    self._lifecycle_publication_running = False
-                    self._lifecycle_publication_future = None
-                    logger.exception(
-                        "Lifecycle publication executor rejected coalesced work"
-                    )
+                expected_generation = pending
 
     def request_lifecycle_publication(
         self,
@@ -67688,18 +67708,19 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 return True
             epoch = self._lifecycle_publication_epoch
             self._lifecycle_publication_running = True
+            worker = threading.Thread(
+                target=self._run_lifecycle_publication,
+                args=(epoch, expected_generation),
+                name=f"lifecycle-publication-{id(self):x}",
+                daemon=True,
+            )
+            self._lifecycle_publication_thread = worker
             try:
-                self._lifecycle_publication_future = (
-                    self._lifecycle_publication_pool.submit(
-                        self._run_lifecycle_publication,
-                        epoch,
-                        expected_generation,
-                    )
-                )
+                worker.start()
             except RuntimeError:
                 self._lifecycle_publication_running = False
-                self._lifecycle_publication_future = None
-                logger.exception("Lifecycle publication executor rejected work")
+                self._lifecycle_publication_thread = None
+                logger.exception("Lifecycle publication worker rejected work")
                 return False
             return True
 
@@ -67712,13 +67733,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             self._lifecycle_publication_closed = True
             self._lifecycle_publication_epoch += 1
             self._lifecycle_publication_pending_generation = None
-            future = self._lifecycle_publication_future
-            self._lifecycle_publication_future = None
+            self._lifecycle_publication_thread = None
             self._lifecycle_publication_running = False
-            pool = self._lifecycle_publication_pool
-        if future is not None:
-            future.cancel()
-        pool.shutdown(wait=False, cancel_futures=True)
 
     def _notify_state_only(self) -> None:
         """Notify observers with state only (no issues refresh).

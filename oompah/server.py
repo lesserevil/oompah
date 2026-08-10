@@ -17171,7 +17171,13 @@ async def api_orchestrator_pause():
             cmd_id = _ipc.enqueue_command("pause")
             return JSONResponse({"ok": True, "paused": True, "ipc_command_id": cmd_id})
         orch = _get_orchestrator()
-        orch.pause()
+        request_loop = asyncio.get_running_loop()
+        pause_generation = await _run_lifecycle_api_io(
+            orch.pause,
+            notify=False,
+            termination_loop=request_loop,
+        )
+        _request_lifecycle_publication(orch, int(pause_generation))
         return JSONResponse({"ok": True, "paused": True})
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
