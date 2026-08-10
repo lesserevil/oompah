@@ -21,6 +21,7 @@ children:
 - OOMPAH-967
 - OOMPAH-968
 - OOMPAH-979
+- OOMPAH-980
 blocked_by:
 - OOMPAH-939
 - OOMPAH-974
@@ -29,7 +30,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-10T00:21:38.403015Z'
+updated_at: '2026-08-10T01:42:04.886294Z'
 work_branch: null
 target_branch: null
 review_url: null
