@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-979
 type: task
-status: In Validation
+status: Needs CI Fix
 priority: null
 title: Bound terminal publication locks so owner control cannot starve
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T00:01:51.280685Z'
-updated_at: '2026-08-10T01:06:54.851283Z'
+updated_at: '2026-08-10T01:29:30.251351Z'
 work_branch: OOMPAH-979
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/788
@@ -36,6 +36,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-979
     digest: afd8ddcd70579812b8ac85a46768653c33469edb1027f13555242afcaf04a8fe
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-979","audit-15ac04e641a3","attempt-6928a15b52cd"]': '2026-08-10T01:29:22.070359+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-979
+    target_state: Done
+    evidence_fingerprint: afd8ddcd70579812b8ac85a46768653c33469edb1027f13555242afcaf04a8fe
+    audit_ids:
+    - audit-15ac04e641a3
+    kind: result
+    applied: true
+    retired_at: '2026-08-10T01:29:22.070375+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-979
+    audit_id: audit-15ac04e641a3
+    attempt_id: attempt-6928a15b52cd
+    target_state: Done
+    evidence_fingerprint: afd8ddcd70579812b8ac85a46768653c33469edb1027f13555242afcaf04a8fe
+    status: Needs CI Fix
+    audit_ids:
+    - audit-15ac04e641a3
+    kind: result
+    applied: true
+    created_at: '2026-08-10T01:29:22.070386+00:00'
+    applied_at: '2026-08-10T01:29:28.678507+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -43,7 +69,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-979
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -52,7 +78,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-6928a15b52cd
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -64,6 +90,10 @@ oompah.terminal_audit:
       branch_key: OOMPAH-979
       selected_ref: origin/OOMPAH-979
       selected_sha: 7fc8bc8ea4a36c952a96349406a173c6b85ec94e
+      verdict: fail
+      failure_classification: ci_failure
+      completed_at: '2026-08-10T01:29:22.070248+00:00'
+      ended_at: '2026-08-10T01:29:22.070248+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -73,7 +103,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T01:04:21.175179+00:00'
     selected_ref: origin/OOMPAH-979
     selected_sha: 7fc8bc8ea4a36c952a96349406a173c6b85ec94e
-    updated_at: '2026-08-10T01:06:44.916201+00:00'
+    updated_at: '2026-08-10T01:29:22.070248+00:00'
   - version: 1
     audit_id: audit-70133afd9cb3
     project_id: proj-14849f1b
@@ -162,5 +192,12 @@ author: oompah
 created: 2026-08-10 01:06
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-10 01:29
+---
+Audit FAIL — ci failure. Routing task to Needs CI Fix.
+
+Full quality gate (make test) failed with 2 test failures at commit 7fc8bc8ea4a36c952a96349406a173c6b85ec94e. Failures: (1) test_managed_native_distinct_full_lifecycle_reuses_invocation_id - validation_scope expected ['full', 'full'] but got ['opaque', 'opaque']; (2) test_api_command_runner_reports_complete_auditor_validation_lifecycle[test-passed-True-full] - validation_scope assertion failed. Full gate is required; prior exact-head passing evidence not found.
 ---
 <!-- COMMENTS:END -->
