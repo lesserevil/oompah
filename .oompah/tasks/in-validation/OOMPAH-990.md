@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-990
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Retire late interrupted quality-gate alerts after terminal task reconciliation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:46:32.018670Z'
-updated_at: '2026-08-10T08:18:30.189848Z'
+updated_at: '2026-08-10T08:28:39.020868Z'
 work_branch: OOMPAH-990
 target_branch: null
 review_url: null
@@ -28,6 +28,62 @@ oompah.integration:
   submitted_at: '2026-08-10T08:18:15.069600+00:00'
   updated_at: '2026-08-10T08:18:15.069600+00:00'
 oompah.work_branch: OOMPAH-990
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-f35557e769b9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-990
+    digest: c8f34240c21f29a6e7d7e11ad45ffd44992d088705b2d0bd9c55e9339f34a2d6
+  - version: 1
+    audit_id: audit-d101fd63279a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-990
+    digest: c8f34240c21f29a6e7d7e11ad45ffd44992d088705b2d0bd9c55e9339f34a2d6
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f35557e769b9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-990
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c8f34240c21f29a6e7d7e11ad45ffd44992d088705b2d0bd9c55e9339f34a2d6
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-10T08:28:32.899378+00:00'
+    selected_ref: 1ef734b2561f48070d005782f5f63ebbd94a05d9
+    selected_sha: 1ef734b2561f48070d005782f5f63ebbd94a05d9
+  - version: 1
+    audit_id: audit-d101fd63279a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-990
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c8f34240c21f29a6e7d7e11ad45ffd44992d088705b2d0bd9c55e9339f34a2d6
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-10T08:28:32.899378+00:00'
+    selected_ref: 1ef734b2561f48070d005782f5f63ebbd94a05d9
+    selected_sha: 1ef734b2561f48070d005782f5f63ebbd94a05d9
+  attempt_history: []
 ---
 ## Summary
 
@@ -77,5 +133,10 @@ author: oompah
 created: 2026-08-10 08:18
 ---
 Retire late terminal quality-gate alerts with exact task/status/head/command producer authority; independent review approved and exact 19,351-test full gate passed.
+---
+author: oompah
+created: 2026-08-10 08:28
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
