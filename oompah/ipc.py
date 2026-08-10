@@ -201,10 +201,24 @@ class OrchestratorIPC:
 
         Returns True on success, False on any SQLite error (logged; does not
         raise so that a broken IPC channel never crashes the scheduler).  A
-        lifecycle publisher may supply a source predicate; it is evaluated
-        inside the sink lock immediately before SQLite mutation so a retired
-        orchestrator cannot overwrite the replacement's cached state.
+        lifecycle publisher may supply a source predicate, but must also
+        supply its complete source, epoch, and generation authority. The
+        predicate is evaluated inside the sink lock immediately before the
+        exact-authority SQLite mutation so a retired or unclaimed orchestrator
+        cannot overwrite the replacement's cached state. Calls without a
+        predicate retain the legacy unguarded compatibility path.
         """
+        if source_is_current is not None and (
+            not str(required_source_id or "").strip()
+            or required_source_epoch is None
+            or required_source_generation is None
+        ):
+            logger.debug(
+                "OrchestratorIPC.put_kv(%s): rejected lifecycle write "
+                "without exact source authority",
+                key,
+            )
+            return False
         with self._lock:
             conn = self._ensure_conn()
             if conn is None:

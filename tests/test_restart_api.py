@@ -939,6 +939,70 @@ def test_lifecycle_request_advances_ipc_generation_before_delayed_write(
     delayed_ipc.close()
 
 
+def test_failed_ipc_source_activation_cannot_publish_lifecycle_state(
+    tmp_path,
+    monkeypatch,
+):
+    """An unclaimed orchestrator cannot use the legacy IPC write fallback."""
+
+    candidate = _real_orchestrator(tmp_path / "activation-failure")
+    ipc_path = str(tmp_path / "activation-failure.sqlite")
+    replacement_ipc = OrchestratorIPC(ipc_path)
+    candidate_ipc = OrchestratorIPC(ipc_path)
+    candidate._ipc = candidate_ipc
+    assert replacement_ipc.activate_state_source(
+        "replacement-owner",
+        epoch=7,
+        generation=11,
+    )
+    replacement = {"source": "replacement-owned"}
+    assert replacement_ipc.publish_state(
+        replacement,
+        source_id="replacement-owner",
+        source_epoch=7,
+        source_generation=11,
+    )
+
+    monkeypatch.setattr(
+        candidate_ipc,
+        "activate_state_source",
+        lambda *_args, **_kwargs: False,
+    )
+    original_orchestrator = server._orchestrator
+    monkeypatch.setattr(server, "_orchestrator", None)
+    try:
+        with (
+            patch.object(
+                server,
+                "remove_draft_labels_from_epics",
+                return_value=0,
+            ),
+            patch.object(server, "_migrate_release_picks_on_startup"),
+            patch.object(server, "ErrorWatcher", MagicMock()),
+            patch.object(server, "ProjectLogWatcherManager", MagicMock()),
+        ):
+            server.set_orchestrator(candidate)
+        assert candidate._ipc_state_publication_source is None
+
+        assert candidate._publish_observer_snapshot(
+            {"source": "unclaimed-lifecycle"},
+            lifecycle_epoch=candidate._lifecycle_publication_epoch,
+            expected_generation=candidate._provider_admission_generation,
+        )
+        assert replacement_ipc.read_state()[0] == replacement
+
+        # The source-less compatibility call remains intentionally available
+        # only when no lifecycle predicate is supplied.
+        compatibility = {"source": "legacy-compatibility"}
+        assert candidate_ipc.publish_state(compatibility)
+        assert replacement_ipc.read_state()[0] == compatibility
+    finally:
+        candidate._shutdown_lifecycle_publications()
+        server._orchestrator = original_orchestrator
+        replacement_ipc.close()
+        candidate_ipc.close()
+
+
 def test_event_sink_rechecks_source_at_handler_mutation(
     tmp_path,
     monkeypatch,

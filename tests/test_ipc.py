@@ -181,6 +181,34 @@ def test_publish_state_read_state(ipc):
     assert ts is not None
 
 
+def test_lifecycle_state_write_requires_complete_exact_authority(ipc):
+    """A lifecycle predicate cannot fall through to the legacy write path."""
+
+    assert ipc.activate_state_source("replacement", epoch=4, generation=9)
+    replacement = {"source": "replacement"}
+    assert ipc.publish_state(
+        replacement,
+        source_id="replacement",
+        source_epoch=4,
+        source_generation=9,
+    )
+
+    assert not ipc.publish_state(
+        {"source": "unclaimed-lifecycle"},
+        source_is_current=lambda: True,
+        source_id=None,
+        source_epoch=4,
+        source_generation=9,
+    )
+    assert ipc.read_state()[0] == replacement
+
+    # Source-less publication remains available only to non-lifecycle legacy
+    # callers that do not supply a current-source predicate.
+    compatibility = {"source": "legacy-compatibility"}
+    assert ipc.publish_state(compatibility)
+    assert ipc.read_state()[0] == compatibility
+
+
 def test_publish_issues_read_issues(ipc):
     issues = {"Open": [{"id": "T1"}], "Done": []}
     ipc.publish_issues(issues)

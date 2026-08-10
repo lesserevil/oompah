@@ -67727,19 +67727,26 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 if source_is_current is None:
                     self._ipc.publish_state(snapshot)
                 else:
-                    self._ipc.publish_state(
-                        snapshot,
-                        source_is_current=source_is_current,
-                        source_id=getattr(
-                            self,
-                            "_ipc_state_publication_source",
-                            None,
-                        ),
-                        source_epoch=publication_permit.epoch,
-                        source_generation=(
-                            publication_permit.expected_generation
-                        ),
+                    source_id = getattr(
+                        self,
+                        "_ipc_state_publication_source",
+                        None,
                     )
+                    if isinstance(source_id, str) and source_id.strip():
+                        self._ipc.publish_state(
+                            snapshot,
+                            source_is_current=source_is_current,
+                            source_id=source_id,
+                            source_epoch=publication_permit.epoch,
+                            source_generation=(
+                                publication_permit.expected_generation
+                            ),
+                        )
+                    else:
+                        logger.debug(
+                            "Skipping lifecycle IPC state publication: "
+                            "exact source activation is unavailable"
+                        )
             except Exception as exc:  # noqa: BLE001
                 logger.debug(
                     "OrchestratorIPC.publish_state failed (non-fatal): %s", exc
