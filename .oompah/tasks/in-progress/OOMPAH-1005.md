@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T21:14:15.251946Z'
-updated_at: '2026-08-10T21:47:42.119649Z'
+updated_at: '2026-08-10T22:11:45.685315Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,5 +59,10 @@ author: oompah
 created: 2026-08-10 21:47
 ---
 Implementation is committed and pushed at exact head 2f0eb05f4798107e07876469386b9060a0cb9ba9. It preserves coalesced admission intent across owner exit, consumes stale failed-owner results before identity fencing, refreshes state after every retained invocation exit, and isolates state publication failures from the flow-critical admission wake. The affected-file suite passed 185 tests; secrets, hooks, attribution, and worktree sync are green. Independent final exact-head review is in progress before combined protected delivery.
+---
+author: oompah
+created: 2026-08-10 22:11
+---
+Exact combined recovery head 1e9032b4bdd870acf6822962fb45dcc8c5e73d3a passed focused validation (457 passed, 2 expected xfails), terminal mutation scan 20/20, secret/diff checks, and the complete make test gate: 19,679 passed, 7 skipped, 2 expected xfails in 21m06s. Protected delivery PR #804 is open and running hosted Python 3.11/3.12/3.13 checks.
 ---
 <!-- COMMENTS:END -->
