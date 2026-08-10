@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1001
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Import trusted protected recovery-PR exact-head gates before terminal-audit
   dispatch
@@ -12,7 +12,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-10T17:36:35.101810Z'
-updated_at: '2026-08-10T19:51:49.943861Z'
+updated_at: '2026-08-10T20:11:14.021539Z'
 work_branch: OOMPAH-1001
 target_branch: null
 review_url: null
@@ -49,6 +49,29 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1001
     digest: b11b65e16b38d16d503cfa549a9010ea24103e06e70a9b87f7e31d37491c6bfa
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-88fa53bb0667
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1001
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b11b65e16b38d16d503cfa549a9010ea24103e06e70a9b87f7e31d37491c6bfa
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Exact submitted head 1e8edb7bc7f8579e17d02610fd751ff9b5f812c2 is contained
+      in protected merge 2781962fd96fcf82b2746939d50a6736ddf9b454 via PR #801; required
+      Python 3.11, 3.12, and 3.13 jobs all passed the pinned workflow command make
+      test. Independent adversarial review and focused local verification were also
+      green.'
+    created_at: '2026-08-10T20:11:09.034122+00:00'
+    selected_ref: 1e8edb7bc7f8579e17d02610fd751ff9b5f812c2
+    selected_sha: 1e8edb7bc7f8579e17d02610fd751ff9b5f812c2
+    applied: false
   version: 1
   pending_chain:
   - version: 1
