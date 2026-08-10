@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-994
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Make API task creation durable, idempotent, and bounded
 parent: OOMPAH-992
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T10:52:30.794441Z'
-updated_at: '2026-08-10T10:52:30.794441Z'
+updated_at: '2026-08-10T10:52:58.413107Z'
 work_branch: null
 target_branch: null
 review_url: null

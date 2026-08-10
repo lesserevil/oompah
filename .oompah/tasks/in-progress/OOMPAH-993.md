@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-993
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Make standalone delivery mutations lock-safe across thread offloads
 parent: OOMPAH-992
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T10:52:26.512449Z'
-updated_at: '2026-08-10T10:52:26.512449Z'
+updated_at: '2026-08-10T10:52:51.612669Z'
 work_branch: null
 target_branch: null
 review_url: null
