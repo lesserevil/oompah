@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1004
 type: bug
-status: In Progress
+status: Merged
 priority: 1
 title: Resolve current dependency status in universal workflow facts
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T19:36:11.713277Z'
-updated_at: '2026-08-10T20:49:51.835910Z'
+updated_at: '2026-08-10T21:02:11.023774Z'
 work_branch: OOMPAH-1004
 target_branch: null
 review_url: null
@@ -34,6 +34,31 @@ oompah.integration:
   submitted_at: '2026-08-10T20:27:25.399860+00:00'
   updated_at: '2026-08-10T20:27:25.399860+00:00'
 oompah.work_branch: OOMPAH-1004
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f7e17b876aab
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1004
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7aeb3d1c38ec60408d38ce9f232bf8ff3ec27ed5b074de0ae7a9ba5cbda9e687
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Delivered in protected PR #803 at merge a9e6cf0047af5d2e37a53853cf49467b2cf16f22;
+      exact review head 1d35b2e922b59077dc4b0d758e7e0c823affe027 passed local complete
+      gate and hosted Python 3.11/3.12/3.13 checks.'
+    created_at: '2026-08-10T21:02:04.539874+00:00'
+    selected_ref: 5d4439b495f17b3dc324d9bf339ccf57457af84a
+    selected_sha: 5d4439b495f17b3dc324d9bf339ccf57457af84a
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
