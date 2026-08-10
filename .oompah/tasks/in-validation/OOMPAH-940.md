@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-940
 type: epic
-status: In Progress
+status: In Validation
 priority: 1
 title: Converge the legacy Done backlog from authoritative delivery evidence
 parent: null
@@ -32,7 +32,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-10T19:11:50.924197Z'
+updated_at: '2026-08-10T23:08:27.807528Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,6 +44,16 @@ oompah.terminal_audit:
   oompah.terminal_audit_tracker_projections:
   - version: 1
     audit_id: audit-fddacbaa91fb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-940
+    digest: 0a8f66ccd7cf1de072dd1b0feb8ac319adc1bf49c227fd03ebf4eaf1970e9daa
+  - version: 1
+    audit_id: audit-9ac757c7ad64
+    project_id: proj-14849f1b
+    task_id: OOMPAH-940
+    digest: 0a8f66ccd7cf1de072dd1b0feb8ac319adc1bf49c227fd03ebf4eaf1970e9daa
+  - version: 1
+    audit_id: audit-47936c819189
     project_id: proj-14849f1b
     task_id: OOMPAH-940
     digest: 0a8f66ccd7cf1de072dd1b0feb8ac319adc1bf49c227fd03ebf4eaf1970e9daa
@@ -80,7 +90,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-940
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -134,6 +144,46 @@ oompah.terminal_audit:
     selected_ref: origin/epic-OOMPAH-940
     selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
     updated_at: '2026-08-09T18:06:20.147127+00:00'
+  - version: 1
+    audit_id: audit-9ac757c7ad64
+    project_id: proj-14849f1b
+    task_id: OOMPAH-940
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0a8f66ccd7cf1de072dd1b0feb8ac319adc1bf49c227fd03ebf4eaf1970e9daa
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah
+      source: orchestrator
+    previous_state: In Progress
+    created_at: '2026-08-10T23:08:23.525891+00:00'
+    selected_ref: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
+    selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
+  - version: 1
+    audit_id: audit-47936c819189
+    project_id: proj-14849f1b
+    task_id: OOMPAH-940
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0a8f66ccd7cf1de072dd1b0feb8ac319adc1bf49c227fd03ebf4eaf1970e9daa
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah
+      source: orchestrator
+    previous_state: In Progress
+    created_at: '2026-08-10T23:08:23.525891+00:00'
+    selected_ref: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
+    selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
   attempt_history:
   - version: 1
     attempt_id: attempt-55037e98b910
