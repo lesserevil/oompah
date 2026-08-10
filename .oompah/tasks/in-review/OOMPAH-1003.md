@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1003
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Revalidate root epic auto-close from durable landing authority without a mutable
   issue head
@@ -12,12 +12,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T19:11:49.831627Z'
-updated_at: '2026-08-10T20:20:35.940491Z'
+updated_at: '2026-08-10T20:20:50.716591Z'
 work_branch: OOMPAH-1003
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/802
 review_number: '802'
-review_head: null
+review_head: 7186cce68e1ad569bd2e0f2dec225787902100bd
 merged_at: null
 oompah.create_once:
   version: 1
@@ -41,6 +41,7 @@ oompah.integration:
 oompah.work_branch: OOMPAH-1003
 oompah.review_url: https://github.com/lesserevil/oompah/pull/802
 oompah.review_number: '802'
+oompah.review_head: 7186cce68e1ad569bd2e0f2dec225787902100bd
 ---
 ## Summary
 
