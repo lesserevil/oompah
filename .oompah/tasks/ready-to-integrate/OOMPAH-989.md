@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T10:24:53.694123Z'
+updated_at: '2026-08-10T10:37:51.650351Z'
 work_branch: OOMPAH-989
 target_branch: null
 review_url: null
@@ -171,5 +171,10 @@ FAILED tests/test_websocket_authenticated_bootstrap.py::TestBackwardCompatibilit
 
 make: *** [Makefile:458: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-10 10:37
+---
+PR 798's order-dependent quality-gate blocker is repaired and pushed at replacement head f2a3a397273c5d6f051ff6754b715bb4e64e2b8d. The OOMPAH-991 change is intentionally a narrow test-isolation commit on this same OOMPAH-989 branch/head because OOMPAH-989 remains the integration vehicle and its branch gate exposed the leak. It restores all restart-test cache/protocol globals and makes WebSocket bootstrap isolation clear to unavailable then restore exact prior state; production behavior is unchanged. Validation: deterministic former failure passes serial and xdist n=1, affected files 44/44, all known leakers then victim 10/10 repeated xdist runs, compileall and diff check green. Branch is clean, pushed, and exactly matches origin/OOMPAH-989 at f2a3a397273c5d6f051ff6754b715bb4e64e2b8d.
 ---
 <!-- COMMENTS:END -->
