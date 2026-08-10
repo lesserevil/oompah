@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T02:42:39.740073Z'
-updated_at: '2026-08-10T05:15:24.129175Z'
+updated_at: '2026-08-10T05:15:41.048010Z'
 work_branch: OOMPAH-981
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/793
@@ -215,13 +215,13 @@ oompah.terminal_audit:
     selected_ref: ca2a1dc03822a181b57f153f60bbff851004d061
     selected_sha: ca2a1dc03822a181b57f153f60bbff851004d061
 oompah.task_costs:
-  total_input_tokens: 42
-  total_output_tokens: 2193
+  total_input_tokens: 92
+  total_output_tokens: 2208
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 42
-      output_tokens: 2193
+      input_tokens: 92
+      output_tokens: 2208
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -230,6 +230,12 @@ oompah.task_costs:
     output_tokens: 2193
     cost_usd: 0.0
     recorded_at: '2026-08-10T05:05:12.139862+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 50
+    output_tokens: 15
+    cost_usd: 0.0
+    recorded_at: '2026-08-10T05:15:37.926844+00:00'
 ---
 ## Summary
 
@@ -330,5 +336,15 @@ created: 2026-08-10 05:15
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Project-owner terminal override after exact accepted head ca2a1dc03822a181b57f153f60bbff851004d061 passed the authoritative branch gate, protected Python 3.11/3.12/3.13 CI, and an independent Done audit with 19,292 passing tests; PR #793 merged as 295df91c40f17a50ce6cf0d640c0667c48b469de and the exact head is contained in origin/main. The Merged-stage auditor entered the same redundant full-gate path already reproduced by OOMPAH-983; OOMPAH-988 tracks the deployed gate-reuse regression.
+---
+author: oompah
+created: 2026-08-10 05:15
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 3
+- Tokens: 50 in / 15 out [65 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 12s
+- Log: OOMPAH-981__20260810T051334Z.jsonl
 ---
 <!-- COMMENTS:END -->
