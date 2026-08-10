@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T10:52:30.794441Z'
-updated_at: '2026-08-10T15:40:41.654882Z'
+updated_at: '2026-08-10T18:59:14.452484Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,6 +51,31 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-10T15:40:39.734916+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'PR #798 merged as 2ab880be5; reviewed OOMPAH-994 integration commit 5daf540165b336040a93f0738eb6e2f197807ac0
+      is contained in main and no standalone landing receipt exists. Retain this completed
+      Done record as immutable terminal provenance.'
+    marked_at: '2026-08-10T18:59:12.906655+00:00'
+    updated_at: '2026-08-10T18:59:12.906655+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'PR #798 merged as 2ab880be5; reviewed OOMPAH-994 integration commit
+        5daf540165b336040a93f0738eb6e2f197807ac0 is contained in main and no standalone
+        landing receipt exists. Retain this completed Done record as immutable terminal
+        provenance.'
+      recorded_at: '2026-08-10T18:59:12.906655+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []
