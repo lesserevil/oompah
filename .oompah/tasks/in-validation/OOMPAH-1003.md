@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1003
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Revalidate root epic auto-close from durable landing authority without a mutable
   issue head
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T19:11:49.831627Z'
-updated_at: '2026-08-10T20:49:47.311216Z'
+updated_at: '2026-08-10T20:59:34.657767Z'
 work_branch: OOMPAH-1003
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/802
@@ -42,6 +42,62 @@ oompah.work_branch: OOMPAH-1003
 oompah.review_url: https://github.com/lesserevil/oompah/pull/802
 oompah.review_number: '802'
 oompah.review_head: 7186cce68e1ad569bd2e0f2dec225787902100bd
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-f69884c1e483
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1003
+    digest: 780e5db61a3579be824065d17d777e80957e88b3d96a56ab896654b90016db2b
+  - version: 1
+    audit_id: audit-885f9bb5906b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1003
+    digest: 780e5db61a3579be824065d17d777e80957e88b3d96a56ab896654b90016db2b
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f69884c1e483
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1003
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 780e5db61a3579be824065d17d777e80957e88b3d96a56ab896654b90016db2b
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-10T20:59:25.076621+00:00'
+    selected_ref: 7186cce68e1ad569bd2e0f2dec225787902100bd
+    selected_sha: 7186cce68e1ad569bd2e0f2dec225787902100bd
+  - version: 1
+    audit_id: audit-885f9bb5906b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1003
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 780e5db61a3579be824065d17d777e80957e88b3d96a56ab896654b90016db2b
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-10T20:59:25.076621+00:00'
+    selected_ref: 7186cce68e1ad569bd2e0f2dec225787902100bd
+    selected_sha: 7186cce68e1ad569bd2e0f2dec225787902100bd
+  attempt_history: []
 ---
 ## Summary
 
@@ -74,5 +130,10 @@ author: oompah
 created: 2026-08-10 20:49
 ---
 Exact combined recovery head 1d35b2e922b59077dc4b0d758e7e0c823affe027 passed the complete make test gate: 19,650 passed, 7 skipped, 2 xfailed in 21m07s. Protected delivery PR #803 is open for hosted Python 3.11/3.12/3.13 checks.
+---
+author: oompah
+created: 2026-08-10 20:59
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
