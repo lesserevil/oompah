@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-983
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make reserved workflow control-capacity proof deterministic on Python 3.13
 parent: null
@@ -11,13 +11,23 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T03:38:07.660153Z'
-updated_at: '2026-08-10T03:39:47.756985Z'
-work_branch: null
+updated_at: '2026-08-10T03:47:20.180429Z'
+work_branch: OOMPAH-983
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-983
+  head_sha: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
+  submitted_at: '2026-08-10T03:47:07.254880+00:00'
+  updated_at: '2026-08-10T03:47:07.254880+00:00'
+oompah.work_branch: OOMPAH-983
 ---
 ## Summary
 
@@ -35,5 +45,10 @@ author: oompah
 created: 2026-08-10 03:39
 ---
 Claimed directly from PR #790 run 31352693288. Python 3.11/3.12 and the exact local branch gate passed; Python 3.13 alone exposed a loaded-scheduler test race. The failed CI job is rerunning while deterministic event/state synchronization is implemented on branch OOMPAH-983.
+---
+author: oompah
+created: 2026-08-10 03:47
+---
+Replaced the race-prone handler-apply wait with an exact post-retained-lane completion barrier keyed to the authority-revocation job. Production capacity behavior is unchanged and no timeout was widened. Validation: Python 3.13 focused 40/40, Python 3.12 focused 20/20, Python 3.13 workflow-runtime 118 passed; independent review approved.
 ---
 <!-- COMMENTS:END -->
