@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-983
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Make reserved workflow control-capacity proof deterministic on Python 3.13
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T03:38:07.660153Z'
-updated_at: '2026-08-10T05:10:06.992229Z'
+updated_at: '2026-08-10T05:14:55.944711Z'
 work_branch: OOMPAH-983
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/791
@@ -71,6 +71,30 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-10T05:05:25.244657+00:00'
     applied_at: '2026-08-10T05:05:33.810171+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-e670fa37e677
+    project_id: proj-14849f1b
+    task_id: OOMPAH-983
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4d63c3ce2dbe33ac32df122b78d36b7bf1b705d2274474c1fe6da59f293b2aaa
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner terminal override after exact accepted head 2a10a77a32b2b38e11b78b3137e13d289dc866d9
+      passed the authoritative branch gate, protected Python 3.11/3.12/3.13 CI, and
+      an independent Done audit with 19,279 passing tests; PR #791 merged as 0b1b035c882ffc5f1fe411168b425f3eaf127bae
+      and the exact head is contained in origin/main. The Merged-stage auditor redundantly
+      launched another full make test despite deployed OOMPAH-980 gate reuse; OOMPAH-988
+      tracks that regression.'
+    created_at: '2026-08-10T05:14:51.095799+00:00'
+    selected_ref: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
+    selected_sha: 2a10a77a32b2b38e11b78b3137e13d289dc866d9
+    applied: false
   version: 1
   pending_chain:
   - version: 1
