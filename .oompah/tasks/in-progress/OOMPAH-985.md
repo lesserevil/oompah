@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-985
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Make backlog refresh retry proof wait for exact completion
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T04:20:13.834988Z'
-updated_at: '2026-08-10T04:20:13.834988Z'
+updated_at: '2026-08-10T04:20:31.254197Z'
 work_branch: null
 target_branch: null
 review_url: null
