@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T04:41:10.778919Z'
-updated_at: '2026-08-10T06:17:12.425457Z'
+updated_at: '2026-08-10T06:17:18.014986Z'
 work_branch: OOMPAH-986
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/794
@@ -57,7 +57,17 @@ oompah.terminal_audit:
     created_at: '2026-08-10T06:17:08.308819+00:00'
     selected_ref: 4c1b1fb3f52345048207f11bc2389db54f9da96b
     selected_sha: 4c1b1fb3f52345048207f11bc2389db54f9da96b
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-986
+    target_state: Merged
+    evidence_fingerprint: c4548ef77b3df343589114481820057562c904b85a649d578e136ff20fa6461e
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T06:17:16.376195+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -100,5 +110,12 @@ author: oompah
 created: 2026-08-10 06:00
 ---
 Exact full branch gate passed at pushed head 4c1b1fb3f52345048207f11bc2389db54f9da96b: make test completed with 19,295 passed, 7 skipped, 2 xfailed, 49 warnings in 1,267.73s. Worktree is clean and origin/OOMPAH-986 resolves to the same exact head. Proceeding to protected PR CI.
+---
+author: oompah
+created: 2026-08-10 06:17
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Project-owner reconciliation of already-landed exact delivery. Branch head 4c1b1fb3f52345048207f11bc2389db54f9da96b passed the exact full Makefile gate with 19,295 passed, 7 skipped, and 2 expected failures; protected PR #794 Python 3.11, 3.12, and 3.13 checks all succeeded; GitHub merged that exact head to main as e7fa85dbe952917f1a293ac641104d4db5d5a3f2. The merged build is now the healthy running service revision. This records verified delivery without launching a redundant post-merge corpus gate.
 ---
 <!-- COMMENTS:END -->
