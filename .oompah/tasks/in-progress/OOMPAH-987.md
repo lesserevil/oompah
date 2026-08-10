@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-987
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Prevent post-gate auditor inspection from blocking behind the next full gate
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T04:50:28.752372Z'
-updated_at: '2026-08-10T04:50:28.752372Z'
+updated_at: '2026-08-10T04:50:52.462194Z'
 work_branch: null
 target_branch: null
 review_url: null
