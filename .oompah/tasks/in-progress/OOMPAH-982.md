@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T02:54:36.526201Z'
-updated_at: '2026-08-10T02:55:02.703146Z'
+updated_at: '2026-08-10T03:15:17.294820Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,5 +37,10 @@ author: oompah
 created: 2026-08-10 02:55
 ---
 Claimed for direct-owner completion from the exact OOMPAH-981 live exhausted recovery generation. A separate implementation branch is being worked in parallel with OOMPAH-981.
+---
+author: oompah
+created: 2026-08-10 03:15
+---
+The exact direct-owner/recovery race fix is implementation-complete. Focused suites pass (152 tests from implementation workflow coverage); independent review and the complete 19,297-test branch gate are in progress.
 ---
 <!-- COMMENTS:END -->
