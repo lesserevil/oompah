@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-980
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Reuse authoritative full branch gates in terminal audits
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T01:42:03.823626Z'
-updated_at: '2026-08-10T01:42:03.823626Z'
+updated_at: '2026-08-10T01:42:33.008694Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Triggered by OOMPAH-979. Its exact branch head 7fc8bc8ea4a36c952a96349406a173c6b
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 01:42
+---
+Claimed for direct-owner completion. Reproducing the exact OOMPAH-979 gate-authority and nested native lifecycle path on current main before changing production code.
+---
+<!-- COMMENTS:END -->
