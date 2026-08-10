@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-982
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Retire implementation recovery when direct owner holds authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T02:54:36.526201Z'
-updated_at: '2026-08-10T06:26:46.383369Z'
+updated_at: '2026-08-10T06:27:08.810507Z'
 work_branch: OOMPAH-982
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/790
@@ -58,6 +58,25 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-982
     digest: b591ef7d63f4a3fc1f6cb91a452df51f37015ea241c1904a830da921d6957006
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-a0800222c141
+    project_id: proj-14849f1b
+    task_id: OOMPAH-982
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b591ef7d63f4a3fc1f6cb91a452df51f37015ea241c1904a830da921d6957006
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-10T06:27:04.597192+00:00'
+    selected_ref: e96ed93c944bca7c5f5ac8e65aede731b5ab862d
+    selected_sha: e96ed93c944bca7c5f5ac8e65aede731b5ab862d
+    applied: false
   version: 1
   pending_chain:
   - version: 1
