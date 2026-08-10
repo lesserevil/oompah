@@ -11,7 +11,6 @@ Verifies that:
 from __future__ import annotations
 
 import asyncio
-import logging
 import threading
 import time
 from types import SimpleNamespace
@@ -507,7 +506,7 @@ class TestRunLoopUpdatesSyncTime:
         assert orch._workflow_admission_wake_pending is False
 
     def test_stale_admission_owner_callback_cannot_clear_new_owner(
-        self, tmp_path, caplog
+        self, tmp_path
     ):
         orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
 
@@ -523,21 +522,17 @@ class TestRunLoopUpdatesSyncTime:
             new_owner = asyncio.create_task(release_new_owner.wait())
             orch._workflow_admission_future = new_owner
 
-            with caplog.at_level(logging.ERROR, logger="oompah.orchestrator"):
+            with patch("oompah.orchestrator.logger.exception") as log_failure:
                 orch._workflow_admission_lane_finished(old_owner)
 
+            log_failure.assert_called_once_with(
+                "Durable workflow admission lane failed"
+            )
             assert orch._workflow_admission_future is new_owner
             release_new_owner.set()
             await new_owner
 
         asyncio.run(scenario())
-
-        assert any(
-            "Durable workflow admission lane failed" in record.message
-            and record.exc_info is not None
-            and isinstance(record.exc_info[1], RuntimeError)
-            for record in caplog.records
-        )
 
     def test_foreign_thread_completion_wake_claims_one_current_job(
         self, tmp_path
