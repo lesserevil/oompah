@@ -384,7 +384,16 @@ def test_benign_tracker_timestamp_change_keeps_exact_head_authority(harness):
     )
 
 
-def test_workflow_timeout_fences_late_standalone_review_tracker_writes(harness):
+@pytest.mark.parametrize(
+    "commit_failure",
+    [None, "false", "exception"],
+    ids=["normal-bind", "commit-false-adopts", "commit-error-adopts"],
+)
+def test_workflow_timeout_fences_late_standalone_review_tracker_writes(
+    harness,
+    monkeypatch,
+    commit_failure,
+):
     """A late forge result is adoptable, but the expired job cannot publish it."""
 
     orch, project, tracker, provider, _detect, gate = harness
@@ -411,6 +420,21 @@ def test_workflow_timeout_fences_late_standalone_review_tracker_writes(harness):
         )
 
     provider.create_review.side_effect = create_after_timeout
+    if commit_failure == "false":
+        monkeypatch.setattr(
+            orch.review_capacity_store,
+            "commit",
+            lambda *_args, **_kwargs: False,
+        )
+    elif commit_failure == "exception":
+        def fail_commit(*_args, **_kwargs):
+            raise RuntimeError("capacity commit unavailable")
+
+        monkeypatch.setattr(
+            orch.review_capacity_store,
+            "commit",
+            fail_commit,
+        )
 
     orch._reconcile_one_standalone_ready_to_integrate_task(
         project.id,
@@ -433,6 +457,33 @@ def test_workflow_timeout_fences_late_standalone_review_tracker_writes(harness):
     authority = orch._standalone_delivery_authorities[(project.id, task.identifier)]
     assert authority.workflow_generation == "job-1:1:lease-1"
     assert not orch._standalone_delivery_authorized(authority, tracker)
+
+
+def test_review_creation_recovers_missing_identity_before_publication(harness):
+    orch, project, tracker, provider, _detect, _gate = harness
+    accepted_head = "a" * 40
+    task = _issue("TASK-CREATE-ID-RECOVERY", branch="feature/id-recovery")
+    tracker.fetch_issues_by_states.return_value = [task]
+    recovered = _review(
+        task.identifier,
+        review_id="721",
+        source_branch=task.work_branch,
+        target_branch=project.default_branch,
+        head_sha=accepted_head,
+    )
+    provider.find_pr_for_branch.side_effect = [None, None, recovered]
+    provider.create_review.return_value = replace(recovered, id="")
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    assert task.state == IN_REVIEW
+    assert any(
+        call.args[1] == "oompah.review_number" and call.args[2] == "721"
+        for call in tracker.set_metadata_field.call_args_list
+    )
+    reservations = orch.review_capacity_store.active(project.id)
+    assert len(reservations) == 1
+    assert reservations[0].review_id == "721"
 
 
 def test_parent_advance_before_noop_persist_fences_tracker_and_terminal(harness):
@@ -557,8 +608,59 @@ def test_noop_terminal_preflight_rejects_revocation_during_tracker_read(harness)
         tracker,
         work_branch=task.work_branch or "",
         target_branch=project.default_branch,
+        expected_integration=task.integration,
     )
     assert authority.revoked
+
+
+def test_noop_terminal_preflight_rejects_foreign_transformed_generation(harness):
+    orch, project, tracker, _provider, _detect, _gate = harness
+    accepted_head = "d" * 40
+    task = _issue(
+        "TASK-NOOP-RESUBMITTED",
+        branch="feature/noop-resubmitted",
+        head_sha=accepted_head,
+    )
+    task.target_branch = project.default_branch
+    tracker.fetch_issues_by_states.return_value = [task]
+    authority = orch._claim_standalone_delivery_authority(project, task)
+    assert authority is not None
+    assert orch._set_standalone_delivery_head(
+        authority,
+        task.work_branch or "",
+        accepted_head,
+        lambda: accepted_head,
+    )
+    expected = IntegrationRecord(
+        state="integrated",
+        mode="standalone",
+        task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        head_sha=accepted_head,
+        integrated_sha=accepted_head,
+        submitted_at=task.integration.submitted_at,
+        updated_at="2026-08-10T11:00:00+00:00",
+    )
+
+    def resubmit_during_read(_identifier):
+        task.integration = replace(
+            expected,
+            submitted_at="2026-08-10T11:01:00+00:00",
+        )
+        return task
+
+    tracker.fetch_issue_detail.side_effect = resubmit_during_read
+
+    assert not orch._standalone_noop_terminal_authorized(
+        authority,
+        tracker,
+        work_branch=task.work_branch or "",
+        target_branch=project.default_branch,
+        expected_integration=expected,
+    )
+    assert authority.evidence_revision != (
+        orch._standalone_delivery_evidence_revision(task)
+    )
 
 
 def test_standalone_authority_generation_includes_delivery_mode(harness):

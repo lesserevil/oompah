@@ -1497,6 +1497,8 @@ def _submitted_gate_orchestrator(tmp_path, managed, submitted_head, *, branch="w
     orch._tracker_for_project = MagicMock(return_value=tracker)
     orch._standalone_delivery_authority_lock = threading.RLock()
     orch._standalone_delivery_authorities = {}
+    orch._issue_transition_locks = {}
+    orch._issue_transition_locks_guard = threading.Lock()
     return orch, project, issue, tracker, counter
 
 

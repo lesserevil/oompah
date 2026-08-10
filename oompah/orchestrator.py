@@ -21724,7 +21724,7 @@ class Orchestrator:
                     result = None
                     create_reason = f"review creation failed: {exc}"
 
-                if create_outcome != "created":
+                if create_outcome not in {"created", "unbound"}:
                     self._release_review_capacity(
                         project_id,
                         reservation_id=reservation.reservation_id,
@@ -21756,6 +21756,20 @@ class Orchestrator:
                         create_reason,
                     )
                     continue
+                if create_outcome == "unbound":
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        create_reason,
+                        authority=authority,
+                    )
+                    logger.error(
+                        "Created a review for standalone Ready task %s but "
+                        "could not durably bind its identity: %s",
+                        task_id,
+                        create_reason,
+                    )
+                    return
                 if create_reason:
                     self._arm_standalone_delivery_alert(
                         project_id,
@@ -22318,12 +22332,34 @@ class Orchestrator:
                 return "retry", None, "forge provider returned no review"
 
             created_review_id = str(getattr(result, "id", "") or "").strip()
+            if not created_review_id:
+                try:
+                    recovered_review = provider.find_pr_for_branch(
+                        repo_slug,
+                        work_branch,
+                    )
+                except Exception:  # noqa: BLE001 - handled by unbound outcome
+                    recovered_review = None
+                original_observation = self._standalone_review_observation(result)
+                recovered_observation = self._standalone_review_observation(
+                    recovered_review
+                )
+                if (
+                    recovered_review is not None
+                    and original_observation is not None
+                    and recovered_observation is not None
+                    and original_observation[1:] == recovered_observation[1:]
+                    and str(getattr(recovered_review, "id", "") or "").strip()
+                ):
+                    result = recovered_review
+                    created_review_id = str(recovered_review.id).strip()
             # A non-None forge response represents a review that now exists,
             # even when the post-create authority check lost. Bind capacity
             # before inspecting the response or publishing tracker state so a
             # late authority change can never make the caller release and
             # forget that external effect.
             review_closed_before_publication = False
+            capacity_bound = False
             if created_review_id:
                 with self._review_lifecycle_lock:
                     if (
@@ -22332,7 +22368,10 @@ class Orchestrator:
                     ) in self._closed_review_fences:
                         review_closed_before_publication = True
                     else:
-                        self._commit_review_slot(reservation, created_review_id)
+                        capacity_bound = self._commit_review_slot(
+                            reservation,
+                            created_review_id,
+                        )
             if review_closed_before_publication:
                 self._release_review_capacity(
                     authority.project_id,
@@ -22342,6 +22381,13 @@ class Orchestrator:
                     "created",
                     result,
                     "created review closed before tracker publication",
+                )
+            if not created_review_id or not capacity_bound:
+                return (
+                    "unbound",
+                    result,
+                    "forge review exists but its stable identity could not be "
+                    "persisted; authoritative forge reconciliation is required",
                 )
             if not created:
                 return (
@@ -22376,14 +22422,6 @@ class Orchestrator:
                     f"{created_head or '<missing>'}; expected "
                     f"{authority.branch} -> {authority.target_branch} at "
                     f"{expected_head})",
-                )
-
-            if not created_review_id:
-                return (
-                    "created",
-                    result,
-                    "created review has no stable identity; live forge capacity "
-                    "will remain authoritative until it can be recovered",
                 )
 
             def publish_tracker_state() -> tuple[str, ReviewRequest | None, str]:
@@ -23514,6 +23552,7 @@ class Orchestrator:
         *,
         work_branch: str,
         target_branch: str,
+        expected_integration: IntegrationRecord,
     ) -> bool:
         """Validate terminal authority after the integration evidence write."""
 
@@ -23553,6 +23592,7 @@ class Orchestrator:
         parent_id = str(getattr(current, "parent_id", "") or "").strip()
         if (
             (parent_id and not allows_parent)
+            or integration != expected_integration
             or str(getattr(integration, "mode", "") or "").strip().lower()
             != "standalone"
             or str(
@@ -23603,29 +23643,33 @@ class Orchestrator:
             expected_head or ""
         ).strip().lower():
             return False
-        with self._standalone_delivery_authority_lock:
-            final_snapshot = (
-                authority.generation,
-                authority.expected_state,
-                authority.evidence_revision,
-                authority.dependency_revision,
-                authority.branch,
-                authority.target_branch,
-                authority.allows_parent,
-                authority.head_sha,
-                authority.head_resolver,
-                authority.workflow_authority_check,
-            )
-            if (
-                not self._standalone_delivery_authority_current_locked(authority)
-                or final_snapshot != authority_snapshot
-            ):
+        issue_id = str(getattr(current, "id", "") or authority.task_id)
+        with self.issue_transition_lock(issue_id).sync(blocking=False) as acquired:
+            if acquired is None:
                 return False
-            authority.issue = current
-            authority.evidence_revision = (
-                self._standalone_delivery_evidence_revision(current)
-            )
-            return True
+            with self._standalone_delivery_authority_lock:
+                final_snapshot = (
+                    authority.generation,
+                    authority.expected_state,
+                    authority.evidence_revision,
+                    authority.dependency_revision,
+                    authority.branch,
+                    authority.target_branch,
+                    authority.allows_parent,
+                    authority.head_sha,
+                    authority.head_resolver,
+                    authority.workflow_authority_check,
+                )
+                if (
+                    not self._standalone_delivery_authority_current_locked(authority)
+                    or final_snapshot != authority_snapshot
+                ):
+                    return False
+                authority.issue = current
+                authority.evidence_revision = (
+                    self._standalone_delivery_evidence_revision(current)
+                )
+                return True
 
     def _standalone_noop_integration_record(
         self,
@@ -23750,6 +23794,7 @@ class Orchestrator:
                 tracker,
                 work_branch=work_branch,
                 target_branch=target_branch,
+                expected_integration=canonical_record,
             ):
                 return False, None
             final_containment, _final_reason = await asyncio.to_thread(
@@ -30140,25 +30185,75 @@ class Orchestrator:
         self,
         reservation: ReviewCapacityReservation | None,
         review_id: Any,
-    ) -> None:
+    ) -> bool:
         """Bind a pre-create reservation to the created forge review."""
-        if reservation is None:
-            return
+        review_key = str(review_id or "").strip()
+        if reservation is None or not review_key:
+            return False
         try:
-            if not self.review_capacity_store.commit(
+            if self.review_capacity_store.commit(
                 reservation.reservation_id,
-                str(review_id or ""),
+                review_key,
             ):
-                logger.warning(
-                    "Review capacity reservation %s could not be committed",
-                    reservation.reservation_id,
-                )
+                return True
+            logger.warning(
+                "Review capacity reservation %s could not be committed; "
+                "attempting exact adoption",
+                reservation.reservation_id,
+            )
         except Exception as exc:  # noqa: BLE001 - review already exists
             logger.error(
-                "Failed to persist review capacity reservation %s: %s",
+                "Failed to commit review capacity reservation %s; attempting "
+                "exact adoption: %s",
                 reservation.reservation_id,
                 exc,
             )
+        try:
+            active = self.review_capacity_store.active(reservation.project_id)
+            matching = [
+                item
+                for item in active
+                if item.task_id == reservation.task_id
+                and item.source_branch == reservation.source_branch
+                and item.target_branch == reservation.target_branch
+            ]
+            if any(
+                item.review_id and str(item.review_id) != review_key
+                for item in matching
+            ):
+                logger.error(
+                    "Refusing to replace conflicting review capacity identity "
+                    "for %s",
+                    reservation.task_id,
+                )
+                return False
+            adopted = self.review_capacity_store.adopt(
+                project_id=reservation.project_id,
+                task_id=reservation.task_id,
+                source_branch=reservation.source_branch,
+                target_branch=reservation.target_branch,
+                review_id=review_key,
+                reservation_id=reservation.reservation_id,
+                authority_generation=reservation.authority_generation,
+                head_sha=reservation.head_sha,
+            )
+        except Exception as exc:  # noqa: BLE001 - caller must fail closed
+            logger.error(
+                "Failed to durably adopt review capacity for %s review %s: %s",
+                reservation.task_id,
+                review_key,
+                exc,
+            )
+            return False
+        return bool(
+            adopted.project_id == reservation.project_id
+            and adopted.task_id == reservation.task_id
+            and adopted.source_branch == reservation.source_branch
+            and adopted.target_branch == reservation.target_branch
+            and str(adopted.review_id or "") == review_key
+            and str(adopted.head_sha or "").strip().lower()
+            == str(reservation.head_sha or "").strip().lower()
+        )
 
     def _release_review_capacity(
         self,
