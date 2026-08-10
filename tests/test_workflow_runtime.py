@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import subprocess
@@ -3467,6 +3468,249 @@ def test_done_effect_remains_retained_until_completion_callback_settles(tmp_path
     assert len(runtime._effect_results) == 1
     original_effect_finished(completed_task)
     assert len(runtime._effect_results) == 1
+    runtime.close()
+    store.close()
+
+
+@pytest.mark.parametrize(
+    ("disposition", "state"),
+    (
+        (WorkflowRunDisposition.SUPERSEDED, WorkflowJobState.SUPERSEDED),
+        (WorkflowRunDisposition.LEASE_LOST, WorkflowJobState.RUNNING),
+        (WorkflowRunDisposition.RETRY_SCHEDULED, WorkflowJobState.RETRY_WAIT),
+        (WorkflowRunDisposition.ACTION_REQUIRED, WorkflowJobState.EXHAUSTED),
+    ),
+)
+def test_non_success_effect_exit_publishes_one_completion_wake(
+    tmp_path, disposition, state
+):
+    store = WorkflowJobStore(str(tmp_path / "non-success.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    completions = []
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        effect_completion_observer=completions.append,
+    )
+    result = WorkflowRunResult(
+        disposition,
+        "non-success-job",
+        state,
+        "non-success completion",
+        1,
+    )
+
+    async def exercise():
+        effect = asyncio.create_task(asyncio.sleep(0, result=result))
+        with runtime._lock:
+            runtime._effect_tasks[effect] = "shared"
+        effect.add_done_callback(runtime._effect_finished)
+        await effect
+        await asyncio.sleep(0)
+
+    asyncio.run(exercise())
+
+    assert completions == [result]
+    assert tuple(runtime._effect_results) == (result,)
+    assert runtime.health_snapshot()["worker"]["retained"] == 0
+    runtime.close()
+    store.close()
+
+
+def test_superseded_effect_wake_claims_next_current_durable_job(tmp_path):
+    """A superseded retained call replenishes admission without a world scan."""
+
+    store = WorkflowJobStore(str(tmp_path / "superseded-follow-up.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    first = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="OBSOLETE-PARENT",
+            generation="obsolete-generation",
+            action="review_refresh",
+            idempotency_key="obsolete-parent",
+            priority=0,
+        )
+    )
+    second = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="CURRENT-EPIC",
+            generation="current-generation",
+            action="review_refresh",
+            idempotency_key="current-epic",
+            priority=1,
+        )
+    )
+    generation = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(generation) is True
+    membership = store.reconcile_snapshot_membership(
+        snapshot_generation=generation,
+        authoritative_project_ids=("project-1",),
+        expected_identities=(
+            ("project-1", first.task_id),
+            ("project-1", second.task_id),
+        ),
+    )
+    assert membership.accepted is True
+    published, _result = store.publish_snapshot_generation(
+        generation,
+        lambda: None,
+    )
+    assert published is True
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        max_concurrent=2,
+        control_reserved_slots=1,
+    )
+    runtime._refresh_admission_cut(
+        {
+            "projects": {
+                "project-1": {
+                    "snapshot": {"generation": generation, "published": True}
+                }
+            }
+        },
+        ("project-1",),
+    )
+    first_started = asyncio.Event()
+    release_first = asyncio.Event()
+    second_claimed = asyncio.Event()
+    second_completed = asyncio.Event()
+    completion_dispositions = []
+    admission_wakes = []
+
+    async def execute_claimed(job):
+        if job.job_id == first.job_id:
+            first_started.set()
+            await release_first.wait()
+            superseded = store.supersede(
+                job.job_id,
+                generation=job.generation,
+                replacement_generation="replacement-generation",
+                reason="obsolete owner completed after a newer generation",
+            )
+            return WorkflowRunResult(
+                WorkflowRunDisposition.SUPERSEDED,
+                superseded.job_id,
+                superseded.state,
+                "obsolete owner superseded",
+                superseded.attempts,
+            )
+        second_claimed.set()
+        completed = store.complete(job.job_id, str(job.lease_token or ""))
+        second_completed.set()
+        return WorkflowRunResult(
+            WorkflowRunDisposition.COMPLETED,
+            completed.job_id,
+            completed.state,
+            "current durable job completed",
+            completed.attempts,
+        )
+
+    runtime.worker.execute_claimed = execute_claimed
+
+    def completion_wake(result):
+        completion_dispositions.append(result.disposition)
+        admission_wakes.append(
+            asyncio.create_task(runtime.continue_admission_async())
+        )
+
+    runtime._effect_completion_observer = completion_wake
+
+    async def exercise():
+        await runtime.start()
+        first_admission = await runtime.continue_admission_async()
+        await asyncio.wait_for(first_started.wait(), 1)
+        assert store.get(second.job_id).state is WorkflowJobState.QUEUED
+        release_first.set()
+        await asyncio.wait_for(second_claimed.wait(), 1)
+        await asyncio.wait_for(second_completed.wait(), 1)
+        for _ in range(10):
+            await asyncio.sleep(0)
+            pending = [wake for wake in admission_wakes if not wake.done()]
+            if pending:
+                await asyncio.gather(*pending)
+            if (
+                runtime.health_snapshot()["worker"]["retained"] == 0
+                and all(wake.done() for wake in admission_wakes)
+            ):
+                break
+        return first_admission
+
+    first_admission = asyncio.run(exercise())
+
+    assert first_admission["worker"]["scheduled"] == 1
+    assert store.get(first.job_id).state is WorkflowJobState.SUPERSEDED
+    assert store.get(second.job_id).state is WorkflowJobState.COMPLETED
+    assert completion_dispositions == [
+        WorkflowRunDisposition.SUPERSEDED,
+        WorkflowRunDisposition.COMPLETED,
+    ]
+    assert len(admission_wakes) == 2
+    assert runtime.health_snapshot()["worker"]["retained"] == 0
+    runtime.close()
+    store.close()
+
+
+@pytest.mark.parametrize("outcome", ("exception", "cancellation"))
+@pytest.mark.parametrize("draining", (False, True))
+def test_abnormal_effect_exit_publishes_one_cleanup_wake(
+    tmp_path, outcome, draining
+):
+    store = WorkflowJobStore(str(tmp_path / f"{outcome}.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    completions = []
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        effect_completion_observer=completions.append,
+    )
+    runtime._draining = draining
+
+    async def fail():
+        if outcome == "exception":
+            raise RuntimeError("detached failure")
+        await asyncio.Event().wait()
+
+    async def exercise():
+        effect = asyncio.create_task(fail())
+        with runtime._lock:
+            runtime._effect_tasks[effect] = "shared"
+        effect.add_done_callback(runtime._effect_finished)
+        if outcome == "cancellation":
+            effect.cancel()
+        with contextlib.suppress(asyncio.CancelledError, RuntimeError):
+            await effect
+        await asyncio.sleep(0)
+        runtime._effect_finished(effect)
+
+    asyncio.run(exercise())
+
+    assert len(completions) == 1
+    cleanup = completions[0]
+    assert isinstance(cleanup, workflow_runtime_module.WorkflowEffectCleanup)
+    assert cleanup.cancelled is (outcome == "cancellation")
+    assert cleanup.error_type == (
+        "RuntimeError" if outcome == "exception" else None
+    )
+    assert cleanup.job_id is None
+    assert tuple(runtime._effect_results) == ()
+    assert runtime.health_snapshot()["worker"]["retained"] == 0
+    assert runtime.worker.active_count == 0
     runtime.close()
     store.close()
 

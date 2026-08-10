@@ -322,6 +322,15 @@ class WorkflowRuntimeEvent:
     action: str
 
 
+@dataclass(frozen=True, slots=True)
+class WorkflowEffectCleanup:
+    """Typed retained-invocation exit when no WorkflowRunResult exists."""
+
+    cancelled: bool
+    error_type: str | None
+    job_id: None = None
+
+
 class _UnavailableHandler:
     """Fail closed when a domain has not supplied an external-effect adapter.
 
@@ -1571,10 +1580,19 @@ class WorkflowRuntime:
             # Idle admission probes are impossible because the runtime claims
             # before spawning, so every callback represents durable progress
             # and may safely request one coalesced admission-only pass.
-            if getattr(result, "job_id", None) is not None:
-                orchestrator._request_workflow_batch_continuation(
-                    reason="workflow_effect_completed"
+            # Retained ownership is removed before this callback, so publish
+            # the matching lightweight state projection before scheduling
+            # more admission. Exception/cancellation cleanup deliberately
+            # carries no WorkflowRunResult but needs the same convergence.
+            try:
+                orchestrator._notify_state_only()
+            except Exception:  # noqa: BLE001 - admission wake is flow-critical
+                logger.exception(
+                    "Failed to publish durable workflow completion state"
                 )
+            orchestrator._request_workflow_batch_continuation(
+                reason="workflow_effect_completed"
+            )
 
         async def quarantine_recycle_observer(job: Any) -> None:
             """Coalesce one durable stuck-call recycle into service lifecycle."""
@@ -4742,28 +4760,40 @@ class WorkflowRuntime:
     def _effect_finished(self, task: asyncio.Task[Any]) -> None:
         """Retire one retained invocation and publish a replenishment edge."""
 
+        result: Any | None = None
+        completion: Any = WorkflowEffectCleanup(
+            cancelled=task.cancelled(),
+            error_type=None,
+        )
+        failure: BaseException | None = None
         try:
             result = task.result()
         except asyncio.CancelledError:
-            with self._lock:
-                self._effect_tasks.pop(task, None)
-            return
-        except Exception:  # noqa: BLE001 - worker claim boundary stays observable
-            with self._lock:
-                retained = task in self._effect_tasks
-                self._effect_tasks.pop(task, None)
-            if retained:
-                logger.exception("Detached durable workflow invocation failed")
-            return
+            pass
+        except Exception as exc:  # noqa: BLE001 - worker claim boundary observable
+            failure = exc
+            completion = WorkflowEffectCleanup(
+                cancelled=False,
+                error_type=type(exc).__name__,
+            )
         with self._lock:
             if task not in self._effect_tasks:
                 return
-            self._effect_results.append(result)
+            if result is not None:
+                self._effect_results.append(result)
+                completion = result
             self._effect_tasks.pop(task, None)
-            draining = self._draining
-        if not draining and self._effect_completion_observer is not None:
+        if failure is not None:
+            logger.error(
+                "Detached durable workflow invocation failed",
+                exc_info=(type(failure), failure, failure.__traceback__),
+            )
+        # State convergence is unconditional after retained ownership exits.
+        # The production observer independently fences new admission during
+        # drain/pause/quiesce while still refreshing its lightweight snapshot.
+        if self._effect_completion_observer is not None:
             try:
-                self._effect_completion_observer(result)
+                self._effect_completion_observer(completion)
             except Exception:  # noqa: BLE001 - observation cannot fail the job
                 logger.exception("Failed to publish durable workflow completion")
 
