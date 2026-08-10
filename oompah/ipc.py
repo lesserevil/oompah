@@ -219,14 +219,18 @@ class OrchestratorIPC:
                 key,
             )
             return False
+        # This predicate is cooperative advisory state and may execute caller
+        # code. Never retain the IPC mutex across it. The exact source tuple
+        # checked by the INSERT ... SELECT below is the authoritative fence
+        # against a cached-true predicate racing source replacement.
+        if source_is_current is not None and not source_is_current():
+            return False
         with self._lock:
             conn = self._ensure_conn()
             if conn is None:
                 return False
             try:
                 payload = json.dumps(value, default=str)
-                if source_is_current is not None and not source_is_current():
-                    return False
                 updated_at = time.monotonic()
                 if required_source_id is None:
                     cursor = conn.execute(
@@ -512,14 +516,42 @@ class OrchestratorIPC:
                 )
                 return False
 
-    def deactivate_state_source(self, source_id: str) -> bool:
-        """Revoke one scheduler source so delayed exact-generation writes fail."""
+    def deactivate_state_source(
+        self,
+        source_id: str,
+        *,
+        timeout: float | None = None,
+    ) -> bool:
+        """Revoke one scheduler source within an optional bounded deadline."""
 
-        with self._lock:
+        deadline = (
+            None
+            if timeout is None
+            else time.monotonic() + max(float(timeout), 0.0)
+        )
+        if deadline is None:
+            acquired = self._lock.acquire()
+        else:
+            acquired = self._lock.acquire(
+                timeout=max(0.0, deadline - time.monotonic())
+            )
+        if not acquired:
+            return False
+        conn: sqlite3.Connection | None = None
+        previous_busy_timeout_ms: int | None = None
+        try:
             conn = self._ensure_conn()
             if conn is None:
                 return False
             try:
+                if deadline is not None:
+                    remaining = max(0.0, deadline - time.monotonic())
+                    previous_busy_timeout_ms = int(
+                        conn.execute("PRAGMA busy_timeout").fetchone()[0]
+                    )
+                    conn.execute(
+                        f"PRAGMA busy_timeout = {int(remaining * 1000)}"
+                    )
                 conn.execute(
                     "DELETE FROM publication_sources "
                     "WHERE key = 'state' AND source_id = ?",
@@ -528,12 +560,27 @@ class OrchestratorIPC:
                 conn.commit()
                 return True
             except sqlite3.Error as exc:
+                try:
+                    conn.rollback()
+                except sqlite3.Error:
+                    pass
                 logger.warning(
                     "OrchestratorIPC.deactivate_state_source(%s): %s",
                     source_id,
                     exc,
                 )
                 return False
+            finally:
+                if previous_busy_timeout_ms is not None:
+                    try:
+                        conn.execute(
+                            "PRAGMA busy_timeout = "
+                            f"{previous_busy_timeout_ms}"
+                        )
+                    except sqlite3.Error:
+                        pass
+        finally:
+            self._lock.release()
 
     def publish_issues(self, issues: dict[str, Any]) -> bool:
         """Write the issues board snapshot (scheduler side)."""

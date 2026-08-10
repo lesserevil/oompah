@@ -13884,7 +13884,17 @@ class Orchestrator:
         # Publication is advisory and may be blocked inside a full snapshot.
         # Fence it before draining authoritative work; never let an observer
         # own graceful-stop progress or publish after this orchestrator exits.
-        self._shutdown_lifecycle_publications()
+        shutdown_publications = getattr(
+            self,
+            "_shutdown_lifecycle_publications",
+            None,
+        )
+        if callable(shutdown_publications):
+            if shutdown_publications() is False:
+                raise RuntimeError(
+                    "lifecycle publication callbacks did not drain; "
+                    "refusing to close lifecycle stores"
+                )
         await self._drain_scheduled_terminations()
         current_loop = asyncio.get_running_loop()
         restart_recovery = self._restart_recovery_task
@@ -68056,7 +68066,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         if (
             source_id is not None
             and callable(deactivate_ipc)
-            and not deactivate_ipc(source_id)
+            and not deactivate_ipc(
+                source_id,
+                timeout=max(0.0, deadline - time.monotonic()),
+            )
         ):
             self.event_bus.activate_lifecycle_publication_authority(
                 source,

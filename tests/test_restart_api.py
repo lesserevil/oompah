@@ -725,11 +725,28 @@ def test_shutdown_revokes_snapshot_blocked_before_external_publication(
     assert observer_published.is_set() is False
 
 
+@pytest.mark.asyncio
+async def test_background_drain_rejects_undrained_lifecycle_callbacks():
+    """Persistent stores stay open when callback revocation times out."""
+
+    orchestrator = SimpleNamespace(
+        _shutdown_lifecycle_publications=MagicMock(return_value=False),
+        _drain_scheduled_terminations=AsyncMock(),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="lifecycle publication callbacks did not drain",
+    ):
+        await Orchestrator._drain_background_work(orchestrator)
+    orchestrator._drain_scheduled_terminations.assert_not_awaited()
+
+
 def test_replacement_revokes_snapshot_after_permit_before_every_sink(
     tmp_path,
     monkeypatch,
 ):
-    """Every sink rejects an old source released after replacement."""
+    """Exact SQL authority rejects a cached-true writer after replacement."""
 
     old = _real_orchestrator(tmp_path / "old")
     new = _real_orchestrator(tmp_path / "new")
@@ -802,8 +819,12 @@ def test_replacement_revokes_snapshot_after_permit_before_every_sink(
             old._provider_admission_lock.release()
             assert old._lifecycle_publication_lock.acquire(blocking=False)
             old._lifecycle_publication_lock.release()
+            # Cooperative source predicates must never run under the IPC
+            # mutex. Replacement needs this mutex to revoke old authority.
+            assert ipc._lock.acquire(blocking=False)
+            ipc._lock.release()
             sink_entered.set()
-            assert release_sink.wait(timeout=3)
+            assert release_sink.wait(timeout=10)
             return permitted
 
         kwargs["source_is_current"] = _guard_then_pause_before_sql
@@ -818,7 +839,7 @@ def test_replacement_revokes_snapshot_after_permit_before_every_sink(
         },
     )
     assert old.request_lifecycle_publication(expected_generation=0)
-    assert sink_entered.wait(timeout=1)
+    assert sink_entered.wait(timeout=10)
     with old._lifecycle_publication_lock:
         worker = old._lifecycle_publication_thread
     assert worker is not None
@@ -836,12 +857,13 @@ def test_replacement_revokes_snapshot_after_permit_before_every_sink(
     server._on_orchestrator_change(replacement, source=new)
 
     release_sink.set()
-    worker.join(timeout=1)
+    worker.join(timeout=10)
     assert worker.is_alive() is False
     assert ipc.read_state()[0] == current
     assert old_event.is_set() is False
     assert old_legacy.is_set() is False
     assert current_legacy.is_set() is False
+
     assert server._read_state_snapshot(allow_stale=True) == replacement
 
     # The replacement's current source remains publishable after old-source
@@ -1229,6 +1251,7 @@ def test_blocked_lifecycle_publication_worker_does_not_hold_interpreter_open(
         """
         import sys
         import threading
+        from pathlib import Path
         from unittest.mock import MagicMock
 
         from oompah.config import ServiceConfig
@@ -1253,17 +1276,49 @@ def test_blocked_lifecycle_publication_worker_does_not_hold_interpreter_open(
 
         orch.get_snapshot = get_snapshot
         assert orch.request_lifecycle_publication(expected_generation=0)
-        assert entered.wait(timeout=1)
+        assert entered.wait(timeout=10)
+        Path(sys.argv[2]).write_text("ready", encoding="utf-8")
         """
     )
-    completed = subprocess.run(
-        [sys.executable, "-c", script, str(tmp_path / "state.json")],
-        capture_output=True,
+    ready_path = tmp_path / "worker-ready"
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(tmp_path / "state.json"),
+            str(ready_path),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
-        timeout=2,
-        check=False,
     )
-    assert completed.returncode == 0, completed.stderr
+    try:
+        deadline = time.monotonic() + 30
+        while not ready_path.exists() and process.poll() is None:
+            if time.monotonic() >= deadline:
+                process.kill()
+                _stdout, stderr = process.communicate(timeout=2)
+                pytest.fail(f"subprocess did not reach worker barrier: {stderr}")
+            time.sleep(0.01)
+        if not ready_path.exists():
+            _stdout, stderr = process.communicate(timeout=2)
+            pytest.fail(f"subprocess exited before worker barrier: {stderr}")
+        try:
+            returncode = process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            _stdout, stderr = process.communicate(timeout=2)
+            pytest.fail(
+                "daemon lifecycle publication worker held the interpreter "
+                f"open: {stderr}"
+            )
+        _stdout, stderr = process.communicate(timeout=2)
+        assert returncode == 0, stderr
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.communicate(timeout=2)
 
 
 @pytest.mark.asyncio

@@ -209,6 +209,70 @@ def test_lifecycle_state_write_requires_complete_exact_authority(ipc):
     assert ipc.read_state()[0] == compatibility
 
 
+def test_deactivate_state_source_times_out_behind_connection_lock(ipc):
+    """A lock timeout leaves exact source authority unchanged."""
+
+    assert ipc.activate_state_source("old", epoch=0, generation=0)
+    lock_entered = threading.Event()
+    release_lock = threading.Event()
+
+    def _hold_connection_lock() -> None:
+        with ipc._lock:
+            lock_entered.set()
+            assert release_lock.wait(timeout=10)
+
+    holder = threading.Thread(target=_hold_connection_lock)
+    holder.start()
+    assert lock_entered.wait(timeout=10)
+    try:
+        revoked = ipc.deactivate_state_source("old", timeout=0.05)
+        verifier = OrchestratorIPC(ipc._db_path)
+        try:
+            authority_preserved = verifier.publish_state(
+                {"source": "authority-preserved"},
+                source_id="old",
+                source_epoch=0,
+                source_generation=0,
+            )
+        finally:
+            verifier.close()
+    finally:
+        release_lock.set()
+        holder.join(timeout=10)
+    assert holder.is_alive() is False
+    assert not revoked
+    assert authority_preserved
+    assert ipc.deactivate_state_source("old", timeout=1)
+    assert not ipc.publish_state(
+        {"source": "revoked"},
+        source_id="old",
+        source_epoch=0,
+        source_generation=0,
+    )
+
+
+def test_deactivate_state_source_bounds_sqlite_writer_contention(ipc):
+    """The revocation deadline also bounds SQLite's busy handler."""
+
+    assert ipc.activate_state_source("old", epoch=0, generation=0)
+    blocker = sqlite3.connect(ipc._db_path, timeout=5)
+    blocker.execute("BEGIN IMMEDIATE")
+    try:
+        started = time.monotonic()
+        assert not ipc.deactivate_state_source("old", timeout=0.05)
+        assert time.monotonic() - started < 1
+    finally:
+        blocker.rollback()
+        blocker.close()
+    assert ipc.publish_state(
+        {"source": "authority-preserved"},
+        source_id="old",
+        source_epoch=0,
+        source_generation=0,
+    )
+    assert ipc.deactivate_state_source("old", timeout=1)
+
+
 def test_publish_issues_read_issues(ipc):
     issues = {"Open": [{"id": "T1"}], "Done": []}
     ipc.publish_issues(issues)
