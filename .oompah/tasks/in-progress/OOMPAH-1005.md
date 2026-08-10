@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T21:14:15.251946Z'
-updated_at: '2026-08-10T21:40:27.911886Z'
+updated_at: '2026-08-10T21:47:42.119649Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-08-10 21:40
 ---
 Implementation in progress on branch OOMPAH-1005. The lost-wake boundary is the admission owner's exit handoff: completion can arrive after its last recheck but before its Future is observably done. The fix records durable coalesced wake intent, transfers it to exactly one successor, keeps pause/quiesce/drain admission fenced, and publishes retained-worker state after every exit. Focused race, non-success, exception/cancellation, fencing, and state-convergence regressions are being added; independent review is active.
+---
+author: oompah
+created: 2026-08-10 21:47
+---
+Implementation is committed and pushed at exact head 2f0eb05f4798107e07876469386b9060a0cb9ba9. It preserves coalesced admission intent across owner exit, consumes stale failed-owner results before identity fencing, refreshes state after every retained invocation exit, and isolates state publication failures from the flow-critical admission wake. The affected-file suite passed 185 tests; secrets, hooks, attribution, and worktree sync are green. Independent final exact-head review is in progress before combined protected delivery.
 ---
 <!-- COMMENTS:END -->
