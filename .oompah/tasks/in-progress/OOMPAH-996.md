@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-996
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Do not return from AgentSession.stop before stderr transport retirement
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T12:43:02.225351Z'
-updated_at: '2026-08-10T12:43:21.141646Z'
+updated_at: '2026-08-10T12:43:57.613348Z'
 work_branch: null
 target_branch: null
 review_url: null
