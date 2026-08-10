@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T00:01:51.280685Z'
-updated_at: '2026-08-10T00:02:55.561889Z'
+updated_at: '2026-08-10T00:10:43.712379Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,5 +35,10 @@ author: oompah
 created: 2026-08-10 00:02
 ---
 Direct owner claimed this live control-plane starvation regression. Implementation will use an isolated OOMPAH-979 worktree while root continues the deployed rollout and provenance retirement checks.
+---
+author: oompah
+created: 2026-08-10 00:10
+---
+Additional live race evidence from generation 923: collection observed newly created OOMPAH-979 as Backlog, the supported owner claim changed it to In Progress by 00:02 UTC, but generation 923 still published at 00:08:37 with the stale Backlog decision. Liveness then reported exactly one unexplained divergence (evidence.task_status_mismatch) while current exhausted was zero. The authority revision/digest fence must cover task lifecycle/owner-control mutations as well as terminal metadata, causing stale publication to supersede/retry.
 ---
 <!-- COMMENTS:END -->
