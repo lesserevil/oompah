@@ -51,6 +51,7 @@ from oompah.acp_backends.codex import (
     _CodexCounters,
     _get_worktree_git_meta_dir,
 )
+from oompah.client_auth import agent_environment
 from oompah.models import ModelProvider
 from oompah.native_validation_guard import (
     install_native_validation_guard,
@@ -1596,7 +1597,13 @@ class TestCodexCliPath:
     def test_managed_native_distinct_full_lifecycle_reuses_invocation_id(
         self,
         tmp_path,
+        monkeypatch,
     ):
+        monkeypatch.setenv("MAKEFLAGS", " --no-print-directory")
+        monkeypatch.setenv("MFLAGS", "--no-print-directory")
+        monkeypatch.setenv("GNUMAKEFLAGS", "--warn-undefined-variables")
+        monkeypatch.setenv("MAKEFILES", "/operator/service.mk")
+        monkeypatch.setenv("MAKEOVERRIDES", "X=$(shell false)")
         lease = ValidationResourceLease(
             tmp_path / "validation.sqlite3",
             poll_seconds=0.01,
@@ -1613,13 +1620,18 @@ class TestCodexCliPath:
         fake_make.chmod(0o700)
         lifecycle: list[dict[str, object]] = []
         reuse: list[dict[str, object]] = []
-        guarded, root = install_native_validation_guard(
+        worker_env = agent_environment(
             {
+                **os.environ,
                 "PATH": (
                     f"{real_bin}{os.pathsep}"
                     f"{os.environ.get('PATH', os.defpath)}"
                 )
             },
+            workspace_path=tmp_path,
+        )
+        guarded, root = install_native_validation_guard(
+            worker_env,
             runtime_root=tmp_path / "guard",
             validation_lease=lease,
             owner=owner,
@@ -1641,7 +1653,7 @@ class TestCodexCliPath:
         try:
             completed = subprocess.run(
                 ["/bin/bash", "-c", command],
-                env={**os.environ, **guarded},
+                env=guarded,
                 pass_fds=(
                     int(guarded["OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD"]),
                 ),

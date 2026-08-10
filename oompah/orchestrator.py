@@ -32021,7 +32021,7 @@ class Orchestrator:
             ):
                 return False
             head_sha = str(
-                getattr(integration, "head_sha", "")
+                issue_exact_head(issue)
                 or getattr(issue, "source_sha", "")
                 or ""
             ).strip().lower()
@@ -32103,7 +32103,7 @@ class Orchestrator:
         def _identity(source: Issue) -> tuple[str, str, str, str]:
             integration = getattr(source, "integration", None)
             accepted = str(
-                getattr(integration, "head_sha", "")
+                issue_exact_head(source)
                 or getattr(source, "source_sha", "")
                 or ""
             ).strip().lower()

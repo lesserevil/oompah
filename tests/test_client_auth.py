@@ -755,6 +755,25 @@ class TestEndToEnd:
             CLIENT_AUTH_DISABLED_ENV: "1",
         }
 
+    def test_agent_environment_strips_inherited_make_controls(self):
+        clean = agent_environment(
+            {
+                "PATH": "/bin",
+                "MAKEFLAGS": " --no-print-directory",
+                "MFLAGS": "--no-print-directory",
+                "GNUMAKEFLAGS": "--eval=all:;false",
+                "MAKEFILES": "/operator/service.mk",
+                "MAKEOVERRIDES": "X=$(shell false)",
+                "TASK_SETTING": "preserved",
+            }
+        )
+
+        assert clean == {
+            "PATH": "/bin",
+            "TASK_SETTING": "preserved",
+            CLIENT_AUTH_DISABLED_ENV: "1",
+        }
+
     def test_agent_environment_selects_private_task_venv(self, tmp_path):
         """Worker setup cannot inherit or overwrite the service venv."""
         service_venv = str(tmp_path / "service" / ".venv")
