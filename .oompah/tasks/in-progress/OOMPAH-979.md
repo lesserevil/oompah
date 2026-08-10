@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-979
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Bound terminal publication locks so owner control cannot starve
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T00:01:51.280685Z'
-updated_at: '2026-08-10T00:02:23.996445Z'
+updated_at: '2026-08-10T00:02:55.561889Z'
 work_branch: null
 target_branch: null
 review_url: null
