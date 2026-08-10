@@ -579,6 +579,26 @@ def test_validation_reuse_policy_requires_attempt_identity() -> None:
         )
 
 
+def test_post_gate_inspection_denial_is_recorded() -> None:
+    metrics = TerminalAuditMetrics()
+
+    metrics.record_validation_reuse_policy(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        attempt_id="attempt-1",
+        invocation_id="invocation-1",
+        command="git diff HEAD~1 HEAD tests/test_one.py",
+        decision="denied_post_gate_inspection",
+    )
+
+    snapshot = metrics.snapshot()
+    assert snapshot["reused_gate_validation_denied"] == 1
+    assert snapshot["validation"]["last_reuse_policy"]["decision"] == (
+        "denied_post_gate_inspection"
+    )
+
+
 def test_sync_pending_uses_only_live_records_and_counts_a_stale_identity_once() -> None:
     now = datetime(2026, 7, 29, 12, tzinfo=timezone.utc)
     metrics = TerminalAuditMetrics(clock=_Clock(now))

@@ -24,6 +24,7 @@ from oompah import native_validation_guard as guard_module
 from oompah.api_agent import _validation_reuse_policy_decision
 from oompah.native_validation_guard import (
     cleanup_retired_native_validation_guards,
+    complete_native_validation_command,
     consume_native_validation_boundary,
     install_native_validation_guard,
     main,
@@ -1498,6 +1499,211 @@ def test_native_reuse_policy_denies_exact_and_allows_structured_distinct_mode(
         ]
         assert telemetry[1]["justification"] == "serial race coverage"
         assert all(entry["invocation_id"] for entry in telemetry)
+    finally:
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+
+
+def test_native_required_gate_pass_denies_later_opaque_command_before_queue(
+    tmp_path: Path,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    make_marker = tmp_path / "make-ran"
+    git_marker = tmp_path / "git-ran"
+    real_make = real_bin / "make"
+    real_make.write_text(
+        '#!/bin/sh\n: > "$OOMPAH_TEST_NATIVE_MAKE_MARKER"\n',
+        encoding="utf-8",
+    )
+    real_make.chmod(0o700)
+    real_git = real_bin / "git"
+    real_git.write_text(
+        '#!/bin/sh\n: > "$OOMPAH_TEST_NATIVE_GIT_MARKER"\n',
+        encoding="utf-8",
+    )
+    real_git.chmod(0o700)
+    owner = ValidationLeaseOwner.auditor(
+        project_id="project",
+        task_id="AUDIT-REQUIRED",
+        authority_generation="attempt-1",
+    )
+    telemetry: list[dict[str, str]] = []
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+        validation_reuse_policy={
+            "decision": "full_gate_required",
+            "command": "make test",
+            "attempt_id": "attempt-1",
+        },
+        validation_reuse_authority_check=lambda: "full_gate_required",
+        validation_reuse_policy_handler=lambda **values: telemetry.append(values),
+    )
+    environment = {
+        **os.environ,
+        **guarded,
+        "OOMPAH_TEST_NATIVE_MAKE_MARKER": str(make_marker),
+        "OOMPAH_TEST_NATIVE_GIT_MARKER": str(git_marker),
+    }
+    gate_command = "make test"
+
+    try:
+        gate = subprocess.run(
+            ["/bin/bash", "-c", gate_command],
+            env=environment,
+            pass_fds=_guard_pass_fds(guarded),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        assert gate.returncode == 0
+        assert make_marker.exists() is True
+        assert consume_native_validation_boundary(root, gate_command, "gate-item")
+        assert complete_native_validation_command(
+            root,
+            gate_command,
+            "gate-item",
+            succeeded=True,
+            outcome="passed",
+        )
+
+        unrelated_owner = ValidationLeaseOwner.auditor(
+            project_id="project",
+            task_id="AUDIT-OTHER",
+            authority_generation="attempt-2",
+        )
+        unrelated_gate = lease.acquire(unrelated_owner)
+        try:
+            inspection = subprocess.run(
+                [
+                    "/bin/bash",
+                    "-c",
+                    "git diff HEAD~1 HEAD tests/test_one.py",
+                ],
+                env=environment,
+                pass_fds=_guard_pass_fds(guarded),
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            assert inspection.returncode != 0
+            assert git_marker.exists() is False
+            assert lease.status().waiter_count == 0
+            assert telemetry[-1]["decision"] == "denied_post_gate_inspection"
+        finally:
+            unrelated_gate.release()
+    finally:
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+
+
+def test_native_masked_required_gate_failure_never_creates_session_pass(
+    tmp_path: Path,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    make_marker = tmp_path / "make-ran"
+    git_marker = tmp_path / "git-ran"
+    real_make = real_bin / "make"
+    real_make.write_text(
+        '#!/bin/sh\n: > "$OOMPAH_TEST_NATIVE_MAKE_MARKER"\nexit 17\n',
+        encoding="utf-8",
+    )
+    real_make.chmod(0o700)
+    real_git = real_bin / "git"
+    real_git.write_text(
+        '#!/bin/sh\n: > "$OOMPAH_TEST_NATIVE_GIT_MARKER"\n',
+        encoding="utf-8",
+    )
+    real_git.chmod(0o700)
+    owner = ValidationLeaseOwner.auditor(
+        project_id="project",
+        task_id="AUDIT-MASKED",
+        authority_generation="attempt-1",
+    )
+    telemetry: list[dict[str, str]] = []
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+        validation_reuse_policy={
+            "decision": "full_gate_required",
+            "command": "make test",
+            "attempt_id": "attempt-1",
+        },
+        validation_reuse_authority_check=lambda: "full_gate_required",
+        validation_reuse_policy_handler=lambda **values: telemetry.append(values),
+    )
+    environment = {
+        **os.environ,
+        **guarded,
+        "OOMPAH_TEST_NATIVE_MAKE_MARKER": str(make_marker),
+        "OOMPAH_TEST_NATIVE_GIT_MARKER": str(git_marker),
+    }
+    masked_command = "make test || true"
+    inspection_command = "git diff HEAD~1 HEAD tests/test_one.py"
+
+    try:
+        masked = subprocess.run(
+            ["/bin/bash", "-c", masked_command],
+            env=environment,
+            pass_fds=_guard_pass_fds(guarded),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        assert masked.returncode == 0
+        assert make_marker.exists() is True
+        assert consume_native_validation_boundary(root, masked_command, "masked-item")
+        assert complete_native_validation_command(
+            root,
+            masked_command,
+            "masked-item",
+            succeeded=True,
+            outcome="passed",
+        )
+
+        inspection = subprocess.run(
+            ["/bin/bash", "-c", inspection_command],
+            env=environment,
+            pass_fds=_guard_pass_fds(guarded),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        assert inspection.returncode == 0
+        assert git_marker.exists() is True
+        assert consume_native_validation_boundary(
+            root,
+            inspection_command,
+            "inspection-item",
+        )
+        assert complete_native_validation_command(
+            root,
+            inspection_command,
+            "inspection-item",
+            succeeded=True,
+            outcome="passed",
+        )
+        assert telemetry == []
     finally:
         assert retire_native_validation_guard(
             root,

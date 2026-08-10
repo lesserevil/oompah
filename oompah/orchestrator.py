@@ -32394,12 +32394,19 @@ class Orchestrator:
         bundle: dict[str, Any],
         audit_target: object,
     ) -> dict[str, Any] | None:
-        """Freeze the exact reusable authority that command tools must recheck."""
+        """Freeze exact gate identity and any reusable authority.
 
-        if bundle.get("decision") != "reuse_authoritative_gate":
+        A ``full_gate_required`` policy starts permissive. If the auditor runs
+        that configured gate successfully, the command layer records the pass
+        in this session-local mapping and prevents later non-focused commands
+        from entering the shared validation queue before verdict submission.
+        """
+
+        decision = str(bundle.get("decision") or "")
+        if decision not in {"reuse_authoritative_gate", "full_gate_required"}:
             return None
         policy = {
-            "decision": "reuse_authoritative_gate",
+            "decision": decision,
             "command": str(bundle.get("command") or "").strip(),
             "accepted_head_sha": str(
                 bundle.get("accepted_head_sha") or ""
