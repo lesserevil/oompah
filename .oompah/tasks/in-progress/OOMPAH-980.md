@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T01:42:03.823626Z'
-updated_at: '2026-08-10T02:13:20.364860Z'
+updated_at: '2026-08-10T02:22:44.759180Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-08-10 01:54
 ---
 Reproduction complete. OOMPAH-979 had durable exact-head make test evidence and review_head 7fc8bc8e, but terminal audit identity ignored review_head and therefore never queried the gate store. Separately, the Make-launched service leaked MAKEFLAGS and MFLAGS into auditor environments, making the fail-closed classifier report ordinary make test as opaque. The fix now uses canonical exact-head resolution for audit evidence and strips only inherited Make control variables at the agent boundary; the classifier remains fail closed for command-supplied controls. Focused verification: 290 affected gate, auth, API lifecycle, and native Codex tests passed.
+---
+author: oompah
+created: 2026-08-10 02:22
+---
+Implementation complete at exact pushed head 10f586bbcdd87287f486906840e4a5405de4bddd. Independent review approved with no blockers. Verification: 310 affected tests passed; complete make test passed with 19,279 passed, 7 skipped, 2 expected failures, zero failures in 1246.99 seconds; terminal mutation scan, diff check, commit hooks, and secret scan passed.
 ---
 <!-- COMMENTS:END -->
