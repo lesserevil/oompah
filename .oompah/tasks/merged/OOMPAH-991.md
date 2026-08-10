@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-991
 type: bug
-status: In Progress
+status: Merged
 priority: 1
 title: Isolate WebSocket bootstrap tests from process-global state snapshots
 parent: null
@@ -11,13 +11,37 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T10:30:40.633471Z'
-updated_at: '2026-08-10T10:57:43.053148Z'
+updated_at: '2026-08-10T15:38:45.528417Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-749d3b5ec915
+    project_id: proj-14849f1b
+    task_id: OOMPAH-991
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 918102097907d59840d1fc02f563c4428013d578966a16fd4bf2eb674faac141
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #798 merged as 2ab880be5; exact OOMPAH-991 commit c4ad83e47 is contained
+      in main and protected CI passed.'
+    created_at: '2026-08-10T15:38:41.196063+00:00'
+    selected_ref: origin/main
+    selected_sha: 2ab880be5c25d7b5c70000845698d39d5d53d3c8
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
