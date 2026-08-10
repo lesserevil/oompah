@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T03:38:07.660153Z'
-updated_at: '2026-08-10T03:38:38.278987Z'
+updated_at: '2026-08-10T03:39:47.756985Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Triggered by OOMPAH-982 protected PR #790, GitHub Actions run 31352693288. Pytho
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 03:39
+---
+Claimed directly from PR #790 run 31352693288. Python 3.11/3.12 and the exact local branch gate passed; Python 3.13 alone exposed a loaded-scheduler test race. The failed CI job is rerunning while deterministic event/state synchronization is implemented on branch OOMPAH-983.
+---
+<!-- COMMENTS:END -->
