@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-981
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Route post-landing epic follow-ups to the live target branch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T02:42:39.740073Z'
-updated_at: '2026-08-10T05:13:31.930415Z'
+updated_at: '2026-08-10T05:15:17.080338Z'
 work_branch: OOMPAH-981
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/793
@@ -71,6 +71,30 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-10T05:04:52.603766+00:00'
     applied_at: '2026-08-10T05:04:59.628211+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-a78f41ff99b0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-981
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ae2e30ef3c71bc135ddebea0aac3b0eed37fe1cb534fa7d0517c3d9d8bf52c85
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner terminal override after exact accepted head ca2a1dc03822a181b57f153f60bbff851004d061
+      passed the authoritative branch gate, protected Python 3.11/3.12/3.13 CI, and
+      an independent Done audit with 19,292 passing tests; PR #793 merged as 295df91c40f17a50ce6cf0d640c0667c48b469de
+      and the exact head is contained in origin/main. The Merged-stage auditor entered
+      the same redundant full-gate path already reproduced by OOMPAH-983; OOMPAH-988
+      tracks the deployed gate-reuse regression.'
+    created_at: '2026-08-10T05:15:13.085677+00:00'
+    selected_ref: ca2a1dc03822a181b57f153f60bbff851004d061
+    selected_sha: ca2a1dc03822a181b57f153f60bbff851004d061
+    applied: false
   version: 1
   pending_chain:
   - version: 1
