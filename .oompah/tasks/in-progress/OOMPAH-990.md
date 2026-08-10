@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:46:32.018670Z'
-updated_at: '2026-08-10T07:25:20.788951Z'
+updated_at: '2026-08-10T07:42:37.587346Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,5 +47,10 @@ author: oompah
 created: 2026-08-10 07:25
 ---
 Re-review replacement is pushed at exact head 46cc659bb485c6b81f556c1141e0807a23897b06. This supersedes invalid head 847c6b595. The replacement fences authority-less production publishers with exact project/task/head/branch/target/command identity plus project-serialized fresh tracker/evidence/head validation; an old producer PASS cannot clear a current producer failure. The real standalone Ready consumer now retains bounded interrupted scheduled-retry state until the exact retry passes or authority changes. Deterministic production terminal-first/result-first, authority-less review, old-head/current-failure, and real interrupted-then-pass standalone tests are included. Focused evidence: 358 passed across quality gate, standalone delivery, and delivery recovery modules; compile clean; terminal mutation scan 20/20; secret scans/hooks passed. Worktree is clean/synchronized. Full gate intentionally not restarted pending re-review; task remains In Progress and unsubmitted.
+---
+author: oompah
+created: 2026-08-10 07:42
+---
+Second re-review replacement is pushed at exact head 7690005cfd0ba845e42752b8c5b5c30f7efa735d, superseding 46cc659bb. Authority-less producer identity now binds canonical observed lifecycle status in addition to project/task/branch/target/head/command. Publication re-resolves the current project command and task under the project lock, requires an eligible unchanged status, and rejects/retire only the stale producer row on Ready→Open/In Progress/Needs Human drift. A fully current generation can retire an older same-head command outcome so its PASS recovers, while a late old-command PASS cannot clear a current failure. Broad affected evidence: 362 passed across quality gate, standalone delivery, and delivery recovery modules (one unrelated warning); terminal mutation scan 20/20; compile, secrets, and commit hooks passed. Worktree is clean/synchronized. No full gate or submit pending re-review.
 ---
 <!-- COMMENTS:END -->
