@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1003
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Revalidate root epic auto-close from durable landing authority without a mutable
   issue head
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T19:11:49.831627Z'
-updated_at: '2026-08-10T19:11:49.831627Z'
+updated_at: '2026-08-10T19:25:08.753084Z'
 work_branch: null
 target_branch: null
 review_url: null
