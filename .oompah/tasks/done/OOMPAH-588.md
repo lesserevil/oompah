@@ -17,7 +17,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-08-08T19:39:49.990185Z'
+updated_at: '2026-08-10T01:23:39.311378Z'
 work_branch: epic-OOMPAH-588
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/602
@@ -473,6 +473,30 @@ oompah.terminal_audit:
     done_audit_ids:
     - audit-324180823f32
     created_at: '2026-08-05T08:06:43.099368+00:00'
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Historical audited Done record lacks safe exact current landing proof;
+      retain immutable terminal provenance and retire recurring reassessment without
+      creating new work.
+    marked_at: '2026-08-10T01:23:37.073363+00:00'
+    updated_at: '2026-08-10T01:23:37.073363+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Historical audited Done record lacks safe exact current landing proof;
+        retain immutable terminal provenance and retire recurring reassessment without
+        creating new work.
+      recorded_at: '2026-08-10T01:23:37.073363+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
