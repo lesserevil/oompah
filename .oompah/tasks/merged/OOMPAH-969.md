@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-969
 type: task
-status: Done
+status: Merged
 priority: null
 title: Preserve fast workflow admission under continuous ordinary events
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:25:38.748132Z'
-updated_at: '2026-08-10T01:16:34.485293Z'
+updated_at: '2026-08-10T01:16:38.863122Z'
 work_branch: OOMPAH-969
 target_branch: null
 review_url: null
