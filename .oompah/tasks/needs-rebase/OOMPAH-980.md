@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-980
 type: bug
-status: Ready to Integrate
+status: Needs Rebase
 priority: 1
 title: Reuse authoritative full branch gates in terminal audits
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T01:42:03.823626Z'
-updated_at: '2026-08-10T02:23:08.452826Z'
+updated_at: '2026-08-10T02:30:31.375068Z'
 work_branch: OOMPAH-980
 target_branch: null
 review_url: null
@@ -20,15 +20,17 @@ review_head: null
 merged_at: null
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   mode: queue
   task_branch: OOMPAH-980
   base_branch: epic-OOMPAH-940
   base_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
   head_sha: 10f586bbcdd87287f486906840e4a5405de4bddd
   submitted_at: '2026-08-10T02:22:46.589167+00:00'
-  updated_at: '2026-08-10T02:22:46.589167+00:00'
+  last_error: automatic rebase could not prove that the rewritten head preserves every
+    accepted submission change; rebase the private branch explicitly and submit the
+    resulting exact head
 oompah.work_branch: OOMPAH-980
 ---
 ## Summary
