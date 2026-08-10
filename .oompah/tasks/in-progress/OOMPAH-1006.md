@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T21:29:22.606379Z'
-updated_at: '2026-08-10T22:11:50.215103Z'
+updated_at: '2026-08-10T22:46:09.587036Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -64,5 +64,10 @@ author: oompah
 created: 2026-08-10 22:11
 ---
 Exact combined recovery head 1e9032b4bdd870acf6822962fb45dcc8c5e73d3a passed focused validation (457 passed, 2 expected xfails), terminal mutation scan 20/20, secret/diff checks, and the complete make test gate: 19,679 passed, 7 skipped, 2 expected xfails in 21m06s. Protected delivery PR #804 is open and running hosted Python 3.11/3.12/3.13 checks.
+---
+author: oompah
+created: 2026-08-10 22:46
+---
+Hosted PR #804 exposed one test-only xdist incompatibility: production emitted and captured the expected stale-owner failure on Python 3.11/3.12/3.13, but the new test inspected caplog records after asyncio.run. The assertion now directly observes the logger call and preserves the production invariants. It passed repeated xdist runs and isolated Python 3.11/3.12/3.13 checks. Updated exact head 5fc2432263ad3593ef891dc716b43332083ed455 passed the full make test gate: 19,679 passed, 7 skipped, 2 expected xfails in 21m09s, and is pushed to rerun hosted CI.
 ---
 <!-- COMMENTS:END -->
