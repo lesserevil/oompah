@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T17:36:32.614914Z'
-updated_at: '2026-08-10T18:39:32.447851Z'
+updated_at: '2026-08-10T18:39:42.300354Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,7 +47,17 @@ oompah.terminal_audit:
     created_at: '2026-08-10T18:39:24.808065+00:00'
     selected_ref: origin/OOMPAH-1000
     selected_sha: d8232d4f250fade0da5603f0ed31dfa043b0d258
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1000
+    target_state: Merged
+    evidence_fingerprint: dd9586d47ac8ece8e7c927ae055c2ed28127b1bd18cb4d87d5dfb284eebd1038
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T18:39:39.144821+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -80,5 +90,12 @@ author: oompah
 created: 2026-08-10 18:20
 ---
 Protected recovery candidate: PR #800 carries exact OOMPAH-1000 commit d8232d4f250fade0da5603f0ed31dfa043b0d258 in combined head 017956bd637bfd3dd9124396fef394b439f47d6a. Clean combined focused result: 426 passed; full Makefile gate, protected Python 3.11/3.12/3.13 CI, and independent adversarial review are running on that exact head.
+---
+author: oompah
+created: 2026-08-10 18:39
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Exact implementation d8232d4f250fade0da5603f0ed31dfa043b0d258 is contained in protected merge 8eac2ae5097e84840d6b07fe965b37224c0f7960 via PR #800; combined exact head 017956bd637bfd3dd9124396fef394b439f47d6a passed the complete local Makefile gate and protected Python 3.11/3.12/3.13 CI, with independent adversarial approval.
 ---
 <!-- COMMENTS:END -->
