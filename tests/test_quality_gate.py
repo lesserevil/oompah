@@ -23,6 +23,7 @@ from unittest.mock import MagicMock
 import pytest
 
 import oompah.quality_gate as quality_gate
+from oompah.auditor import auditor_target_contract
 from oompah.integration import IntegrationRecord
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
@@ -579,6 +580,202 @@ def test_terminal_audit_quality_gate_bundle_reuses_review_head_without_integrati
     )
 
 
+@pytest.mark.parametrize("target_state", ["Done", "Merged"])
+def test_terminal_audit_quality_gate_reuses_landed_head_after_branch_deletion(
+    target_state,
+    monkeypatch,
+):
+    """The immutable landing proof replaces only a deleted mutable branch."""
+
+    monkeypatch.setattr(time, "time", lambda: 10_000.0)
+    head = "a" * 40
+    project = Project(
+        id="project",
+        name="project",
+        repo_url="repo",
+        repo_path="/managed/repo",
+        default_branch="main",
+        test_command_full="make test",
+    )
+    issue = Issue(
+        id="task",
+        identifier="TASK-1",
+        title="Task",
+        project_id="project",
+        state=IN_VALIDATION,
+        review_number="42",
+        review_head=head,
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch="work",
+            base_branch="main",
+            head_sha=head,
+        ),
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, "project").digest
+    tracker = MagicMock(fetch_issue_detail=MagicMock(return_value=issue))
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator._tracker_for_project = MagicMock(return_value=tracker)
+    orchestrator._quality_gate_branch_head = MagicMock(return_value="")
+    orchestrator._terminal_audit_work_branch_absent = MagicMock(return_value=True)
+    orchestrator._terminal_audit_accepted_head_containment = MagicMock(
+        return_value=(True, "")
+    )
+    orchestrator._branch_quality_gate = MagicMock()
+    orchestrator._branch_quality_gate.lookup.return_value = QualityGateResult(
+        "passed",
+        head,
+        "make test",
+        169.47,
+        recorded_at=9_999.0,
+    )
+    orchestrator._terminal_audit_metrics = MagicMock()
+
+    bundle = orchestrator._terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        SimpleNamespace(
+            project_id="project",
+            task_id="TASK-1",
+            audit_id="audit-1",
+            attempt_id="attempt-1",
+            target_state=target_state,
+            previous_state="In Review",
+            evidence_fingerprint=fingerprint,
+            selected_ref=head,
+            selected_sha=head,
+        ),
+    )
+
+    assert bundle["decision"] == "reuse_authoritative_gate"
+    assert bundle["authority_current"] is True
+    orchestrator._terminal_audit_accepted_head_containment.assert_called_once_with(
+        project,
+        accepted_head=head,
+        target_branch="main",
+    )
+
+
+def test_terminal_audit_quality_gate_rejects_deleted_unlanded_head(monkeypatch):
+    monkeypatch.setattr(time, "time", lambda: 10_000.0)
+    head = "a" * 40
+    project = Project(
+        id="project",
+        name="project",
+        repo_url="repo",
+        repo_path="/managed/repo",
+        default_branch="main",
+        test_command_full="make test",
+    )
+    issue = Issue(
+        id="task",
+        identifier="TASK-1",
+        title="Task",
+        project_id="project",
+        state=IN_VALIDATION,
+        review_number="42",
+        review_head=head,
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch="work",
+            base_branch="main",
+            head_sha=head,
+        ),
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, "project").digest
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator._tracker_for_project = MagicMock(
+        return_value=MagicMock(fetch_issue_detail=MagicMock(return_value=issue))
+    )
+    orchestrator._quality_gate_branch_head = MagicMock(return_value="")
+    orchestrator._terminal_audit_work_branch_absent = MagicMock(return_value=True)
+    orchestrator._terminal_audit_accepted_head_containment = MagicMock(
+        return_value=(False, f"accepted head {head} is not contained in main")
+    )
+    orchestrator._branch_quality_gate = MagicMock()
+    orchestrator._terminal_audit_metrics = MagicMock()
+
+    bundle = orchestrator._terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        SimpleNamespace(
+            project_id="project",
+            task_id="TASK-1",
+            audit_id="audit-1",
+            attempt_id="attempt-1",
+            target_state="Merged",
+            previous_state="In Review",
+            evidence_fingerprint=fingerprint,
+            selected_ref=head,
+            selected_sha=head,
+        ),
+    )
+
+    assert bundle["decision"] == "full_gate_required"
+    assert "not contained in main" in bundle["reason"]
+    orchestrator._branch_quality_gate.lookup.assert_not_called()
+
+
+@pytest.mark.parametrize("binding_head", [None, "b" * 40])
+def test_terminal_audit_quality_gate_requires_exact_landed_audit_binding(
+    binding_head,
+):
+    head = "a" * 40
+    project = Project(
+        id="project",
+        name="project",
+        repo_url="repo",
+        repo_path="/managed/repo",
+        default_branch="main",
+        test_command_full="make test",
+    )
+    issue = Issue(
+        id="task",
+        identifier="TASK-1",
+        title="Task",
+        project_id="project",
+        state=IN_VALIDATION,
+        review_number="42",
+        review_head=head,
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch="work",
+            base_branch="main",
+            head_sha=head,
+        ),
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, "project").digest
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator._tracker_for_project = MagicMock(
+        return_value=MagicMock(fetch_issue_detail=MagicMock(return_value=issue))
+    )
+    orchestrator._quality_gate_branch_head = MagicMock(return_value="")
+    orchestrator._branch_quality_gate = MagicMock()
+    orchestrator._terminal_audit_metrics = MagicMock()
+    target = SimpleNamespace(
+        project_id="project",
+        task_id="TASK-1",
+        audit_id="audit-1",
+        attempt_id="attempt-1",
+        target_state="Done",
+        previous_state="In Review",
+        evidence_fingerprint=fingerprint,
+    )
+    if binding_head is not None:
+        target.selected_ref = binding_head
+        target.selected_sha = binding_head
+
+    bundle = orchestrator._terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        target,
+    )
+
+    assert bundle["decision"] == "full_gate_required"
+    assert "audit revision is not the accepted exact head" in bundle["reason"]
+    orchestrator._branch_quality_gate.lookup.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "recorded_at",
     [None, float("nan"), float("inf"), "invalid", False, 10_001.0],
@@ -938,6 +1135,88 @@ def test_auditor_validation_reuse_authority_rechecks_live_surfaces(
         tracker.get_metadata.assert_called_once_with("TASK-1")
 
 
+def test_auditor_validation_reuse_rechecks_landed_revision_binding(monkeypatch):
+    head = "a" * 40
+    project = Project(
+        id="project",
+        name="project",
+        repo_url="repo",
+        repo_path="/managed/repo",
+        default_branch="main",
+        test_command_full="make test",
+    )
+    issue = Issue(
+        id="task",
+        identifier="TASK-1",
+        title="Task",
+        project_id="project",
+        state=IN_VALIDATION,
+        review_number="42",
+        review_head=head,
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch="work",
+            base_branch="main",
+            head_sha=head,
+        ),
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, "project").digest
+    target = SimpleNamespace(
+        project_id="project",
+        task_id="TASK-1",
+        audit_id="audit-1",
+        attempt_id="attempt-1",
+        target_state="Merged",
+        previous_state="In Review",
+        evidence_fingerprint=fingerprint,
+        selected_ref=head,
+        selected_sha=head,
+    )
+    policy = Orchestrator._auditor_validation_reuse_policy(
+        {
+            "decision": "reuse_authoritative_gate",
+            "command": "make test",
+            "accepted_head_sha": head,
+            "target_branch": "main",
+            "work_branch": "work",
+        },
+        target,
+    )
+    assert policy is not None
+    tracker = MagicMock(
+        fetch_issue_detail=MagicMock(return_value=issue),
+        get_metadata=MagicMock(return_value={"unused": True}),
+    )
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.project_store = MagicMock()
+    orchestrator.project_store.get.return_value = project
+    orchestrator.project_store.project_write_lock.return_value = nullcontext()
+    orchestrator._tracker_for_project = MagicMock(return_value=tracker)
+    orchestrator._terminal_audit_metrics = MagicMock()
+    orchestrator._quality_gate_branch_head = MagicMock(return_value="")
+    orchestrator._terminal_audit_work_branch_absent = MagicMock(return_value=True)
+    orchestrator._terminal_audit_accepted_head_containment = MagicMock(
+        return_value=(True, "")
+    )
+    orchestrator._branch_quality_gate = MagicMock()
+    orchestrator._branch_quality_gate.lookup.return_value = QualityGateResult(
+        "passed",
+        head,
+        "make test",
+        recorded_at=time.time(),
+    )
+    monkeypatch.setattr(
+        "oompah.orchestrator.pending_auditor_target",
+        lambda *_args, **_kwargs: auditor_target_contract(target),
+    )
+
+    assert orchestrator._auditor_validation_reuse_authority_state(
+        issue,
+        target,
+        policy,
+    ) == "reuse_authoritative_gate"
+
+
 def _git_repo(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -987,6 +1266,129 @@ test:
     subprocess.run(["git", "checkout", "-q", "-b", "work"], cwd=repo, check=True)
 
     return repo
+
+
+def test_terminal_audit_landing_proof_accepts_only_contained_deleted_branch(
+    tmp_path,
+):
+    repo = _git_repo(tmp_path)
+    remote = tmp_path / "remote.git"
+    subprocess.run(
+        ["git", "init", "-q", "--bare", "-b", "main", str(remote)],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(remote)], cwd=repo, check=True
+    )
+    (repo / "source.txt").write_text("landed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "source.txt"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "candidate"], cwd=repo, check=True)
+    accepted = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    subprocess.run(["git", "checkout", "-q", "main"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "merge", "-q", "--no-ff", "work", "-m", "land candidate"],
+        cwd=repo,
+        check=True,
+    )
+    subprocess.run(["git", "branch", "-D", "work"], cwd=repo, check=True)
+    subprocess.run(["git", "push", "-q", "origin", "main"], cwd=repo, check=True)
+    project = Project(
+        id="project",
+        name="project",
+        repo_url=str(remote),
+        repo_path=str(repo),
+        default_branch="main",
+    )
+    orchestrator = object.__new__(Orchestrator)
+
+    assert orchestrator._terminal_audit_work_branch_absent(project, "work") is True
+    assert orchestrator._terminal_audit_accepted_head_containment(
+        project,
+        accepted_head=accepted,
+        target_branch="main",
+    ) == (True, "")
+
+
+def test_terminal_audit_landing_proof_rejects_deleted_nonancestor(tmp_path):
+    repo = _git_repo(tmp_path)
+    remote = tmp_path / "remote.git"
+    subprocess.run(
+        ["git", "init", "-q", "--bare", "-b", "main", str(remote)],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(remote)], cwd=repo, check=True
+    )
+    (repo / "source.txt").write_text("not landed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "source.txt"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "candidate"], cwd=repo, check=True)
+    accepted = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    subprocess.run(["git", "checkout", "-q", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "branch", "-D", "work"], cwd=repo, check=True)
+    subprocess.run(["git", "push", "-q", "origin", "main"], cwd=repo, check=True)
+    project = Project(
+        id="project",
+        name="project",
+        repo_url=str(remote),
+        repo_path=str(repo),
+        default_branch="main",
+    )
+    orchestrator = object.__new__(Orchestrator)
+
+    contained, reason = orchestrator._terminal_audit_accepted_head_containment(
+        project,
+        accepted_head=accepted,
+        target_branch="main",
+    )
+
+    assert contained is False
+    assert "not contained in main" in reason
+
+
+def test_terminal_audit_branch_absence_checks_remote_authority(tmp_path):
+    repo = _git_repo(tmp_path)
+    remote = tmp_path / "remote.git"
+    subprocess.run(
+        ["git", "init", "-q", "--bare", "-b", "main", str(remote)],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(remote)], cwd=repo, check=True
+    )
+    (repo / "source.txt").write_text("advanced\n", encoding="utf-8")
+    subprocess.run(["git", "add", "source.txt"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "advanced"], cwd=repo, check=True)
+    subprocess.run(["git", "push", "-q", "origin", "work"], cwd=repo, check=True)
+    subprocess.run(["git", "checkout", "-q", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "branch", "-D", "work"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "update-ref", "-d", "refs/remotes/origin/work"],
+        cwd=repo,
+        check=True,
+    )
+    project = Project(
+        id="project",
+        name="project",
+        repo_url=str(remote),
+        repo_path=str(repo),
+        default_branch="main",
+    )
+    orchestrator = object.__new__(Orchestrator)
+
+    assert orchestrator._quality_gate_branch_head(project, "work") == ""
+    assert orchestrator._terminal_audit_work_branch_absent(project, "work") is False
 
 
 def _stale_managed_clone_with_submission(tmp_path):

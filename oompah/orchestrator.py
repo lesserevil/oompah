@@ -399,6 +399,7 @@ from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
     AUDITOR_FOCUS_NAME,
     DEFAULT_AUDITOR_VALIDATION_TARGETS,
+    AuditorTargetContract,
     auditor_target_contract,
     build_auditor_validation_contract,
     is_recoverable_auditor_command_denial,
@@ -32274,24 +32275,37 @@ class Orchestrator:
                 integrated_sha = str(
                     getattr(integration, "integrated_sha", "") or ""
                 ).strip().lower()
-                if (
+                integration_head_changed = (
                     str(getattr(integration, "state", "") or "").casefold()
                     == "integrated"
                     and integrated_sha
                     and integrated_sha != accepted_head
-                ):
-                    raise ValueError(
-                        "audit revision differs from the accepted pre-integration head"
-                    )
+                )
 
                 branch_head = self._quality_gate_branch_head(
                     project,
                     work_branch,
                 ).strip().lower()
-                if branch_head != accepted_head:
+                branch_authority_current = (
+                    branch_head == accepted_head and not integration_head_changed
+                )
+                if not branch_authority_current and branch_head:
                     raise ValueError(
                         "authoritative work branch no longer names the accepted head"
                     )
+                if not branch_authority_current:
+                    landed, landed_reason = (
+                        self._terminal_audit_landed_gate_authority(
+                            current_issue,
+                            project,
+                            target,
+                            accepted_head=accepted_head,
+                            work_branch=work_branch,
+                            target_branch=target_branch,
+                        )
+                    )
+                    if not landed:
+                        raise ValueError(landed_reason)
                 authority_current = True
 
                 result = self._branch_quality_gate.lookup(
@@ -32389,6 +32403,154 @@ class Orchestrator:
                 logger.debug("Unable to record terminal-audit gate decision", exc_info=True)
         return bundle
 
+    def _terminal_audit_landed_gate_authority(
+        self,
+        issue: Issue,
+        project: Project,
+        target: AuditorTargetContract,
+        *,
+        accepted_head: str,
+        work_branch: str,
+        target_branch: str,
+    ) -> tuple[bool, str]:
+        """Prove post-review gate authority after normal branch deletion.
+
+        A merged review normally deletes its source branch before the terminal
+        chain runs.  The immutable audit revision plus target-branch ancestry
+        replaces that mutable branch proof only for the exact reviewed head.
+        Every unavailable or ambiguous repository observation stays closed.
+        """
+
+        if TargetState.from_raw(target.target_state) not in {
+            TargetState.DONE,
+            TargetState.MERGED,
+        }:
+            return False, "terminal target is not a post-review landing transition"
+        if canonicalize_status(target.previous_state or "") != IN_REVIEW:
+            return False, "terminal target has no post-review landing authority"
+        if target.selected_sha != accepted_head or not target.selected_ref:
+            return False, "terminal audit revision is not the accepted exact head"
+        review_head = str(getattr(issue, "review_head", "") or "").strip().lower()
+        review_id = str(
+            getattr(issue, "review_number", "")
+            or getattr(issue, "review_id", "")
+            or ""
+        ).strip()
+        if not review_id or review_head != accepted_head:
+            return False, "review evidence is not bound to the accepted exact head"
+        if not self._terminal_audit_work_branch_absent(project, work_branch):
+            return False, "authoritative work branch availability is ambiguous"
+        return self._terminal_audit_accepted_head_containment(
+            project,
+            accepted_head=accepted_head,
+            target_branch=target_branch,
+        )
+
+    def _terminal_audit_work_branch_absent(
+        self,
+        project: Project,
+        work_branch: str,
+    ) -> bool:
+        """Return true only when both managed source refs are provably absent."""
+
+        repo_path = str(getattr(project, "repo_path", "") or "").strip()
+        branch = str(work_branch or "").strip()
+        if not repo_path or not branch:
+            return False
+        try:
+            valid = subprocess.run(
+                ["git", "check-ref-format", f"refs/heads/{branch}"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        if valid.returncode != 0:
+            return False
+        for ref in (
+            f"refs/remotes/origin/{branch}",
+            f"refs/heads/{branch}",
+        ):
+            try:
+                present = subprocess.run(
+                    ["git", "show-ref", "--verify", "--quiet", ref],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return False
+            if present.returncode != 1:
+                return False
+        try:
+            remote = self._run_project_network_git(
+                project,
+                [
+                    "git",
+                    "ls-remote",
+                    "--heads",
+                    "origin",
+                    f"refs/heads/{branch}",
+                ],
+                cwd=repo_path,
+                timeout=15,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        return remote.returncode == 0 and not remote.stdout.strip()
+
+    def _terminal_audit_accepted_head_containment(
+        self,
+        project: Project,
+        *,
+        accepted_head: str,
+        target_branch: str,
+    ) -> tuple[bool, str]:
+        """Prove one immutable accepted head is on a freshly fetched target."""
+
+        head = str(accepted_head or "").strip().lower()
+        branch = str(target_branch or "").strip()
+        repo_path = str(getattr(project, "repo_path", "") or "").strip()
+        if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", head):
+            return False, "accepted exact head is invalid"
+        if not repo_path or not branch:
+            return False, "target-branch containment evidence is unavailable"
+        fresh, refresh_error = self._refresh_landing_evidence_target_refs(
+            repo_path,
+            (branch,),
+            access_token=getattr(project, "access_token", None),
+            forge_kind=getattr(project, "forge_kind", "github"),
+        )
+        if not fresh:
+            return False, (
+                "target branch refresh failed "
+                f"({refresh_error or 'unknown error'})"
+            )
+        refs = self._resolve_git_branch_refs(repo_path, branch)
+        if not refs or not self._git_commit_is_real(repo_path, head):
+            return False, "target-branch containment evidence is unavailable"
+        try:
+            contained = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", head, refs[0]],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False, "exact target containment check could not start"
+        if contained.returncode == 0:
+            return True, ""
+        if contained.returncode == 1:
+            return False, f"accepted head {head} is not contained in {branch}"
+        return False, "exact target containment check failed"
+
     @staticmethod
     def _auditor_validation_reuse_policy(
         bundle: dict[str, Any],
@@ -32420,6 +32582,8 @@ class Orchestrator:
                 "attempt_id": target.attempt_id or "",
                 "target_state": target.target_state,
                 "evidence_fingerprint": target.evidence_fingerprint,
+                "selected_ref": target.selected_ref or "",
+                "selected_sha": target.selected_sha or "",
                 "invalid_authority": not bool(target.attempt_id),
             }
         )
@@ -32449,6 +32613,8 @@ class Orchestrator:
                     "attempt_id",
                     "target_state",
                     "evidence_fingerprint",
+                    "selected_ref",
+                    "selected_sha",
                 )
             ):
                 return "stale_authority"
@@ -32486,6 +32652,8 @@ class Orchestrator:
                     "attempt_id",
                     "target_state",
                     "evidence_fingerprint",
+                    "selected_ref",
+                    "selected_sha",
                 )
                 if any(
                     str(getattr(live_target, name, "") or "")
