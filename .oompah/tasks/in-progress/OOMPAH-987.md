@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T04:50:28.752372Z'
-updated_at: '2026-08-10T04:50:52.462194Z'
+updated_at: '2026-08-10T04:51:47.727446Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ Live reproduction on 2026-08-10: OOMPAH-983 terminal audit attempt attempt-315a8
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 04:51
+---
+Direct owner claim active as 6e38711da07b4fb995f0775852d4c0b6. Live OOMPAH-983 evidence confirms the exact failure mode: its successful full-gate result was delivered, then inspection-shaped Git was classified heavyweight/opaque from executable effective Git config and queued with no child behind OOMPAH-981. Implementation is intentionally deferred until the current OOMPAH-981/OOMPAH-983/OOMPAH-984 validation activity drains so this repair does not contend with or invalidate in-flight exact evidence.
+---
+<!-- COMMENTS:END -->
