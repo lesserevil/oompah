@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-992
 type: bug
-status: In Progress
+status: Merged
 priority: 1
 title: Bound task creation when quality-gate reconciliation owns project mutation
 parent: null
@@ -14,13 +14,39 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T10:32:43.695792Z'
-updated_at: '2026-08-10T10:52:36.702274Z'
+updated_at: '2026-08-10T15:39:24.856860Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-b5d84536823a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-992
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3abf08bb74d4f83f352d2c57c809737198d7052f31851035f33ada7611ae373c
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #798 merged as 2ab880be5 and contains all reviewed OOMPAH-992 child
+      patches plus combined authority hardening e09ad2e26 and 2c26f79aa; this owner
+      disposition establishes the parent landing authority required to terminalize
+      its contained child tasks.'
+    created_at: '2026-08-10T15:39:20.151549+00:00'
+    selected_ref: origin/main
+    selected_sha: 2ab880be5c25d7b5c70000845698d39d5d53d3c8
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
