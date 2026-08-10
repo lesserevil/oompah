@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-980
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Reuse authoritative full branch gates in terminal audits
 parent: OOMPAH-940
@@ -11,13 +11,25 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T01:42:03.823626Z'
-updated_at: '2026-08-10T02:22:44.759180Z'
-work_branch: null
+updated_at: '2026-08-10T02:23:08.452826Z'
+work_branch: OOMPAH-980
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-980
+  base_branch: epic-OOMPAH-940
+  base_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
+  head_sha: 10f586bbcdd87287f486906840e4a5405de4bddd
+  submitted_at: '2026-08-10T02:22:46.589167+00:00'
+  updated_at: '2026-08-10T02:22:46.589167+00:00'
+oompah.work_branch: OOMPAH-980
 ---
 ## Summary
 
@@ -45,5 +57,10 @@ author: oompah
 created: 2026-08-10 02:22
 ---
 Implementation complete at exact pushed head 10f586bbcdd87287f486906840e4a5405de4bddd. Independent review approved with no blockers. Verification: 310 affected tests passed; complete make test passed with 19,279 passed, 7 skipped, 2 expected failures, zero failures in 1246.99 seconds; terminal mutation scan, diff check, commit hooks, and secret scan passed.
+---
+author: oompah
+created: 2026-08-10 02:23
+---
+Canonical review heads now reuse durable exact gate evidence, and inherited Make control channels are removed at the agent boundary while explicit hostile controls remain fail closed.
 ---
 <!-- COMMENTS:END -->
