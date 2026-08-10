@@ -1317,6 +1317,67 @@ class DispatchTarget:
 # ---------------------------------------------------------------------------
 
 
+class LifecyclePublicationSource:
+    """Revocable source authority propagated into lifecycle state sinks."""
+
+    def __init__(self, orchestrator: "Orchestrator") -> None:
+        self._orchestrator = orchestrator
+        self._lock = threading.RLock()
+        self._active = True
+
+    def deactivate(self) -> None:
+        """Prevent every later source-bound sink mutation."""
+
+        with self._lock:
+            self._active = False
+
+    def is_current(self, epoch: int, expected_generation: int) -> bool:
+        """Check source, epoch, and lifecycle generation atomically."""
+
+        with self._lock:
+            orchestrator = self._orchestrator
+            return bool(
+                self._active
+                and not orchestrator._lifecycle_publication_closed
+                and orchestrator._lifecycle_publication_epoch == epoch
+                and orchestrator._provider_admission_generation
+                == expected_generation
+            )
+
+    def mutate_if_current(
+        self,
+        epoch: int,
+        expected_generation: int,
+        mutation: Callable[[], Any],
+    ) -> bool:
+        """Run one narrow sink mutation only while this source is current."""
+
+        with self._lock:
+            if not self.is_current(epoch, expected_generation):
+                return False
+            mutation()
+            return True
+
+
+@dataclass(frozen=True)
+class LifecyclePublicationPermit:
+    """Exact source token passed through publication into state sinks."""
+
+    source: LifecyclePublicationSource
+    epoch: int
+    expected_generation: int
+
+    def is_current(self) -> bool:
+        return self.source.is_current(self.epoch, self.expected_generation)
+
+    def mutate_if_current(self, mutation: Callable[[], Any]) -> bool:
+        return self.source.mutate_if_current(
+            self.epoch,
+            self.expected_generation,
+            mutation,
+        )
+
+
 @dataclass
 class MaintenanceJobState:
     """Per-job scheduling state for the maintenance lane.
@@ -2119,6 +2180,7 @@ class Orchestrator:
         self._lifecycle_publication_running = False
         self._lifecycle_publication_pending_generation: int | None = None
         self._lifecycle_publication_thread: threading.Thread | None = None
+        self._lifecycle_publication_source = LifecyclePublicationSource(self)
         # Bug fix: load persisted paused state from disk so it survives
         # service restarts. Previously _paused was always initialized to False.
         self._paused = self._load_paused_state()
@@ -67607,6 +67669,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         legacy callbacks execute.
         """
 
+        publication_permit: LifecyclePublicationPermit | None = None
         if lifecycle_epoch is not None:
             if expected_generation is None:
                 return False
@@ -67622,22 +67685,69 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         != expected_generation
                     ):
                         return False
+            publication_permit = LifecyclePublicationPermit(
+                source=self._lifecycle_publication_source,
+                epoch=lifecycle_epoch,
+                expected_generation=expected_generation,
+            )
+        source_is_current = (
+            publication_permit.is_current
+            if publication_permit is not None
+            else None
+        )
 
         # Publish to IPC before notifying local observers so the API process
         # can serve reads as soon as the tick completes.
         if self._ipc is not None:
             try:
-                self._ipc.publish_state(snapshot)
+                if source_is_current is None:
+                    self._ipc.publish_state(snapshot)
+                else:
+                    self._ipc.publish_state(
+                        snapshot,
+                        source_is_current=source_is_current,
+                        source_id=getattr(
+                            self,
+                            "_ipc_state_publication_source",
+                            None,
+                        ),
+                    )
             except Exception as exc:  # noqa: BLE001
                 logger.debug(
                     "OrchestratorIPC.publish_state failed (non-fatal): %s", exc
                 )
         # EventBus (authoritative)
-        self.event_bus.emit(EventType.ORCHESTRATOR_TICK, {"snapshot": snapshot})
+        if source_is_current is None:
+            self.event_bus.emit(
+                EventType.ORCHESTRATOR_TICK,
+                {"snapshot": snapshot},
+            )
+        else:
+            self.event_bus.emit(
+                EventType.ORCHESTRATOR_TICK,
+                {"snapshot": snapshot},
+                source_is_current=source_is_current,
+                publication_permit=publication_permit,
+            )
         # Legacy observer lists (backward compat)
         for observer in self._observers:
+            if source_is_current is not None and not source_is_current():
+                return False
             try:
-                observer(snapshot)
+                if (
+                    publication_permit is not None
+                    and getattr(
+                        observer,
+                        "_oompah_accepts_lifecycle_publication_permit",
+                        False,
+                    )
+                ):
+                    observer(
+                        snapshot,
+                        publication_permit=publication_permit,
+                    )
+                else:
+                    observer(snapshot)
             except Exception:
                 pass
         return True
@@ -67735,6 +67845,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             self._lifecycle_publication_pending_generation = None
             self._lifecycle_publication_thread = None
             self._lifecycle_publication_running = False
+            source = getattr(self, "_lifecycle_publication_source", None)
+        if source is not None:
+            source.deactivate()
 
     def _notify_state_only(self) -> None:
         """Notify observers with state only (no issues refresh).

@@ -35,6 +35,8 @@ from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
+LIFECYCLE_PUBLICATION_PERMIT_KEY = "_oompah_lifecycle_publication_permit"
+
 
 class EventType(str, Enum):
     """Canonical event types for the oompah event bus.
@@ -163,22 +165,38 @@ class EventBus:
     # Synchronous dispatch
     # ------------------------------------------------------------------
 
-    def emit(self, event_type: EventType | str, payload: dict[str, Any] | None = None) -> int:
+    def emit(
+        self,
+        event_type: EventType | str,
+        payload: dict[str, Any] | None = None,
+        *,
+        source_is_current: Callable[[], bool] | None = None,
+        publication_permit: Any | None = None,
+    ) -> int:
         """Dispatch *event_type* to all **sync** handlers.
 
         Async handlers registered for this event are skipped with a warning —
-        use :meth:`emit_async` if you need to call async handlers.
+        use :meth:`emit_async` if you need to call async handlers. Lifecycle
+        publishers can provide a source predicate; checking it inside the bus
+        and again before each handler prevents a retired orchestrator from
+        entering a replacement-owned subscriber.
 
         Returns the number of handlers successfully called.
         """
+        if source_is_current is not None and not source_is_current():
+            return 0
         key = self._key(event_type)
         # Resolve to the EventType member if possible, else keep as raw string
         value_map = EventType._value2member_map_  # type: ignore[attr-defined]
         et: EventType | str = value_map[key] if key in value_map else key
-        payload = payload or {}
+        payload = dict(payload or {})
+        if publication_permit is not None:
+            payload[LIFECYCLE_PUBLICATION_PERMIT_KEY] = publication_permit
         handlers = list(self._handlers.get(key, []))
         called = 0
         for handler, is_async in handlers:
+            if source_is_current is not None and not source_is_current():
+                break
             if is_async:
                 logger.warning(
                     "EventBus.emit: async handler %s skipped for %s — use emit_async()",

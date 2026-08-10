@@ -1061,6 +1061,10 @@ _agent_profile_store = AgentProfileStore()
 
 # Global reference to orchestrator, set during startup
 _orchestrator: Orchestrator | None = None
+# Observer callbacks from a replaced in-process orchestrator may unwind after
+# cutover.  Serialize the owner identity with cache publication so an old
+# callback either commits before replacement or is rejected afterward.
+_orchestrator_ownership_lock = threading.RLock()
 
 # IPC layer for multi-process mode (TASK-469.5.1).
 # Populated from OOMPAH_IPC_DB_PATH if set; None in single-process mode.
@@ -1327,16 +1331,35 @@ def _set_management_tracker_resolution_alert(
 def set_orchestrator(orch: Orchestrator) -> None:
     global _orchestrator, _error_watcher, _log_watcher_manager
     global _agent_profile_store, _role_store, _provider_store
-    previous_orchestrator = _orchestrator
-    if previous_orchestrator is not None and previous_orchestrator is not orch:
-        shutdown_publications = getattr(
-            previous_orchestrator,
-            "_shutdown_lifecycle_publications",
-            None,
-        )
-        if callable(shutdown_publications):
-            shutdown_publications()
-    _orchestrator = orch
+    with _orchestrator_ownership_lock:
+        previous_orchestrator = _orchestrator
+        if previous_orchestrator is not None and previous_orchestrator is not orch:
+            shutdown_publications = getattr(
+                previous_orchestrator,
+                "_shutdown_lifecycle_publications",
+                None,
+            )
+            if callable(shutdown_publications):
+                shutdown_publications()
+        ipc = getattr(orch, "_ipc", None)
+        source_id = getattr(orch, "_service_instance_id", None)
+        activate_state_source = getattr(ipc, "activate_state_source", None)
+        if (
+            isinstance(source_id, str)
+            and source_id
+            and callable(activate_state_source)
+        ):
+            if activate_state_source(source_id):
+                orch._ipc_state_publication_source = source_id
+            else:
+                # Fail closed for generation-fenced lifecycle writes. Ordinary
+                # compatibility snapshots retain their historical IPC path.
+                orch._ipc_state_publication_source = None
+                logger.warning(
+                    "Could not claim IPC state publication source for %s",
+                    source_id,
+                )
+        _orchestrator = orch
     # Share the orchestrator's profile store so /api/v1/agent-profiles
     # writes go to the same in-memory state the dispatch loop reads.
     _agent_profile_store = orch.agent_profile_store
@@ -1345,10 +1368,36 @@ def set_orchestrator(orch: Orchestrator) -> None:
     # Keep _provider_store in sync so Phase-2 validation in api_put_roles
     # and Phase-3 _role_store.set() use the same store instance.
     _provider_store = orch.provider_store
-    # Full observer: state + issues refresh (for dispatch, close, state changes)
-    orch._observers.append(_on_orchestrator_change)
-    # State-only observer: state broadcast without issues re-fetch (for agent activity)
-    orch._state_only_observers.append(_on_state_only_change)
+    # Full/state observer wrappers bind cache mutation to this exact
+    # orchestrator. A delayed callback from a replaced instance is rejected
+    # under the same narrow owner lock used by the replacement CAS.
+    def _owned_orchestrator_change(
+        snapshot: dict,
+        *,
+        publication_permit: Any | None = None,
+    ) -> None:
+        _on_orchestrator_change(
+            snapshot,
+            source=orch,
+            publication_permit=publication_permit,
+        )
+
+    def _owned_state_only_change(
+        snapshot: dict,
+        *,
+        publication_permit: Any | None = None,
+    ) -> None:
+        _on_state_only_change(
+            snapshot,
+            source=orch,
+            publication_permit=publication_permit,
+        )
+
+    _owned_orchestrator_change._oompah_accepts_lifecycle_publication_permit = True
+    _owned_state_only_change._oompah_accepts_lifecycle_publication_permit = True
+
+    orch._observers.append(_owned_orchestrator_change)
+    orch._state_only_observers.append(_owned_state_only_change)
     orch._activity_observers.append(_on_agent_activity)
 
     # Wire AgentProfileStore -> Orchestrator partial reload (oompah-zlz_2-mif).
@@ -4136,27 +4185,55 @@ def _queue_state_broadcast() -> None:
             _state_broadcast_scheduled = False
 
 
-def _on_state_only_change(snapshot: dict) -> None:
+def _on_state_only_change(
+    snapshot: dict,
+    *,
+    source: Any | None = None,
+    publication_permit: Any | None = None,
+) -> None:
     """Called on agent activity — broadcast state only, no issues re-fetch."""
-    # Always cache the snapshot so api_state() can serve it without recomputing.
-    _update_state_snapshot(snapshot)
-    if not _ws_clients:
-        return
-    _queue_state_broadcast()
+    with _orchestrator_ownership_lock:
+        if source is not None and _orchestrator is not source:
+            return
+        if (
+            publication_permit is not None
+            and not publication_permit.is_current()
+        ):
+            return
+        # Always cache the snapshot so api_state() can serve it without
+        # recomputing. Owner comparison and cache mutation are one CAS.
+        _update_state_snapshot(snapshot)
+        if not _ws_clients:
+            return
+        _queue_state_broadcast()
 
 
-def _on_orchestrator_change(snapshot: dict) -> None:
+def _on_orchestrator_change(
+    snapshot: dict,
+    *,
+    source: Any | None = None,
+    publication_permit: Any | None = None,
+) -> None:
     """Called on state changes (dispatch, close, etc.). Broadcasts state + issues."""
-    # Always cache the snapshot so api_state() can serve it without recomputing.
-    _update_state_snapshot(snapshot)
-    _invalidate_issue_caches(schedule_broadcast=False)
-    if not _ws_clients:
-        return
-    # Issue changes have their own throttle.  Schedule that refresh before
-    # applying the state-message throttle: a recent activity/state push must
-    # never suppress the board snapshot that reflects this change.
-    _schedule_api_coro(_throttled_broadcast_issues)
-    _queue_state_broadcast()
+    with _orchestrator_ownership_lock:
+        if source is not None and _orchestrator is not source:
+            return
+        if (
+            publication_permit is not None
+            and not publication_permit.is_current()
+        ):
+            return
+        # Always cache the snapshot so api_state() can serve it without
+        # recomputing. Owner comparison and cache mutation are one CAS.
+        _update_state_snapshot(snapshot)
+        _invalidate_issue_caches(schedule_broadcast=False)
+        if not _ws_clients:
+            return
+        # Issue changes have their own throttle.  Schedule that refresh before
+        # applying the state-message throttle: a recent activity/state push
+        # must never suppress the board snapshot that reflects this change.
+        _schedule_api_coro(_throttled_broadcast_issues)
+        _queue_state_broadcast()
 
 
 def _on_agent_activity(

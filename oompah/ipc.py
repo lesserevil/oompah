@@ -51,7 +51,7 @@ import os
 import sqlite3
 import threading
 import time
-from typing import Any
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +80,11 @@ CREATE TABLE IF NOT EXISTS kv (
     key        TEXT PRIMARY KEY,
     value      TEXT NOT NULL,
     updated_at REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS publication_sources (
+    key       TEXT PRIMARY KEY,
+    source_id TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS commands (
@@ -164,11 +169,21 @@ class OrchestratorIPC:
     # Key-value snapshot store
     # ------------------------------------------------------------------
 
-    def put_kv(self, key: str, value: Any) -> bool:
+    def put_kv(
+        self,
+        key: str,
+        value: Any,
+        *,
+        source_is_current: Callable[[], bool] | None = None,
+        required_source_id: str | None = None,
+    ) -> bool:
         """Write *value* (serialised to JSON) under *key*.
 
         Returns True on success, False on any SQLite error (logged; does not
-        raise so that a broken IPC channel never crashes the scheduler).
+        raise so that a broken IPC channel never crashes the scheduler).  A
+        lifecycle publisher may supply a source predicate; it is evaluated
+        inside the sink lock immediately before SQLite mutation so a retired
+        orchestrator cannot overwrite the replacement's cached state.
         """
         with self._lock:
             conn = self._ensure_conn()
@@ -176,12 +191,35 @@ class OrchestratorIPC:
                 return False
             try:
                 payload = json.dumps(value, default=str)
-                conn.execute(
-                    "INSERT OR REPLACE INTO kv(key, value, updated_at) VALUES(?, ?, ?)",
-                    (key, payload, time.monotonic()),
-                )
+                if source_is_current is not None and not source_is_current():
+                    return False
+                updated_at = time.monotonic()
+                if required_source_id is None:
+                    cursor = conn.execute(
+                        "INSERT OR REPLACE INTO kv(key, value, updated_at) "
+                        "VALUES(?, ?, ?)",
+                        (key, payload, updated_at),
+                    )
+                else:
+                    # The source comparison and state replacement are one
+                    # SQLite statement. A replacement scheduler's source claim
+                    # therefore orders strictly before or after this write;
+                    # an old process cannot pass a Python check and mutate the
+                    # shared cache after the new claim commits.
+                    cursor = conn.execute(
+                        "INSERT OR REPLACE INTO kv(key, value, updated_at) "
+                        "SELECT ?, ?, ? FROM publication_sources "
+                        "WHERE key = ? AND source_id = ?",
+                        (
+                            key,
+                            payload,
+                            updated_at,
+                            key,
+                            str(required_source_id),
+                        ),
+                    )
                 conn.commit()
-                return True
+                return bool(cursor.rowcount)
             except (sqlite3.Error, TypeError) as exc:
                 logger.warning("OrchestratorIPC.put_kv(%s): %s", key, exc)
                 return False
@@ -348,9 +386,46 @@ class OrchestratorIPC:
     # Convenience — state/issues/maintenance snapshots
     # ------------------------------------------------------------------
 
-    def publish_state(self, snapshot: dict[str, Any]) -> bool:
+    def publish_state(
+        self,
+        snapshot: dict[str, Any],
+        *,
+        source_is_current: Callable[[], bool] | None = None,
+        source_id: str | None = None,
+    ) -> bool:
         """Write the orchestrator state snapshot (scheduler side)."""
-        return self.put_kv("state", snapshot)
+        return self.put_kv(
+            "state",
+            snapshot,
+            source_is_current=source_is_current,
+            required_source_id=source_id,
+        )
+
+    def activate_state_source(self, source_id: str) -> bool:
+        """Atomically grant one scheduler ownership of the state cache."""
+
+        source_id = str(source_id or "").strip()
+        if not source_id:
+            return False
+        with self._lock:
+            conn = self._ensure_conn()
+            if conn is None:
+                return False
+            try:
+                conn.execute(
+                    "INSERT OR REPLACE INTO publication_sources(key, source_id) "
+                    "VALUES('state', ?)",
+                    (source_id,),
+                )
+                conn.commit()
+                return True
+            except sqlite3.Error as exc:
+                logger.warning(
+                    "OrchestratorIPC.activate_state_source(%s): %s",
+                    source_id,
+                    exc,
+                )
+                return False
 
     def publish_issues(self, issues: dict[str, Any]) -> bool:
         """Write the issues board snapshot (scheduler side)."""

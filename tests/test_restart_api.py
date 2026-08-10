@@ -16,6 +16,8 @@ from starlette.requests import Request
 
 from oompah import server
 from oompah.config import ServiceConfig
+from oompah.events import EventType, LIFECYCLE_PUBLICATION_PERMIT_KEY
+from oompah.ipc import OrchestratorIPC
 from oompah.orchestrator import Orchestrator
 from oompah.server import app
 
@@ -721,6 +723,257 @@ def test_shutdown_revokes_snapshot_blocked_before_external_publication(
     worker.join(timeout=1)
     assert worker.is_alive() is False
     assert observer_published.is_set() is False
+
+
+def test_replacement_revokes_snapshot_after_permit_before_every_sink(
+    tmp_path,
+    monkeypatch,
+):
+    """Every sink rejects an old source released after replacement."""
+
+    old = _real_orchestrator(tmp_path / "old")
+    new = _real_orchestrator(tmp_path / "new")
+    ipc_path = str(tmp_path / "state-cache.sqlite")
+    ipc = OrchestratorIPC(ipc_path)
+    new_ipc = OrchestratorIPC(ipc_path)
+    old._ipc = ipc
+    new._ipc = new_ipc
+    assert ipc.activate_state_source(old._service_instance_id)
+    old._ipc_state_publication_source = old._service_instance_id
+    sink_entered = threading.Event()
+    release_sink = threading.Event()
+    old_event = threading.Event()
+    old_legacy = threading.Event()
+    current_legacy = threading.Event()
+    new_event = threading.Event()
+    new_legacy = threading.Event()
+
+    def _assert_callback_locks_are_free() -> None:
+        assert old._provider_admission_lock.acquire(blocking=False)
+        old._provider_admission_lock.release()
+        assert old._lifecycle_publication_lock.acquire(blocking=False)
+        old._lifecycle_publication_lock.release()
+        current_legacy.set()
+
+    old.event_bus.subscribe(
+        EventType.ORCHESTRATOR_TICK,
+        lambda _event, _payload: old_event.set(),
+    )
+    old._observers.extend(
+        (
+            lambda snapshot: server._on_orchestrator_change(
+                snapshot,
+                source=old,
+            ),
+            lambda _snapshot: old_legacy.set(),
+            lambda _snapshot: _assert_callback_locks_are_free(),
+        )
+    )
+    monkeypatch.setattr(server, "_orchestrator", old)
+
+    # A current generation reaches all three sinks, and callbacks run without
+    # provider/lifecycle locks held.
+    current = {"source": "old-current"}
+    assert old._publish_observer_snapshot(
+        current,
+        lifecycle_epoch=old._lifecycle_publication_epoch,
+        expected_generation=old._provider_admission_generation,
+    )
+    assert ipc.read_state()[0] == current
+    assert old_event.is_set()
+    assert old_legacy.is_set()
+    assert current_legacy.is_set()
+    assert server._read_state_snapshot(allow_stale=True) == current
+
+    old_event.clear()
+    old_legacy.clear()
+    current_legacy.clear()
+    original_publish_state = ipc.publish_state
+
+    def _blocked_ipc_publish(snapshot, **kwargs):
+        original_guard = kwargs["source_is_current"]
+
+        def _guard_then_pause_before_sql():
+            # Capture the old source as current, then pause after the Python
+            # predicate but before IPC's atomic source-ID SQL replacement.
+            permitted = original_guard()
+            assert permitted is True
+            assert old._provider_admission_lock.acquire(blocking=False)
+            old._provider_admission_lock.release()
+            assert old._lifecycle_publication_lock.acquire(blocking=False)
+            old._lifecycle_publication_lock.release()
+            sink_entered.set()
+            assert release_sink.wait(timeout=3)
+            return permitted
+
+        kwargs["source_is_current"] = _guard_then_pause_before_sql
+        return original_publish_state(snapshot, **kwargs)
+
+    monkeypatch.setattr(ipc, "publish_state", _blocked_ipc_publish)
+    monkeypatch.setattr(
+        old,
+        "get_snapshot",
+        lambda: {
+            "source": "old-delayed",
+        },
+    )
+    assert old.request_lifecycle_publication(expected_generation=0)
+    assert sink_entered.wait(timeout=1)
+    with old._lifecycle_publication_lock:
+        worker = old._lifecycle_publication_thread
+    assert worker is not None
+
+    with (
+        patch.object(server, "remove_draft_labels_from_epics", return_value=0),
+        patch.object(server, "_migrate_release_picks_on_startup"),
+        patch.object(server, "ErrorWatcher", MagicMock()),
+        patch.object(server, "ProjectLogWatcherManager", MagicMock()),
+    ):
+        server.set_orchestrator(new)
+    replacement = {
+        "source": "replacement",
+    }
+    server._on_orchestrator_change(replacement, source=new)
+
+    release_sink.set()
+    worker.join(timeout=1)
+    assert worker.is_alive() is False
+    assert ipc.read_state()[0] == current
+    assert old_event.is_set() is False
+    assert old_legacy.is_set() is False
+    assert current_legacy.is_set() is False
+    assert server._read_state_snapshot(allow_stale=True) == replacement
+
+    # The replacement's current source remains publishable after old-source
+    # rejection and does not inherit the old publisher's revoked epoch.
+    new.event_bus.subscribe(
+        EventType.ORCHESTRATOR_TICK,
+        lambda _event, _payload: new_event.set(),
+    )
+    new._observers.append(lambda _snapshot: new_legacy.set())
+    post_cutover = {
+        "source": "new-current",
+    }
+    assert new._publish_observer_snapshot(
+        post_cutover,
+        lifecycle_epoch=new._lifecycle_publication_epoch,
+        expected_generation=new._provider_admission_generation,
+    )
+    assert new_ipc.read_state()[0] == post_cutover
+    assert new_event.is_set()
+    assert new_legacy.is_set()
+    assert server._read_state_snapshot(allow_stale=True) == post_cutover
+
+    new._shutdown_lifecycle_publications()
+    ipc.close()
+    new_ipc.close()
+
+
+def test_event_sink_rechecks_source_at_handler_mutation(
+    tmp_path,
+    monkeypatch,
+):
+    """A handler paused after bus admission cannot mutate after cutover."""
+
+    old = _real_orchestrator(tmp_path / "old-event")
+    new = _real_orchestrator(tmp_path / "new-event")
+    old._ipc = None
+    new._ipc = None
+    handler_entered = threading.Event()
+    release_handler = threading.Event()
+    old_mutation = threading.Event()
+
+    def _delayed_handler(_event, payload):
+        permit = payload[LIFECYCLE_PUBLICATION_PERMIT_KEY]
+        handler_entered.set()
+        assert release_handler.wait(timeout=3)
+        permit.mutate_if_current(old_mutation.set)
+
+    old.event_bus.subscribe(EventType.ORCHESTRATOR_TICK, _delayed_handler)
+    monkeypatch.setattr(server, "_orchestrator", old)
+    monkeypatch.setattr(old, "get_snapshot", lambda: {"source": "old-event"})
+    assert old.request_lifecycle_publication(expected_generation=0)
+    assert handler_entered.wait(timeout=1)
+    with old._lifecycle_publication_lock:
+        worker = old._lifecycle_publication_thread
+    assert worker is not None
+
+    started = time.monotonic()
+    with (
+        patch.object(server, "remove_draft_labels_from_epics", return_value=0),
+        patch.object(server, "_migrate_release_picks_on_startup"),
+        patch.object(server, "ErrorWatcher", MagicMock()),
+        patch.object(server, "ProjectLogWatcherManager", MagicMock()),
+    ):
+        server.set_orchestrator(new)
+    replacement_elapsed = time.monotonic() - started
+    assert replacement_elapsed < 0.5
+
+    release_handler.set()
+    worker.join(timeout=1)
+    assert worker.is_alive() is False
+    assert old_mutation.is_set() is False
+    new._shutdown_lifecycle_publications()
+
+
+def test_server_observer_rechecks_source_at_cache_mutation(
+    tmp_path,
+    monkeypatch,
+):
+    """A source-aware legacy callback cannot overwrite replacement cache."""
+
+    old = _real_orchestrator(tmp_path / "old-observer")
+    new = _real_orchestrator(tmp_path / "new-observer")
+    old._ipc = None
+    new._ipc = None
+    observer_entered = threading.Event()
+    release_observer = threading.Event()
+
+    def _delayed_server_observer(
+        snapshot,
+        *,
+        publication_permit=None,
+    ):
+        assert publication_permit is not None
+        # Orchestrator's legacy-source guard already passed. Pause before the
+        # server wrapper's owner+permit cache CAS.
+        assert old._provider_admission_lock.acquire(blocking=False)
+        old._provider_admission_lock.release()
+        assert old._lifecycle_publication_lock.acquire(blocking=False)
+        old._lifecycle_publication_lock.release()
+        observer_entered.set()
+        assert release_observer.wait(timeout=3)
+        server._on_orchestrator_change(
+            snapshot,
+            source=old,
+            publication_permit=publication_permit,
+        )
+
+    _delayed_server_observer._oompah_accepts_lifecycle_publication_permit = True
+    old._observers.append(_delayed_server_observer)
+    monkeypatch.setattr(server, "_orchestrator", old)
+    monkeypatch.setattr(old, "get_snapshot", lambda: {"source": "old-observer"})
+    assert old.request_lifecycle_publication(expected_generation=0)
+    assert observer_entered.wait(timeout=1)
+    with old._lifecycle_publication_lock:
+        worker = old._lifecycle_publication_thread
+    assert worker is not None
+
+    with (
+        patch.object(server, "remove_draft_labels_from_epics", return_value=0),
+        patch.object(server, "_migrate_release_picks_on_startup"),
+        patch.object(server, "ErrorWatcher", MagicMock()),
+        patch.object(server, "ProjectLogWatcherManager", MagicMock()),
+    ):
+        server.set_orchestrator(new)
+    replacement = {"source": "new-observer"}
+    server._on_orchestrator_change(replacement, source=new)
+
+    release_observer.set()
+    worker.join(timeout=1)
+    assert worker.is_alive() is False
+    assert server._read_state_snapshot(allow_stale=True) == replacement
+    new._shutdown_lifecycle_publications()
 
 
 def test_blocked_lifecycle_publication_worker_does_not_hold_interpreter_open(
