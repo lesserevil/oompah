@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T16:29:54.272144Z'
-updated_at: '2026-08-09T17:38:40.770714Z'
+updated_at: '2026-08-10T01:24:19.307101Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,6 +48,30 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-09T17:38:31.740121+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Historical audited Done record lacks safe exact current landing proof;
+      retain immutable terminal provenance and retire recurring reassessment without
+      creating new work.
+    marked_at: '2026-08-10T01:24:17.815474+00:00'
+    updated_at: '2026-08-10T01:24:17.815474+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Historical audited Done record lacks safe exact current landing proof;
+        retain immutable terminal provenance and retire recurring reassessment without
+        creating new work.
+      recorded_at: '2026-08-10T01:24:17.815474+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []
