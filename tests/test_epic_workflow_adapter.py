@@ -15,6 +15,7 @@ from oompah.epic_workflow_adapter import (
     OrchestratorEpicWorkflowEffects,
     build_epic_workflow_handlers,
 )
+from oompah.integration import IntegrationRecord
 from oompah.models import EpicRebaseState, Issue
 from oompah.orchestrator import Orchestrator
 from oompah.review_capacity import ReviewCapacityReservation
@@ -269,8 +270,16 @@ def _landed_auto_close_fixture(*, target="main", head="a" * 40):
 
 
 @pytest.mark.asyncio
-async def test_auto_close_retires_exact_landed_review_and_capacity():
+@pytest.mark.parametrize("native_project_shape", (False, True))
+async def test_auto_close_retires_exact_landed_review_and_capacity(
+    native_project_shape,
+):
     issue, facts, effects, orchestrator = _landed_auto_close_fixture()
+    if native_project_shape:
+        native_issue = copy.copy(issue)
+        native_issue.project_id = None
+        tracker = orchestrator._tracker_for_project.return_value
+        tracker.fetch_issue_detail.return_value = native_issue
     review = SimpleNamespace(
         id="748",
         state="open",
@@ -333,6 +342,54 @@ async def test_auto_close_retires_exact_landed_review_and_capacity():
         "project-1",
         reservation_id="legacy-748",
     )
+
+
+def _mutate_fresh_epic_authority(issue, mutation):
+    current = copy.deepcopy(issue)
+    if mutation == "project":
+        current.project_id = "project-2"
+    elif mutation == "parent":
+        current.parent_id = "OTHER"
+    elif mutation == "status":
+        current.state = IN_PROGRESS
+    elif mutation == "branch":
+        current.work_branch = "epic-replacement"
+    elif mutation == "integration":
+        current.integration = IntegrationRecord(
+            state="ready",
+            mode="queue",
+            task_branch="epic-TOP",
+            base_branch="main",
+            head_sha="b" * 40,
+        )
+    elif mutation == "evidence":
+        current.description = "changed terminal requirements"
+    return current
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ("project", "parent", "status", "branch", "integration", "evidence"),
+)
+def test_fresh_epic_authority_rejects_changed_mutation_authority(mutation):
+    issue, facts, effects, orchestrator = _landed_auto_close_fixture()
+    orchestrator._tracker_for_project.return_value.fetch_issue_detail.return_value = (
+        _mutate_fresh_epic_authority(issue, mutation)
+    )
+
+    with pytest.raises(WorkflowActionSuperseded, match="authority changed"):
+        effects._fresh_epic_authority(issue, facts)
+
+
+def test_fresh_epic_authority_fails_closed_when_issue_disappears():
+    issue, facts, effects, orchestrator = _landed_auto_close_fixture()
+    tracker = orchestrator._tracker_for_project.return_value
+    tracker.fetch_issue_detail.return_value = None
+
+    with pytest.raises(WorkflowActionError) as exc_info:
+        effects._fresh_epic_authority(issue, facts)
+
+    assert exc_info.value.category is WorkflowFailureCategory.TRANSIENT
 
 
 @pytest.mark.asyncio
@@ -1448,6 +1505,67 @@ def test_archived_child_cleanup_does_not_require_parent_landing():
         expected_head_sha="a" * 40,
         require_target_branch=False,
     )
+
+
+def test_native_blank_project_child_cleanup_uses_bound_scope():
+    issue = epic()
+    issue.state = ARCHIVED
+    child = Issue(
+        id="CHILD",
+        identifier="CHILD",
+        title="child",
+        description="fixture",
+        state=ARCHIVED,
+        issue_type="task",
+        project_id="project-1",
+        parent_id="TOP",
+        work_branch="epic-TOP--task-CHILD",
+        head_sha="a" * 40,
+    )
+    native_issue = copy.copy(issue)
+    native_issue.project_id = None
+    native_child = copy.copy(child)
+    native_child.project_id = None
+    facts = containment_facts()
+    effects, orchestrator, tracker = effect_fixture(issue)
+    tracker.fetch_issue_detail.side_effect = [native_issue, native_child]
+
+    effects._delete_cleanup_child(issue, facts, child, "a" * 40)
+
+    orchestrator.project_store.delete_epic_child_branch.assert_called_once_with(
+        "project-1",
+        "TOP",
+        "CHILD",
+        expected_head_sha="a" * 40,
+        require_target_branch=False,
+    )
+
+
+def test_child_cleanup_rejects_conflicting_nonempty_project():
+    issue = epic()
+    issue.state = ARCHIVED
+    child = Issue(
+        id="CHILD",
+        identifier="CHILD",
+        title="child",
+        description="fixture",
+        state=ARCHIVED,
+        issue_type="task",
+        project_id="project-1",
+        parent_id="TOP",
+        work_branch="epic-TOP--task-CHILD",
+        head_sha="a" * 40,
+    )
+    conflicting = copy.copy(child)
+    conflicting.project_id = "project-2"
+    facts = containment_facts()
+    effects, orchestrator, tracker = effect_fixture(issue)
+    tracker.fetch_issue_detail.side_effect = [issue, conflicting]
+
+    with pytest.raises(WorkflowActionSuperseded, match="before branch deletion"):
+        effects._delete_cleanup_child(issue, facts, child, "a" * 40)
+
+    orchestrator.project_store.delete_epic_child_branch.assert_not_called()
 
 
 def test_child_cleanup_uses_submission_compatible_lock_order():
