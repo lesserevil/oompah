@@ -28,14 +28,116 @@ from oompah.workflow_shadow import WORKFLOW_DOMAIN_NAMES
 class CanaryResult:
     healthy: bool
     failures: tuple[str, ...]
+    provisional: bool = False
+
+
+_TERMINAL_AUDIT_DEGRADATION_COUNTS = (
+    "launch_failure_count",
+    "transport_failure_count",
+    "policy_incompatibility_count",
+    "configuration_error_count",
+    "finalization_failure_count",
+    "stale_pending_count",
+    "stale_in_validation_count",
+    "retry_exhausted_count",
+    "transport_retry_pending_count",
+    "quarantined_count",
+)
+
+
+def _is_exact_zero(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value == 0
+
+
+def _is_expected_audit_continuation(
+    snapshot: Mapping[str, Any],
+    health: Mapping[str, Any],
+) -> bool:
+    """Return whether bounded audit scanning is the only degraded fact.
+
+    A partial terminal-audit scan is not authoritative health.  It is safe for
+    the multi-sample canary to wait through that state only when every
+    machine-readable companion fact proves that the durable cursor is the sole
+    reason aggregate health is degraded.  Missing or malformed evidence fails
+    closed instead of being inferred from alert display text.
+    """
+
+    if health.get("status") != "degraded":
+        return False
+    audit = health.get("terminal_audit")
+    if not isinstance(audit, Mapping):
+        return False
+    if (
+        audit.get("scan_complete") is not False
+        or audit.get("degraded") is not True
+        or not _is_exact_zero(audit.get("scan_error_count"))
+        or not all(
+            _is_exact_zero(audit.get(field))
+            for field in _TERMINAL_AUDIT_DEGRADATION_COUNTS
+        )
+    ):
+        return False
+
+    validation = health.get("validation_resources")
+    if not isinstance(validation, Mapping) or validation.get("status") not in {
+        "idle",
+        "busy",
+    }:
+        return False
+    health_jobs = health.get("workflow_jobs")
+    if not isinstance(health_jobs, Mapping) or not _is_exact_zero(
+        health_jobs.get("quarantined")
+    ):
+        return False
+    liveness = health.get("workflow_liveness")
+    if (
+        not isinstance(liveness, Mapping)
+        or liveness.get("enabled") is not True
+        or liveness.get("status") != "healthy"
+        or liveness.get("degraded") is not False
+        or liveness.get("scan_complete") is not True
+    ):
+        return False
+    audit_metrics = snapshot.get("audits")
+    if (
+        not isinstance(audit_metrics, Mapping)
+        or audit_metrics.get("candidate_scan_complete") is not False
+        or audit_metrics.get("budget_deferred") is not True
+        or audit_metrics.get("continuation_requested") is not True
+        or not _is_exact_zero(audit_metrics.get("health_scan_error_count"))
+    ):
+        return False
+
+    alerts = snapshot.get("global_alerts")
+    jobs = snapshot.get("workflow_jobs")
+    if alerts != [] or not isinstance(jobs, Mapping):
+        return False
+    leases = jobs.get("leases")
+    current_states = jobs.get("current_states")
+    return bool(
+        isinstance(leases, Mapping)
+        and _is_exact_zero(leases.get("expired"))
+        and _is_exact_zero(leases.get("quarantined"))
+        and isinstance(current_states, Mapping)
+        and _is_exact_zero(current_states.get("exhausted"))
+    )
 
 
 def evaluate_snapshot(snapshot: Mapping[str, Any]) -> CanaryResult:
     """Evaluate one production state sample without trusting display text."""
 
     failures: list[str] = []
+    provisional = False
     health = snapshot.get("health")
-    if not isinstance(health, Mapping) or health.get("status") != "healthy":
+    if not isinstance(health, Mapping):
+        failures.append("service health is not healthy")
+    elif health.get("status") == "healthy":
+        audit = health.get("terminal_audit")
+        if not isinstance(audit, Mapping) or audit.get("scan_complete") is not True:
+            failures.append("terminal-audit health coverage is not complete")
+    elif _is_expected_audit_continuation(snapshot, health):
+        provisional = True
+    else:
         failures.append("service health is not healthy")
     alerts = snapshot.get("global_alerts")
     if not isinstance(alerts, list):
@@ -97,7 +199,13 @@ def evaluate_snapshot(snapshot: Mapping[str, Any]) -> CanaryResult:
         ):
             failures.append("exhausted durable workflow jobs remain")
 
-    return CanaryResult(not failures, tuple(failures))
+    if failures:
+        provisional = False
+    return CanaryResult(
+        healthy=not failures and not provisional,
+        failures=tuple(failures),
+        provisional=provisional,
+    )
 
 
 def _read_snapshot() -> dict[str, Any]:
@@ -138,16 +246,27 @@ def main(argv: list[str] | None = None) -> int:
     interval = max(args.sample_interval_seconds, 1)
     deadline = time.monotonic() + duration
     samples = 0
+    complete_healthy_samples = 0
     try:
         while True:
             result = evaluate_snapshot(_read_snapshot())
             samples += 1
-            if not result.healthy:
+            if result.healthy:
+                complete_healthy_samples += 1
+            elif not result.provisional:
                 print("Workflow rollout canary failed:", file=sys.stderr)
                 for failure in result.failures:
                     print(f"- {failure}", file=sys.stderr)
                 return 1
             if time.monotonic() >= deadline:
+                if complete_healthy_samples == 0:
+                    print("Workflow rollout canary failed:", file=sys.stderr)
+                    print(
+                        "- terminal-audit health did not complete during "
+                        "the canary window",
+                        file=sys.stderr,
+                    )
+                    return 1
                 break
             time.sleep(min(interval, max(0.0, deadline - time.monotonic())))
     except (CredentialError, OSError, ValueError, urllib.error.URLError) as exc:
