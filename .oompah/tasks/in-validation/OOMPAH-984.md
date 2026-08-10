@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-984
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Make completed-call settlement recycle proof deterministic on Python 3.13
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T03:51:51.943285Z'
-updated_at: '2026-08-10T05:35:55.318384Z'
+updated_at: '2026-08-10T05:36:16.096721Z'
 work_branch: OOMPAH-984
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/792
@@ -34,6 +34,62 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/792
 oompah.review_number: '792'
 oompah.target_branch: main
 oompah.review_head: 7c53bf19484e8f65cd0a8c6f69df4c8270771e33
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-778e50212285
+    project_id: proj-14849f1b
+    task_id: OOMPAH-984
+    digest: 89e451e4399203f69f3c2ca3ba3e04385e0e0c6d611a21e73dee232c14705e6b
+  - version: 1
+    audit_id: audit-f69f33aa74ab
+    project_id: proj-14849f1b
+    task_id: OOMPAH-984
+    digest: 89e451e4399203f69f3c2ca3ba3e04385e0e0c6d611a21e73dee232c14705e6b
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-778e50212285
+    project_id: proj-14849f1b
+    task_id: OOMPAH-984
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 89e451e4399203f69f3c2ca3ba3e04385e0e0c6d611a21e73dee232c14705e6b
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-10T05:36:10.258570+00:00'
+    selected_ref: 6473c14fdf8e148472c917ec3f1695c98713f074
+    selected_sha: 6473c14fdf8e148472c917ec3f1695c98713f074
+  - version: 1
+    audit_id: audit-f69f33aa74ab
+    project_id: proj-14849f1b
+    task_id: OOMPAH-984
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 89e451e4399203f69f3c2ca3ba3e04385e0e0c6d611a21e73dee232c14705e6b
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-10T05:36:10.258570+00:00'
+    selected_ref: 6473c14fdf8e148472c917ec3f1695c98713f074
+    selected_sha: 6473c14fdf8e148472c917ec3f1695c98713f074
+  attempt_history: []
 ---
 ## Summary
 
@@ -81,5 +137,10 @@ author: oompah
 created: 2026-08-10 05:35
 ---
 Direct-owner exact-head gate workaround: make test passed on 6473c14fdf8e148472c917ec3f1695c98713f074 with 19,279 passed, 7 skipped, 2 xfailed, 44 warnings in 1121.79s (exit 0). Protected PR #792 Python 3.11/3.12/3.13 CI is green. This exact head contains OOMPAH-985 commit 2a255c5c0d2f8d9850c4135809422c33f9409571. The service admission loop was blocked by OOMPAH-986; exact evidence was run directly before merge.
+---
+author: oompah
+created: 2026-08-10 05:36
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
