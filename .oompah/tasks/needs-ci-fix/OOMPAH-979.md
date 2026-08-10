@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T00:01:51.280685Z'
-updated_at: '2026-08-10T01:29:30.251351Z'
+updated_at: '2026-08-10T01:29:44.350037Z'
 work_branch: OOMPAH-979
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/788
@@ -140,6 +140,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-979
     selected_ref: origin/OOMPAH-979
     selected_sha: 7fc8bc8ea4a36c952a96349406a173c6b85ec94e
+oompah.task_costs:
+  total_input_tokens: 82
+  total_output_tokens: 5641
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 82
+      output_tokens: 5641
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 82
+    output_tokens: 5641
+    cost_usd: 0.0
+    recorded_at: '2026-08-10T01:29:41.299507+00:00'
 ---
 ## Summary
 
@@ -199,5 +215,15 @@ created: 2026-08-10 01:29
 Audit FAIL — ci failure. Routing task to Needs CI Fix.
 
 Full quality gate (make test) failed with 2 test failures at commit 7fc8bc8ea4a36c952a96349406a173c6b85ec94e. Failures: (1) test_managed_native_distinct_full_lifecycle_reuses_invocation_id - validation_scope expected ['full', 'full'] but got ['opaque', 'opaque']; (2) test_api_command_runner_reports_complete_auditor_validation_lifecycle[test-passed-True-full] - validation_scope assertion failed. Full gate is required; prior exact-head passing evidence not found.
+---
+author: oompah
+created: 2026-08-10 01:29
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 32, Tool calls: 12
+- Tokens: 82 in / 5.6K out [5.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 22m 53s
+- Log: OOMPAH-979__20260810T010657Z.jsonl
 ---
 <!-- COMMENTS:END -->
