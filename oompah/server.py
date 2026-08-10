@@ -1065,6 +1065,11 @@ _orchestrator: Orchestrator | None = None
 # cutover.  Serialize the owner identity with cache publication so an old
 # callback either commits before replacement or is rejected afterward.
 _orchestrator_ownership_lock = threading.RLock()
+# Replacement drains intentionally run without the ownership lock, because an
+# admitted callback may need that lock to finish.  Serialize the complete
+# replacement transaction separately so a timed-out rollback cannot race a
+# second replacement and revive an older authority over the newer owner.
+_orchestrator_replacement_lock = threading.RLock()
 
 # IPC layer for multi-process mode (TASK-469.5.1).
 # Populated from OOMPAH_IPC_DB_PATH if set; None in single-process mode.
@@ -1329,36 +1334,60 @@ def _set_management_tracker_resolution_alert(
 
 
 def set_orchestrator(orch: Orchestrator) -> None:
+    """Install *orch* as one serialized, drain-before-cutover transaction."""
+
+    with _orchestrator_replacement_lock:
+        _set_orchestrator_locked(orch)
+
+
+def _set_orchestrator_locked(orch: Orchestrator) -> None:
     global _orchestrator, _error_watcher, _log_watcher_manager
     global _agent_profile_store, _role_store, _provider_store
     with _orchestrator_ownership_lock:
         previous_orchestrator = _orchestrator
-        if previous_orchestrator is not None and previous_orchestrator is not orch:
-            shutdown_publications = getattr(
-                previous_orchestrator,
-                "_shutdown_lifecycle_publications",
-                None,
-            )
-            if callable(shutdown_publications):
-                shutdown_publications()
-        ipc = getattr(orch, "_ipc", None)
-        source_id = getattr(orch, "_service_instance_id", None)
-        activate_state_source = getattr(ipc, "activate_state_source", None)
-        if (
-            isinstance(source_id, str)
-            and source_id
-            and callable(activate_state_source)
-        ):
-            if activate_state_source(source_id):
-                orch._ipc_state_publication_source = source_id
-            else:
-                # Fail closed for generation-fenced lifecycle writes. Ordinary
-                # compatibility snapshots retain their historical IPC path.
-                orch._ipc_state_publication_source = None
-                logger.warning(
-                    "Could not claim IPC state publication source for %s",
-                    source_id,
+    if previous_orchestrator is not None and previous_orchestrator is not orch:
+        shutdown_publications = getattr(
+            previous_orchestrator,
+            "_shutdown_lifecycle_publications",
+            None,
+        )
+        if callable(shutdown_publications):
+            drained = shutdown_publications()
+            if drained is False:
+                raise RuntimeError(
+                    "orchestrator replacement timed out draining admitted "
+                    "lifecycle callbacks; previous owner remains installed"
                 )
+    ipc = getattr(orch, "_ipc", None)
+    source_id = getattr(orch, "_service_instance_id", None)
+    activate_state_source = getattr(ipc, "activate_state_source", None)
+    if (
+        isinstance(source_id, str)
+        and source_id
+        and callable(activate_state_source)
+    ):
+        epoch = int(getattr(orch, "_lifecycle_publication_epoch", 0))
+        generation = int(getattr(orch, "_provider_admission_generation", 0))
+        if activate_state_source(
+            source_id,
+            epoch=epoch,
+            generation=generation,
+        ):
+            orch._ipc_state_publication_source = source_id
+        else:
+            # Fail closed for generation-fenced lifecycle writes. Ordinary
+            # compatibility snapshots retain their historical IPC path.
+            orch._ipc_state_publication_source = None
+            logger.warning(
+                "Could not claim IPC state publication source for %s",
+                source_id,
+            )
+    with _orchestrator_ownership_lock:
+        if _orchestrator is not previous_orchestrator:
+            raise RuntimeError(
+                "orchestrator owner changed outside the serialized "
+                "replacement transaction"
+            )
         _orchestrator = orch
     # Share the orchestrator's profile store so /api/v1/agent-profiles
     # writes go to the same in-memory state the dispatch loop reads.

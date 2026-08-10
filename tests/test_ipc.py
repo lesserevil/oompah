@@ -67,6 +67,55 @@ def test_ipc_opens_and_creates_tables(tmp_path):
     ipc.close()
 
 
+def test_ipc_migrates_legacy_publication_source_to_exact_authority(tmp_path):
+    """Existing source-only databases gain epoch and generation fences."""
+
+    db_path = str(tmp_path / "legacy-publication-source.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE publication_sources "
+        "(key TEXT PRIMARY KEY, source_id TEXT NOT NULL)"
+    )
+    conn.execute(
+        "INSERT INTO publication_sources(key, source_id) VALUES('state', 'old')"
+    )
+    conn.commit()
+    conn.close()
+
+    ipc = OrchestratorIPC(db_path)
+    try:
+        conn = sqlite3.connect(db_path)
+        columns = {
+            row[1] for row in conn.execute(
+                "PRAGMA table_info(publication_sources)"
+            ).fetchall()
+        }
+        conn.close()
+        assert {"source_id", "epoch", "generation"} <= columns
+        assert ipc.publish_state(
+            {"generation": 0},
+            source_id="old",
+            source_epoch=0,
+            source_generation=0,
+        )
+        assert ipc.advance_state_source("old", epoch=0, generation=1)
+        assert not ipc.publish_state(
+            {"generation": "stale"},
+            source_id="old",
+            source_epoch=0,
+            source_generation=0,
+        )
+        assert ipc.publish_state(
+            {"generation": 1},
+            source_id="old",
+            source_epoch=0,
+            source_generation=1,
+        )
+        assert ipc.read_state()[0] == {"generation": 1}
+    finally:
+        ipc.close()
+
+
 def test_ipc_repr(ipc):
     r = repr(ipc)
     assert "OrchestratorIPC" in r

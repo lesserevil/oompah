@@ -84,7 +84,9 @@ CREATE TABLE IF NOT EXISTS kv (
 
 CREATE TABLE IF NOT EXISTS publication_sources (
     key       TEXT PRIMARY KEY,
-    source_id TEXT NOT NULL
+    source_id TEXT NOT NULL,
+    epoch     INTEGER NOT NULL DEFAULT 0,
+    generation INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS commands (
@@ -138,6 +140,22 @@ class OrchestratorIPC:
             )
             conn.row_factory = sqlite3.Row
             conn.executescript(_SCHEMA_SQL)
+            publication_columns = {
+                str(row[1])
+                for row in conn.execute(
+                    "PRAGMA table_info(publication_sources)"
+                ).fetchall()
+            }
+            if "epoch" not in publication_columns:
+                conn.execute(
+                    "ALTER TABLE publication_sources "
+                    "ADD COLUMN epoch INTEGER NOT NULL DEFAULT 0"
+                )
+            if "generation" not in publication_columns:
+                conn.execute(
+                    "ALTER TABLE publication_sources "
+                    "ADD COLUMN generation INTEGER NOT NULL DEFAULT 0"
+                )
             conn.execute(
                 "INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)",
                 ("version", str(_SCHEMA_VERSION)),
@@ -176,6 +194,8 @@ class OrchestratorIPC:
         *,
         source_is_current: Callable[[], bool] | None = None,
         required_source_id: str | None = None,
+        required_source_epoch: int | None = None,
+        required_source_generation: int | None = None,
     ) -> bool:
         """Write *value* (serialised to JSON) under *key*.
 
@@ -209,13 +229,16 @@ class OrchestratorIPC:
                     cursor = conn.execute(
                         "INSERT OR REPLACE INTO kv(key, value, updated_at) "
                         "SELECT ?, ?, ? FROM publication_sources "
-                        "WHERE key = ? AND source_id = ?",
+                        "WHERE key = ? AND source_id = ? "
+                        "AND epoch = ? AND generation = ?",
                         (
                             key,
                             payload,
                             updated_at,
                             key,
                             str(required_source_id),
+                            int(required_source_epoch or 0),
+                            int(required_source_generation or 0),
                         ),
                     )
                 conn.commit()
@@ -392,6 +415,8 @@ class OrchestratorIPC:
         *,
         source_is_current: Callable[[], bool] | None = None,
         source_id: str | None = None,
+        source_epoch: int | None = None,
+        source_generation: int | None = None,
     ) -> bool:
         """Write the orchestrator state snapshot (scheduler side)."""
         return self.put_kv(
@@ -399,9 +424,17 @@ class OrchestratorIPC:
             snapshot,
             source_is_current=source_is_current,
             required_source_id=source_id,
+            required_source_epoch=source_epoch,
+            required_source_generation=source_generation,
         )
 
-    def activate_state_source(self, source_id: str) -> bool:
+    def activate_state_source(
+        self,
+        source_id: str,
+        *,
+        epoch: int = 0,
+        generation: int = 0,
+    ) -> bool:
         """Atomically grant one scheduler ownership of the state cache."""
 
         source_id = str(source_id or "").strip()
@@ -413,15 +446,76 @@ class OrchestratorIPC:
                 return False
             try:
                 conn.execute(
-                    "INSERT OR REPLACE INTO publication_sources(key, source_id) "
-                    "VALUES('state', ?)",
-                    (source_id,),
+                    "INSERT OR REPLACE INTO publication_sources"
+                    "(key, source_id, epoch, generation) "
+                    "VALUES('state', ?, ?, ?)",
+                    (source_id, int(epoch), int(generation)),
                 )
                 conn.commit()
                 return True
             except sqlite3.Error as exc:
                 logger.warning(
                     "OrchestratorIPC.activate_state_source(%s): %s",
+                    source_id,
+                    exc,
+                )
+                return False
+
+    def advance_state_source(
+        self,
+        source_id: str,
+        *,
+        epoch: int,
+        generation: int,
+    ) -> bool:
+        """Advance only the currently claimed scheduler source authority."""
+
+        with self._lock:
+            conn = self._ensure_conn()
+            if conn is None:
+                return False
+            try:
+                cursor = conn.execute(
+                    "UPDATE publication_sources SET epoch = ?, generation = ? "
+                    "WHERE key = 'state' AND source_id = ? AND "
+                    "(epoch < ? OR (epoch = ? AND generation <= ?))",
+                    (
+                        int(epoch),
+                        int(generation),
+                        str(source_id),
+                        int(epoch),
+                        int(epoch),
+                        int(generation),
+                    ),
+                )
+                conn.commit()
+                return bool(cursor.rowcount)
+            except sqlite3.Error as exc:
+                logger.warning(
+                    "OrchestratorIPC.advance_state_source(%s): %s",
+                    source_id,
+                    exc,
+                )
+                return False
+
+    def deactivate_state_source(self, source_id: str) -> bool:
+        """Revoke one scheduler source so delayed exact-generation writes fail."""
+
+        with self._lock:
+            conn = self._ensure_conn()
+            if conn is None:
+                return False
+            try:
+                conn.execute(
+                    "DELETE FROM publication_sources "
+                    "WHERE key = 'state' AND source_id = ?",
+                    (str(source_id),),
+                )
+                conn.commit()
+                return True
+            except sqlite3.Error as exc:
+                logger.warning(
+                    "OrchestratorIPC.deactivate_state_source(%s): %s",
                     source_id,
                     exc,
                 )

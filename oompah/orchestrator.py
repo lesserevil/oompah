@@ -1350,13 +1350,15 @@ class LifecyclePublicationSource:
         expected_generation: int,
         mutation: Callable[[], Any],
     ) -> bool:
-        """Run one narrow sink mutation only while this source is current."""
+        """Run a cooperative mutation without retaining source authority."""
 
-        with self._lock:
-            if not self.is_current(epoch, expected_generation):
-                return False
-            mutation()
-            return True
+        if not self.is_current(epoch, expected_generation):
+            return False
+        # This compatibility helper deliberately does not hold source,
+        # provider, or lifecycle authority across arbitrary user code. Core
+        # state sinks use their own active-token/mutation CAS instead.
+        mutation()
+        return True
 
 
 @dataclass(frozen=True)
@@ -2181,6 +2183,22 @@ class Orchestrator:
         self._lifecycle_publication_pending_generation: int | None = None
         self._lifecycle_publication_thread: threading.Thread | None = None
         self._lifecycle_publication_source = LifecyclePublicationSource(self)
+        self._lifecycle_publication_closing = False
+        self._lifecycle_publication_drain_timeout_s = 1.0
+        self._lifecycle_observer_sink_lock = threading.RLock()
+        self._lifecycle_observer_sink_condition = threading.Condition(
+            self._lifecycle_observer_sink_lock
+        )
+        self._lifecycle_observer_sink_authority: (
+            tuple[LifecyclePublicationSource, int, int] | None
+        ) = (
+            self._lifecycle_publication_source,
+            self._lifecycle_publication_epoch,
+            self._provider_admission_generation,
+        )
+        self._lifecycle_observer_sink_inflight: dict[
+            LifecyclePublicationSource, int
+        ] = {}
         # Bug fix: load persisted paused state from disk so it survives
         # service restarts. Previously _paused was always initialized to False.
         self._paused = self._load_paused_state()
@@ -2380,6 +2398,11 @@ class Orchestrator:
         # are kept for backward compatibility with server.py, but internally
         # the EventBus is the canonical dispatch mechanism.
         self.event_bus: EventBus = EventBus()
+        self.event_bus.activate_lifecycle_publication_authority(
+            self._lifecycle_publication_source,
+            self._lifecycle_publication_epoch,
+            self._provider_admission_generation,
+        )
         # Release addendums have their own durable queue.  A ready event is a
         # prompt wake-up only; the queue's metadata scan remains authoritative
         # after missed events or process restarts.
@@ -67680,6 +67703,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 with self._lifecycle_publication_lock:
                     if (
                         self._lifecycle_publication_closed
+                        or self._lifecycle_publication_closing
                         or self._lifecycle_publication_epoch != lifecycle_epoch
                         or self._provider_admission_generation
                         != expected_generation
@@ -67711,6 +67735,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                             "_ipc_state_publication_source",
                             None,
                         ),
+                        source_epoch=publication_permit.epoch,
+                        source_generation=(
+                            publication_permit.expected_generation
+                        ),
                     )
             except Exception as exc:  # noqa: BLE001
                 logger.debug(
@@ -67733,10 +67761,16 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         for observer in self._observers:
             if source_is_current is not None and not source_is_current():
                 return False
+            admitted_source = None
+            if publication_permit is not None:
+                admitted_source = self._admit_lifecycle_observer(
+                    publication_permit
+                )
+                if admitted_source is None:
+                    return False
             try:
-                if (
-                    publication_permit is not None
-                    and getattr(
+                if publication_permit is not None and bool(
+                    getattr(
                         observer,
                         "_oompah_accepts_lifecycle_publication_permit",
                         False,
@@ -67750,7 +67784,101 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     observer(snapshot)
             except Exception:
                 pass
+            finally:
+                if admitted_source is not None:
+                    self._release_lifecycle_observer(admitted_source)
         return True
+
+    def _advance_lifecycle_observer_authority(
+        self,
+        source: LifecyclePublicationSource,
+        epoch: int,
+        generation: int,
+    ) -> bool:
+        """Advance the exact source accepted by legacy observer callbacks."""
+
+        candidate = (source, int(epoch), int(generation))
+        with self._lifecycle_observer_sink_condition:
+            authority = self._lifecycle_observer_sink_authority
+            if authority is not None:
+                if authority[0] is not source:
+                    return False
+                if authority[1:] > candidate[1:]:
+                    return False
+            self._lifecycle_observer_sink_authority = candidate
+            return True
+
+    def _restore_lifecycle_observer_authority(
+        self,
+        source: LifecyclePublicationSource,
+        epoch: int,
+        generation: int,
+    ) -> None:
+        """Restore an exact authority after a failed replacement drain."""
+
+        with self._lifecycle_observer_sink_condition:
+            self._lifecycle_observer_sink_authority = (
+                source,
+                int(epoch),
+                int(generation),
+            )
+
+    def _admit_lifecycle_observer(
+        self,
+        permit: LifecyclePublicationPermit,
+    ) -> LifecyclePublicationSource | None:
+        """Acquire a sink-local lease before invoking one legacy callback."""
+
+        authority = (
+            permit.source,
+            permit.epoch,
+            permit.expected_generation,
+        )
+        with self._lifecycle_observer_sink_condition:
+            if self._lifecycle_observer_sink_authority != authority:
+                return None
+            self._lifecycle_observer_sink_inflight[permit.source] = (
+                self._lifecycle_observer_sink_inflight.get(permit.source, 0)
+                + 1
+            )
+            return permit.source
+
+    def _release_lifecycle_observer(
+        self,
+        source: LifecyclePublicationSource,
+    ) -> None:
+        """Release one callback lease and wake a waiting replacement."""
+
+        with self._lifecycle_observer_sink_condition:
+            remaining = self._lifecycle_observer_sink_inflight[source] - 1
+            if remaining:
+                self._lifecycle_observer_sink_inflight[source] = remaining
+            else:
+                self._lifecycle_observer_sink_inflight.pop(source, None)
+            self._lifecycle_observer_sink_condition.notify_all()
+
+    def _deactivate_lifecycle_observer_authority(
+        self,
+        source: LifecyclePublicationSource,
+        *,
+        timeout: float,
+    ) -> bool:
+        """Close legacy admission and drain callbacks, rolling back on timeout."""
+
+        deadline = time.monotonic() + max(float(timeout), 0.0)
+        with self._lifecycle_observer_sink_condition:
+            authority = self._lifecycle_observer_sink_authority
+            if authority is not None and authority[0] is source:
+                self._lifecycle_observer_sink_authority = None
+            while self._lifecycle_observer_sink_inflight.get(source, 0):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    if authority is not None and authority[0] is source:
+                        self._lifecycle_observer_sink_authority = authority
+                    return False
+                self._lifecycle_observer_sink_condition.wait(timeout=remaining)
+            self._lifecycle_observer_sink_inflight.pop(source, None)
+            return True
 
     def _notify_observers(self) -> None:
         """Notify any registered observers of state changes (includes issues refresh).
@@ -67803,51 +67931,149 @@ Return ONLY a JSON object (no markdown fences, no commentary):
     ) -> bool:
         """Queue the latest lifecycle snapshot without blocking its transition."""
 
-        if expected_generation is None:
-            with self._provider_admission_lock:
-                expected_generation = self._provider_admission_generation
-        with self._lifecycle_publication_lock:
-            if self._lifecycle_publication_closed:
-                return False
-            if self._lifecycle_publication_running:
-                pending = self._lifecycle_publication_pending_generation
-                if pending is None or expected_generation > pending:
-                    self._lifecycle_publication_pending_generation = (
-                        expected_generation
-                    )
+        with self._provider_admission_lock:
+            current_generation = self._provider_admission_generation
+            if expected_generation is None:
+                expected_generation = current_generation
+            expected_generation = int(expected_generation)
+            if expected_generation < current_generation:
+                # A delayed request has already been superseded. Preserve the
+                # historical coalescing contract without regressing any sink.
                 return True
-            epoch = self._lifecycle_publication_epoch
-            self._lifecycle_publication_running = True
-            worker = threading.Thread(
-                target=self._run_lifecycle_publication,
-                args=(epoch, expected_generation),
-                name=f"lifecycle-publication-{id(self):x}",
-                daemon=True,
-            )
-            self._lifecycle_publication_thread = worker
-            try:
-                worker.start()
-            except RuntimeError:
-                self._lifecycle_publication_running = False
-                self._lifecycle_publication_thread = None
-                logger.exception("Lifecycle publication worker rejected work")
+            if expected_generation > current_generation:
                 return False
-            return True
+            with self._lifecycle_publication_lock:
+                if (
+                    self._lifecycle_publication_closed
+                    or self._lifecycle_publication_closing
+                ):
+                    return False
+                epoch = self._lifecycle_publication_epoch
+                source = self._lifecycle_publication_source
+                source_id = getattr(
+                    self,
+                    "_ipc_state_publication_source",
+                    None,
+                )
+                advance_ipc = getattr(
+                    self._ipc,
+                    "advance_state_source",
+                    None,
+                )
+                if (
+                    source_id is not None
+                    and callable(advance_ipc)
+                    and not advance_ipc(
+                        source_id,
+                        epoch=epoch,
+                        generation=expected_generation,
+                    )
+                ):
+                    return False
+                if not self.event_bus.advance_lifecycle_publication_authority(
+                    source,
+                    epoch,
+                    expected_generation,
+                ):
+                    return False
+                if not self._advance_lifecycle_observer_authority(
+                    source,
+                    epoch,
+                    expected_generation,
+                ):
+                    return False
+                if self._lifecycle_publication_running:
+                    pending = self._lifecycle_publication_pending_generation
+                    if pending is None or expected_generation > pending:
+                        self._lifecycle_publication_pending_generation = (
+                            expected_generation
+                        )
+                    return True
+                self._lifecycle_publication_running = True
+                worker = threading.Thread(
+                    target=self._run_lifecycle_publication,
+                    args=(epoch, expected_generation),
+                    name=f"lifecycle-publication-{id(self):x}",
+                    daemon=True,
+                )
+                self._lifecycle_publication_thread = worker
+                try:
+                    worker.start()
+                except RuntimeError:
+                    self._lifecycle_publication_running = False
+                    self._lifecycle_publication_thread = None
+                    logger.exception("Lifecycle publication worker rejected work")
+                    return False
+                return True
 
-    def _shutdown_lifecycle_publications(self) -> None:
-        """Fence old snapshots and cancel queued publication without waiting."""
+    def _shutdown_lifecycle_publications(self) -> bool:
+        """Fence and drain admitted callbacks before retiring this source."""
+
+        with self._provider_admission_lock:
+            with self._lifecycle_publication_lock:
+                if self._lifecycle_publication_closed:
+                    return True
+                if self._lifecycle_publication_closing:
+                    return False
+                self._lifecycle_publication_closing = True
+                source = self._lifecycle_publication_source
+                epoch = self._lifecycle_publication_epoch
+                generation = self._provider_admission_generation
+
+        timeout = max(float(self._lifecycle_publication_drain_timeout_s), 0.0)
+        deadline = time.monotonic() + timeout
+        if not self.event_bus.deactivate_lifecycle_publication_authority(
+            source,
+            timeout=timeout,
+        ):
+            with self._lifecycle_publication_lock:
+                self._lifecycle_publication_closing = False
+            return False
+
+        remaining = max(0.0, deadline - time.monotonic())
+        if not self._deactivate_lifecycle_observer_authority(
+            source,
+            timeout=remaining,
+        ):
+            self.event_bus.activate_lifecycle_publication_authority(
+                source,
+                epoch,
+                generation,
+            )
+            with self._lifecycle_publication_lock:
+                self._lifecycle_publication_closing = False
+            return False
+
+        source_id = getattr(self, "_ipc_state_publication_source", None)
+        deactivate_ipc = getattr(self._ipc, "deactivate_state_source", None)
+        if (
+            source_id is not None
+            and callable(deactivate_ipc)
+            and not deactivate_ipc(source_id)
+        ):
+            self.event_bus.activate_lifecycle_publication_authority(
+                source,
+                epoch,
+                generation,
+            )
+            self._restore_lifecycle_observer_authority(
+                source,
+                epoch,
+                generation,
+            )
+            with self._lifecycle_publication_lock:
+                self._lifecycle_publication_closing = False
+            return False
 
         with self._lifecycle_publication_lock:
-            if self._lifecycle_publication_closed:
-                return
             self._lifecycle_publication_closed = True
+            self._lifecycle_publication_closing = False
             self._lifecycle_publication_epoch += 1
             self._lifecycle_publication_pending_generation = None
             self._lifecycle_publication_thread = None
             self._lifecycle_publication_running = False
-            source = getattr(self, "_lifecycle_publication_source", None)
-        if source is not None:
-            source.deactivate()
+        source.deactivate()
+        return True
 
     def _notify_state_only(self) -> None:
         """Notify observers with state only (no issues refresh).

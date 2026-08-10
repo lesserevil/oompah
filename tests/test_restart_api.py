@@ -16,7 +16,7 @@ from starlette.requests import Request
 
 from oompah import server
 from oompah.config import ServiceConfig
-from oompah.events import EventType, LIFECYCLE_PUBLICATION_PERMIT_KEY
+from oompah.events import EventType
 from oompah.ipc import OrchestratorIPC
 from oompah.orchestrator import Orchestrator
 from oompah.server import app
@@ -869,11 +869,81 @@ def test_replacement_revokes_snapshot_after_permit_before_every_sink(
     new_ipc.close()
 
 
+def test_lifecycle_request_advances_ipc_generation_before_delayed_write(
+    tmp_path,
+    monkeypatch,
+):
+    """A cached-true generation-zero writer loses to generation one."""
+
+    orch = _real_orchestrator(tmp_path / "ipc-generation")
+    ipc_path = str(tmp_path / "generation-cache.sqlite")
+    authority_ipc = OrchestratorIPC(ipc_path)
+    delayed_ipc = OrchestratorIPC(ipc_path)
+    source_id = orch._service_instance_id
+    orch._ipc = authority_ipc
+    orch._ipc_state_publication_source = source_id
+    assert authority_ipc.activate_state_source(
+        source_id,
+        epoch=0,
+        generation=0,
+    )
+    assert authority_ipc.publish_state(
+        {"source": "generation-zero-current"},
+        source_id=source_id,
+        source_epoch=0,
+        source_generation=0,
+    )
+
+    guard_checked = threading.Event()
+    release_delayed_write = threading.Event()
+    delayed_result: list[bool] = []
+
+    def _cached_true_guard() -> bool:
+        guard_checked.set()
+        assert release_delayed_write.wait(timeout=3)
+        return True
+
+    def _publish_delayed_generation_zero() -> None:
+        delayed_result.append(
+            delayed_ipc.publish_state(
+                {"source": "generation-zero-delayed"},
+                source_is_current=_cached_true_guard,
+                source_id=source_id,
+                source_epoch=0,
+                source_generation=0,
+            )
+        )
+
+    delayed = threading.Thread(target=_publish_delayed_generation_zero)
+    delayed.start()
+    assert guard_checked.wait(timeout=1)
+
+    with orch._provider_admission_lock:
+        orch._provider_admission_generation = 1
+    generation_one = {"source": "generation-one-current"}
+    monkeypatch.setattr(orch, "get_snapshot", lambda: generation_one)
+    assert orch.request_lifecycle_publication(expected_generation=1)
+    deadline = time.monotonic() + 1
+    while authority_ipc.read_state()[0] != generation_one:
+        assert time.monotonic() < deadline
+        time.sleep(0.01)
+
+    release_delayed_write.set()
+    delayed.join(timeout=1)
+    assert delayed.is_alive() is False
+    assert delayed_result == [False]
+    assert authority_ipc.read_state()[0] == generation_one
+
+    assert orch._shutdown_lifecycle_publications()
+    authority_ipc.close()
+    delayed_ipc.close()
+
+
 def test_event_sink_rechecks_source_at_handler_mutation(
     tmp_path,
     monkeypatch,
 ):
-    """A handler paused after bus admission cannot mutate after cutover."""
+    """A plain handler admitted before cutover drains before ownership moves."""
 
     old = _real_orchestrator(tmp_path / "old-event")
     new = _real_orchestrator(tmp_path / "new-event")
@@ -882,12 +952,13 @@ def test_event_sink_rechecks_source_at_handler_mutation(
     handler_entered = threading.Event()
     release_handler = threading.Event()
     old_mutation = threading.Event()
+    replacement_done = threading.Event()
+    replacement_errors: list[BaseException] = []
 
-    def _delayed_handler(_event, payload):
-        permit = payload[LIFECYCLE_PUBLICATION_PERMIT_KEY]
+    def _delayed_handler(_event, _payload):
         handler_entered.set()
         assert release_handler.wait(timeout=3)
-        permit.mutate_if_current(old_mutation.set)
+        old_mutation.set()
 
     old.event_bus.subscribe(EventType.ORCHESTRATOR_TICK, _delayed_handler)
     monkeypatch.setattr(server, "_orchestrator", old)
@@ -898,21 +969,34 @@ def test_event_sink_rechecks_source_at_handler_mutation(
         worker = old._lifecycle_publication_thread
     assert worker is not None
 
-    started = time.monotonic()
+    def _replace() -> None:
+        try:
+            server.set_orchestrator(new)
+        except BaseException as exc:  # noqa: BLE001 - asserted by the test
+            replacement_errors.append(exc)
+        finally:
+            replacement_done.set()
+
     with (
         patch.object(server, "remove_draft_labels_from_epics", return_value=0),
         patch.object(server, "_migrate_release_picks_on_startup"),
         patch.object(server, "ErrorWatcher", MagicMock()),
         patch.object(server, "ProjectLogWatcherManager", MagicMock()),
     ):
-        server.set_orchestrator(new)
-    replacement_elapsed = time.monotonic() - started
-    assert replacement_elapsed < 0.5
+        replacement = threading.Thread(target=_replace)
+        replacement.start()
+        assert replacement_done.wait(timeout=0.1) is False
+        assert server._orchestrator is old
 
-    release_handler.set()
+        release_handler.set()
+        replacement.join(timeout=1)
+    assert replacement.is_alive() is False
+    assert replacement_errors == []
+    assert replacement_done.is_set()
+    assert server._orchestrator is new
     worker.join(timeout=1)
     assert worker.is_alive() is False
-    assert old_mutation.is_set() is False
+    assert old_mutation.is_set()
     new._shutdown_lifecycle_publications()
 
 
@@ -920,7 +1004,7 @@ def test_server_observer_rechecks_source_at_cache_mutation(
     tmp_path,
     monkeypatch,
 ):
-    """A source-aware legacy callback cannot overwrite replacement cache."""
+    """A source-aware legacy callback completes before replacement commits."""
 
     old = _real_orchestrator(tmp_path / "old-observer")
     new = _real_orchestrator(tmp_path / "new-observer")
@@ -928,6 +1012,9 @@ def test_server_observer_rechecks_source_at_cache_mutation(
     new._ipc = None
     observer_entered = threading.Event()
     release_observer = threading.Event()
+    observer_complete = threading.Event()
+    replacement_done = threading.Event()
+    replacement_errors: list[BaseException] = []
 
     def _delayed_server_observer(
         snapshot,
@@ -948,6 +1035,7 @@ def test_server_observer_rechecks_source_at_cache_mutation(
             source=old,
             publication_permit=publication_permit,
         )
+        observer_complete.set()
 
     _delayed_server_observer._oompah_accepts_lifecycle_publication_permit = True
     old._observers.append(_delayed_server_observer)
@@ -959,21 +1047,113 @@ def test_server_observer_rechecks_source_at_cache_mutation(
         worker = old._lifecycle_publication_thread
     assert worker is not None
 
+    def _replace() -> None:
+        try:
+            server.set_orchestrator(new)
+        except BaseException as exc:  # noqa: BLE001 - asserted by the test
+            replacement_errors.append(exc)
+        finally:
+            replacement_done.set()
+
     with (
         patch.object(server, "remove_draft_labels_from_epics", return_value=0),
         patch.object(server, "_migrate_release_picks_on_startup"),
         patch.object(server, "ErrorWatcher", MagicMock()),
         patch.object(server, "ProjectLogWatcherManager", MagicMock()),
     ):
-        server.set_orchestrator(new)
+        replacement_thread = threading.Thread(target=_replace)
+        replacement_thread.start()
+        assert replacement_done.wait(timeout=0.1) is False
+        assert server._orchestrator is old
+        release_observer.set()
+        replacement_thread.join(timeout=1)
+    assert replacement_thread.is_alive() is False
+    assert replacement_errors == []
+    assert observer_complete.is_set()
+    assert server._orchestrator is new
     replacement = {"source": "new-observer"}
     server._on_orchestrator_change(replacement, source=new)
 
-    release_observer.set()
     worker.join(timeout=1)
     assert worker.is_alive() is False
     assert server._read_state_snapshot(allow_stale=True) == replacement
     new._shutdown_lifecycle_publications()
+
+
+def test_replacement_timeout_rolls_back_before_concurrent_replacement(
+    tmp_path,
+    monkeypatch,
+):
+    """A failed drain keeps the old owner and cannot ABA a queued cutover."""
+
+    old = _real_orchestrator(tmp_path / "old-timeout")
+    first_new = _real_orchestrator(tmp_path / "first-new")
+    second_new = _real_orchestrator(tmp_path / "second-new")
+    old._ipc = None
+    first_new._ipc = None
+    second_new._ipc = None
+    old._lifecycle_publication_drain_timeout_s = 0.2
+    handler_entered = threading.Event()
+    release_handler = threading.Event()
+    callback_mutated = threading.Event()
+    first_done = threading.Event()
+    second_done = threading.Event()
+    first_errors: list[BaseException] = []
+    second_errors: list[BaseException] = []
+
+    def _blocked_plain_handler(_event, _payload):
+        handler_entered.set()
+        assert release_handler.wait(timeout=3)
+        callback_mutated.set()
+
+    old.event_bus.subscribe(EventType.ORCHESTRATOR_TICK, _blocked_plain_handler)
+    monkeypatch.setattr(server, "_orchestrator", old)
+    monkeypatch.setattr(old, "get_snapshot", lambda: {"source": "old-timeout"})
+    assert old.request_lifecycle_publication(expected_generation=0)
+    assert handler_entered.wait(timeout=1)
+
+    def _replace(target, errors, done):
+        try:
+            server.set_orchestrator(target)
+        except BaseException as exc:  # noqa: BLE001 - asserted by the test
+            errors.append(exc)
+        finally:
+            done.set()
+
+    with (
+        patch.object(server, "remove_draft_labels_from_epics", return_value=0),
+        patch.object(server, "_migrate_release_picks_on_startup"),
+        patch.object(server, "ErrorWatcher", MagicMock()),
+        patch.object(server, "ProjectLogWatcherManager", MagicMock()),
+    ):
+        first = threading.Thread(
+            target=_replace,
+            args=(first_new, first_errors, first_done),
+        )
+        second = threading.Thread(
+            target=_replace,
+            args=(second_new, second_errors, second_done),
+        )
+        first.start()
+        time.sleep(0.05)
+        second.start()
+        assert second_done.wait(timeout=0.05) is False
+        assert first_done.wait(timeout=1)
+        assert len(first_errors) == 1
+        assert isinstance(first_errors[0], RuntimeError)
+        assert server._orchestrator is old
+        assert old._lifecycle_publication_closed is False
+
+        release_handler.set()
+        second.join(timeout=1)
+    first.join(timeout=1)
+    assert first.is_alive() is False
+    assert second.is_alive() is False
+    assert second_errors == []
+    assert callback_mutated.is_set()
+    assert server._orchestrator is second_new
+    assert old._lifecycle_publication_closed is True
+    second_new._shutdown_lifecycle_publications()
 
 
 def test_blocked_lifecycle_publication_worker_does_not_hold_interpreter_open(
