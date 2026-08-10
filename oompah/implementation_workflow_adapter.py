@@ -12,6 +12,7 @@ the exact disposition without repeating the mutation.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import re
@@ -57,6 +58,7 @@ from oompah.workflow_worker import (
     RevalidationResult,
     VerificationResult,
     WorkflowActionError,
+    WorkflowActionSuperseded,
     WorkflowJobContext,
 )
 
@@ -373,6 +375,64 @@ class OrchestratorImplementationEffects:
             return None
         return entry
 
+    def _active_exact_direct_owner_claim(self, issue: Any) -> Any | None:
+        """Return only current direct-owner authority for this bound task.
+
+        Recovery jobs are derived from an earlier fact cut which may lose a
+        race to a direct-owner claim. Read the claim under the same project
+        write lock used by claim grant/release so the captured claim id cannot
+        be an ABA mixture. The caller may use that immutable id as the
+        replacement generation, but must not persist a recovery receipt for a
+        lease which can later expire or be released.
+        """
+
+        project_store = getattr(self.orchestrator, "project_store", None)
+        lock_factory = getattr(project_store, "project_write_lock", None)
+        project_lock = (
+            lock_factory(self.project_id)
+            if callable(lock_factory)
+            else contextlib.nullcontext()
+        )
+        with project_lock:
+            claim = self.orchestrator._owner_claim_for_issue(
+                issue.id,
+                self.project_id,
+            )
+            now = datetime.now(timezone.utc).timestamp()
+            if (
+                claim is None
+                or _text(getattr(claim, "issue_id", None)) != _text(issue.id)
+                or _text(getattr(claim, "project_id", None)) != self.project_id
+                or not _text(getattr(claim, "claim_id", None))
+                or not _text(getattr(claim, "owner_login", None))
+                or bool(getattr(claim, "retirement_pending", False))
+                or float(getattr(claim, "expires_at", 0) or 0) <= now
+                or canonicalize_status(issue.state) == IN_VALIDATION
+                or is_terminal_status(issue.state)
+            ):
+                return None
+            return claim
+
+    def _supersede_recovery_for_direct_owner(
+        self,
+        issue: Any,
+        context: WorkflowJobContext,
+    ) -> None:
+        """Fence stale recovery when an exact direct-owner generation won."""
+
+        if (
+            ImplementationAction(context.job.action)
+            is not ImplementationAction.RECOVERY
+        ):
+            return
+        claim = self._active_exact_direct_owner_claim(issue)
+        if claim is None:
+            return
+        raise WorkflowActionSuperseded(
+            "implementation recovery was replaced by an active direct-owner claim",
+            replacement_generation=f"direct-owner:{claim.claim_id}",
+        )
+
     def _assert_job_current(self, context: WorkflowJobContext) -> None:
         """Fence a multi-step effect after an awaited retirement boundary."""
 
@@ -563,6 +623,7 @@ class OrchestratorImplementationEffects:
         }:
             entry = self._running(issue, context.job.generation)
             if entry is None:
+                self._supersede_recovery_for_direct_owner(issue, context)
                 return None
             return self._disposition(
                 context,
@@ -729,17 +790,43 @@ class OrchestratorImplementationEffects:
                         category=WorkflowFailureCategory.TRANSIENT,
                         retryable=True,
                     )
-                await self._admit_dispatch(
+                await asyncio.to_thread(
+                    self._supersede_recovery_for_direct_owner,
                     issue,
-                    durable_recovery=action is ImplementationAction.RECOVERY,
+                    context,
                 )
-                await self.orchestrator._dispatch(
+                try:
+                    await self._admit_dispatch(
+                        issue,
+                        durable_recovery=action is ImplementationAction.RECOVERY,
+                    )
+                except WorkflowActionError:
+                    # A claim may land after observe/preflight but before the
+                    # scheduler's authoritative dispatch-policy check. Turn
+                    # that exact winner into a terminal supersession instead
+                    # of spending recovery attempts on a policy denial.
+                    await asyncio.to_thread(
+                        self._supersede_recovery_for_direct_owner,
+                        issue,
+                        context,
+                    )
+                    raise
+                dispatched = await self.orchestrator._dispatch(
                     issue,
                     attempt=(int(payload.get("attempt") or 0) or None),
                     override_profile=_text(payload.get("profile")) or None,
                     workflow_generation=context.job.generation,
                     status_managed_by_workflow=True,
                 )
+                if dispatched is False:
+                    # _dispatch repeats the owner fence at its final admission
+                    # boundary. Resolve a claim which won that narrower race
+                    # the same way as one observed before admission.
+                    await asyncio.to_thread(
+                        self._supersede_recovery_for_direct_owner,
+                        issue,
+                        context,
+                    )
             entry = self._running(issue, context.job.generation)
             if entry is None:
                 raise WorkflowActionError(

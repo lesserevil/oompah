@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -46,11 +47,14 @@ from oompah.task_transition_service import (
     issue_authority_version,
 )
 from oompah.workflow_runtime import WorkflowRuntime, WorkflowRuntimeError
-from oompah.workflow_jobs import WorkflowJobSpec, WorkflowJobStore
+from oompah.workflow_jobs import WorkflowJobSpec, WorkflowJobState, WorkflowJobStore
 from oompah.workflow_worker import (
+    DurableWorkflowWorker,
     VerificationResult,
     WorkflowActionError,
+    WorkflowActionSuperseded,
     WorkflowJobContext,
+    WorkflowRunDisposition,
 )
 
 
@@ -88,7 +92,11 @@ class FakeOrchestrator:
         self.state_notifications = 0
         self.admit_dispatch = True
         self.state = SimpleNamespace(owner_claims={}, reject_streak={})
-        self._owner_claims_lock = __import__("threading").RLock()
+        self._owner_claims_lock = threading.RLock()
+        self._project_write_lock = threading.RLock()
+        self.project_store = SimpleNamespace(
+            project_write_lock=lambda _project_id: self._project_write_lock
+        )
         self.config = SimpleNamespace(
             workflow_engine_mode="off",
             parallel_epic_children_enabled=True,
@@ -494,6 +502,284 @@ async def test_launch_retries_without_dispatch_when_capacity_policy_rejects(tmp_
     assert raised.value.retryable is True
     assert orch.dispatches == []
     effects.receipts.close()
+
+
+def owner_claim(
+    issue: Issue,
+    *,
+    claim_id: str = "claim-owner",
+    project_id: str = "project-a",
+    issue_id: str | None = None,
+    expires_in: float = 3600,
+    retirement_pending: bool = False,
+) -> OwnerClaim:
+    now = datetime.now(timezone.utc).timestamp()
+    return OwnerClaim(
+        claim_id,
+        issue_id or issue.id,
+        project_id,
+        "project-owner",
+        now,
+        now + expires_in,
+        retirement_pending=retirement_pending,
+    )
+
+
+@pytest.mark.asyncio
+async def test_recovery_is_superseded_by_active_exact_direct_owner_without_retry(
+    tmp_path,
+):
+    issue = make_issue(status=IN_PROGRESS)
+    orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
+    claim = owner_claim(issue, claim_id="claim-won-recovery-race")
+    orch.claims[("project-a", issue.id)] = claim
+    jobs, _context = make_context(
+        tmp_path,
+        action=ImplementationAction.RECOVERY,
+        evidence=issue_authority_version(issue),
+        payload={"expected_status": IN_PROGRESS},
+    )
+    orch.workflow_job_store.close()
+    orch.workflow_job_store = jobs
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    runner = DurableWorkflowWorker(
+        store=jobs,
+        handlers={
+            ImplementationAction.RECOVERY.value: ImplementationWorkflowHandler(
+                ProductionImplementationWorkflowBackend(effects)
+            )
+        },
+        transition_services={},
+        worker_id="recovery-worker",
+        retry_delay_seconds=0,
+    )
+
+    result = await runner.run_once()
+    durable = jobs.get(result.job_id)
+
+    assert result.disposition is WorkflowRunDisposition.SUPERSEDED
+    assert durable.state is WorkflowJobState.SUPERSEDED
+    assert durable.attempts == 1
+    assert durable.superseded_by_generation == ("direct-owner:claim-won-recovery-race")
+    assert orch.dispatches == []
+    assert (await runner.run_once()).disposition is WorkflowRunDisposition.IDLE
+    effects.receipts.close()
+    jobs.close()
+
+
+@pytest.mark.asyncio
+async def test_recovery_owner_claim_policy_race_uses_latest_aba_generation(tmp_path):
+    issue = make_issue(status=IN_PROGRESS)
+    orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
+    _jobs, context = make_context(
+        tmp_path,
+        action=ImplementationAction.RECOVERY,
+    )
+
+    def owner_wins_during_admission(current, **_kwargs):
+        first = owner_claim(current, claim_id="claim-a")
+        replacement = owner_claim(current, claim_id="claim-b")
+        orch.claims[("project-a", current.id)] = first
+        orch.claims[("project-a", current.id)] = replacement
+        orch.state.reject_streak[current.id] = ("direct_owner_claim", 1)
+        return False
+
+    orch._should_dispatch = owner_wins_during_admission
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    with pytest.raises(WorkflowActionSuperseded) as raised:
+        await effects.apply(context)
+
+    assert raised.value.replacement_generation == "direct-owner:claim-b"
+    assert orch.dispatches == []
+    assert effects.receipts.get(context) is None
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_recovery_owner_claim_final_dispatch_race_is_superseded(tmp_path):
+    issue = make_issue(status=IN_PROGRESS)
+    orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
+    _jobs, context = make_context(
+        tmp_path,
+        action=ImplementationAction.RECOVERY,
+    )
+
+    async def owner_wins_final_boundary(current, *_args, **_kwargs):
+        orch.claims[("project-a", current.id)] = owner_claim(
+            current,
+            claim_id="claim-final-boundary",
+        )
+        return False
+
+    orch._dispatch = owner_wins_final_boundary
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    with pytest.raises(WorkflowActionSuperseded) as raised:
+        await effects.apply(context)
+
+    assert raised.value.replacement_generation == ("direct-owner:claim-final-boundary")
+    assert orch.running == {}
+    assert effects.receipts.get(context) is None
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_released_owner_claim_does_not_supersede_orphan_recovery(tmp_path):
+    issue = make_issue(status=IN_PROGRESS)
+    orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
+    _jobs, context = make_context(
+        tmp_path,
+        action=ImplementationAction.RECOVERY,
+    )
+
+    def owner_releases_during_admission(current, **_kwargs):
+        key = ("project-a", current.id)
+        orch.claims[key] = owner_claim(current, claim_id="claim-released")
+        orch.claims.pop(key)
+        orch.state.reject_streak[current.id] = ("direct_owner_claim", 1)
+        return False
+
+    orch._should_dispatch = owner_releases_during_admission
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    with pytest.raises(WorkflowActionError) as raised:
+        await effects.apply(context)
+
+    assert not isinstance(raised.value, WorkflowActionSuperseded)
+    assert raised.value.retryable is True
+    assert orch.dispatches == []
+    orch._should_dispatch = lambda _issue, **_kwargs: True
+
+    recovered = await effects.apply(context)
+
+    assert recovered.ownership_source is ImplementationOwnershipSource.RECOVERY
+    assert len(orch.dispatches) == 1
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "inactive_claim",
+    (
+        None,
+        "expired",
+        "retirement_pending",
+        "wrong_project",
+        "wrong_issue",
+    ),
+)
+async def test_recovery_dispatches_real_orphan_despite_inactive_or_mismatched_claim(
+    tmp_path,
+    inactive_claim,
+):
+    issue = make_issue(status=IN_PROGRESS)
+    orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
+    claims = {
+        "expired": owner_claim(issue, expires_in=-1),
+        "retirement_pending": owner_claim(issue, retirement_pending=True),
+        "wrong_project": owner_claim(issue, project_id="project-b"),
+        "wrong_issue": owner_claim(issue, issue_id="project-a:OTHER-1"),
+    }
+    if inactive_claim is not None:
+        orch.claims[("project-a", issue.id)] = claims[inactive_claim]
+    _jobs, context = make_context(
+        tmp_path,
+        action=ImplementationAction.RECOVERY,
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    result = await ProductionImplementationWorkflowBackend(effects).execute(context)
+
+    assert result.status == "recovered"
+    assert result.disposition.ownership_source is ImplementationOwnershipSource.RECOVERY
+    assert len(orch.dispatches) == 1
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_retrying_recovery_supersedes_new_direct_owner_after_restart(tmp_path):
+    issue = make_issue(status=IN_PROGRESS)
+    first_orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
+    first_orch.admit_dispatch = False
+    jobs, _context = make_context(
+        tmp_path,
+        action=ImplementationAction.RECOVERY,
+        evidence=issue_authority_version(issue),
+        payload={"expected_status": IN_PROGRESS},
+    )
+    jobs_path = jobs.path
+    first_orch.workflow_job_store.close()
+    first_orch.workflow_job_store = jobs
+
+    def worker_for(orch, store, worker_id):
+        effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+        return effects, DurableWorkflowWorker(
+            store=store,
+            handlers={
+                ImplementationAction.RECOVERY.value: ImplementationWorkflowHandler(
+                    ProductionImplementationWorkflowBackend(effects)
+                )
+            },
+            transition_services={},
+            worker_id=worker_id,
+            retry_delay_seconds=0,
+        )
+
+    first_effects, first = worker_for(first_orch, jobs, "recovery-worker-before-restart")
+    first_result = await first.run_once()
+    assert first_result.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+    assert jobs.get(first_result.job_id).state is WorkflowJobState.RETRY_WAIT
+
+    persisted_claim = owner_claim(
+        issue, claim_id="claim-after-first-attempt"
+    ).to_dict()
+    first_effects.receipts.close()
+    jobs.close()
+
+    # Model a process restart: reopen the durable job and receipt databases,
+    # reconstruct both the tracker issue and persisted owner lease, and build
+    # a new orchestrator/effects/worker graph with no process-local authority.
+    restarted_jobs = WorkflowJobStore(jobs_path)
+    persisted_retry = restarted_jobs.get(first_result.job_id)
+    assert persisted_retry.state is WorkflowJobState.RETRY_WAIT
+    restarted_issue = make_issue(status=IN_PROGRESS)
+    restarted_orch = FakeOrchestrator(
+        tmp_path,
+        {"project-a": Tracker(restarted_issue)},
+    )
+    restarted_orch.workflow_job_store.close()
+    restarted_orch.workflow_job_store = restarted_jobs
+    restored_claim = OwnerClaim.from_dict(persisted_claim)
+    restarted_orch.claims[("project-a", restarted_issue.id)] = restored_claim
+    restarted_orch.state.owner_claims[
+        f"project-a\0{restarted_issue.id}"
+    ] = restored_claim
+    second_effects, second = worker_for(
+        restarted_orch,
+        restarted_jobs,
+        "recovery-worker-after-restart",
+    )
+    second_result = await second.run_once()
+    durable = restarted_jobs.get(second_result.job_id)
+
+    assert second_result.disposition is WorkflowRunDisposition.SUPERSEDED
+    assert durable.state is WorkflowJobState.SUPERSEDED
+    assert durable.attempts == 2
+    assert durable.superseded_by_generation == (
+        "direct-owner:claim-after-first-attempt"
+    )
+    assert first_orch.dispatches == []
+    assert restarted_orch.dispatches == []
+    receipt_context = WorkflowJobContext(
+        durable,
+        asyncio.Event(),
+        asyncio.Event(),
+    )
+    assert second_effects.receipts.get(receipt_context) is None
+    assert (await second.run_once()).disposition is WorkflowRunDisposition.IDLE
+    second_effects.receipts.close()
+    restarted_jobs.close()
 
 
 @pytest.mark.asyncio
