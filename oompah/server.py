@@ -131,6 +131,7 @@ from oompah.terminal_audit_metadata import (
     TerminalAuditMetadataStore,
 )
 from oompah.provenance_suppression import (
+    ProvenanceControlBusyError,
     ProvenanceOwnerRevisionNotFoundError,
     ProvenanceOwnerRevisionStateError,
     ProvenanceSuppressionError,
@@ -211,6 +212,7 @@ from oompah.terminal_audit import (
 from oompah.terminal_transition_coordinator import (
     OverrideRejection,
     OverrideResult,
+    TerminalTransitionBusyError,
     TransitionResult,
 )
 from oompah.transition_gate import (
@@ -7906,6 +7908,21 @@ async def _stage_terminal_transition(
         except (TypeError, ValueError):
             _rollback_dispatch_fence()
             return None, ("The terminal audit retry request is invalid.", 400)
+        except TerminalTransitionBusyError:
+            _rollback_dispatch_fence()
+            return None, JSONResponse(
+                {
+                    "error": {
+                        "code": "terminal_control_busy",
+                        "message": (
+                            "Terminal control is busy; no transition was applied. "
+                            "Retry the request."
+                        ),
+                        "retryable": True,
+                    }
+                },
+                status_code=503,
+            )
         except Exception:
             _rollback_dispatch_fence()
             logger.exception("Terminal audit retry failed")
@@ -7984,6 +8001,21 @@ async def _stage_terminal_transition(
             _rollback_dispatch_fence()
             logger.info("Rejected terminal override request: %s", exc)
             return None, ("The terminal override request is invalid.", 400)
+        except TerminalTransitionBusyError:
+            _rollback_dispatch_fence()
+            return None, JSONResponse(
+                {
+                    "error": {
+                        "code": "terminal_control_busy",
+                        "message": (
+                            "Terminal control is busy; no override was applied. "
+                            "Retry the request."
+                        ),
+                        "retryable": True,
+                    }
+                },
+                status_code=503,
+            )
         except Exception:
             _rollback_dispatch_fence()
             logger.exception("Terminal override request failed")
@@ -8018,6 +8050,21 @@ async def _stage_terminal_transition(
         _rollback_dispatch_fence()
         logger.info("Rejected terminal transition request: %s", exc)
         return None, ("The terminal transition request is invalid.", 400)
+    except TerminalTransitionBusyError:
+        _rollback_dispatch_fence()
+        return None, JSONResponse(
+            {
+                "error": {
+                    "code": "terminal_control_busy",
+                    "message": (
+                        "Terminal control is busy; no transition was applied. "
+                        "Retry the request."
+                    ),
+                    "retryable": True,
+                }
+            },
+            status_code=503,
+        )
     except Exception:
         _rollback_dispatch_fence()
         logger.exception("Terminal transition request failed")
@@ -13792,7 +13839,12 @@ async def api_terminal_provenance_action(
         if normalized_action == "retain":
             async with _submission_authority_lock(orch, issue.id):
                 def _retain_under_project_lock():
-                    with orch.project_store.project_write_lock(project_id):
+                    lock_source = getattr(tracker, "owner_control_lock", None)
+                    if not callable(lock_source):
+                        raise ProvenanceControlBusyError(
+                            "bounded provenance control is unavailable"
+                        )
+                    with lock_source():
                         current = tracker.fetch_issue_detail(resolved_identifier)
                         if current is None:
                             return "not_found", None, None
@@ -13854,6 +13906,20 @@ async def api_terminal_provenance_action(
                     status_transition=orch._recover_terminal_audit_status,
                 )
                 status = OPEN
+    except ProvenanceControlBusyError:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "control_busy",
+                    "message": (
+                        "Terminal provenance control is busy; no mutation was "
+                        "applied. Retry the request."
+                    ),
+                    "retryable": True,
+                }
+            },
+            status_code=503,
+        )
     except ProvenanceOwnerRevisionNotFoundError:
         return JSONResponse(
             {

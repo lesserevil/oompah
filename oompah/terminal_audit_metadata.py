@@ -363,6 +363,13 @@ class TerminalAuditMetadataStore:
         if current_raw == serialized:
             return False
         self._tracker.set_metadata_field(identifier, METADATA_KEY, serialized)
+        advance_revision = getattr(
+            self._project_store,
+            "advance_terminal_authority_revision",
+            None,
+        )
+        if callable(advance_revision):
+            advance_revision(self._project_id)
         return True
 
     @staticmethod

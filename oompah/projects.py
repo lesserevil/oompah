@@ -917,15 +917,15 @@ def github_owner_repo_from_url(repo_url: str) -> tuple[str | None, str | None]:
 
 def gitlab_owner_repo_from_url(repo_url: str, gitlab_base_url: str | None = None) -> tuple[str | None, str | None]:
     """Return ``(owner/path, repo)`` for GitLab clone URLs, else ``(None, None)``.
-    
+
     GitLab project paths can include groups and subgroups (e.g., "group/subgroup/project").
     This function extracts the full path as the owner component.
-    
+
     Args:
         repo_url: Git clone URL (https, ssh, or local).
         gitlab_base_url: Expected GitLab instance base URL (e.g., "https://gitlab.com").
                          If provided, only URLs matching this host are accepted.
-    
+
     Returns:
         Tuple of (project_path, repo_name) for GitLab URLs matching the base URL,
         or (None, None) if the URL doesn't match or isn't a valid GitLab URL.
@@ -933,16 +933,16 @@ def gitlab_owner_repo_from_url(repo_url: str, gitlab_base_url: str | None = None
     value = (repo_url or "").strip()
     if not value:
         return None, None
-    
+
     # Determine the expected GitLab host from gitlab_base_url
     expected_host = None
     if gitlab_base_url:
         parsed_base = urlsplit(gitlab_base_url)
         expected_host = (parsed_base.hostname or "").lower()
-    
+
     path = ""
     host = ""
-    
+
     if value.startswith("git@") or re.match(r"^[^/@:]+@", value):
         # SSH format: git@gitlab.com:group/subgroup/project.git
         if ":" not in value:
@@ -961,28 +961,28 @@ def gitlab_owner_repo_from_url(repo_url: str, gitlab_base_url: str | None = None
     else:
         # Local path or unrecognized format
         return None, None
-    
+
     # Check if host matches the expected GitLab instance
     if expected_host and host != expected_host:
         return None, None
-    
+
     # Check if it looks like a GitLab host
     if not (host and ("gitlab" in host or host in ("localhost", "127.0.0.1") or ":" in host)):
         return None, None
-    
+
     path = path.strip("/")
     if path.endswith(".git"):
         path = path[:-4]
-    
+
     parts = [part for part in path.split("/") if part]
     if len(parts) < 2:
         return None, None
-    
+
     # For GitLab, the owner is the full path (group/subgroup/project)
     # and we need at least group/project
     project_name = parts[-1]
     project_path = "/".join(parts)
-    
+
     return project_path, project_name
 
 
@@ -1727,14 +1727,14 @@ def _resolve_owner_identity(
     is_dispatchable: bool = False,
 ) -> tuple[str | None, str | None]:
     """Resolve the owner identity for a project (OOMPAH-677).
-    
+
     This function derives the project owner (status_actor_login) from the
     repo_url, tracker configuration, and/or provided credentials. It never
     trusts client-supplied status_actor_login values for authorization.
-    
+
     For dispatchable projects (paused=False), it validates that an owner
     can be determined.
-    
+
     Args:
         repo_url: Git clone URL.
         tracker_kind: Tracker backend kind (e.g., "github_issues", "gitlab_issues", "oompah_md").
@@ -1743,7 +1743,7 @@ def _resolve_owner_identity(
         forge_base_url: Base URL of the forge instance.
         status_actor_login: Client-supplied status actor (NOT used for authorization).
         is_dispatchable: If True, the project must have a derivable owner.
-    
+
     Returns:
         Tuple of (resolved_status_actor_login, error_message).
         - resolved_status_actor_login: The derived owner login, or None.
@@ -1752,10 +1752,10 @@ def _resolve_owner_identity(
     """
     resolved_kind = str(tracker_kind or "").strip().lower()
     resolved_forge = str(forge_kind or "github").strip().lower()
-    
+
     # Try to derive owner from repo_url based on tracker/forge configuration
     inferred_owner = None
-    
+
     if resolved_kind in ("github_issues", "github-issues"):
         # GitHub Issues tracker: derive owner from GitHub repo URL
         inferred_owner, _ = github_owner_repo_from_url(repo_url)
@@ -1769,7 +1769,7 @@ def _resolve_owner_identity(
         # use that as the project owner
         if not inferred_owner and tracker_owner:
             inferred_owner = tracker_owner
-    
+
     # For dispatchable projects, ensure we have an owner
     error_message = None
     if is_dispatchable and not inferred_owner:
@@ -1778,7 +1778,7 @@ def _resolve_owner_identity(
             "Set status_actor_login, tracker_owner, or ensure the repository URL "
             "is from a supported forge (GitHub, GitLab)."
         )
-    
+
     return inferred_owner, error_message
 
 
@@ -1806,6 +1806,15 @@ class ProjectStore:
         # Access to _project_locks dict itself is protected by _project_locks_meta.
         self._project_locks: dict[str, threading.RLock] = {}
         self._project_locks_meta: threading.Lock = threading.Lock()
+        # Monotonic in-process CAS token for terminal-audit metadata.  Every
+        # production metadata write is serialized by ``project_write_lock``
+        # and advances this token before releasing that lock.  Snapshot
+        # publication can therefore prove a corpus collected outside the lock
+        # with one constant-time comparison instead of re-reading every task
+        # while owner control is blocked.  The token need not survive restart:
+        # no pre-restart publication callback can survive with it.
+        self._terminal_authority_revisions: dict[str, int] = {}
+        self._workflow_authority_revisions: dict[str, int] = {}
 
         self._load()
 
@@ -1884,6 +1893,42 @@ class ProjectStore:
             if project_id not in self._project_locks:
                 self._project_locks[project_id] = threading.RLock()
             return self._project_locks[project_id]
+
+    def terminal_authority_revision(self, project_id: str) -> int:
+        """Return the exact terminal-metadata revision for one project.
+
+        Callers may already hold :meth:`project_write_lock`; its reentrancy
+        keeps the read usable as the final publication CAS boundary.
+        """
+
+        with self.project_write_lock(project_id):
+            with self._project_locks_meta:
+                return self._terminal_authority_revisions.get(project_id, 0)
+
+    def advance_terminal_authority_revision(self, project_id: str) -> int:
+        """Advance terminal-metadata authority after one committed write."""
+
+        with self.project_write_lock(project_id):
+            with self._project_locks_meta:
+                revision = self._terminal_authority_revisions.get(project_id, 0) + 1
+                self._terminal_authority_revisions[project_id] = revision
+                return revision
+
+    def workflow_authority_revision(self, project_id: str) -> int:
+        """Return the in-process revision for non-tracker workflow authority."""
+
+        with self.project_write_lock(project_id):
+            with self._project_locks_meta:
+                return self._workflow_authority_revisions.get(project_id, 0)
+
+    def advance_workflow_authority_revision(self, project_id: str) -> int:
+        """Advance owner-claim/service authority after a durable mutation."""
+
+        with self.project_write_lock(project_id):
+            with self._project_locks_meta:
+                revision = self._workflow_authority_revisions.get(project_id, 0) + 1
+                self._workflow_authority_revisions[project_id] = revision
+                return revision
 
     def canonical_remote_name(self, project_id: str) -> str:
         """Return the server-owned Git remote for a managed project.
@@ -2027,7 +2072,7 @@ class ProjectStore:
         tracker_kind_resolved = tracker_kind or "oompah_md"
         _resolved_kind = str(tracker_kind_resolved).strip().lower()
         tracker_owner_value = str(tracker_owner).strip() if tracker_owner else None
-        
+
         resolved_status_actor, owner_error = _resolve_owner_identity(
             repo_url=repo_url,
             tracker_kind=_resolved_kind,
@@ -2037,7 +2082,7 @@ class ProjectStore:
             status_actor_login=None,  # Never trust client input
             is_dispatchable=not paused,
         )
-        
+
         if owner_error and not paused:
             raise ProjectError(owner_error)
 
@@ -2149,7 +2194,7 @@ class ProjectStore:
 
         tracker_owner_value = str(tracker_owner).strip() if tracker_owner else None
         tracker_repo_value = str(tracker_repo).strip() if tracker_repo else None
-        
+
         # For GitHub-backed trackers and oompah_md with GitHub intake, infer tracker_owner/repo from URL
         if (
             _is_github_backed_kind(_resolved_kind)
@@ -2263,6 +2308,15 @@ class ProjectStore:
     )
 
     def update(self, project_id: str, **fields) -> Project | None:
+        """Atomically update project configuration and workflow authority."""
+
+        with self.project_write_lock(project_id):
+            project = self._update_unlocked(project_id, **fields)
+            if project is not None and fields:
+                self.advance_workflow_authority_revision(project_id)
+            return project
+
+    def _update_unlocked(self, project_id: str, **fields) -> Project | None:
         """Update a project's mutable fields.
 
         Args:
@@ -2565,7 +2619,7 @@ class ProjectStore:
                 and fields["tracker_owner"] is None
                 and project.tracker_owner  # Was previously set
             )
-            
+
             if clearing_status_actor or clearing_tracker_owner:
                 # Try to resolve owner with the new configuration
                 effective_repo_url = fields.get("repo_url", project.repo_url)
@@ -2573,7 +2627,7 @@ class ProjectStore:
                 effective_tracker_owner = fields.get("tracker_owner", project.tracker_owner)
                 effective_forge_kind = fields.get("forge_kind", project.forge_kind)
                 effective_forge_base = fields.get("forge_base_url", project.forge_base_url)
-                
+
                 resolved_owner, error = _resolve_owner_identity(
                     repo_url=effective_repo_url,
                     tracker_kind=effective_tracker_kind,
@@ -5339,7 +5393,7 @@ class ProjectStore:
         expected_head_sha: str | None = None,
     ) -> tuple[bool, str | None]:
         """Delete one terminal Oompah-owned branch locally and remotely.
-        
+
         Returns (changed, skip_reason). skip_reason is None if the branch was
         deleted or attempted (changed=True or attempted), or a category string
         if skipped (changed=False): 'shared_epic_branch', 'protected_branch',

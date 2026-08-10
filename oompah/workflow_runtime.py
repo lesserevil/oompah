@@ -16,7 +16,9 @@ tracker to the management tracker.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import inspect
+import json
 import logging
 import os
 import re
@@ -231,7 +233,13 @@ class WorkflowProjectBinding:
     terminal_audit_snapshot_proof_source: Callable[
         [WorkDecision, Mapping[str, Any]], bool
     ] | None = None
+    terminal_audit_lane_proof_source: Callable[
+        [WorkDecision, Mapping[str, Any], str | None], bool
+    ] | None = None
     terminal_audit_publication_lock: Callable[[], Any] | None = None
+    terminal_authority_revision_source: Callable[[], int] | None = None
+    workflow_authority_revision_source: Callable[[], int] | None = None
+    tracker_authority_revision_source: Callable[[], str | None] | None = None
 
     @property
     def enabled(self) -> bool:
@@ -552,6 +560,16 @@ class WorkflowRuntime:
         self._admission_cut: _WorkflowAdmissionCut | None = None
         self._latest_decisions: dict[tuple[str, str], Any] = {}
         self._events: list[WorkflowRuntimeEvent] = []
+        self._terminal_publication_lock_metrics: dict[str, float | int] = {
+            "acquisitions": 0,
+            "superseded": 0,
+            "wait_seconds_total": 0.0,
+            "wait_seconds_max": 0.0,
+            "wait_seconds_last": 0.0,
+            "hold_seconds_total": 0.0,
+            "hold_seconds_max": 0.0,
+            "hold_seconds_last": 0.0,
+        }
         self._effect_tasks: dict[asyncio.Task[Any], str] = {}
         self._effect_results: deque[Any] = deque(maxlen=128)
         # Claiming awaits SQLite off-loop. Keep the capacity observation,
@@ -1210,6 +1228,60 @@ class WorkflowRuntime:
                         observed
                     )
 
+            def terminal_audit_lane_proof_source(
+                decision: WorkDecision,
+                observed: Mapping[str, Any],
+                action: str | None,
+                *,
+                _project_id=project_id,
+            ) -> bool:
+                """Prove only SQLite-owned audit authority at the marker.
+
+                Terminal metadata is fenced separately by the project's
+                monotonic authority revision.  Keeping this proof store-only
+                avoids a full native-tracker refresh for every retained task
+                while the project mutation lock is held.
+                """
+
+                request_state = str(observed.get("request_state") or "")
+                if request_state not in {"pending", "in_progress"}:
+                    return True
+                required_action = action
+                if required_action is None:
+                    terminal_actions = tuple(
+                        candidate
+                        for candidate in decision.durable_jobs
+                        if _LIVENESS_ACTION_OWNER.get(candidate)
+                        == "terminal_audit"
+                    )
+                    if len(terminal_actions) != 1:
+                        return False
+                    required_action = terminal_actions[0]
+                audit_id = str(observed.get("audit_id") or "")
+                target_state = str(observed.get("target_state") or "")
+                evidence = str(observed.get("evidence_fingerprint") or "")
+                audit_generation = str(observed.get("audit_generation") or "")
+                source_generation = observed.get("source_generation")
+                if (
+                    not audit_id
+                    or not target_state
+                    or not evidence
+                    or not audit_generation
+                    or isinstance(source_generation, bool)
+                    or not isinstance(source_generation, int)
+                ):
+                    return False
+                return store.terminal_audit_lane_materialized(
+                    project_id=_project_id,
+                    task_id=decision.task_id,
+                    audit_id=audit_id,
+                    target_state=target_state,
+                    evidence_fingerprint=evidence,
+                    audit_generation=audit_generation,
+                    source_generation=source_generation,
+                    obligation_action=required_action,
+                )
+
             binding = WorkflowProjectBinding(
                 project_id=project_id,
                 tracker=tracker,
@@ -1234,12 +1306,40 @@ class WorkflowRuntime:
                 terminal_audit_snapshot_proof_source=(
                     terminal_audit_snapshot_proof_source
                 ),
+                terminal_audit_lane_proof_source=(
+                    terminal_audit_lane_proof_source
+                ),
                 terminal_audit_publication_lock=(
                     lambda _project_id=project_id: project_store.project_write_lock(
                         _project_id
                     )
                 )
                 if callable(getattr(project_store, "project_write_lock", None))
+                else None,
+                terminal_authority_revision_source=(
+                    lambda _project_id=project_id: int(
+                        project_store.terminal_authority_revision(_project_id)
+                    )
+                )
+                if callable(
+                    getattr(project_store, "terminal_authority_revision", None)
+                )
+                else None,
+                workflow_authority_revision_source=(
+                    lambda _project_id=project_id: int(
+                        project_store.workflow_authority_revision(_project_id)
+                    )
+                )
+                if callable(
+                    getattr(project_store, "workflow_authority_revision", None)
+                )
+                else None,
+                tracker_authority_revision_source=(
+                    lambda _tracker=tracker: _tracker.get_state_branch_generation()
+                )
+                if callable(
+                    getattr(tracker, "get_state_branch_generation", None)
+                )
                 else None,
                 dispatch_enabled=dispatch_enabled,
                 lifecycle_interrupted=lifecycle_interrupted,
@@ -1734,6 +1834,96 @@ class WorkflowRuntime:
                 issue.project_id = binding.project_id
             scoped.append(issue)
         return scoped
+
+    def _issues_with_authority(
+        self, binding: WorkflowProjectBinding
+    ) -> tuple[list[Any], str | None, str | None]:
+        """Fetch one project corpus with its exact tracker generation.
+
+        Native trackers expose an atomic list+generation read.  Using it once
+        per reconciliation both avoids per-task refreshes and lets final
+        publication reject any owner/status mutation that raced the scan.
+        A native tracker whose state branch is explicitly disabled uses a
+        grouped corpus digest that is checked with one final project-wide
+        refresh. Other unversioned trackers fail closed in enforce mode;
+        publishing general lifecycle decisions without status authority is
+        not safe.
+        """
+
+        tracker = binding.tracker
+        operation = getattr(tracker, "fetch_all_issues_with_generation", None)
+        if (
+            getattr(tracker, "supports_generation_bound_reads", False) is True
+            and callable(operation)
+        ):
+            raw_issues, generation = operation()
+            if not isinstance(raw_issues, Sequence):
+                raise WorkflowRuntimeError(
+                    f"tracker for project {binding.project_id!r} returned a "
+                    "non-sequence"
+                )
+            # Reuse the normal project-scope normalization without performing
+            # another tracker fetch.
+            scoped: list[Any] = []
+            for issue in raw_issues:
+                issue_project = str(getattr(issue, "project_id", None) or "")
+                if issue_project and issue_project != binding.project_id:
+                    continue
+                if not issue_project:
+                    issue.project_id = binding.project_id
+                scoped.append(issue)
+            normalized_generation = (
+                generation.strip() if isinstance(generation, str) else ""
+            )
+            unavailable = (
+                not normalized_generation
+                or normalized_generation == "unavailable"
+                or normalized_generation.startswith("unavailable:")
+            )
+            if unavailable:
+                if getattr(tracker, "state_branch_enabled", False) is True:
+                    raise WorkflowRuntimeError(
+                        "generation-bound tracker returned no authority revision"
+                    )
+                return (
+                    scoped,
+                    self._tracker_corpus_authority_digest(scoped),
+                    "legacy_digest",
+                )
+            return scoped, normalized_generation, "generation"
+        if self.enforce:
+            raise WorkflowRuntimeError(
+                "tracker does not provide generation-bound publication authority"
+            )
+        return self._issues(binding), None, None
+
+    @staticmethod
+    def _tracker_corpus_authority_digest(issues: Sequence[Any]) -> str:
+        """Return a stable digest for an explicitly legacy native corpus."""
+
+        rows: list[dict[str, Any]] = []
+        for issue in issues:
+            serializer = getattr(issue, "to_dict", None)
+            if callable(serializer):
+                raw = serializer()
+            elif hasattr(issue, "__dataclass_fields__"):
+                raw = asdict(issue)
+            else:
+                raw = vars(issue)
+            rows.append(
+                {
+                    "identifier": str(getattr(issue, "identifier", "")),
+                    "value": raw,
+                }
+            )
+        rows.sort(key=lambda row: row["identifier"])
+        encoded = json.dumps(
+            rows,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
 
     def _remember(self, batch: Any) -> None:
         with self._lock:
@@ -2379,8 +2569,31 @@ class WorkflowRuntime:
         source_errors: dict[str, str] = {}
         excluded_projects: dict[str, str] = {}
         for project_id, binding in sorted(self.project_bindings.items()):
+            workflow_authority_revision = None
             try:
-                binding_enabled = binding.read_enabled_state()
+                workflow_revision_source = (
+                    binding.workflow_authority_revision_source
+                )
+                publication_lock_source = (
+                    binding.terminal_audit_publication_lock
+                )
+                if callable(workflow_revision_source) and callable(
+                    publication_lock_source
+                ):
+                    # Pause/config eligibility and its revision must be one
+                    # atomic observation. Reading enabled first and the token
+                    # second could pair a stale True with a post-pause token.
+                    with publication_lock_source():
+                        binding_enabled = binding.read_enabled_state()
+                        workflow_authority_revision = int(
+                            workflow_revision_source()
+                        )
+                else:
+                    binding_enabled = binding.read_enabled_state()
+                    if callable(workflow_revision_source):
+                        workflow_authority_revision = int(
+                            workflow_revision_source()
+                        )
             except Exception as exc:
                 logger.exception(
                     "Durable workflow pause authority read failed for %s",
@@ -2400,7 +2613,21 @@ class WorkflowRuntime:
                 excluded_projects[project_id] = exclusion_reason
                 continue
             try:
-                issues = self._issues(binding)
+                terminal_authority_revision = None
+                revision_source = binding.terminal_authority_revision_source
+                if callable(revision_source):
+                    # Capture before any tracker/fact I/O.  A terminal metadata
+                    # mutation anywhere in the ensuing corpus scan advances
+                    # this project-wide token and makes final publication
+                    # supersede instead of mixing generations.
+                    terminal_authority_revision = int(revision_source())
+                (
+                    issues,
+                    tracker_authority_revision,
+                    tracker_authority_mode,
+                ) = (
+                    self._issues_with_authority(binding)
+                )
                 task_issues = [
                     issue
                     for issue in issues
@@ -2553,6 +2780,16 @@ class WorkflowRuntime:
                         "domains": domains,
                         "expected": expected,
                         "evaluated": evaluated,
+                        "terminal_authority_revision": (
+                            terminal_authority_revision
+                        ),
+                        "tracker_authority_revision": (
+                            tracker_authority_revision
+                        ),
+                        "tracker_authority_mode": tracker_authority_mode,
+                        "workflow_authority_revision": (
+                            workflow_authority_revision
+                        ),
                     }
                 )
                 report["projects"][project_id] = {"issues": len(issues)}
@@ -2970,10 +3207,14 @@ class WorkflowRuntime:
                 )
 
             # Terminal-audit metadata and its workflow lane live in separate
-            # stores.  Revalidate every proof while holding the project's
-            # metadata write lock through the durable snapshot marker, so a
-            # pending-record replacement cannot race between proof and
-            # publication.
+            # stores. Production bindings capture project-wide authority
+            # revisions before source I/O, then retain the established
+            # project-before-job-store lock order through publication. The
+            # final native state-branch proofs are constant-time revision
+            # comparisons plus SQLite-only lane checks. Explicit legacy
+            # native mode performs at most one grouped corpus refresh; other
+            # unversioned trackers fail closed. Legacy/test terminal bindings
+            # without revision support retain the older exact proof fallback.
             terminal_publication_proofs: list[
                 tuple[WorkflowProjectBinding, WorkDecision, Mapping[str, Any], str]
             ] = []
@@ -3009,9 +3250,17 @@ class WorkflowRuntime:
                     and (
                         str(observed.get("request_state") or "")
                         in {"pending", "in_progress"}
-                        or isinstance(
-                            observed.get("terminal_provenance"),
-                            Mapping,
+                        or (
+                            isinstance(
+                                observed.get("terminal_provenance"),
+                                Mapping,
+                            )
+                            and (
+                                binding is None
+                                or not callable(
+                                    binding.terminal_authority_revision_source
+                                )
+                            )
                         )
                     )
                 ):
@@ -3033,66 +3282,236 @@ class WorkflowRuntime:
                         (binding, decision, observed, action)
                     )
 
-            with ExitStack() as publication_locks:
-                locked_projects: set[str] = set()
-                proof_bindings = [
-                    item[0] for item in terminal_publication_proofs
-                ] + [item[0] for item in terminal_snapshot_proofs]
-                for binding in sorted(
-                    proof_bindings, key=lambda item: item.project_id
+            proof_bindings = [
+                item[0] for item in terminal_publication_proofs
+            ] + [item[0] for item in terminal_snapshot_proofs]
+            unique_proof_bindings = {
+                binding.project_id: binding for binding in proof_bindings
+            }
+            prepared_by_project = {
+                str(item["project_id"]): item for item in prepared
+            }
+            unversioned_snapshot_counts: dict[str, int] = {}
+            for binding, _decision, _observed in terminal_snapshot_proofs:
+                if callable(binding.terminal_authority_revision_source):
+                    continue
+                count = unversioned_snapshot_counts.get(binding.project_id, 0) + 1
+                unversioned_snapshot_counts[binding.project_id] = count
+                if count > 1:
+                    raise WorkflowRuntimeError(
+                        "unversioned terminal-audit publication cannot prove "
+                        "multiple task snapshots without a grouped authority source"
+                    )
+            publication_bindings = dict(unique_proof_bindings)
+            for project_id, item in prepared_by_project.items():
+                binding = item["binding"]
+                if (
+                    (
+                        item.get("tracker_authority_revision") is not None
+                        and (
+                            item.get("tracker_authority_mode") == "legacy_digest"
+                            or callable(binding.tracker_authority_revision_source)
+                        )
+                    )
+                    or (
+                        item.get("terminal_authority_revision") is not None
+                        and callable(binding.terminal_authority_revision_source)
+                    )
+                    or (
+                        item.get("workflow_authority_revision") is not None
+                        and callable(binding.workflow_authority_revision_source)
+                    )
                 ):
-                    if binding.project_id in locked_projects:
-                        continue
-                    lock_source = binding.terminal_audit_publication_lock
-                    if not callable(lock_source):
-                        raise WorkflowRuntimeError(
-                            "terminal-audit publication lock is unavailable"
-                        )
-                    publication_locks.enter_context(lock_source())
-                    locked_projects.add(binding.project_id)
-                def publish_after_terminal_proof() -> WorkflowSnapshotPublication:
-                    # ``publish_snapshot_generation`` invokes this callback
-                    # after acquiring the cross-process authority guard and
-                    # opening its marker transaction.  Job claim/completion,
-                    # retry, failure, and cancellation therefore cannot race
-                    # this final proof-to-marker interval.
-                    for binding, decision, observed in terminal_snapshot_proofs:
-                        proof_source = (
-                            binding.terminal_audit_snapshot_proof_source
-                        )
-                        if not callable(proof_source):
-                            raise WorkflowRuntimeError(
-                                "terminal-audit snapshot proof is unavailable"
-                            )
-                        if not proof_source(decision, observed):
-                            raise WorkflowPublicationSuperseded(
-                                "terminal-audit disposition changed before "
-                                "publication"
-                            )
-                    for (
-                        binding,
-                        decision,
-                        observed,
-                        action,
-                    ) in terminal_publication_proofs:
-                        proof_source = binding.terminal_audit_proof_source
-                        if not callable(proof_source):
-                            raise WorkflowRuntimeError(
-                                "terminal-audit authority proof is unavailable"
-                            )
-                        if not proof_source(decision, observed, action):
-                            raise WorkflowPublicationSuperseded(
-                                "terminal-audit authority changed before publication"
-                            )
-                    return publish()
+                    publication_bindings[project_id] = binding
 
+            if not publication_bindings:
                 published, publication_result = (
                     self.store.publish_snapshot_generation(
                         generation,
-                        publish_after_terminal_proof,
+                        publish,
                         rollback_authority=rollback_authority,
                     )
                 )
+            else:
+                wait_started = time.monotonic()
+                first_lock_acquired: float | None = None
+                all_locks_acquired: float | None = None
+                superseded = False
+                try:
+                    with ExitStack() as publication_locks:
+                        for project_id in sorted(publication_bindings):
+                            binding = publication_bindings[project_id]
+                            lock_source = binding.terminal_audit_publication_lock
+                            if not callable(lock_source):
+                                raise WorkflowRuntimeError(
+                                    "terminal-audit publication lock is unavailable"
+                                )
+                            publication_locks.enter_context(lock_source())
+                            if first_lock_acquired is None:
+                                first_lock_acquired = time.monotonic()
+                        all_locks_acquired = time.monotonic()
+
+                        def publish_after_terminal_proof(
+                        ) -> WorkflowSnapshotPublication:
+                            nonlocal superseded
+                            for project_id, binding in sorted(
+                                publication_bindings.items()
+                            ):
+                                expected_tracker_revision = prepared_by_project[
+                                    project_id
+                                ].get("tracker_authority_revision")
+                                tracker_revision_source = (
+                                    binding.tracker_authority_revision_source
+                                )
+                                if expected_tracker_revision is not None:
+                                    tracker_authority_mode = prepared_by_project[
+                                        project_id
+                                    ].get("tracker_authority_mode")
+                                    if tracker_authority_mode == "legacy_digest":
+                                        (
+                                            _current_issues,
+                                            current_tracker_revision,
+                                            current_tracker_mode,
+                                        ) = self._issues_with_authority(binding)
+                                        if current_tracker_mode != "legacy_digest":
+                                            current_tracker_revision = None
+                                    else:
+                                        current_tracker_revision = (
+                                            tracker_revision_source()
+                                            if callable(tracker_revision_source)
+                                            else None
+                                        )
+                                        if isinstance(current_tracker_revision, str):
+                                            current_tracker_revision = (
+                                                current_tracker_revision.strip()
+                                            )
+                                        if (
+                                            not current_tracker_revision
+                                            or current_tracker_revision == "unavailable"
+                                            or str(current_tracker_revision).startswith(
+                                                "unavailable:"
+                                            )
+                                        ):
+                                            current_tracker_revision = None
+                                    if current_tracker_revision != expected_tracker_revision:
+                                        superseded = True
+                                        raise WorkflowPublicationSuperseded(
+                                            "tracker authority changed before publication"
+                                        )
+                                revision_source = (
+                                    binding.terminal_authority_revision_source
+                                )
+                                if callable(revision_source):
+                                    expected_revision = prepared_by_project[
+                                        project_id
+                                    ].get("terminal_authority_revision")
+                                    if (
+                                        expected_revision is None
+                                        or int(revision_source())
+                                        != int(expected_revision)
+                                    ):
+                                        superseded = True
+                                        raise WorkflowPublicationSuperseded(
+                                            "terminal-audit disposition changed "
+                                            "before publication"
+                                        )
+                                workflow_revision_source = (
+                                    binding.workflow_authority_revision_source
+                                )
+                                if callable(workflow_revision_source):
+                                    expected_workflow_revision = (
+                                        prepared_by_project[project_id].get(
+                                            "workflow_authority_revision"
+                                        )
+                                    )
+                                    if (
+                                        expected_workflow_revision is None
+                                        or int(workflow_revision_source())
+                                        != int(expected_workflow_revision)
+                                    ):
+                                        superseded = True
+                                        raise WorkflowPublicationSuperseded(
+                                            "workflow authority changed before "
+                                            "publication"
+                                        )
+
+                            # The store invokes this callback under its marker
+                            # transaction.  Project locks fence metadata; these
+                            # proofs touch only SQLite lane authority in native
+                            # production bindings, never tracker refresh I/O.
+                            for binding, decision, observed in terminal_snapshot_proofs:
+                                revision_source = (
+                                    binding.terminal_authority_revision_source
+                                )
+                                proof_source = (
+                                    binding.terminal_audit_lane_proof_source
+                                    if callable(revision_source)
+                                    else binding.terminal_audit_snapshot_proof_source
+                                )
+                                if not callable(proof_source):
+                                    raise WorkflowRuntimeError(
+                                        "terminal-audit snapshot proof is unavailable"
+                                    )
+                                accepted = (
+                                    proof_source(decision, observed, None)
+                                    if callable(revision_source)
+                                    else proof_source(decision, observed)
+                                )
+                                if not accepted:
+                                    superseded = True
+                                    raise WorkflowPublicationSuperseded(
+                                        "terminal-audit disposition changed before "
+                                        "publication"
+                                    )
+                            for binding, decision, observed, action in (
+                                terminal_publication_proofs
+                            ):
+                                revision_source = (
+                                    binding.terminal_authority_revision_source
+                                )
+                                proof_source = (
+                                    binding.terminal_audit_lane_proof_source
+                                    if callable(revision_source)
+                                    else binding.terminal_audit_proof_source
+                                )
+                                if not callable(proof_source):
+                                    raise WorkflowRuntimeError(
+                                        "terminal-audit authority proof is unavailable"
+                                    )
+                                if not proof_source(decision, observed, action):
+                                    superseded = True
+                                    raise WorkflowPublicationSuperseded(
+                                        "terminal-audit authority changed before "
+                                        "publication"
+                                    )
+                            return publish()
+
+                        published, publication_result = (
+                            self.store.publish_snapshot_generation(
+                                generation,
+                                publish_after_terminal_proof,
+                                rollback_authority=rollback_authority,
+                            )
+                        )
+                finally:
+                    # Record only after ExitStack releases every project lock:
+                    # metrics take the runtime lock and must never introduce a
+                    # project-lock -> runtime-lock ordering edge.
+                    released_at = time.monotonic()
+                    waited_until = (
+                        all_locks_acquired
+                        or first_lock_acquired
+                        or released_at
+                    )
+                    self._record_terminal_publication_lock_timing(
+                        wait_seconds=max(0.0, waited_until - wait_started),
+                        hold_seconds=max(
+                            0.0,
+                            released_at
+                            - (first_lock_acquired or released_at),
+                        ),
+                        superseded=superseded,
+                    )
             if not published:
                 reject_domains()
                 if self.store.snapshot_generation_is_current(generation):
@@ -3813,6 +4232,29 @@ class WorkflowRuntime:
             except Exception:  # noqa: BLE001 - observation cannot fail the job
                 logger.exception("Failed to publish durable workflow completion")
 
+    def _record_terminal_publication_lock_timing(
+        self,
+        *,
+        wait_seconds: float,
+        hold_seconds: float,
+        superseded: bool = False,
+    ) -> None:
+        """Record truthful final-CAS lock timing without affecting authority."""
+
+        wait = max(float(wait_seconds), 0.0)
+        hold = max(float(hold_seconds), 0.0)
+        with self._lock:
+            metrics = self._terminal_publication_lock_metrics
+            metrics["acquisitions"] = int(metrics["acquisitions"]) + 1
+            metrics["superseded"] = int(metrics["superseded"]) + int(superseded)
+            for prefix, value in (("wait", wait), ("hold", hold)):
+                total = f"{prefix}_seconds_total"
+                maximum = f"{prefix}_seconds_max"
+                last = f"{prefix}_seconds_last"
+                metrics[total] = float(metrics[total]) + value
+                metrics[maximum] = max(float(metrics[maximum]), value)
+                metrics[last] = value
+
     def _lifecycle_handlers(self) -> tuple[WorkflowActionHandler, ...]:
         """Return unique project-leaf handlers which may own background work."""
 
@@ -3970,6 +4412,9 @@ class WorkflowRuntime:
             last = dict(self._last_reconcile)
             admission_cut = self._admission_cut
             retained_effects = len(self._effect_tasks)
+            terminal_publication_lock = dict(
+                self._terminal_publication_lock_metrics
+            )
         controller_health = (
             self.liveness_controller.health_snapshot()
             if self.liveness_controller is not None
@@ -4013,6 +4458,7 @@ class WorkflowRuntime:
                 "retained": retained_effects,
                 "handlers_configured": self._handlers_configured,
             },
+            "terminal_publication_lock": terminal_publication_lock,
             "last_reconcile": last,
             "controller": controller_health,
             "liveness": (

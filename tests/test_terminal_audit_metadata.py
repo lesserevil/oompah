@@ -67,10 +67,21 @@ class _LockStore:
     def __init__(self) -> None:
         self._guard = threading.Lock()
         self._locks: dict[str, threading.RLock] = {}
+        self._revisions: dict[str, int] = {}
 
     def project_write_lock(self, project_id: str) -> threading.RLock:
         with self._guard:
             return self._locks.setdefault(project_id, threading.RLock())
+
+    def advance_terminal_authority_revision(self, project_id: str) -> int:
+        with self.project_write_lock(project_id):
+            revision = self._revisions.get(project_id, 0) + 1
+            self._revisions[project_id] = revision
+            return revision
+
+    def terminal_authority_revision(self, project_id: str) -> int:
+        with self.project_write_lock(project_id):
+            return self._revisions.get(project_id, 0)
 
 
 class _MemoryTracker:
@@ -203,12 +214,15 @@ class TestTerminalAuditMetadataContract:
 
     def test_unchanged_write_is_a_true_no_op(self) -> None:
         tracker = _MemoryTracker()
-        repository = TerminalAuditMetadataStore(tracker, _LockStore(), "proj-1")
+        locks = _LockStore()
+        repository = TerminalAuditMetadataStore(tracker, locks, "proj-1")
         document = TerminalAuditMetadata(pending_chain=[_record()])
 
         assert repository.write("TASK-1", document) is True
+        assert locks.terminal_authority_revision("proj-1") == 1
         assert repository.write("TASK-1", repository.read("TASK-1")) is False
         assert tracker.set_calls == 1
+        assert locks.terminal_authority_revision("proj-1") == 1
 
     def test_preserves_unknown_fields_in_document_and_nested_records(self) -> None:
         raw = TerminalAuditMetadata(

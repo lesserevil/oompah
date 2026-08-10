@@ -227,6 +227,17 @@ class TerminalAuditMetrics:
         self._validation_reuse_policy_invocations: dict[str, dict[str, str]] = {}
         self._validation_commands_in_flight: dict[str, dict[str, Any]] = {}
         self._completed_validation_invocations: set[str] = set()
+        self._control_lock: dict[str, Any] = {
+            "acquisitions": 0,
+            "timeouts": 0,
+            "wait_seconds_total": 0.0,
+            "wait_seconds_max": 0.0,
+            "wait_seconds_last": 0.0,
+            "hold_seconds_total": 0.0,
+            "hold_seconds_max": 0.0,
+            "hold_seconds_last": 0.0,
+            "last_project_id": None,
+        }
         self.persistence_corrupt = False
         self.persistence_error: str | None = None
         self._restore()
@@ -409,6 +420,34 @@ class TerminalAuditMetrics:
                         "invalid terminal-audit completed validation invocations"
                     )
                 self._completed_validation_invocations = set(completed)
+            raw_control_lock = raw.get("control_lock", {})
+            if not isinstance(raw_control_lock, Mapping):
+                raise ValueError("invalid terminal-audit control-lock metrics")
+            for name in ("acquisitions", "timeouts"):
+                value = raw_control_lock.get(name, 0)
+                if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                    raise ValueError("invalid terminal-audit control-lock counter")
+                self._control_lock[name] = value
+            for name in (
+                "wait_seconds_total",
+                "wait_seconds_max",
+                "wait_seconds_last",
+                "hold_seconds_total",
+                "hold_seconds_max",
+                "hold_seconds_last",
+            ):
+                value = raw_control_lock.get(name, 0.0)
+                if (
+                    isinstance(value, bool)
+                    or not isinstance(value, (int, float))
+                    or float(value) < 0
+                ):
+                    raise ValueError("invalid terminal-audit control-lock timing")
+                self._control_lock[name] = float(value)
+            last_project_id = raw_control_lock.get("last_project_id")
+            if last_project_id is not None and not isinstance(last_project_id, str):
+                raise ValueError("invalid terminal-audit control-lock project")
+            self._control_lock["last_project_id"] = last_project_id
         except Exception as exc:  # fail closed; never overwrite an unknown state document
             self.persistence_corrupt = True
             self.persistence_error = f"{type(exc).__name__}: {exc}"
@@ -454,6 +493,7 @@ class TerminalAuditMetrics:
                 for key, reason in self._no_candidate.items()
             ],
             "last_successful_audit_at": self._last_successful_audit_at,
+            "control_lock": copy.deepcopy(self._control_lock),
             "validation": {
                 "counters": dict(self._validation_counters),
                 "last_decision": copy.deepcopy(self._last_validation_decision),
@@ -847,6 +887,34 @@ class TerminalAuditMetrics:
         self._persist()
 
     @_synchronized
+    def record_control_lock_timing(
+        self,
+        project_id: str,
+        *,
+        wait_seconds: float,
+        hold_seconds: float,
+        timed_out: bool,
+    ) -> None:
+        """Record owner-control wait/hold latency at the mutation boundary."""
+
+        project = str(project_id or "").strip()
+        if not project:
+            raise ValueError("project_id must be a non-empty string")
+        wait = max(float(wait_seconds), 0.0)
+        hold = max(float(hold_seconds), 0.0)
+        metrics = self._control_lock
+        metrics["acquisitions"] += int(not timed_out)
+        metrics["timeouts"] += int(timed_out)
+        metrics["wait_seconds_total"] += wait
+        metrics["wait_seconds_max"] = max(metrics["wait_seconds_max"], wait)
+        metrics["wait_seconds_last"] = wait
+        metrics["hold_seconds_total"] += hold
+        metrics["hold_seconds_max"] = max(metrics["hold_seconds_max"], hold)
+        metrics["hold_seconds_last"] = hold
+        metrics["last_project_id"] = project
+        self._persist()
+
+    @_synchronized
     def record_grandfathered(self, project_id: str, task_id: str, audit_id: str) -> None:
         key = _identity(project_id, task_id, audit_id)
         self._count_once("grandfathered", key)
@@ -968,6 +1036,7 @@ class TerminalAuditMetrics:
             "last_successful_audit_at": self._last_successful_audit_at,
             "last_successful_audit_time": self._last_successful_audit_at,
             "last_successful_audit": self._last_successful_audit_at,
+            "control_lock": copy.deepcopy(self._control_lock),
             **self._validation_counters,
             "validation": {
                 "counters": dict(self._validation_counters),

@@ -42,6 +42,7 @@ from oompah.terminal_audit_metadata import (
 )
 from oompah.terminal_audit_observability import (
     AuditAlertCondition,
+    METRICS_STATE_KEY,
     TerminalAuditAlertRegistry,
     TerminalAuditMetrics,
     threshold_conditions,
@@ -153,6 +154,71 @@ def test_lifecycle_metrics_and_oldest_age_are_deterministic() -> None:
     assert snapshot["grandfathered"] == 1
     assert snapshot["no_independent_candidate"] == 1
     assert snapshot["last_successful_audit_at"] == now.isoformat()
+
+
+def test_control_lock_metrics_persist_restore_and_shape() -> None:
+    persisted: dict = {}
+    first = TerminalAuditMetrics(
+        load_state=lambda: persisted,
+        save_state=lambda update: persisted.update(update),
+    )
+    first.record_control_lock_timing(
+        "project-a",
+        wait_seconds=0.25,
+        hold_seconds=0.5,
+        timed_out=False,
+    )
+    first.record_control_lock_timing(
+        "project-b",
+        wait_seconds=0.75,
+        hold_seconds=0.0,
+        timed_out=True,
+    )
+
+    expected = {
+        "acquisitions": 1,
+        "timeouts": 1,
+        "wait_seconds_total": 1.0,
+        "wait_seconds_max": 0.75,
+        "wait_seconds_last": 0.75,
+        "hold_seconds_total": 0.5,
+        "hold_seconds_max": 0.5,
+        "hold_seconds_last": 0.0,
+        "last_project_id": "project-b",
+    }
+    assert first.snapshot()["control_lock"] == expected
+
+    restarted = TerminalAuditMetrics(
+        load_state=lambda: persisted,
+        save_state=lambda update: persisted.update(update),
+    )
+    assert restarted.snapshot()["control_lock"] == expected
+    assert restarted.persistence_corrupt is False
+
+
+def test_pre_control_lock_metrics_restore_with_zero_defaults() -> None:
+    persisted: dict = {}
+    first = TerminalAuditMetrics(
+        load_state=lambda: persisted,
+        save_state=lambda update: persisted.update(update),
+    )
+    first.record_queued("project-a", "TASK-1", "audit-1")
+    persisted[METRICS_STATE_KEY].pop("control_lock")
+
+    restarted = TerminalAuditMetrics(load_state=lambda: persisted)
+
+    assert restarted.persistence_corrupt is False
+    assert restarted.snapshot()["control_lock"] == {
+        "acquisitions": 0,
+        "timeouts": 0,
+        "wait_seconds_total": 0.0,
+        "wait_seconds_max": 0.0,
+        "wait_seconds_last": 0.0,
+        "hold_seconds_total": 0.0,
+        "hold_seconds_max": 0.0,
+        "hold_seconds_last": 0.0,
+        "last_project_id": None,
+    }
 
 
 def test_queue_age_and_project_isolation_survive_restart() -> None:

@@ -119,6 +119,7 @@ class TestServiceConfig:
         assert cfg.merged_labels_max_runtime_seconds == 15
         assert cfg.workflow_runtime_max_concurrent == 4
         assert cfg.workflow_runtime_control_reserved_slots == 1
+        assert cfg.terminal_control_lock_timeout_seconds == 5.0
         assert cfg.workflow_quarantine_recycle_seconds == 60.0
         assert cfg.close_gate_enabled is True
         assert cfg.container_cycle_repair_enabled is True
@@ -140,6 +141,9 @@ class TestServiceConfig:
             "OOMPAH_WORKFLOW_RUNTIME_CONTROL_RESERVED_SLOTS", "2"
         )
         monkeypatch.setenv("OOMPAH_WORKFLOW_QUARANTINE_RECYCLE_SECONDS", "17.5")
+        monkeypatch.setenv(
+            "OOMPAH_TERMINAL_CONTROL_LOCK_TIMEOUT_SECONDS", "2.5"
+        )
 
         cfg = ServiceConfig.from_workflow(
             WorkflowDefinition(config={}, prompt_template="test")
@@ -148,6 +152,7 @@ class TestServiceConfig:
         assert cfg.workflow_runtime_max_concurrent == 7
         assert cfg.workflow_runtime_control_reserved_slots == 2
         assert cfg.workflow_quarantine_recycle_seconds == 17.5
+        assert cfg.terminal_control_lock_timeout_seconds == 2.5
 
     def test_workflow_runtime_effect_lanes_keep_both_lane_classes(self):
         minimum = ServiceConfig(
@@ -166,6 +171,9 @@ class TestServiceConfig:
         assert ServiceConfig(
             workflow_quarantine_recycle_seconds=0
         ).workflow_quarantine_recycle_seconds == 0.1
+        assert ServiceConfig(
+            terminal_control_lock_timeout_seconds=0
+        ).terminal_control_lock_timeout_seconds == 0.1
 
     def test_container_cycle_repair_policy_comes_from_environment(self, monkeypatch):
         monkeypatch.setenv("OOMPAH_CONTAINER_CYCLE_REPAIR_ENABLED", "false")

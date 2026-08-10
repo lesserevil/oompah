@@ -44,6 +44,7 @@ from oompah.terminal_transition_coordinator import (
     OverrideRejection,
     ResultRejection,
     TerminalTransitionCoordinator,
+    TerminalTransitionBusyError,
     TransitionResult,
     _build_new_entries,
     accepted_audit_recovery_action,
@@ -243,6 +244,9 @@ class _MetricsRecorder:
     def clear_actionable_alert(self, *args: Any, **_kwargs: Any) -> None:
         self.calls.append(("clear_actionable_alert", args))
 
+    def record_control_lock_timing(self, *args: Any, **kwargs: Any) -> None:
+        self.calls.append(("control_lock", (*args, kwargs)))
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -318,6 +322,72 @@ def _coordinator(
 def _run(coro):
     """Run a coroutine in a new event loop."""
     return asyncio.run(coro)
+
+
+def test_owner_control_lock_timeout_is_bounded_and_never_runs_mutation():
+    tracker = _MemoryTracker()
+    locks = _LockStore()
+    metrics = _MetricsRecorder()
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=locks,
+        metrics=metrics,
+        owner_control_lock_timeout_seconds=0.02,
+    )
+    project_lock = locks.project_write_lock(PROJECT_ID)
+
+    with project_lock:
+        started = time.monotonic()
+        with pytest.raises(TerminalTransitionBusyError):
+            _run(
+                coordinator.override_transition(
+                    current_issue=_issue(IN_VALIDATION),
+                    requested_target=TargetState.DONE,
+                    authorized_actor=ContributorIdentity("owner", "api"),
+                    project_id=PROJECT_ID,
+                    evidence_fingerprint=_fingerprint(),
+                    reason="Owner accepts this exact revision.",
+                    project=SimpleNamespace(tracker_owner="owner"),
+                )
+            )
+        elapsed = time.monotonic() - started
+
+    assert elapsed < 0.5
+    assert tracker.get_metadata(TASK_ID) == {}
+    timing = [call for call in metrics.calls if call[0] == "control_lock"]
+    assert len(timing) == 1
+    assert timing[0][1][-1]["timed_out"] is True
+
+
+def test_automatic_transition_serialization_waits_instead_of_dropping_mutation():
+    locks = _LockStore()
+    coordinator = TerminalTransitionCoordinator(
+        tracker=_MemoryTracker(),
+        project_store=locks,
+        owner_control_lock_timeout_seconds=0.02,
+    )
+    project_lock = locks.project_write_lock(PROJECT_ID)
+    operation_ran = threading.Event()
+    completed = threading.Event()
+
+    def automatic_transition():
+        coordinator._run_project_serialized(
+            PROJECT_ID,
+            lambda: operation_ran.set(),
+        )
+        completed.set()
+
+    with project_lock:
+        worker = threading.Thread(target=automatic_transition)
+        worker.start()
+        time.sleep(0.05)
+        assert operation_ran.is_set() is False
+        assert completed.is_set() is False
+
+    worker.join(timeout=1)
+    assert not worker.is_alive()
+    assert operation_ran.is_set() is True
+    assert completed.is_set() is True
 
 
 def _completed_done_record(project_id: str = PROJECT_ID, task_id: str = TASK_ID) -> TerminalAuditRecord:

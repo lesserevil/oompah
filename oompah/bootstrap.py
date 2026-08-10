@@ -410,6 +410,9 @@ async def setup_services(
         revoke_auditor_authority=orchestrator._revoke_auditor_authority,
         clear_audit_alert=orchestrator.clear_terminal_audit_alert,
         validate_terminal_transition=orchestrator._validate_terminal_transition,
+        owner_control_lock_timeout_seconds=(
+            config.terminal_control_lock_timeout_seconds
+        ),
     )
     terminal_transition_coordinator.set_metrics(
         orchestrator._terminal_audit_metrics
