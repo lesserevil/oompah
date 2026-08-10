@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T02:42:39.740073Z'
-updated_at: '2026-08-10T03:15:12.797567Z'
+updated_at: '2026-08-10T04:03:27.320188Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-10 03:15
 ---
 Direct-owner implementation remains active on branch OOMPAH-981. End-to-end post-parent landing routing is implemented and expanded race/restart/direct-delivery regressions are being completed before review. No product blocker is outstanding.
+---
+author: oompah
+created: 2026-08-10 04:03
+---
+Implementation pushed at ca2a1dc03 on branch OOMPAH-981. Validation: 403 tests passed across standalone delivery, integration workflow, epic rollup, workflow facts, and work decisions; 441 tests passed across worker submission, task handoff, integration records, workflow runtime, and project-store coverage. Focused Ruff critical-error rules (E9,F63,F7,F82), py_compile, git diff --check, commit hooks, gitleaks, and paranoid secret scan passed. Independent race review approved the final issue→project→queue lock order, tracker-first bidirectional compensation, partial-write restart recovery, exact pre-forge route callback, and parent-safe no-op persistence with no remaining blockers.
 ---
 <!-- COMMENTS:END -->
