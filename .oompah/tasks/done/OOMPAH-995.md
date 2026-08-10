@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T10:52:35.641259Z'
-updated_at: '2026-08-10T15:40:53.505171Z'
+updated_at: '2026-08-10T15:41:00.263394Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,7 +40,17 @@ oompah.terminal_audit:
     created_at: '2026-08-10T15:40:46.903841+00:00'
     selected_ref: origin/OOMPAH-995
     selected_sha: c57295dce36f0d0a529aef5b6c9f904ec343af6d
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-995
+    target_state: Done
+    evidence_fingerprint: ddd78a1176e804f72ad080fa150040718b71142804e515fd552a271ed0404008
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T15:40:58.515798+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -76,5 +86,12 @@ author: oompah
 created: 2026-08-10 11:21
 ---
 Replacement head c57295dce36f0d0a529aef5b6c9f904ec343af6d was independently reviewed and integrated into the shared OOMPAH-989 branch as commits 6e3d69765 and 277b833cc. Five focused cross-lock/publication barrier tests pass on the integrated head. The clean pushed child worktree has been pruned; the child remains In Progress pending the shared PR landing.
+---
+author: oompah
+created: 2026-08-10 15:40
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: PR #798 merged as 2ab880be5; parent OOMPAH-992 is authoritatively terminal; contained 6e3d69765 and 277b833cc are aggregate-patch-identical to reviewed OOMPAH-995 branch through c57295dce. Recording shared-child completion as Done because no separate parent review record exists.
 ---
 <!-- COMMENTS:END -->
