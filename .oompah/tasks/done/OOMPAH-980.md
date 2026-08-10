@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T01:42:03.823626Z'
-updated_at: '2026-08-10T02:37:14.405199Z'
+updated_at: '2026-08-10T02:37:34.850015Z'
 work_branch: OOMPAH-980
 target_branch: null
 review_url: null
@@ -67,7 +67,19 @@ oompah.terminal_audit:
     created_at: '2026-08-10T02:37:09.928178+00:00'
     selected_ref: 10f586bbcdd87287f486906840e4a5405de4bddd
     selected_sha: 10f586bbcdd87287f486906840e4a5405de4bddd
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-980
+    target_state: Done
+    evidence_fingerprint: 3e8483858cb6678a11d1ad45db692f279d49ed26910557e96c6f56631b4c52a4
+    audit_ids:
+    - audit-cd3df7f6baa7
+    - audit-aca2a9199109
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T02:37:19.848449+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -75,7 +87,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-980
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -105,13 +117,13 @@ oompah.terminal_audit:
     created_at: '2026-08-10T02:33:48.003361+00:00'
     selected_ref: 10f586bbcdd87287f486906840e4a5405de4bddd
     selected_sha: 10f586bbcdd87287f486906840e4a5405de4bddd
-    updated_at: '2026-08-10T02:35:56.041902+00:00'
+    updated_at: '2026-08-10T02:37:19.848403+00:00'
   - version: 1
     audit_id: audit-aca2a9199109
     project_id: proj-14849f1b
     task_id: OOMPAH-980
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -126,6 +138,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T02:33:48.003361+00:00'
     selected_ref: 10f586bbcdd87287f486906840e4a5405de4bddd
     selected_sha: 10f586bbcdd87287f486906840e4a5405de4bddd
+    updated_at: '2026-08-10T02:37:19.848433+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a15f133bdfd2
@@ -142,6 +155,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-980
     selected_ref: 10f586bbcdd87287f486906840e4a5405de4bddd
     selected_sha: 10f586bbcdd87287f486906840e4a5405de4bddd
+oompah.task_costs:
+  total_input_tokens: 64
+  total_output_tokens: 7
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 64
+      output_tokens: 7
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 64
+    output_tokens: 7
+    cost_usd: 0.0
+    recorded_at: '2026-08-10T02:37:23.009546+00:00'
 ---
 ## Summary
 
@@ -189,5 +218,27 @@ author: oompah
 created: 2026-08-10 02:36
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-10 02:37
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner completion override: exact head 10f586bbcdd87287f486906840e4a5405de4bddd passed the complete local gate with 19,279 tests and protected Python 3.11, 3.12, and 3.13 CI, independent review approved, and PR 789 landed main at 2dde7ad8734542a056e45e1fb5d52fff8204b9fb. The automatic audit was cancelled to avoid rerunning the same twenty-minute full gate while the post-landed epic routing workaround is active.
+---
+author: oompah
+created: 2026-08-10 02:37
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 3
+- Tokens: 64 in / 7 out [71 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 23s
+- Log: OOMPAH-980__20260810T023609Z.jsonl
+---
+author: oompah
+created: 2026-08-10 02:37
+---
+Owner-verified exact gate and protected CI evidence applied after direct-main landing; implementation is complete.
 ---
 <!-- COMMENTS:END -->
