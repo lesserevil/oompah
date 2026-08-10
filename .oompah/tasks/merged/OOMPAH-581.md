@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-10T01:10:18.702715Z'
+updated_at: '2026-08-10T01:10:32.266896Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -295,6 +295,30 @@ oompah.terminal_audit:
     selected_ref: f2b319c1182cd654112db622a0498171e508dead
     selected_sha: f2b319c1182cd654112db622a0498171e508dead
     applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Historical audited Done work is complete, but current parent-landing evidence
+      cannot be reconstructed safely enough to promote it to Merged; retain immutable
+      terminal provenance and retire reassessment.
+    marked_at: '2026-08-10T01:10:30.778957+00:00'
+    updated_at: '2026-08-10T01:10:30.778957+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Historical audited Done work is complete, but current parent-landing
+        evidence cannot be reconstructed safely enough to promote it to Merged; retain
+        immutable terminal provenance and retire reassessment.
+      recorded_at: '2026-08-10T01:10:30.778957+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1

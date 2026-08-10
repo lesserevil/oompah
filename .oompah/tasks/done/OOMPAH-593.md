@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-08-03T20:03:19.296423Z'
+updated_at: '2026-08-10T01:10:26.957025Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -237,6 +237,30 @@ oompah.terminal_audit:
     done_audit_ids:
     - audit-83e35cd1eb7b
     created_at: '2026-08-03T20:03:16.955951+00:00'
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Historical audited Done work is complete, but current parent-landing evidence
+      cannot be reconstructed safely enough to promote it to Merged; retain immutable
+      terminal provenance and retire reassessment.
+    marked_at: '2026-08-10T01:10:25.516987+00:00'
+    updated_at: '2026-08-10T01:10:25.516987+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Historical audited Done work is complete, but current parent-landing
+        evidence cannot be reconstructed safely enough to promote it to Merged; retain
+        immutable terminal provenance and retire reassessment.
+      recorded_at: '2026-08-10T01:10:25.516987+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -285,6 +309,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T16:26:40.994270+00:00'
     updated_at: '2026-07-30T18:13:28.931384+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-d1990b4a35cf
     project_id: proj-14849f1b
@@ -331,6 +356,7 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-30T18:16:15.292504+00:00'
     updated_at: '2026-07-30T19:34:16.475173+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-83e35cd1eb7b
     project_id: proj-14849f1b
@@ -365,6 +391,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T23:06:31.783803+00:00'
     updated_at: '2026-07-30T23:10:57.452737+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-4db44537a773

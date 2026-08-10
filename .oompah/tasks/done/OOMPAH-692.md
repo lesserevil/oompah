@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-03T20:05:31.652993Z'
+updated_at: '2026-08-10T01:10:36.027316Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -220,6 +220,30 @@ oompah.terminal_audit:
     done_audit_ids:
     - audit-e8e382c35f09
     created_at: '2026-08-03T20:05:29.122889+00:00'
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Historical audited Done work is complete, but current parent-landing evidence
+      cannot be reconstructed safely enough to promote it to Merged; retain immutable
+      terminal provenance and retire reassessment.
+    marked_at: '2026-08-10T01:10:34.511087+00:00'
+    updated_at: '2026-08-10T01:10:34.511087+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Historical audited Done work is complete, but current parent-landing
+        evidence cannot be reconstructed safely enough to promote it to Merged; retain
+        immutable terminal provenance and retire reassessment.
+      recorded_at: '2026-08-10T01:10:34.511087+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -256,6 +280,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-08-02T03:21:41.001783+00:00'
     updated_at: '2026-08-02T03:30:12.546060+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-9ddb2ea9be9f
     project_id: proj-14849f1b
@@ -273,6 +298,7 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Done
     created_at: '2026-08-02T07:26:31.490591+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-ff093565657d
     project_id: proj-14849f1b
@@ -307,6 +333,7 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-08-02T16:18:58.695264+00:00'
     updated_at: '2026-08-03T20:05:29.122889+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-516c4b5a5b7d
