@@ -43,6 +43,31 @@ class _ProcessRecord:
     argv: tuple[str, ...]
 
 
+def _same_process(current: ProcessIdentity, expected: ProcessIdentity) -> bool:
+    """Compare the stable kernel fields that protect against PID reuse."""
+
+    return (
+        current.pid == expected.pid
+        and current.starttime == expected.starttime
+    )
+
+
+def _same_root_route(current: ProcessIdentity, expected: ProcessIdentity) -> bool:
+    """Validate broad-signaling authority for a captured root process."""
+
+    cwd_matches = (
+        current.cwd is None
+        or expected.cwd is None
+        or current.cwd == expected.cwd
+    )
+    return (
+        _same_process(current, expected)
+        and current.process_group == expected.process_group
+        and current.session == expected.session
+        and cwd_matches
+    )
+
+
 def _linux_process_record(pid: int) -> _ProcessRecord | None:
     """Return one procfs record without scanning unrelated processes."""
 
@@ -103,51 +128,192 @@ def _linux_process_snapshot() -> dict[int, _ProcessRecord]:
     return snapshot
 
 
-def _linux_descendant_records(root_pid: int) -> dict[int, _ProcessRecord]:
-    """Return descendants of *root_pid* without scanning host-wide procfs.
+def _capture_linux_descendants(
+    expected_root: ProcessIdentity,
+    *,
+    deadline: float | None = None,
+) -> tuple[dict[int, _ProcessRecord], bool]:
+    """Capture one exact process tree and whether the walk was complete.
 
     Linux exposes each thread's direct children in procfs.  Walking those
     files keeps lifecycle cleanup proportional to the owned process tree;
     scanning every host PID can exceed bounded shutdown budgets on shared CI
-    runners and busy production hosts.
+    runners and busy production hosts.  Every parent is revalidated around
+    its children read so PID reuse cannot introduce an unrelated subtree.
     """
 
     if os.name != "posix" or not os.path.isdir("/proc"):
-        return {}
+        return {}, False
 
-    descendants: dict[int, _ProcessRecord] = {}
-    frontier = {int(root_pid)}
+    records: dict[int, _ProcessRecord] = {}
+    frontier = {expected_root.pid: expected_root}
     while frontier:
-        next_frontier: set[int] = set()
-        for parent_pid in frontier:
+        if deadline is not None and time.monotonic() >= deadline:
+            return records, False
+        next_frontier: dict[int, ProcessIdentity] = {}
+        for parent_pid, expected_parent in frontier.items():
+            if deadline is not None and time.monotonic() >= deadline:
+                return records, False
+            before = _linux_process_record(parent_pid)
+            if before is None or not _same_process(
+                before.identity,
+                expected_parent,
+            ):
+                return records, False
+            records.setdefault(parent_pid, before)
             task_root = Path(f"/proc/{parent_pid}/task")
             try:
                 task_ids = [
                     value for value in os.listdir(task_root) if value.isdigit()
                 ]
             except OSError:
-                continue
+                return records, False
             child_pids: set[int] = set()
             for task_id in task_ids:
+                if deadline is not None and time.monotonic() >= deadline:
+                    return records, False
                 try:
                     raw_children = (task_root / task_id / "children").read_text(
                         encoding="utf-8"
                     )
                 except OSError:
-                    continue
+                    return records, False
                 for raw_pid in raw_children.split():
                     if raw_pid.isdigit():
                         child_pids.add(int(raw_pid))
+            after = _linux_process_record(parent_pid)
+            if after is None or not _same_process(
+                after.identity,
+                expected_parent,
+            ):
+                return records, False
+            records[parent_pid] = after
             for child_pid in child_pids:
-                if child_pid == root_pid or child_pid in descendants:
+                if deadline is not None and time.monotonic() >= deadline:
+                    return records, False
+                if child_pid == expected_root.pid or child_pid in records:
                     continue
                 record = _linux_process_record(child_pid)
                 if record is None:
-                    continue
-                descendants[child_pid] = record
-                next_frontier.add(child_pid)
+                    return records, False
+                if record.ppid != parent_pid:
+                    return records, False
+                records[child_pid] = record
+                next_frontier[child_pid] = record.identity
         frontier = next_frontier
-    return descendants
+    return records, True
+
+
+def _linux_descendant_records(
+    root_pid: int,
+    *,
+    deadline: float | None = None,
+) -> dict[int, _ProcessRecord]:
+    """Compatibility wrapper returning descendants of the observed root."""
+
+    root = _linux_process_record(root_pid)
+    if root is None:
+        return {}
+    records, _complete = _capture_linux_descendants(
+        root.identity,
+        deadline=deadline,
+    )
+    records.pop(root_pid, None)
+    return records
+
+
+async def _bounded_descendant_capture(
+    expected_root: ProcessIdentity,
+    *,
+    deadline: float,
+) -> tuple[dict[int, _ProcessRecord], bool]:
+    """Run a read-only procfs walk within one event-loop deadline."""
+
+    loop = asyncio.get_running_loop()
+    remaining = max(deadline - loop.time(), 0.0)
+    if remaining <= 0:
+        return {}, False
+    proc_deadline = time.monotonic() + remaining
+    worker = asyncio.create_task(
+        asyncio.to_thread(
+            _capture_linux_descendants,
+            expected_root,
+            deadline=proc_deadline,
+        )
+    )
+
+    def _consume_late_result(task: asyncio.Task) -> None:
+        try:
+            task.result()
+        except (asyncio.CancelledError, Exception):
+            pass
+
+    try:
+        async with asyncio.timeout_at(deadline):
+            return await asyncio.shield(worker)
+    except TimeoutError:
+        worker.add_done_callback(_consume_late_result)
+        return {}, False
+    except asyncio.CancelledError:
+        worker.add_done_callback(_consume_late_result)
+        raise
+
+
+def _capture_live_processes(
+    captured: dict[int, ProcessIdentity],
+    *,
+    deadline: float,
+) -> tuple[dict[int, _ProcessRecord], bool]:
+    """Read exact live identities without exceeding a monotonic deadline."""
+
+    live: dict[int, _ProcessRecord] = {}
+    for pid, expected in captured.items():
+        if time.monotonic() >= deadline:
+            return live, False
+        record = _linux_process_record(pid)
+        # Check after every procfs read, including the last one.  A result that
+        # arrived outside the budget is never signaling authority.
+        if time.monotonic() >= deadline:
+            return live, False
+        if record is not None and _same_process(record.identity, expected):
+            live[pid] = record
+    return live, True
+
+
+async def _bounded_live_capture(
+    captured: dict[int, ProcessIdentity],
+    *,
+    deadline: float,
+) -> tuple[dict[int, _ProcessRecord], bool]:
+    """Run one read-only live-identity snapshot behind a loop deadline."""
+
+    loop = asyncio.get_running_loop()
+    remaining = max(deadline - loop.time(), 0.0)
+    if remaining <= 0:
+        return {}, False
+    worker = asyncio.create_task(
+        asyncio.to_thread(
+            _capture_live_processes,
+            dict(captured),
+            deadline=time.monotonic() + remaining,
+        )
+    )
+
+    def _consume_late_result(task: asyncio.Task) -> None:
+        try:
+            task.result()
+        except (asyncio.CancelledError, Exception):
+            pass
+
+    try:
+        async with asyncio.timeout_at(deadline):
+            return await asyncio.shield(worker)
+    except TimeoutError:
+        worker.add_done_callback(_consume_late_result)
+        return {}, False
+    except asyncio.CancelledError:
+        worker.add_done_callback(_consume_late_result)
+        raise
 
 
 def capture_workspace_processes(
@@ -224,7 +390,7 @@ def terminate_captured_processes(
         if record is None:
             return False
         if isinstance(expected, ProcessIdentity):
-            return record.identity == expected
+            return _same_process(record.identity, expected)
         return record.identity.starttime == int(expected)
 
     # Include children created in the narrow interval between the orchestrator's
@@ -334,6 +500,7 @@ class AgentSession:
         self._transport_contacted = False
         self._transport_starting = False
         self._stop_requested = False
+        self._stop_lock = asyncio.Lock()
 
     @property
     def transport_contacted(self) -> bool:
@@ -437,7 +604,7 @@ class AgentSession:
             self._transport_starting = True
             try:
                 process_args = ["bash", "-lc", self.command]
-                self._process = await asyncio.create_subprocess_exec(
+                process = await asyncio.create_subprocess_exec(
                     *process_args,
                     cwd=self.workspace_path,
                     stdin=asyncio.subprocess.PIPE,
@@ -448,6 +615,23 @@ class AgentSession:
                 )
             finally:
                 self._transport_starting = False
+            # Publish the process and register its stderr reader without an
+            # intervening await, so a racing stop always observes both.
+            self._process = process
+            self._stderr_task = asyncio.create_task(self._drain_stderr())
+            if process.pid is not None:
+                record = _linux_process_record(process.pid)
+                if record is not None:
+                    expected_cwd = os.path.realpath(self.workspace_path)
+                    if record.identity.cwd in {None, expected_cwd}:
+                        observed = record.identity
+                        self._process_identity = ProcessIdentity(
+                            pid=observed.pid,
+                            starttime=observed.starttime,
+                            process_group=observed.process_group,
+                            session=observed.session,
+                            cwd=expected_cwd,
+                        )
             self._transport_contacted = True
             self._transport_admitted = False
             if self.on_transport_contact is not None:
@@ -476,19 +660,6 @@ class AgentSession:
         except Exception:
             self._cancel_precontact_admission()
             raise
-
-        # Capture the kernel identity immediately after creation.  A delayed
-        # stop must never trust the PID after the child has exited and the OS
-        # has reused it for another service.
-        if self._process.pid is not None:
-            record = _linux_process_record(self._process.pid)
-            if record is not None and record.identity.cwd == os.path.realpath(
-                self.workspace_path
-            ):
-                self._process_identity = record.identity
-
-        # Start draining stderr in the background
-        self._stderr_task = asyncio.create_task(self._drain_stderr())
 
     async def _drain_stderr(self) -> None:
         """Read and log stderr without treating it as protocol."""
@@ -777,166 +948,411 @@ class AgentSession:
                 self._cancel_precontact_admission()
             return
 
+        async with self._stop_lock:
+            await self._stop_locked(process, max(float(timeout_s), 0.0))
+
+    async def _stop_locked(
+        self,
+        process: asyncio.subprocess.Process,
+        timeout_s: float,
+    ) -> None:
+        """Stop one process tree while holding the session stop lock."""
+
         pid = process.pid
+        is_real_process = isinstance(process, asyncio.subprocess.Process)
         use_process_group = (
             os.name == "posix" and pid is not None and hasattr(os, "killpg")
         )
+        identity = self._process_identity
+        captured: dict[int, ProcessIdentity] = {}
+        captured_parents: dict[int, int] = {}
+        group_authorized = False
+        transport_closed = False
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        deadline = started + timeout_s
+        term_deadline = started + (timeout_s * 0.7)
+        kill_deadline = started + (timeout_s * 0.9)
+        capture_deadline = started + (timeout_s * 0.2)
+        capture_complete = not is_real_process
 
-        def _ownership_state() -> str:
-            """Return ``owned``, ``gone``, or ``mismatch`` for the child PID."""
-            if pid is None:
-                return "mismatch"
-            identity = self._process_identity
-            if identity is None:
-                # Mocked/non-Linux process handles do not expose procfs.  Keep
-                # the old fallback for test doubles.  Real subprocess handles
-                # without an identity are never safe to signal broadly.
-                return (
-                    "owned"
-                    if not isinstance(process, asyncio.subprocess.Process)
-                    else "mismatch"
-                )
-            record = _linux_process_record(pid)
-            if record is None:
-                # The original child exited.  Its asyncio Process handle still
-                # needs to observe that exit and close its pipe transports.
-                return "gone"
-            return (
-                "owned"
-                if record.identity == identity
-                and record.identity.cwd == os.path.realpath(self.workspace_path)
-                else "mismatch"
+        # Capture the exact tree once, before the first signal can sever its
+        # ancestry.  A missing launch identity remains fail-closed on Linux.
+        if is_real_process and identity is not None and pid is not None:
+            records, capture_complete = await _bounded_descendant_capture(
+                identity,
+                deadline=capture_deadline,
             )
+            root_record = records.pop(pid, None)
+            if root_record is not None and _same_process(
+                root_record.identity,
+                identity,
+            ):
+                captured[pid] = identity
+                captured.update(
+                    {
+                        child_pid: record.identity
+                        for child_pid, record in records.items()
+                    }
+                )
+                captured_parents.update(
+                    {
+                        child_pid: record.ppid
+                        for child_pid, record in records.items()
+                    }
+                )
+                group_authorized = (
+                    identity.process_group == pid
+                    and identity.session == pid
+                    and _same_root_route(root_record.identity, identity)
+                )
+            else:
+                capture_complete = False
 
-        def _owned_process() -> bool:
-            """Check PID, start time, session, group, and workspace."""
-            return _ownership_state() == "owned"
+        root_provenance = bool(pid is not None and pid in captured)
 
-        def _tree_is_running() -> bool:
-            ownership = _ownership_state()
-            if ownership == "mismatch":
+        async def _live_captured(
+            live_deadline: float,
+        ) -> tuple[dict[int, _ProcessRecord], bool]:
+            nonlocal capture_complete
+            live, complete = await _bounded_live_capture(
+                captured,
+                deadline=live_deadline,
+            )
+            capture_complete = capture_complete and complete
+            return live, complete
+
+        async def _refresh_live_descendants(
+            refresh_deadline: float,
+        ) -> None:
+            """Capture TERM-handler children from non-overlapping live roots."""
+
+            nonlocal capture_complete
+            live, _complete = await _live_captured(refresh_deadline)
+            live_pids = set(live)
+            roots = [
+                child_pid
+                for child_pid in live
+                if captured_parents.get(child_pid) not in live_pids
+            ]
+            for root_pid in roots:
+                if loop.time() >= refresh_deadline:
+                    capture_complete = False
+                    break
+                records, complete = await _bounded_descendant_capture(
+                    captured[root_pid],
+                    deadline=refresh_deadline,
+                )
+                capture_complete = capture_complete and complete
+                records.pop(root_pid, None)
+                for child_pid, record in records.items():
+                    captured.setdefault(child_pid, record.identity)
+                    captured_parents.setdefault(child_pid, record.ppid)
+
+        def _mock_tree_is_running() -> bool:
+            if process.returncode is not None:
                 return False
-            parent_running = process.returncode is None
-            if ownership == "gone":
-                # Do not signal a vanished identity, but keep the stop
-                # coroutine alive until asyncio reaps the exact child handle.
-                return parent_running
             if not use_process_group:
-                return parent_running
+                return True
             try:
                 os.killpg(pid, 0)
             except ProcessLookupError:
-                return parent_running
+                return False
             except PermissionError:
                 return True
             return True
 
-        def _signal_tree(sig: signal.Signals, *, force: bool = False) -> None:
-            # If the PID was reused, ownership is lost and no signal is safe.
-            if not _owned_process():
+        async def _signal_tree(
+            sig: signal.Signals,
+            operation_deadline: float,
+        ) -> None:
+            nonlocal capture_complete
+            if not is_real_process:
+                if use_process_group:
+                    try:
+                        os.killpg(pid, sig)
+                        return
+                    except ProcessLookupError:
+                        return
+                    except OSError:
+                        pass
+                try:
+                    if sig == getattr(signal, "SIGKILL", signal.SIGTERM):
+                        process.kill()
+                    else:
+                        process.terminate()
+                except ProcessLookupError:
+                    pass
+                return
+
+            live, _complete = await _live_captured(operation_deadline)
+            # Incompleteness means this is not a full liveness observation,
+            # but every returned record still passed the exact PID/starttime
+            # check.  Those records remain safe signaling authority; only an
+            # empty *complete* snapshot may prove retirement.
+            if not live:
                 logger.warning(
-                    "Refusing to signal unowned agent PID=%s workspace=%s",
+                    "Refusing to signal agent without an exact live identity "
+                    "pid=%s workspace=%s",
                     pid,
                     self.workspace_path,
                 )
                 return
-            if use_process_group:
+
+            group_signalled = False
+            if group_authorized and identity is not None:
+                group_id = identity.process_group
+                group_session = identity.session
+                group_anchor = any(
+                    record.identity.process_group == group_id
+                    and record.identity.session == group_session
+                    for record in live.values()
+                )
+                if group_anchor:
+                    try:
+                        os.killpg(group_id, sig)
+                        group_signalled = True
+                    except (ProcessLookupError, PermissionError):
+                        pass
+
+            # Stable PID/starttime ownership survives a descendant changing
+            # cwd, process group, or session in response to SIGTERM.
+            for child_pid, record in sorted(live.items(), reverse=True):
+                if (
+                    group_signalled
+                    and identity is not None
+                    and record.identity.process_group == identity.process_group
+                    and record.identity.session == identity.session
+                ):
+                    continue
                 try:
-                    identity = self._process_identity
-                    if identity is not None and (
-                        identity.process_group != pid or identity.session != pid
-                    ):
-                        logger.warning(
-                            "Refusing to signal agent group with unexpected "
-                            "identity pid=%s pgid=%s session=%s",
-                            pid,
-                            identity.process_group,
-                            identity.session,
-                        )
-                    else:
-                        os.killpg(pid, sig)
-                        return
-                except ProcessLookupError:
-                    return
-                except OSError as exc:
-                    logger.warning(
-                        "Failed to signal agent process group pgid=%s signal=%s: %s; "
-                        "falling back to the immediate process",
-                        pid,
-                        sig.name,
-                        exc,
-                    )
-            try:
-                if force:
-                    process.kill()
-                else:
-                    process.terminate()
-            except ProcessLookupError:
-                pass
+                    os.kill(child_pid, sig)
+                except (ProcessLookupError, PermissionError):
+                    continue
 
         async def _wait_until(deadline: float) -> bool:
-            while _tree_is_running():
+            nonlocal capture_complete
+            while True:
                 remaining = deadline - asyncio.get_running_loop().time()
                 if remaining <= 0:
                     return False
+                if not is_real_process:
+                    running = _mock_tree_is_running()
+                else:
+                    live, complete = await _live_captured(deadline)
+                    # An incomplete snapshot is uncertainty, not proof that
+                    # the process tree stopped.  Escalate while later phases
+                    # still have their independently reserved budgets.
+                    if not complete:
+                        return False
+                    running = bool(live)
+                if not running:
+                    return True
                 await asyncio.sleep(min(STOP_POLL_INTERVAL_S, remaining))
-            return True
 
-        async def _join_process_transport() -> None:
-            """Finish asyncio's exact child handle and stderr pipe task."""
+        async def _join_process_transport(deadline: float) -> bool:
+            """Join the child and stderr reader without exceeding *deadline*."""
 
             if not isinstance(process, asyncio.subprocess.Process):
-                return
-            if process.returncode is None:
-                return
-            await process.wait()
+                return True
+
+            nonlocal transport_closed
             stderr_task = self._stderr_task
-            if stderr_task is not None and stderr_task is not asyncio.current_task():
-                await asyncio.gather(stderr_task, return_exceptions=True)
-            # Pipe ``connection_lost`` callbacks may be queued by the final
-            # read; let them close before a short-lived test loop is torn down.
+
+            def _may_close() -> bool:
+                return process.returncode is not None or (
+                    root_provenance and capture_complete
+                )
+
+            def _close_transport() -> None:
+                nonlocal transport_closed
+                if transport_closed:
+                    return
+                transport = getattr(process, "_transport", None)
+                if transport is not None:
+                    transport.close()
+                    transport_closed = True
+
+            may_close = _may_close()
+            if (
+                may_close
+                and process.stdin is not None
+                and not process.stdin.is_closing()
+            ):
+                process.stdin.close()
+
+            async def _wait_process(wait_deadline: float) -> bool:
+                if process.returncode is not None and transport_closed:
+                    await asyncio.sleep(0)
+                if loop.time() >= wait_deadline:
+                    return False
+                try:
+                    async with asyncio.timeout_at(wait_deadline):
+                        await process.wait()
+                except TimeoutError:
+                    return False
+                return True
+
+            async def _wait_stderr(
+                wait_deadline: float,
+                *,
+                cancel: bool = False,
+            ) -> bool:
+                if stderr_task is None or stderr_task is asyncio.current_task():
+                    return True
+                if cancel and not stderr_task.done():
+                    stderr_task.cancel()
+                if not stderr_task.done() and loop.time() < wait_deadline:
+                    try:
+                        async with asyncio.timeout_at(wait_deadline):
+                            if cancel:
+                                await stderr_task
+                            else:
+                                await asyncio.shield(stderr_task)
+                    except TimeoutError:
+                        pass
+                    except asyncio.CancelledError:
+                        if not cancel and not stderr_task.cancelled():
+                            raise
+                if stderr_task.done():
+                    try:
+                        stderr_task.result()
+                    except (asyncio.CancelledError, Exception):
+                        pass
+                    return True
+                return False
+
+            join_started = loop.time()
+            remaining = max(deadline - join_started, 0.0)
+            probe_deadline = join_started + (remaining * 0.5)
+            completion_deadline = join_started + (remaining * 0.9)
+
+            # A published return code with a pending stderr reader is exactly
+            # the inherited-pipe case.  Close it before spending the budget.
+            if (
+                may_close
+                and stderr_task is not None
+                and not stderr_task.done()
+                and process.returncode is not None
+            ):
+                _close_transport()
+
+            process_done = await _wait_process(probe_deadline)
+            stderr_done = await _wait_stderr(probe_deadline)
+            may_close = _may_close()
+            if (not process_done or not stderr_done) and may_close:
+                _close_transport()
+                await asyncio.sleep(0)
+
+            if not process_done:
+                process_done = await _wait_process(completion_deadline)
+            if not stderr_done:
+                stderr_done = await _wait_stderr(completion_deadline)
+            may_close = _may_close()
+            if not stderr_done and may_close:
+                _close_transport()
+                await asyncio.sleep(0)
+            if not stderr_done and may_close:
+                stderr_done = await _wait_stderr(deadline, cancel=True)
+            if not process_done:
+                process_done = await _wait_process(deadline)
+
+            # Let final pipe connection_lost callbacks run before a short-lived
+            # test event loop is closed.
             await asyncio.sleep(0)
+            return process_done and stderr_done
 
-        timeout_s = max(float(timeout_s), 0.0)
-        if not _tree_is_running():
-            await _join_process_transport()
-            logger.info("Agent process stopped pid=%s", pid)
-            return
-
-        loop = asyncio.get_running_loop()
-        started = loop.time()
-        deadline = started + timeout_s
-        term_deadline = started + (timeout_s * 0.8)
+        stopped = False
+        transport_clean = False
 
         try:
-            _signal_tree(signal.SIGTERM)
-            stopped = await _wait_until(term_deadline)
-            if not stopped:
-                _signal_tree(
-                    getattr(signal, "SIGKILL", signal.SIGTERM),
-                    force=True,
-                )
-                stopped = await _wait_until(deadline)
-            if not stopped:
-                logger.warning(
-                    "Agent process tree did not exit within %.3fs pid=%s",
-                    timeout_s,
-                    pid,
-                )
+            if captured or not is_real_process:
+                stopped = not is_real_process and not _mock_tree_is_running()
+                if not stopped:
+                    await _signal_tree(signal.SIGTERM, term_deadline)
+                    stopped = await _wait_until(term_deadline)
+                    if not stopped:
+                        escalation_window = kill_deadline - term_deadline
+                        refresh_deadline = term_deadline + (
+                            escalation_window * 0.5
+                        )
+                        signal_deadline = term_deadline + (
+                            escalation_window * 0.8
+                        )
+                        await _refresh_live_descendants(refresh_deadline)
+                        await _signal_tree(
+                            getattr(signal, "SIGKILL", signal.SIGTERM),
+                            signal_deadline,
+                        )
+                        stopped = await _wait_until(kill_deadline)
+            transport_clean = await _join_process_transport(deadline)
         except asyncio.CancelledError:
-            # A caller enforcing its own deadline may cancel stop(). Make the
-            # cancellation itself a hard-stop request before propagating it.
-            _signal_tree(
-                getattr(signal, "SIGKILL", signal.SIGTERM),
-                force=True,
+            # Cancellation completes a bounded hard stop synchronously.  No
+            # private cleanup task is left behind for production callers.
+            hard_started = loop.time()
+            hard_budget = min(
+                max(timeout_s * 0.2, STOP_POLL_INTERVAL_S),
+                1.0,
             )
+            hard_deadline = hard_started + hard_budget
+            hard_refresh_deadline = hard_started + (hard_budget * 0.4)
+            hard_signal_deadline = hard_started + (hard_budget * 0.6)
+            hard_observe_deadline = hard_started + (hard_budget * 0.7)
+            await _refresh_live_descendants(hard_refresh_deadline)
+            await _signal_tree(
+                getattr(signal, "SIGKILL", signal.SIGTERM),
+                hard_signal_deadline,
+            )
+            stopped = await _wait_until(hard_observe_deadline)
+            transport_clean = await _join_process_transport(hard_deadline)
             raise
 
-        await _join_process_transport()
-        logger.info("Agent process stopped pid=%s", pid)
+        if is_real_process and not captured:
+            logger.warning(
+                "Agent identity provenance was unavailable; descendants may "
+                "remain pid=%s workspace=%s",
+                pid,
+                self.workspace_path,
+            )
+        elif not stopped:
+            logger.warning(
+                "Agent process tree did not exit within %.3fs pid=%s",
+                timeout_s,
+                pid,
+            )
+        if not capture_complete:
+            logger.warning(
+                "Agent descendant capture was incomplete pid=%s workspace=%s",
+                pid,
+                self.workspace_path,
+            )
+        if not transport_clean:
+            logger.warning(
+                "Agent process transport did not close within %.3fs pid=%s",
+                timeout_s,
+                pid,
+            )
+        retirement_complete = (
+            stopped
+            and transport_clean
+            and capture_complete
+            and (not is_real_process or bool(captured))
+        )
+        if retirement_complete:
+            logger.info("Agent process stopped pid=%s", pid)
+        else:
+            logger.warning(
+                "Agent process retirement incomplete pid=%s workspace=%s",
+                pid,
+                self.workspace_path,
+            )
 
-        # Clean up temporary worker runtime directory if one was created (OOMPAH-686)
-        if self._worker_runtime_dir:
+        # Preserve the established runtime-directory cleanup behavior only for
+        # a successful normal stop.  Pre-contact cleanup is a separate concern.
+        if (
+            self._worker_runtime_dir
+            and retirement_complete
+        ):
             self._cleanup_worker_runtime_dir()
 
     def _cleanup_worker_runtime_dir(self) -> None:

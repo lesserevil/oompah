@@ -1185,6 +1185,52 @@ class TestTerminateRunningWritesCostRecord:
         assert not _pid_exists(parent_pid)
         assert not _pid_exists(child_pid)
 
+    def test_cli_timeout_waits_for_hard_cleanup_acknowledgement(self, tmp_path):
+        """Retirement never relies on a one-tick stop cancellation assumption."""
+
+        orch, entry = self._make_orchestrator_with_running(tmp_path, "slow-cli")
+        orch.config.worker_termination_timeout_ms = 100
+        orch.state.claimed.add("slow-cli")
+        observed: dict[str, object] = {}
+
+        async def _run():
+            stderr_task = asyncio.create_task(asyncio.sleep(60))
+            process = MagicMock(returncode=None)
+            session = MagicMock(_process=process, _stderr_task=stderr_task)
+
+            async def _stop(*, timeout_s):
+                assert timeout_s == 0.1
+                observed["stop_task"] = asyncio.current_task()
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    # More than one scheduling point is required before the
+                    # hard cleanup can acknowledge completion.
+                    await asyncio.sleep(0.005)
+                    process.returncode = -signal.SIGKILL
+                    stderr_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await stderr_task
+                    raise
+
+            session.stop = _stop
+            orch._cli_agent_sessions["slow-cli"] = session
+            result = await orch._terminate_running(
+                "slow-cli",
+                cleanup_workspace=False,
+            )
+            return result, process, stderr_task
+
+        result, process, stderr_task = asyncio.run(_run())
+        stop_task = observed["stop_task"]
+
+        assert result is True
+        assert stop_task.done()
+        assert process.returncode == -signal.SIGKILL
+        assert stderr_task.done()
+        assert "slow-cli" not in orch.state.running
+        assert entry.retirement_pending is False
+
     def test_session_shutdown_failure_is_observable_and_does_not_block_cleanup(
         self,
         tmp_path,

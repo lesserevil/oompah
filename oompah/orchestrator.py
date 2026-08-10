@@ -66913,6 +66913,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 waitables.add(fenced_provider_start_task)
 
             session_stop_task: asyncio.Task | None = None
+            session_stop_acknowledged = True
             cli_session = getattr(self, "_cli_agent_sessions", {}).get(issue_id)
             if cli_session is not None:
                 session_timeout_s = timeout_s if timeout_s > 0 else 5.0
@@ -66955,9 +66956,24 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         entry.identifier,
                     )
                     session_stop_task.cancel()
-                    # Give AgentSession.stop() one scheduling point to turn its
-                    # cancellation into an immediate process-group SIGKILL.
-                    await asyncio.sleep(0)
+                    session_stop_acknowledged = False
+                    hard_timeout_s = min(
+                        max(session_timeout_s, 0.02),
+                        1.0,
+                    )
+                    hard_done, _ = await asyncio.wait(
+                        {session_stop_task},
+                        timeout=hard_timeout_s,
+                    )
+                    if session_stop_task in hard_done:
+                        session_stop_acknowledged = True
+                        done = set(done) | hard_done
+                    else:
+                        logger.error(
+                            "CLI agent hard cleanup did not acknowledge "
+                            "completion issue_identifier=%s",
+                            entry.identifier,
+                        )
                 if acp_stop_task in waitables and acp_stop_task not in done:
                     logger.warning(
                         "ACP agent session did not stop within %dms; forcing "
@@ -67017,6 +67033,15 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     entry.identifier,
                     sorted(survivors),
                     entry.workspace_path,
+                )
+                self._notify_observers()
+                return _termination_result(False)
+            if not session_stop_acknowledged:
+                entry.retirement_pending = True
+                logger.error(
+                    "Refusing to forget worker before CLI hard-cleanup "
+                    "acknowledgement issue_identifier=%s",
+                    entry.identifier,
                 )
                 self._notify_observers()
                 return _termination_result(False)
