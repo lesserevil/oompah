@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T19:36:11.713277Z'
-updated_at: '2026-08-10T20:27:29.931650Z'
-work_branch: null
+updated_at: '2026-08-10T20:27:35.693854Z'
+work_branch: OOMPAH-1004
 target_branch: null
 review_url: null
 review_number: null
@@ -33,6 +33,7 @@ oompah.integration:
   head_sha: 5d4439b495f17b3dc324d9bf339ccf57457af84a
   submitted_at: '2026-08-10T20:27:25.399860+00:00'
   updated_at: '2026-08-10T20:27:25.399860+00:00'
+oompah.work_branch: OOMPAH-1004
 ---
 ## Summary
 
@@ -52,5 +53,10 @@ author: oompah
 created: 2026-08-10 20:27
 ---
 Implementation is complete and pushed at exact head 5d4439b495f17b3dc324d9bf339ccf57457af84a. Dependency states now come from one canonical same-generation project corpus; missing, cross-project, and ambiguous dependencies fail closed; canonical alias collisions are rejected; cache invalidation is serialized with record/status materialization; and publication globally supersedes dependency-target changes while preserving scoped exclusion for unrelated audit churn. Validation: 563 focused tests plus 9 independent adversarial regressions passed, with terminal mutation, secret, diff, and attribution checks green.
+---
+author: oompah
+created: 2026-08-10 20:27
+---
+Resolve dependency status from authoritative same-generation workflow facts
 ---
 <!-- COMMENTS:END -->
