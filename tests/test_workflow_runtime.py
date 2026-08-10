@@ -6269,7 +6269,9 @@ def test_factory_rejects_duplicate_action_ownership(tmp_path):
     store.close()
 
 
-def test_enforce_runtime_refreshes_remote_target_before_landing_decision(tmp_path):
+def test_enforce_runtime_refreshes_remote_target_before_landing_decision(
+    tmp_path, monkeypatch
+):
     origin = tmp_path / "origin.git"
     repo = tmp_path / "repo"
     subprocess.run(["git", "init", "--bare", str(origin)], check=True)
@@ -6363,9 +6365,6 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(tmp_pat
         state="In Review",
         project_id="project-1",
         issue_type="epic",
-        work_branch="epic-TOP",
-        target_branch="main",
-        head_sha=epic_head,
     )
     # A rollup with no children is intentionally not auto-close eligible even
     # when its own branch is landed.  Include an explicitly abandoned direct
@@ -6504,11 +6503,55 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(tmp_pat
         reason_code="terminal.immediate_target_landing_proven",
         idempotency_key="auto-close-guard-projection",
         originating_job="epic-auto-close-job",
+        exact_head=epic_head,
         precondition_revision=decision.evidence_revision,
     )
 
     assert guard(intent) is None
     assert binding.epic_controller._latest == {"UNRELATED": sentinel}
+    mismatched_epic_intent = TransitionIntent(
+        **{
+            **intent.to_dict(),
+            "exact_head": "f" * 40,
+        }
+    )
+    assert guard(mismatched_epic_intent) == "epic canonical landing head changed"
+    unbound_epic_intent = TransitionIntent(
+        **{
+            **intent.to_dict(),
+            "exact_head": None,
+        }
+    )
+    assert guard(unbound_epic_intent) == "epic canonical landing head changed"
+
+    binding.epic_collector.default_branch = "changed-target"
+    assert guard(intent) == "epic workflow evidence or containment changed"
+    binding.epic_collector.default_branch = "main"
+
+    canonical_selector = workflow_runtime_module.epic_immediate_target_landings
+    monkeypatch.setattr(
+        workflow_runtime_module,
+        "epic_immediate_target_landings",
+        lambda current: (
+            *canonical_selector(current),
+            *canonical_selector(current),
+        ),
+    )
+    assert guard(intent) == "epic canonical landing authority changed"
+    monkeypatch.setattr(
+        workflow_runtime_module,
+        "epic_immediate_target_landings",
+        lambda current: tuple(
+            replace(landing, project_id="other-project", evidence_revision=None)
+            for landing in canonical_selector(current)
+        ),
+    )
+    assert guard(intent) == "epic canonical landing authority changed"
+    monkeypatch.setattr(
+        workflow_runtime_module,
+        "epic_immediate_target_landings",
+        canonical_selector,
+    )
 
     task_decision = binding.integration_controller.evaluate(
         (landed_task,)

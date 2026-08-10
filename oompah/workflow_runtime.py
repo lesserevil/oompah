@@ -110,6 +110,7 @@ from oompah.workflow_worker import (
 from oompah.work_decision import (
     REVIEW_ACTION_JOBS,
     WorkDecision,
+    epic_immediate_target_landings,
     evaluate_task,
 )
 
@@ -1140,7 +1141,8 @@ class WorkflowRuntime:
                 batch = guard_controller.evaluate((epic,), persist_evidence=False)
                 if not batch.tasks:
                     return "epic is no longer eligible for guarded workflow mutation"
-                decision = batch.tasks[0].decision
+                evaluated = batch.tasks[0]
+                decision = evaluated.decision
                 if decision.evidence_revision != intent.precondition_revision:
                     return "epic workflow evidence or containment changed"
                 if (
@@ -1148,6 +1150,27 @@ class WorkflowRuntime:
                     and EpicAction.AUTO_CLOSE.value not in decision.durable_jobs
                 ):
                     return "epic auto-close is no longer authorized"
+                if (
+                    guarded_reason == "terminal.immediate_target_landing_proven"
+                    and not str(getattr(epic, "parent_id", None) or "").strip()
+                    and issue_exact_head(epic) is None
+                ):
+                    canonical_landings = tuple(
+                        landing
+                        for landing in epic_immediate_target_landings(
+                            evaluated.facts
+                        )
+                        if landing.project_id == intent.project_id
+                        and landing.state is LandingState.LANDED
+                        and landing.durable
+                    )
+                    if len(canonical_landings) != 1:
+                        return "epic canonical landing authority changed"
+                    if (
+                        not intent.exact_head
+                        or canonical_landings[0].revision != intent.exact_head
+                    ):
+                        return "epic canonical landing head changed"
                 return None
 
             terminal_adapter = (
