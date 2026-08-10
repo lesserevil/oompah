@@ -196,6 +196,19 @@ class WorkflowPublicationSuperseded(WorkflowRuntimeError):
     """Raised when a concurrent authority change invalidates a staged cut."""
 
 
+def _tracker_publication_revision(
+    source: Callable[[], int | None],
+    *,
+    unavailable_reason: str,
+) -> int:
+    """Read one native mutation token or supersede an unstable snapshot."""
+
+    revision = source()
+    if revision is None:
+        raise WorkflowPublicationSuperseded(unavailable_reason)
+    return int(revision)
+
+
 @dataclass(frozen=True, slots=True)
 class _WorkflowAdmissionCut:
     """Exact published world snapshot permitted to admit durable effects."""
@@ -243,7 +256,7 @@ class WorkflowProjectBinding:
     ] | None = None
     workflow_authority_revision_source: Callable[[], int] | None = None
     tracker_authority_revision_source: Callable[[], str | None] | None = None
-    tracker_publication_revision_source: Callable[[], int] | None = None
+    tracker_publication_revision_source: Callable[[], int | None] | None = None
     tracker_terminal_authority_changes_source: Callable[
         [str, str], frozenset[str] | None
     ] | None = None
@@ -1366,9 +1379,7 @@ class WorkflowRuntime:
                 )
                 else None,
                 tracker_publication_revision_source=(
-                    lambda _tracker=tracker: int(
-                        _tracker.get_publication_revision()
-                    )
+                    lambda _tracker=tracker: _tracker.get_publication_revision()
                 )
                 if callable(
                     getattr(tracker, "get_publication_revision", None)
@@ -2618,6 +2629,26 @@ class WorkflowRuntime:
         liveness_facts: dict[tuple[str, str], Any] = {}
         source_errors: dict[str, str] = {}
         excluded_projects: dict[str, str] = {}
+
+        def restore_prepared_caches() -> None:
+            for item in prepared:
+                binding = item["binding"]
+                binding.implementation_controller._latest = dict(
+                    item["implementation_checkpoint"]
+                )
+                binding.review_controller.restore_projection_checkpoint(
+                    item["review_checkpoint"]
+                )
+                binding.integration_controller._latest = dict(
+                    item["integration_checkpoint"]
+                )
+                binding.epic_controller._latest = dict(
+                    item["epic_latest_checkpoint"]
+                )
+                binding.epic_controller._landings = dict(
+                    item["epic_landings_checkpoint"]
+                )
+
         for project_id, binding in sorted(self.project_bindings.items()):
             workflow_authority_revision = None
             try:
@@ -2675,7 +2706,13 @@ class WorkflowRuntime:
                     binding.tracker_publication_revision_source
                 )
                 tracker_publication_revision_before = (
-                    int(tracker_publication_revision_source())
+                    _tracker_publication_revision(
+                        tracker_publication_revision_source,
+                        unavailable_reason=(
+                            "tracker publication revision unavailable during "
+                            "source collection"
+                        ),
+                    )
                     if callable(tracker_publication_revision_source)
                     else None
                 )
@@ -2687,7 +2724,13 @@ class WorkflowRuntime:
                     self._issues_with_authority(binding)
                 )
                 tracker_publication_revision = (
-                    int(tracker_publication_revision_source())
+                    _tracker_publication_revision(
+                        tracker_publication_revision_source,
+                        unavailable_reason=(
+                            "tracker publication revision unavailable during "
+                            "source collection"
+                        ),
+                    )
                     if callable(tracker_publication_revision_source)
                     else None
                 )
@@ -2867,6 +2910,35 @@ class WorkflowRuntime:
                     }
                 )
                 report["projects"][project_id] = {"issues": len(issues)}
+            except WorkflowPublicationSuperseded as exc:
+                restore_prepared_caches()
+                reason = str(exc)
+                superseded_projects = {
+                    candidate_project_id
+                    for candidate_project_id, candidate_binding in (
+                        self.project_bindings.items()
+                    )
+                    if candidate_binding.enabled
+                } | {
+                    str(item["project_id"]) for item in prepared
+                } | {
+                    project_id
+                }
+                for superseded_project_id in sorted(superseded_projects):
+                    logger.info(
+                        "Durable workflow publication superseded for %s: %s",
+                        superseded_project_id,
+                        reason,
+                    )
+                    report["projects"][superseded_project_id] = {
+                        "publication_superseded": True,
+                        "reason": reason,
+                    }
+                report["requires_reconcile"] = True
+                report["reconcile_reason"] = "publication_authority_changed"
+                with self._lock:
+                    self._last_reconcile = report
+                return report
             except Exception as exc:
                 logger.exception(
                     "Durable workflow source evaluation failed for %s", project_id
@@ -3077,23 +3149,7 @@ class WorkflowRuntime:
             def restore_caches() -> None:
                 with self._lock:
                     self._latest_decisions = dict(runtime_checkpoint)
-                for item in prepared:
-                    binding = item["binding"]
-                    binding.implementation_controller._latest = dict(
-                        item["implementation_checkpoint"]
-                    )
-                    binding.review_controller.restore_projection_checkpoint(
-                        item["review_checkpoint"]
-                    )
-                    binding.integration_controller._latest = dict(
-                        item["integration_checkpoint"]
-                    )
-                    binding.epic_controller._latest = dict(
-                        item["epic_latest_checkpoint"]
-                    )
-                    binding.epic_controller._landings = dict(
-                        item["epic_landings_checkpoint"]
-                    )
+                restore_prepared_caches()
 
             def rollback_authority() -> None:
                 self.store.restore_snapshot_authority(
@@ -3432,7 +3488,13 @@ class WorkflowRuntime:
                     raise WorkflowRuntimeError(
                         "tracker publication revision source is unavailable"
                     )
-                publication_revision_before = int(publication_revision_source())
+                publication_revision_before = _tracker_publication_revision(
+                    publication_revision_source,
+                    unavailable_reason=(
+                        "tracker publication revision unavailable during "
+                        "publication preflight"
+                    ),
+                )
                 tracker_revision_source = binding.tracker_authority_revision_source
                 if tracker_authority_mode == "legacy_digest":
                     (
@@ -3475,7 +3537,13 @@ class WorkflowRuntime:
                             "tracker authority changed before publication"
                         )
                     tracker_terminal_changes[project_id] = scoped_tracker_changes
-                publication_revision_after = int(publication_revision_source())
+                publication_revision_after = _tracker_publication_revision(
+                    publication_revision_source,
+                    unavailable_reason=(
+                        "tracker publication revision unavailable during "
+                        "publication preflight"
+                    ),
+                )
                 if publication_revision_after != publication_revision_before:
                     raise WorkflowPublicationSuperseded(
                         "tracker authority changed during publication preflight"
@@ -3545,7 +3613,26 @@ class WorkflowRuntime:
                                     if (
                                         expected_publication_revision is None
                                         or not callable(publication_revision_source)
-                                        or int(publication_revision_source())
+                                    ):
+                                        superseded = True
+                                        raise WorkflowPublicationSuperseded(
+                                            "tracker authority changed before publication"
+                                        )
+                                    try:
+                                        current_publication_revision = (
+                                            _tracker_publication_revision(
+                                                publication_revision_source,
+                                                unavailable_reason=(
+                                                    "tracker publication revision "
+                                                    "unavailable before publication"
+                                                ),
+                                            )
+                                        )
+                                    except WorkflowPublicationSuperseded:
+                                        superseded = True
+                                        raise
+                                    if (
+                                        current_publication_revision
                                         != expected_publication_revision
                                     ):
                                         superseded = True
@@ -4259,14 +4346,40 @@ class WorkflowRuntime:
 
         report = await self._run_sync_reconcile_async()
         if self._handlers_configured and self.enforce:
+            raw_project_reports = report.get("projects", {})
+            project_reports = (
+                raw_project_reports
+                if isinstance(raw_project_reports, Mapping)
+                else {}
+            )
+            publication_unstable = bool(report.get("requires_reconcile")) or any(
+                isinstance(result, Mapping)
+                and result.get("publication_superseded") is True
+                for result in project_reports.values()
+            )
+            if publication_unstable:
+                with self._lock:
+                    self._admission_cut = None
+                report["worker"] = {
+                    "skipped": True,
+                    "reason": (
+                        "workflow publication requires reconciliation before "
+                        "durable admission"
+                    ),
+                    "projects": sorted(project_reports),
+                    "batch_saturated": False,
+                }
+                with self._lock:
+                    self._last_reconcile = report
+                return report
             failed_projects = sorted(
                 project_id
-                for project_id, result in report.get("projects", {}).items()
+                for project_id, result in project_reports.items()
                 if "error" in result
             )
             runnable_projects = sorted(
                 project_id
-                for project_id, result in report.get("projects", {}).items()
+                for project_id, result in project_reports.items()
                 if "error" not in result and not result.get("skipped", False)
             )
             if not runnable_projects:

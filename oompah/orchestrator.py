@@ -31361,6 +31361,7 @@ class Orchestrator:
         project = self.project_store.get(epic.project_id) if epic.project_id else None
         tracker = self._tracker_for_issue(epic)
         project_id = str(epic.project_id or getattr(project, "id", None) or "legacy")
+        shadow_sources = getattr(self, "_workflow_shadow_sources", None)
         collector = EpicFactCollector(
             project_id=project_id,
             tracker=tracker,
@@ -31370,6 +31371,7 @@ class Orchestrator:
                 or "main"
             ),
             repo_path=getattr(project, "repo_path", None) if project else None,
+            sources=(shadow_sources(epic) if callable(shadow_sources) else None),
         )
         controller = EpicWorkflowController(
             collector=collector,
