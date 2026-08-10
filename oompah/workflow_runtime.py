@@ -56,6 +56,7 @@ from oompah.review_workflow_adapter import FreshReviewFactSource
 from oompah.scm import detect_provider, extract_repo_slug
 from oompah.statuses import (
     ARCHIVED,
+    IN_PROGRESS,
     IN_REVIEW,
     IN_VALIDATION,
     MERGED,
@@ -65,6 +66,7 @@ from oompah.statuses import (
 from oompah.task_transition_service import (
     CoordinatorTerminalAdapter,
     TaskTransitionService,
+    TransitionAuthority,
     TransitionJournal,
     issue_authority_version,
     issue_exact_head,
@@ -1127,6 +1129,29 @@ class WorkflowRuntime:
                     epic = guarded_issue
                 if epic is None:
                     return "epic is unavailable"
+                auto_close = (
+                    guarded_reason
+                    == "terminal.immediate_target_landing_proven"
+                )
+                mutable_epic_head = issue_exact_head(epic)
+                if auto_close:
+                    if (
+                        str(getattr(epic, "issue_type", "") or "")
+                        .strip()
+                        .lower()
+                        != "epic"
+                    ):
+                        return "epic auto-close target is not an epic"
+                    if intent.authority != TransitionAuthority.ORCHESTRATOR:
+                        return "epic auto-close requires orchestrator authority"
+                    if mutable_epic_head is None:
+                        if str(getattr(epic, "parent_id", None) or "").strip():
+                            return (
+                                "headless nested epic cannot use canonical "
+                                "landing fallback"
+                            )
+                        if canonicalize_status(epic.state) != IN_PROGRESS:
+                            return "headless root epic is not In Progress"
                 # A terminal guard evaluates one exact epic while the project
                 # mutation fence is held.  Do not use the persistent project
                 # controller for that narrow read: ``evaluate`` replaces its
@@ -1145,16 +1170,15 @@ class WorkflowRuntime:
                 decision = evaluated.decision
                 if decision.evidence_revision != intent.precondition_revision:
                     return "epic workflow evidence or containment changed"
-                if (
-                    guarded_reason == "terminal.immediate_target_landing_proven"
-                    and EpicAction.AUTO_CLOSE.value not in decision.durable_jobs
-                ):
+                if auto_close and EpicAction.AUTO_CLOSE.value not in decision.durable_jobs:
                     return "epic auto-close is no longer authorized"
-                if (
-                    guarded_reason == "terminal.immediate_target_landing_proven"
-                    and not str(getattr(epic, "parent_id", None) or "").strip()
-                    and issue_exact_head(epic) is None
-                ):
+                if auto_close and mutable_epic_head is not None:
+                    if (
+                        not intent.exact_head
+                        or mutable_epic_head != intent.exact_head
+                    ):
+                        return "epic mutable landing head changed"
+                elif auto_close:
                     canonical_landings = tuple(
                         landing
                         for landing in epic_immediate_target_landings(

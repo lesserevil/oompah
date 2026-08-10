@@ -6362,7 +6362,7 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(
         identifier="TOP",
         title="TOP",
         description="remote landing runtime fixture",
-        state="In Review",
+        state="In Progress",
         project_id="project-1",
         issue_type="epic",
     )
@@ -6495,7 +6495,7 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(
     intent = TransitionIntent(
         project_id="project-1",
         task_id="TOP",
-        expected_status="In Review",
+        expected_status="In Progress",
         expected_version=issue_authority_version(issue),
         requested_status="Merged",
         actor="oompah",
@@ -6523,6 +6523,61 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(
         }
     )
     assert guard(unbound_epic_intent) == "epic canonical landing head changed"
+    non_orchestrator_intent = TransitionIntent(
+        **{
+            **intent.to_dict(),
+            "authority": TransitionAuthority.INTEGRATOR,
+        }
+    )
+    assert (
+        guard(non_orchestrator_intent)
+        == "epic auto-close requires orchestrator authority"
+    )
+
+    issue.parent_id = "PARENT"
+    parented_intent = TransitionIntent(
+        **{
+            **intent.to_dict(),
+            "expected_version": issue_authority_version(issue),
+        }
+    )
+    assert guard(parented_intent) == (
+        "headless nested epic cannot use canonical landing fallback"
+    )
+    issue.parent_id = None
+
+    issue.state = "In Review"
+    wrong_state_intent = TransitionIntent(
+        **{
+            **intent.to_dict(),
+            "expected_status": "In Review",
+            "expected_version": issue_authority_version(issue),
+        }
+    )
+    assert guard(wrong_state_intent) == "headless root epic is not In Progress"
+    issue.state = "In Progress"
+
+    issue.review_head = epic_head
+    headed_decision = EpicWorkflowController(
+        collector=binding.epic_controller.collector,
+        store=binding.epic_controller.store,
+    ).evaluate((issue,), persist_evidence=False).tasks[0].decision
+    headed_intent = TransitionIntent(
+        **{
+            **intent.to_dict(),
+            "expected_version": issue_authority_version(issue),
+            "precondition_revision": headed_decision.evidence_revision,
+        }
+    )
+    assert guard(headed_intent) is None
+    stale_headed_intent = TransitionIntent(
+        **{
+            **headed_intent.to_dict(),
+            "exact_head": "f" * 40,
+        }
+    )
+    assert guard(stale_headed_intent) == "epic mutable landing head changed"
+    issue.review_head = None
 
     binding.epic_collector.default_branch = "changed-target"
     assert guard(intent) == "epic workflow evidence or containment changed"
