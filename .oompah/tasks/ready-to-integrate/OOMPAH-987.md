@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-987
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Prevent post-gate auditor inspection from blocking behind the next full gate
 parent: null
@@ -11,13 +11,23 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T04:50:28.752372Z'
-updated_at: '2026-08-10T05:40:31.448738Z'
-work_branch: null
+updated_at: '2026-08-10T05:48:01.134154Z'
+work_branch: OOMPAH-987
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-987
+  head_sha: dcfbceebeab1e489e88a87dc9e8da6b6ddff8623
+  submitted_at: '2026-08-10T05:47:48.858881+00:00'
+  updated_at: '2026-08-10T05:47:48.858881+00:00'
+oompah.work_branch: OOMPAH-987
 ---
 ## Summary
 
@@ -47,5 +57,10 @@ author: oompah
 created: 2026-08-10 05:40
 ---
 Independent-review blocker fixed and pushed at exact head dcfbceebeab1e489e88a87dc9e8da6b6ddff8623. Session-local gate completion now requires a nonempty configured command and exact outer-whitespace-normalized command identity; classification.contains_configured is no longer pass proof. Regressions cover configured make test exiting 17 while make test || true exits 0 on both bridged API and native Codex paths: the compound command remains fail-closed/capacity-bearing, never sets _session_full_gate_passed, and the next opaque Git command is not misclassified as post-gate. Exact gate success still fences redundant inspection. Validation: 909 passed across the four affected modules in 136.09s; 7 exact identity/masked-failure regressions passed; make terminal-audit-scan passed; make check-secrets passed; git diff --check and pre-commit hooks passed. Branch is clean and up to date with origin. Awaiting renewed independent review before submission.
+---
+author: oompah
+created: 2026-08-10 05:47
+---
+Prevent post-gate auditor inspection from blocking behind the next full gate. Exact head dcfbceebeab1e489e88a87dc9e8da6b6ddff8623 independently approved after masked compound-command gate evidence was fixed; 1,291 review tests and 909 affected-module tests pass.
 ---
 <!-- COMMENTS:END -->
