@@ -11,13 +11,23 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T03:51:51.943285Z'
-updated_at: '2026-08-10T03:52:12.356536Z'
-work_branch: null
+updated_at: '2026-08-10T03:58:49.803832Z'
+work_branch: OOMPAH-984
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-984
+  head_sha: 7c53bf19484e8f65cd0a8c6f69df4c8270771e33
+  submitted_at: '2026-08-10T03:58:40.365788+00:00'
+  updated_at: '2026-08-10T03:58:40.365788+00:00'
+oompah.work_branch: OOMPAH-984
 ---
 ## Summary
 
@@ -29,3 +39,11 @@ Triggered by OOMPAH-982 protected PR #790, GitHub Actions run 31352693288 attemp
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 03:58
+---
+Replaced the flaky 0.5-second recycle-observer deadline with exact worker quarantine-monitor quiescence, retaining the existing exactly-once recycle and late-effect fencing assertions. No production behavior changed. Commit 7c53bf19484e8f65cd0a8c6f69df4c8270771e33 is pushed on OOMPAH-984.
+---
+<!-- COMMENTS:END -->
