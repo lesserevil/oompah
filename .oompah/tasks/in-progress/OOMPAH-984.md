@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T03:51:51.943285Z'
-updated_at: '2026-08-10T04:20:54.213163Z'
+updated_at: '2026-08-10T04:30:04.614266Z'
 work_branch: OOMPAH-984
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/792
@@ -59,5 +59,10 @@ author: oompah
 created: 2026-08-10 04:10
 ---
 Branch quality gate passed for `7c53bf19484e8f65cd0a8c6f69df4c8270771e33` using `make test` in 164.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-10 04:30
+---
+Direct-owner CI repair rebased PR #792 onto exact OOMPAH-985 commit 2a255c5c0d2f8d9850c4135809422c33f9409571 (which also includes merged OOMPAH-983). Range-diff preserved the OOMPAH-984 patch exactly at new head 6473c14fdf8e148472c917ec3f1695c98713f074; combined workflow-worker and release-refresh suites pass 104/104. Remote and PR head are exact.
 ---
 <!-- COMMENTS:END -->
