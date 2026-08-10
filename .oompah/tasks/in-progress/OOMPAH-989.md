@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-989
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Keep graceful restart responsive while quiesce drains workflow work
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T06:19:44.763738Z'
+updated_at: '2026-08-10T06:20:59.137970Z'
 work_branch: null
 target_branch: null
 review_url: null
