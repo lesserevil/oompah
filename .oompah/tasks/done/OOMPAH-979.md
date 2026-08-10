@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T00:01:51.280685Z'
-updated_at: '2026-08-10T01:30:18.562104Z'
+updated_at: '2026-08-10T01:35:56.671621Z'
 work_branch: OOMPAH-979
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/788
@@ -87,6 +87,32 @@ oompah.terminal_audit:
     selected_ref: origin/OOMPAH-979
     selected_sha: 7fc8bc8ea4a36c952a96349406a173c6b85ec94e
     applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Emergency child fix is complete and merged directly to main, but the active
+      parent epic branch cannot represent that out-of-band landing; retain the audited
+      Done provenance and retire reassessment while the parent closes from aggregate
+      main evidence.
+    marked_at: '2026-08-10T01:35:55.021225+00:00'
+    updated_at: '2026-08-10T01:35:55.021225+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Emergency child fix is complete and merged directly to main, but the
+        active parent epic branch cannot represent that out-of-band landing; retain
+        the audited Done provenance and retire reassessment while the parent closes
+        from aggregate main evidence.
+      recorded_at: '2026-08-10T01:35:55.021225+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
