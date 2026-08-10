@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T10:52:26.512449Z'
-updated_at: '2026-08-10T15:40:06.155711Z'
+updated_at: '2026-08-10T15:40:13.004436Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,7 +40,17 @@ oompah.terminal_audit:
     created_at: '2026-08-10T15:40:01.330912+00:00'
     selected_ref: origin/OOMPAH-993
     selected_sha: 03c67abb83d15442bc1e72862d632d3b2108de51
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-993
+    target_state: Done
+    evidence_fingerprint: 15613530be903765a84644ff8615657d25e7110b967f7a4fb7e40791dce9fbce
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T15:40:11.024819+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -71,5 +81,12 @@ author: oompah
 created: 2026-08-10 11:37
 ---
 Exact child head 03c67abb83d15442bc1e72862d632d3b2108de51 was reviewed and integrated into shared OOMPAH-989 as 9c595c5b2. Combined review added cross-child authority fixes at e09ad2e26, including pending gate-result fencing, durable capacity retention for a forge review returned after authority loss, and a final contained-no-op authority CAS. The combined focused suite passes 458 tests. The clean pushed child worktree has been pruned; the child remains In Progress pending the shared PR landing.
+---
+author: oompah
+created: 2026-08-10 15:40
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: PR #798 merged as 2ab880be5; parent OOMPAH-992 is authoritatively terminal; contained 9c595c5b2 is stable-patch-identical to reviewed OOMPAH-993 head 03c67abb8. Recording child completion as Done because shared-child Merged requires a parent review record that this direct-owner integration intentionally did not create.
 ---
 <!-- COMMENTS:END -->
