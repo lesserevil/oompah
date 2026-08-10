@@ -1327,6 +1327,15 @@ def _set_management_tracker_resolution_alert(
 def set_orchestrator(orch: Orchestrator) -> None:
     global _orchestrator, _error_watcher, _log_watcher_manager
     global _agent_profile_store, _role_store, _provider_store
+    previous_orchestrator = _orchestrator
+    if previous_orchestrator is not None and previous_orchestrator is not orch:
+        shutdown_publications = getattr(
+            previous_orchestrator,
+            "_shutdown_lifecycle_publications",
+            None,
+        )
+        if callable(shutdown_publications):
+            shutdown_publications()
     _orchestrator = orch
     # Share the orchestrator's profile store so /api/v1/agent-profiles
     # writes go to the same in-memory state the dispatch loop reads.
@@ -1771,13 +1780,6 @@ _api_lifecycle_thread_pool = ThreadPoolExecutor(
     max_workers=2,
     thread_name_prefix="api-lifecycle",
 )
-# Snapshot publication is deliberately separate from lifecycle mutations.
-# A slow observer may wait on workflow/project/journal authority for seconds;
-# it must not consume the workers used to cancel or resume a cutover.
-_api_lifecycle_publication_thread_pool = ThreadPoolExecutor(
-    max_workers=2,
-    thread_name_prefix="api-lifecycle-publication",
-)
 # The credential-safe lifecycle client has a 30 second HTTP deadline.  Lock
 # admission must resolve before that deadline so a caller receives an explicit,
 # retryable rejection instead of an ambiguous transport timeout.
@@ -1817,25 +1819,36 @@ async def _run_lifecycle_api_io(
     return await loop.run_in_executor(_api_lifecycle_thread_pool, call)
 
 
-def _submit_lifecycle_publication(
-    func: Callable[..., Any], /, *args: Any, **kwargs: Any
-) -> None:
-    """Publish lifecycle state without delaying the HTTP control plane."""
+def _submit_lifecycle_api_io(func: Callable[..., Any], /) -> None:
+    """Run generation-fenced lifecycle repair without parking the API loop."""
 
-    call = functools.partial(func, *args, **kwargs)
     try:
-        future = _api_lifecycle_publication_thread_pool.submit(call)
+        future = _api_lifecycle_thread_pool.submit(func)
     except RuntimeError:
-        logger.exception("Lifecycle publication executor rejected work")
+        logger.exception("Lifecycle repair executor rejected work")
         return
 
     def _log_failure(completed) -> None:
         try:
             completed.result()
         except Exception:
-            logger.exception("Lifecycle state publication failed")
+            logger.exception("Lifecycle repair failed")
 
     future.add_done_callback(_log_failure)
+
+
+def _request_lifecycle_publication(orch: Any, generation: int) -> None:
+    """Queue one orchestrator-owned, generation-fenced state publication."""
+
+    request_publication = getattr(orch, "request_lifecycle_publication", None)
+    if not callable(request_publication):
+        return
+    try:
+        request_publication(expected_generation=generation)
+    except Exception:
+        # Publication is advisory. Lifecycle mutation already committed and
+        # must not be reported as failed because its snapshot queue rejected.
+        logger.exception("Lifecycle state publication could not be queued")
 
 
 class _LifecycleAdmissionBusy(RuntimeError):
@@ -17187,10 +17200,8 @@ async def api_orchestrator_quiesce():
             # cooperative acquisition is the important boundary: a workflow
             # thread may own that lock, but HTTP health and cancellation keep
             # receiving event-loop turns while we wait.
-            orch.quiesce(notify=False)
-        notify = getattr(orch, "_notify_observers", None)
-        if callable(notify):
-            _submit_lifecycle_publication(notify)
+            quiesce_generation = orch.quiesce(notify=False)
+        _request_lifecycle_publication(orch, quiesce_generation)
         return JSONResponse({"ok": True, "quiesced": True})
     except _LifecycleAdmissionBusy as exc:
         return JSONResponse(
@@ -17213,12 +17224,19 @@ async def api_orchestrator_resume():
             cmd_id = _ipc.enqueue_command("unpause")
             return JSONResponse({"ok": True, "paused": False, "ipc_command_id": cmd_id})
         orch = _get_orchestrator()
-        resumed = await _run_lifecycle_api_io(
-            functools.partial(orch.unpause, notify=False)
+        def _resume_with_generation() -> tuple[bool, int]:
+            resumed = orch.unpause(notify=False)
+            admission_lock = getattr(orch, "_provider_admission_lock", None)
+            with admission_lock or contextlib.nullcontext():
+                generation = int(
+                    getattr(orch, "_provider_admission_generation", 0)
+                )
+            return resumed, generation
+
+        resumed, resume_generation = await _run_lifecycle_api_io(
+            _resume_with_generation
         )
-        notify = getattr(orch, "_notify_observers", None)
-        if callable(notify):
-            _submit_lifecycle_publication(notify)
+        _request_lifecycle_publication(orch, resume_generation)
         if resumed is False:
             return JSONResponse(
                 {
@@ -17328,7 +17346,7 @@ async def api_orchestrator_restart(request: Request):
             }
             rollback_admission_generation: int | None = None
 
-            def _restore_restart_snapshot() -> None:
+            def _restore_restart_snapshot(*, exact_generation: bool = False) -> None:
                 # ``graceful_restart`` can fail because its durable restart
                 # journal could not be written.  That failure deliberately
                 # installs a fail-closed admission fence before it escapes to
@@ -17357,15 +17375,17 @@ async def api_orchestrator_restart(request: Request):
                 # API transaction. Any later pause/quiesce/stop mutation wins
                 # the CAS and its lifecycle state must remain untouched.
                 if lifecycle_cas_matches:
-                    orch._provider_admission_generation = restart_snapshot[
-                        "admission_generation"
-                    ]
                     orch._paused = restart_snapshot["paused"]
                     orch._quiesced = restart_snapshot["quiesced"]
                     orch._stopping = restart_snapshot["stopping"]
                     orch._restart_requested = restart_snapshot[
                         "restart_requested"
                     ]
+                    orch._provider_admission_generation = (
+                        restart_snapshot["admission_generation"]
+                        if exact_generation
+                        else current_generation + 1
+                    )
                 if persistence_failed:
                     if not orch._quiesced:
                         orch._quiesced = True
@@ -17486,7 +17506,7 @@ async def api_orchestrator_restart(request: Request):
                     # state observed before this request; a preclaim therefore
                     # remains cancellable and a new claim disappears entirely.
                     drain_coroutine.close()
-                    _restore_restart_snapshot()
+                    _restore_restart_snapshot(exact_generation=True)
                     raise
                 orch._restart_drain_task = drain_task
                 orch._restart_drain_owner = existing_request_id
@@ -17499,22 +17519,45 @@ async def api_orchestrator_restart(request: Request):
                         except BaseException:
                             failed = True
 
+                    cleanup_state: dict[str, int | bool | None] = {
+                        "generation": None,
+                        "paused": None,
+                    }
+
                     def _clear_locked() -> None:
                         if getattr(orch, "_restart_drain_task", None) is completed:
                             if failed:
                                 _restore_restart_snapshot()
+                                cleanup_state["generation"] = int(
+                                    getattr(
+                                        orch,
+                                        "_provider_admission_generation",
+                                        0,
+                                    )
+                                )
+                                cleanup_state["paused"] = bool(
+                                    getattr(orch, "_paused", False)
+                                )
                             else:
                                 orch._restart_drain_task = None
 
                     def _after_clear() -> None:
-                        if not failed:
+                        generation = cleanup_state["generation"]
+                        paused = cleanup_state["paused"]
+                        if generation is None or paused is None:
                             return
-                        save_paused = getattr(orch, "_save_paused_state", None)
-                        if callable(save_paused):
-                            save_paused()
-                        notify = getattr(orch, "_notify_observers", None)
-                        if callable(notify):
-                            notify()
+                        save_if_current = getattr(
+                            orch,
+                            "_save_paused_state_if_generation",
+                            None,
+                        )
+                        if callable(save_if_current):
+                            save_if_current(int(generation), bool(paused))
+                        else:
+                            save_paused = getattr(orch, "_save_paused_state", None)
+                            if callable(save_paused):
+                                save_paused()
+                        _request_lifecycle_publication(orch, int(generation))
 
                     # The in-memory CAS remains synchronous when uncontended.
                     # Persistence and observer snapshots are always delegated
@@ -17528,8 +17571,8 @@ async def api_orchestrator_restart(request: Request):
                         finally:
                             if admission_lock is not None:
                                 admission_lock.release()
-                        if failed:
-                            _submit_lifecycle_publication(_after_clear)
+                        if cleanup_state["generation"] is not None:
+                            _submit_lifecycle_api_io(_after_clear)
                         return
 
                     async def _clear_when_available() -> None:
@@ -17537,8 +17580,8 @@ async def api_orchestrator_restart(request: Request):
                             orch, timeout_seconds=None
                         ):
                             _clear_locked()
-                        if failed:
-                            _submit_lifecycle_publication(_after_clear)
+                        if cleanup_state["generation"] is not None:
+                            _submit_lifecycle_api_io(_after_clear)
 
                     asyncio.create_task(
                         _clear_when_available(),

@@ -571,20 +571,27 @@ async def test_restart_drain_snapshot_and_journal_work_stay_off_http_loop(
     orch = _real_orchestrator(tmp_path)
     snapshot_entered = threading.Event()
     release_snapshot = threading.Event()
+    snapshot_finished = threading.Event()
+    observer_published = threading.Event()
     journal_entered = threading.Event()
     release_journal = threading.Event()
 
-    def _blocked_notify() -> None:
+    def _blocked_snapshot() -> dict[str, object]:
         snapshot_entered.set()
-        assert release_snapshot.wait(timeout=3)
+        try:
+            assert release_snapshot.wait(timeout=3)
+            return {}
+        finally:
+            snapshot_finished.set()
 
     def _blocked_merge(*_args, **_kwargs) -> tuple[bool, int, int]:
         journal_entered.set()
         assert release_journal.wait(timeout=3)
         return True, 0, 0
 
-    monkeypatch.setattr(orch, "_notify_observers", _blocked_notify)
+    monkeypatch.setattr(orch, "get_snapshot", _blocked_snapshot)
     monkeypatch.setattr(orch, "_merge_restart_issues", _blocked_merge)
+    orch._observers.append(lambda _snapshot: observer_published.set())
     server._orchestrator = orch
     drain_task = None
     try:
@@ -599,6 +606,9 @@ async def test_restart_drain_snapshot_and_journal_work_stay_off_http_loop(
         drain_task = orch._restart_drain_task
         assert drain_task is not None
         assert await asyncio.to_thread(snapshot_entered.wait, 1)
+        # The full snapshot remains blocked permanently from the drain's point
+        # of view, but authoritative journal staging must still start.
+        assert await asyncio.to_thread(journal_entered.wait, 1)
 
         started = time.monotonic()
         health_during_snapshot = await asyncio.wait_for(
@@ -616,9 +626,6 @@ async def test_restart_drain_snapshot_and_journal_work_stay_off_http_loop(
             timeout=0.2,
         )
         snapshot_control_elapsed = time.monotonic() - started
-
-        release_snapshot.set()
-        assert await asyncio.to_thread(journal_entered.wait, 1)
         started = time.monotonic()
         health_during_journal = await asyncio.wait_for(
             server.healthz(), timeout=0.1
@@ -626,6 +633,34 @@ async def test_restart_drain_snapshot_and_journal_work_stay_off_http_loop(
         journal_health_elapsed = time.monotonic() - started
         release_journal.set()
         await asyncio.wait_for(asyncio.shield(drain_task), timeout=1)
+        assert snapshot_finished.is_set() is False
+        with orch._lifecycle_publication_lock:
+            assert orch._lifecycle_publication_running is True
+            assert (
+                orch._lifecycle_publication_pending_generation
+                == orch._provider_admission_generation
+            )
+        # A delayed older request cannot replace the coalesced latest state.
+        assert orch.request_lifecycle_publication(
+            expected_generation=orch._provider_admission_generation - 1
+        )
+        with orch._lifecycle_publication_lock:
+            assert (
+                orch._lifecycle_publication_pending_generation
+                == orch._provider_admission_generation
+            )
+
+        # Teardown fences the running old-generation snapshot and rejects new
+        # work without waiting for the uncooperative snapshot thread.
+        orch._shutdown_lifecycle_publications()
+        assert (
+            orch.request_lifecycle_publication(
+                expected_generation=orch._provider_admission_generation
+            )
+            is False
+        )
+        release_snapshot.set()
+        assert await asyncio.to_thread(snapshot_finished.wait, 1)
     finally:
         release_snapshot.set()
         release_journal.set()
@@ -641,6 +676,55 @@ async def test_restart_drain_snapshot_and_journal_work_stay_off_http_loop(
     assert journal_health_elapsed < 0.1
     assert orch._stopping is True
     assert orch._restart_requested is True
+    assert observer_published.is_set() is False
+
+
+@pytest.mark.asyncio
+async def test_restart_failure_does_not_await_permanently_blocked_publication(
+    tmp_path,
+    monkeypatch,
+):
+    """Rollback completion is independent of both success/failure snapshots."""
+
+    orch = _real_orchestrator(tmp_path)
+    snapshot_entered = threading.Event()
+    release_snapshot = threading.Event()
+    snapshot_finished = threading.Event()
+    observer_published = threading.Event()
+
+    def _blocked_snapshot() -> dict[str, object]:
+        snapshot_entered.set()
+        try:
+            assert release_snapshot.wait(timeout=3)
+            return {}
+        finally:
+            snapshot_finished.set()
+
+    def _failed_merge(*_args, **_kwargs) -> tuple[bool, int, int]:
+        raise OSError("injected restart journal failure")
+
+    monkeypatch.setattr(orch, "get_snapshot", _blocked_snapshot)
+    monkeypatch.setattr(orch, "_merge_restart_issues", _failed_merge)
+    orch._observers.append(lambda _snapshot: observer_published.set())
+    restart_task = asyncio.create_task(orch.graceful_restart(drain_timeout_s=0))
+    try:
+        assert await asyncio.to_thread(snapshot_entered.wait, 1)
+        with pytest.raises(OSError, match="restart journal failure"):
+            await asyncio.wait_for(asyncio.shield(restart_task), timeout=0.5)
+        assert snapshot_finished.is_set() is False
+        assert orch._restart_in_progress is False
+        assert orch._stopping is False
+        orch._shutdown_lifecycle_publications()
+        release_snapshot.set()
+        assert await asyncio.to_thread(snapshot_finished.wait, 1)
+    finally:
+        release_snapshot.set()
+        if not restart_task.done():
+            restart_task.cancel()
+            await asyncio.gather(restart_task, return_exceptions=True)
+        orch._shutdown_lifecycle_publications()
+
+    assert observer_published.is_set() is False
 
 
 @pytest.mark.asyncio
@@ -702,3 +786,70 @@ async def test_failed_restart_cleanup_persistence_stays_off_http_loop():
     assert cancelled.status_code == 200
     assert control_elapsed < 0.2
     assert fake._restart_in_progress is False
+
+
+@pytest.mark.asyncio
+async def test_failed_restart_rollback_cannot_overwrite_newer_durable_pause(
+    tmp_path,
+    monkeypatch,
+):
+    """Pause persistence serializes after an older rollback generation."""
+
+    original_orchestrator = server._orchestrator
+    orch = _real_orchestrator(tmp_path)
+
+    async def _failed_drain(**_kwargs) -> None:
+        raise RuntimeError("injected drain failure before lifecycle mutation")
+
+    false_save_entered = threading.Event()
+    release_false_save = threading.Event()
+    pause_finished = threading.Event()
+    paused_writes: list[bool] = []
+    original_save_state = orch._save_state
+
+    def _ordered_save(**updates: object) -> bool:
+        if "paused" in updates:
+            paused = bool(updates["paused"])
+            if not paused and not false_save_entered.is_set():
+                false_save_entered.set()
+                assert release_false_save.wait(timeout=3)
+            saved = original_save_state(**updates)
+            paused_writes.append(paused)
+            return saved
+        return original_save_state(**updates)
+
+    def _pause() -> None:
+        try:
+            orch.pause()
+        finally:
+            pause_finished.set()
+
+    monkeypatch.setattr(orch, "graceful_restart", _failed_drain)
+    monkeypatch.setattr(orch, "_save_state", _ordered_save)
+    server._orchestrator = orch
+    pause_thread = threading.Thread(target=_pause, name="newer-operator-pause")
+    try:
+        response = await server.api_orchestrator_restart(_json_request({}))
+        assert await asyncio.to_thread(false_save_entered.wait, 1)
+        pause_thread.start()
+        await asyncio.sleep(0.05)
+        # The newer pause cannot slip its durable True write ahead of the
+        # older rollback's already-admitted False write.
+        assert pause_finished.is_set() is False
+        health = await asyncio.wait_for(server.healthz(), timeout=0.1)
+        release_false_save.set()
+        assert await asyncio.to_thread(pause_finished.wait, 1)
+        pause_thread.join(timeout=1)
+    finally:
+        release_false_save.set()
+        if pause_thread.is_alive():
+            pause_thread.join(timeout=1)
+        orch._shutdown_lifecycle_publications()
+        server._orchestrator = original_orchestrator
+
+    durable_state = orch._load_state()
+    assert response.status_code == 200
+    assert json.loads(health.body)["status"] == "ok"
+    assert paused_writes[-2:] == [False, True]
+    assert orch._paused is True
+    assert durable_state["paused"] is True

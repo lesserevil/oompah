@@ -2108,6 +2108,21 @@ class Orchestrator:
         # newly installed lifecycle fence.
         self._provider_admission_lock = threading.RLock()
         self._provider_admission_generation = 0
+        # Lifecycle snapshots are advisory publication, never transition
+        # authority. One owned worker builds a snapshot at a time and one
+        # latest-generation request is coalesced behind it. Shutdown advances
+        # the publication epoch and cancels queued work, so a snapshot blocked
+        # in an old orchestrator becomes inert when it eventually unwinds.
+        self._lifecycle_publication_lock = threading.Lock()
+        self._lifecycle_publication_pool = ThreadPoolExecutor(
+            max_workers=1,
+            thread_name_prefix="lifecycle-publication",
+        )
+        self._lifecycle_publication_epoch = 0
+        self._lifecycle_publication_closed = False
+        self._lifecycle_publication_running = False
+        self._lifecycle_publication_pending_generation: int | None = None
+        self._lifecycle_publication_future: Future[None] | None = None
         # Bug fix: load persisted paused state from disk so it survives
         # service restarts. Previously _paused was always initialized to False.
         self._paused = self._load_paused_state()
@@ -6373,6 +6388,28 @@ class Orchestrator:
         """Persist paused state to disk."""
         self._save_state(paused=self._paused)
 
+    def _save_paused_state_if_generation(
+        self,
+        expected_generation: int,
+        paused: bool,
+    ) -> bool:
+        """Persist pause intent only while its lifecycle mutation is current.
+
+        The provider-admission fence is held through the state-file replace.
+        A newer pause/unpause therefore either commits after this write, or
+        wins before admission and makes this stale persistence a no-op. This
+        is deliberately synchronous; HTTP callers run lifecycle mutation on
+        a dedicated executor so disk latency cannot park the API loop.
+        """
+
+        with self._provider_admission_lock:
+            if (
+                self._provider_admission_generation != expected_generation
+                or bool(self._paused) != bool(paused)
+            ):
+                return False
+            return self._save_state(paused=bool(paused))
+
     def _persist_workflow_liveness_state(
         self, state: Mapping[str, Any]
     ) -> None:
@@ -6714,11 +6751,12 @@ class Orchestrator:
         with self._provider_admission_lock:
             self._paused = True
             self._provider_admission_generation += 1
+            pause_generation = self._provider_admission_generation
             self._mark_running_auditors_for_lifecycle_retirement_locked(
                 reason="scheduler_pause",
                 error="operator pause interrupted auditor before verdict",
             )
-        self._save_paused_state()
+        self._save_paused_state_if_generation(pause_generation, True)
         preserved_recovery_ids: set[str] = set()
         with self._retry_authority_lock:
             recovery_entries = list(self.state.retry_attempts.items())
@@ -6769,7 +6807,7 @@ class Orchestrator:
         self.event_bus.emit(EventType.ORCHESTRATOR_PAUSED, {})
         self._notify_observers()
 
-    def quiesce(self, *, notify: bool = True) -> None:
+    def quiesce(self, *, notify: bool = True) -> int:
         """Stop new dispatch while allowing running workers to finish.
 
         This is the lifecycle-cutover counterpart to :meth:`pause`.  It is a
@@ -6784,9 +6822,11 @@ class Orchestrator:
         with self._provider_admission_lock:
             self._quiesced = True
             self._provider_admission_generation += 1
+            generation = self._provider_admission_generation
         if notify:
             self._notify_observers()
         logger.info("Orchestrator quiesced — new dispatch stopped for lifecycle drain")
+        return generation
 
     @contextlib.asynccontextmanager
     async def _provider_admission_async(self):
@@ -8701,10 +8741,13 @@ class Orchestrator:
                 "retrying in %.1fs",
                 retry_delay_s,
             )
-            await asyncio.to_thread(self._notify_observers)
             with self._provider_admission_lock:
                 if self._restart_in_progress or self._stopping:
                     return
+                retry_generation = self._provider_admission_generation
+            self.request_lifecycle_publication(
+                expected_generation=retry_generation
+            )
             await asyncio.sleep(retry_delay_s)
         with self._provider_admission_lock:
             if self._restart_in_progress or self._paused or self._stopping:
@@ -8716,7 +8759,10 @@ class Orchestrator:
             # wins either before all three or after all three, never between
             # the unquiesce and its event/timer publication.
             self._activate_unpaused_dispatch(notify=False)
-        await asyncio.to_thread(self._notify_observers)
+            resume_generation = self._provider_admission_generation
+        self.request_lifecycle_publication(
+            expected_generation=resume_generation
+        )
 
     def _schedule_restart_issue_recovery_for_resume(self) -> bool:
         """Publish and confirm one recovery owner on the orchestrator loop."""
@@ -8863,7 +8909,8 @@ class Orchestrator:
             self._paused = False
             self._quiesced = pending_restart_recovery
             self._provider_admission_generation += 1
-        self._save_paused_state()
+            unpause_generation = self._provider_admission_generation
+        self._save_paused_state_if_generation(unpause_generation, False)
         if pending_restart_recovery:
             scheduled = self._schedule_restart_issue_recovery_for_resume()
             if notify:
@@ -8908,7 +8955,6 @@ class Orchestrator:
                 "stopping": self._stopping,
                 "restart_requested": self._restart_requested,
                 "safe_stop_acknowledged": self._safe_stop_acknowledged,
-                "admission_generation": self._provider_admission_generation,
             }
             if self._restart_in_progress:
                 matching_preclaim = request_id == self._restart_request_id
@@ -8961,7 +9007,9 @@ class Orchestrator:
                 drain_timeout_s,
                 self._restart_initial_running,
             )
-            await asyncio.to_thread(self._notify_observers)
+            self.request_lifecycle_publication(
+                expected_generation=restart_rollback_generation
+            )
 
             deadline = time.monotonic() + drain_timeout_s
             while self.state.running and time.monotonic() < deadline:
@@ -9079,8 +9127,13 @@ class Orchestrator:
                 self._stopping = True
                 self._arm_safe_stop_acknowledgement_locked()
                 self._provider_admission_generation += 1
+                stopping_generation = self._provider_admission_generation
+            self.request_lifecycle_publication(
+                expected_generation=stopping_generation
+            )
             self._post_event(DispatchEvent(event_type=DispatchEventType.SHUTDOWN))
         except BaseException:
+            rollback_persistence: tuple[int, bool] | None = None
             async with self._provider_admission_async():
                 # Restore only while this exact coroutine still owns the drain.
                 # A replacement restart transaction must never be overwritten.
@@ -9098,6 +9151,9 @@ class Orchestrator:
                     self._restart_drain_task = restart_snapshot["drain_task"]
                     self._restart_drain_owner = restart_snapshot["drain_owner"]
                     if lifecycle_cas_matches:
+                        rollback_source_generation = (
+                            self._provider_admission_generation
+                        )
                         self._paused = restart_snapshot["paused"]
                         self._quiesced = restart_snapshot["quiesced"]
                         self._stopping = restart_snapshot["stopping"]
@@ -9114,9 +9170,12 @@ class Orchestrator:
                         ):
                             self._safe_stop_acknowledged.set_result(None)
                         self._safe_stop_acknowledged = previous_acknowledgement
-                        self._provider_admission_generation = restart_snapshot[
-                            "admission_generation"
-                        ]
+                        # Lifecycle generations are monotonic CAS identities.
+                        # Rolling fields back is itself a new mutation; never
+                        # restore an older generation and permit ABA writes.
+                        self._provider_admission_generation = (
+                            rollback_source_generation + 1
+                        )
                     if restart_staging_failed:
                         # The old process remains authoritative, but it may
                         # have setup-only workers represented by earlier
@@ -9125,11 +9184,23 @@ class Orchestrator:
                         if not self._quiesced:
                             self._quiesced = True
                             self._provider_admission_generation += 1
-            # Rollback persistence and its full state snapshot may wait on
-            # journal/project/workflow locks. Keep failure recovery observable
-            # without parking the scheduler/API event loop.
-            await asyncio.to_thread(self._save_paused_state)
-            await asyncio.to_thread(self._notify_observers)
+                    rollback_persistence = (
+                        self._provider_admission_generation,
+                        bool(self._paused),
+                    )
+            if rollback_persistence is not None:
+                rollback_generation, rollback_paused = rollback_persistence
+                # The generation-aware write is authoritative but stays off
+                # the loop. A newer pause either serializes after this write or
+                # makes it a no-op before it can touch disk.
+                await asyncio.to_thread(
+                    self._save_paused_state_if_generation,
+                    rollback_generation,
+                    rollback_paused,
+                )
+                self.request_lifecycle_publication(
+                    expected_generation=rollback_generation
+                )
             raise
 
     @property
@@ -13702,6 +13773,10 @@ class Orchestrator:
         short-lived test or graceful restart must not leave a worker that can
         mutate tracker state after its event loop and fixtures have gone away.
         """
+        # Publication is advisory and may be blocked inside a full snapshot.
+        # Fence it before draining authoritative work; never let an observer
+        # own graceful-stop progress or publish after this orchestrator exits.
+        self._shutdown_lifecycle_publications()
         await self._drain_scheduled_terminations()
         current_loop = asyncio.get_running_loop()
         restart_recovery = self._restart_recovery_task
@@ -67491,17 +67566,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         return None
 
-    def _notify_observers(self) -> None:
-        """Notify any registered observers of state changes (includes issues refresh).
+    def _publish_observer_snapshot(self, snapshot: dict[str, Any]) -> None:
+        """Publish one already-built full snapshot to every observer."""
 
-        Emits EventType.ORCHESTRATOR_TICK on the EventBus (authoritative) and
-        also calls legacy _observers callbacks for backward compatibility.
-
-        When the IPC layer is active (multi-process mode), also publishes the
-        state snapshot to the shared SQLite database so the API process can
-        serve cached reads without blocking on this process's GIL.
-        """
-        snapshot = self.get_snapshot()
         # Publish to IPC before notifying local observers so the API process
         # can serve reads as soon as the tick completes.
         if self._ipc is not None:
@@ -67519,6 +67586,139 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 observer(snapshot)
             except Exception:
                 pass
+
+    def _notify_observers(self) -> None:
+        """Notify any registered observers of state changes (includes issues refresh).
+
+        Emits EventType.ORCHESTRATOR_TICK on the EventBus (authoritative) and
+        also calls legacy _observers callbacks for backward compatibility.
+
+        When the IPC layer is active (multi-process mode), also publishes the
+        state snapshot to the shared SQLite database so the API process can
+        serve cached reads without blocking on this process's GIL.
+        """
+
+        self._publish_observer_snapshot(self.get_snapshot())
+
+    def _lifecycle_publication_is_current(
+        self,
+        epoch: int,
+        expected_generation: int,
+    ) -> bool:
+        """Return whether a built lifecycle snapshot still owns publication."""
+
+        with self._lifecycle_publication_lock:
+            if (
+                self._lifecycle_publication_closed
+                or self._lifecycle_publication_epoch != epoch
+            ):
+                return False
+        with self._provider_admission_lock:
+            if self._provider_admission_generation != expected_generation:
+                return False
+        with self._lifecycle_publication_lock:
+            return bool(
+                not self._lifecycle_publication_closed
+                and self._lifecycle_publication_epoch == epoch
+            )
+
+    def _run_lifecycle_publication(
+        self,
+        epoch: int,
+        expected_generation: int,
+    ) -> None:
+        """Build and conditionally publish one generation-fenced snapshot."""
+
+        try:
+            snapshot = self.get_snapshot()
+            if self._lifecycle_publication_is_current(
+                epoch,
+                expected_generation,
+            ):
+                self._publish_observer_snapshot(snapshot)
+        except Exception:
+            logger.exception("Lifecycle state publication failed")
+        finally:
+            with self._lifecycle_publication_lock:
+                if (
+                    self._lifecycle_publication_closed
+                    or self._lifecycle_publication_epoch != epoch
+                ):
+                    return
+                pending = self._lifecycle_publication_pending_generation
+                self._lifecycle_publication_pending_generation = None
+                if pending is None or pending == expected_generation:
+                    self._lifecycle_publication_running = False
+                    self._lifecycle_publication_future = None
+                    return
+                try:
+                    self._lifecycle_publication_future = (
+                        self._lifecycle_publication_pool.submit(
+                            self._run_lifecycle_publication,
+                            epoch,
+                            pending,
+                        )
+                    )
+                except RuntimeError:
+                    self._lifecycle_publication_running = False
+                    self._lifecycle_publication_future = None
+                    logger.exception(
+                        "Lifecycle publication executor rejected coalesced work"
+                    )
+
+    def request_lifecycle_publication(
+        self,
+        *,
+        expected_generation: int | None = None,
+    ) -> bool:
+        """Queue the latest lifecycle snapshot without blocking its transition."""
+
+        if expected_generation is None:
+            with self._provider_admission_lock:
+                expected_generation = self._provider_admission_generation
+        with self._lifecycle_publication_lock:
+            if self._lifecycle_publication_closed:
+                return False
+            if self._lifecycle_publication_running:
+                pending = self._lifecycle_publication_pending_generation
+                if pending is None or expected_generation > pending:
+                    self._lifecycle_publication_pending_generation = (
+                        expected_generation
+                    )
+                return True
+            epoch = self._lifecycle_publication_epoch
+            self._lifecycle_publication_running = True
+            try:
+                self._lifecycle_publication_future = (
+                    self._lifecycle_publication_pool.submit(
+                        self._run_lifecycle_publication,
+                        epoch,
+                        expected_generation,
+                    )
+                )
+            except RuntimeError:
+                self._lifecycle_publication_running = False
+                self._lifecycle_publication_future = None
+                logger.exception("Lifecycle publication executor rejected work")
+                return False
+            return True
+
+    def _shutdown_lifecycle_publications(self) -> None:
+        """Fence old snapshots and cancel queued publication without waiting."""
+
+        with self._lifecycle_publication_lock:
+            if self._lifecycle_publication_closed:
+                return
+            self._lifecycle_publication_closed = True
+            self._lifecycle_publication_epoch += 1
+            self._lifecycle_publication_pending_generation = None
+            future = self._lifecycle_publication_future
+            self._lifecycle_publication_future = None
+            self._lifecycle_publication_running = False
+            pool = self._lifecycle_publication_pool
+        if future is not None:
+            future.cancel()
+        pool.shutdown(wait=False, cancel_futures=True)
 
     def _notify_state_only(self) -> None:
         """Notify observers with state only (no issues refresh).
