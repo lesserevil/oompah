@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T09:56:00.569098Z'
-updated_at: '2026-08-09T16:19:18.269354Z'
+updated_at: '2026-08-10T01:15:47.960508Z'
 work_branch: OOMPAH-948
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/763
@@ -98,6 +98,25 @@ oompah.terminal_audit:
     selected_ref: a557d6de3384308a1ae18dd41fec5d12bfb8328a
     selected_sha: a557d6de3384308a1ae18dd41fec5d12bfb8328a
     applied: true
+  - version: 1
+    override_id: override-09b0264e176a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-948
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ae924b2ff0910c92420dbb0e86d33c5b17ff5beda230d62c4c7b0cd8d45434b4
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Selected or integrated head a557d6d is an ancestor of current main and
+      the completed audit evidence is preserved; retire the historical record as Merged.
+    created_at: '2026-08-10T01:15:44.220402+00:00'
+    selected_ref: a557d6de3384308a1ae18dd41fec5d12bfb8328a
+    selected_sha: a557d6de3384308a1ae18dd41fec5d12bfb8328a
+    applied: false
   version: 1
   pending_chain:
   - version: 1
