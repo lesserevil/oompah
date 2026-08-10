@@ -2425,8 +2425,80 @@ def test_external_task_creation_supersedes_publication_without_blocking(tmp_path
         assert not publication.result(timeout=5)
 
     assert len(raw_tracker.created) == 1
-    assert project_store.tracker_authority_revision(project.id) == 1
+    assert project_store.tracker_authority_revision(project.id) == 2
     assert orch._quality_gate_result_for(project.id, issue.identifier) is None
+
+
+def test_blocked_external_tracker_mutation_is_lock_free_and_fails_publication(
+    tmp_path,
+):
+    orch = _outcome_fence_orchestrator()
+    issue = _outcome_authority().issue
+    project = _outcome_project()
+    project_store = ProjectStore(
+        path=str(tmp_path / "projects-active-mutation.json"),
+        repos_root=str(tmp_path / "repos-active-mutation"),
+        worktree_root=str(tmp_path / "worktrees-active-mutation"),
+    )
+    project_store._projects[project.id] = project
+    mutation_started = threading.Event()
+    release_mutation = threading.Event()
+
+    class BlockingExternalTracker:
+        fetch_calls = 0
+
+        def create_issue(self, title, **_fields):
+            mutation_started.set()
+            assert release_mutation.wait(timeout=5)
+            return Issue(
+                id="task-blocked",
+                identifier="task-blocked",
+                title=title,
+                project_id=project.id,
+                state=OPEN,
+            )
+
+        def fetch_issue_detail(self, _task_id):
+            self.fetch_calls += 1
+            return issue
+
+    raw_tracker = BlockingExternalTracker()
+    tracker = ProvenanceGuardedTracker(raw_tracker, project_store, project.id)
+    orch.project_store = project_store
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._quality_gate_branch_head = MagicMock(return_value="a" * 40)
+    producer = _authorityless_producer(orch, head_sha="a" * 40)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        mutation = pool.submit(tracker.create_issue, "Blocked remote task")
+        assert mutation_started.wait(timeout=2)
+        project_lock = project_store.project_write_lock(project.id)
+        assert project_lock.acquire(timeout=0.2)
+        project_lock.release()
+        try:
+            assert not orch._publish_quality_gate_result(
+                project.id,
+                issue.identifier,
+                QualityGateResult(
+                    status="interrupted",
+                    head_sha="a" * 40,
+                    command="make test",
+                    interrupted=True,
+                ),
+                authority=None,
+                producer=producer,
+                issue=issue,
+                branch=issue.identifier,
+                target_branch="main",
+                observed_status=READY_TO_INTEGRATE,
+            )
+            assert raw_tracker.fetch_calls == 0
+            assert project_store.tracker_publication_revision(project.id) is None
+        finally:
+            release_mutation.set()
+        assert mutation.result(timeout=2).identifier == "task-blocked"
+
+    assert project_store.tracker_publication_revision(project.id) == 2
 
 
 @pytest.mark.parametrize(

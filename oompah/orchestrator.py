@@ -33554,11 +33554,6 @@ class Orchestrator:
                 return None
             return value
 
-        def tracker_publication_revision() -> int | None:
-            return integer_revision(
-                getattr(tracker, "get_publication_revision", None)
-            )
-
         def project_workflow_revision() -> int | None:
             source = getattr(self.project_store, "workflow_authority_revision", None)
             if not callable(source):
@@ -33584,6 +33579,20 @@ class Orchestrator:
                 exc,
             )
             return False
+
+        tracker_revision_source: Callable[[], Any] | None = None
+        if callable(getattr(type(tracker), "get_publication_revision", None)):
+            tracker_revision_source = getattr(tracker, "get_publication_revision")
+        else:
+            try:
+                instance_source = vars(tracker).get("get_publication_revision")
+            except TypeError:
+                instance_source = None
+            if callable(instance_source):
+                tracker_revision_source = instance_source
+
+        def tracker_publication_revision() -> int | None:
+            return integer_revision(tracker_revision_source)
 
         authority_snapshot: tuple[Any, ...] | None = None
         workflow_authority_check: Callable[[], bool] | None = None
@@ -33615,6 +33624,8 @@ class Orchestrator:
                 workflow_authority_check = authority.workflow_authority_check
 
         tracker_revision_before = tracker_publication_revision()
+        if tracker_revision_source is not None and tracker_revision_before is None:
+            return reject_stale_producer()
         project_revision_before = project_workflow_revision()
         current_project = self.project_store.get(str(project_id))
         if not isinstance(current_project, Project):
@@ -33739,6 +33750,8 @@ class Orchestrator:
                     return reject_stale_producer()
 
         tracker_revision_after = tracker_publication_revision()
+        if tracker_revision_source is not None and tracker_revision_after is None:
+            return reject_stale_producer()
         if (
             tracker_revision_before is not None
             and tracker_revision_after != tracker_revision_before

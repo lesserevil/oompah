@@ -769,15 +769,19 @@ class ProvenanceGuardedTracker:
     def __getattr__(self, name: str) -> Any:
         return getattr(self._provenance_tracker, name)
 
-    def get_publication_revision(self) -> int:
-        """Return the project-local managed tracker mutation epoch."""
+    def get_publication_revision(self) -> int | None:
+        """Return the quiescent managed tracker mutation epoch."""
 
         source = getattr(
+            self._provenance_project_store, "tracker_publication_revision", None
+        )
+        if callable(source):
+            revision = source(self._provenance_project_id)
+            return int(revision) if revision is not None else None
+        fallback = getattr(
             self._provenance_project_store, "tracker_authority_revision", None
         )
-        if not callable(source):
-            return 0
-        return int(source(self._provenance_project_id))
+        return int(fallback(self._provenance_project_id)) if callable(fallback) else 0
 
     def _advance_publication_revision(self) -> None:
         advance = getattr(
@@ -789,14 +793,27 @@ class ProvenanceGuardedTracker:
             advance(self._provenance_project_id)
 
     def _publication_mutation(self, operation: Callable[[], Any]) -> Any:
-        """Run one managed tracker write and advance its CAS atomically."""
+        """Fence one external tracker write without retaining project authority."""
 
-        with self._provenance_project_store.project_write_lock(
-            self._provenance_project_id
-        ):
+        admit = getattr(
+            self._provenance_project_store,
+            "admit_tracker_authority_mutation",
+            None,
+        )
+        finalize = getattr(
+            self._provenance_project_store,
+            "finalize_tracker_authority_mutation",
+            None,
+        )
+        if not callable(admit) or not callable(finalize):
             result = operation()
             self._advance_publication_revision()
             return result
+        token = str(admit(self._provenance_project_id))
+        try:
+            return operation()
+        finally:
+            finalize(self._provenance_project_id, token)
 
     def create_issue(self, *args: Any, **kwargs: Any) -> Issue:
         return self._publication_mutation(
