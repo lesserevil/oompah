@@ -6769,7 +6769,7 @@ class Orchestrator:
         self.event_bus.emit(EventType.ORCHESTRATOR_PAUSED, {})
         self._notify_observers()
 
-    def quiesce(self) -> None:
+    def quiesce(self, *, notify: bool = True) -> None:
         """Stop new dispatch while allowing running workers to finish.
 
         This is the lifecycle-cutover counterpart to :meth:`pause`.  It is a
@@ -6784,7 +6784,8 @@ class Orchestrator:
         with self._provider_admission_lock:
             self._quiesced = True
             self._provider_admission_generation += 1
-        self._notify_observers()
+        if notify:
+            self._notify_observers()
         logger.info("Orchestrator quiesced — new dispatch stopped for lifecycle drain")
 
     @contextlib.asynccontextmanager
@@ -8611,7 +8612,7 @@ class Orchestrator:
             entry.forced_exit_reason = reason
             entry.forced_exit_error = error
 
-    def _activate_unpaused_dispatch(self) -> bool:
+    def _activate_unpaused_dispatch(self, *, notify: bool = True) -> bool:
         """Open timers and publish resume after every durable owner is ready."""
 
         with self._retry_authority_lock:
@@ -8638,38 +8639,45 @@ class Orchestrator:
                 "Resume remains fenced because an implementation retry timer "
                 "could not be armed on a live event loop"
             )
-            self._notify_observers()
+            if notify:
+                self._notify_observers()
             return False
         if suspended_recoveries and not self._persist_retry_entries():
             logger.error(
                 "Resume remains fenced because rearmed implementation retry "
                 "authority could not be persisted"
             )
-            self._notify_observers()
+            if notify:
+                self._notify_observers()
             return False
+        blocked = False
         with self._provider_admission_lock:
             if self._dispatch_is_blocked():
-                logger.error(
-                    "Resume publication suppressed because provider admission "
-                    "became blocked during activation"
+                blocked = True
+            else:
+                # The final gate observation and resume publication are one
+                # admission transaction. A concurrent persistence failure can
+                # either quiesce first (suppressing this event) or immediately
+                # after a truthful resume, never between the check and event.
+                logger.info("Orchestrator unpaused")
+                self._set_refresh_requested()
+                self._post_event(
+                    DispatchEvent(
+                        event_type=DispatchEventType.REFRESH_REQUESTED,
+                        payload={"reason": "unpaused"},
+                    )
                 )
-                self._notify_observers()
-                return False
-            # The final gate observation and resume publication are one
-            # admission transaction. A concurrent persistence failure can
-            # either quiesce first (suppressing this event) or immediately
-            # after a truthful resume, never between the check and event.
-            logger.info("Orchestrator unpaused")
-            self._set_refresh_requested()
-            self._post_event(
-                DispatchEvent(
-                    event_type=DispatchEventType.REFRESH_REQUESTED,
-                    payload={"reason": "unpaused"},
-                )
+                self.event_bus.emit(EventType.ORCHESTRATOR_RESUMED, {})
+        if blocked:
+            logger.error(
+                "Resume publication suppressed because provider admission "
+                "became blocked during activation"
             )
-            self.event_bus.emit(EventType.ORCHESTRATOR_RESUMED, {})
+        # ``get_snapshot`` may take workflow/project/journal locks. Never hold
+        # provider admission while notifying, even for the blocked result.
+        if notify:
             self._notify_observers()
-        return True
+        return not blocked
 
     async def _recover_restart_issues_for_resume(self) -> None:
         """Keep resume fenced until interrupted setup rows are acknowledged."""
@@ -8693,7 +8701,7 @@ class Orchestrator:
                 "retrying in %.1fs",
                 retry_delay_s,
             )
-            self._notify_observers()
+            await asyncio.to_thread(self._notify_observers)
             with self._provider_admission_lock:
                 if self._restart_in_progress or self._stopping:
                     return
@@ -8707,7 +8715,8 @@ class Orchestrator:
             # in the same admission transaction. A concurrent stop therefore
             # wins either before all three or after all three, never between
             # the unquiesce and its event/timer publication.
-            self._activate_unpaused_dispatch()
+            self._activate_unpaused_dispatch(notify=False)
+        await asyncio.to_thread(self._notify_observers)
 
     def _schedule_restart_issue_recovery_for_resume(self) -> bool:
         """Publish and confirm one recovery owner on the orchestrator loop."""
@@ -8799,7 +8808,7 @@ class Orchestrator:
                 return False
         return bool(publication_result["published"])
 
-    def unpause(self) -> bool:
+    def unpause(self, *, notify: bool = True) -> bool:
         """Resume dispatch unless a restart transaction owns admission.
 
         A restart request is an admission fence as soon as it is claimed, even
@@ -8857,9 +8866,10 @@ class Orchestrator:
         self._save_paused_state()
         if pending_restart_recovery:
             scheduled = self._schedule_restart_issue_recovery_for_resume()
-            self._notify_observers()
+            if notify:
+                self._notify_observers()
             return scheduled
-        return self._activate_unpaused_dispatch()
+        return self._activate_unpaused_dispatch(notify=notify)
 
     async def graceful_restart(
         self,
@@ -8951,7 +8961,7 @@ class Orchestrator:
                 drain_timeout_s,
                 self._restart_initial_running,
             )
-            self._notify_observers()
+            await asyncio.to_thread(self._notify_observers)
 
             deadline = time.monotonic() + drain_timeout_s
             while self.state.running and time.monotonic() < deadline:
@@ -9039,7 +9049,8 @@ class Orchestrator:
                 }
                 for issue_id, entry in self._running_items_snapshot()
             ]
-            saved, existing_count, added_count = self._merge_restart_issues(
+            saved, existing_count, added_count = await asyncio.to_thread(
+                self._merge_restart_issues,
                 restart_issues,
                 paused=was_user_paused,
             )
@@ -9114,8 +9125,11 @@ class Orchestrator:
                         if not self._quiesced:
                             self._quiesced = True
                             self._provider_admission_generation += 1
-            self._save_paused_state()
-            self._notify_observers()
+            # Rollback persistence and its full state snapshot may wait on
+            # journal/project/workflow locks. Keep failure recovery observable
+            # without parking the scheduler/API event loop.
+            await asyncio.to_thread(self._save_paused_state)
+            await asyncio.to_thread(self._notify_observers)
             raise
 
     @property

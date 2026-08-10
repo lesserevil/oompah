@@ -12,6 +12,8 @@ from fastapi.testclient import TestClient
 from starlette.requests import Request
 
 from oompah import server
+from oompah.config import ServiceConfig
+from oompah.orchestrator import Orchestrator
 from oompah.server import app
 
 
@@ -36,6 +38,36 @@ def _fake_orchestrator(timeout: int = 3600):
         _save_paused_state=MagicMock(),
         _notify_observers=MagicMock(),
         graceful_restart=AsyncMock(),
+    )
+
+
+def _real_orchestrator(tmp_path) -> Orchestrator:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    project_store.get.return_value = SimpleNamespace(paused=False)
+    return Orchestrator(
+        config=ServiceConfig(duplicate_preflight_max_agents=0),
+        workflow_path="WORKFLOW.md",
+        project_store=project_store,
+        state_path=str(tmp_path / "state.json"),
+    )
+
+
+def _json_request(body: dict[str, object]) -> Request:
+    encoded = json.dumps(body).encode()
+
+    async def _receive() -> dict[str, object]:
+        return {"type": "http.request", "body": encoded, "more_body": False}
+
+    return Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v1/orchestrator/restart",
+            "headers": [(b"content-type", b"application/json")],
+            "query_string": b"",
+        },
+        _receive,
     )
 
 
@@ -347,7 +379,7 @@ def test_quiesce_api_preserves_running_workers():
 
     assert response.status_code == 200
     assert response.json()["quiesced"] is True
-    fake.quiesce.assert_called_once_with()
+    fake.quiesce.assert_called_once_with(notify=False)
 
 
 @pytest.mark.asyncio
@@ -444,3 +476,229 @@ async def test_restart_claim_contention_is_bounded_without_blocking_health(
     assert json.loads(response.body)["retryable"] is True
     assert fake._restart_in_progress is False
     fake.graceful_restart.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_real_lifecycle_controls_outlive_blocked_observer_snapshot(
+    tmp_path,
+):
+    """Snapshot publication cannot own HTTP or provider admission authority."""
+
+    original = server._orchestrator
+    orch = _real_orchestrator(tmp_path)
+    snapshot_entered = threading.Event()
+    release_snapshot = threading.Event()
+    snapshot_finished = threading.Event()
+
+    def _blocked_project_snapshot() -> list[object]:
+        snapshot_entered.set()
+        try:
+            assert release_snapshot.wait(timeout=3)
+            return []
+        finally:
+            snapshot_finished.set()
+
+    # Exercise the real get_snapshot -> review/project authority path used by
+    # _notify_observers, rather than replacing the snapshot method itself.
+    orch.project_store.list_all.side_effect = _blocked_project_snapshot
+    server._orchestrator = orch
+    try:
+        started = time.monotonic()
+        quiesced = await asyncio.wait_for(
+            server.api_orchestrator_quiesce(),
+            timeout=0.2,
+        )
+        quiesce_elapsed = time.monotonic() - started
+        assert await asyncio.to_thread(snapshot_entered.wait, 1)
+
+        started = time.monotonic()
+        health = await asyncio.wait_for(server.healthz(), timeout=0.1)
+        health_elapsed = time.monotonic() - started
+
+        claim = await asyncio.wait_for(
+            server.api_orchestrator_restart(
+                _json_request(
+                    {
+                        "claim_only": True,
+                        "restart_request_id": "blocked-snapshot-claim",
+                    }
+                )
+            ),
+            timeout=0.2,
+        )
+        cancelled = await asyncio.wait_for(
+            server.api_orchestrator_restart(
+                _json_request(
+                    {
+                        "cancel_claim": True,
+                        "restart_request_id": "blocked-snapshot-claim",
+                    }
+                )
+            ),
+            timeout=0.2,
+        )
+        resumed = await asyncio.wait_for(
+            server.api_orchestrator_resume(),
+            timeout=0.2,
+        )
+
+        assert orch._provider_admission_lock.acquire(blocking=False)
+        orch._provider_admission_lock.release()
+    finally:
+        release_snapshot.set()
+        await asyncio.to_thread(snapshot_finished.wait, 1)
+        server._orchestrator = original
+
+    assert quiesced.status_code == 200
+    assert quiesce_elapsed < 0.2
+    assert json.loads(health.body)["status"] == "ok"
+    assert health_elapsed < 0.1
+    assert claim.status_code == 200
+    assert cancelled.status_code == 200
+    assert resumed.status_code == 200
+    assert orch._quiesced is False
+    assert orch._restart_in_progress is False
+
+
+@pytest.mark.asyncio
+async def test_restart_drain_snapshot_and_journal_work_stay_off_http_loop(
+    tmp_path,
+    monkeypatch,
+):
+    """Graceful drain staging cannot block health or cancellation responses."""
+
+    original = server._orchestrator
+    orch = _real_orchestrator(tmp_path)
+    snapshot_entered = threading.Event()
+    release_snapshot = threading.Event()
+    journal_entered = threading.Event()
+    release_journal = threading.Event()
+
+    def _blocked_notify() -> None:
+        snapshot_entered.set()
+        assert release_snapshot.wait(timeout=3)
+
+    def _blocked_merge(*_args, **_kwargs) -> tuple[bool, int, int]:
+        journal_entered.set()
+        assert release_journal.wait(timeout=3)
+        return True, 0, 0
+
+    monkeypatch.setattr(orch, "_notify_observers", _blocked_notify)
+    monkeypatch.setattr(orch, "_merge_restart_issues", _blocked_merge)
+    server._orchestrator = orch
+    drain_task = None
+    try:
+        response = await server.api_orchestrator_restart(
+            _json_request(
+                {
+                    "drain_timeout_s": 0,
+                    "restart_request_id": "slow-drain-staging",
+                }
+            )
+        )
+        drain_task = orch._restart_drain_task
+        assert drain_task is not None
+        assert await asyncio.to_thread(snapshot_entered.wait, 1)
+
+        started = time.monotonic()
+        health_during_snapshot = await asyncio.wait_for(
+            server.healthz(), timeout=0.1
+        )
+        cancel_during_snapshot = await asyncio.wait_for(
+            server.api_orchestrator_restart(
+                _json_request(
+                    {
+                        "cancel_claim": True,
+                        "restart_request_id": "slow-drain-staging",
+                    }
+                )
+            ),
+            timeout=0.2,
+        )
+        snapshot_control_elapsed = time.monotonic() - started
+
+        release_snapshot.set()
+        assert await asyncio.to_thread(journal_entered.wait, 1)
+        started = time.monotonic()
+        health_during_journal = await asyncio.wait_for(
+            server.healthz(), timeout=0.1
+        )
+        journal_health_elapsed = time.monotonic() - started
+        release_journal.set()
+        await asyncio.wait_for(asyncio.shield(drain_task), timeout=1)
+    finally:
+        release_snapshot.set()
+        release_journal.set()
+        if drain_task is not None and not drain_task.done():
+            await asyncio.wait_for(asyncio.shield(drain_task), timeout=1)
+        server._orchestrator = original
+
+    assert response.status_code == 200
+    assert json.loads(health_during_snapshot.body)["status"] == "ok"
+    assert cancel_during_snapshot.status_code == 409
+    assert snapshot_control_elapsed < 0.2
+    assert json.loads(health_during_journal.body)["status"] == "ok"
+    assert journal_health_elapsed < 0.1
+    assert orch._stopping is True
+    assert orch._restart_requested is True
+
+
+@pytest.mark.asyncio
+async def test_failed_restart_cleanup_persistence_stays_off_http_loop():
+    """Uncontended drain cleanup cannot synchronously park the API loop."""
+
+    original = server._orchestrator
+    fake = _fake_orchestrator()
+    fake.graceful_restart = AsyncMock(side_effect=RuntimeError("drain failed"))
+    save_entered = threading.Event()
+    release_save = threading.Event()
+    save_finished = threading.Event()
+
+    def _blocked_save() -> None:
+        save_entered.set()
+        try:
+            assert release_save.wait(timeout=3)
+        finally:
+            save_finished.set()
+
+    fake._save_paused_state = _blocked_save
+    server._orchestrator = fake
+    try:
+        response = await server.api_orchestrator_restart(_json_request({}))
+        assert await asyncio.to_thread(save_entered.wait, 1)
+        started = time.monotonic()
+        health = await asyncio.wait_for(server.healthz(), timeout=0.1)
+        claim = await asyncio.wait_for(
+            server.api_orchestrator_restart(
+                _json_request(
+                    {
+                        "claim_only": True,
+                        "restart_request_id": "post-failure-claim",
+                    }
+                )
+            ),
+            timeout=0.2,
+        )
+        cancelled = await asyncio.wait_for(
+            server.api_orchestrator_restart(
+                _json_request(
+                    {
+                        "cancel_claim": True,
+                        "restart_request_id": "post-failure-claim",
+                    }
+                )
+            ),
+            timeout=0.2,
+        )
+        control_elapsed = time.monotonic() - started
+    finally:
+        release_save.set()
+        await asyncio.to_thread(save_finished.wait, 1)
+        server._orchestrator = original
+
+    assert response.status_code == 200
+    assert json.loads(health.body)["status"] == "ok"
+    assert claim.status_code == 200
+    assert cancelled.status_code == 200
+    assert control_elapsed < 0.2
+    assert fake._restart_in_progress is False

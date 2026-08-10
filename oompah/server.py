@@ -1771,6 +1771,13 @@ _api_lifecycle_thread_pool = ThreadPoolExecutor(
     max_workers=2,
     thread_name_prefix="api-lifecycle",
 )
+# Snapshot publication is deliberately separate from lifecycle mutations.
+# A slow observer may wait on workflow/project/journal authority for seconds;
+# it must not consume the workers used to cancel or resume a cutover.
+_api_lifecycle_publication_thread_pool = ThreadPoolExecutor(
+    max_workers=2,
+    thread_name_prefix="api-lifecycle-publication",
+)
 # The credential-safe lifecycle client has a 30 second HTTP deadline.  Lock
 # admission must resolve before that deadline so a caller receives an explicit,
 # retryable rejection instead of an ambiguous transport timeout.
@@ -1808,6 +1815,27 @@ async def _run_lifecycle_api_io(
     loop = asyncio.get_running_loop()
     call = functools.partial(func, *args, **kwargs)
     return await loop.run_in_executor(_api_lifecycle_thread_pool, call)
+
+
+def _submit_lifecycle_publication(
+    func: Callable[..., Any], /, *args: Any, **kwargs: Any
+) -> None:
+    """Publish lifecycle state without delaying the HTTP control plane."""
+
+    call = functools.partial(func, *args, **kwargs)
+    try:
+        future = _api_lifecycle_publication_thread_pool.submit(call)
+    except RuntimeError:
+        logger.exception("Lifecycle publication executor rejected work")
+        return
+
+    def _log_failure(completed) -> None:
+        try:
+            completed.result()
+        except Exception:
+            logger.exception("Lifecycle state publication failed")
+
+    future.add_done_callback(_log_failure)
 
 
 class _LifecycleAdmissionBusy(RuntimeError):
@@ -17159,7 +17187,10 @@ async def api_orchestrator_quiesce():
             # cooperative acquisition is the important boundary: a workflow
             # thread may own that lock, but HTTP health and cancellation keep
             # receiving event-loop turns while we wait.
-            orch.quiesce()
+            orch.quiesce(notify=False)
+        notify = getattr(orch, "_notify_observers", None)
+        if callable(notify):
+            _submit_lifecycle_publication(notify)
         return JSONResponse({"ok": True, "quiesced": True})
     except _LifecycleAdmissionBusy as exc:
         return JSONResponse(
@@ -17182,7 +17213,12 @@ async def api_orchestrator_resume():
             cmd_id = _ipc.enqueue_command("unpause")
             return JSONResponse({"ok": True, "paused": False, "ipc_command_id": cmd_id})
         orch = _get_orchestrator()
-        resumed = await _run_lifecycle_api_io(orch.unpause)
+        resumed = await _run_lifecycle_api_io(
+            functools.partial(orch.unpause, notify=False)
+        )
+        notify = getattr(orch, "_notify_observers", None)
+        if callable(notify):
+            _submit_lifecycle_publication(notify)
         if resumed is False:
             return JSONResponse(
                 {
@@ -17480,10 +17516,10 @@ async def api_orchestrator_restart(request: Request):
                         if callable(notify):
                             notify()
 
-                    # The common uncontended path retains synchronous callback
-                    # semantics used by lightweight embedders and tests.  A
-                    # workflow thread owning the fence must never park the API
-                    # event loop, so only that contended path is deferred.
+                    # The in-memory CAS remains synchronous when uncontended.
+                    # Persistence and observer snapshots are always delegated
+                    # after releasing admission; either can wait on native
+                    # journal/project/workflow authority for an arbitrary time.
                     if admission_lock is None or admission_lock.acquire(
                         blocking=False
                     ):
@@ -17492,7 +17528,8 @@ async def api_orchestrator_restart(request: Request):
                         finally:
                             if admission_lock is not None:
                                 admission_lock.release()
-                        _after_clear()
+                        if failed:
+                            _submit_lifecycle_publication(_after_clear)
                         return
 
                     async def _clear_when_available() -> None:
@@ -17501,7 +17538,7 @@ async def api_orchestrator_restart(request: Request):
                         ):
                             _clear_locked()
                         if failed:
-                            await _run_lifecycle_api_io(_after_clear)
+                            _submit_lifecycle_publication(_after_clear)
 
                     asyncio.create_task(
                         _clear_when_available(),
