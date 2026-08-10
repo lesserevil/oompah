@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:21.541694Z'
-updated_at: '2026-08-04T22:02:06.744422Z'
+updated_at: '2026-08-10T01:20:57.633007Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,6 +62,30 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-04T22:02:04.259317+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Historical audited Done record lacks safe exact current landing proof;
+      retain immutable terminal provenance and retire recurring reassessment without
+      creating new work.
+    marked_at: '2026-08-10T01:20:56.046004+00:00'
+    updated_at: '2026-08-10T01:20:56.046004+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Historical audited Done record lacks safe exact current landing proof;
+        retain immutable terminal provenance and retire recurring reassessment without
+        creating new work.
+      recorded_at: '2026-08-10T01:20:56.046004+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -95,6 +119,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-08-04T21:28:44.378297+00:00'
     updated_at: '2026-08-04T22:02:04.259278+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-7e65eccae518

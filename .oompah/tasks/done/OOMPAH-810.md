@@ -11,7 +11,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-05T19:46:58.647186Z'
+updated_at: '2026-08-10T01:21:12.842677Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-810
 target_branch: null
 review_url: null
@@ -125,6 +125,30 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-05T19:45:59.415071+00:00'
     applied_at: '2026-08-05T19:46:12.101038+00:00'
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Historical audited Done record lacks safe exact current landing proof;
+      retain immutable terminal provenance and retire recurring reassessment without
+      creating new work.
+    marked_at: '2026-08-10T01:21:11.274959+00:00'
+    updated_at: '2026-08-10T01:21:11.274959+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Historical audited Done record lacks safe exact current landing proof;
+        retain immutable terminal provenance and retire recurring reassessment without
+        creating new work.
+      recorded_at: '2026-08-10T01:21:11.274959+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -177,6 +201,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-08-05T18:14:08.249508+00:00'
     updated_at: '2026-08-05T19:45:59.414894+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-4d0bf58a6399
