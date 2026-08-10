@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-984
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Make completed-call settlement recycle proof deterministic on Python 3.13
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T03:51:51.943285Z'
-updated_at: '2026-08-10T03:51:51.943285Z'
+updated_at: '2026-08-10T03:52:12.356536Z'
 work_branch: null
 target_branch: null
 review_url: null
