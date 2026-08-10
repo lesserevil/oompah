@@ -2304,6 +2304,7 @@ def test_terminal_project_fence_orders_result_publication_before_revocation():
     orch._standalone_delivery_authorities[key] = authority
     project_lock = threading.RLock()
     project_store = MagicMock()
+    project_store.get.return_value = _outcome_project()
     project_store.project_write_lock.return_value = project_lock
     orch.project_store = project_store
     orch._tracker_for_project = MagicMock(return_value=MagicMock())
@@ -2594,6 +2595,56 @@ def test_current_same_head_command_generation_recovers_older_failure():
     )
     assert orch._quality_gate_result_for(*key) is not None
     assert orch._quality_gate_result_for(*key).command == "new check"
+
+
+def test_current_standalone_authority_rejects_old_command_pass():
+    orch = _outcome_fence_orchestrator()
+    issue = _outcome_authority().issue
+    project = _outcome_project()
+    project.test_command = "old check"
+    key = (project.id, issue.identifier)
+    head_sha = "c" * 40
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    tracker.fetch_all_issues.return_value = [issue]
+    project_store = MagicMock()
+    project_store.get.return_value = project
+    project_store.project_write_lock.return_value = threading.RLock()
+    orch.project_store = project_store
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+
+    authority = orch._claim_standalone_delivery_authority(project, issue)
+    assert authority is not None
+    assert orch._set_standalone_delivery_head(
+        authority,
+        authority.branch,
+        head_sha,
+        lambda: head_sha,
+    )
+    assert orch._standalone_delivery_authorized(authority, tracker)
+    producer = _outcome_producer(authority)
+
+    def publish(result):
+        return orch._publish_quality_gate_result(
+            *key,
+            result,
+            authority=authority,
+            producer=producer,
+            issue=issue,
+            branch=authority.branch,
+            target_branch=authority.target_branch,
+            observed_status=READY_TO_INTEGRATE,
+        )
+
+    project.test_command = "new check"
+    current_failure = QualityGateResult("failed", head_sha, "new check")
+    assert publish(current_failure)
+    assert not publish(QualityGateResult("passed", head_sha, "old check"))
+    assert orch._quality_gate_result_for(*key) is not None
+    assert orch._quality_gate_result_for(*key).command == "new check"
+
+    assert publish(QualityGateResult("passed", head_sha, "new check"))
+    assert orch._quality_gate_result_for(*key) is None
 
 
 def test_authorityless_review_terminal_first_cannot_recreate_retry_alert(tmp_path):

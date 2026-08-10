@@ -33332,13 +33332,17 @@ class Orchestrator:
             lock_factory(str(project_id)) if callable(lock_factory) else None
         ) or contextlib.nullcontext()
         with project_lock:
+            current_project = self.project_store.get(str(project_id))
+            if not isinstance(current_project, Project):
+                return False
+            current_command = self._quality_gate_command(current_project)
             if authority is not None:
-                if not self._standalone_delivery_authorized(authority, tracker):
+                if (
+                    current_command != result.command
+                    or not self._standalone_delivery_authorized(authority, tracker)
+                ):
                     return False
             else:
-                current_project = self.project_store.get(str(project_id))
-                if not isinstance(current_project, Project):
-                    return False
                 try:
                     current = tracker.fetch_issue_detail(str(task_id))
                 except Exception as exc:  # noqa: BLE001 - fail closed
@@ -33380,7 +33384,6 @@ class Orchestrator:
                     != str(target_branch)
                 ):
                     return reject_stale_producer()
-                current_command = self._quality_gate_command(current_project)
                 if (
                     current_command != result.command
                     or producer.authority_generation
