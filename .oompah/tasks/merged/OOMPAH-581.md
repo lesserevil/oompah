@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: Done
+status: Merged
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-08-07T09:58:55.030847Z'
+updated_at: '2026-08-10T01:10:11.560423Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: ''
@@ -260,6 +260,25 @@ oompah.terminal_audit:
       OOMPAH-876 tracks transport retries without candidate exhaustion.'
     created_at: '2026-08-07T09:43:26.907471+00:00'
     applied: true
+  - version: 1
+    override_id: override-635ca79b7853
+    project_id: proj-14849f1b
+    task_id: OOMPAH-581
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ac50dd1408cb83f5fd74ec4c1f108cc67f4c9357df36939155b796e4af499100
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Generation 927 exact workflow evidence proves this audited Done result
+      landed on its immediate target; retire the historical record as Merged.
+    created_at: '2026-08-10T01:10:06.978362+00:00'
+    selected_ref: f2b319c1182cd654112db622a0498171e508dead
+    selected_sha: f2b319c1182cd654112db622a0498171e508dead
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -296,6 +315,7 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T02:43:05.702270+00:00'
     updated_at: '2026-07-31T02:45:07.986720+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-263be5fb2c13
     project_id: proj-14849f1b
@@ -330,6 +350,7 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T02:43:05.702270+00:00'
     updated_at: '2026-07-31T02:47:25.569260+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-d7244a8797ac
     project_id: proj-14849f1b
@@ -360,6 +381,7 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-08-07T03:47:07.470300+00:00'
     updated_at: '2026-08-07T03:48:38.735639+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-92362c1c4018
     project_id: proj-14849f1b
@@ -390,6 +412,7 @@ oompah.terminal_audit:
     previous_state: In Progress
     created_at: '2026-08-07T07:16:26.653779+00:00'
     updated_at: '2026-08-07T07:22:52.281061+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-c2ccc4272c2f
     project_id: proj-14849f1b
@@ -407,6 +430,7 @@ oompah.terminal_audit:
       source: api
     previous_state: In Progress
     created_at: '2026-08-07T07:16:26.653779+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-995a3dbfef87
     project_id: proj-14849f1b
@@ -476,6 +500,7 @@ oompah.terminal_audit:
     selected_ref: f2b319c1182cd654112db622a0498171e508dead
     selected_sha: f2b319c1182cd654112db622a0498171e508dead
     updated_at: '2026-08-07T09:41:29.895348+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-1ed4580274d8
     project_id: proj-14849f1b
@@ -496,6 +521,7 @@ oompah.terminal_audit:
     selected_ref: f2b319c1182cd654112db622a0498171e508dead
     selected_sha: f2b319c1182cd654112db622a0498171e508dead
     updated_at: '2026-08-07T09:43:43.035760+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-5028ccb3344d
     project_id: proj-14849f1b
@@ -515,6 +541,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T09:58:52.190451+00:00'
     selected_ref: f2b319c1182cd654112db622a0498171e508dead
     selected_sha: f2b319c1182cd654112db622a0498171e508dead
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-200d14f6c680
