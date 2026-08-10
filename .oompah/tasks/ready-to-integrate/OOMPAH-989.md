@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T10:14:43.892182Z'
+updated_at: '2026-08-10T10:24:53.694123Z'
 work_branch: OOMPAH-989
 target_branch: null
 review_url: null
@@ -102,5 +102,74 @@ author: oompah
 created: 2026-08-10 10:14
 ---
 Keep graceful restart responsive and fence lifecycle publication. Exact head 7b5f28ac3bdc10cd6ae244af943acf6768e07207 passed independent review and the full Makefile gate: 19,375 passed, 7 skipped, 2 xfailed.
+---
+author: oompah
+created: 2026-08-10 10:24
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-989`
+Target: `main`
+Head: `7b5f28ac3bdc10cd6ae244af943acf6768e07207`
+Command: `make test`
+Result: `failed`
+Process: exited with return code 2
+Termination source: `process_exit`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+         assert False
+E                +  where False = any(<generator object TestBackwardCompatibility.test_ws_bootstrap_structure_preserved.<locals>.<genexpr> at 0x70343ac245f0>)
+
+tests/test_websocket_authenticated_bootstrap.py:406: AssertionError
+=============================== warnings summary ===============================
+tests/test_auditor_quiesce_fence.py::test_quiesce_waits_for_winning_running_entry_publication
+  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/json/encoder.py:414: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    def _iterencode(o, _current_indent_level):
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_http_auth.py::TestVerifyPassword::test_invalid_hash_format
+tests/test_http_auth.py::TestVerifyPassword::test_valid_bcrypt_password
+tests/test_http_auth.py::TestVerifyPassword::test_wrong_bcrypt_password
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-yp10ml30/run/workspace/.venv/lib/python3.12/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+tests/test_http_auth.py: 21 warnings
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-yp10ml30/run/workspace/tests/test_http_auth.py:37: DeprecationWarning: the method passlib.context.CryptContext.encrypt() is deprecated as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash() instead.
+    return ctx.encrypt("password")
+
+tests/test_http_auth.py::TestVerifyPassword::test_valid_apr1_password
+tests/test_http_auth.py::TestVerifyPassword::test_wrong_apr1_password
+tests/test_http_auth.py::TestLoadHtpasswdFile::test_valid_multiple_entries
+tests/test_http_auth.py::TestVerifierCallable::test_multiple_users
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-yp10ml30/run/workspace/tests/test_http_auth.py:49: DeprecationWarning: the method passlib.context.CryptContext.encrypt() is deprecated as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash() instead.
+    return ctx.encrypt("password")
+
+tests/test_mcp_gateway.py::test_mcp_client_can_initialize_list_allowed_tools_and_call_state
+tests/test_mcp_gateway.py::test_authenticated_mcp_client_can_initialize_list_and_call_protected_api
+  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/contextlib.py:105: DeprecationWarning: Use `streamable_http_client` instead.
+    self.gen = func(*args, **kwds)
+
+tests/test_sdk_install_guards.py::TestClaudeSessionMcpServerGuard::test_no_tool_catalog_skips_mcp_server_path
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-yp10ml30/run/workspace/oompah/acp_backends/claude.py:532: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    async for msg in client.receive_response():
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json
+tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-yp10ml30/run/workspace/.venv/lib/python3.12/site-packages/httpx/_models.py:408: DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.
+    headers, stream = encode_request(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_websocket_authenticated_bootstrap.py::TestBackwardCompatibility::test_ws_bootstrap_structure_preserved
+= 1 failed, 19359 passed, 22 skipped, 2 xfailed, 34 warnings in 154.80s (0:02:34) =
+
+make: *** [Makefile:458: test] Error 1
+```
 ---
 <!-- COMMENTS:END -->
