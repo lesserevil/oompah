@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-984
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make completed-call settlement recycle proof deterministic on Python 3.13
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T03:51:51.943285Z'
-updated_at: '2026-08-10T04:30:04.614266Z'
+updated_at: '2026-08-10T04:30:19.331130Z'
 work_branch: OOMPAH-984
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/792
@@ -24,9 +24,11 @@ oompah.integration:
   attempts: 0
   mode: standalone
   task_branch: OOMPAH-984
-  head_sha: 7c53bf19484e8f65cd0a8c6f69df4c8270771e33
-  submitted_at: '2026-08-10T03:58:40.365788+00:00'
-  updated_at: '2026-08-10T03:58:40.365788+00:00'
+  base_branch: main
+  base_sha: 0b1b035c882ffc5f1fe411168b425f3eaf127bae
+  head_sha: 6473c14fdf8e148472c917ec3f1695c98713f074
+  submitted_at: '2026-08-10T04:30:06.625134+00:00'
+  updated_at: '2026-08-10T04:30:06.625134+00:00'
 oompah.work_branch: OOMPAH-984
 oompah.review_url: https://github.com/lesserevil/oompah/pull/792
 oompah.review_number: '792'
@@ -64,5 +66,10 @@ author: oompah
 created: 2026-08-10 04:30
 ---
 Direct-owner CI repair rebased PR #792 onto exact OOMPAH-985 commit 2a255c5c0d2f8d9850c4135809422c33f9409571 (which also includes merged OOMPAH-983). Range-diff preserved the OOMPAH-984 patch exactly at new head 6473c14fdf8e148472c917ec3f1695c98713f074; combined workflow-worker and release-refresh suites pass 104/104. Remote and PR head are exact.
+---
+author: oompah
+created: 2026-08-10 04:30
+---
+Rebased the reviewed OOMPAH-984 fix onto merged OOMPAH-983 plus exact OOMPAH-985, preserving the patch by range-diff. PR #792, origin/OOMPAH-984, and submitted head all equal 6473c14fdf8e148472c917ec3f1695c98713f074; combined focused suites pass 104/104.
 ---
 <!-- COMMENTS:END -->
