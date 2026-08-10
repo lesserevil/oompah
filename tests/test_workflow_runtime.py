@@ -61,7 +61,7 @@ from oompah.task_transition_service import (
 )
 from oompah.terminal_audit_workflow import TerminalAuditWorkflow
 from oompah.workflow_facts import FactDomain, LandingState, WorkflowFactCollector
-from oompah.workflow_fact_model import LandingFact
+from oompah.workflow_fact_model import FactState, LandingFact
 from oompah.workflow_controller import UniversalTotalityLivenessController
 from oompah.workflow_jobs import (
     ACTIVE_JOB_STATES,
@@ -149,7 +149,7 @@ def make_issue(
         project_id=project_id,
         issue_type=issue_type,
         parent_id=parent_id,
-        blocked_by=[BlockerRef(identifier="DONE-1", state="Done")],
+        blocked_by=[],
         integration=IntegrationRecord(
             state="ready", task_branch=identifier, base_branch="main", head_sha="a" * 40
         ),
@@ -584,6 +584,281 @@ def test_native_tracker_generation_race_supersedes_stale_status_publication(
         health["published_snapshot_generation"]
     )
     runtime.close()
+    store.close()
+
+
+def test_dependency_status_race_cannot_publish_a_mixed_generation(tmp_path):
+    """A dependency move after the corpus read supersedes the whole cut."""
+
+    dependency = make_issue("TASK-DEPENDENCY", state="Merged")
+    task = make_issue(
+        "TASK-DEPENDENT", state="Ready to Integrate", parent_id="EPIC-1"
+    )
+    task.blocked_by = []
+    task.start_blocked_by = [
+        BlockerRef(identifier=dependency.identifier.lower())
+    ]
+    store = WorkflowJobStore(str(tmp_path / "dependency-race.sqlite3"))
+    tracker = NativeTracker([task, dependency])
+    tracker.fetch_all_issues_with_generation = lambda: (
+        tracker.fetch_all_issues(),
+        "dependency-head:1",
+    )
+    tracker.get_state_branch_generation = lambda: "dependency-head:2"
+    binding, journal = make_binding(tmp_path, tracker, store)
+    binding.tracker_authority_revision_source = (
+        tracker.get_state_branch_generation
+    )
+    captured = []
+    original_evaluate = binding.integration_controller.evaluate
+
+    def capture_integration(tasks, **kwargs):
+        batch = original_evaluate(tasks, **kwargs)
+        captured.extend(batch.tasks)
+        return batch
+
+    binding.integration_controller.evaluate = capture_integration
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=UniversalTotalityLivenessController(store=store),
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    dependent = next(
+        item for item in captured if item.task.identifier == task.identifier
+    )
+    assert dependent.facts.fact(FactDomain.DEPENDENCIES).value[
+        "hard_start"
+    ][0]["status"] == "Merged"
+    assert dependent.decision.reason_code == "integration.queued"
+    assert report["projects"]["project-1"] == {
+        "publication_superseded": True,
+        "reason": "tracker authority changed before publication",
+    }
+    assert report["requires_reconcile"] is True
+    assert store.health_snapshot()["accepted_snapshot_generation"] == 0
+    runtime.close()
+    store.close()
+
+
+def test_runtime_filtered_foreign_dependency_ignores_embedded_state(tmp_path):
+    """A foreign row filtered from the corpus cannot authorize its ref."""
+
+    task = make_issue(
+        "TASK-FILTERED-DEPENDENT",
+        state="Ready to Integrate",
+        parent_id="EPIC-1",
+    )
+    task.blocked_by = []
+    task.start_blocked_by = [
+        BlockerRef(identifier="FOREIGN-DEPENDENCY", state="Merged")
+    ]
+    foreign = make_issue(
+        "FOREIGN-DEPENDENCY",
+        state="Merged",
+        project_id="project-2",
+    )
+    store = WorkflowJobStore(str(tmp_path / "filtered-foreign.sqlite3"))
+    tracker = NativeTracker([task, foreign])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    captured = []
+    original_evaluate = binding.integration_controller.evaluate
+
+    def capture_integration(tasks, **kwargs):
+        batch = original_evaluate(tasks, **kwargs)
+        captured.extend(batch.tasks)
+        return batch
+
+    binding.integration_controller.evaluate = capture_integration
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="shadow",
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert report["projects"]["project-1"]["issues"] == 1
+    dependent = next(
+        item for item in captured if item.task.identifier == task.identifier
+    )
+    dependencies = dependent.facts.fact(FactDomain.DEPENDENCIES)
+    assert dependencies.state is FactState.ERROR
+    assert dependencies.error_code == "dependency_state_unavailable"
+    runtime.close()
+    store.close()
+
+
+def test_authoritative_issue_index_rejects_casefold_collision():
+    first = make_issue("OOMPAH-CASE")
+    second = make_issue("oompah-case")
+
+    with pytest.raises(
+        WorkflowRuntimeError,
+        match="ambiguous task identity",
+    ):
+        WorkflowRuntime._authoritative_issue_index([first, second])
+
+
+def test_terminal_status_delta_supersedes_dependent_integration_cut(tmp_path):
+    """An audit task status race invalidates every decision that depends on it."""
+
+    audit_task = make_issue("TASK-AUDIT-DEPENDENCY", state="In Validation")
+    dependent_task = make_issue(
+        "TASK-AUDIT-DEPENDENT",
+        state="Ready to Integrate",
+        parent_id="EPIC-1",
+    )
+    dependent_task.blocked_by = []
+    dependent_task.start_blocked_by = [
+        BlockerRef(identifier=audit_task.identifier, state="In Validation")
+    ]
+    store = WorkflowJobStore(str(tmp_path / "audit-dependency-race.sqlite3"))
+    tracker = NativeTracker([audit_task, dependent_task])
+    tracker.fetch_all_issues_with_generation = lambda: (
+        tracker.fetch_all_issues(),
+        "audit-status-head:1",
+    )
+    tracker.get_state_branch_generation = lambda: "audit-status-head:2"
+    binding, journal = make_binding(tmp_path, tracker, store)
+    binding.tracker_authority_revision_source = (
+        tracker.get_state_branch_generation
+    )
+    workflow = binding.terminal_audit_workflow
+    assert workflow is not None
+    record = TerminalAuditRecord(
+        audit_id="audit-dependency",
+        project_id="project-1",
+        task_id=audit_task.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=EvidenceFingerprint("d" * 64),
+        request_state=RequestState.IN_PROGRESS,
+        source_generation=1,
+    )
+    workflow.ensure(record)
+    observed = {
+        "phase": "active",
+        "workflow_phase": "running",
+        "audit_job_present": True,
+        "audit_id": record.audit_id,
+        "request_state": record.request_state.value,
+        "target_state": record.target_state.value,
+        "evidence_fingerprint": record.evidence_fingerprint.digest,
+        "source_generation": record.source_generation,
+        "audit_generation": workflow.generation(record),
+        "actively_working": True,
+    }
+    binding.collector.sources[FactDomain.TERMINAL_AUDIT] = (
+        lambda issue: observed
+        if issue.identifier == audit_task.identifier
+        else {"phase": "none"}
+    )
+    terminal_revision = [0]
+    binding.terminal_authority_revision_source = lambda: terminal_revision[0]
+
+    def changed_tracker_tasks(_expected, _current):
+        terminal_revision[0] = 1
+        return frozenset({audit_task.identifier})
+
+    binding.tracker_terminal_authority_changes_source = changed_tracker_tasks
+    binding.terminal_authority_changes_source = lambda _expected: (
+        terminal_revision[0],
+        frozenset({audit_task.identifier}),
+    )
+    binding.terminal_audit_lane_proof_source = lambda *_args: True
+    captured = []
+    original_evaluate = binding.integration_controller.evaluate
+
+    def capture_integration(tasks, **kwargs):
+        batch = original_evaluate(tasks, **kwargs)
+        captured.extend(batch.tasks)
+        return batch
+
+    binding.integration_controller.evaluate = capture_integration
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=UniversalTotalityLivenessController(store=store),
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    dependent = next(
+        item
+        for item in captured
+        if item.task.identifier == dependent_task.identifier
+    )
+    assert dependent.facts.fact(FactDomain.DEPENDENCIES).value[
+        "hard_start"
+    ][0]["status"] == "In Validation"
+    assert report["projects"]["project-1"] == {
+        "publication_superseded": True,
+        "reason": "tracker authority changed before publication",
+    }
+    assert report["requires_reconcile"] is True
+    assert store.health_snapshot()["accepted_snapshot_generation"] == 0
+    assert runtime.projections() == ()
+    runtime.close()
+    store.close()
+
+
+@pytest.mark.parametrize("mode", ("shadow", "enforce"))
+def test_dependency_decision_converges_across_bounded_restart_scans(
+    tmp_path, mode
+):
+    dependency = make_issue("TASK-RESTART-DEPENDENCY", state="Merged")
+    task = make_issue(
+        "TASK-RESTART-DEPENDENT",
+        state="Ready to Integrate",
+        parent_id="EPIC-1",
+    )
+    task.blocked_by = []
+    task.start_blocked_by = [
+        BlockerRef(identifier=dependency.identifier)
+    ]
+    tracker = NativeTracker([task, dependency])
+    store = WorkflowJobStore(str(tmp_path / f"dependency-{mode}.sqlite3"))
+    reasons = []
+
+    for _restart_generation in range(2):
+        binding, journal = make_binding(tmp_path, tracker, store)
+        runtime = WorkflowRuntime(
+            project_bindings={"project-1": binding},
+            store=store,
+            journals={"project-1": journal},
+            mode=mode,
+            handlers=complete_handlers() if mode == "enforce" else None,
+            liveness_controller=UniversalTotalityLivenessController(
+                store=store
+            ),
+            **accepted_projection_wiring(),
+        )
+        asyncio.run(runtime.start())
+        report = runtime.reconcile()
+        projection = next(
+            item
+            for item in runtime.projections()
+            if item["task_id"] == task.identifier
+        )
+        reasons.append(projection["reason_code"])
+        assert not report.get("requires_reconcile", False)
+        runtime.close()
+
+    assert reasons == ["integration.queued", "integration.queued"]
     store.close()
 
 
@@ -1355,7 +1630,9 @@ def test_200_task_native_publication_never_refreshes_per_task_and_owner_is_bound
     retry_report = runtime.reconcile()
     assert retry_report["projects"]["project-1"]["snapshot"]["published"] is True
     assert corpus_reads == 2
-    assert detail_reads - detail_reads_before_retry == 400
+    # Every owner and universal fact consumes the one generation-bound corpus;
+    # dependency resolution must not reintroduce per-task detail reads.
+    assert detail_reads - detail_reads_before_retry == 0
     assert invalidations == 0
     assert lane_proofs == 0
     runtime.close()
@@ -1476,7 +1753,9 @@ def test_real_terminal_revision_cas_fences_absent_to_retained_provenance(
     store.close()
 
 
-def test_scoped_active_audit_churn_does_not_starve_unrelated_review(tmp_path):
+def test_scoped_unrelated_active_audit_status_churn_keeps_review_publishable(
+    tmp_path,
+):
     audit_task = make_issue("TASK-AUDIT-CHURN", state="In Validation")
     review_task = make_issue("TASK-REVIEW-GREEN", state="In Review")
     store = WorkflowJobStore(str(tmp_path / "scoped-audit-churn.sqlite3"))
@@ -1526,11 +1805,14 @@ def test_scoped_active_audit_churn_does_not_starve_unrelated_review(tmp_path):
         revision[0],
         frozenset({audit_task.identifier}) if expected < revision[0] else frozenset(),
     )
-    binding.tracker_terminal_authority_changes_source = (
-        lambda expected, current: frozenset({audit_task.identifier})
-        if expected != current
-        else frozenset()
-    )
+
+    def diff_tracker_authority(expected, current):
+        if expected == current:
+            return frozenset()
+        revision[0] += 1
+        return frozenset({audit_task.identifier})
+
+    binding.tracker_terminal_authority_changes_source = diff_tracker_authority
     proof_calls = []
 
     def prove_lane(decision, value, action):
@@ -1573,7 +1855,6 @@ def test_scoped_active_audit_churn_does_not_starve_unrelated_review(tmp_path):
         projection_publisher=publish_projection,
         projection_epoch_source=lambda: 1,
     )
-    original_publish = store.publish_snapshot_generation
     asyncio.run(runtime.start())
     stable = runtime.reconcile()
 
@@ -1583,22 +1864,17 @@ def test_scoped_active_audit_churn_does_not_starve_unrelated_review(tmp_path):
         review_task.identifier,
     }
 
-    def churn_before_publication(generation, publisher, **kwargs):
-        revision[0] += 1
-        tracker.authority_generation = f"test-native:{revision[0] + 1}"
-        return original_publish(generation, publisher, **kwargs)
-
-    store.publish_snapshot_generation = churn_before_publication
+    tracker.fetch_all_issues_with_generation = lambda: (
+        tracker.fetch_all_issues(),
+        "test-native:1",
+    )
+    tracker.authority_generation = "test-native:2"
     report = runtime.reconcile()
-    retry = runtime.reconcile()
 
     assert report["projects"]["project-1"]["snapshot"]["published"] is True
-    assert retry["projects"]["project-1"]["snapshot"]["published"] is True
     assert report["projects"]["project-1"]["issues"] == 200
     assert "requires_reconcile" not in report
-    assert "requires_reconcile" not in retry
     assert proof_calls == [
-        (audit_task.identifier, None),
         (audit_task.identifier, None),
         (audit_task.identifier, None),
     ]
@@ -1613,14 +1889,14 @@ def test_scoped_active_audit_churn_does_not_starve_unrelated_review(tmp_path):
         (decision["task_id"], decision["reason_code"])
         for decision in runtime.projections()
     } == {(review_task.identifier, "review.ready_to_merge")}
-    for decisions, _generation, kwargs in published_cuts[-2:]:
-        assert {decision.task_id for decision in decisions} == {
-            review_task.identifier
-        }
-        assert kwargs["incomplete_keys"] == {
-            ("project-1", audit_task.identifier)
-        }
-        assert kwargs["scan_complete"] is False
+    decisions, _generation, kwargs = published_cuts[-1]
+    assert {decision.task_id for decision in decisions} == {
+        review_task.identifier
+    }
+    assert kwargs["incomplete_keys"] == {
+        ("project-1", audit_task.identifier)
+    }
+    assert kwargs["scan_complete"] is False
     runtime.close()
     store.close()
 
@@ -5845,14 +6121,14 @@ def test_graceful_drain_does_not_poison_active_shadow_qualification(tmp_path):
     }["review"]
     fetch_entered = threading.Event()
     release_fetch = threading.Event()
-    original_fetch = tracker.fetch_all_issues_enriched
+    original_fetch = tracker.fetch_all_issues_with_generation
 
     def blocked_fetch():
         fetch_entered.set()
         assert release_fetch.wait(5), "tracker barrier timed out"
         return original_fetch()
 
-    tracker.fetch_all_issues_enriched = blocked_fetch
+    tracker.fetch_all_issues_with_generation = blocked_fetch
     binding.dispatch_enabled = lambda: not runtime._draining
 
     async def exercise():
@@ -5937,14 +6213,14 @@ def test_quiesce_gap_preserves_mixed_mode_shadow_qualification(tmp_path):
     source_entered = threading.Event()
     release_source = threading.Event()
     lifecycle_blocked = threading.Event()
-    original_fetch = tracker.fetch_all_issues_enriched
+    original_fetch = tracker.fetch_all_issues_with_generation
 
     def blocked_fetch():
         source_entered.set()
         assert release_source.wait(5), "tracker barrier timed out"
         return original_fetch()
 
-    tracker.fetch_all_issues_enriched = blocked_fetch
+    tracker.fetch_all_issues_with_generation = blocked_fetch
     mixed_binding.dispatch_enabled = lambda: not lifecycle_blocked.is_set()
     mixed_binding.lifecycle_interrupted = lifecycle_blocked.is_set
 
@@ -6012,7 +6288,7 @@ def test_graceful_drain_still_records_genuine_shadow_failure(tmp_path):
         assert release_fetch.wait(5), "tracker barrier timed out"
         raise RuntimeError("genuine source failure")
 
-    tracker.fetch_all_issues_enriched = failing_fetch
+    tracker.fetch_all_issues_with_generation = failing_fetch
     binding.dispatch_enabled = lambda: not runtime._draining
 
     async def exercise():

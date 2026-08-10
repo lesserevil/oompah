@@ -387,6 +387,7 @@ class OompahMarkdownTracker:
         self._write_lock = _repo_write_lock(self._repo_lock_key)
         self._read_cache: list[dict[str, Any]] | None = None
         self._read_cache_by_id: dict[str, dict[str, Any]] | None = None
+        self._read_cache_status_by_id: dict[str, str] | None = None
         self._read_cache_generation: int | None = None
         self._corrupt_stubs: list[dict[str, Any]] | None = None
         self._read_cache_guard = threading.Lock()
@@ -657,7 +658,18 @@ class OompahMarkdownTracker:
         return self.fetch_issues_by_states([IN_PROGRESS])
 
     def fetch_all_issues(self) -> list[Issue]:
-        return [self._normalize_record(rec) for rec in self._read_records()]
+        # Native dependency metadata stores identifiers, not a duplicated
+        # status.  Resolve every edge from the same coherent record cut that
+        # produced its task so workflow facts never interpret an absent
+        # ``BlockerRef.state`` as Backlog.
+        with self._write_lock:
+            records = self._read_records()
+            with self._read_cache_guard:
+                states = dict(self._read_cache_status_by_id or {})
+            return [
+                self._with_dependency_states(self._normalize_record(rec), states)
+                for rec in records
+            ]
 
     def fetch_all_issues_with_generation(self) -> tuple[list[Issue], str | None]:
         """Return issues and the exact state-branch generation they represent.
@@ -674,8 +686,18 @@ class OompahMarkdownTracker:
         return self.fetch_all_issues()
 
     def fetch_issue_detail(self, identifier: str) -> Issue | None:
-        rec = self._read_record(identifier)
-        return self._normalize_record(rec) if rec else None
+        # Keep the task row and every dependency status under the shared
+        # repository mutation lock.  A concurrent status-file move therefore
+        # appears wholly before or wholly after this detail observation.
+        with self._write_lock:
+            rec = self._read_record(identifier)
+            if rec is None:
+                return None
+            with self._read_cache_guard:
+                states = dict(self._read_cache_status_by_id or {})
+            return self._with_dependency_states(
+                self._normalize_record(rec), states
+            )
 
     def fetch_issue_detail_with_generation(
         self, identifier: str
@@ -1390,15 +1412,23 @@ class OompahMarkdownTracker:
         # for the same repository.  Advancing a shared generation prevents this
         # instance from returning a record whose cached path was just moved to
         # another status directory.
-        generation = _advance_repo_read_generation(
-            self._repo_lock_key,
-            task_id=task_id,
-            authority_kind=authority_kind,
-        )
-        self._clear_read_cache_local()
+        # Reads hold the same repository lock while pairing their records with
+        # the dependency-status index.  Advance authority and clear this
+        # instance's related caches atomically with respect to that pair so an
+        # invalidator cannot leave a reader with records from one generation
+        # and an empty status map from the next.
+        with self._write_lock:
+            generation = _advance_repo_read_generation(
+                self._repo_lock_key,
+                task_id=task_id,
+                authority_kind=authority_kind,
+            )
+            self._clear_read_cache_local()
         # Invalidation occurs after the mutation has been written to the
         # authoritative worktree and before the mutation is returned to the
-        # caller, so server-side snapshots are invalidated synchronously.
+        # caller, so server-side snapshots are invalidated synchronously. Keep
+        # callbacks outside the repository lock because they may read through
+        # this tracker again.
         self._notify_read_change()
         return generation
 
@@ -1408,6 +1438,7 @@ class OompahMarkdownTracker:
         with self._read_cache_guard:
             self._read_cache = None
             self._read_cache_by_id = None
+            self._read_cache_status_by_id = None
             self._read_cache_generation = None
             self._corrupt_stubs = None
 
@@ -1761,6 +1792,30 @@ class OompahMarkdownTracker:
             requestor_login=_optional_str(external_github.get("requestor_login")),
         )
 
+    def _with_dependency_states(
+        self,
+        issue: Issue,
+        states: dict[str, str],
+    ) -> Issue:
+        """Attach same-generation native status authority to dependency refs.
+
+        A missing target deliberately remains ``None``.  The workflow fact
+        collector classifies that as unavailable evidence instead of
+        canonicalizing it to Backlog, while ordinary tracker consumers retain
+        the unresolved identifier for repair and diagnostics.
+        """
+
+        def resolved(ref: BlockerRef) -> BlockerRef:
+            identifier = str(ref.identifier or ref.id or "").strip()
+            state = states.get(self._lookup_id(identifier)) if identifier else None
+            return BlockerRef(id=ref.id, identifier=ref.identifier, state=state)
+
+        issue.blocked_by = [resolved(ref) for ref in issue.blocked_by]
+        issue.start_blocked_by = [
+            resolved(ref) for ref in issue.start_blocked_by
+        ]
+        return issue
+
     def _read_records(self) -> list[dict[str, Any]]:
         # A status transition writes the replacement path then removes the old
         # path.  Keep enumeration and opening each enumerated path inside the
@@ -1875,9 +1930,16 @@ class OompahMarkdownTracker:
                     corrupt_stubs.append({"path": path, "stem": path.stem})
 
                 records = list(records_by_id.values())
+                status_by_id = {
+                    identifier: canonicalize_status(
+                        str(record["meta"].get("status") or BACKLOG)
+                    )
+                    for identifier, record in records_by_id.items()
+                }
                 with self._read_cache_guard:
                     self._read_cache = records
                     self._read_cache_by_id = dict(records_by_id)
+                    self._read_cache_status_by_id = status_by_id
                     self._read_cache_generation = generation
                     self._corrupt_stubs = corrupt_stubs
                 return records

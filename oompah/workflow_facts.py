@@ -469,14 +469,6 @@ def _owner_delivery_landings(
     )
 
 
-def _blocker_value(blocker: BlockerRef) -> dict[str, Any]:
-    return {
-        "id": _optional_text(blocker.id),
-        "identifier": _optional_text(blocker.identifier),
-        "status": canonicalize_status(blocker.state) if blocker.state else None,
-    }
-
-
 def _integration_value(issue: Issue) -> Any:
     integration = issue.integration
     if integration is None:
@@ -705,6 +697,85 @@ class WorkflowFactCollector:
             observations,
         )
 
+    def _dependency_observation(
+        self,
+        issue: Issue,
+        *,
+        now_iso: str,
+        authoritative_issues: Mapping[str, Issue] | None,
+    ) -> FactObservation:
+        """Resolve dependency state without inventing a Backlog default.
+
+        Production full scans pass the already generation-bound project
+        corpus.  Direct native detail reads carry statuses materialized under
+        the tracker's repository lock.  In either case, an absent, malformed,
+        or cross-project target is unavailable authority and fails closed.
+        """
+
+        error_codes: set[str] = set()
+
+        def values(blockers: Sequence[BlockerRef]) -> list[dict[str, Any]]:
+            resolved: list[dict[str, Any]] = []
+            for blocker in blockers:
+                identifier = str(
+                    blocker.identifier or blocker.id or ""
+                ).strip()
+                if not identifier:
+                    error_codes.add("dependency_reference_invalid")
+                    continue
+                status = blocker.state
+                if authoritative_issues is not None:
+                    # Runtime corpus indexes use the same case-insensitive ID
+                    # semantics as the native tracker.  Retain a canonical-key
+                    # fallback while accepting exact-key plain mappings in
+                    # direct tests and adapter integrations.
+                    target = authoritative_issues.get(identifier)
+                    if target is None:
+                        target = authoritative_issues.get(identifier.casefold())
+                    if target is None:
+                        # A supplied corpus is the sole authority for this
+                        # observation.  Embedded ref state may be stale or may
+                        # describe a foreign row filtered out by project scope.
+                        error_codes.add("dependency_state_unavailable")
+                        continue
+                    target_project = str(target.project_id or "").strip()
+                    if target_project and target_project != self.project_id:
+                        error_codes.add("dependency_project_scope_mismatch")
+                        continue
+                    status = target.state
+                if not str(status or "").strip():
+                    error_codes.add("dependency_state_unavailable")
+                    continue
+                resolved.append(
+                    {
+                        "id": _optional_text(blocker.id),
+                        "identifier": _optional_text(blocker.identifier),
+                        "status": canonicalize_status(status),
+                    }
+                )
+            return sorted(
+                resolved,
+                key=lambda item: item["identifier"] or item["id"] or "",
+            )
+
+        value = {
+            "finish": values(issue.blocked_by),
+            "hard_start": values(issue.start_blocked_by),
+        }
+        if error_codes:
+            return FactObservation.error(
+                FactDomain.DEPENDENCIES,
+                observed_at=now_iso,
+                source="tracker",
+                error_code=sorted(error_codes)[0],
+            )
+        return FactObservation.known(
+            FactDomain.DEPENDENCIES,
+            value,
+            observed_at=now_iso,
+            source="tracker",
+        )
+
     def _overlay_integration_queue(
         self,
         tracker_value: dict[str, Any] | None,
@@ -841,19 +912,25 @@ class WorkflowFactCollector:
         task_id: str,
         *,
         landing_requests: Sequence[LandingRequest] = (),
+        authoritative_issues: Mapping[str, Issue] | None = None,
     ) -> WorkflowFacts:
         if self.cooperative_checkpoint is not None:
             self.cooperative_checkpoint()
         task_id = _required_text(task_id, "task_id")
         now, now_iso = self._now()
-        try:
-            issue = self.tracker.fetch_issue_detail(task_id)
-        except Exception as exc:  # noqa: BLE001 - tracker evidence boundary
-            return self._all_error(
-                task_id,
-                now_iso=now_iso,
-                error_code=f"tracker_{type(exc).__name__.lower()}",
-            )
+        if authoritative_issues is not None:
+            issue = authoritative_issues.get(task_id)
+            if issue is None:
+                issue = authoritative_issues.get(task_id.casefold())
+        else:
+            try:
+                issue = self.tracker.fetch_issue_detail(task_id)
+            except Exception as exc:  # noqa: BLE001 - tracker evidence boundary
+                return self._all_error(
+                    task_id,
+                    now_iso=now_iso,
+                    error_code=f"tracker_{type(exc).__name__.lower()}",
+                )
         if issue is None:
             observations = {
                 domain: FactObservation.missing(
@@ -875,6 +952,20 @@ class WorkflowFactCollector:
             # authority generation.
             issue.project_id = self.project_id
 
+        try:
+            dependency_observation = self._dependency_observation(
+                issue,
+                now_iso=now_iso,
+                authoritative_issues=authoritative_issues,
+            )
+        except Exception as exc:  # noqa: BLE001 - dependency authority boundary
+            dependency_observation = FactObservation.error(
+                FactDomain.DEPENDENCIES,
+                observed_at=now_iso,
+                source="tracker",
+                error_code=f"dependency_{type(exc).__name__.lower()}",
+            )
+
         observations: dict[FactDomain, FactObservation] = {
             FactDomain.TASK: FactObservation.known(
                 FactDomain.TASK,
@@ -882,21 +973,7 @@ class WorkflowFactCollector:
                 observed_at=now_iso,
                 source="tracker",
             ),
-            FactDomain.DEPENDENCIES: FactObservation.known(
-                FactDomain.DEPENDENCIES,
-                {
-                    "finish": sorted(
-                        [_blocker_value(item) for item in issue.blocked_by],
-                        key=lambda item: item["identifier"] or item["id"] or "",
-                    ),
-                    "hard_start": sorted(
-                        [_blocker_value(item) for item in issue.start_blocked_by],
-                        key=lambda item: item["identifier"] or item["id"] or "",
-                    ),
-                },
-                observed_at=now_iso,
-                source="tracker",
-            ),
+            FactDomain.DEPENDENCIES: dependency_observation,
         }
         if self.containment_source is not None:
             observations[FactDomain.CONTAINMENT] = self._source_observation(
@@ -907,7 +984,17 @@ class WorkflowFactCollector:
             )
         else:
             try:
-                children = self.tracker.fetch_children(issue.identifier)
+                children = (
+                    list(
+                        {
+                            child.identifier: child
+                            for child in authoritative_issues.values()
+                            if child.parent_id == issue.identifier
+                        }.values()
+                    )
+                    if authoritative_issues is not None
+                    else self.tracker.fetch_children(issue.identifier)
+                )
             except Exception as exc:  # noqa: BLE001 - tracker evidence boundary
                 observations[FactDomain.CONTAINMENT] = FactObservation.error(
                     FactDomain.CONTAINMENT,

@@ -529,6 +529,97 @@ class TestOompahMarkdownTrackerMutations:
         assert child.identifier in _frontmatter(parent_path)["children"]
         assert parent_refreshed.issue_type == "epic"
 
+    def test_dependency_refs_carry_same_generation_native_statuses(self, tmp_path):
+        tracker = _tracker(tmp_path)
+        merged = tracker.create_issue("Merged dependency")
+        open_dependency = tracker.create_issue("Open dependency")
+        blocked = tracker.create_issue("Blocked task")
+        tracker.update_issue(merged.identifier, status=MERGED)
+        tracker.update_issue(open_dependency.identifier, status=OPEN)
+        tracker.add_dependency(blocked.identifier, merged.identifier)
+        tracker.add_start_dependency(
+            blocked.identifier, open_dependency.identifier
+        )
+
+        detail = tracker.fetch_issue_detail(blocked.identifier)
+        corpus = {
+            issue.identifier: issue for issue in tracker.fetch_all_issues()
+        }
+
+        assert detail is not None
+        assert detail.blocked_by[0].state == MERGED
+        assert detail.start_blocked_by[0].state == OPEN
+        assert corpus[blocked.identifier].blocked_by[0].state == MERGED
+        assert corpus[blocked.identifier].start_blocked_by[0].state == OPEN
+
+    def test_dependency_status_pair_blocks_cache_invalidation_race(self, tmp_path):
+        """Invalidation cannot clear statuses between records and normalization."""
+
+        tracker = _tracker(tmp_path)
+        dependency = tracker.create_issue("Merged dependency")
+        blocked = tracker.create_issue("Blocked task")
+        tracker.update_issue(dependency.identifier, status=MERGED)
+        tracker.add_start_dependency(blocked.identifier, dependency.identifier)
+        tracker.invalidate_read_cache()
+        original_read_records = tracker._read_records
+        records_returned = threading.Event()
+        release_reader = threading.Event()
+        invalidation_finished = threading.Event()
+        reader_result = []
+        errors: list[Exception] = []
+
+        def pause_after_records():
+            records = original_read_records()
+            records_returned.set()
+            assert release_reader.wait(timeout=5), "reader was not released"
+            return records
+
+        def read() -> None:
+            try:
+                reader_result.extend(tracker.fetch_all_issues())
+            except Exception as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        def invalidate() -> None:
+            try:
+                tracker.invalidate_read_cache()
+                invalidation_finished.set()
+            except Exception as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        with patch.object(tracker, "_read_records", side_effect=pause_after_records):
+            reader_thread = threading.Thread(target=read)
+            reader_thread.start()
+            assert records_returned.wait(timeout=2)
+            invalidator_thread = threading.Thread(target=invalidate)
+            invalidator_thread.start()
+            assert not invalidation_finished.wait(timeout=0.2), (
+                "cache invalidation crossed the record/status authority boundary"
+            )
+            release_reader.set()
+            reader_thread.join(timeout=2)
+            invalidator_thread.join(timeout=2)
+
+        assert not reader_thread.is_alive()
+        assert not invalidator_thread.is_alive()
+        assert invalidation_finished.is_set()
+        assert not errors
+        observed = {
+            issue.identifier: issue for issue in reader_result
+        }[blocked.identifier]
+        assert observed.start_blocked_by[0].state == MERGED
+
+    def test_missing_native_dependency_state_remains_unavailable(self, tmp_path):
+        tracker = _tracker(tmp_path)
+        blocked = tracker.create_issue("Blocked task")
+        tracker.add_start_dependency(blocked.identifier, "OTHER-99")
+
+        detail = tracker.fetch_issue_detail(blocked.identifier)
+
+        assert detail is not None
+        assert detail.start_blocked_by[0].identifier == "OTHER-99"
+        assert detail.start_blocked_by[0].state is None
+
     def test_remove_dependency_preserves_other_edges_and_is_idempotent(
         self, tmp_path
     ):

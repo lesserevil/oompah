@@ -534,6 +534,7 @@ class ImplementationWorkflowController:
         tasks: Sequence[Issue],
         *,
         liveness_slo_seconds: Mapping[str, int] | None = None,
+        authoritative_issues: Mapping[str, Issue] | None = None,
     ) -> ImplementationDecisionBatch:
         # Apply the bounded window to this domain's eligible population, not
         # to the complete project corpus.  Otherwise enough alphabetically
@@ -559,7 +560,10 @@ class ImplementationWorkflowController:
             ]
         evaluated: list[ImplementationTaskDecision] = []
         for _, task in selected:
-            facts = self.collector.collect(task.identifier)
+            facts = self.collector.collect(
+                task.identifier,
+                authoritative_issues=authoritative_issues,
+            )
             decision = evaluate_task(
                 task,
                 facts,
