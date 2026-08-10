@@ -325,7 +325,11 @@ def test_auditor_evidence_reuse_rejects_incompatible_proof(tmp_path, change):
     assert (tmp_path / "quality.json").exists() is False
 
 
-def test_orchestrator_records_only_clean_exact_detached_auditor_workspace(tmp_path):
+@pytest.mark.parametrize("head_surface", ["integration", "review_head"])
+def test_orchestrator_records_only_clean_exact_detached_auditor_workspace(
+    tmp_path,
+    head_surface,
+):
     repo = _git_repo(tmp_path)
     head = subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -355,14 +359,19 @@ def test_orchestrator_records_only_clean_exact_detached_auditor_workspace(tmp_pa
         title="Task",
         description="requirements",
         project_id="project",
-        branch_name="work",
+        work_branch="work",
         target_branch="main",
-        integration=IntegrationRecord(
-            state="ready",
-            task_branch="work",
-            base_branch="main",
-            head_sha=head,
+        integration=(
+            IntegrationRecord(
+                state="ready",
+                task_branch="work",
+                base_branch="main",
+                head_sha=head,
+            )
+            if head_surface == "integration"
+            else None
         ),
+        review_head=head if head_surface == "review_head" else None,
     )
     fingerprint = compute_issue_evidence_fingerprint(issue, "project").digest
     tracker = MagicMock()
@@ -505,6 +514,69 @@ def test_terminal_audit_quality_gate_bundle_is_fail_closed_for_nonpassing_eviden
     tracker.invalidate_read_cache.assert_called_once_with()
     tracker.fetch_issue_detail.assert_called_once_with("TASK-1")
     metrics.record_quality_gate_decision.assert_called_once()
+
+
+def test_terminal_audit_quality_gate_bundle_reuses_review_head_without_integration(
+    monkeypatch,
+):
+    """Direct-owner review heads retain the same exact gate authority."""
+
+    monkeypatch.setattr(time, "time", lambda: 10_000.0)
+    project = Project(
+        id="project",
+        name="project",
+        repo_url="repo",
+        repo_path="/managed/repo",
+        default_branch="main",
+        test_command_full="make test",
+    )
+    issue = Issue(
+        id="task",
+        identifier="TASK-1",
+        title="Task",
+        project_id="project",
+        state=IN_VALIDATION,
+        review_head="a" * 40,
+        work_branch="work",
+        target_branch="main",
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, "project").digest
+    tracker = MagicMock(fetch_issue_detail=MagicMock(return_value=issue))
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator._tracker_for_project = MagicMock(return_value=tracker)
+    orchestrator._quality_gate_branch_head = MagicMock(return_value="a" * 40)
+    orchestrator._branch_quality_gate = MagicMock()
+    orchestrator._branch_quality_gate.lookup.return_value = QualityGateResult(
+        "passed",
+        "a" * 40,
+        "make test",
+        10.0,
+        recorded_at=9_999.0,
+    )
+    orchestrator._terminal_audit_metrics = MagicMock()
+
+    bundle = orchestrator._terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        SimpleNamespace(
+            project_id="project",
+            task_id="TASK-1",
+            audit_id="audit-1",
+            target_state="Done",
+            evidence_fingerprint=fingerprint,
+        ),
+    )
+
+    assert bundle["decision"] == "reuse_authoritative_gate"
+    assert bundle["authority_current"] is True
+    assert bundle["accepted_head_sha"] == "a" * 40
+    orchestrator._branch_quality_gate.lookup.assert_called_once_with(
+        repo_identity="repo",
+        target_branch="main",
+        work_branch="work",
+        head_sha="a" * 40,
+        command="make test",
+    )
 
 
 @pytest.mark.parametrize(
@@ -6656,7 +6728,7 @@ def test_preflight_git_ancestry_check_is_primary(tmp_path):
     )
 
     subprocess.run(["git", "checkout", "--orphan", "orphan-branch"], cwd=repo, check=True)
-    
+
     # No Makefile at all - just create a minimal commit
     source = repo / "source.txt"
     source.write_text("content\n", encoding="utf-8")
@@ -6724,16 +6796,16 @@ PORT = 8080
     )
     subprocess.run(["git", "add", "Makefile"], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "spoofed makefile"], cwd=repo, check=True)
-    
+
     gate = BranchQualityGate(str(tmp_path / "quality.json"))
-    
+
     # Try to run the hostile command
     result = _run(gate, repo, "make test")
-    
+
     # Verify branch was rejected at preflight (ancestry check failed)
     assert result.status == "needs_rebase"
     assert "OOMPAH-652" in result.output_tail or "isolation contract" in result.output_tail
-    
+
     # CRITICAL: Verify the hostile code was NEVER executed
     # The sentinel file should NOT exist because the command was rejected before running
     assert not sentinel.exists(), (

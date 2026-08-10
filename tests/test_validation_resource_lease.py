@@ -675,6 +675,7 @@ def test_explicit_pytest_selector_ancestor_configuration_fails_closed(tmp_path):
         ),
         ("make help", {"MAKEFLAGS": "--eval=$(shell make test)"}),
         ("make help", {"GNUMAKEFLAGS": "--eval=$(shell make test)"}),
+        ("make help", {"MAKEOVERRIDES": "X=$(shell make test)"}),
         ("npm run build", {"NODE_OPTIONS": "--require=/task/hook.js"}),
         ("npm run build", {"npm_config_script_shell": "/task/sh"}),
         ("npm run build", {"NPM_CONFIG_SCRIPT_SHELL": "/task/sh"}),
@@ -3258,11 +3259,23 @@ def test_successful_heavy_command_reports_duration_to_auditor_observer(tmp_path)
 )
 def test_api_command_runner_reports_complete_auditor_validation_lifecycle(
     tmp_path,
+    monkeypatch,
     target,
     expected_outcome,
     expected_success,
     expected_scope,
 ):
+    # The operator normally starts the service through ``make start``.  Those
+    # parent-Make controls must not make a literal auditor command opaque.
+    monkeypatch.setenv("MAKEFLAGS", " --no-print-directory")
+    monkeypatch.setenv("MFLAGS", "--no-print-directory")
+    monkeypatch.setenv("GNUMAKEFLAGS", "--warn-undefined-variables")
+    monkeypatch.setenv("MAKEFILES", "/operator/service.mk")
+    inherited_marker = tmp_path / "inherited-make-control-ran"
+    monkeypatch.setenv(
+        "MAKEOVERRIDES",
+        f"X=$(shell touch {inherited_marker})",
+    )
     (tmp_path / "Makefile").write_text(
         "test:\n\t@true\nfail:\n\t@false\nslow:\n\t@sleep 1\n",
         encoding="utf-8",
@@ -3321,6 +3334,7 @@ def test_api_command_runner_reports_complete_auditor_validation_lifecycle(
         assert evidence_call.kwargs["duration_seconds"] > 0
     else:
         coordination.record_auditor_quality_evidence.assert_not_called()
+    assert not inherited_marker.exists()
 
 
 @pytest.mark.parametrize(

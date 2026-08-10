@@ -99,6 +99,23 @@ _WORKER_RUNTIME_SELECTOR_ENV_VARS = frozenset(
     }
 )
 
+# The service is commonly launched by a Make recipe.  GNU Make exports these
+# controls to every descendant, where they can inject makefile fragments or
+# command-line options into an otherwise literal ``make test`` invocation.
+# They describe the operator's service-launch context, not worker intent, so
+# never let them cross the agent process boundary.  A task that genuinely
+# needs Make options must spell them in its command, where validation policy
+# can classify the exact invocation.
+_INHERITED_MAKE_CONTROL_ENV_VARS = frozenset(
+    {
+        "GNUMAKEFLAGS",
+        "MAKEFILES",
+        "MAKEFLAGS",
+        "MAKEOVERRIDES",
+        "MFLAGS",
+    }
+)
+
 # A direct epic-rebase helper works in the shared epic checkout.  It must not
 # inherit the service/operator's general shell environment: that environment
 # can carry forge credentials through arbitrary names, Git's credential
@@ -1099,6 +1116,8 @@ def agent_environment(
     for key in CLIENT_AUTH_ENV_VARS:
         environment.pop(key, None)
     for key in _WORKER_RUNTIME_SELECTOR_ENV_VARS:
+        environment.pop(key, None)
+    for key in _INHERITED_MAKE_CONTROL_ENV_VARS:
         environment.pop(key, None)
     if workspace_path is not None:
         environment[TASK_VENV_ENV] = task_venv_path(workspace_path)

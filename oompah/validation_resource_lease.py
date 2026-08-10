@@ -104,6 +104,7 @@ _VALIDATION_GUARD_ENV_NAMES = frozenset(
         "PYTHONSTARTUP",
         "MAKEFILES",
         "MAKEFLAGS",
+        "MAKEOVERRIDES",
         "GNUMAKEFLAGS",
         "MFLAGS",
         "NODE_OPTIONS",
@@ -2923,7 +2924,9 @@ _CARGO_RUNNER_ENVIRONMENT_NAMES = frozenset(
     }
 )
 _RUNNER_ENVIRONMENT_NAMES = {
-    "make": frozenset({"GNUMAKEFLAGS", "MAKEFILES", "MAKEFLAGS", "MFLAGS"}),
+    "make": frozenset(
+        {"GNUMAKEFLAGS", "MAKEFILES", "MAKEFLAGS", "MAKEOVERRIDES", "MFLAGS"}
+    ),
     "pytest": frozenset(
         {"PYTEST_ADDOPTS", "PYTEST_DISABLE_PLUGIN_AUTOLOAD", "PYTEST_PLUGINS"}
     ),
