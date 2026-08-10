@@ -29,7 +29,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-10T00:01:52.207730Z'
+updated_at: '2026-08-10T00:21:21.945806Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -287,5 +287,10 @@ author: oompah
 created: 2026-08-09 21:45
 ---
 Fresh generation 864 retired the original six exhausted rows through supported terminal-provenance authority, proving the workaround path. It then exposed 14 older Done children (OOMPAH-910, -911, -914 through -921, -926, -929, -930, -931) with the same parent_rollup_review transition.head_required defect: all are parented by OOMPAH-763, have null mutable task heads, and retain exact durable parent-scoped landing facts. The owner applied the same supported terminal-provenance retain action to all 14; no implementation was reopened, and no task file or workflow database was edited directly. A post-deploy complete scan must retire these generations and reach zero current exhaustion.
+---
+author: oompah
+created: 2026-08-10 00:21
+---
+Live rollout advanced on exact eb3ca86e: generation 927 is a fresh complete scan with current divergence=0, current exhausted=0, action_required=0, global alerts=0, and terminal audit scan healthy.  now fails only  because liveness reports 107 historical Done records as overdue: 38 terminal.immediate_target_landing_proven, 48 landing.waiting, 17 evidence.landing_missing, 2 landing.evidence_unknown, and 2 landing.target_evidence_missing. A read-only evidence audit is classifying the exact records for supported terminal provenance retention or correct Merged disposition; no database/task-file edits will be used.
 ---
 <!-- COMMENTS:END -->
