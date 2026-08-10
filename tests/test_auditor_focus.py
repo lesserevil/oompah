@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import MagicMock
 
+import pytest
+
 from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
     AUDITOR_CAPABILITY_POLICY,
@@ -279,6 +281,68 @@ def test_pending_target_preserves_durable_tracker_identity():
     assert target is not None
     assert target.task_id == "TASK-1"
     assert target.project_id == "project-record"
+
+
+def test_pending_target_preserves_exact_revision_binding_for_gate_reuse():
+    from oompah.auditor import pending_auditor_target
+
+    selected = "a" * 40
+    target = pending_auditor_target(
+        {
+            "oompah.terminal_audit": {
+                "pending_chain": [
+                    {
+                        "audit_id": "audit-binding",
+                        "task_id": "TASK-1",
+                        "project_id": "project-1",
+                        "target_state": "Merged",
+                        "previous_state": "In Review",
+                        "evidence_fingerprint": "d" * 64,
+                        "selected_ref": selected,
+                        "selected_sha": selected,
+                        "attempts": [
+                            {
+                                "attempt_id": "attempt-1",
+                                "request_state": "in_progress",
+                            }
+                        ],
+                    }
+                ]
+            }
+        },
+        task_id="TASK-1",
+        project_id="project-1",
+    )
+
+    assert target is not None
+    assert target.attempt_id == "attempt-1"
+    assert target.selected_ref == selected
+    assert target.selected_sha == selected
+
+
+@pytest.mark.parametrize(
+    ("selected_ref", "selected_sha"),
+    [
+        ("a" * 40, None),
+        (None, "a" * 40),
+        ("a" * 40, "invalid"),
+        ("a" * 40, "b" * 40),
+    ],
+)
+def test_auditor_target_rejects_incomplete_or_mismatched_revision_binding(
+    selected_ref,
+    selected_sha,
+):
+    with pytest.raises(ValueError, match="selected_ref|selected_sha"):
+        AuditorTargetContract(
+            audit_id="audit-binding",
+            task_id="TASK-1",
+            project_id="project-1",
+            target_state="Merged",
+            evidence_fingerprint="d" * 64,
+            selected_ref=selected_ref,
+            selected_sha=selected_sha,
+        )
 
 
 def test_result_tool_cannot_change_requested_attempt():

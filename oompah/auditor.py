@@ -712,6 +712,8 @@ class AuditorTargetContract:
     evidence_fingerprint: str
     attempt_id: str | None = None
     previous_state: str | None = None
+    selected_ref: str | None = None
+    selected_sha: str | None = None
 
     def __post_init__(self) -> None:
         for field_name in ("audit_id", "task_id", "project_id", "evidence_fingerprint"):
@@ -725,6 +727,32 @@ class AuditorTargetContract:
         EvidenceFingerprint(self.evidence_fingerprint)
         if self.attempt_id is not None and not isinstance(self.attempt_id, str):
             raise ValueError("auditor target attempt_id must be a string or null")
+        if (self.selected_ref is None) != (self.selected_sha is None):
+            raise ValueError(
+                "auditor target selected_ref and selected_sha must be supplied together"
+            )
+        if self.selected_ref is not None:
+            if not isinstance(self.selected_ref, str) or not isinstance(
+                self.selected_sha, str
+            ):
+                raise ValueError(
+                    "auditor target selected_ref and selected_sha must be strings"
+                )
+            selected_ref = self.selected_ref.strip()
+            selected_sha = self.selected_sha.strip().lower()
+            if not selected_ref:
+                raise ValueError("auditor target selected_ref must be non-empty")
+            if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", selected_sha):
+                raise ValueError(
+                    "auditor target selected_sha must be a full Git object ID"
+                )
+            if re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", selected_ref):
+                if selected_ref.lower() != selected_sha:
+                    raise ValueError(
+                        "immutable auditor target selected_ref must equal selected_sha"
+                    )
+            object.__setattr__(self, "selected_ref", selected_ref)
+            object.__setattr__(self, "selected_sha", selected_sha)
 
     @property
     def requested_target(self) -> str:
@@ -745,6 +773,9 @@ class AuditorTargetContract:
             result["attempt_id"] = self.attempt_id
         if self.previous_state is not None:
             result["previous_state"] = self.previous_state
+        if self.selected_ref is not None:
+            result["selected_ref"] = self.selected_ref
+            result["selected_sha"] = self.selected_sha
         return result
 
 
@@ -777,6 +808,14 @@ def auditor_target_contract(target: Any, *, task_id: str = "", project_id: str =
             raise ValueError(f"auditor target requires {key}")
         return value
 
+    def optional_string(key: str) -> str | None:
+        value = _target_value(target, key)
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError(f"auditor target {key} must be a string or null")
+        return value.strip() or None
+
     # Durable scheduler records already carry their canonical tracker and
     # project identities. Explicit arguments are fallbacks for lightweight
     # test/request objects, never replacements for those identities.
@@ -802,6 +841,8 @@ def auditor_target_contract(target: Any, *, task_id: str = "", project_id: str =
         previous_state=(
             str(_target_value(target, "previous_state") or "").strip() or None
         ),
+        selected_ref=optional_string("selected_ref"),
+        selected_sha=optional_string("selected_sha"),
     )
 
 
@@ -855,6 +896,8 @@ def pending_auditor_target(
                         evidence_fingerprint=target.evidence_fingerprint,
                         attempt_id=active_attempt_id,
                         previous_state=target.previous_state,
+                        selected_ref=target.selected_ref,
+                        selected_sha=target.selected_sha,
                     )
                 return target
             except ValueError:
