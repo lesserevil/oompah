@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T10:46:42.659089Z'
+updated_at: '2026-08-10T10:57:46.162635Z'
 work_branch: OOMPAH-989
 target_branch: null
 review_url: null
@@ -181,5 +181,10 @@ author: oompah
 created: 2026-08-10 10:46
 ---
 OOMPAH-991 reviewer correction is pushed on the shared integration branch at replacement exact head c4ad83e47b1492e7526098dcf5816b3dfd3eb50b. The rejected f2a helper could rewind issue_revision without restoring the issue snapshot. The corrected helper isolates only state snapshot fields plus state_revision, preserves protocol_epoch and all issue-side state, and binds unavailable state to the current protocol epoch under the required locks. Restart-callback and live-WebSocket regressions prove issue invalidation generations remain coherent. Validation: affected files 45/45; original order failure serial and xdist green; complete 7-test leak/coherence pack passed 10/10 repeated xdist runs; compileall/diff/hooks green. Branch is clean, pushed, and matches origin/OOMPAH-989. Full gate remains deferred per the narrow PR 798 blocker direction.
+---
+author: oompah
+created: 2026-08-10 10:57
+---
+PR #798 at exact head c4ad83e47b1492e7526098dcf5816b3dfd3eb50b is green on Python 3.11, 3.12, and 3.13. Final submission is intentionally deferred while directly owned OOMPAH-992 lock-safety children are implemented and integrated; the current remote-head warning is therefore expected and will clear when the one final reviewed/gated head is submitted.
 ---
 <!-- COMMENTS:END -->
