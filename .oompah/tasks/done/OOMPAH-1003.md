@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T19:11:49.831627Z'
-updated_at: '2026-08-10T21:03:11.626192Z'
+updated_at: '2026-08-10T21:03:19.137127Z'
 work_branch: OOMPAH-1003
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/802
@@ -75,7 +75,19 @@ oompah.terminal_audit:
     created_at: '2026-08-10T21:03:06.800777+00:00'
     selected_ref: 7186cce68e1ad569bd2e0f2dec225787902100bd
     selected_sha: 7186cce68e1ad569bd2e0f2dec225787902100bd
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1003
+    target_state: Done
+    evidence_fingerprint: 780e5db61a3579be824065d17d777e80957e88b3d96a56ab896654b90016db2b
+    audit_ids:
+    - audit-f69884c1e483
+    - audit-885f9bb5906b
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T21:03:17.539253+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -83,7 +95,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1003
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -98,12 +110,13 @@ oompah.terminal_audit:
     created_at: '2026-08-10T20:59:25.076621+00:00'
     selected_ref: 7186cce68e1ad569bd2e0f2dec225787902100bd
     selected_sha: 7186cce68e1ad569bd2e0f2dec225787902100bd
+    updated_at: '2026-08-10T21:03:17.539201+00:00'
   - version: 1
     audit_id: audit-885f9bb5906b
     project_id: proj-14849f1b
     task_id: OOMPAH-1003
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -118,6 +131,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T20:59:25.076621+00:00'
     selected_ref: 7186cce68e1ad569bd2e0f2dec225787902100bd
     selected_sha: 7186cce68e1ad569bd2e0f2dec225787902100bd
+    updated_at: '2026-08-10T21:03:17.539230+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -156,5 +170,12 @@ author: oompah
 created: 2026-08-10 20:59
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-10 21:03
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Implementation is delivered in protected PR #803 at merge a9e6cf0047af5d2e37a53853cf49467b2cf16f22 with exact local and hosted gates green. Done is the topology-valid child terminal lane while parent epic OOMPAH-940 remains the live natural auto-close canary.
 ---
 <!-- COMMENTS:END -->
