@@ -80,6 +80,17 @@ def _make_completed_process(returncode: int, stdout: str = "", stderr: str = "")
     return proc
 
 
+def test_publication_revision_is_shared_and_constant_time(tmp_path):
+    tracker = _tracker(tmp_path)
+    replacement = _tracker_for_root(tmp_path / "repo")
+
+    before = tracker.get_publication_revision()
+    tracker.invalidate_read_cache()
+
+    assert tracker.get_publication_revision() == before + 1
+    assert replacement.get_publication_revision() == before + 1
+
+
 class TestOompahMarkdownTrackerCreate:
     def test_create_issue_writes_markdown_task_file(self, tmp_path):
         tracker = _tracker(tmp_path)

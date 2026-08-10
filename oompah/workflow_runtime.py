@@ -243,6 +243,7 @@ class WorkflowProjectBinding:
     ] | None = None
     workflow_authority_revision_source: Callable[[], int] | None = None
     tracker_authority_revision_source: Callable[[], str | None] | None = None
+    tracker_publication_revision_source: Callable[[], int] | None = None
     tracker_terminal_authority_changes_source: Callable[
         [str, str], frozenset[str] | None
     ] | None = None
@@ -1362,6 +1363,15 @@ class WorkflowRuntime:
                 )
                 if callable(
                     getattr(tracker, "get_state_branch_generation", None)
+                )
+                else None,
+                tracker_publication_revision_source=(
+                    lambda _tracker=tracker: int(
+                        _tracker.get_publication_revision()
+                    )
+                )
+                if callable(
+                    getattr(tracker, "get_publication_revision", None)
                 )
                 else None,
                 tracker_terminal_authority_changes_source=(
@@ -2661,6 +2671,14 @@ class WorkflowRuntime:
                     # this project-wide token and makes final publication
                     # supersede instead of mixing generations.
                     terminal_authority_revision = int(revision_source())
+                tracker_publication_revision_source = (
+                    binding.tracker_publication_revision_source
+                )
+                tracker_publication_revision_before = (
+                    int(tracker_publication_revision_source())
+                    if callable(tracker_publication_revision_source)
+                    else None
+                )
                 (
                     issues,
                     tracker_authority_revision,
@@ -2668,6 +2686,19 @@ class WorkflowRuntime:
                 ) = (
                     self._issues_with_authority(binding)
                 )
+                tracker_publication_revision = (
+                    int(tracker_publication_revision_source())
+                    if callable(tracker_publication_revision_source)
+                    else None
+                )
+                if (
+                    tracker_publication_revision_before is not None
+                    and tracker_publication_revision
+                    != tracker_publication_revision_before
+                ):
+                    raise WorkflowPublicationSuperseded(
+                        "tracker authority changed during source collection"
+                    )
                 task_issues = [
                     issue
                     for issue in issues
@@ -2826,6 +2857,9 @@ class WorkflowRuntime:
                         "tracker_authority_revision": (
                             tracker_authority_revision
                         ),
+                        "tracker_publication_revision": (
+                            tracker_publication_revision
+                        ),
                         "tracker_authority_mode": tracker_authority_mode,
                         "workflow_authority_revision": (
                             workflow_authority_revision
@@ -2905,8 +2939,10 @@ class WorkflowRuntime:
             if liveness_controller is not None
             else None
         )
+        liveness_lock_held = False
         if liveness_lock is not None:
             liveness_lock.acquire()
+            liveness_lock_held = True
         observation: ControllerObservation | None = None
         observation_committed = False
         marker_committed = False
@@ -3367,6 +3403,99 @@ class WorkflowRuntime:
                 ):
                     publication_bindings[project_id] = binding
 
+            # State-branch generation and scoped-diff proofs can execute Git
+            # commands.  Complete them before taking any project publication
+            # lock, then retain the native tracker's process-local mutation
+            # revision for the constant-time final CAS below.
+            tracker_terminal_changes: dict[str, frozenset[str]] = {}
+            tracker_publication_revisions: dict[str, int] = {}
+            if publication_bindings and liveness_lock_held:
+                # Health and operator controls use the liveness observation
+                # lock.  Do not retain it across tracker/Git preflight; the
+                # policy epoch is revalidated immediately after reacquisition.
+                assert liveness_lock is not None
+                liveness_lock.release()
+                liveness_lock_held = False
+            for project_id, binding in sorted(publication_bindings.items()):
+                expected_tracker_revision = prepared_by_project[project_id].get(
+                    "tracker_authority_revision"
+                )
+                if expected_tracker_revision is None:
+                    continue
+                tracker_authority_mode = prepared_by_project[project_id].get(
+                    "tracker_authority_mode"
+                )
+                publication_revision_source = (
+                    binding.tracker_publication_revision_source
+                )
+                if not callable(publication_revision_source):
+                    raise WorkflowRuntimeError(
+                        "tracker publication revision source is unavailable"
+                    )
+                publication_revision_before = int(publication_revision_source())
+                tracker_revision_source = binding.tracker_authority_revision_source
+                if tracker_authority_mode == "legacy_digest":
+                    (
+                        _current_issues,
+                        current_tracker_revision,
+                        current_tracker_mode,
+                    ) = self._issues_with_authority(binding)
+                    if current_tracker_mode != "legacy_digest":
+                        current_tracker_revision = None
+                else:
+                    current_tracker_revision = (
+                        tracker_revision_source()
+                        if callable(tracker_revision_source)
+                        else None
+                    )
+                    if isinstance(current_tracker_revision, str):
+                        current_tracker_revision = current_tracker_revision.strip()
+                    if (
+                        not current_tracker_revision
+                        or current_tracker_revision == "unavailable"
+                        or str(current_tracker_revision).startswith("unavailable:")
+                    ):
+                        current_tracker_revision = None
+                if current_tracker_revision != expected_tracker_revision:
+                    changes_source = (
+                        binding.tracker_terminal_authority_changes_source
+                    )
+                    scoped_tracker_changes = (
+                        changes_source(
+                            str(expected_tracker_revision),
+                            str(current_tracker_revision),
+                        )
+                        if callable(changes_source)
+                        and tracker_authority_mode != "legacy_digest"
+                        and current_tracker_revision is not None
+                        else None
+                    )
+                    if scoped_tracker_changes is None:
+                        raise WorkflowPublicationSuperseded(
+                            "tracker authority changed before publication"
+                        )
+                    tracker_terminal_changes[project_id] = scoped_tracker_changes
+                publication_revision_after = int(publication_revision_source())
+                if publication_revision_after != publication_revision_before:
+                    raise WorkflowPublicationSuperseded(
+                        "tracker authority changed during publication preflight"
+                    )
+                tracker_publication_revisions[project_id] = (
+                    publication_revision_after
+                )
+            if publication_bindings and liveness_lock is not None:
+                liveness_lock.acquire()
+                liveness_lock_held = True
+                if (
+                    observation is not None
+                    and liveness_controller is not None
+                    and liveness_controller.liveness_policy.epoch
+                    != observation.policy_epoch
+                ):
+                    raise WorkflowPublicationSuperseded(
+                        "liveness policy changed during publication preflight"
+                    )
+
             if not publication_bindings:
                 published, publication_result = (
                     self.store.publish_snapshot_generation(
@@ -3400,71 +3529,28 @@ class WorkflowRuntime:
                             nonlocal projection_decisions
                             nonlocal publication_observation
                             nonlocal superseded
-                            tracker_terminal_changes: dict[
-                                str, frozenset[str]
-                            ] = {}
                             for project_id, binding in sorted(
                                 publication_bindings.items()
                             ):
                                 expected_tracker_revision = prepared_by_project[
                                     project_id
                                 ].get("tracker_authority_revision")
-                                tracker_revision_source = (
-                                    binding.tracker_authority_revision_source
-                                )
                                 if expected_tracker_revision is not None:
-                                    tracker_authority_mode = prepared_by_project[
-                                        project_id
-                                    ].get("tracker_authority_mode")
-                                    if tracker_authority_mode == "legacy_digest":
-                                        (
-                                            _current_issues,
-                                            current_tracker_revision,
-                                            current_tracker_mode,
-                                        ) = self._issues_with_authority(binding)
-                                        if current_tracker_mode != "legacy_digest":
-                                            current_tracker_revision = None
-                                    else:
-                                        current_tracker_revision = (
-                                            tracker_revision_source()
-                                            if callable(tracker_revision_source)
-                                            else None
-                                        )
-                                        if isinstance(current_tracker_revision, str):
-                                            current_tracker_revision = (
-                                                current_tracker_revision.strip()
-                                            )
-                                        if (
-                                            not current_tracker_revision
-                                            or current_tracker_revision == "unavailable"
-                                            or str(current_tracker_revision).startswith(
-                                                "unavailable:"
-                                            )
-                                        ):
-                                            current_tracker_revision = None
-                                    if current_tracker_revision != expected_tracker_revision:
-                                        changes_source = (
-                                            binding.tracker_terminal_authority_changes_source
-                                        )
-                                        scoped_tracker_changes = (
-                                            changes_source(
-                                                str(expected_tracker_revision),
-                                                str(current_tracker_revision),
-                                            )
-                                            if callable(changes_source)
-                                            and tracker_authority_mode
-                                            != "legacy_digest"
-                                            and current_tracker_revision is not None
-                                            else None
-                                        )
-                                        if scoped_tracker_changes is None:
-                                            superseded = True
-                                            raise WorkflowPublicationSuperseded(
-                                                "tracker authority changed before "
-                                                "publication"
-                                            )
-                                        tracker_terminal_changes[project_id] = (
-                                            scoped_tracker_changes
+                                    publication_revision_source = (
+                                        binding.tracker_publication_revision_source
+                                    )
+                                    expected_publication_revision = (
+                                        tracker_publication_revisions.get(project_id)
+                                    )
+                                    if (
+                                        expected_publication_revision is None
+                                        or not callable(publication_revision_source)
+                                        or int(publication_revision_source())
+                                        != expected_publication_revision
+                                    ):
+                                        superseded = True
+                                        raise WorkflowPublicationSuperseded(
+                                            "tracker authority changed before publication"
                                         )
                                 revision_source = (
                                     binding.terminal_authority_revision_source
@@ -3797,7 +3883,7 @@ class WorkflowRuntime:
                 and not observation_committed
             ):
                 liveness_controller.abort_runtime_observation(generation)
-            if liveness_lock is not None:
+            if liveness_lock is not None and liveness_lock_held:
                 liveness_lock.release()
 
         for item, name, controller, _batch, result in reconciled:

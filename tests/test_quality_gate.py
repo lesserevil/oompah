@@ -27,6 +27,8 @@ from oompah.auditor import auditor_target_contract
 from oompah.integration import IntegrationRecord
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator, StandaloneDeliveryAuthority
+from oompah.projects import ProjectStore
+from oompah.provenance_suppression import ProvenanceGuardedTracker
 from oompah.quality_gate import (
     AuditorQualityEvidenceProof,
     BranchQualityGate,
@@ -2297,7 +2299,7 @@ def test_stale_ready_snapshot_cannot_publish_after_terminal_persistence():
     assert orch._quality_gate_state_snapshot()["recent"] == []
 
 
-def test_terminal_project_fence_orders_result_publication_before_revocation():
+def test_terminal_revocation_stays_responsive_during_result_publication_preflight():
     orch = _outcome_fence_orchestrator()
     authority = _outcome_authority()
     key = (authority.project_id, authority.task_id)
@@ -2307,20 +2309,22 @@ def test_terminal_project_fence_orders_result_publication_before_revocation():
     project_store.get.return_value = _outcome_project()
     project_store.project_write_lock.return_value = project_lock
     orch.project_store = project_store
-    orch._tracker_for_project = MagicMock(return_value=MagicMock())
-    checked = threading.Event()
+    tracker = MagicMock()
+    tracker.fetch_all_issues.return_value = [authority.issue]
+    read_started = threading.Event()
     release_publication = threading.Event()
 
-    def authorize(_authority, _tracker):
-        checked.set()
+    def fetch_issue(_task_id):
+        read_started.set()
         assert release_publication.wait(timeout=5)
-        return True
+        return authority.issue
+
+    tracker.fetch_issue_detail.side_effect = fetch_issue
+    orch._tracker_for_project = MagicMock(return_value=tracker)
 
     def reconcile_terminal():
         with project_lock:
             orch._revoke_standalone_delivery_authority(*key)
-
-    orch._standalone_delivery_authorized = MagicMock(side_effect=authorize)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         publication = pool.submit(
@@ -2334,13 +2338,95 @@ def test_terminal_project_fence_orders_result_publication_before_revocation():
             target_branch=authority.target_branch,
             observed_status=READY_TO_INTEGRATE,
         )
-        assert checked.wait(timeout=5)
+        assert read_started.wait(timeout=5)
+        # The tracker read is external preflight. It owns neither delivery nor
+        # project authority, so terminal control and dashboard health remain
+        # responsive instead of waiting behind a stalled tracker transport.
+        with orch._standalone_delivery_authority_lock:
+            assert orch._standalone_delivery_authorities[key] is authority
+        assert orch._quality_gate_state_snapshot()["active"] == []
         terminal = pool.submit(reconcile_terminal)
+        terminal.result(timeout=1)
         release_publication.set()
-        assert publication.result(timeout=5)
-        terminal.result(timeout=5)
+        assert not publication.result(timeout=5)
 
     assert orch._quality_gate_state_snapshot()["recent"] == []
+
+
+def test_external_task_creation_supersedes_publication_without_blocking(tmp_path):
+    orch = _outcome_fence_orchestrator()
+    issue = _outcome_authority().issue
+    project = _outcome_project()
+    project_store = ProjectStore(
+        path=str(tmp_path / "projects.json"),
+        repos_root=str(tmp_path / "repos"),
+        worktree_root=str(tmp_path / "worktrees"),
+    )
+    project_store._projects[project.id] = project
+    read_started = threading.Event()
+    release_read = threading.Event()
+
+    class ExternalTracker:
+        def __init__(self):
+            self.current = issue
+            self.created = []
+
+        def fetch_issue_detail(self, _task_id):
+            snapshot = replace(self.current)
+            read_started.set()
+            assert release_read.wait(timeout=5)
+            return snapshot
+
+        def create_issue(self, title, **_fields):
+            created = Issue(
+                id="task-2",
+                identifier="task-2",
+                title=title,
+                project_id=project.id,
+                state=OPEN,
+            )
+            self.created.append(created)
+            return created
+
+    raw_tracker = ExternalTracker()
+    tracker = ProvenanceGuardedTracker(raw_tracker, project_store, project.id)
+    orch.project_store = project_store
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._quality_gate_branch_head = MagicMock(return_value="a" * 40)
+    producer = _authorityless_producer(orch, head_sha="a" * 40)
+    result = QualityGateResult(
+        status="interrupted",
+        head_sha="a" * 40,
+        command="make test",
+        interrupted=True,
+    )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        publication = pool.submit(
+            orch._publish_quality_gate_result,
+            project.id,
+            issue.identifier,
+            result,
+            authority=None,
+            producer=producer,
+            issue=issue,
+            branch=issue.identifier,
+            target_branch="main",
+            observed_status=READY_TO_INTEGRATE,
+        )
+        assert read_started.wait(timeout=2)
+        mutation = pool.submit(
+            tracker.create_issue,
+            "Unrelated operator task",
+        )
+        created = mutation.result(timeout=1)
+        assert created.identifier == "task-2"
+        release_read.set()
+        assert not publication.result(timeout=5)
+
+    assert len(raw_tracker.created) == 1
+    assert project_store.tracker_authority_revision(project.id) == 1
+    assert orch._quality_gate_result_for(project.id, issue.identifier) is None
 
 
 @pytest.mark.parametrize(

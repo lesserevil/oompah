@@ -33536,14 +33536,44 @@ class Orchestrator:
         target_branch: str,
         observed_status: str,
     ) -> bool:
-        """Publish a result at a tracker/terminal-authority boundary.
+        """Publish a result with external preflight and an in-memory CAS.
 
-        A Ready scan may hold an old issue snapshot while terminal ownership
-        commits under the project write lock.  Revalidate standalone results
-        while holding that same project fence: publication either precedes
-        the terminal operation and is cleared by its revocation, or follows
-        the terminal write and observes that the claim is no longer current.
+        Tracker, dependency, project-configuration, and Git head reads may
+        block.  They must complete before the project and delivery-authority
+        fences are acquired.  Native tracker and project revisions then make
+        the final fenced section a constant-time identity comparison: terminal
+        ownership either revokes first, or the result publishes first and is
+        cleared by the later revocation.
         """
+
+        def integer_revision(source: Any) -> int | None:
+            if not callable(source):
+                return None
+            value = source()
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                return None
+            return value
+
+        def tracker_publication_revision() -> int | None:
+            return integer_revision(
+                getattr(tracker, "get_publication_revision", None)
+            )
+
+        def project_workflow_revision() -> int | None:
+            source = getattr(self.project_store, "workflow_authority_revision", None)
+            if not callable(source):
+                return None
+            return integer_revision(lambda: source(str(project_id)))
+
+        def reject_stale_producer() -> bool:
+            if authority is None:
+                stored = self._quality_gate_result_for(project_id, task_id)
+                if (
+                    stored is not None
+                    and self._quality_gate_result_owned_by(stored, producer)
+                ):
+                    self._clear_quality_gate_result(project_id, task_id)
+            return False
 
         try:
             tracker = self._tracker_for_project(str(project_id))
@@ -33554,85 +33584,220 @@ class Orchestrator:
                 exc,
             )
             return False
+
+        authority_snapshot: tuple[Any, ...] | None = None
+        workflow_authority_check: Callable[[], bool] | None = None
+        if authority is not None:
+            authority_lock = getattr(
+                self, "_standalone_delivery_authority_lock", None
+            )
+            if authority_lock is None:
+                return False
+            with authority_lock:
+                key = (str(project_id), str(task_id))
+                if (
+                    authority.revoked
+                    or self._standalone_delivery_authorities.get(key) is not authority
+                ):
+                    return False
+                authority_snapshot = (
+                    authority.generation,
+                    authority.expected_state,
+                    authority.branch,
+                    authority.target_branch,
+                    authority.evidence_revision,
+                    authority.dependency_revision,
+                    authority.allows_parent,
+                    authority.workflow_generation,
+                    authority.head_sha,
+                    authority.head_resolver,
+                )
+                workflow_authority_check = authority.workflow_authority_check
+
+        tracker_revision_before = tracker_publication_revision()
+        project_revision_before = project_workflow_revision()
+        current_project = self.project_store.get(str(project_id))
+        if not isinstance(current_project, Project):
+            return reject_stale_producer()
+        current_command = self._quality_gate_command(current_project)
+        project_revision_after = project_workflow_revision()
+        if (
+            project_revision_before is not None
+            and project_revision_after != project_revision_before
+        ):
+            return reject_stale_producer()
+
+        try:
+            current = tracker.fetch_issue_detail(str(task_id))
+        except Exception as exc:  # noqa: BLE001 - fail closed
+            logger.warning(
+                "Could not refresh quality gate task %s: %s",
+                task_id,
+                exc,
+            )
+            return reject_stale_producer()
+        if not isinstance(current, Issue):
+            return reject_stale_producer()
+
+        if authority is not None:
+            assert authority_snapshot is not None
+            (
+                _generation,
+                expected_state,
+                expected_branch,
+                expected_target_branch,
+                expected_evidence_revision,
+                expected_dependency_revision,
+                allows_parent,
+                _workflow_generation,
+                expected_head,
+                head_resolver,
+            ) = authority_snapshot
+            if workflow_authority_check is not None:
+                try:
+                    if not workflow_authority_check():
+                        return False
+                except Exception:
+                    return False
+            if (
+                canonicalize_status(current.state) != expected_state
+                or (str(current.parent_id or "").strip() and not allows_parent)
+                or _is_epic_issue(current)
+                or self._standalone_delivery_evidence_revision(current)
+                != expected_evidence_revision
+                or self._branch_for_issue(current, current_project) != expected_branch
+                or str(
+                    current.target_branch or current_project.default_branch or ""
+                ).strip()
+                != expected_target_branch
+            ):
+                return False
+            dependency_state = self._current_standalone_finish_dependency_state(
+                current,
+                tracker,
+            )
+            if (
+                dependency_state is None
+                or dependency_state.revision != expected_dependency_revision
+            ):
+                # The replacement Ready pass will claim the new dependency
+                # evidence.  Revocation itself remains outside both publication
+                # fences and is generation-scoped.
+                self._revoke_standalone_delivery_authority(
+                    str(project_id), str(task_id)
+                )
+                return False
+            if expected_head:
+                if not callable(head_resolver):
+                    return False
+                try:
+                    current_head = head_resolver()
+                except Exception:  # noqa: BLE001 - remote head is authoritative
+                    return False
+                if str(current_head or "") != str(expected_head):
+                    return False
+        else:
+            if (
+                str(current.identifier or "") != str(task_id)
+                or (
+                    str(current.project_id or "")
+                    and str(current.project_id) != str(project_id)
+                )
+                or canonicalize_status(observed_status)
+                not in _QUALITY_GATE_PUBLICATION_STATUSES
+                or canonicalize_status(current.state)
+                != canonicalize_status(observed_status)
+                or self._standalone_delivery_evidence_revision(current)
+                != self._standalone_delivery_evidence_revision(issue)
+                or self._branch_for_issue(current, current_project) != str(branch)
+                or str(
+                    current.target_branch or current_project.default_branch or ""
+                ).strip()
+                != str(target_branch)
+            ):
+                return reject_stale_producer()
+            if (
+                current_command != result.command
+                or producer.authority_generation
+                != self._quality_gate_publication_generation(
+                    str(project_id),
+                    str(task_id),
+                    str(branch),
+                    str(target_branch),
+                    str(producer.head_sha),
+                    current_command,
+                    observed_status,
+                )
+            ):
+                return reject_stale_producer()
+            producer_head = str(producer.head_sha or "").strip().lower()
+            if not producer_head.startswith("unresolved:"):
+                current_head = str(
+                    self._quality_gate_branch_head(current_project, branch) or ""
+                ).strip().lower()
+                if current_head != producer_head:
+                    return reject_stale_producer()
+
+        tracker_revision_after = tracker_publication_revision()
+        if (
+            tracker_revision_before is not None
+            and tracker_revision_after != tracker_revision_before
+        ):
+            return reject_stale_producer()
+
         lock_factory = getattr(self.project_store, "project_write_lock", None)
         project_lock = (
             lock_factory(str(project_id)) if callable(lock_factory) else None
         ) or contextlib.nullcontext()
         with project_lock:
-            current_project = self.project_store.get(str(project_id))
-            if not isinstance(current_project, Project):
-                return False
-            current_command = self._quality_gate_command(current_project)
+            final_project = self.project_store.get(str(project_id))
+            if (
+                not isinstance(final_project, Project)
+                or self._quality_gate_command(final_project) != current_command
+                or (
+                    project_revision_after is not None
+                    and project_workflow_revision() != project_revision_after
+                )
+                or (
+                    tracker_revision_after is not None
+                    and tracker_publication_revision() != tracker_revision_after
+                )
+            ):
+                return reject_stale_producer()
             if authority is not None:
-                if (
-                    current_command != result.command
-                    or not self._standalone_delivery_authorized(authority, tracker)
-                ):
-                    return False
-            else:
-                try:
-                    current = tracker.fetch_issue_detail(str(task_id))
-                except Exception as exc:  # noqa: BLE001 - fail closed
-                    logger.warning(
-                        "Could not refresh quality gate task %s: %s",
-                        task_id,
-                        exc,
+                assert authority_snapshot is not None
+                authority_lock = self._standalone_delivery_authority_lock
+                with authority_lock:
+                    key = (str(project_id), str(task_id))
+                    final_snapshot = (
+                        authority.generation,
+                        authority.expected_state,
+                        authority.branch,
+                        authority.target_branch,
+                        authority.evidence_revision,
+                        authority.dependency_revision,
+                        authority.allows_parent,
+                        authority.workflow_generation,
+                        authority.head_sha,
+                        authority.head_resolver,
                     )
-                    return False
-
-                def reject_stale_producer() -> bool:
-                    stored = self._quality_gate_result_for(project_id, task_id)
                     if (
-                        stored is not None
-                        and self._quality_gate_result_owned_by(stored, producer)
+                        current_command != result.command
+                        or authority.revoked
+                        or self._standalone_delivery_authorities.get(key)
+                        is not authority
+                        or final_snapshot != authority_snapshot
                     ):
-                        self._clear_quality_gate_result(project_id, task_id)
-                    return False
-
-                if (
-                    not isinstance(current, Issue)
-                    or str(current.identifier or "") != str(task_id)
-                    or (
-                        str(current.project_id or "")
-                        and str(current.project_id) != str(project_id)
+                        return False
+                    authority.issue = current
+                    return self._remember_quality_gate_result(
+                        project_id,
+                        task_id,
+                        result,
+                        authority=authority,
+                        producer=producer,
                     )
-                    or canonicalize_status(observed_status)
-                    not in _QUALITY_GATE_PUBLICATION_STATUSES
-                    or canonicalize_status(current.state)
-                    != canonicalize_status(observed_status)
-                    or self._standalone_delivery_evidence_revision(current)
-                    != self._standalone_delivery_evidence_revision(issue)
-                    or self._branch_for_issue(current, current_project) != str(branch)
-                    or str(
-                        current.target_branch
-                        or current_project.default_branch
-                        or ""
-                    ).strip()
-                    != str(target_branch)
-                ):
-                    return reject_stale_producer()
-                if (
-                    current_command != result.command
-                    or producer.authority_generation
-                    != self._quality_gate_publication_generation(
-                        str(project_id),
-                        str(task_id),
-                        str(branch),
-                        str(target_branch),
-                        str(producer.head_sha),
-                        current_command,
-                        observed_status,
-                    )
-                ):
-                    return reject_stale_producer()
-                producer_head = str(producer.head_sha or "").strip().lower()
-                if not producer_head.startswith("unresolved:"):
-                    current_head = str(
-                        self._quality_gate_branch_head(current_project, branch) or ""
-                    ).strip().lower()
-                    if current_head != producer_head:
-                        return reject_stale_producer()
-
+            else:
                 # The project/status/evidence/head/command checks above prove
                 # this exact producer is current. Retire any prior producer,
                 # including an older command at the same immutable head, before

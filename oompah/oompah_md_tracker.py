@@ -1425,6 +1425,20 @@ class OompahMarkdownTracker:
         with self._write_lock:
             return self._state_branch_generation_locked()
 
+    def get_publication_revision(self) -> int:
+        """Return the process-local task authority revision without Git I/O.
+
+        Publication paths use the durable state-branch generation as an
+        external preflight, then compare this revision while holding their
+        project mutation fence.  Every native task mutation advances the
+        shared repository revision before returning, including mutations made
+        through a replacement tracker instance.  The final comparison is
+        therefore a constant-time CAS and never runs ``git`` while unrelated
+        project control work is blocked.
+        """
+
+        return _repo_read_generation(self._repo_lock_key)
+
     def terminal_metadata_changes_between(
         self,
         expected_generation: str,
