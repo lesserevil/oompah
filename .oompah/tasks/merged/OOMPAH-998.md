@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-998
 type: bug
-status: Ready to Integrate
+status: Merged
 priority: 1
 title: Compose retained terminal child provenance into parent rollup authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T15:38:22.780396Z'
-updated_at: '2026-08-10T16:12:59.337705Z'
+updated_at: '2026-08-10T17:50:29.909563Z'
 work_branch: OOMPAH-998
 target_branch: null
 review_url: null
@@ -34,6 +34,29 @@ oompah.integration:
   submitted_at: '2026-08-10T16:12:43.105671+00:00'
   updated_at: '2026-08-10T16:12:43.105671+00:00'
 oompah.work_branch: OOMPAH-998
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-71c686a82efb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-998
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bb932e2008a66e421f67a69c06daa606bf5287803f641bee91690555d3c5be54
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-10T17:50:25.550145+00:00'
+    selected_ref: 9bf6011ac2481cbf3f73fe23085788814aa69434
+    selected_sha: 9bf6011ac2481cbf3f73fe23085788814aa69434
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 

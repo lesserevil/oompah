@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T15:04:29.205558Z'
-updated_at: '2026-08-10T17:50:12.292724Z'
+updated_at: '2026-08-10T17:50:23.749398Z'
 work_branch: OOMPAH-997
 target_branch: null
 review_url: null
@@ -47,7 +47,17 @@ oompah.terminal_audit:
     created_at: '2026-08-10T17:50:08.081293+00:00'
     selected_ref: 94f1f5b84aa60bebf02cdd7d049de698df1e79ee
     selected_sha: 94f1f5b84aa60bebf02cdd7d049de698df1e79ee
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-997
+    target_state: Merged
+    evidence_fingerprint: fdafcf1a520b0a6900094f68884facb42470b5db466e7a56038d6e5770d757c2
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T17:50:17.717644+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -102,5 +112,17 @@ author: oompah
 created: 2026-08-10 15:34
 ---
 Fixed tracker publication-revision races so transient mutation authority cleanly supersedes and retries, while prior shared jobs remain fenced until a stable world snapshot republishes. Added source/preflight/finalization, async admission, retry, composition, and multi-project regressions; 130 workflow-runtime tests and focused Python 3.11 checks pass; independent review approved.
+---
+author: oompah
+created: 2026-08-10 17:50
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: [REDACTED]
+---
+author: oompah
+created: 2026-08-10 17:50
+---
+Merged exact OOMPAH-997 recovery commit through protected PR #799 and deployed it at 0ce6c3131af200ab89090c13255c3606fc8d753b; live generation 1529 is healthy with zero current divergence/exhaustion.
 ---
 <!-- COMMENTS:END -->
