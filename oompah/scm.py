@@ -46,6 +46,194 @@ class CIStatus(str, Enum):
 CIState = CIStatus
 
 
+class ProtectedWorkflowEvidenceDisposition(str, Enum):
+    """Completeness of an exact protected-workflow evidence observation.
+
+    This vocabulary is deliberately separate from :class:`CIStatus`.  In
+    particular, ``CIStatus.PASSED`` is aggregate scheduling information and
+    must never be promoted into terminal-gate authority.  Only ``COMPLETE``
+    results returned by the rich evidence API carry attestable records.
+    """
+
+    COMPLETE = "complete"
+    PARTIAL = "partial"
+    UNAVAILABLE = "unavailable"
+
+
+@dataclass(frozen=True)
+class ProtectedWorkflowEvidenceRequest:
+    """Operator-pinned identity used to collect one protected workflow run.
+
+    ``review_id`` may be omitted because recovery work can retain only its
+    immutable source branch and audit SHA.  Providers must then discover one
+    and only one merged review matching all source/head/target fields.
+
+    Required job and step names are exact, case-sensitive identities.  A
+    complete observation contains exactly ``required_job_names`` and each job
+    contains every ``required_step_names`` entry exactly once.  The workflow
+    blob and GitHub App ID are pinned here rather than inferred from a green
+    aggregate check result.
+    """
+
+    source_repository: str
+    source_branch: str
+    head_sha: str
+    target_branch: str
+    workflow_id: int
+    workflow_path: str
+    workflow_blob_sha: str
+    app_id: int
+    required_job_names: tuple[str, ...]
+    required_step_names: tuple[str, ...] = ()
+    event: str = "pull_request"
+    review_id: str | None = None
+
+
+@dataclass(frozen=True)
+class ProtectedReviewEvidence:
+    """Immutable forge observation binding a merged review to exact refs."""
+
+    review_id: str
+    state: str
+    source_repository: str
+    source_branch: str
+    head_sha: str
+    target_repository: str
+    target_branch: str
+    base_sha: str
+    merge_sha: str
+    merged_at: str
+
+
+@dataclass(frozen=True)
+class ProtectedWorkflowMetadataEvidence:
+    """Immutable identity of the workflow definition registered by GitHub."""
+
+    workflow_id: int
+    name: str
+    path: str
+    state: str
+    node_id: str
+
+
+@dataclass(frozen=True)
+class ProtectedWorkflowRunEvidence:
+    """One exact workflow run and its latest, explicitly selected attempt."""
+
+    run_id: int
+    run_attempt: int
+    workflow_id: int
+    workflow_path: str
+    event: str
+    head_repository: str
+    head_branch: str
+    head_sha: str
+    status: str
+    conclusion: str
+    check_suite_id: int
+    html_url: str
+
+
+@dataclass(frozen=True)
+class ProtectedWorkflowStepEvidence:
+    """One named step from an attempt-specific Actions job."""
+
+    number: int
+    name: str
+    status: str
+    conclusion: str
+
+
+@dataclass(frozen=True)
+class ProtectedWorkflowCheckEvidence:
+    """Exact check-run identity corresponding to an Actions job."""
+
+    check_run_id: int
+    name: str
+    head_sha: str
+    status: str
+    conclusion: str
+    check_suite_id: int
+    app_id: int
+    app_slug: str
+    details_url: str
+
+
+@dataclass(frozen=True)
+class ProtectedWorkflowJobEvidence:
+    """One job from an exact workflow run attempt and its bound check run."""
+
+    job_id: int
+    name: str
+    run_id: int
+    run_attempt: int
+    head_sha: str
+    status: str
+    conclusion: str
+    steps: tuple[ProtectedWorkflowStepEvidence, ...]
+    check: ProtectedWorkflowCheckEvidence
+
+
+@dataclass(frozen=True)
+class ProtectedWorkflowCheckSuiteEvidence:
+    """Check-suite identity binding every job/check to the workflow run."""
+
+    check_suite_id: int
+    head_sha: str
+    status: str
+    conclusion: str
+    app_id: int
+    app_slug: str
+    latest_check_runs_count: int
+
+
+@dataclass(frozen=True)
+class ProtectedGitCommitEvidence:
+    """Immutable git tree and ordered parent identities for one commit."""
+
+    sha: str
+    tree_sha: str
+    parent_shas: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ProtectedWorkflowEvidence:
+    """Complete evidence for one exact protected review workflow attempt.
+
+    Consumers still bind this record to their independently configured command
+    and audit fingerprint.  The record only establishes forge facts; it does
+    not itself grant quality-gate authority.
+    """
+
+    repository: str
+    review: ProtectedReviewEvidence
+    workflow: ProtectedWorkflowMetadataEvidence
+    workflow_blob_sha: str
+    workflow_blob_commit_sha: str
+    run: ProtectedWorkflowRunEvidence
+    check_suite: ProtectedWorkflowCheckSuiteEvidence
+    jobs: tuple[ProtectedWorkflowJobEvidence, ...]
+    head_commit: ProtectedGitCommitEvidence
+    merge_commit: ProtectedGitCommitEvidence
+
+
+@dataclass(frozen=True)
+class ProtectedWorkflowEvidenceResult:
+    """Fail-closed result of protected-workflow evidence collection."""
+
+    disposition: ProtectedWorkflowEvidenceDisposition
+    evidence: ProtectedWorkflowEvidence | None = None
+    reason: str = ""
+
+    def __post_init__(self) -> None:
+        if (
+            self.disposition is ProtectedWorkflowEvidenceDisposition.COMPLETE
+        ) != (self.evidence is not None):
+            raise ValueError(
+                "only a complete protected-workflow result may carry evidence"
+            )
+
+
 class CapabilityWarning(TypedDict):
     """A structured explanation for a non-fatal unavailable capability."""
 
@@ -486,6 +674,26 @@ class SCMProvider(ABC):
         """
         return CIStatus.UNKNOWN
 
+    def collect_protected_workflow_evidence(
+        self,
+        repo: str,
+        request: ProtectedWorkflowEvidenceRequest,
+    ) -> ProtectedWorkflowEvidenceResult:
+        """Collect immutable exact-run evidence for a protected workflow.
+
+        This contract is intentionally independent of aggregate CI status.
+        Providers that cannot prove every requested identity return an
+        explicit unavailable result; they must never synthesize authority from
+        :meth:`get_ci_status_for_sha` or an empty legacy response.
+        """
+        return ProtectedWorkflowEvidenceResult(
+            disposition=ProtectedWorkflowEvidenceDisposition.UNAVAILABLE,
+            reason=(
+                f"{self.provider_name()} does not expose protected-workflow "
+                "evidence"
+            ),
+        )
+
 
 def _resolve_gh_token() -> str | None:
     """Resolve GitHub token from environment or gh CLI config."""
@@ -569,6 +777,40 @@ def _read_ci_registration_grace_seconds() -> float:
     return value
 
 
+class _ProtectedEvidenceUnavailable(RuntimeError):
+    """The forge could not provide a requested evidence component."""
+
+
+class _ProtectedEvidencePartial(RuntimeError):
+    """The forge response was present but incomplete or inconsistent."""
+
+
+def _is_full_git_sha(value: Any) -> bool:
+    """Return whether *value* is one lower/upper-case 40-digit SHA-1."""
+    return (
+        isinstance(value, str)
+        and len(value) == 40
+        and all(character in "0123456789abcdefABCDEF" for character in value)
+    )
+
+
+def _positive_int(value: Any) -> int | None:
+    """Return a positive integer without accepting booleans or coercions."""
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        return value
+    return None
+
+
+def _positive_int_string(value: Any) -> int | None:
+    """Return a positive base-10 integer represented canonically as text."""
+    if not isinstance(value, str) or not value.isascii() or not value.isdigit():
+        return None
+    parsed = int(value)
+    if parsed <= 0 or str(parsed) != value:
+        return None
+    return parsed
+
+
 class GitHubProvider(SCMProvider):
     """GitHub implementation using the REST API via httpx."""
 
@@ -650,6 +892,933 @@ class GitHubProvider(SCMProvider):
     def _api(self, method: str, path: str, **kwargs) -> httpx.Response:
         url = f"https://api.github.com{path}"
         return _get_http_client().request(method, url, headers=self._headers(), **kwargs)
+
+    def _protected_evidence_json(
+        self,
+        path: str,
+        *,
+        params: Mapping[str, Any] | None = None,
+    ) -> Any:
+        """Fetch one evidence endpoint without legacy empty-on-error semantics."""
+        try:
+            response = self._api("GET", path, params=dict(params or {}))
+        except httpx.HTTPError as exc:
+            raise _ProtectedEvidenceUnavailable(
+                f"GitHub evidence request failed for {path}: {type(exc).__name__}"
+            ) from exc
+        if response.status_code != 200:
+            raise _ProtectedEvidenceUnavailable(
+                f"GitHub evidence request for {path} returned HTTP "
+                f"{response.status_code}"
+            )
+        try:
+            return response.json()
+        except (ValueError, json.JSONDecodeError) as exc:
+            raise _ProtectedEvidenceUnavailable(
+                f"GitHub evidence response for {path} was not JSON"
+            ) from exc
+
+    def _protected_evidence_list_pages(
+        self,
+        path: str,
+        *,
+        params: Mapping[str, Any] | None = None,
+    ) -> list[Any]:
+        """Exhaust a GitHub list endpoint, rejecting truncated pagination."""
+        collected: list[Any] = []
+        base_params = dict(params or {})
+        per_page = 100
+        for page in range(1, 101):
+            page_params = {**base_params, "per_page": per_page, "page": page}
+            try:
+                payload = self._protected_evidence_json(path, params=page_params)
+            except _ProtectedEvidenceUnavailable as exc:
+                if page > 1:
+                    raise _ProtectedEvidencePartial(
+                        f"GitHub pagination became unavailable for {path} "
+                        f"at page {page}"
+                    ) from exc
+                raise
+            if not isinstance(payload, list):
+                raise _ProtectedEvidencePartial(
+                    f"GitHub evidence response for {path} was not a list"
+                )
+            collected.extend(payload)
+            if len(payload) < per_page:
+                return collected
+        raise _ProtectedEvidencePartial(
+            f"GitHub evidence pagination for {path} exceeded 100 pages"
+        )
+
+    def _protected_evidence_counted_pages(
+        self,
+        path: str,
+        *,
+        item_field: str,
+        params: Mapping[str, Any] | None = None,
+    ) -> list[Any]:
+        """Exhaust an Actions endpoint whose payload carries ``total_count``."""
+        collected: list[Any] = []
+        base_params = dict(params or {})
+        expected_total: int | None = None
+        per_page = 100
+        for page in range(1, 101):
+            page_params = {**base_params, "per_page": per_page, "page": page}
+            try:
+                payload = self._protected_evidence_json(path, params=page_params)
+            except _ProtectedEvidenceUnavailable as exc:
+                if page > 1:
+                    raise _ProtectedEvidencePartial(
+                        f"GitHub pagination became unavailable for {path} "
+                        f"at page {page}"
+                    ) from exc
+                raise
+            if not isinstance(payload, Mapping):
+                raise _ProtectedEvidencePartial(
+                    f"GitHub evidence response for {path} was not an object"
+                )
+            total = payload.get("total_count")
+            if (
+                not isinstance(total, int)
+                or isinstance(total, bool)
+                or total < 0
+            ):
+                raise _ProtectedEvidencePartial(
+                    f"GitHub evidence response for {path} has invalid total_count"
+                )
+            if expected_total is None:
+                expected_total = total
+            elif total != expected_total:
+                raise _ProtectedEvidencePartial(
+                    f"GitHub evidence total_count changed while paging {path}"
+                )
+            items = payload.get(item_field)
+            if not isinstance(items, list):
+                raise _ProtectedEvidencePartial(
+                    f"GitHub evidence response for {path} has invalid {item_field}"
+                )
+            if len(items) > per_page:
+                raise _ProtectedEvidencePartial(
+                    f"GitHub evidence response for {path} exceeded page size"
+                )
+            collected.extend(items)
+            if len(collected) == expected_total:
+                return collected
+            if len(collected) > expected_total or not items:
+                raise _ProtectedEvidencePartial(
+                    f"GitHub evidence pagination for {path} was incomplete"
+                )
+        raise _ProtectedEvidencePartial(
+            f"GitHub evidence pagination for {path} exceeded 100 pages"
+        )
+
+    @staticmethod
+    def _protected_commit_evidence(payload: Any) -> ProtectedGitCommitEvidence:
+        if not isinstance(payload, Mapping):
+            raise _ProtectedEvidencePartial("GitHub commit evidence was not an object")
+        sha = payload.get("sha")
+        tree = payload.get("tree")
+        parents = payload.get("parents")
+        if (
+            not _is_full_git_sha(sha)
+            or not isinstance(tree, Mapping)
+            or not _is_full_git_sha(tree.get("sha"))
+            or not isinstance(parents, list)
+        ):
+            raise _ProtectedEvidencePartial("GitHub commit evidence was malformed")
+        parent_shas: list[str] = []
+        for parent in parents:
+            if not isinstance(parent, Mapping) or not _is_full_git_sha(
+                parent.get("sha")
+            ):
+                raise _ProtectedEvidencePartial(
+                    "GitHub commit parent evidence was malformed"
+                )
+            parent_shas.append(str(parent["sha"]))
+        if len(parent_shas) != len(set(parent_shas)):
+            raise _ProtectedEvidencePartial(
+                "GitHub commit parent evidence contained duplicates"
+            )
+        return ProtectedGitCommitEvidence(
+            sha=str(sha),
+            tree_sha=str(tree["sha"]),
+            parent_shas=tuple(parent_shas),
+        )
+
+    @staticmethod
+    def _protected_review_association_matches(
+        association: Any,
+        *,
+        review_id: str,
+        source_branch: str,
+        head_sha: str,
+        target_branch: str,
+    ) -> bool:
+        if not isinstance(association, Mapping):
+            return False
+        head = association.get("head")
+        base = association.get("base")
+        return (
+            str(association.get("number") or "") == review_id
+            and isinstance(head, Mapping)
+            and head.get("ref") == source_branch
+            and head.get("sha") == head_sha
+            and isinstance(base, Mapping)
+            and base.get("ref") == target_branch
+        )
+
+    def collect_protected_workflow_evidence(
+        self,
+        repo: str,
+        request: ProtectedWorkflowEvidenceRequest,
+    ) -> ProtectedWorkflowEvidenceResult:
+        """Collect strict GitHub evidence for one protected PR workflow.
+
+        Collection starts from GitHub's commit-associated pull requests so an
+        active terminal-audit attempt needs only its already-bound source
+        branch, selected SHA, and target branch.  Every subsequent object is
+        checked against that identity.  HTTP/permission failures are reported
+        as unavailable, while structurally incomplete, duplicated, or
+        mismatched observations are partial.  Neither disposition carries
+        evidence and no aggregate :class:`CIStatus` method participates.
+        """
+        try:
+            evidence = self._collect_protected_workflow_evidence(repo, request)
+        except _ProtectedEvidenceUnavailable as exc:
+            return ProtectedWorkflowEvidenceResult(
+                disposition=ProtectedWorkflowEvidenceDisposition.UNAVAILABLE,
+                reason=str(exc),
+            )
+        except _ProtectedEvidencePartial as exc:
+            return ProtectedWorkflowEvidenceResult(
+                disposition=ProtectedWorkflowEvidenceDisposition.PARTIAL,
+                reason=str(exc),
+            )
+        except Exception as exc:  # noqa: BLE001 - provider boundary is fail-closed
+            logger.exception(
+                "Unexpected protected-workflow evidence failure for %s", repo
+            )
+            return ProtectedWorkflowEvidenceResult(
+                disposition=ProtectedWorkflowEvidenceDisposition.UNAVAILABLE,
+                reason=(
+                    "unexpected protected-workflow evidence failure: "
+                    f"{type(exc).__name__}"
+                ),
+            )
+        return ProtectedWorkflowEvidenceResult(
+            disposition=ProtectedWorkflowEvidenceDisposition.COMPLETE,
+            evidence=evidence,
+        )
+
+    def _collect_protected_workflow_evidence(
+        self,
+        repo: str,
+        request: ProtectedWorkflowEvidenceRequest,
+    ) -> ProtectedWorkflowEvidence:
+        """Implementation for :meth:`collect_protected_workflow_evidence`."""
+        self._validate_protected_evidence_request(repo, request)
+        review = self._collect_protected_review_evidence(repo, request)
+        workflow = self._collect_protected_workflow_metadata(repo, request)
+        head_commit = self._protected_commit_evidence(
+            self._protected_evidence_json(
+                f"/repos/{repo}/git/commits/{request.head_sha}"
+            )
+        )
+        merge_commit = self._protected_commit_evidence(
+            self._protected_evidence_json(
+                f"/repos/{repo}/git/commits/{review.merge_sha}"
+            )
+        )
+        if head_commit.sha != request.head_sha:
+            raise _ProtectedEvidencePartial("GitHub returned the wrong head commit")
+        if merge_commit.sha != review.merge_sha:
+            raise _ProtectedEvidencePartial("GitHub returned the wrong merge commit")
+        workflow_blob_sha = self._collect_protected_workflow_blob(
+            repo,
+            request,
+            review.merge_sha,
+        )
+        run, run_payload = self._collect_protected_workflow_run(
+            repo,
+            request,
+            review,
+            workflow,
+        )
+        check_suite = self._collect_protected_check_suite(
+            repo,
+            request,
+            review,
+            run,
+        )
+        jobs = self._collect_protected_workflow_jobs(
+            repo,
+            request,
+            review,
+            workflow,
+            run,
+            run_payload,
+        )
+        if check_suite.latest_check_runs_count != len(jobs):
+            raise _ProtectedEvidencePartial(
+                "GitHub check-suite count did not match attempt-specific jobs"
+            )
+        if any(job.check.app_slug != check_suite.app_slug for job in jobs):
+            raise _ProtectedEvidencePartial(
+                "GitHub check-run apps did not match the check-suite app"
+            )
+        return ProtectedWorkflowEvidence(
+            repository=repo,
+            review=review,
+            workflow=workflow,
+            workflow_blob_sha=workflow_blob_sha,
+            workflow_blob_commit_sha=review.merge_sha,
+            run=run,
+            check_suite=check_suite,
+            jobs=jobs,
+            head_commit=head_commit,
+            merge_commit=merge_commit,
+        )
+
+    @staticmethod
+    def _validate_protected_evidence_request(
+        repo: str,
+        request: ProtectedWorkflowEvidenceRequest,
+    ) -> None:
+        string_fields = (
+            repo,
+            request.source_repository,
+            request.source_branch,
+            request.target_branch,
+            request.workflow_path,
+        )
+        if any(not isinstance(value, str) or not value.strip() for value in string_fields):
+            raise _ProtectedEvidencePartial(
+                "protected-workflow evidence identity contains a blank field"
+            )
+        if not _is_full_git_sha(request.head_sha):
+            raise _ProtectedEvidencePartial(
+                "protected-workflow evidence head SHA is invalid"
+            )
+        if not _is_full_git_sha(request.workflow_blob_sha):
+            raise _ProtectedEvidencePartial(
+                "protected-workflow evidence workflow blob SHA is invalid"
+            )
+        if _positive_int(request.workflow_id) is None:
+            raise _ProtectedEvidencePartial(
+                "protected-workflow evidence workflow ID is invalid"
+            )
+        if _positive_int(request.app_id) is None:
+            raise _ProtectedEvidencePartial(
+                "protected-workflow evidence app ID is invalid"
+            )
+        if request.event != "pull_request":
+            raise _ProtectedEvidencePartial(
+                "protected-workflow evidence event must be pull_request"
+            )
+        if (
+            not request.workflow_path.startswith(".github/workflows/")
+            or ".." in request.workflow_path.split("/")
+            or "\\" in request.workflow_path
+        ):
+            raise _ProtectedEvidencePartial(
+                "protected-workflow evidence workflow path is invalid"
+            )
+        if (
+            not request.required_job_names
+            or any(not name for name in request.required_job_names)
+            or len(set(request.required_job_names))
+            != len(request.required_job_names)
+        ):
+            raise _ProtectedEvidencePartial(
+                "protected-workflow evidence required jobs are empty or duplicated"
+            )
+        if (
+            any(not name for name in request.required_step_names)
+            or len(set(request.required_step_names))
+            != len(request.required_step_names)
+        ):
+            raise _ProtectedEvidencePartial(
+                "protected-workflow evidence required steps are invalid"
+            )
+        if request.review_id is not None and _positive_int_string(
+            request.review_id
+        ) is None:
+            raise _ProtectedEvidencePartial(
+                "protected-workflow evidence review ID is invalid"
+            )
+
+    def _collect_protected_review_evidence(
+        self,
+        repo: str,
+        request: ProtectedWorkflowEvidenceRequest,
+    ) -> ProtectedReviewEvidence:
+        associated = self._protected_evidence_list_pages(
+            f"/repos/{repo}/commits/{request.head_sha}/pulls"
+        )
+        matching: list[Mapping[str, Any]] = []
+        for candidate in associated:
+            if not isinstance(candidate, Mapping):
+                raise _ProtectedEvidencePartial(
+                    "GitHub commit-associated review was malformed"
+                )
+            review_id = str(candidate.get("number") or "")
+            if request.review_id is not None and review_id != request.review_id:
+                continue
+            head = candidate.get("head")
+            base = candidate.get("base")
+            head_repo = head.get("repo") if isinstance(head, Mapping) else None
+            base_repo = base.get("repo") if isinstance(base, Mapping) else None
+            if (
+                candidate.get("state") == "closed"
+                and isinstance(candidate.get("merged_at"), str)
+                and bool(candidate.get("merged_at"))
+                and isinstance(head, Mapping)
+                and isinstance(head_repo, Mapping)
+                and head_repo.get("full_name") == request.source_repository
+                and head.get("ref") == request.source_branch
+                and head.get("sha") == request.head_sha
+                and isinstance(base, Mapping)
+                and isinstance(base_repo, Mapping)
+                and base_repo.get("full_name") == repo
+                and base.get("ref") == request.target_branch
+            ):
+                matching.append(candidate)
+        if len(matching) != 1:
+            raise _ProtectedEvidencePartial(
+                "GitHub did not return one unique merged review for the exact "
+                "source/head/target identity"
+            )
+        discovered_id = str(matching[0].get("number") or "")
+        if _positive_int_string(discovered_id) is None:
+            raise _ProtectedEvidencePartial("GitHub review ID was malformed")
+        detail = self._protected_evidence_json(
+            f"/repos/{repo}/pulls/{discovered_id}"
+        )
+        if not isinstance(detail, Mapping):
+            raise _ProtectedEvidencePartial("GitHub review detail was malformed")
+        head = detail.get("head")
+        base = detail.get("base")
+        head_repo = head.get("repo") if isinstance(head, Mapping) else None
+        base_repo = base.get("repo") if isinstance(base, Mapping) else None
+        merge_sha = detail.get("merge_commit_sha")
+        merged_at = detail.get("merged_at")
+        if (
+            str(detail.get("number") or "") != discovered_id
+            or detail.get("state") != "closed"
+            or detail.get("merged") is not True
+            or not isinstance(merged_at, str)
+            or not merged_at
+            or not _is_full_git_sha(merge_sha)
+            or not isinstance(head, Mapping)
+            or not isinstance(head_repo, Mapping)
+            or head_repo.get("full_name") != request.source_repository
+            or head.get("ref") != request.source_branch
+            or head.get("sha") != request.head_sha
+            or not isinstance(base, Mapping)
+            or not isinstance(base_repo, Mapping)
+            or base_repo.get("full_name") != repo
+            or base.get("ref") != request.target_branch
+            or not _is_full_git_sha(base.get("sha"))
+        ):
+            raise _ProtectedEvidencePartial(
+                "GitHub review detail did not match the exact merged identity"
+            )
+        return ProtectedReviewEvidence(
+            review_id=discovered_id,
+            state="merged",
+            source_repository=request.source_repository,
+            source_branch=request.source_branch,
+            head_sha=request.head_sha,
+            target_repository=repo,
+            target_branch=request.target_branch,
+            base_sha=str(base["sha"]),
+            merge_sha=str(merge_sha),
+            merged_at=merged_at,
+        )
+
+    def _collect_protected_workflow_metadata(
+        self,
+        repo: str,
+        request: ProtectedWorkflowEvidenceRequest,
+    ) -> ProtectedWorkflowMetadataEvidence:
+        payload = self._protected_evidence_json(
+            f"/repos/{repo}/actions/workflows/{request.workflow_id}"
+        )
+        if not isinstance(payload, Mapping):
+            raise _ProtectedEvidencePartial("GitHub workflow metadata was malformed")
+        workflow_id = _positive_int(payload.get("id"))
+        if (
+            workflow_id != request.workflow_id
+            or payload.get("path") != request.workflow_path
+            or payload.get("state") != "active"
+            or not isinstance(payload.get("name"), str)
+            or not payload.get("name")
+            or not isinstance(payload.get("node_id"), str)
+            or not payload.get("node_id")
+        ):
+            raise _ProtectedEvidencePartial(
+                "GitHub workflow metadata did not match the pinned identity"
+            )
+        return ProtectedWorkflowMetadataEvidence(
+            workflow_id=workflow_id,
+            name=str(payload["name"]),
+            path=request.workflow_path,
+            state="active",
+            node_id=str(payload["node_id"]),
+        )
+
+    def _collect_protected_workflow_blob(
+        self,
+        repo: str,
+        request: ProtectedWorkflowEvidenceRequest,
+        merge_sha: str,
+    ) -> str:
+        encoded_path = urllib.parse.quote(request.workflow_path, safe="/")
+        payload = self._protected_evidence_json(
+            f"/repos/{repo}/contents/{encoded_path}",
+            params={"ref": merge_sha},
+        )
+        if (
+            not isinstance(payload, Mapping)
+            or payload.get("type") != "file"
+            or payload.get("path") != request.workflow_path
+            or payload.get("sha") != request.workflow_blob_sha
+            or not _is_full_git_sha(payload.get("sha"))
+        ):
+            raise _ProtectedEvidencePartial(
+                "GitHub workflow blob did not match the pinned merge revision"
+            )
+        return str(payload["sha"])
+
+    def _collect_protected_workflow_run(
+        self,
+        repo: str,
+        request: ProtectedWorkflowEvidenceRequest,
+        review: ProtectedReviewEvidence,
+        workflow: ProtectedWorkflowMetadataEvidence,
+    ) -> tuple[ProtectedWorkflowRunEvidence, Mapping[str, Any]]:
+        path = (
+            f"/repos/{repo}/actions/workflows/{request.workflow_id}/runs"
+        )
+        runs = self._protected_evidence_counted_pages(
+            path,
+            item_field="workflow_runs",
+            params={"event": request.event, "head_sha": request.head_sha},
+        )
+        if len(runs) != 1:
+            raise _ProtectedEvidencePartial(
+                "GitHub did not return one unique workflow run for the exact head"
+            )
+        listing_run = self._parse_protected_workflow_run(
+            runs[0],
+            repo=repo,
+            request=request,
+            review=review,
+            workflow=workflow,
+        )
+        detail = self._protected_evidence_json(
+            f"/repos/{repo}/actions/runs/{listing_run.run_id}"
+        )
+        detail_run = self._parse_protected_workflow_run(
+            detail,
+            repo=repo,
+            request=request,
+            review=review,
+            workflow=workflow,
+        )
+        if detail_run != listing_run:
+            raise _ProtectedEvidencePartial(
+                "GitHub workflow-run detail changed from the paginated listing"
+            )
+        if not isinstance(detail, Mapping):
+            raise _ProtectedEvidencePartial("GitHub workflow-run detail was malformed")
+        return detail_run, detail
+
+    def _parse_protected_workflow_run(
+        self,
+        payload: Any,
+        *,
+        repo: str,
+        request: ProtectedWorkflowEvidenceRequest,
+        review: ProtectedReviewEvidence,
+        workflow: ProtectedWorkflowMetadataEvidence,
+    ) -> ProtectedWorkflowRunEvidence:
+        if not isinstance(payload, Mapping):
+            raise _ProtectedEvidencePartial("GitHub workflow run was malformed")
+        run_id = _positive_int(payload.get("id"))
+        run_attempt = _positive_int(payload.get("run_attempt"))
+        workflow_id = _positive_int(payload.get("workflow_id"))
+        check_suite_id = _positive_int(payload.get("check_suite_id"))
+        repository = payload.get("repository")
+        head_repository = payload.get("head_repository")
+        associations = payload.get("pull_requests")
+        if not isinstance(associations, list):
+            raise _ProtectedEvidencePartial(
+                "GitHub workflow run omitted pull-request associations"
+            )
+        matching_associations = [
+            association
+            for association in associations
+            if self._protected_review_association_matches(
+                association,
+                review_id=review.review_id,
+                source_branch=request.source_branch,
+                head_sha=request.head_sha,
+                target_branch=request.target_branch,
+            )
+        ]
+        # GitHub legitimately empties these advisory associations after some
+        # reviews merge.  The run remains strongly bound by the workflow
+        # endpoint's exact head filter plus repository/branch/SHA fields.  If
+        # GitHub does supply associations, however, accept only one exact one.
+        if associations and (
+            len(associations) != 1 or len(matching_associations) != 1
+        ):
+            raise _ProtectedEvidencePartial(
+                "GitHub workflow run was not uniquely bound to the merged review"
+            )
+        if (
+            run_id is None
+            or run_attempt is None
+            or workflow_id != request.workflow_id
+            or check_suite_id is None
+            or payload.get("path") != request.workflow_path
+            or payload.get("event") != request.event
+            or payload.get("head_branch") != request.source_branch
+            or payload.get("head_sha") != request.head_sha
+            or payload.get("status") != "completed"
+            or payload.get("conclusion") != "success"
+            or not isinstance(repository, Mapping)
+            or repository.get("full_name") != repo
+            or not isinstance(head_repository, Mapping)
+            or head_repository.get("full_name") != request.source_repository
+            or not isinstance(payload.get("html_url"), str)
+            or not payload.get("html_url")
+        ):
+            raise _ProtectedEvidencePartial(
+                "GitHub workflow run did not match the pinned successful identity"
+            )
+        return ProtectedWorkflowRunEvidence(
+            run_id=run_id,
+            run_attempt=run_attempt,
+            workflow_id=workflow_id,
+            workflow_path=workflow.path,
+            event=request.event,
+            head_repository=request.source_repository,
+            head_branch=request.source_branch,
+            head_sha=request.head_sha,
+            status="completed",
+            conclusion="success",
+            check_suite_id=check_suite_id,
+            html_url=str(payload["html_url"]),
+        )
+
+    def _collect_protected_check_suite(
+        self,
+        repo: str,
+        request: ProtectedWorkflowEvidenceRequest,
+        review: ProtectedReviewEvidence,
+        run: ProtectedWorkflowRunEvidence,
+    ) -> ProtectedWorkflowCheckSuiteEvidence:
+        payload = self._protected_evidence_json(
+            f"/repos/{repo}/check-suites/{run.check_suite_id}"
+        )
+        if not isinstance(payload, Mapping):
+            raise _ProtectedEvidencePartial("GitHub check suite was malformed")
+        app = payload.get("app")
+        app_id = app.get("id") if isinstance(app, Mapping) else None
+        app_slug = app.get("slug") if isinstance(app, Mapping) else None
+        count = payload.get("latest_check_runs_count")
+        if (
+            _positive_int(payload.get("id")) != run.check_suite_id
+            or payload.get("head_sha") != request.head_sha
+            or payload.get("status") != "completed"
+            or payload.get("conclusion") != "success"
+            or _positive_int(app_id) != request.app_id
+            or not isinstance(app_slug, str)
+            or not app_slug
+            or _positive_int(count) is None
+        ):
+            raise _ProtectedEvidencePartial(
+                "GitHub check suite did not match the pinned successful identity"
+            )
+        associations = payload.get("pull_requests")
+        if not isinstance(associations, list):
+            raise _ProtectedEvidencePartial(
+                "GitHub check suite omitted pull-request associations"
+            )
+        matching_associations = [
+            association
+            for association in associations
+            if self._protected_review_association_matches(
+                association,
+                review_id=review.review_id,
+                source_branch=request.source_branch,
+                head_sha=request.head_sha,
+                target_branch=request.target_branch,
+            )
+        ]
+        if associations and (
+            len(associations) != 1 or len(matching_associations) != 1
+        ):
+            raise _ProtectedEvidencePartial(
+                "GitHub check suite was not uniquely bound to the merged review"
+            )
+        return ProtectedWorkflowCheckSuiteEvidence(
+            check_suite_id=run.check_suite_id,
+            head_sha=request.head_sha,
+            status="completed",
+            conclusion="success",
+            app_id=request.app_id,
+            app_slug=app_slug,
+            latest_check_runs_count=int(count),
+        )
+
+    def _collect_protected_workflow_jobs(
+        self,
+        repo: str,
+        request: ProtectedWorkflowEvidenceRequest,
+        review: ProtectedReviewEvidence,
+        workflow: ProtectedWorkflowMetadataEvidence,
+        run: ProtectedWorkflowRunEvidence,
+        run_payload: Mapping[str, Any],
+    ) -> tuple[ProtectedWorkflowJobEvidence, ...]:
+        jobs_url = run_payload.get("jobs_url")
+        expected_jobs_url = f"https://api.github.com/repos/{repo}/actions/runs/{run.run_id}/jobs"
+        if jobs_url != expected_jobs_url:
+            raise _ProtectedEvidencePartial(
+                "GitHub workflow run exposed an unexpected jobs URL"
+            )
+        path = (
+            f"/repos/{repo}/actions/runs/{run.run_id}/attempts/"
+            f"{run.run_attempt}/jobs"
+        )
+        payloads = self._protected_evidence_counted_pages(
+            path,
+            item_field="jobs",
+        )
+        if not payloads:
+            raise _ProtectedEvidencePartial(
+                "GitHub workflow run returned an empty attempt-specific job set"
+            )
+        jobs = tuple(
+            sorted(
+                (
+                    self._collect_protected_workflow_job(
+                        repo,
+                        request,
+                        review,
+                        workflow,
+                        run,
+                        payload,
+                    )
+                    for payload in payloads
+                ),
+                key=lambda job: (job.name, job.job_id),
+            )
+        )
+        job_ids = [job.job_id for job in jobs]
+        job_names = [job.name for job in jobs]
+        if len(job_ids) != len(set(job_ids)) or len(job_names) != len(set(job_names)):
+            raise _ProtectedEvidencePartial(
+                "GitHub workflow job evidence contained duplicates"
+            )
+        if set(job_names) != set(request.required_job_names) or len(job_names) != len(
+            request.required_job_names
+        ):
+            raise _ProtectedEvidencePartial(
+                "GitHub workflow jobs did not exactly match the required job set"
+            )
+        check_ids = [job.check.check_run_id for job in jobs]
+        if len(check_ids) != len(set(check_ids)):
+            raise _ProtectedEvidencePartial(
+                "GitHub workflow check evidence contained duplicates"
+            )
+        return jobs
+
+    def _collect_protected_workflow_job(
+        self,
+        repo: str,
+        request: ProtectedWorkflowEvidenceRequest,
+        review: ProtectedReviewEvidence,
+        workflow: ProtectedWorkflowMetadataEvidence,
+        run: ProtectedWorkflowRunEvidence,
+        payload: Any,
+    ) -> ProtectedWorkflowJobEvidence:
+        if not isinstance(payload, Mapping):
+            raise _ProtectedEvidencePartial("GitHub workflow job was malformed")
+        job_id = _positive_int(payload.get("id"))
+        name = payload.get("name")
+        if (
+            job_id is None
+            or not isinstance(name, str)
+            or not name
+            or _positive_int(payload.get("run_id")) != run.run_id
+            or _positive_int(payload.get("run_attempt")) != run.run_attempt
+            or payload.get("head_sha") != request.head_sha
+            or payload.get("workflow_name") != workflow.name
+            or payload.get("status") != "completed"
+            or payload.get("conclusion") != "success"
+        ):
+            raise _ProtectedEvidencePartial(
+                "GitHub workflow job did not match the exact successful attempt"
+            )
+        raw_steps = payload.get("steps")
+        if not isinstance(raw_steps, list) or not raw_steps:
+            raise _ProtectedEvidencePartial(
+                "GitHub workflow job returned empty or malformed steps"
+            )
+        steps: list[ProtectedWorkflowStepEvidence] = []
+        for raw_step in raw_steps:
+            if not isinstance(raw_step, Mapping):
+                raise _ProtectedEvidencePartial("GitHub workflow step was malformed")
+            number = _positive_int(raw_step.get("number"))
+            step_name = raw_step.get("name")
+            status = raw_step.get("status")
+            conclusion = raw_step.get("conclusion")
+            if (
+                number is None
+                or not isinstance(step_name, str)
+                or not step_name
+                or not isinstance(status, str)
+                or not status
+                or not isinstance(conclusion, str)
+                or not conclusion
+            ):
+                raise _ProtectedEvidencePartial("GitHub workflow step was malformed")
+            steps.append(
+                ProtectedWorkflowStepEvidence(
+                    number=number,
+                    name=step_name,
+                    status=status,
+                    conclusion=conclusion,
+                )
+            )
+        step_numbers = [step.number for step in steps]
+        step_names = [step.name for step in steps]
+        if (
+            len(step_numbers) != len(set(step_numbers))
+            or len(step_names) != len(set(step_names))
+        ):
+            raise _ProtectedEvidencePartial(
+                "GitHub workflow step evidence contained duplicates"
+            )
+        for required_name in request.required_step_names:
+            required = [step for step in steps if step.name == required_name]
+            if (
+                len(required) != 1
+                or required[0].status != "completed"
+                or required[0].conclusion != "success"
+            ):
+                raise _ProtectedEvidencePartial(
+                    "GitHub workflow required step was missing or unsuccessful"
+                )
+        check_run_url = payload.get("check_run_url")
+        if not isinstance(check_run_url, str):
+            raise _ProtectedEvidencePartial(
+                "GitHub workflow job omitted its check-run URL"
+            )
+        parsed_check_url = urllib.parse.urlparse(check_run_url)
+        expected_check_path = f"/repos/{repo}/check-runs/{job_id}"
+        if (
+            parsed_check_url.scheme != "https"
+            or parsed_check_url.netloc != "api.github.com"
+            or parsed_check_url.path != expected_check_path
+            or parsed_check_url.query
+            or parsed_check_url.fragment
+        ):
+            raise _ProtectedEvidencePartial(
+                "GitHub workflow job exposed an unexpected check-run URL"
+            )
+        check = self._collect_protected_workflow_check(
+            repo,
+            request,
+            review,
+            run,
+            job_id=job_id,
+            job_name=name,
+        )
+        return ProtectedWorkflowJobEvidence(
+            job_id=job_id,
+            name=name,
+            run_id=run.run_id,
+            run_attempt=run.run_attempt,
+            head_sha=request.head_sha,
+            status="completed",
+            conclusion="success",
+            steps=tuple(sorted(steps, key=lambda step: step.number)),
+            check=check,
+        )
+
+    def _collect_protected_workflow_check(
+        self,
+        repo: str,
+        request: ProtectedWorkflowEvidenceRequest,
+        review: ProtectedReviewEvidence,
+        run: ProtectedWorkflowRunEvidence,
+        *,
+        job_id: int,
+        job_name: str,
+    ) -> ProtectedWorkflowCheckEvidence:
+        payload = self._protected_evidence_json(
+            f"/repos/{repo}/check-runs/{job_id}"
+        )
+        if not isinstance(payload, Mapping):
+            raise _ProtectedEvidencePartial("GitHub check run was malformed")
+        suite = payload.get("check_suite")
+        app = payload.get("app")
+        app_id = app.get("id") if isinstance(app, Mapping) else None
+        app_slug = app.get("slug") if isinstance(app, Mapping) else None
+        if (
+            _positive_int(payload.get("id")) != job_id
+            or payload.get("name") != job_name
+            or payload.get("head_sha") != request.head_sha
+            or payload.get("status") != "completed"
+            or payload.get("conclusion") != "success"
+            or not isinstance(suite, Mapping)
+            or _positive_int(suite.get("id")) != run.check_suite_id
+            or _positive_int(app_id) != request.app_id
+            or not isinstance(app_slug, str)
+            or not app_slug
+            or not isinstance(payload.get("details_url"), str)
+            or not payload.get("details_url")
+        ):
+            raise _ProtectedEvidencePartial(
+                "GitHub check run did not match its exact successful job"
+            )
+        associations = payload.get("pull_requests")
+        if not isinstance(associations, list):
+            raise _ProtectedEvidencePartial(
+                "GitHub check run omitted pull-request associations"
+            )
+        matching_associations = [
+            association
+            for association in associations
+            if self._protected_review_association_matches(
+                association,
+                review_id=review.review_id,
+                source_branch=request.source_branch,
+                head_sha=request.head_sha,
+                target_branch=request.target_branch,
+            )
+        ]
+        if associations and (
+            len(associations) != 1 or len(matching_associations) != 1
+        ):
+            raise _ProtectedEvidencePartial(
+                "GitHub check run was not uniquely bound to the merged review"
+            )
+        return ProtectedWorkflowCheckEvidence(
+            check_run_id=job_id,
+            name=job_name,
+            head_sha=request.head_sha,
+            status="completed",
+            conclusion="success",
+            check_suite_id=run.check_suite_id,
+            app_id=request.app_id,
+            app_slug=app_slug,
+            details_url=str(payload["details_url"]),
+        )
 
     def _graphql(self, query: str, variables: dict | None = None) -> httpx.Response:
         """POST a GraphQL query/mutation to GitHub's GraphQL endpoint.
