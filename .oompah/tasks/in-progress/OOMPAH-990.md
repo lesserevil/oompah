@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:46:32.018670Z'
-updated_at: '2026-08-10T07:06:50.049153Z'
+updated_at: '2026-08-10T07:25:20.788951Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-10 07:06
 ---
 Implementation is committed and pushed for independent review at exact head 847c6b595262b08678672e53a770abbedfc0e8c0 on origin/OOMPAH-990. Focused evidence: 223 quality-gate/standalone tests passed; delivery restart recovery regression passed; terminal task mutation scan passed 20/20; commit hooks including paranoid secret scans passed. Worktree is clean and synchronized. Full make test is starting now. Task intentionally remains In Progress and unsubmitted pending independent review.
+---
+author: oompah
+created: 2026-08-10 07:25
+---
+Re-review replacement is pushed at exact head 46cc659bb485c6b81f556c1141e0807a23897b06. This supersedes invalid head 847c6b595. The replacement fences authority-less production publishers with exact project/task/head/branch/target/command identity plus project-serialized fresh tracker/evidence/head validation; an old producer PASS cannot clear a current producer failure. The real standalone Ready consumer now retains bounded interrupted scheduled-retry state until the exact retry passes or authority changes. Deterministic production terminal-first/result-first, authority-less review, old-head/current-failure, and real interrupted-then-pass standalone tests are included. Focused evidence: 358 passed across quality gate, standalone delivery, and delivery recovery modules; compile clean; terminal mutation scan 20/20; secret scans/hooks passed. Worktree is clean/synchronized. Full gate intentionally not restarted pending re-review; task remains In Progress and unsubmitted.
 ---
 <!-- COMMENTS:END -->
