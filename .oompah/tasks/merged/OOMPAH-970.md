@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:37:32.521266Z'
-updated_at: '2026-08-10T01:16:52.313856Z'
+updated_at: '2026-08-10T01:16:59.470685Z'
 work_branch: OOMPAH-970
 target_branch: null
 review_url: null
@@ -78,7 +78,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T01:16:47.610381+00:00'
     selected_ref: 23a28b1f02319faff905d2733ef290c26d7cb097
     selected_sha: 23a28b1f02319faff905d2733ef290c26d7cb097
-    applied: false
+    applied: true
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-970
@@ -90,6 +90,16 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-08-09T19:58:58.381915+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-970
+    target_state: Merged
+    evidence_fingerprint: 8a4300fa26305215ba607ef34385de5d9b0e9805a4906d3b923535d44d04aa35
+    audit_ids:
+    - audit-dbc0ee15412c
+    - audit-1cef3482ca27
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T01:16:57.982961+00:00'
   oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
@@ -265,5 +275,12 @@ author: oompah
 created: 2026-08-09 19:59
 ---
 Deterministic detached-heartbeat coverage is merged via PR #777 with the full hosted matrix green; detached-auditor harness portability is tracked separately in OOMPAH-971.
+---
+author: oompah
+created: 2026-08-10 01:16
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Selected or integrated head 23a28b1 is an ancestor of current main and the completed audit evidence is preserved; retire the historical record as Merged.
 ---
 <!-- COMMENTS:END -->

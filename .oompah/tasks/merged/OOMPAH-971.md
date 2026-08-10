@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-971
 type: task
-status: Done
+status: Merged
 priority: null
 title: Make terminal-audit full gates portable to task-private virtualenvs
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T19:50:52.737789Z'
-updated_at: '2026-08-09T20:23:48.366042Z'
+updated_at: '2026-08-10T01:17:06.320085Z'
 work_branch: OOMPAH-971
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/779
@@ -64,6 +64,25 @@ oompah.terminal_audit:
     selected_ref: 125d19edd8b6c4e3bb001b675cf77da084ea25a2
     selected_sha: 125d19edd8b6c4e3bb001b675cf77da084ea25a2
     applied: true
+  - version: 1
+    override_id: override-7184c1b06ccc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-971
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: edc8243811c44553d088cc96cd3076abb4145ebcafe791a69427168b99faa0ea
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Selected or integrated head 125d19e is an ancestor of current main and
+      the completed audit evidence is preserved; retire the historical record as Merged.
+    created_at: '2026-08-10T01:17:01.715628+00:00'
+    selected_ref: 125d19edd8b6c4e3bb001b675cf77da084ea25a2
+    selected_sha: 125d19edd8b6c4e3bb001b675cf77da084ea25a2
+    applied: false
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-971
