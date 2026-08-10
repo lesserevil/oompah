@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T15:38:22.780396Z'
-updated_at: '2026-08-10T17:50:29.909563Z'
+updated_at: '2026-08-10T17:50:40.042868Z'
 work_branch: OOMPAH-998
 target_branch: null
 review_url: null
@@ -53,7 +53,17 @@ oompah.terminal_audit:
     created_at: '2026-08-10T17:50:25.550145+00:00'
     selected_ref: 9bf6011ac2481cbf3f73fe23085788814aa69434
     selected_sha: 9bf6011ac2481cbf3f73fe23085788814aa69434
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-998
+    target_state: Merged
+    evidence_fingerprint: bb932e2008a66e421f67a69c06daa606bf5287803f641bee91690555d3c5be54
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T17:50:34.440311+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -81,5 +91,17 @@ author: oompah
 created: 2026-08-10 16:12
 ---
 Compose exact retained-child provenance into parent rollup authority; fail closed on stale/revoked/mismatched evidence and prevent waiver reuse as landing or cleanup authority.
+---
+author: oompah
+created: 2026-08-10 17:50
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: [REDACTED]
+---
+author: oompah
+created: 2026-08-10 17:50
+---
+Merged exact OOMPAH-998 recovery commit through protected PR #799 and deployed it at 0ce6c3131af200ab89090c13255c3606fc8d753b; live generation 1529 is healthy with zero current divergence/exhaustion.
 ---
 <!-- COMMENTS:END -->
