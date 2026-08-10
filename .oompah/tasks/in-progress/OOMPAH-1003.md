@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T19:11:49.831627Z'
-updated_at: '2026-08-10T19:25:08.753084Z'
+updated_at: '2026-08-10T19:49:09.201395Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,3 +36,11 @@ Triggered by the live OOMPAH-940 rollout at workflow generations 1564-1571. Prob
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 19:49
+---
+Implementation is complete and pushed at exact head 7186cce68e1ad569bd2e0f2dec225787902100bd. The auto-close path now binds one durable containment-scoped immediate-target landing through revalidation/apply/verify/transition, preserves ordinary mutable-head CAS, permits fallback only for headless root epics still In Progress under ORCHESTRATOR authority, and rechecks the immutable SHA in TaskTransitionService, terminal coordinator, and final runtime guard. Validation: 557 combined focused tests, terminal mutation scan 20/20, diff/secret checks, and independent adversarial review are green.
+---
+<!-- COMMENTS:END -->
