@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-730
 type: bug
-status: Done
+status: Merged
 priority: 0
 title: Execute and reconcile safe container-cycle repairs automatically
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-07T08:43:33.660090Z'
+updated_at: '2026-08-10T01:14:39.332254Z'
 work_branch: OOMPAH-730
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/687
@@ -191,6 +191,25 @@ oompah.terminal_audit:
       defect.
     created_at: '2026-08-03T19:38:27.187762+00:00'
     applied: true
+  - version: 1
+    override_id: override-b2307d2e9b36
+    project_id: proj-14849f1b
+    task_id: OOMPAH-730
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dc911203c8cce9f04768b0b8e89d2d895b2d1bab7ad898b7799660b6aa2d97b1
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Selected or integrated head 6046b23 is an ancestor of current main and
+      the completed audit evidence is preserved; retire the historical record as Merged.
+    created_at: '2026-08-10T01:14:32.942519+00:00'
+    selected_ref: 6046b2340c539b2f770e8448648b2d1d729084fc
+    selected_sha: 6046b2340c539b2f770e8448648b2d1d729084fc
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -247,6 +266,7 @@ oompah.terminal_audit:
     previous_state: In Progress
     created_at: '2026-08-03T18:52:31.837416+00:00'
     updated_at: '2026-08-03T19:29:02.838710+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-5537cd234487
     project_id: proj-14849f1b
@@ -284,6 +304,7 @@ oompah.terminal_audit:
     previous_state: In Progress
     created_at: '2026-08-03T18:52:31.837416+00:00'
     updated_at: '2026-08-03T19:38:33.773126+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-79e3511c1e90
     project_id: proj-14849f1b
@@ -301,6 +322,7 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Done
     created_at: '2026-08-03T19:44:51.181488+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-6c4f45c75dc0
     project_id: proj-14849f1b
@@ -320,6 +342,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:43:32.070068+00:00'
     selected_ref: 6046b2340c539b2f770e8448648b2d1d729084fc
     selected_sha: 6046b2340c539b2f770e8448648b2d1d729084fc
+    source_generation: 1
   - version: 1
     audit_id: audit-756265816f3f
     project_id: proj-14849f1b
@@ -339,6 +362,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:43:32.070068+00:00'
     selected_ref: 6046b2340c539b2f770e8448648b2d1d729084fc
     selected_sha: 6046b2340c539b2f770e8448648b2d1d729084fc
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-83ebd6844473
