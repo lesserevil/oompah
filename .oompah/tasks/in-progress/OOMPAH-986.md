@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-986
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Prevent terminal-audit churn from starving unrelated workflow publication
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T04:41:10.778919Z'
-updated_at: '2026-08-10T04:41:21.330501Z'
+updated_at: '2026-08-10T04:41:33.306226Z'
 work_branch: null
 target_branch: null
 review_url: null
