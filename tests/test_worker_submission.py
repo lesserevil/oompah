@@ -4,6 +4,7 @@ import asyncio
 import subprocess
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from oompah import server as server_module
@@ -11,7 +12,7 @@ from oompah import task_cli
 from oompah.integration import IntegrationRecord
 from oompah.integration_queue import IntegrationQueueStore
 from oompah.models import Issue, Project
-from oompah.projects import ProjectStore
+from oompah.projects import ProjectError, ProjectStore
 from oompah.server import app
 
 
@@ -654,6 +655,42 @@ def test_real_verifier_preserves_reused_legacy_null_base_authority(tmp_path):
     assert verified.base_sha is None
 
 
+def test_remote_branch_head_returns_stable_head_or_pruned_absence(tmp_path):
+    store, target, _task_branch, target_sha, _first, _current = (
+        _real_nested_submission_store(tmp_path)
+    )
+
+    assert store.remote_branch_head("proj-1", target) == target_sha
+    assert store.remote_branch_head("proj-1", "pruned-parent") is None
+
+
+def test_remote_branch_head_rejects_ref_movement_during_observation(
+    tmp_path, monkeypatch
+):
+    store, target, _task_branch, target_sha, _first, _current = (
+        _real_nested_submission_store(tmp_path)
+    )
+    calls = 0
+
+    def network_git(_project, args, *, timeout):
+        nonlocal calls
+        if "ls-remote" in args:
+            calls += 1
+            head = target_sha if calls == 1 else "f" * 40
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                stdout=f"{head}\trefs/heads/{target}\n",
+                stderr="",
+            )
+        return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(store, "_run_network_git", network_git)
+
+    with pytest.raises(ProjectError, match="moved while being observed"):
+        store.remote_branch_head("proj-1", target)
+
+
 def test_new_head_without_base_uses_canonical_nested_target_and_merge_base(tmp_path):
     store, target_branch, task_branch, target_sha, old_head, new_head = (
         _real_nested_submission_store(tmp_path)
@@ -1028,7 +1065,7 @@ def test_submit_endpoint_rejects_generated_worktree_helper_evidence():
 
 def test_direct_epic_submission_avoids_ordinary_queue_enqueue(tmp_path):
     """Test that direct epic submission does not call _enqueue_worker_submission.
-    
+
     Regression test for OOMPAH-758: direct epic maintenance tasks must not
     enter the ordinary child integration queue through api_submit_issue.
     """

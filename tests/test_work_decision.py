@@ -1414,6 +1414,51 @@ def test_incident_standalone_delivery_ignores_benign_metadata_churn():
     assert decision.durable_jobs == ("standalone_delivery",)
 
 
+def test_parented_standalone_delivery_requires_exact_persisted_target_route():
+    issue = _issue(
+        READY_TO_INTEGRATE,
+        parent_id="EPIC-1",
+        target_branch="main",
+    )
+    exact = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.INTEGRATION: _known(
+                    FactDomain.INTEGRATION,
+                    {
+                        "state": "ready",
+                        "mode": "standalone",
+                        "post_landed_parent_id": "EPIC-1",
+                        "base_branch": "main",
+                    },
+                )
+            },
+        ),
+    )
+    mismatch = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.INTEGRATION: _known(
+                    FactDomain.INTEGRATION,
+                    {
+                        "state": "ready",
+                        "mode": "standalone",
+                        "post_landed_parent_id": "EPIC-1",
+                        "base_branch": "release",
+                    },
+                )
+            },
+        ),
+    )
+
+    assert exact.durable_jobs == ("standalone_delivery",)
+    assert "standalone_delivery" not in mismatch.durable_jobs
+
+
 def test_incident_live_claim_is_independent_of_bounded_history_replay():
     issue = _issue(READY_TO_INTEGRATE)
     facts = _facts(

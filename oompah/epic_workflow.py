@@ -21,6 +21,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Protocol
 
+from oompah.integration import ACCEPTED_SUBMISSION_STATES, IntegrationRecord
 from oompah.models import Issue
 from oompah.projects import sanitize_branch_identifier
 from oompah.statuses import (
@@ -177,6 +178,36 @@ def _revision(issue: Issue) -> str | None:
     return normalized if re.fullmatch(r"[0-9a-fA-F]{7,64}", normalized) else None
 
 
+def _accepted_standalone_landing(
+    issue: Issue,
+    *,
+    expected_target: str,
+) -> tuple[str, str, str] | None:
+    """Return an exact service-selected live-target child route."""
+
+    integration = getattr(issue, "integration", None)
+    if not isinstance(integration, IntegrationRecord):
+        return None
+    state = str(integration.state or "").strip().lower()
+    mode = str(integration.mode or "").strip().lower()
+    source = str(integration.task_branch or "").strip()
+    target = str(integration.base_branch or "").strip()
+    explicit_target = str(getattr(issue, "target_branch", "") or "").strip()
+    revision = _exact_head(integration.integrated_sha or integration.head_sha)
+    if not (
+        state in ACCEPTED_SUBMISSION_STATES
+        and mode == "standalone"
+        and str(integration.post_landed_parent_id or "").strip()
+        == str(issue.parent_id or "").strip()
+        and source
+        and target == expected_target
+        and explicit_target == target
+        and revision
+    ):
+        return None
+    return source, target, revision
+
+
 def _is_maintenance(issue: Issue) -> bool:
     title = str(getattr(issue, "title", "") or "").strip().lower()
     labels = {
@@ -244,6 +275,22 @@ class EpicFactCollector:
         direct: list[Mapping[str, Any]] = []
         seen: set[str] = {root.identifier}
         cycle: str | None = None
+        parent = None
+        parent_id = str(root.parent_id or "").strip() or None
+        if parent_id:
+            parent = self.tracker.fetch_issue_detail(parent_id)
+            if parent is None:
+                raise EpicTargetResolutionError(
+                    f"parent {parent_id} for {root.identifier} is unavailable"
+                )
+            if parent.project_id and str(parent.project_id) != self.project_id:
+                raise EpicTargetResolutionError(
+                    f"parent {parent.identifier} for {root.identifier} escaped "
+                    f"project {self.project_id}"
+                )
+        root_target = resolve_epic_target(
+            root, parent=parent, default_branch=self.default_branch
+        )
 
         def visit(parent: Issue, ancestors: tuple[str, ...]) -> None:
             nonlocal cycle
@@ -265,6 +312,16 @@ class EpicFactCollector:
                 target = epic_branch(parent.identifier)
                 source = epic_branch(identifier) if nested else _source_branch(child)
                 revision = _revision(child)
+                standalone_landing = (
+                    None
+                    if nested or maintenance or parent.identifier != root.identifier
+                    else _accepted_standalone_landing(
+                        child,
+                        expected_target=root_target,
+                    )
+                )
+                if standalone_landing is not None:
+                    source, target, revision = standalone_landing
                 # A shared child may report the parent epic branch as its
                 # work branch.  Without an exact head SHA that is not proof
                 # of the child's work; use the task identity so the evidence
@@ -309,26 +366,10 @@ class EpicFactCollector:
                 visit(child, (*ancestors, identifier))
 
         visit(root, (root.identifier,))
-        parent = None
-        parent_id = str(root.parent_id or "").strip() or None
-        if parent_id:
-            parent = self.tracker.fetch_issue_detail(parent_id)
-            if parent is None:
-                raise EpicTargetResolutionError(
-                    f"parent {parent_id} for {root.identifier} is unavailable"
-                )
-            if parent.project_id and str(parent.project_id) != self.project_id:
-                raise EpicTargetResolutionError(
-                    f"parent {parent.identifier} for {root.identifier} escaped "
-                    f"project {self.project_id}"
-                )
-        target = resolve_epic_target(
-            root, parent=parent, default_branch=self.default_branch
-        )
         return EpicGraph(
             parent_id=parent_id,
             epic_branch=epic_branch(root.identifier),
-            target_branch=target,
+            target_branch=root_target,
             children=tuple(sorted(direct, key=lambda item: str(item["identifier"]))),
             acyclic=cycle is None,
             cycle=cycle,

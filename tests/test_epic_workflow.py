@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import os
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 
+from oompah.integration import IntegrationRecord
 from oompah.epic_workflow import (
     EpicAction,
     EpicFactCollector,
@@ -927,6 +929,39 @@ def test_each_epic_decision_contains_only_its_direct_children(tmp_path):
     mid_children = mid_facts.fact("containment").value["children"]
     assert [item["identifier"] for item in top_children] == ["MID"]
     assert [item["identifier"] for item in mid_children] == ["LEAF"]
+
+
+def test_post_landed_child_rollup_uses_exact_standalone_target_route():
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    leaf = issue("LEAF", state=DONE, parent_id="TOP", work_branch="leaf")
+    leaf.target_branch = "main"
+    leaf.integration = IntegrationRecord(
+        state="ready",
+        mode="standalone",
+        post_landed_parent_id="TOP",
+        task_branch="leaf",
+        base_branch="main",
+        head_sha="a" * 40,
+    )
+    collector = EpicFactCollector(
+        project_id="project-1", tracker=Tracker([top, leaf])
+    )
+    standalone = collector._graph(top).children[0]
+    leaf.integration = replace(
+        leaf.integration,
+        mode="queue",
+        post_landed_parent_id=None,
+        base_branch="epic-TOP",
+    )
+    leaf.target_branch = "epic-TOP"
+    queued = collector._graph(top).children[0]
+
+    assert (
+        standalone["landing_source"],
+        standalone["landing_target"],
+        standalone["revision"],
+    ) == ("leaf", "main", "a" * 40)
+    assert queued["landing_target"] == "epic-TOP"
 
 
 def test_archived_direct_child_has_no_invented_landing_obligation(tmp_path):

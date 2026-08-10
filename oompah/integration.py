@@ -215,7 +215,7 @@ def _compute_evidence_fingerprint(
     created_at_utc: str,
 ) -> str:
     """Compute SHA256 fingerprint for canonical landing evidence.
-    
+
     Fingerprint validates evidence integrity against tampering and provides
     cryptographic proof of the exact mapping. All parameters must be
     canonicalized (lowercase SHAs, stripped strings).
@@ -227,16 +227,16 @@ def _compute_evidence_fingerprint(
 @dataclass(frozen=True)
 class CanonicalLandingEvidence:
     """Service-authored cryptographic evidence of conflict-resolved child landing.
-    
+
     Persisted during direct epic maintenance completion to prove that a child's
     commits were validly rebased with conflict resolution into canonical epic
     commits. This evidence is fail-closed: missing, stale, partial, or forged
     evidence blocks landing validation until human recovery.
-    
+
     All fields are immutable (frozen=True) and must be set at creation time.
     Evidence is only created by oompah service, never loaded from untrusted
     sources (e.g., human comments, user input, or tracker metadata edits).
-    
+
     Attributes:
         old_base_sha: Original child base commit SHA before rebase (40-char hex).
         old_head_sha: Original child head commit SHA before rebase (40-char hex).
@@ -251,7 +251,7 @@ class CanonicalLandingEvidence:
         evidence_fingerprint: SHA256 hash of all parameters above, excluding this field.
             Detects tampering; fingerprint mismatch blocks landing and invalidates evidence.
     """
-    
+
     old_base_sha: str
     old_head_sha: str
     new_base_sha: str
@@ -263,7 +263,7 @@ class CanonicalLandingEvidence:
 
     def __post_init__(self) -> None:
         """Validate all fields and verify fingerprint on instantiation.
-        
+
         This is called automatically by dataclass after __init__.
         Fail-closed: any validation failure raises ValueError.
         """
@@ -279,7 +279,7 @@ class CanonicalLandingEvidence:
                     f"invalid git SHA for {name}: {sha!r} "
                     "(must be 40-character hexadecimal)"
                 )
-        
+
         # Validate string fields are non-empty after stripping
         for text, name in [
             (self.target_epic_branch, "target_epic_branch"),
@@ -288,14 +288,14 @@ class CanonicalLandingEvidence:
         ]:
             if not str(text or "").strip():
                 raise ValueError(f"{name} is required and cannot be empty")
-        
+
         # Validate fingerprint format (64-character hex from SHA256)
         if not _is_valid_git_sha(self.evidence_fingerprint, bits=256):
             raise ValueError(
                 f"invalid fingerprint: {self.evidence_fingerprint!r} "
                 "(must be 64-character hexadecimal)"
             )
-        
+
         # Verify fingerprint matches computed value (critical: detect tampering)
         expected_fp = _compute_evidence_fingerprint(
             self.old_base_sha,
@@ -315,7 +315,7 @@ class CanonicalLandingEvidence:
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "CanonicalLandingEvidence":
         """Parse stored evidence while rejecting malformed data (fail-closed).
-        
+
         This is the only public way to load evidence from storage.
         Any parsing error raises ValueError; no partial/degraded loading.
         """
@@ -333,13 +333,13 @@ class CanonicalLandingEvidence:
             raise ValueError(
                 "evidence must be a mapping (dict), not {!r}".format(type(value))
             )
-        
+
         missing = required_fields - set(value.keys())
         if missing:
             raise ValueError(
                 f"evidence missing required fields: {', '.join(sorted(missing))}"
             )
-        
+
         return cls(
             old_base_sha=str(value.get("old_base_sha") or "").strip().lower(),
             old_head_sha=str(value.get("old_head_sha") or "").strip().lower(),
@@ -368,7 +368,7 @@ class CanonicalLandingEvidence:
 
     def is_valid_for_epic(self, current_epic_branch: str) -> bool:
         """Return True if evidence is valid for the given epic branch.
-        
+
         Fail-closed: any mismatch returns False (blocks landing).
         Epic branch name changes invalidate evidence (prevents drift attacks).
         """
@@ -378,12 +378,12 @@ class CanonicalLandingEvidence:
 
     def is_evidence_fresh(self, max_age_hours: int = 24) -> bool:
         """Return True if evidence age is within max_age_hours (fail-closed).
-        
+
         Args:
             max_age_hours: Maximum age in hours before evidence is invalidated.
                 Defaults to 24 hours; should be small to prevent stale evidence
                 attacks.
-        
+
         Returns:
             False if evidence is too old or timestamp is invalid (fail-closed).
         """
@@ -398,11 +398,11 @@ class CanonicalLandingEvidence:
 
 def _is_valid_git_sha(sha: str, bits: int = 160) -> bool:
     """Return True if sha is a valid git commit hash.
-    
+
     Args:
         sha: The string to validate.
         bits: Hash bit length (160 for SHA1 -> 40 hex chars, 256 for SHA256 -> 64 hex chars).
-    
+
     Returns:
         True if sha is the correct length of valid hex characters.
     """
@@ -420,7 +420,7 @@ def parse_canonical_landing_evidence(
     value: object,
 ) -> CanonicalLandingEvidence | None:
     """Parse landing evidence, returning None for invalid/missing data (fail-closed).
-    
+
     This safe wrapper prevents malformed evidence from crashing callers.
     Callers should treat None as "no evidence" and maintain fail-closed behavior.
     """
@@ -627,17 +627,17 @@ def load_bounded_historical_repair_evidence(
     task_id: str,
 ) -> CanonicalLandingEvidence | None:
     """Load repair evidence only for known authorized historical task IDs (fail-closed).
-    
+
     This provides recovery for documented past cases without creating a security
     hole for arbitrary evidence injection via comments. The whitelist is:
     - Maintained in code (requires review for changes)
     - Validated against exact task ID (no pattern matching)
     - Only loaded for tasks in the whitelist (all others return None)
     - Never trusts human comments or arbitrary input
-    
+
     Args:
         task_id: The task identifier to potentially load evidence for.
-    
+
     Returns:
         CanonicalLandingEvidence if the task_id is in the whitelist and
         evidence is valid. None for unknown tasks or invalid evidence.
@@ -645,7 +645,7 @@ def load_bounded_historical_repair_evidence(
     task_id_str = str(task_id or "").strip()
     if not task_id_str or task_id_str not in _BOUNDED_HISTORICAL_REPAIR_EVIDENCE:
         return None
-    
+
     evidence_dict = _BOUNDED_HISTORICAL_REPAIR_EVIDENCE[task_id_str]
     return parse_canonical_landing_evidence(evidence_dict)
 
@@ -660,6 +660,9 @@ class IntegrationRecord:
     # integration row.  Legacy records may omit it and are derived from task
     # containment by the workflow fact collector.
     mode: str | None = None
+    # Set only when the service reclassifies a child after this exact parent
+    # landed on its immediate target.  Parentless standalone records omit it.
+    post_landed_parent_id: str | None = None
     task_branch: str | None = None
     base_branch: str | None = None
     base_sha: str | None = None
@@ -715,6 +718,10 @@ class IntegrationRecord:
             raise ValueError(f"unsupported integration state: {self.state!r}")
         if self.mode is not None and self.mode not in INTEGRATION_MODES:
             raise ValueError(f"unsupported integration mode: {self.mode!r}")
+        if self.post_landed_parent_id is not None and self.mode != "standalone":
+            raise ValueError(
+                "post-landed parent authority requires standalone delivery mode"
+            )
         if self.attempts < 0:
             raise ValueError("integration attempts cannot be negative")
 
@@ -737,14 +744,14 @@ class IntegrationRecord:
             attempts = int(value.get("attempts", 0) or 0)
         except (TypeError, ValueError) as exc:
             raise ValueError("integration version and attempts must be integers") from exc
-        
+
         # Validate version is in supported range (1-current)
         if version < 1 or version > INTEGRATION_RECORD_VERSION:
             raise ValueError(
                 f"unsupported integration record version: {version} "
                 f"(supported: 1-{INTEGRATION_RECORD_VERSION})"
             )
-        
+
         # Parse canonical landing evidence (fail-closed: invalid evidence = None)
         raw_evidence = value.get("canonical_landing_evidence")
         landing_evidence = None
@@ -774,12 +781,15 @@ class IntegrationRecord:
             if isinstance(raw_missing, (list, tuple))
             else ()
         )
-        
+
         # Always store as current version when loading (migration v1 -> v2)
         return cls(
             version=INTEGRATION_RECORD_VERSION,
             state=str(value.get("state") or "").strip().lower(),
             mode=_optional_text(value.get("mode")),
+            post_landed_parent_id=_optional_text(
+                value.get("post_landed_parent_id")
+            ),
             task_branch=_optional_text(value.get("task_branch")),
             base_branch=_optional_text(value.get("base_branch")),
             base_sha=_optional_text(value.get("base_sha")),
@@ -815,6 +825,7 @@ class IntegrationRecord:
         }
         for key in (
             "mode",
+            "post_landed_parent_id",
             "task_branch",
             "base_branch",
             "base_sha",

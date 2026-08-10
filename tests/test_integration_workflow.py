@@ -350,8 +350,13 @@ def test_standalone_observation_requires_exact_review_and_target_receipt():
 
 class MetadataTracker(Tracker):
     def set_metadata_field(self, identifier, field, value):
-        assert field == "oompah.integration"
-        self.issues[identifier].integration = IntegrationRecord.from_dict(value)
+        if field == "oompah.integration":
+            self.issues[identifier].integration = IntegrationRecord.from_dict(value)
+            return
+        if field == "oompah.target_branch":
+            self.issues[identifier].target_branch = str(value or "").strip() or None
+            return
+        raise AssertionError(field)
 
 
 def landed_fact(*, revision="a" * 40, target_sha="c" * 40):
@@ -1566,6 +1571,608 @@ async def test_unparented_queue_generation_reclassifies_to_standalone(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_post_landed_parent_queue_reclassifies_and_delivers_after_restart(
+    tmp_path,
+):
+    task = issue("TASK-A", head="a" * 40)
+    task.parent_id = "E-1"
+    task.target_branch = "epic/E-1"
+    task.integration = replace(
+        task.integration,
+        mode="queue",
+        base_branch="epic/E-1",
+        base_sha="b" * 40,
+    )
+    parent = issue("E-1")
+    parent.issue_type = "epic"
+    parent.parent_id = None
+    parent.work_branch = "epic/E-1"
+    parent.target_branch = "main"
+    parent.integration = None
+    tracker = MetadataTracker([task, parent])
+    fail_integration_write = {"once": False}
+    write_metadata = tracker.set_metadata_field
+
+    def write_with_failure(identifier, field, value):
+        if field == "oompah.integration" and fail_integration_write["once"]:
+            fail_integration_write["once"] = False
+            raise RuntimeError("injected integration metadata failure")
+        return write_metadata(identifier, field, value)
+
+    tracker.set_metadata_field = write_with_failure
+    fact_collector = collector(tracker)
+    decision = evaluate_task(task, fact_collector.collect(task.identifier))
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
+    queued = queue.enqueue(
+        project_id="project-1",
+        epic_id=parent.identifier,
+        task_id=task.identifier,
+        task_branch=task.integration.task_branch,
+        head_sha=task.integration.head_sha,
+        base_branch=task.integration.base_branch,
+        base_sha=task.integration.base_sha,
+    )
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    store.record_landing_facts(
+        project_id="project-1",
+        task_id=parent.identifier,
+        facts=(
+            _parent_scoped_child_fact(
+                source=parent.work_branch,
+                target=parent.target_branch,
+                revision="c" * 40,
+            ).to_dict(),
+        ),
+    )
+    project_store = SimpleNamespace(
+        epic_branch_name=lambda epic_id: f"epic/{epic_id}",
+        get=lambda _project_id: SimpleNamespace(default_branch="main"),
+    )
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=tracker,
+        integration_queue=queue,
+        project_store=project_store,
+        project_default_branch="main",
+        workflow_store=store,
+        landing_collector=StableParentLandingCollector(),
+        parent_source_head_resolver=lambda _branch: "c" * 40,
+    )
+    controller = IntegrationWorkflowController(
+        collector=fact_collector,
+        store=store,
+        landing_request_resolver=resolver,
+    )
+    binding = SimpleNamespace(
+        project_id="project-1",
+        tracker=tracker,
+        collector=fact_collector,
+        integration_controller=controller,
+    )
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            integration_queue=queue,
+            project_store=project_store,
+            _execute_integration_item=lambda *_args, **_kwargs: pytest.fail(
+                "stale epic queue must not execute"
+            ),
+            request_refresh=lambda: None,
+        ),
+        binding,
+    )
+    context = SimpleNamespace(
+        job=SimpleNamespace(
+            project_id="project-1",
+            task_id=task.identifier,
+            generation="generation-1",
+            job_id="job-1",
+            checkpoint={
+                "revalidation": {
+                    "evidence_revision": decision.evidence_revision,
+                    "details": {
+                        "integration_queue_present": True,
+                        "integration_queue_generation": queued.authority_generation(),
+                        "integration_queue_epic": queued.epic_id,
+                        "integration_queue_branch": queued.task_branch,
+                        "integration_queue_head": queued.head_sha,
+                        "task_parent": task.parent_id,
+                        "task_branch": task.integration.task_branch,
+                        "task_head": task.integration.head_sha,
+                        "task_target": task.target_branch,
+                    },
+                }
+            },
+        ),
+        check_interrupted=lambda: None,
+    )
+
+    fail_integration_write["once"] = True
+    with pytest.raises(RuntimeError, match="injected integration metadata failure"):
+        await backend.apply_action("integration_attempt", context)
+
+    partial = tracker.fetch_issue_detail(task.identifier)
+    still_queued = queue.get("project-1", task.identifier)
+    assert partial.target_branch == "main"
+    assert partial.integration.mode == "queue"
+    assert partial.integration.base_branch == "epic/E-1"
+    assert still_queued is not None and still_queued.state == "ready"
+    partial_decision = evaluate_task(
+        partial,
+        fact_collector.collect(partial.identifier),
+    )
+    assert partial_decision.durable_jobs == ("integration_attempt",)
+    restart_context = SimpleNamespace(
+        job=SimpleNamespace(
+            project_id="project-1",
+            task_id=task.identifier,
+            generation="generation-restart",
+            job_id="job-restart",
+            checkpoint={
+                "revalidation": {
+                    "evidence_revision": partial_decision.evidence_revision,
+                    "details": {
+                        "integration_queue_present": True,
+                        "integration_queue_generation": (
+                            still_queued.authority_generation()
+                        ),
+                        "integration_queue_epic": still_queued.epic_id,
+                        "integration_queue_branch": still_queued.task_branch,
+                        "integration_queue_head": still_queued.head_sha,
+                        "task_parent": partial.parent_id,
+                        "task_branch": partial.integration.task_branch,
+                        "task_head": partial.integration.head_sha,
+                        "task_target": partial.target_branch,
+                    },
+                }
+            },
+        ),
+        check_interrupted=lambda: None,
+    )
+    with pytest.raises(WorkflowActionSuperseded, match="parent landed"):
+        await backend.apply_action("integration_attempt", restart_context)
+
+    current = tracker.fetch_issue_detail(task.identifier)
+    retired = queue.get("project-1", task.identifier)
+    assert current.parent_id == parent.identifier
+    assert current.target_branch == "main"
+    assert current.integration.mode == "standalone"
+    assert current.integration.base_branch == "main"
+    assert retired is not None and retired.state == "cancelled"
+    replacement = evaluate_task(current, fact_collector.collect(current.identifier))
+    assert replacement.durable_jobs == ("standalone_delivery",)
+
+    deliveries = []
+
+    def deliver(*args, **kwargs):
+        deliveries.append((args, kwargs))
+        current.state = "In Review"
+        current.review_number = "42"
+        current.review_head = current.integration.head_sha
+
+    restarted = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            integration_queue=queue,
+            project_store=project_store,
+            _reconcile_one_standalone_ready_to_integrate_task=deliver,
+            request_refresh=lambda: None,
+        ),
+        binding,
+    )
+    standalone_context = SimpleNamespace(
+        job=SimpleNamespace(
+            project_id="project-1",
+            task_id=task.identifier,
+            generation="generation-2",
+            job_id="job-2",
+            lease_token="lease-2",
+            checkpoint={
+                "revalidation": {
+                    "evidence_revision": replacement.evidence_revision,
+                    "details": {
+                        "task_parent": parent.identifier,
+                        "task_branch": current.integration.task_branch,
+                        "task_head": current.integration.head_sha,
+                        "task_target": "main",
+                    },
+                }
+            },
+        ),
+        check_interrupted=lambda: None,
+    )
+    effect = await restarted.apply_action("standalone_delivery", standalone_context)
+
+    assert len(deliveries) == 1
+    assert effect.receipt["review_number"] == "42"
+    assert restarted.verify_action(
+        "standalone_delivery", standalone_context, effect
+    ).verified
+    store.close()
+    queue.close()
+
+
+@pytest.mark.asyncio
+async def test_parent_advance_after_standalone_submit_returns_child_to_queue(
+    tmp_path,
+):
+    task = issue("TASK-A", head="a" * 40)
+    task.parent_id = "E-1"
+    task.target_branch = "main"
+    task.integration = replace(
+        task.integration,
+        mode="standalone",
+        post_landed_parent_id="E-1",
+        base_branch="main",
+        base_sha=None,
+    )
+    parent = issue("E-1")
+    parent.issue_type = "epic"
+    parent.parent_id = None
+    parent.work_branch = "epic/E-1"
+    parent.target_branch = "main"
+    parent.integration = None
+    tracker = MetadataTracker([task, parent])
+    fail_integration_write = {"once": False}
+    write_metadata = tracker.set_metadata_field
+
+    def write_with_failure(identifier, field, value):
+        if field == "oompah.integration" and fail_integration_write["once"]:
+            fail_integration_write["once"] = False
+            raise RuntimeError("injected integration metadata failure")
+        return write_metadata(identifier, field, value)
+
+    tracker.set_metadata_field = write_with_failure
+    fact_collector = collector(tracker)
+    standalone = evaluate_task(task, fact_collector.collect(task.identifier))
+    assert standalone.durable_jobs == ("standalone_delivery",)
+
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
+    queued = queue.enqueue(
+        project_id="project-1",
+        epic_id=parent.identifier,
+        task_id=task.identifier,
+        task_branch=task.integration.task_branch,
+        head_sha=task.integration.head_sha,
+        base_branch="epic/E-1",
+    )
+    retired = queue.retire_task_generation(
+        "project-1",
+        task.identifier,
+        expected_generation=queued.authority_generation(),
+        reason=STANDALONE_RECLASSIFICATION_REASON,
+    )
+    assert retired is not None and retired.state == "cancelled"
+
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    store.record_landing_facts(
+        project_id="project-1",
+        task_id=parent.identifier,
+        facts=(
+            _parent_scoped_child_fact(
+                source=parent.work_branch,
+                target=parent.target_branch,
+                revision="c" * 40,
+            ).to_dict(),
+        ),
+    )
+    source_head = {"value": "c" * 40}
+    project_store = SimpleNamespace(
+        epic_branch_name=lambda epic_id: f"epic/{epic_id}",
+        get=lambda _project_id: SimpleNamespace(default_branch="main"),
+    )
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=tracker,
+        integration_queue=queue,
+        project_store=project_store,
+        project_default_branch="main",
+        workflow_store=store,
+        landing_collector=StableParentLandingCollector(),
+        parent_source_head_resolver=lambda _branch: source_head["value"],
+    )
+    assert resolver.post_landed_parent_target(task) == "main"
+    controller = IntegrationWorkflowController(
+        collector=fact_collector,
+        store=store,
+        landing_request_resolver=resolver,
+    )
+    deliveries = []
+
+    def deliver_after_parent_advance(*_args, **kwargs):
+        # The exact standalone check already passed.  Advance the parent before
+        # the forge boundary; the workflow callback must revoke this effect.
+        source_head["value"] = "d" * 40
+        if kwargs["workflow_authority_check"]():
+            deliveries.append("delivered")
+
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            integration_queue=queue,
+            project_store=project_store,
+            _reconcile_one_standalone_ready_to_integrate_task=(
+                deliver_after_parent_advance
+            ),
+            request_refresh=lambda: None,
+        ),
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=fact_collector,
+            integration_controller=controller,
+        ),
+    )
+    context = SimpleNamespace(
+        job=SimpleNamespace(
+            project_id="project-1",
+            task_id=task.identifier,
+            generation="generation-standalone",
+            job_id="job-standalone",
+            checkpoint={
+                "revalidation": {
+                    "evidence_revision": standalone.evidence_revision,
+                    "details": {
+                        "task_parent": parent.identifier,
+                        "task_branch": task.integration.task_branch,
+                        "task_head": task.integration.head_sha,
+                        "task_target": "main",
+                    },
+                }
+            },
+        ),
+        check_interrupted=lambda: None,
+    )
+
+    # The parent advances after the exact standalone check but before the forge
+    # effect.  No review/tracker mutation occurs; the next exact retry performs
+    # natural queue compensation.
+    with pytest.raises(WorkflowActionError, match="exact forge effect"):
+        await backend.apply_action("standalone_delivery", context)
+
+    unchanged = tracker.fetch_issue_detail(task.identifier)
+    assert deliveries == []
+    assert unchanged.target_branch == "main"
+    assert unchanged.integration.mode == "standalone"
+
+    fail_integration_write["once"] = True
+    with pytest.raises(RuntimeError, match="injected integration metadata failure"):
+        await backend.apply_action("standalone_delivery", context)
+
+    partial = tracker.fetch_issue_detail(task.identifier)
+    assert partial.target_branch == "epic/E-1"
+    assert partial.integration.mode == "standalone"
+    assert partial.integration.base_branch == "main"
+    partial_decision = evaluate_task(
+        partial,
+        fact_collector.collect(partial.identifier),
+    )
+    assert partial_decision.durable_jobs == ("integration_attempt",)
+    partial_context = SimpleNamespace(
+        job=SimpleNamespace(
+            project_id="project-1",
+            task_id=task.identifier,
+            generation="generation-partial-restart",
+            job_id="job-partial-restart",
+            checkpoint={
+                "revalidation": {
+                    "evidence_revision": partial_decision.evidence_revision,
+                    "details": {
+                        "integration_queue_present": True,
+                        "integration_queue_generation": (
+                            retired.authority_generation()
+                        ),
+                        "integration_queue_epic": retired.epic_id,
+                        "integration_queue_branch": retired.task_branch,
+                        "integration_queue_head": retired.head_sha,
+                        "task_parent": parent.identifier,
+                        "task_branch": partial.integration.task_branch,
+                        "task_head": partial.integration.head_sha,
+                        "task_target": partial.target_branch,
+                    },
+                }
+            },
+        ),
+        check_interrupted=lambda: None,
+    )
+    with pytest.raises(WorkflowActionSuperseded, match="current parent queue"):
+        await backend.apply_action("integration_attempt", partial_context)
+
+    current = tracker.fetch_issue_detail(task.identifier)
+    recovered = queue.get("project-1", task.identifier)
+    assert deliveries == []
+    assert current.target_branch == "epic/E-1"
+    assert current.integration.mode == "queue"
+    assert current.integration.post_landed_parent_id is None
+    assert current.integration.base_branch == "epic/E-1"
+    assert current.integration.base_sha is None
+    assert recovered is not None
+    assert recovered.state == "cancelled"
+    assert recovered.last_error == STANDALONE_RECLASSIFICATION_REASON
+    assert recovered.epic_id == parent.identifier
+    replacement = evaluate_task(current, fact_collector.collect(current.identifier))
+    assert replacement.durable_jobs == ("integration_attempt",)
+
+    # A restarted backend consumes the replacement decision and owns the
+    # exact cancelled-row CAS.  The stale standalone action never needs a
+    # cross-store queue transaction.
+    restarted = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            integration_queue=queue,
+            project_store=project_store,
+            request_refresh=lambda: None,
+        ),
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=fact_collector,
+            integration_controller=controller,
+        ),
+    )
+    repair_context = SimpleNamespace(
+        job=SimpleNamespace(
+            project_id="project-1",
+            task_id=task.identifier,
+            generation="generation-queue-repair",
+            job_id="job-queue-repair",
+            checkpoint={
+                "revalidation": {
+                    "evidence_revision": replacement.evidence_revision,
+                    "details": {
+                        "integration_queue_present": True,
+                        "integration_queue_generation": (
+                            recovered.authority_generation()
+                        ),
+                        "integration_queue_epic": recovered.epic_id,
+                        "integration_queue_branch": recovered.task_branch,
+                        "integration_queue_head": recovered.head_sha,
+                        "task_parent": parent.identifier,
+                        "task_branch": current.integration.task_branch,
+                        "task_head": current.integration.head_sha,
+                        "task_target": current.target_branch,
+                    },
+                }
+            },
+        ),
+        check_interrupted=lambda: None,
+    )
+    with pytest.raises(WorkflowActionSuperseded, match="restored to the parent"):
+        await restarted.apply_action("integration_attempt", repair_context)
+
+    restored = queue.get("project-1", task.identifier)
+    assert restored is not None
+    assert restored.state == "ready"
+    assert restored.epic_id == parent.identifier
+    assert restored.base_branch == "epic/E-1"
+    store.close()
+    queue.close()
+
+
+@pytest.mark.asyncio
+async def test_parent_relanding_wins_inverse_compensation_race_without_queue_write(
+    tmp_path,
+):
+    task = issue("TASK-A", head="a" * 40)
+    task.parent_id = "E-1"
+    task.target_branch = "main"
+    task.integration = replace(
+        task.integration,
+        mode="standalone",
+        post_landed_parent_id="E-1",
+        base_branch="main",
+        base_sha=None,
+    )
+    parent = issue("E-1")
+    parent.issue_type = "epic"
+    parent.work_branch = "epic/E-1"
+    parent.target_branch = "main"
+    parent.integration = None
+    tracker = MetadataTracker([task, parent])
+    writes = []
+    write_metadata = tracker.set_metadata_field
+
+    def record_write(*args, **kwargs):
+        writes.append((args, kwargs))
+        return write_metadata(*args, **kwargs)
+
+    tracker.set_metadata_field = record_write
+    fact_collector = collector(tracker)
+    decision = evaluate_task(task, fact_collector.collect(task.identifier))
+    assert decision.durable_jobs == ("standalone_delivery",)
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
+    queued = queue.enqueue(
+        project_id="project-1",
+        epic_id=parent.identifier,
+        task_id=task.identifier,
+        task_branch=task.integration.task_branch,
+        head_sha=task.integration.head_sha,
+        base_branch=parent.work_branch,
+    )
+    retired = queue.retire_task_generation(
+        "project-1",
+        task.identifier,
+        expected_generation=queued.authority_generation(),
+        reason=STANDALONE_RECLASSIFICATION_REASON,
+    )
+    assert retired is not None
+
+    class RelandingResolver:
+        def __init__(self):
+            self.calls = 0
+
+        def __call__(self, _issue, *, include_ready=False):
+            assert not include_ready
+            return ()
+
+        def post_landed_parent_target(self, _issue):
+            self.calls += 1
+            # Standalone apply first observes an invalid route.  The parent
+            # re-lands before the compensation authority cut.
+            return None if self.calls == 1 else "main"
+
+        def current_parent_queue_target(self, _issue):
+            return "epic/E-1"
+
+    resolver = RelandingResolver()
+    project_store = SimpleNamespace(
+        epic_branch_name=lambda epic_id: f"epic/{epic_id}",
+        get=lambda _project_id: SimpleNamespace(default_branch="main"),
+        project_write_lock=lambda _project_id: nullcontext(),
+    )
+    deliveries = []
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            integration_queue=queue,
+            project_store=project_store,
+            _reconcile_one_standalone_ready_to_integrate_task=(
+                lambda *_args, **_kwargs: deliveries.append("delivered")
+            ),
+            request_refresh=lambda: None,
+        ),
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=fact_collector,
+            integration_controller=SimpleNamespace(
+                landing_request_resolver=resolver,
+            ),
+        ),
+    )
+    context = SimpleNamespace(
+        job=SimpleNamespace(
+            project_id="project-1",
+            task_id=task.identifier,
+            generation="generation-inverse-race",
+            job_id="job-inverse-race",
+            checkpoint={
+                "revalidation": {
+                    "evidence_revision": decision.evidence_revision,
+                    "details": {
+                        "task_parent": parent.identifier,
+                        "task_branch": task.integration.task_branch,
+                        "task_head": task.integration.head_sha,
+                        "task_target": task.target_branch,
+                    },
+                }
+            },
+        ),
+        check_interrupted=lambda: None,
+    )
+
+    with pytest.raises(WorkflowActionSuperseded, match="landing became current"):
+        await backend.apply_action("standalone_delivery", context)
+
+    current = tracker.fetch_issue_detail(task.identifier)
+    unchanged = queue.get("project-1", task.identifier)
+    assert writes == []
+    assert deliveries == []
+    assert current.target_branch == "main"
+    assert current.integration.mode == "standalone"
+    assert current.integration.base_branch == "main"
+    assert unchanged == retired
+    replacement = evaluate_task(current, fact_collector.collect(current.identifier))
+    assert replacement.durable_jobs == ("standalone_delivery",)
+    queue.close()
+
+
+@pytest.mark.asyncio
 async def test_unparented_queue_reclassification_preserves_explicit_target(tmp_path):
     task = issue("TASK-A", head="a" * 40)
     task.parent_id = None
@@ -1657,18 +2264,9 @@ async def test_unparented_queue_reclassification_fences_target_change(tmp_path):
         task_branch=task.integration.task_branch,
         head_sha=task.integration.head_sha,
     )
-    original_retire = queue.retire_task_generation
-
-    def racing_retire(*args, action, **kwargs):
-        def change_target_then_reclassify(current):
-            task.target_branch = "release/hotfix"
-            return action(current)
-
-        return original_retire(
-            *args,
-            action=change_target_then_reclassify,
-            **kwargs,
-        )
+    def racing_retire(*_args, **_kwargs):
+        task.target_branch = "release/hotfix"
+        return None
 
     queue.retire_task_generation = racing_retire
     backend = OrchestratorIntegrationActionBackend(
@@ -3375,6 +3973,12 @@ def _parent_scoped_child_fact(
     )
 
 
+class StableParentLandingCollector:
+    def collect(self, request):
+        assert request.prior is not None
+        return request.prior
+
+
 def _parent_scoped_child_fixture(*, revision="a" * 40):
     task = issue("TASK-A")
     task.state = "Done"
@@ -3387,6 +3991,58 @@ def _parent_scoped_child_fixture(*, revision="a" * 40):
     parent.work_branch = "epic/E-1"
     parent.target_branch = "main"
     return task, parent, _parent_scoped_child_fact(revision=revision)
+
+
+def test_post_landed_parent_target_requires_fresh_exact_landing_fact(tmp_path):
+    task = issue("TASK-A")
+    task.parent_id = "E-1"
+    parent = issue("E-1")
+    parent.issue_type = "epic"
+    parent.parent_id = None
+    parent.work_branch = "epic/E-1"
+    parent.target_branch = "main"
+    parent.integration = None
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    fact = _parent_scoped_child_fact(
+        source="epic/E-1", target="main", revision="b" * 40
+    )
+    store.record_landing_facts(
+        project_id="project-1",
+        task_id=parent.identifier,
+        facts=(fact.to_dict(),),
+    )
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=Tracker([task, parent]),
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+        workflow_store=store,
+        landing_collector=StableParentLandingCollector(),
+        parent_source_head_resolver=lambda _branch: "b" * 40,
+    )
+
+    assert resolver.post_landed_parent_target(task) == "main"
+    resolver.parent_source_head_resolver = lambda _branch: None
+    assert resolver.post_landed_parent_target(task) == "main"
+    resolver.parent_source_head_resolver = lambda _branch: "d" * 40
+    assert resolver.post_landed_parent_target(task) is None
+    resolver.parent_source_head_resolver = lambda _branch: "b" * 40
+    parent.parent_id = "ROOT"
+    parent.target_branch = None
+    nested_fact = _parent_scoped_child_fact(
+        source="epic/E-1", target="epic/ROOT", revision="b" * 40
+    )
+    store.record_landing_facts(
+        project_id="project-1",
+        task_id=parent.identifier,
+        facts=(nested_fact.to_dict(),),
+    )
+    assert resolver.post_landed_parent_target(task) == "epic/ROOT"
+    resolver.tracker.issues[task.identifier] = replace(task, parent_id="OTHER")
+    assert resolver.post_landed_parent_target(task) is None
+    store.close()
 
 
 @pytest.mark.asyncio
