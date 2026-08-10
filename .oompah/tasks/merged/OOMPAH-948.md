@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-948
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Bound terminal branch cleanup as durable fair maintenance
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T09:56:00.569098Z'
-updated_at: '2026-08-10T01:15:47.960508Z'
+updated_at: '2026-08-10T01:15:53.790433Z'
 work_branch: OOMPAH-948
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/763
