@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-988
 type: bug
-status: Ready to Integrate
+status: Merged
 priority: 1
 title: Reuse exact branch gates after the accepted head lands and its branch is deleted
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T05:18:40.854524Z'
-updated_at: '2026-08-10T06:36:24.141441Z'
+updated_at: '2026-08-10T06:43:09.145633Z'
 work_branch: OOMPAH-988
 target_branch: null
 review_url: null
@@ -28,6 +28,81 @@ oompah.integration:
   submitted_at: '2026-08-10T05:47:12.827963+00:00'
   updated_at: '2026-08-10T05:47:12.827963+00:00'
 oompah.work_branch: OOMPAH-988
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-fd8343e499be
+    project_id: proj-14849f1b
+    task_id: OOMPAH-988
+    digest: 9124f988919b1af1c551b3046845e3778f4aefe54755f8ff76b6d956ff95d818
+  - version: 1
+    audit_id: audit-6faade084e7b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-988
+    digest: 9124f988919b1af1c551b3046845e3778f4aefe54755f8ff76b6d956ff95d818
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d9a9490f4361
+    project_id: proj-14849f1b
+    task_id: OOMPAH-988
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9124f988919b1af1c551b3046845e3778f4aefe54755f8ff76b6d956ff95d818
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-10T06:43:04.656306+00:00'
+    selected_ref: 2028162ed44c38137ac41b57d1286fe58e0d4ce7
+    selected_sha: 2028162ed44c38137ac41b57d1286fe58e0d4ce7
+    applied: false
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-fd8343e499be
+    project_id: proj-14849f1b
+    task_id: OOMPAH-988
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9124f988919b1af1c551b3046845e3778f4aefe54755f8ff76b6d956ff95d818
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-10T06:42:56.887416+00:00'
+    selected_ref: 2028162ed44c38137ac41b57d1286fe58e0d4ce7
+    selected_sha: 2028162ed44c38137ac41b57d1286fe58e0d4ce7
+  - version: 1
+    audit_id: audit-6faade084e7b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-988
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9124f988919b1af1c551b3046845e3778f4aefe54755f8ff76b6d956ff95d818
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-10T06:42:56.887416+00:00'
+    selected_ref: 2028162ed44c38137ac41b57d1286fe58e0d4ce7
+    selected_sha: 2028162ed44c38137ac41b57d1286fe58e0d4ce7
+  attempt_history: []
 ---
 ## Summary
 
@@ -70,5 +145,10 @@ author: oompah
 created: 2026-08-10 06:36
 ---
 Branch quality gate passed for `2028162ed44c38137ac41b57d1286fe58e0d4ce7` using `make test` in 168.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-10 06:43
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
