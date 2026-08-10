@@ -28,20 +28,18 @@ _SERVER_STATE_CACHE_FIELDS = (
     "_state_snapshot_epoch",
     "_state_snapshot_authority",
     "_state_snapshot_signature",
-    "_protocol_epoch",
     "_state_revision",
-    "_issue_revision",
 )
 
 
 def _capture_server_state_cache() -> tuple[object, ...]:
-    """Capture the complete state-cache and protocol tuple atomically."""
+    """Capture the state snapshot and its revision atomically."""
     with server._state_snapshot_lock, server._ws_protocol_lock:
         return tuple(getattr(server, field) for field in _SERVER_STATE_CACHE_FIELDS)
 
 
 def _restore_server_state_cache(values: tuple[object, ...]) -> None:
-    """Restore the complete state-cache and protocol tuple atomically."""
+    """Restore the state snapshot and its revision atomically."""
     with server._state_snapshot_lock, server._ws_protocol_lock:
         for field, value in zip(_SERVER_STATE_CACHE_FIELDS, values, strict=True):
             setattr(server, field, value)
@@ -55,6 +53,30 @@ def _isolate_server_state_cache():
         yield
     finally:
         _restore_server_state_cache(original)
+
+
+def test_state_cache_restore_preserves_issue_invalidation_generation(monkeypatch):
+    """Restoring state cache cannot rewind a callback's issue generation."""
+    protocol_epoch = server._protocol_epoch
+    issue_snapshot = {
+        "data": {"issues": []},
+        "epoch": protocol_epoch,
+        "data_revision": 17,
+        "invalidated": False,
+    }
+    monkeypatch.setattr(server, "_issue_revision", 17)
+    monkeypatch.setattr(server, "_issues_snapshot", issue_snapshot)
+    monkeypatch.setattr(server, "_ws_clients", set())
+    original_state = _capture_server_state_cache()
+
+    server._on_orchestrator_change({"source": "restart-callback"})
+    _restore_server_state_cache(original_state)
+
+    assert server._issue_revision == 18
+    assert server._protocol_epoch == protocol_epoch
+    assert server._issues_snapshot is issue_snapshot
+    assert issue_snapshot["data_revision"] == 17
+    assert issue_snapshot["invalidated"] is True
 
 
 def _fake_orchestrator(timeout: int = 3600):
