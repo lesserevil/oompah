@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T23:19:04.544332Z'
-updated_at: '2026-08-10T23:19:55.698021Z'
+updated_at: '2026-08-10T23:48:43.660774Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Live reproduction on deployed main 74e68a020: OOMPAH-940 naturally completed epi
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 23:48
+---
+Implementation milestone: the durable audit record and workflow ledger now bind the mutation-revalidated workflow revision, same-evidence authority advances create a fresh audit generation, recurrence/result/rearm/override paths require exact revision and repository binding, and legacy workflow recurrences without a revision fail closed. The production-shaped restart regression (old completed CI failure at revision A, same root evidence at revision B) launches a fresh auditor instead of replaying Needs CI Fix. Focused suite: 485 passed; broader terminal/workflow checks and independent review are in progress.
+---
+<!-- COMMENTS:END -->
