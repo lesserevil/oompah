@@ -270,6 +270,9 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
     assert binding.epic_controller is not None
     assert binding.terminal_audit_workflow is orchestrator.terminal_audit_workflow
     assert binding.transition_journal is not None
+    assert binding.tracker_publication_revision_source is not None
+    tracker.publication_revision = None
+    assert binding.tracker_publication_revision_source() is None
     assert runtime.liveness_controller is controller
     assert runtime._persist_liveness_state is persist_liveness  # noqa: SLF001
     runtime.close()
@@ -580,6 +583,320 @@ def test_native_tracker_generation_race_supersedes_stale_status_publication(
     assert health["accepted_snapshot_generation"] == (
         health["published_snapshot_generation"]
     )
+    runtime.close()
+    store.close()
+
+
+@pytest.mark.parametrize(
+    ("unavailable_read", "expected_reason"),
+    (
+        (
+            1,
+            "tracker publication revision unavailable during source collection",
+        ),
+        (
+            2,
+            "tracker publication revision unavailable during source collection",
+        ),
+        (
+            3,
+            "tracker publication revision unavailable during publication preflight",
+        ),
+        (
+            4,
+            "tracker publication revision unavailable during publication preflight",
+        ),
+        (5, "tracker publication revision unavailable before publication"),
+    ),
+    ids=(
+        "source-entry",
+        "source-exit",
+        "preflight-entry",
+        "preflight-exit",
+        "finalization",
+    ),
+)
+def test_none_tracker_publication_revision_supersedes_snapshot(
+    tmp_path,
+    caplog,
+    unavailable_read,
+    expected_reason,
+):
+    task = make_issue("TASK-PUBLICATION-REVISION-NONE", state="Backlog")
+    store = WorkflowJobStore(
+        str(tmp_path / f"publication-revision-none-{unavailable_read}.sqlite3")
+    )
+    tracker = NativeTracker([task])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    revision_reads = 0
+
+    def publication_revision():
+        nonlocal revision_reads
+        revision_reads += 1
+        return None if revision_reads == unavailable_read else 1
+
+    binding.tracker_publication_revision_source = publication_revision
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=UniversalTotalityLivenessController(store=store),
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    with caplog.at_level(logging.INFO, logger="oompah.workflow_runtime"):
+        report = runtime.reconcile()
+
+    assert revision_reads == unavailable_read
+    assert report["requires_reconcile"] is True
+    assert report["reconcile_reason"] == "publication_authority_changed"
+    assert report["projects"]["project-1"] == {
+        "publication_superseded": True,
+        "reason": expected_reason,
+    }
+    assert not any(
+        record.levelno >= logging.ERROR
+        and (
+            "Durable workflow source evaluation failed" in record.message
+            or "Durable workflow publication failed" in record.message
+        )
+        for record in caplog.records
+    )
+    health = store.health_snapshot()
+    assert health["accepted_snapshot_generation"] == (
+        health["published_snapshot_generation"]
+    )
+    assert runtime.projections() == ()
+    assert store.list_jobs(project_id="project-1") == ()
+
+    retry = runtime.reconcile()
+
+    assert not retry.get("requires_reconcile", False)
+    retry_snapshot = retry["projects"]["project-1"]["snapshot"]
+    assert retry_snapshot["generation"] > 0
+    assert retry_snapshot["members"] == 0
+    assert retry_snapshot["jobs_superseded"] == 0
+    assert retry_snapshot["published"] is True
+    health = store.health_snapshot()
+    assert health["accepted_snapshot_generation"] == (
+        health["published_snapshot_generation"]
+    )
+    assert health["published_snapshot_generation"] == retry_snapshot["generation"]
+    runtime.close()
+    store.close()
+
+
+def test_changed_tracker_publication_revision_during_source_supersedes(
+    tmp_path,
+    caplog,
+):
+    task = make_issue("TASK-PUBLICATION-REVISION-CHANGED", state="Backlog")
+    store = WorkflowJobStore(str(tmp_path / "publication-revision-changed.sqlite3"))
+    tracker = NativeTracker([task])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    revision_reads = 0
+
+    def publication_revision():
+        nonlocal revision_reads
+        revision_reads += 1
+        return 1 if revision_reads == 1 else 2
+
+    binding.tracker_publication_revision_source = publication_revision
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=UniversalTotalityLivenessController(store=store),
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    with caplog.at_level(logging.INFO, logger="oompah.workflow_runtime"):
+        report = runtime.reconcile()
+
+    assert revision_reads == 2
+    assert report["requires_reconcile"] is True
+    assert report["projects"]["project-1"] == {
+        "publication_superseded": True,
+        "reason": "tracker authority changed during source collection",
+    }
+    assert not any(
+        record.levelno >= logging.ERROR
+        and "Durable workflow source evaluation failed" in record.message
+        for record in caplog.records
+    )
+
+    retry = runtime.reconcile()
+
+    assert not retry.get("requires_reconcile", False)
+    assert retry["projects"]["project-1"]["snapshot"]["published"] is True
+    runtime.close()
+    store.close()
+
+
+@pytest.mark.parametrize(
+    "unavailable_read",
+    (1, 3, 5),
+    ids=("source", "preflight", "finalization"),
+)
+def test_superseded_publication_does_not_admit_prior_shared_job(
+    tmp_path,
+    unavailable_read,
+):
+    task = make_issue("TASK-PRIOR-SHARED-JOB")
+    store = WorkflowJobStore(
+        str(tmp_path / f"prior-shared-job-{unavailable_read}.sqlite3")
+    )
+    tracker = NativeTracker([task])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    applied_actions = []
+
+    class RecordingHandler(CompleteHandler):
+        async def apply(self, context):
+            applied_actions.append(context.job.action)
+            return await super().apply(context)
+
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(RecordingHandler()),
+        liveness_controller=UniversalTotalityLivenessController(store=store),
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    prior = runtime.reconcile()
+    prior_generation = prior["projects"]["project-1"]["snapshot"]["generation"]
+    prior_jobs = [
+        job
+        for job in store.list_jobs(
+            project_id="project-1",
+            states=(WorkflowJobState.QUEUED.value,),
+        )
+        if job.workflow_managed
+    ]
+    assert prior_jobs
+    assert all(job.action not in RUNTIME_CONTROL_ACTIONS for job in prior_jobs)
+    assert all(job.attempts == 0 for job in prior_jobs)
+    revision_reads = 0
+
+    def publication_revision():
+        nonlocal revision_reads
+        revision_reads += 1
+        return None if revision_reads == unavailable_read else 1
+
+    binding.tracker_publication_revision_source = publication_revision
+
+    async def exercise():
+        superseded = await runtime.reconcile_async()
+        await asyncio.sleep(0)
+        effects_before_retry = tuple(applied_actions)
+        retained_before_retry = runtime.health_snapshot()["worker"]["retained"]
+        prior_jobs_before_retry = tuple(
+            (store.get(job.job_id).state, store.get(job.job_id).attempts)
+            for job in prior_jobs
+        )
+        retry = await runtime.reconcile_async()
+        await wait_for_runtime_effects(runtime)
+        return (
+            superseded,
+            effects_before_retry,
+            retained_before_retry,
+            prior_jobs_before_retry,
+            retry,
+        )
+
+    (
+        superseded,
+        effects_before_retry,
+        retained_before_retry,
+        prior_jobs_before_retry,
+        retry,
+    ) = asyncio.run(exercise())
+
+    assert superseded["requires_reconcile"] is True
+    assert superseded["worker"] == {
+        "skipped": True,
+        "reason": (
+            "workflow publication requires reconciliation before durable admission"
+        ),
+        "projects": ["project-1"],
+        "batch_saturated": False,
+    }
+    assert effects_before_retry == ()
+    assert retained_before_retry == 0
+    assert prior_jobs_before_retry == tuple(
+        (WorkflowJobState.QUEUED, 0) for _job in prior_jobs
+    )
+    assert not retry.get("requires_reconcile", False)
+    retry_generation = retry["projects"]["project-1"]["snapshot"]["generation"]
+    assert retry_generation > prior_generation
+    assert retry["worker"]["scheduled"] >= 1
+    assert applied_actions
+    runtime.close()
+    store.close()
+
+
+def test_source_supersession_marks_every_active_project(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "global-source-supersession.sqlite3"))
+    first_tracker = NativeTracker(
+        [make_issue("TASK-FIRST", state="Backlog", project_id="project-a")]
+    )
+    later_tracker = NativeTracker(
+        [make_issue("TASK-LATER", state="Backlog", project_id="project-z")]
+    )
+    first_binding, first_journal = make_binding(
+        tmp_path,
+        first_tracker,
+        store,
+        "project-a",
+    )
+    later_binding, later_journal = make_binding(
+        tmp_path,
+        later_tracker,
+        store,
+        "project-z",
+    )
+    first_binding.tracker_publication_revision_source = lambda: None
+    runtime = WorkflowRuntime(
+        project_bindings={
+            "project-a": first_binding,
+            "project-z": later_binding,
+        },
+        store=store,
+        journals={
+            "project-a": first_journal,
+            "project-z": later_journal,
+        },
+        mode="enforce",
+        handlers=complete_handlers(),
+        handler_coverage={
+            action: ("project-a", "project-z") for action in RUNTIME_ACTIONS
+        },
+        liveness_controller=UniversalTotalityLivenessController(store=store),
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert report["requires_reconcile"] is True
+    assert report["projects"] == {
+        project_id: {
+            "publication_superseded": True,
+            "reason": (
+                "tracker publication revision unavailable during source collection"
+            ),
+        }
+        for project_id in ("project-a", "project-z")
+    }
     runtime.close()
     store.close()
 
