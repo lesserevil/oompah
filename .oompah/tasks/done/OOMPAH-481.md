@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:29.211296Z'
-updated_at: '2026-08-03T20:02:22.265019Z'
+updated_at: '2026-08-10T01:09:55.843516Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-481
 target_branch: null
 review_url: null
@@ -158,6 +158,30 @@ oompah.terminal_audit:
     done_audit_ids:
     - audit-73cb5cd3cf84
     created_at: '2026-08-03T20:02:19.825895+00:00'
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Historical audited Done work is complete, but current parent-landing evidence
+      cannot be reconstructed safely enough to promote it to Merged; retain immutable
+      terminal provenance and retire reassessment.
+    marked_at: '2026-08-10T01:09:54.214841+00:00'
+    updated_at: '2026-08-10T01:09:54.214841+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Historical audited Done work is complete, but current parent-landing
+        evidence cannot be reconstructed safely enough to promote it to Merged; retain
+        immutable terminal provenance and retire reassessment.
+      recorded_at: '2026-08-10T01:09:54.214841+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -210,6 +234,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T00:00:17.284993+00:00'
     updated_at: '2026-07-30T00:48:56.683354+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-987beac3b8e9
