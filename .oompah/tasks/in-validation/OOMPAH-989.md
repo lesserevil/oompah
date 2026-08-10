@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-989
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Keep graceful restart responsive while quiesce drains workflow work
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T14:55:03.855604Z'
+updated_at: '2026-08-10T15:02:20.389495Z'
 work_branch: OOMPAH-989
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/798
@@ -34,6 +34,62 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/798
 oompah.review_number: '798'
 oompah.target_branch: main
 oompah.review_head: 2c26f79aa49240cbf7731d6de8e201356106c1ed
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-d381c946060e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-989
+    digest: 7d9ff7a0d41517e1b658cab6c487fcc8dc251d5210dbb4737c3a46f5abeb785d
+  - version: 1
+    audit_id: audit-9bd39662036b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-989
+    digest: 7d9ff7a0d41517e1b658cab6c487fcc8dc251d5210dbb4737c3a46f5abeb785d
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d381c946060e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-989
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7d9ff7a0d41517e1b658cab6c487fcc8dc251d5210dbb4737c3a46f5abeb785d
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-10T15:02:13.626824+00:00'
+    selected_ref: bb81282585fa91b1a88ae4409aaa58b99133482a
+    selected_sha: bb81282585fa91b1a88ae4409aaa58b99133482a
+  - version: 1
+    audit_id: audit-9bd39662036b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-989
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7d9ff7a0d41517e1b658cab6c487fcc8dc251d5210dbb4737c3a46f5abeb785d
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-10T15:02:13.626824+00:00'
+    selected_ref: bb81282585fa91b1a88ae4409aaa58b99133482a
+    selected_sha: bb81282585fa91b1a88ae4409aaa58b99133482a
+  attempt_history: []
 ---
 ## Summary
 
@@ -212,5 +268,10 @@ author: oompah
 created: 2026-08-10 14:55
 ---
 Integrate bounded lifecycle publication, lock-free workflow mutations, WebSocket isolation, and exact process-tree/stderr retirement. Exact head bb81282585fa91b1a88ae4409aaa58b99133482a passed independent review and the full gate: 19,427 passed, zero failures.
+---
+author: oompah
+created: 2026-08-10 15:02
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
