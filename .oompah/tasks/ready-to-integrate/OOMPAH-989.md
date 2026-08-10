@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T10:57:46.162635Z'
+updated_at: '2026-08-10T12:29:38.769923Z'
 work_branch: OOMPAH-989
 target_branch: null
 review_url: null
@@ -24,9 +24,9 @@ oompah.integration:
   attempts: 0
   mode: standalone
   task_branch: OOMPAH-989
-  head_sha: 7b5f28ac3bdc10cd6ae244af943acf6768e07207
-  submitted_at: '2026-08-10T10:14:27.838130+00:00'
-  updated_at: '2026-08-10T10:14:27.838130+00:00'
+  head_sha: 2c26f79aa49240cbf7731d6de8e201356106c1ed
+  submitted_at: '2026-08-10T12:29:30.205757+00:00'
+  updated_at: '2026-08-10T12:29:30.205757+00:00'
 oompah.work_branch: OOMPAH-989
 ---
 ## Summary
@@ -186,5 +186,10 @@ author: oompah
 created: 2026-08-10 10:57
 ---
 PR #798 at exact head c4ad83e47b1492e7526098dcf5816b3dfd3eb50b is green on Python 3.11, 3.12, and 3.13. Final submission is intentionally deferred while directly owned OOMPAH-992 lock-safety children are implemented and integrated; the current remote-head warning is therefore expected and will clear when the one final reviewed/gated head is submitted.
+---
+author: oompah
+created: 2026-08-10 12:29
+---
+Integrated OOMPAH-991, OOMPAH-993, OOMPAH-994, and OOMPAH-995 at exact head 2c26f79aa49240cbf7731d6de8e201356106c1ed. Full Makefile gate passed: 19,410 passed, 7 skipped, 2 xfailed, zero failures. Ready for PR #798 CI and merge.
 ---
 <!-- COMMENTS:END -->
