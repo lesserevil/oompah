@@ -32,6 +32,9 @@ from oompah.provenance_suppression import ProvenanceGuardedTracker
 from oompah.quality_gate import (
     AuditorQualityEvidenceProof,
     BranchQualityGate,
+    ProtectedWorkflowJobProof,
+    ProtectedWorkflowQualityEvidenceProof,
+    ProtectedWorkflowStepProof,
     QualityGateOwner,
     QualityGateResult,
     _SANDBOX_RUN_ROOT,
@@ -69,7 +72,14 @@ from oompah.validation_resource_lease import (
 def _safety_head(repo_path):
     """Return the synthetic safety head created by ``_git_repo``."""
     result = subprocess.run(
-        ["git", "log", "--format=%H", "--grep=^OOMPAH-652: lifecycle isolation$", "-n", "1"],
+        [
+            "git",
+            "log",
+            "--format=%H",
+            "--grep=^OOMPAH-652: lifecycle isolation$",
+            "-n",
+            "1",
+        ],
         cwd=repo_path,
         capture_output=True,
         text=True,
@@ -90,6 +100,306 @@ def _gate(state_path, repo_path, **kwargs):
         kwargs["safety_head"] = safety_head
     kwargs["sandbox_launcher"] = _passthrough_sandbox
     return BranchQualityGate(str(state_path), **kwargs)
+
+
+def _protected_workflow_proof(
+    *,
+    head_sha="1" * 40,
+    command="make test",
+    task_audit_fingerprint="a" * 64,
+    trust_config_fingerprint="b" * 64,
+):
+    base_sha = "2" * 40
+    merge_sha = "3" * 40
+    head_tree_sha = "4" * 40
+    run_attempt = 2
+    run_head_sha = head_sha
+    job_names = ("test (3.11)", "test (3.12)", "test (3.13)")
+    return ProtectedWorkflowQualityEvidenceProof(
+        repo_identity="https://github.com/lesserevil/oompah.git",
+        repository="lesserevil/oompah",
+        target_branch="main",
+        work_branch="recovery-OOMPAH-997-OOMPAH-999",
+        head_sha=head_sha,
+        head_tree_sha=head_tree_sha,
+        base_sha=base_sha,
+        merge_sha=merge_sha,
+        merge_tree_sha=head_tree_sha,
+        merge_parent_shas=(base_sha, head_sha),
+        command=command,
+        task_audit_fingerprint=task_audit_fingerprint,
+        trust_config_fingerprint=trust_config_fingerprint,
+        workflow_id=242651660,
+        workflow_path=".github/workflows/ci.yml",
+        workflow_blob_sha="5" * 40,
+        checkout_mode="merge_tree_equivalent",
+        event="pull_request",
+        app_id=15368,
+        app_slug="github-actions",
+        required_jobs=job_names,
+        required_steps=("Run tests",),
+        jobs=tuple(
+            ProtectedWorkflowJobProof(
+                name=name,
+                job_id=93535411652 + index,
+                run_attempt=run_attempt,
+                head_sha=run_head_sha,
+                status="completed",
+                conclusion="success",
+                check_run_id=85199559291 + index,
+                check_status="completed",
+                check_conclusion="success",
+                check_head_sha=run_head_sha,
+                app_id=15368,
+                app_slug="github-actions",
+                required_steps=(
+                    ProtectedWorkflowStepProof(
+                        name="Run tests",
+                        number=4,
+                        status="completed",
+                        conclusion="success",
+                    ),
+                ),
+            )
+            for index, name in enumerate(job_names)
+        ),
+        pull_request_number=799,
+        run_id=31411330877,
+        run_attempt=run_attempt,
+        run_head_sha=run_head_sha,
+        run_status="completed",
+        run_conclusion="success",
+        check_suite_id=85199559291,
+        check_suite_status="completed",
+        check_suite_conclusion="success",
+        check_suite_head_sha=run_head_sha,
+        check_suite_app_id=15368,
+    )
+
+
+def _protected_lookup(gate, proof, **updates):
+    arguments = {
+        "repo_identity": proof.repo_identity,
+        "target_branch": proof.target_branch,
+        "work_branch": proof.work_branch,
+        "head_sha": proof.head_sha,
+        "command": proof.command,
+        "task_audit_fingerprint": proof.task_audit_fingerprint,
+        "trust_config_fingerprint": proof.trust_config_fingerprint,
+    }
+    arguments.update(updates)
+    return gate.lookup_protected_workflow_pass(**arguments)
+
+
+def test_protected_workflow_attestation_is_distinct_restart_safe_and_bound(tmp_path):
+    state_path = tmp_path / "quality.json"
+    proof = _protected_workflow_proof()
+    gate = BranchQualityGate(str(state_path))
+
+    assert gate.import_protected_workflow_pass(proof, output_tail="protected CI")
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    key = gate._evidence_key(
+        repo_identity=proof.repo_identity,
+        target_branch=proof.target_branch,
+        work_branch=proof.work_branch,
+        head_sha=proof.head_sha,
+        command=proof.command,
+    )
+    assert persisted["results"][key]["status"] == "attested_passed"
+    assert persisted["duration_high_water_seconds"] == []
+
+    # Neither ordinary cache API consumes the imported trust domain.
+    assert (
+        gate.lookup(
+            repo_identity=proof.repo_identity,
+            target_branch=proof.target_branch,
+            work_branch=proof.work_branch,
+            head_sha=proof.head_sha,
+            command=proof.command,
+        )
+        is None
+    )
+    assert (
+        QualityGateResult(
+            status="attested_passed",
+            head_sha=proof.head_sha,
+            command=proof.command,
+        ).passed
+        is False
+    )
+
+    restarted = BranchQualityGate(str(state_path))
+    result = _protected_lookup(restarted, proof)
+    assert result is not None
+    assert result.passed is True
+    assert result.cached is True
+    assert result.duration_seconds == 0.0
+    assert result.output_tail == "protected CI"
+
+    assert (
+        _protected_lookup(
+            restarted,
+            proof,
+            task_audit_fingerprint="c" * 64,
+        )
+        is None
+    )
+    assert (
+        _protected_lookup(
+            restarted,
+            proof,
+            trust_config_fingerprint="d" * 64,
+        )
+        is None
+    )
+    assert _protected_lookup(restarted, proof, head_sha="e" * 40) is None
+    assert _protected_lookup(restarted, proof, command="make test-serial") is None
+
+
+def test_protected_workflow_attestation_import_is_concurrently_idempotent(tmp_path):
+    state_path = tmp_path / "quality.json"
+    proof = _protected_workflow_proof()
+    gate = BranchQualityGate(str(state_path))
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        imported = list(
+            pool.map(lambda _: gate.import_protected_workflow_pass(proof), range(24))
+        )
+
+    assert imported == [True] * 24
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    assert len(persisted["results"]) == 1
+    first_recorded_at = next(iter(persisted["results"].values()))["recorded_at"]
+    assert gate.import_protected_workflow_pass(proof)
+    persisted_again = json.loads(state_path.read_text(encoding="utf-8"))
+    assert next(iter(persisted_again["results"].values()))["recorded_at"] == (
+        first_recorded_at
+    )
+
+
+def test_protected_workflow_attestation_tamper_is_inert_and_not_erased(tmp_path):
+    state_path = tmp_path / "quality.json"
+    proof = _protected_workflow_proof()
+    gate = BranchQualityGate(str(state_path))
+    assert gate.import_protected_workflow_pass(proof)
+
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    entry = next(iter(persisted["results"].values()))
+    entry["protected_workflow_provenance"]["jobs"][0]["check_status"] = "queued"
+    state_path.write_text(json.dumps(persisted), encoding="utf-8")
+
+    assert _protected_lookup(gate, proof) is None
+    assert gate.import_protected_workflow_pass(proof) is False
+    after = json.loads(state_path.read_text(encoding="utf-8"))
+    assert (
+        next(iter(after["results"].values()))["protected_workflow_provenance"]["jobs"][
+            0
+        ]["check_status"]
+        == "queued"
+    )
+
+
+def test_protected_workflow_attestation_can_replace_valid_stale_binding(tmp_path):
+    state_path = tmp_path / "quality.json"
+    stale = _protected_workflow_proof(task_audit_fingerprint="a" * 64)
+    current = replace(stale, task_audit_fingerprint="c" * 64)
+    gate = BranchQualityGate(str(state_path))
+
+    assert gate.import_protected_workflow_pass(stale)
+    assert gate.import_protected_workflow_pass(current)
+
+    assert _protected_lookup(gate, stale) is None
+    assert _protected_lookup(gate, current) is not None
+
+
+def test_protected_workflow_attestation_never_weakens_local_pass(tmp_path):
+    state_path = tmp_path / "quality.json"
+    proof = _protected_workflow_proof()
+    gate = BranchQualityGate(str(state_path))
+    key = gate._evidence_key(
+        repo_identity=proof.repo_identity,
+        target_branch=proof.target_branch,
+        work_branch=proof.work_branch,
+        head_sha=proof.head_sha,
+        command=proof.command,
+    )
+    gate._store_result(
+        {},
+        key,
+        QualityGateResult(
+            status="passed",
+            head_sha=proof.head_sha,
+            command=proof.command,
+            duration_seconds=17.2,
+        ),
+        repo_identity=proof.repo_identity,
+        target_branch=proof.target_branch,
+        work_branch=proof.work_branch,
+    )
+
+    assert gate.import_protected_workflow_pass(proof)
+
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    assert persisted["results"][key]["status"] == "passed"
+    assert gate.observed_command_durations_seconds().durations == {
+        (proof.repo_identity, proof.command): 18
+    }
+    assert _protected_lookup(gate, proof) is None
+    assert gate.lookup(
+        repo_identity=proof.repo_identity,
+        target_branch=proof.target_branch,
+        work_branch=proof.work_branch,
+        head_sha=proof.head_sha,
+        command=proof.command,
+    ).passed
+
+
+def test_normal_gate_executes_instead_of_consuming_protected_attestation(tmp_path):
+    repo = _git_repo(tmp_path)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    proof = _protected_workflow_proof(head_sha=head, command="true")
+    state_path = tmp_path / "quality.json"
+    gate = _gate(state_path, repo)
+    assert gate.import_protected_workflow_pass(proof)
+
+    result = gate.run(
+        repo_path=str(repo),
+        repo_identity=proof.repo_identity,
+        target_branch=proof.target_branch,
+        work_branch=proof.work_branch,
+        command=proof.command,
+        expected_head_sha=proof.head_sha,
+    )
+
+    assert result.status == "passed"
+    assert result.cached is False
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    assert next(iter(persisted["results"].values()))["status"] == "passed"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"schema_version": 2},
+        {"event": "push"},
+        {"checkout_mode": "merge_tree_equivalent", "merge_tree_sha": "6" * 40},
+        {"merge_parent_shas": ("2" * 40, "7" * 40)},
+        {"task_audit_fingerprint": "A" * 64},
+        {"required_jobs": ("test (3.11)",)},
+    ],
+)
+def test_protected_workflow_attestation_rejects_incomplete_proof(tmp_path, change):
+    proof = replace(_protected_workflow_proof(), **change)
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+
+    assert gate.import_protected_workflow_pass(proof) is False
+    assert not (tmp_path / "quality.json").exists()
 
 
 def test_exact_gate_reuses_compatible_successful_auditor_evidence(tmp_path):
@@ -170,32 +480,41 @@ def test_quality_gate_lookup_returns_persisted_exact_head_duration(tmp_path):
     assert evidence.cached is True
     assert evidence.head_sha == head
     assert evidence.duration_seconds == pytest.approx(12.5)
-    assert gate.lookup(
-        repo_identity="repo",
-        target_branch="main",
-        work_branch="work",
-        head_sha="a" * 40,
-        command="make test",
-    ) is None
-    assert gate.lookup(
-        repo_identity="repo",
-        target_branch="main",
-        work_branch="work",
-        head_sha=head,
-        command="make test-serial",
-    ) is None
+    assert (
+        gate.lookup(
+            repo_identity="repo",
+            target_branch="main",
+            work_branch="work",
+            head_sha="a" * 40,
+            command="make test",
+        )
+        is None
+    )
+    assert (
+        gate.lookup(
+            repo_identity="repo",
+            target_branch="main",
+            work_branch="work",
+            head_sha=head,
+            command="make test-serial",
+        )
+        is None
+    )
 
     persisted = json.loads(state_path.read_text(encoding="utf-8"))
     only_entry = next(iter(persisted["results"].values()))
     only_entry["work_branch"] = "tampered"
     state_path.write_text(json.dumps(persisted), encoding="utf-8")
-    assert gate.lookup(
-        repo_identity="repo",
-        target_branch="main",
-        work_branch="work",
-        head_sha=head,
-        command="make test",
-    ) is None
+    assert (
+        gate.lookup(
+            repo_identity="repo",
+            target_branch="main",
+            work_branch="work",
+            head_sha=head,
+            command="make test",
+        )
+        is None
+    )
 
 
 def test_quality_gate_lookup_exposes_failed_exact_head_without_reuse(tmp_path):
@@ -410,22 +729,28 @@ def test_orchestrator_records_only_clean_exact_detached_auditor_workspace(
         "evidence_fingerprint": fingerprint,
     }
 
-    assert orchestrator.record_auditor_quality_evidence(
-        audit_target=target,
-        workspace_path=audit_workspace,
-        command="make test",
-    ) is True
+    assert (
+        orchestrator.record_auditor_quality_evidence(
+            audit_target=target,
+            workspace_path=audit_workspace,
+            command="make test",
+        )
+        is True
+    )
 
     (audit_workspace / "source.txt").write_text("dirty\n", encoding="utf-8")
     orchestrator._branch_quality_gate = _gate(
         tmp_path / "dirty-quality.json",
         repo,
     )
-    assert orchestrator.record_auditor_quality_evidence(
-        audit_target=target,
-        workspace_path=audit_workspace,
-        command="make test",
-    ) is False
+    assert (
+        orchestrator.record_auditor_quality_evidence(
+            audit_target=target,
+            workspace_path=audit_workspace,
+            command="make test",
+        )
+        is False
+    )
 
 
 @pytest.mark.parametrize(
@@ -836,7 +1161,9 @@ def test_terminal_audit_quality_gate_rejects_conflicting_ordinary_and_bound_head
         issue,
         "project",
     ).digest
-    orchestrator._tracker_for_project.return_value.fetch_issue_detail.return_value = issue
+    orchestrator._tracker_for_project.return_value.fetch_issue_detail.return_value = (
+        issue
+    )
 
     bundle = orchestrator._terminal_audit_quality_gate_evidence(
         issue,
@@ -1439,9 +1766,7 @@ def test_auditor_validation_reuse_authority_rechecks_live_surfaces(
             "command": "make test",
             "accepted_head_sha": "a" * 40,
             "target_branch": "main",
-            "work_branch": (
-                "other-work" if authority_surface == "branch" else "work"
-            ),
+            "work_branch": ("other-work" if authority_surface == "branch" else "work"),
         },
         target,
     )
@@ -1563,11 +1888,14 @@ def test_auditor_validation_reuse_rechecks_landed_revision_binding(monkeypatch):
         lambda *_args, **_kwargs: auditor_target_contract(target),
     )
 
-    assert orchestrator._auditor_validation_reuse_authority_state(
-        issue,
-        target,
-        policy,
-    ) == "reuse_authoritative_gate"
+    assert (
+        orchestrator._auditor_validation_reuse_authority_state(
+            issue,
+            target,
+            policy,
+        )
+        == "reuse_authoritative_gate"
+    )
 
 
 def _git_repo(tmp_path):
@@ -2126,9 +2454,7 @@ def test_gate_reads_only_its_detached_snapshot_after_task_worktree_changes(tmp_p
     observed = tmp_path / "observed.txt"
     gate = _gate(tmp_path / "quality.json", repo)
     head = _run(gate, repo, "true").head_sha
-    command = (
-        f"sleep 0.3; cat source.txt > {shlex.quote(str(observed))}"
-    )
+    command = f"sleep 0.3; cat source.txt > {shlex.quote(str(observed))}"
 
     try:
         with ThreadPoolExecutor(max_workers=1) as pool:
@@ -2187,9 +2513,7 @@ def test_gate_archives_exact_head_from_unrelated_managed_checkout(tmp_path):
     repo = _git_repo(tmp_path)
     (repo / "source.txt").write_text("candidate\n", encoding="utf-8")
     subprocess.run(["git", "add", "source.txt"], cwd=repo, check=True)
-    subprocess.run(
-        ["git", "commit", "-q", "-m", "candidate"], cwd=repo, check=True
-    )
+    subprocess.run(["git", "commit", "-q", "-m", "candidate"], cwd=repo, check=True)
     candidate_head = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         cwd=repo,
@@ -2203,7 +2527,7 @@ def test_gate_archives_exact_head_from_unrelated_managed_checkout(tmp_path):
     result = _run(
         _gate(tmp_path / "quality.json", repo),
         repo,
-        "test \"$(cat source.txt)\" = candidate",
+        'test "$(cat source.txt)" = candidate',
         expected_head_sha=candidate_head,
         require_source_head_match=False,
     )
@@ -2318,11 +2642,14 @@ def test_durable_lease_cancellation_is_interrupted_not_a_test_failure(tmp_path):
             else:
                 raise AssertionError("quality gate never attached its validation lease")
 
-            assert lease.cancel_owner(
-                lease_owner,
-                cancelled_by="operator:alice",
-                reason="critical-path preemption",
-            ) == 1
+            assert (
+                lease.cancel_owner(
+                    lease_owner,
+                    cancelled_by="operator:alice",
+                    reason="critical-path preemption",
+                )
+                == 1
+            )
             result = future.result(timeout=5)
 
         assert result.status == "interrupted"
@@ -2991,10 +3318,13 @@ def test_authorityless_old_head_pass_cannot_clear_current_head_failure():
         producer=old,
     )
 
-    assert orch._quality_gate_result_for(
-        *key,
-        head_sha=current.head_sha,
-    ) is not None
+    assert (
+        orch._quality_gate_result_for(
+            *key,
+            head_sha=current.head_sha,
+        )
+        is not None
+    )
 
 
 def test_authorityless_production_publisher_rejects_old_head_pass():
@@ -3042,10 +3372,13 @@ def test_authorityless_production_publisher_rejects_old_head_pass():
         observed_status=READY_TO_INTEGRATE,
     )
 
-    assert orch._quality_gate_result_for(
-        *key,
-        head_sha=current.head_sha,
-    ) is not None
+    assert (
+        orch._quality_gate_result_for(
+            *key,
+            head_sha=current.head_sha,
+        )
+        is not None
+    )
 
 
 def test_current_same_head_command_generation_recovers_older_failure():
@@ -3270,10 +3603,13 @@ def test_late_old_head_result_cannot_suppress_current_head_failure():
         authority=old,
     )
 
-    assert orch._quality_gate_result_for(
-        *key,
-        head_sha=str(current.head_sha),
-    ) is current_failure
+    assert (
+        orch._quality_gate_result_for(
+            *key,
+            head_sha=str(current.head_sha),
+        )
+        is current_failure
+    )
 
 
 def test_quality_gate_outcome_restart_rebuild_converges_after_terminal_state():
@@ -3379,11 +3715,14 @@ def test_quality_gate_outcomes_are_bounded_and_head_aware():
         )
         is None
     )
-    assert orch._quality_gate_result_for(
-        "project-1",
-        "task-c",
-        head_sha="head-c",
-    ) is not None
+    assert (
+        orch._quality_gate_result_for(
+            "project-1",
+            "task-c",
+            head_sha="head-c",
+        )
+        is not None
+    )
 
 
 def test_gate_liveness_callback_cancels_only_its_owned_process(tmp_path):
@@ -3457,7 +3796,7 @@ def test_gate_subprocess_isolates_operator_and_tool_state(tmp_path, monkeypatch)
         f'"$OOMPAH_TEMP_ROOT" "$OOMPAH_PYTEST_TEMP_ROOT" '
         f'"$PYTHONPYCACHEPREFIX" '
         f'"$OOMPAH_PYTEST_WORKER_HOME_ROOT" '
-        f'> {shlex.quote(str(sentinel))}'
+        f"> {shlex.quote(str(sentinel))}"
     )
 
     result = _run(
@@ -3622,7 +3961,9 @@ def test_snapshot_rejects_a_candidate_symlink_to_host_state(tmp_path):
     repo = _git_repo(tmp_path)
     (repo / "host-escape").symlink_to("/etc/passwd")
     subprocess.run(["git", "add", "host-escape"], cwd=repo, check=True)
-    subprocess.run(["git", "commit", "-q", "-m", "host escape link"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "host escape link"], cwd=repo, check=True
+    )
     run_root = BranchQualityGate._gate_run_root()
     try:
         with pytest.raises(_SandboxUnavailable, match="unsafe link"):
@@ -3895,15 +4236,16 @@ def test_sandbox_command_binds_operator_venv_at_absolute_path_for_shebang_resolu
         snapshot_venv = str((snapshot / ".venv").resolve())
 
         # The operator venv is bound at snapshot/.venv (existing behaviour).
-        assert any(src == runtime_prefix and dst == snapshot_venv
-                   for src, dst in ro_bind_pairs), (
-            f"operator venv not bound at snapshot/.venv: {ro_bind_pairs}"
-        )
+        assert any(
+            src == runtime_prefix and dst == snapshot_venv for src, dst in ro_bind_pairs
+        ), f"operator venv not bound at snapshot/.venv: {ro_bind_pairs}"
         # It must ALSO be bound at its own absolute path so that console-script
         # shebangs (which reference that absolute path) resolve in the sandbox.
         if runtime_prefix != snapshot_venv:
-            assert any(src == runtime_prefix and dst == runtime_prefix
-                       for src, dst in ro_bind_pairs), (
+            assert any(
+                src == runtime_prefix and dst == runtime_prefix
+                for src, dst in ro_bind_pairs
+            ), (
                 f"operator venv not bound at its own absolute path for shebang "
                 f"resolution.  runtime_prefix={runtime_prefix!r}  "
                 f"ro_bind_pairs={ro_bind_pairs!r}"
@@ -3930,9 +4272,7 @@ def test_editable_source_mapping_is_read_from_trusted_distribution_metadata(
     class Distribution:
         def read_text(self, filename):
             assert filename == "direct_url.json"
-            return json.dumps(
-                {"url": source.as_uri(), "dir_info": {"editable": True}}
-            )
+            return json.dumps({"url": source.as_uri(), "dir_info": {"editable": True}})
 
     monkeypatch.setattr(
         quality_gate.metadata, "distribution", lambda _name: Distribution()
@@ -4144,9 +4484,7 @@ def _quarantine_gate_for_reaper(
     identity = (container.stat().st_dev, container.stat().st_ino)
     owner_path = BranchQualityGate._gate_root_owner_path(container)
     BranchQualityGate._forget_gate_root(container)
-    quarantine = container.with_name(
-        f".{container.name}.scavenge-2000000000-{nonce}"
-    )
+    quarantine = container.with_name(f".{container.name}.scavenge-2000000000-{nonce}")
     container.rename(quarantine)
     return container, quarantine, identity, owner_path
 
@@ -4485,8 +4823,7 @@ def test_gate_reaper_discovers_queue_overflow_without_restart(
         assert BranchQualityGate._deferred_gate_cleanup_overflow
         assert len(BranchQualityGate._deferred_gate_cleanups) == 1
         assert (
-            str(second_container)
-            not in BranchQualityGate._active_gate_root_identities
+            str(second_container) not in BranchQualityGate._active_gate_root_identities
         )
     release_first_slice.set()
 
@@ -4853,9 +5190,7 @@ def test_gate_overflow_probe_advances_past_permanent_durable_failure(
     monkeypatch.setattr(quality_gate.tempfile, "tempdir", str(tmp_path))
     monkeypatch.setattr(quality_gate, "_GATE_DEFERRED_CLEANUP_LIMIT", 1)
     resident = _quarantine_gate_for_reaper(BranchQualityGate._gate_run_root(), 371)
-    durable_stuck = _quarantine_gate_for_reaper(
-        BranchQualityGate._gate_run_root(), 372
-    )
+    durable_stuck = _quarantine_gate_for_reaper(BranchQualityGate._gate_run_root(), 372)
     durable_removable = _quarantine_gate_for_reaper(
         BranchQualityGate._gate_run_root(), 373
     )
@@ -4922,12 +5257,8 @@ def test_gate_overflow_probe_advances_past_permanent_durable_failure(
     deadline = time.monotonic() + 2
     while time.monotonic() < deadline:
         with BranchQualityGate._processes_lock:
-            discovery_attempts = (
-                BranchQualityGate._deferred_gate_discovery_attempts
-            )
-            discovery_retry_at = (
-                BranchQualityGate._deferred_gate_discovery_retry_at
-            )
+            discovery_attempts = BranchQualityGate._deferred_gate_discovery_attempts
+            discovery_retry_at = BranchQualityGate._deferred_gate_discovery_retry_at
         if discovery_attempts > 0 and discovery_retry_at > time.monotonic():
             break
         time.sleep(0.01)
@@ -4959,9 +5290,7 @@ def test_gate_deferred_transfer_keeps_one_continuous_owner(
     run_root = BranchQualityGate._gate_run_root()
     container = run_root.parent
     identity = (container.stat().st_dev, container.stat().st_ino)
-    quarantine = container.with_name(
-        f".{container.name}.scavenge-2000000000-401"
-    )
+    quarantine = container.with_name(f".{container.name}.scavenge-2000000000-401")
     container.rename(quarantine)
     stat_entered = threading.Event()
     release_stat = threading.Event()
@@ -5017,8 +5346,7 @@ def test_gate_deferred_transfer_keeps_one_continuous_owner(
     with BranchQualityGate._processes_lock:
         assert str(container) not in BranchQualityGate._active_gate_root_identities
         assert (
-            BranchQualityGate._active_gate_root_identities[str(quarantine)]
-            == identity
+            BranchQualityGate._active_gate_root_identities[str(quarantine)] == identity
         )
 
     release_slice.set()
@@ -5050,7 +5378,9 @@ def test_gate_deferred_transfer_rejects_missing_quarantine_without_owner_gap(
         transfer_from=container,
     )
     with BranchQualityGate._processes_lock:
-        assert BranchQualityGate._active_gate_root_identities[str(container)] == identity
+        assert (
+            BranchQualityGate._active_gate_root_identities[str(container)] == identity
+        )
 
     BranchQualityGate._cleanup_gate_run_root(run_root)
     assert not container.exists()
@@ -6026,9 +6356,7 @@ def test_gate_sidecar_claim_final_unlink_detects_name_replacement(
     try:
         with BranchQualityGate._processes_lock:
             BranchQualityGate._deferred_gate_sidecar_phase = "verify"
-            BranchQualityGate._deferred_gate_sidecar_candidates = {
-                claim.name: claim
-            }
+            BranchQualityGate._deferred_gate_sidecar_candidates = {claim.name: claim}
             BranchQualityGate._deferred_gate_sidecar_protected.clear()
         result = BranchQualityGate._recover_gate_sidecar_claim(
             claim,
@@ -6231,9 +6559,7 @@ def test_gate_sidecar_batches_converge_during_unrelated_namespace_churn(
     sidecars = []
     for suffix in ("hhhhhhhh", "iiiiiiii", "jjjjjjjj", "kkkkkkkk", "llllllll"):
         root_name = f"oompah-quality-gate-{suffix}"
-        sidecar = tmp_path / (
-            f".{root_name}{quality_gate._GATE_ROOT_OWNER_FILE}"
-        )
+        sidecar = tmp_path / (f".{root_name}{quality_gate._GATE_ROOT_OWNER_FILE}")
         sidecar.write_text("old evidence", encoding="utf-8")
         old = time.time() - 10
         os.utime(sidecar, (old, old))
@@ -6313,9 +6639,7 @@ def test_gate_sidecar_verify_barrier_protects_matching_late_publication(
         assert sidecar.exists()
     finally:
         with BranchQualityGate._processes_lock:
-            BranchQualityGate._active_gate_root_identities.pop(
-                str(container), None
-            )
+            BranchQualityGate._active_gate_root_identities.pop(str(container), None)
             BranchQualityGate._deferred_gate_sidecar_candidates.clear()
             BranchQualityGate._deferred_gate_sidecar_protected.clear()
             BranchQualityGate._deferred_gate_sidecar_phase = "collect"
@@ -6354,9 +6678,7 @@ def test_gate_background_discovery_converges_beyond_entry_cap(
         owner_path.write_text(json.dumps(owner), encoding="utf-8")
         owner_path.chmod(0o400)
     if artifact == "quarantine":
-        quarantine = container.with_name(
-            f".{container.name}.scavenge-2000000000-501"
-        )
+        quarantine = container.with_name(f".{container.name}.scavenge-2000000000-501")
         container.rename(quarantine)
         expected_path = quarantine
     elif artifact == "sidecar":
@@ -6440,9 +6762,7 @@ def test_gate_restart_scavenges_abandoned_quarantine_and_sidecar(
     owner_path.chmod(0o600)
     owner_path.write_text(json.dumps(owner), encoding="utf-8")
     owner_path.chmod(0o400)
-    quarantine = container.with_name(
-        f".{container.name}.scavenge-2000000000-123456789"
-    )
+    quarantine = container.with_name(f".{container.name}.scavenge-2000000000-123456789")
     container.rename(quarantine)
     try:
         # Same-generation memory authority wins while the exact registration
@@ -6479,9 +6799,7 @@ def test_gate_scavenger_age_bounds_quarantine_without_sidecar(
     (run_root / "tmp").chmod(0o000)
     run_root.chmod(0o000)
     trusted_home.chmod(0o000)
-    quarantine = container.with_name(
-        f".{container.name}.scavenge-2000000000-123456789"
-    )
+    quarantine = container.with_name(f".{container.name}.scavenge-2000000000-123456789")
     container.rename(quarantine)
     old = time.time() - 10
     os.utime(quarantine, (old, old))
@@ -6504,9 +6822,7 @@ def test_gate_abandoned_cleanup_refuses_post_verification_quarantine_swap(
     identity = (container.stat().st_dev, container.stat().st_ino)
     owner_path = BranchQualityGate._gate_root_owner_path(container)
     BranchQualityGate._forget_gate_root(container)
-    quarantine = container.with_name(
-        f".{container.name}.scavenge-2000000000-123456789"
-    )
+    quarantine = container.with_name(f".{container.name}.scavenge-2000000000-123456789")
     container.rename(quarantine)
     expected_moved = tmp_path / "expected-abandoned-container"
     victim = tmp_path / "same-uid-victim"
@@ -6584,9 +6900,7 @@ def test_gate_cleanup_fences_non_directory_substitution(
         entry.symlink_to(candidate_target)
         victim.symlink_to(victim_target)
 
-    quarantine = container.with_name(
-        f".{container.name}.scavenge-2000000000-123456789"
-    )
+    quarantine = container.with_name(f".{container.name}.scavenge-2000000000-123456789")
     if abandoned:
         BranchQualityGate._forget_gate_root(container)
         container.rename(quarantine)
@@ -6627,9 +6941,7 @@ def test_gate_cleanup_fences_non_directory_substitution(
     retained_run = retained_root / "run"
     assert swapped
     if entry_kind == "file":
-        assert (retained_run / "race-entry").read_text(encoding="utf-8") == (
-            "victim"
-        )
+        assert (retained_run / "race-entry").read_text(encoding="utf-8") == ("victim")
         assert (retained_run / "escaped-entry").read_text(encoding="utf-8") == (
             "candidate"
         )
@@ -6696,11 +7008,7 @@ def test_gate_cleanup_classifies_descendant_namespace_errors_as_unsafe(
     original_open = os.open
 
     def fail_child_open(path, flags, mode=0o777, *, dir_fd=None):
-        if (
-            path == "child"
-            and dir_fd is not None
-            and flags & getattr(os, "O_PATH", 0)
-        ):
+        if path == "child" and dir_fd is not None and flags & getattr(os, "O_PATH", 0):
             raise OSError(error_number, "injected namespace boundary")
         return original_open(path, flags, mode, dir_fd=dir_fd)
 
@@ -6858,10 +7166,9 @@ def test_gate_partial_active_deletion_retries_in_same_service_generation(
     original_rmdir = os.rmdir
 
     def fail_final_container_rmdir(path, *, dir_fd=None):
-        if (
-            isinstance(path, str)
-            and quality_gate._GATE_ROOT_QUARANTINE_PATTERN.fullmatch(path)
-        ):
+        if isinstance(
+            path, str
+        ) and quality_gate._GATE_ROOT_QUARANTINE_PATTERN.fullmatch(path):
             raise OSError("injected final container rmdir failure")
         return original_rmdir(path, dir_fd=dir_fd)
 
@@ -7010,8 +7317,7 @@ def test_default_boundary_blocks_literal_host_pid_and_localhost_attack(tmp_path)
         f"curl -fsS --max-time 1 http://127.0.0.1:{service.server_port}/healthz "
         ">/dev/null 2>&1; then\n"
         "  printf 'host-localhost-reachable\\n'\n"
-        "fi\n"
-        + "if kill -TERM " + str(sentinel.pid) + " 2>/dev/null; then\n"
+        "fi\n" + "if kill -TERM " + str(sentinel.pid) + " 2>/dev/null; then\n"
         "  printf 'host-pid-signalled\\n'\n"
         "fi\n"
         + f"rm -rf {shlex.quote(str(canonical_pid))}\n"
@@ -7043,7 +7349,10 @@ def test_default_boundary_blocks_literal_host_pid_and_localhost_attack(tmp_path)
             assert "host-localhost-reachable" not in result.output_tail
             assert "host-pid-signalled" not in result.output_tail
         assert sentinel.poll() is None, "candidate signalled the live host sentinel"
-        assert canonical_pid.read_text(encoding="utf-8") == "canonical host lifecycle state\n"
+        assert (
+            canonical_pid.read_text(encoding="utf-8")
+            == "canonical host lifecycle state\n"
+        )
         with urllib.request.urlopen(
             f"http://127.0.0.1:{service.server_port}/healthz", timeout=1
         ) as response:
@@ -7092,7 +7401,9 @@ def test_default_sandbox_runs_a_normal_make_target_or_fails_before_start(tmp_pat
         encoding="utf-8",
     )
     subprocess.run(["git", "add", "Makefile"], cwd=repo, check=True)
-    subprocess.run(["git", "commit", "-q", "-m", "normal make target"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "normal make target"], cwd=repo, check=True
+    )
 
     result = _run(
         BranchQualityGate(
@@ -7242,9 +7553,11 @@ def test_orchestrator_routes_gate_needs_rebase_to_rebase_repair(tmp_path):
     tracker = MagicMock()
     tracker.fetch_issue_detail.return_value = issue
     tracker.fetch_issue_states_by_ids.return_value = [issue]
-    tracker.update_issue.side_effect = lambda _identifier, **fields: setattr(
-        issue, "state", fields["status"]
-    ) if fields.get("status") is not None else None
+    tracker.update_issue.side_effect = lambda _identifier, **fields: (
+        setattr(issue, "state", fields["status"])
+        if fields.get("status") is not None
+        else None
+    )
     orch = Orchestrator.__new__(Orchestrator)
     orch._tracker_for_project = MagicMock(return_value=tracker)
     orch._standalone_delivery_authorities = {}
@@ -7263,9 +7576,7 @@ def test_orchestrator_routes_gate_needs_rebase_to_rebase_repair(tmp_path):
     )
 
     tracker.update_issue.assert_any_call("task-1", status="Needs Rebase")
-    tracker.update_issue.assert_any_call(
-        "task-1", **{"add-label": "needs-rebase"}
-    )
+    tracker.update_issue.assert_any_call("task-1", **{"add-label": "needs-rebase"})
     assert "rebase" in tracker.add_comment.call_args.args[1].lower()
 
 
@@ -7296,7 +7607,10 @@ def test_orchestrator_reports_runtime_corruption_without_ci_fix(tmp_path):
     )
 
     tracker.update_issue.assert_not_called()
-    assert "infrastructure action required" in tracker.add_comment.call_args.args[1].lower()
+    assert (
+        "infrastructure action required"
+        in tracker.add_comment.call_args.args[1].lower()
+    )
     assert "no candidate ci-fix status" in tracker.add_comment.call_args.args[1].lower()
 
 
@@ -7331,9 +7645,7 @@ def test_orchestrator_gates_remote_head_without_canonical_worktree(tmp_path):
     repo = _git_repo(tmp_path)
     (repo / "source.txt").write_text("candidate\n", encoding="utf-8")
     subprocess.run(["git", "add", "source.txt"], cwd=repo, check=True)
-    subprocess.run(
-        ["git", "commit", "-q", "-m", "candidate"], cwd=repo, check=True
-    )
+    subprocess.run(["git", "commit", "-q", "-m", "candidate"], cwd=repo, check=True)
     candidate_head = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         cwd=repo,
@@ -7515,9 +7827,7 @@ def test_orchestrator_missing_review_head_is_infrastructure_not_ci_fix(tmp_path)
     orch._standalone_delivery_authority_lock = threading.RLock()
     orch._standalone_delivery_authorities = {}
 
-    assert not orch._review_quality_gate_passes(
-        project, issue, "missing", "main"
-    )
+    assert not orch._review_quality_gate_passes(project, issue, "missing", "main")
 
     orch._branch_quality_gate.run.assert_not_called()
     tracker.update_issue.assert_not_called()
@@ -8159,7 +8469,12 @@ def test_explicit_retry_can_recover_from_transient_failure(tmp_path):
     trigger.unlink()
 
     # Third run: forced retry bypasses cache, re-executes, and passes
-    retry = _run(gate, repo, f"test -f {shlex.quote(str(trigger))} && exit 1 || true", retry_forced=True)
+    retry = _run(
+        gate,
+        repo,
+        f"test -f {shlex.quote(str(trigger))} && exit 1 || true",
+        retry_forced=True,
+    )
     assert retry.status == "passed" and not retry.cached
 
 
@@ -8324,7 +8639,9 @@ def test_tombstone_during_snapshot_stops_gate_at_barrier_two(tmp_path):
         assert not marker.exists()
         # Tombstone must be cleaned up.
         with BranchQualityGate._processes_lock:
-            assert "tombstone-during-snap" not in BranchQualityGate._cancelled_generations
+            assert (
+                "tombstone-during-snap" not in BranchQualityGate._cancelled_generations
+            )
     finally:
         BranchQualityGate.cleanup_active_processes()
         with BranchQualityGate._processes_lock:
@@ -8531,7 +8848,9 @@ PORT ?= 8080
     result = _run(gate, repo, "true")
 
     assert result.status == "needs_rebase"
-    assert "OOMPAH-652" in result.output_tail or "isolation contract" in result.output_tail
+    assert (
+        "OOMPAH-652" in result.output_tail or "isolation contract" in result.output_tail
+    )
 
 
 def test_preflight_allows_branch_with_oompah652_ancestor(tmp_path):
@@ -8564,7 +8883,9 @@ def test_preflight_git_ancestry_check_is_primary(tmp_path):
         check=True,
     )
 
-    subprocess.run(["git", "checkout", "--orphan", "orphan-branch"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "checkout", "--orphan", "orphan-branch"], cwd=repo, check=True
+    )
 
     # No Makefile at all - just create a minimal commit
     source = repo / "source.txt"
@@ -8577,7 +8898,9 @@ def test_preflight_git_ancestry_check_is_primary(tmp_path):
 
     # Should fail on ancestry check, not Makefile check
     assert result.status == "needs_rebase"
-    assert "OOMPAH-652" in result.output_tail or "isolation contract" in result.output_tail
+    assert (
+        "OOMPAH-652" in result.output_tail or "isolation contract" in result.output_tail
+    )
 
 
 def test_spoofed_markers_without_oompah652_ancestor_is_rejected(tmp_path):
@@ -8632,7 +8955,9 @@ PORT = 8080
         encoding="utf-8",
     )
     subprocess.run(["git", "add", "Makefile"], cwd=repo, check=True)
-    subprocess.run(["git", "commit", "-q", "-m", "spoofed makefile"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "spoofed makefile"], cwd=repo, check=True
+    )
 
     gate = BranchQualityGate(str(tmp_path / "quality.json"))
 
@@ -8641,7 +8966,9 @@ PORT = 8080
 
     # Verify branch was rejected at preflight (ancestry check failed)
     assert result.status == "needs_rebase"
-    assert "OOMPAH-652" in result.output_tail or "isolation contract" in result.output_tail
+    assert (
+        "OOMPAH-652" in result.output_tail or "isolation contract" in result.output_tail
+    )
 
     # CRITICAL: Verify the hostile code was NEVER executed
     # The sentinel file should NOT exist because the command was rejected before running
