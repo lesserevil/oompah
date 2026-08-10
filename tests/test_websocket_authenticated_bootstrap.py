@@ -27,6 +27,43 @@ from oompah.http_auth import HtpasswdCredentials, VerificationError
 from oompah.server import app
 
 
+_SERVER_STATE_CACHE_FIELDS = (
+    "_state_snapshot",
+    "_state_snapshot_at",
+    "_state_snapshot_epoch",
+    "_state_snapshot_authority",
+    "_state_snapshot_signature",
+    "_protocol_epoch",
+    "_state_revision",
+    "_issue_revision",
+)
+
+
+def _swap_server_state_cache(values: tuple[object, ...]) -> tuple[object, ...]:
+    """Atomically replace and return the complete state-cache protocol tuple."""
+    with server_module._state_snapshot_lock, server_module._ws_protocol_lock:
+        original = tuple(
+            getattr(server_module, field) for field in _SERVER_STATE_CACHE_FIELDS
+        )
+        for field, value in zip(_SERVER_STATE_CACHE_FIELDS, values, strict=True):
+            setattr(server_module, field, value)
+        return original
+
+
+def _unavailable_server_state_cache() -> tuple[object, ...]:
+    """Return a coherent cache tuple representing no published state yet."""
+    return (
+        None,
+        0.0,
+        server_module._INSTANCE_ID,
+        None,
+        None,
+        server_module._INSTANCE_ID,
+        0,
+        0,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Helpers (reused from test_server_auth.py)
 # ---------------------------------------------------------------------------
@@ -101,11 +138,12 @@ def _patch_orchestrator(orch=None):
 
 @contextlib.contextmanager
 def _ws_isolation(orch=None):
-    """Set up orchestrator + isolated _ws_clients for WS tests."""
+    """Set up isolated WebSocket clients and an unavailable state cache."""
     if orch is None:
         orch = _mock_orchestrator()
     orig_ws = server_module._ws_clients
     orig_orch = server_module._orchestrator
+    orig_state_cache = _swap_server_state_cache(_unavailable_server_state_cache())
     server_module._ws_clients = set()
     server_module._orchestrator = orch
     try:
@@ -113,6 +151,7 @@ def _ws_isolation(orch=None):
     finally:
         server_module._ws_clients = orig_ws
         server_module._orchestrator = orig_orch
+        _swap_server_state_cache(orig_state_cache)
 
 
 @pytest.fixture()
@@ -405,6 +444,57 @@ class TestBackwardCompatibility:
                 # These are from _cached_state_snapshot_or_unavailable
                 assert any(key in data for key in ["paused", "running", "retrying", "counts"]), \
                     "Original snapshot fields must be preserved"
+
+    def test_ws_isolation_rejects_poisoned_partial_cache(self):
+        """A prior test's partial snapshot cannot replace bootstrap defaults."""
+        poisoned = (
+            {"source": "prior-test"},
+            123.5,
+            server_module._INSTANCE_ID,
+            "poison-authority",
+            "poison-signature",
+            server_module._INSTANCE_ID,
+            37,
+            41,
+        )
+        original = _swap_server_state_cache(poisoned)
+        client = TestClient(app, raise_server_exceptions=False)
+        try:
+            with _auth_disabled(), _ws_isolation():
+                with client.websocket_connect("/ws") as ws:
+                    data = ws.receive_json()["data"]
+                    assert data["state_snapshot_unavailable"] is True
+                    assert data["counts"] == {"running": 0, "retrying": 0}
+                    assert data["running"] == []
+                    assert data["retrying"] == []
+        finally:
+            _swap_server_state_cache(original)
+
+    def test_ws_isolation_restores_exact_state_cache_tuple(self):
+        """WebSocket isolation restores every cache and protocol sentinel."""
+        sentinel_snapshot = {"source": "sentinel"}
+        sentinel = (
+            sentinel_snapshot,
+            987.25,
+            "sentinel-state-epoch",
+            "sentinel-authority",
+            "sentinel-signature",
+            "sentinel-protocol-epoch",
+            73,
+            79,
+        )
+        original = _swap_server_state_cache(sentinel)
+        try:
+            with _ws_isolation():
+                current = _swap_server_state_cache(
+                    _unavailable_server_state_cache()
+                )
+                assert current == _unavailable_server_state_cache()
+            restored = _swap_server_state_cache(sentinel)
+            assert restored == sentinel
+            assert restored[0] is sentinel_snapshot
+        finally:
+            _swap_server_state_cache(original)
 
 
 if __name__ == "__main__":

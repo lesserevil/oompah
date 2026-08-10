@@ -22,6 +22,41 @@ from oompah.orchestrator import Orchestrator
 from oompah.server import app
 
 
+_SERVER_STATE_CACHE_FIELDS = (
+    "_state_snapshot",
+    "_state_snapshot_at",
+    "_state_snapshot_epoch",
+    "_state_snapshot_authority",
+    "_state_snapshot_signature",
+    "_protocol_epoch",
+    "_state_revision",
+    "_issue_revision",
+)
+
+
+def _capture_server_state_cache() -> tuple[object, ...]:
+    """Capture the complete state-cache and protocol tuple atomically."""
+    with server._state_snapshot_lock, server._ws_protocol_lock:
+        return tuple(getattr(server, field) for field in _SERVER_STATE_CACHE_FIELDS)
+
+
+def _restore_server_state_cache(values: tuple[object, ...]) -> None:
+    """Restore the complete state-cache and protocol tuple atomically."""
+    with server._state_snapshot_lock, server._ws_protocol_lock:
+        for field, value in zip(_SERVER_STATE_CACHE_FIELDS, values, strict=True):
+            setattr(server, field, value)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_server_state_cache():
+    """Prevent restart publication tests from leaking snapshots to later tests."""
+    original = _capture_server_state_cache()
+    try:
+        yield
+    finally:
+        _restore_server_state_cache(original)
+
+
 def _fake_orchestrator(timeout: int = 3600):
     return SimpleNamespace(
         config=SimpleNamespace(restart_drain_timeout_seconds=timeout),
