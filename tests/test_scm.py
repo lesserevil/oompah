@@ -1,5 +1,6 @@
 """Tests for oompah.scm."""
 
+import copy
 import os
 import time
 from unittest import mock
@@ -7,6 +8,8 @@ from unittest import mock
 from oompah.scm import (
     CIStatus,
     CIState,
+    ProtectedWorkflowEvidenceDisposition,
+    ProtectedWorkflowEvidenceRequest,
     ReviewRequest,
     SCMProvider,
     _is_protected_branch,
@@ -4793,3 +4796,467 @@ class TestGitLabLabelPreservation:
         put_call = p._api.call_args_list[1]
         label_str = put_call[1]["json"]["labels"]
         assert "oompah:status:in-review" in label_str
+
+
+class _ProtectedWorkflowFixture:
+    """PR #799-shaped GitHub API fixture for exact workflow evidence."""
+
+    repo = "lesserevil/oompah"
+    head = "6418a935de7b4aab93a24af4756a54b344463513"
+    base = "2ab880be5c25d7b5c70000845698d39d5d53d3c8"
+    merge = "0ce6c3131af200ab89090c13255c3606fc8d753b"
+    tree = "3d622c584d63a395272c0f8b4b6b55f3740427ac"
+    workflow_blob = "492e92894b080b4e82e654ce01d365f3e0b8ec39"
+    workflow_id = 242651660
+    run_id = 31411330877
+    run_attempt = 2
+    check_suite_id = 85199559291
+    app_id = 15368
+    job_ids = (93535411652, 93535453156, 93535410411)
+    job_names = ("test (3.11)", "test (3.12)", "test (3.13)")
+
+    class Response:
+        def __init__(self, payload=None, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+            self.text = ""
+
+        def json(self):
+            return copy.deepcopy(self._payload)
+
+    def __init__(self):
+        self.association = {
+            "number": 799,
+            "head": {"ref": "OOMPAH-999", "sha": self.head},
+            "base": {"ref": "main", "sha": self.base},
+        }
+        repo_identity = {"full_name": self.repo}
+        self.review = {
+            **self.association,
+            "state": "closed",
+            "merged": True,
+            "merged_at": "2026-08-10T12:00:00Z",
+            "merge_commit_sha": self.merge,
+            "head": {
+                **self.association["head"],
+                "repo": repo_identity,
+            },
+            "base": {
+                **self.association["base"],
+                "repo": repo_identity,
+            },
+        }
+        self.workflow = {
+            "id": self.workflow_id,
+            "node_id": "W_kwDOPzQ2gM4Obu_M",
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "state": "active",
+        }
+        self.run = {
+            "id": self.run_id,
+            "run_attempt": self.run_attempt,
+            "workflow_id": self.workflow_id,
+            "path": ".github/workflows/ci.yml",
+            "event": "pull_request",
+            "head_branch": "OOMPAH-999",
+            "head_sha": self.head,
+            "status": "completed",
+            "conclusion": "success",
+            "check_suite_id": self.check_suite_id,
+            "html_url": f"https://github.com/{self.repo}/actions/runs/{self.run_id}",
+            "jobs_url": (
+                f"https://api.github.com/repos/{self.repo}/actions/runs/"
+                f"{self.run_id}/jobs"
+            ),
+            "repository": repo_identity,
+            "head_repository": repo_identity,
+            # GitHub's historical PR #799 run/check payloads expose an empty
+            # association list after merge; exact head/run/review identities
+            # provide the binding instead.
+            "pull_requests": [],
+        }
+        self.check_suite = {
+            "id": self.check_suite_id,
+            "head_sha": self.head,
+            "status": "completed",
+            "conclusion": "success",
+            "app": {"id": self.app_id, "slug": "github-actions"},
+            "latest_check_runs_count": 3,
+            "pull_requests": [],
+        }
+        self.jobs = [
+            {
+                "id": job_id,
+                "name": job_name,
+                "run_id": self.run_id,
+                "run_attempt": self.run_attempt,
+                "head_sha": self.head,
+                "workflow_name": "CI",
+                "status": "completed",
+                "conclusion": "success",
+                "check_run_url": (
+                    f"https://api.github.com/repos/{self.repo}/check-runs/"
+                    f"{job_id}"
+                ),
+                "steps": [
+                    {
+                        "number": 1,
+                        "name": "Set up job",
+                        "status": "completed",
+                        "conclusion": "success",
+                    },
+                    {
+                        "number": 7,
+                        "name": "Run tests",
+                        "status": "completed",
+                        "conclusion": "success",
+                    },
+                ],
+            }
+            for job_id, job_name in zip(self.job_ids, self.job_names, strict=True)
+        ]
+        self.checks = {
+            job_id: {
+                "id": job_id,
+                "name": job_name,
+                "head_sha": self.head,
+                "status": "completed",
+                "conclusion": "success",
+                "check_suite": {"id": self.check_suite_id},
+                "app": {"id": self.app_id, "slug": "github-actions"},
+                "details_url": (
+                    f"https://github.com/{self.repo}/actions/runs/{self.run_id}/"
+                    f"job/{job_id}"
+                ),
+                "pull_requests": [],
+            }
+            for job_id, job_name in zip(self.job_ids, self.job_names, strict=True)
+        }
+        self.calls = []
+
+    @property
+    def request(self):
+        return ProtectedWorkflowEvidenceRequest(
+            source_repository=self.repo,
+            source_branch="OOMPAH-999",
+            head_sha=self.head,
+            target_branch="main",
+            workflow_id=self.workflow_id,
+            workflow_path=".github/workflows/ci.yml",
+            workflow_blob_sha=self.workflow_blob,
+            app_id=self.app_id,
+            required_job_names=self.job_names,
+            required_step_names=("Run tests",),
+        )
+
+    def provider(self):
+        provider = GitHubProvider(access_token="t")
+        provider._api = self.api
+        return provider
+
+    def api(self, method, path, **kwargs):
+        assert method == "GET"
+        params = kwargs.get("params") or {}
+        self.calls.append((path, copy.deepcopy(params)))
+        if path == f"/repos/{self.repo}/commits/{self.head}/pulls":
+            return self.Response([self.review])
+        if path == f"/repos/{self.repo}/pulls/799":
+            return self.Response(self.review)
+        if path == f"/repos/{self.repo}/actions/workflows/{self.workflow_id}":
+            return self.Response(self.workflow)
+        if path == f"/repos/{self.repo}/git/commits/{self.head}":
+            return self.Response(
+                {
+                    "sha": self.head,
+                    "tree": {"sha": self.tree},
+                    "parents": [{"sha": "76c86f0d760e4fa03361031d2055e02ade116b08"}],
+                }
+            )
+        if path == f"/repos/{self.repo}/git/commits/{self.merge}":
+            return self.Response(
+                {
+                    "sha": self.merge,
+                    "tree": {"sha": self.tree},
+                    "parents": [{"sha": self.base}, {"sha": self.head}],
+                }
+            )
+        if path == f"/repos/{self.repo}/contents/.github/workflows/ci.yml":
+            assert params == {"ref": self.merge}
+            return self.Response(
+                {
+                    "type": "file",
+                    "path": ".github/workflows/ci.yml",
+                    "sha": self.workflow_blob,
+                }
+            )
+        if path == (
+            f"/repos/{self.repo}/actions/workflows/{self.workflow_id}/runs"
+        ):
+            return self.Response({"total_count": 1, "workflow_runs": [self.run]})
+        if path == f"/repos/{self.repo}/actions/runs/{self.run_id}":
+            return self.Response(self.run)
+        if path == f"/repos/{self.repo}/check-suites/{self.check_suite_id}":
+            return self.Response(self.check_suite)
+        if path == (
+            f"/repos/{self.repo}/actions/runs/{self.run_id}/attempts/"
+            f"{self.run_attempt}/jobs"
+        ):
+            return self.Response({"total_count": len(self.jobs), "jobs": self.jobs})
+        check_prefix = f"/repos/{self.repo}/check-runs/"
+        if path.startswith(check_prefix):
+            return self.Response(self.checks[int(path.removeprefix(check_prefix))])
+        raise AssertionError(f"unexpected GitHub API call: {path} params={params}")
+
+
+class TestProtectedWorkflowEvidence:
+    def test_pr_799_shape_returns_complete_immutable_exact_evidence(self):
+        fixture = _ProtectedWorkflowFixture()
+        provider = fixture.provider()
+        provider._fetch_ci_status = mock.Mock(
+            side_effect=AssertionError("aggregate CI must not be consulted")
+        )
+
+        result = provider.collect_protected_workflow_evidence(
+            fixture.repo, fixture.request
+        )
+
+        assert result.disposition is ProtectedWorkflowEvidenceDisposition.COMPLETE
+        assert result.reason == ""
+        evidence = result.evidence
+        assert evidence is not None
+        assert evidence.review.review_id == "799"
+        assert evidence.review.source_branch == "OOMPAH-999"
+        assert evidence.review.head_sha == fixture.head
+        assert evidence.review.base_sha == fixture.base
+        assert evidence.review.merge_sha == fixture.merge
+        assert evidence.workflow.workflow_id == fixture.workflow_id
+        assert evidence.workflow_blob_sha == fixture.workflow_blob
+        assert evidence.workflow_blob_commit_sha == fixture.merge
+        assert evidence.run.run_id == fixture.run_id
+        assert evidence.run.run_attempt == 2
+        assert evidence.run.check_suite_id == fixture.check_suite_id
+        assert evidence.check_suite.app_id == fixture.app_id
+        assert evidence.head_commit.tree_sha == fixture.tree
+        assert evidence.merge_commit.tree_sha == fixture.tree
+        assert evidence.merge_commit.parent_shas == (fixture.base, fixture.head)
+        assert tuple(job.name for job in evidence.jobs) == tuple(
+            sorted(fixture.job_names)
+        )
+        assert {job.check.check_run_id for job in evidence.jobs} == set(
+            fixture.job_ids
+        )
+        assert all(
+            any(step.name == "Run tests" for step in job.steps)
+            for job in evidence.jobs
+        )
+        provider._fetch_ci_status.assert_not_called()
+
+    def test_optional_review_id_pins_discovered_review(self):
+        fixture = _ProtectedWorkflowFixture()
+        request = ProtectedWorkflowEvidenceRequest(
+            **{
+                **fixture.request.__dict__,
+                "review_id": "799",
+            }
+        )
+
+        result = fixture.provider().collect_protected_workflow_evidence(
+            fixture.repo, request
+        )
+
+        assert result.disposition is ProtectedWorkflowEvidenceDisposition.COMPLETE
+
+    def test_base_provider_never_translates_aggregate_ci_to_evidence(self):
+        provider = _ContractFakeProvider()
+
+        result = provider.collect_protected_workflow_evidence(
+            "org/repo",
+            ProtectedWorkflowEvidenceRequest(
+                source_repository="org/repo",
+                source_branch="TASK-1",
+                head_sha="a" * 40,
+                target_branch="main",
+                workflow_id=1,
+                workflow_path=".github/workflows/ci.yml",
+                workflow_blob_sha="b" * 40,
+                app_id=1,
+                required_job_names=("test",),
+            ),
+        )
+
+        assert result.disposition is ProtectedWorkflowEvidenceDisposition.UNAVAILABLE
+        assert result.evidence is None
+
+    def test_initial_403_is_explicitly_unavailable(self):
+        fixture = _ProtectedWorkflowFixture()
+        provider = fixture.provider()
+        provider._api = mock.Mock(return_value=fixture.Response({}, status_code=403))
+
+        result = provider.collect_protected_workflow_evidence(
+            fixture.repo, fixture.request
+        )
+
+        assert result.disposition is ProtectedWorkflowEvidenceDisposition.UNAVAILABLE
+        assert result.evidence is None
+        assert "HTTP 403" in result.reason
+
+    def test_partial_commit_review_pagination_is_not_complete(self):
+        fixture = _ProtectedWorkflowFixture()
+        provider = fixture.provider()
+
+        def api(method, path, **kwargs):
+            if path == f"/repos/{fixture.repo}/commits/{fixture.head}/pulls":
+                page = kwargs["params"]["page"]
+                if page == 1:
+                    return fixture.Response([fixture.review] * 100)
+                return fixture.Response({}, status_code=403)
+            return fixture.api(method, path, **kwargs)
+
+        provider._api = api
+        result = provider.collect_protected_workflow_evidence(
+            fixture.repo, fixture.request
+        )
+
+        assert result.disposition is ProtectedWorkflowEvidenceDisposition.PARTIAL
+        assert result.evidence is None
+        assert "pagination became unavailable" in result.reason
+
+    def test_empty_or_duplicate_review_discovery_fails_closed(self):
+        for associated in ([], None):
+            fixture = _ProtectedWorkflowFixture()
+            original_api = fixture.api
+
+            def api(method, path, **kwargs):
+                if path == f"/repos/{fixture.repo}/commits/{fixture.head}/pulls":
+                    payload = (
+                        [fixture.review, copy.deepcopy(fixture.review)]
+                        if associated is None
+                        else associated
+                    )
+                    return fixture.Response(payload)
+                return original_api(method, path, **kwargs)
+
+            provider = fixture.provider()
+            provider._api = api
+            result = provider.collect_protected_workflow_evidence(
+                fixture.repo, fixture.request
+            )
+            assert result.disposition is ProtectedWorkflowEvidenceDisposition.PARTIAL
+            assert result.evidence is None
+
+    def test_wrong_review_head_fails_closed(self):
+        fixture = _ProtectedWorkflowFixture()
+        fixture.review["head"]["sha"] = "f" * 40
+
+        result = fixture.provider().collect_protected_workflow_evidence(
+            fixture.repo, fixture.request
+        )
+
+        assert result.disposition is ProtectedWorkflowEvidenceDisposition.PARTIAL
+        assert result.evidence is None
+
+    def test_empty_or_duplicate_exact_run_fails_closed(self):
+        for runs in ([], None):
+            fixture = _ProtectedWorkflowFixture()
+            original_api = fixture.api
+
+            def api(method, path, **kwargs):
+                if path.endswith(f"/workflows/{fixture.workflow_id}/runs"):
+                    payload_runs = (
+                        [fixture.run, copy.deepcopy(fixture.run)]
+                        if runs is None
+                        else runs
+                    )
+                    return fixture.Response(
+                        {
+                            "total_count": len(payload_runs),
+                            "workflow_runs": payload_runs,
+                        }
+                    )
+                return original_api(method, path, **kwargs)
+
+            provider = fixture.provider()
+            provider._api = api
+            result = provider.collect_protected_workflow_evidence(
+                fixture.repo, fixture.request
+            )
+            assert result.disposition is ProtectedWorkflowEvidenceDisposition.PARTIAL
+            assert result.evidence is None
+
+    def test_wrong_run_attempt_or_head_fails_closed(self):
+        for field, value in (("run_attempt", 1), ("head_sha", "f" * 40)):
+            fixture = _ProtectedWorkflowFixture()
+            original_api = fixture.api
+
+            def api(method, path, **kwargs):
+                if path == f"/repos/{fixture.repo}/actions/runs/{fixture.run_id}":
+                    detail = copy.deepcopy(fixture.run)
+                    detail[field] = value
+                    return fixture.Response(detail)
+                return original_api(method, path, **kwargs)
+
+            provider = fixture.provider()
+            provider._api = api
+            result = provider.collect_protected_workflow_evidence(
+                fixture.repo, fixture.request
+            )
+            assert result.disposition is ProtectedWorkflowEvidenceDisposition.PARTIAL
+            assert result.evidence is None
+
+    def test_empty_duplicate_or_wrong_attempt_jobs_fail_closed(self):
+        cases = ("empty", "duplicate", "wrong_attempt")
+        for case in cases:
+            fixture = _ProtectedWorkflowFixture()
+            if case == "empty":
+                fixture.jobs = []
+                fixture.check_suite["latest_check_runs_count"] = 1
+            elif case == "duplicate":
+                fixture.jobs[1]["id"] = fixture.jobs[0]["id"]
+                fixture.jobs[1]["name"] = fixture.jobs[0]["name"]
+                fixture.jobs[1]["check_run_url"] = fixture.jobs[0]["check_run_url"]
+            else:
+                fixture.jobs[0]["run_attempt"] = 1
+
+            result = fixture.provider().collect_protected_workflow_evidence(
+                fixture.repo, fixture.request
+            )
+
+            assert result.disposition is ProtectedWorkflowEvidenceDisposition.PARTIAL
+            assert result.evidence is None
+
+    def test_cancelled_neutral_or_skipped_outcomes_fail_closed(self):
+        cases = ("run", "job", "check", "required_step")
+        for case in cases:
+            fixture = _ProtectedWorkflowFixture()
+            if case == "run":
+                fixture.run["conclusion"] = "cancelled"
+            elif case == "job":
+                fixture.jobs[0]["conclusion"] = "skipped"
+            elif case == "check":
+                fixture.checks[fixture.job_ids[0]]["conclusion"] = "neutral"
+            else:
+                fixture.jobs[0]["steps"][1]["conclusion"] = "skipped"
+
+            result = fixture.provider().collect_protected_workflow_evidence(
+                fixture.repo, fixture.request
+            )
+
+            assert result.disposition is ProtectedWorkflowEvidenceDisposition.PARTIAL
+            assert result.evidence is None
+
+    def test_wrong_workflow_blob_or_app_fails_closed(self):
+        for case in ("blob", "app"):
+            fixture = _ProtectedWorkflowFixture()
+            request = fixture.request
+            if case == "blob":
+                fixture.workflow_blob = "e" * 40
+            else:
+                fixture.check_suite["app"]["id"] = 999
+
+            result = fixture.provider().collect_protected_workflow_evidence(
+                fixture.repo, request
+            )
+
+            assert result.disposition is ProtectedWorkflowEvidenceDisposition.PARTIAL
+            assert result.evidence is None

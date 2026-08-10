@@ -38,6 +38,8 @@ from oompah.validation_resource_lease import (
 logger = logging.getLogger(__name__)
 
 _EVIDENCE_VERSION = 2
+_PROTECTED_WORKFLOW_PROVENANCE_VERSION = 1
+_PROTECTED_WORKFLOW_ATTESTED_STATUS = "attested_passed"
 _OOMPAH_652_SAFETY_HEAD = "ec0ec7d89fb8804571fcf7e780558e6d979b73ea"
 
 _SANDBOX_RUN_ROOT = Path("/oompah-gate")
@@ -356,7 +358,10 @@ def _declared_editable_oompah_source() -> Path | None:
     if not isinstance(install_metadata, dict):
         return None
     directory_info = install_metadata.get("dir_info")
-    if not isinstance(directory_info, dict) or directory_info.get("editable") is not True:
+    if (
+        not isinstance(directory_info, dict)
+        or directory_info.get("editable") is not True
+    ):
         return None
     source_url = install_metadata.get("url")
     if not isinstance(source_url, str):
@@ -447,10 +452,7 @@ class QualityGateResult:
                 signal_name = signal.Signals(self.terminating_signal).name
             except ValueError:
                 signal_name = f"signal {self.terminating_signal}"
-            return (
-                f"terminated by {signal_name} "
-                f"(return code {self.return_code})"
-            )
+            return f"terminated by {signal_name} (return code {self.return_code})"
         if self.return_code is not None:
             return f"exited with return code {self.return_code}"
         return "ended without subprocess exit evidence"
@@ -475,6 +477,82 @@ class AuditorQualityEvidenceProof:
     evidence_fingerprint: str
     expected_evidence_fingerprint: str
     detached_workspace: bool
+
+
+@dataclass(frozen=True)
+class ProtectedWorkflowStepProof:
+    """One configured command-bearing step observed in a protected CI job."""
+
+    name: str
+    number: int
+    status: str
+    conclusion: str
+
+
+@dataclass(frozen=True)
+class ProtectedWorkflowJobProof:
+    """Immutable successful-job identity within a protected workflow run."""
+
+    name: str
+    job_id: int
+    run_attempt: int
+    head_sha: str
+    status: str
+    conclusion: str
+    check_run_id: int
+    check_status: str
+    check_conclusion: str
+    check_head_sha: str
+    app_id: int
+    app_slug: str
+    required_steps: tuple[ProtectedWorkflowStepProof, ...]
+
+
+@dataclass(frozen=True)
+class ProtectedWorkflowQualityEvidenceProof:
+    """Verified protected-workflow provenance bound to one audit revision.
+
+    The forge adapter and orchestrator establish this proof before import.
+    Durable storage keeps it distinct from a locally executed branch-gate
+    result, and consumption requires both current operator trust and current
+    terminal-audit fingerprints.
+    """
+
+    repo_identity: str
+    repository: str
+    target_branch: str
+    work_branch: str
+    head_sha: str
+    head_tree_sha: str
+    base_sha: str
+    merge_sha: str
+    merge_tree_sha: str
+    merge_parent_shas: tuple[str, ...]
+    command: str
+    task_audit_fingerprint: str
+    trust_config_fingerprint: str
+    workflow_id: int
+    workflow_path: str
+    workflow_blob_sha: str
+    checkout_mode: str
+    event: str
+    app_id: int
+    app_slug: str
+    required_jobs: tuple[str, ...]
+    required_steps: tuple[str, ...]
+    jobs: tuple[ProtectedWorkflowJobProof, ...]
+    pull_request_number: int
+    run_id: int
+    run_attempt: int
+    run_head_sha: str
+    run_status: str
+    run_conclusion: str
+    check_suite_id: int
+    check_suite_status: str
+    check_suite_conclusion: str
+    check_suite_head_sha: str
+    check_suite_app_id: int
+    schema_version: int = _PROTECTED_WORKFLOW_PROVENANCE_VERSION
 
 
 @dataclass(frozen=True)
@@ -638,10 +716,7 @@ class BranchQualityGate:
             processes = [
                 (pid, process)
                 for pid, process in cls._active_processes.items()
-                if (
-                    generation is None
-                    and owner is None
-                )
+                if (generation is None and owner is None)
                 or (
                     owner is not None
                     and cls._active_owners.get(pid) is not None
@@ -769,15 +844,11 @@ class BranchQualityGate:
                     project_id=str(project_id or ""),
                     task_id=str(task_id or ""),
                     head_sha=str(head_sha or ""),
-                    authority_generation=str(
-                        authority_generation or generation or ""
-                    ),
+                    authority_generation=str(authority_generation or generation or ""),
                 )
             return cls.cancel_owner(owner)
         if not str(generation or "").strip():
-            logger.warning(
-                "Rejected generationless quality gate cancellation request"
-            )
+            logger.warning("Rejected generationless quality gate cancellation request")
             return 0
         return cls._terminate_active_processes(generation=str(generation))
 
@@ -1055,7 +1126,10 @@ class BranchQualityGate:
                 "OOMPAH-652 and OOMPAH-655 for lifecycle isolation details.",
             )
         except subprocess.TimeoutExpired:
-            return False, "Git ancestry check timed out (git repository may be corrupted)"
+            return (
+                False,
+                "Git ancestry check timed out (git repository may be corrupted)",
+            )
         except OSError as exc:
             return False, f"Cannot verify git ancestry: {exc}"
 
@@ -1087,9 +1161,7 @@ class BranchQualityGate:
             or identity_metadata.st_uid != os.geteuid()
             or identity_metadata.st_mode & 0o777 != 0o500
         ):
-            raise _SandboxUnavailable(
-                "quality-gate identity database is not immutable"
-            )
+            raise _SandboxUnavailable("quality-gate identity database is not immutable")
         files = {
             "passwd": identity_root / "passwd",
             "group": identity_root / "group",
@@ -1296,10 +1368,7 @@ class BranchQualityGate:
                 dir_fd=container_descriptor,
             )
             metadata = os.fstat(identity_descriptor)
-            if (
-                not stat.S_ISDIR(metadata.st_mode)
-                or metadata.st_uid != os.geteuid()
-            ):
+            if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.geteuid():
                 return False
             os.fchmod(identity_descriptor, 0o500)
         except OSError:
@@ -1379,12 +1448,9 @@ class BranchQualityGate:
         deadline = time.monotonic() + _GATE_CLEANUP_SLICE_SECONDS
         try:
             while True:
-                if (
-                    made_progress
-                    and (
-                        operation_count >= _GATE_CLEANUP_MAX_OPERATIONS
-                        or time.monotonic() >= deadline
-                    )
+                if made_progress and (
+                    operation_count >= _GATE_CLEANUP_MAX_OPERATIONS
+                    or time.monotonic() >= deadline
                 ):
                     return _GATE_REMOVAL_PROGRESS
                 operation_count += 1
@@ -1586,11 +1652,7 @@ class BranchQualityGate:
             # tree.  Explicit inode/device/ownership mismatches return UNSAFE.
             if exc.errno in {errno.ELOOP, errno.ENOTDIR}:
                 return _GATE_REMOVAL_UNSAFE
-            return (
-                _GATE_REMOVAL_PROGRESS
-                if made_progress
-                else _GATE_REMOVAL_INCOMPLETE
-            )
+            return _GATE_REMOVAL_PROGRESS if made_progress else _GATE_REMOVAL_INCOMPLETE
         finally:
             if directory_descriptor is not None:
                 os.close(directory_descriptor)
@@ -1609,12 +1671,9 @@ class BranchQualityGate:
     def _note_gate_namespace_change(cls, root_name: str) -> None:
         """Record one root publication while ``_processes_lock`` is held."""
         cls._gate_namespace_generation += 1
-        if (
-            cls._deferred_gate_sidecar_phase == "verify"
-            and any(
-                _gate_sidecar_candidate_root_name(candidate_name) == root_name
-                for candidate_name in cls._deferred_gate_sidecar_candidates
-            )
+        if cls._deferred_gate_sidecar_phase == "verify" and any(
+            _gate_sidecar_candidate_root_name(candidate_name) == root_name
+            for candidate_name in cls._deferred_gate_sidecar_candidates
         ):
             # A matching root changed after verification began.  Protect only
             # that bounded-batch candidate; unrelated gate churn must not
@@ -1792,13 +1851,10 @@ class BranchQualityGate:
                             cls._deferred_gate_discovery = None
                             cls._deferred_gate_discovery_baseline = None
                         generation_is_current = (
-                            baseline
-                            == cls._deferred_gate_cleanup_overflow_generation
+                            baseline == cls._deferred_gate_cleanup_overflow_generation
                         )
                         unresolved = cls._deferred_gate_discovery_unresolved
-                        made_progress = (
-                            cls._deferred_gate_discovery_made_progress
-                        )
+                        made_progress = cls._deferred_gate_discovery_made_progress
                         cls._deferred_gate_discovery_unresolved = False
                         cls._deferred_gate_discovery_made_progress = False
                         if unresolved and not made_progress:
@@ -1833,12 +1889,8 @@ class BranchQualityGate:
                         return not unresolved
 
                     with cls._processes_lock:
-                        sidecars = tuple(
-                            cls._deferred_gate_sidecar_candidates.items()
-                        )
-                        protected = frozenset(
-                            cls._deferred_gate_sidecar_protected
-                        )
+                        sidecars = tuple(cls._deferred_gate_sidecar_candidates.items())
+                        protected = frozenset(cls._deferred_gate_sidecar_protected)
                     for sidecar_name, sidecar in sidecars:
                         root_name = _gate_sidecar_candidate_root_name(sidecar_name)
                         if root_name is None:
@@ -1846,9 +1898,7 @@ class BranchQualityGate:
                         claim_match = _GATE_SIDECAR_CLAIM_PATTERN.fullmatch(
                             sidecar_name
                         )
-                        swap_match = _GATE_SIDECAR_SWAP_PATTERN.fullmatch(
-                            sidecar_name
-                        )
+                        swap_match = _GATE_SIDECAR_SWAP_PATTERN.fullmatch(sidecar_name)
                         if root_name in protected:
                             if claim_match is not None or swap_match is not None:
                                 # A claim or interrupted exchange owns the only
@@ -1913,9 +1963,7 @@ class BranchQualityGate:
                                 == candidate.name
                                 for name in cls._deferred_gate_sidecar_candidates
                             ):
-                                cls._deferred_gate_sidecar_protected.add(
-                                    candidate.name
-                                )
+                                cls._deferred_gate_sidecar_protected.add(candidate.name)
                     stale_identity = cls._stale_gate_root(
                         candidate,
                         now=time.time(),
@@ -1932,8 +1980,7 @@ class BranchQualityGate:
                         root_name = quarantine_match.group("root")
                         with cls._processes_lock:
                             if any(
-                                _gate_sidecar_candidate_root_name(name)
-                                == root_name
+                                _gate_sidecar_candidate_root_name(name) == root_name
                                 for name in cls._deferred_gate_sidecar_candidates
                             ):
                                 cls._deferred_gate_sidecar_protected.add(root_name)
@@ -1973,12 +2020,8 @@ class BranchQualityGate:
 
                 if sidecar_phase != "collect":
                     continue
-                if (
-                    _gate_sidecar_candidate_root_name(candidate.name) is None
-                    or (
-                        sidecar_cursor is not None
-                        and candidate.name <= sidecar_cursor
-                    )
+                if _gate_sidecar_candidate_root_name(candidate.name) is None or (
+                    sidecar_cursor is not None and candidate.name <= sidecar_cursor
                 ):
                     continue
                 with cls._processes_lock:
@@ -2009,6 +2052,7 @@ class BranchQualityGate:
         report_status: bool = False,
     ) -> bool | str:
         """Atomically claim one old owner record before inode-fenced removal."""
+
         def outcome(status: str) -> bool | str:
             return status if report_status else status == _GATE_REMOVAL_REMOVED
 
@@ -2030,14 +2074,12 @@ class BranchQualityGate:
             with cls._processes_lock:
                 if (
                     expected_namespace_generation is not None
-                    and cls._gate_namespace_generation
-                    != expected_namespace_generation
+                    and cls._gate_namespace_generation != expected_namespace_generation
                 ):
                     return outcome(_GATE_REMOVAL_INCOMPLETE)
                 if require_sidecar_batch and (
                     cls._deferred_gate_sidecar_phase != "verify"
-                    or sidecar.name
-                    not in cls._deferred_gate_sidecar_candidates
+                    or sidecar.name not in cls._deferred_gate_sidecar_candidates
                     or root_name in cls._deferred_gate_sidecar_protected
                 ):
                     return outcome(_GATE_REMOVAL_INCOMPLETE)
@@ -2072,8 +2114,7 @@ class BranchQualityGate:
                     or metadata.st_uid != os.getuid()
                     or (
                         not require_sidecar_batch
-                        and now - metadata.st_mtime
-                        < _GATE_ROOT_MAX_AGE_SECONDS
+                        and now - metadata.st_mtime < _GATE_ROOT_MAX_AGE_SECONDS
                     )
                 ):
                     return outcome(_GATE_REMOVAL_UNSAFE)
@@ -2158,6 +2199,7 @@ class BranchQualityGate:
         report_status: bool = False,
     ) -> bool | str:
         """Inode-fence one verified interrupted claim before terminal removal."""
+
         def outcome(status: str) -> bool | str:
             return status if report_status else status == _GATE_REMOVAL_REMOVED
 
@@ -2194,8 +2236,7 @@ class BranchQualityGate:
             with cls._processes_lock:
                 if (
                     expected_namespace_generation is not None
-                    and cls._gate_namespace_generation
-                    != expected_namespace_generation
+                    and cls._gate_namespace_generation != expected_namespace_generation
                 ):
                     return outcome(_GATE_REMOVAL_INCOMPLETE)
                 if not require_sidecar_batch or (
@@ -2464,8 +2505,7 @@ class BranchQualityGate:
                 pending_count = len(cls._deferred_gate_cleanups)
                 discover_overflow = (
                     cls._deferred_gate_cleanup_overflow
-                    and cls._deferred_gate_discovery_retry_at
-                    <= time.monotonic()
+                    and cls._deferred_gate_discovery_retry_at <= time.monotonic()
                 )
                 overflow_pending = cls._deferred_gate_cleanup_overflow
                 discovery_retry_at = cls._deferred_gate_discovery_retry_at
@@ -2473,15 +2513,11 @@ class BranchQualityGate:
                     cls._deferred_gate_cleanup_thread = None
                     return
             if pending_count == 0 and not discover_overflow:
-                time.sleep(
-                    max(min(discovery_retry_at - time.monotonic(), 0.25), 0.01)
-                )
+                time.sleep(max(min(discovery_retry_at - time.monotonic(), 0.25), 0.01))
                 continue
             if discover_overflow:
                 with cls._processes_lock:
-                    overflow_generation = (
-                        cls._deferred_gate_cleanup_overflow_generation
-                    )
+                    overflow_generation = cls._deferred_gate_cleanup_overflow_generation
                 discovery_complete = cls._discover_deferred_gate_cleanups()
                 with cls._processes_lock:
                     if (
@@ -2513,8 +2549,7 @@ class BranchQualityGate:
                 )
                 if selected is None:
                     next_retry = min(
-                        cleanup[4]
-                        for cleanup in cls._deferred_gate_cleanups.values()
+                        cleanup[4] for cleanup in cls._deferred_gate_cleanups.values()
                     )
                     sleep_seconds = max(
                         min(next_retry - now, 0.25),
@@ -2564,9 +2599,7 @@ class BranchQualityGate:
                 else:
                     cls._deferred_gate_cleanups.pop(key, None)
                     if (
-                        cls._active_gate_root_identities.pop(
-                            str(quarantine), None
-                        )
+                        cls._active_gate_root_identities.pop(str(quarantine), None)
                         is not None
                     ):
                         cls._note_gate_namespace_change(root.name)
@@ -2628,8 +2661,7 @@ class BranchQualityGate:
                 cls._note_gate_namespace_change(root.name)
             if (
                 key not in cls._deferred_gate_cleanups
-                and len(cls._deferred_gate_cleanups)
-                >= _GATE_DEFERRED_CLEANUP_LIMIT
+                and len(cls._deferred_gate_cleanups) >= _GATE_DEFERRED_CLEANUP_LIMIT
             ):
                 # The exact quarantine and sidecar are the durable overflow
                 # queue.  The one reaper discovers them after an in-memory
@@ -2708,10 +2740,7 @@ class BranchQualityGate:
         owner_path = cls._gate_root_owner_path(root)
         descriptor = os.open(
             owner_path,
-            os.O_WRONLY
-            | os.O_CREAT
-            | os.O_EXCL
-            | getattr(os, "O_NOFOLLOW", 0),
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
             0o400,
         )
         try:
@@ -2772,8 +2801,7 @@ class BranchQualityGate:
                 ):
                     return (
                         identity
-                        if now - owner_metadata.st_mtime
-                        >= _GATE_ROOT_MAX_AGE_SECONDS
+                        if now - owner_metadata.st_mtime >= _GATE_ROOT_MAX_AGE_SECONDS
                         else None
                     )
                 payload = os.read(owner_descriptor, 4097)
@@ -2831,9 +2859,7 @@ class BranchQualityGate:
         parent_descriptor: int | None = None
         root_descriptor: int | None = None
         quarantine_published = False
-        quarantine_name = (
-            f".{root.name}.scavenge-{os.getpid()}-{time.time_ns()}"
-        )
+        quarantine_name = f".{root.name}.scavenge-{os.getpid()}-{time.time_ns()}"
         try:
             parent_descriptor = os.open(
                 root.parent,
@@ -3039,8 +3065,7 @@ class BranchQualityGate:
             ):
                 return (
                     (root_name, identity)
-                    if now - owner_metadata.st_mtime
-                    >= _GATE_ROOT_MAX_AGE_SECONDS
+                    if now - owner_metadata.st_mtime >= _GATE_ROOT_MAX_AGE_SECONDS
                     else None
                 )
             payload = os.read(owner_descriptor, 4097)
@@ -3055,23 +3080,17 @@ class BranchQualityGate:
             except (KeyError, TypeError, ValueError, json.JSONDecodeError):
                 return (
                     (root_name, identity)
-                    if now - owner_metadata.st_mtime
-                    >= _GATE_ROOT_MAX_AGE_SECONDS
+                    if now - owner_metadata.st_mtime >= _GATE_ROOT_MAX_AGE_SECONDS
                     else None
                 )
             if owner_identity != identity:
                 # Preserve a replacement at the quarantine name.  A valid
                 # sidecar authorizes only its recorded inode, even after age.
                 return None
-            process_state, actual_ticks = cls._gate_process_identity(
-                pid
-            )
+            process_state, actual_ticks = cls._gate_process_identity(pid)
             if process_state == "unknown":
                 return None
-            if (
-                process_state == "alive"
-                and actual_ticks == expected_ticks
-            ):
+            if process_state == "alive" and actual_ticks == expected_ticks:
                 return (
                     (root_name, identity)
                     if allow_current_owner and pid == os.getpid()
@@ -3104,9 +3123,7 @@ class BranchQualityGate:
                 return False
         parent_descriptor: int | None = None
         quarantine_descriptor: int | None = None
-        claimed_name = (
-            f".{root_name}.scavenge-{os.getpid()}-{time.time_ns()}"
-        )
+        claimed_name = f".{root_name}.scavenge-{os.getpid()}-{time.time_ns()}"
         try:
             parent_descriptor = os.open(
                 quarantine.parent,
@@ -3163,14 +3180,13 @@ class BranchQualityGate:
                 quarantine_descriptor,
             )
             if removal != _GATE_REMOVAL_REMOVED:
-                if (
-                    removal
-                    in {_GATE_REMOVAL_PROGRESS, _GATE_REMOVAL_INCOMPLETE}
-                    and cls._schedule_deferred_gate_cleanup(
-                        root,
-                        quarantine.parent / claimed_name,
-                        expected_identity,
-                    )
+                if removal in {
+                    _GATE_REMOVAL_PROGRESS,
+                    _GATE_REMOVAL_INCOMPLETE,
+                } and cls._schedule_deferred_gate_cleanup(
+                    root,
+                    quarantine.parent / claimed_name,
+                    expected_identity,
                 ):
                     return False
                 try:
@@ -3233,10 +3249,7 @@ class BranchQualityGate:
                     complete = False
                     break
                 inspected += 1
-                if (
-                    _GATE_ROOT_QUARANTINE_PATTERN.fullmatch(quarantine.name)
-                    is None
-                ):
+                if _GATE_ROOT_QUARANTINE_PATTERN.fullmatch(quarantine.name) is None:
                     continue
                 matched += 1
                 abandoned = cls._abandoned_gate_quarantine(quarantine, now=now)
@@ -3296,9 +3309,7 @@ class BranchQualityGate:
             for path in entries
             if path.name.startswith(".")
             and path.name.endswith(_GATE_ROOT_OWNER_FILE)
-            and _GATE_ROOT_NAME_RE.fullmatch(
-                path.name[1 : -len(_GATE_ROOT_OWNER_FILE)]
-            )
+            and _GATE_ROOT_NAME_RE.fullmatch(path.name[1 : -len(_GATE_ROOT_OWNER_FILE)])
             is not None
         ]
         quarantined_roots = {
@@ -3369,8 +3380,8 @@ class BranchQualityGate:
             roots_complete = False
         quarantines_removed, quarantines_complete = (
             cls._scavenge_abandoned_gate_quarantines(
-            temp_root,
-            now=now,
+                temp_root,
+                now=now,
             )
         )
         sidecars_removed, sidecars_complete = cls._scavenge_orphan_gate_sidecars(
@@ -3476,7 +3487,9 @@ class BranchQualityGate:
             with cls._processes_lock:
                 expected_identity = cls._active_gate_root_identities.get(str(container))
             if expected_identity is None:
-                logger.warning("Refusing to remove unowned gate container %s", container)
+                logger.warning(
+                    "Refusing to remove unowned gate container %s", container
+                )
                 return
             removal = cls._remove_stale_gate_root(
                 container,
@@ -3484,7 +3497,9 @@ class BranchQualityGate:
                 allow_active_owner=True,
             )
             if removal == _GATE_REMOVAL_UNSAFE:
-                logger.warning("Failed to clean exact quality gate container %s", container)
+                logger.warning(
+                    "Failed to clean exact quality gate container %s", container
+                )
         except FileNotFoundError:
             cls._forget_gate_root(container)
             cls._unlink_gate_root_owner(container)
@@ -4280,15 +4295,18 @@ class BranchQualityGate:
             }
             for (repo_identity, command), seconds in sorted(high_water.items())
         ]
-        payload = json.dumps(
-            {
-                "version": _EVIDENCE_VERSION,
-                "results": entries,
-                "duration_high_water_seconds": serialized_high_water,
-            },
-            indent=2,
-            sort_keys=True,
-        ) + "\n"
+        payload = (
+            json.dumps(
+                {
+                    "version": _EVIDENCE_VERSION,
+                    "results": entries,
+                    "duration_high_water_seconds": serialized_high_water,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n"
+        )
         fd, tmp_name = tempfile.mkstemp(
             prefix=f".{self.state_path.name}.",
             dir=self.state_path.parent,
@@ -4372,7 +4390,11 @@ class BranchQualityGate:
         if not isinstance(entry, dict):
             return None
         status = str(entry.get("status", "") or "").strip()
-        if not status:
+        # Protected-workflow attestations are deliberately not ordinary cache
+        # results.  A normal lookup or run must execute locally unless it sees
+        # an ordinary result; only the separately bound lookup below may turn
+        # an attestation into a runtime PASS.
+        if not status or status == _PROTECTED_WORKFLOW_ATTESTED_STATUS:
             return None
         expected_identity = {
             "repo_identity": repo_identity,
@@ -4508,6 +4530,729 @@ class BranchQualityGate:
             interruption_source=interruption_source,
             owner=evidence_owner,
             authority_generation=authority_generation,
+        )
+
+    @staticmethod
+    def _protected_workflow_provenance_from_proof(
+        proof: ProtectedWorkflowQualityEvidenceProof,
+    ) -> dict[str, object] | None:
+        """Canonicalize a complete verified proof or reject it fail-closed."""
+
+        if not isinstance(proof, ProtectedWorkflowQualityEvidenceProof):
+            return None
+        if (
+            isinstance(proof.schema_version, bool)
+            or proof.schema_version != _PROTECTED_WORKFLOW_PROVENANCE_VERSION
+        ):
+            return None
+
+        bounded_strings = (
+            proof.repo_identity,
+            proof.repository,
+            proof.target_branch,
+            proof.work_branch,
+            proof.command,
+            proof.workflow_path,
+            proof.checkout_mode,
+            proof.event,
+            proof.app_slug,
+        )
+        if any(
+            not isinstance(value, str)
+            or not value
+            or value != value.strip()
+            or len(value) > 4096
+            or any(ord(character) < 32 or ord(character) == 127 for character in value)
+            for value in bounded_strings
+        ):
+            return None
+        if (
+            proof.repository != proof.repository.lower()
+            or re.fullmatch(
+                r"[a-z0-9_.-]+/[a-z0-9_.-]+",
+                proof.repository,
+            )
+            is None
+        ):
+            return None
+        workflow_path = PurePosixPath(proof.workflow_path)
+        if (
+            workflow_path.is_absolute()
+            or ".." in workflow_path.parts
+            or not proof.workflow_path.startswith(".github/workflows/")
+            or workflow_path.suffix not in {".yml", ".yaml"}
+            or str(workflow_path) != proof.workflow_path
+        ):
+            return None
+        if proof.event != "pull_request" or proof.checkout_mode not in {
+            "explicit_review_head",
+            "merge_tree_equivalent",
+        }:
+            return None
+        if re.fullmatch(r"[a-z0-9][a-z0-9-]{0,99}", proof.app_slug) is None:
+            return None
+
+        if (
+            not isinstance(proof.merge_parent_shas, tuple)
+            or len(proof.merge_parent_shas) != 2
+        ):
+            return None
+        git_hashes = (
+            proof.head_sha,
+            proof.head_tree_sha,
+            proof.base_sha,
+            proof.merge_sha,
+            proof.merge_tree_sha,
+            proof.run_head_sha,
+            proof.check_suite_head_sha,
+            proof.workflow_blob_sha,
+            *proof.merge_parent_shas,
+        )
+        if any(
+            not isinstance(value, str)
+            or value != value.strip().lower()
+            or re.fullmatch(r"[0-9a-f]{40,64}", value) is None
+            for value in git_hashes
+        ):
+            return None
+        if proof.merge_parent_shas != (proof.base_sha, proof.head_sha):
+            return None
+        if (
+            proof.checkout_mode == "merge_tree_equivalent"
+            and proof.head_tree_sha != proof.merge_tree_sha
+        ):
+            return None
+        if proof.run_head_sha not in {proof.head_sha, proof.merge_sha}:
+            return None
+        if (
+            proof.run_status != "completed"
+            or proof.run_conclusion != "success"
+            or proof.check_suite_status != "completed"
+            or proof.check_suite_conclusion != "success"
+            or proof.check_suite_head_sha != proof.run_head_sha
+            or proof.check_suite_app_id != proof.app_id
+        ):
+            return None
+
+        fingerprints = (
+            proof.task_audit_fingerprint,
+            proof.trust_config_fingerprint,
+        )
+        if any(
+            not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None
+            for value in fingerprints
+        ):
+            return None
+        positive_integers = (
+            proof.workflow_id,
+            proof.app_id,
+            proof.pull_request_number,
+            proof.run_id,
+            proof.run_attempt,
+            proof.check_suite_id,
+            proof.check_suite_app_id,
+        )
+        if any(
+            isinstance(value, bool) or not isinstance(value, int) or value <= 0
+            for value in positive_integers
+        ):
+            return None
+
+        if not isinstance(proof.required_jobs, tuple) or not proof.required_jobs:
+            return None
+        if any(
+            not isinstance(name, str)
+            or not name
+            or name != name.strip()
+            or len(name) > 255
+            or any(ord(character) < 32 or ord(character) == 127 for character in name)
+            for name in proof.required_jobs
+        ):
+            return None
+        if proof.required_jobs != tuple(sorted(proof.required_jobs)) or len(
+            proof.required_jobs
+        ) != len(set(proof.required_jobs)):
+            return None
+        if not isinstance(proof.required_steps, tuple) or not proof.required_steps:
+            return None
+        if any(
+            not isinstance(name, str)
+            or not name
+            or name != name.strip()
+            or len(name) > 255
+            or any(ord(character) < 32 or ord(character) == 127 for character in name)
+            for name in proof.required_steps
+        ):
+            return None
+        if proof.required_steps != tuple(sorted(proof.required_steps)) or len(
+            proof.required_steps
+        ) != len(set(proof.required_steps)):
+            return None
+        if not isinstance(proof.jobs, tuple) or len(proof.jobs) != len(
+            proof.required_jobs
+        ):
+            return None
+        canonical_jobs: list[dict[str, object]] = []
+        for job in proof.jobs:
+            if not isinstance(job, ProtectedWorkflowJobProof):
+                return None
+            if (
+                not isinstance(job.name, str)
+                or not job.name
+                or job.name != job.name.strip()
+                or len(job.name) > 255
+                or job.status != "completed"
+                or job.conclusion != "success"
+                or job.run_attempt != proof.run_attempt
+                or job.head_sha != proof.run_head_sha
+                or job.check_status != "completed"
+                or job.check_conclusion != "success"
+                or job.check_head_sha != proof.run_head_sha
+                or job.app_id != proof.app_id
+                or job.app_slug != proof.app_slug
+            ):
+                return None
+            if any(
+                isinstance(value, bool) or not isinstance(value, int) or value <= 0
+                for value in (
+                    job.job_id,
+                    job.run_attempt,
+                    job.check_run_id,
+                    job.app_id,
+                )
+            ):
+                return None
+            if not isinstance(job.required_steps, tuple) or len(
+                job.required_steps
+            ) != len(proof.required_steps):
+                return None
+            canonical_steps: list[dict[str, object]] = []
+            for step in job.required_steps:
+                if (
+                    not isinstance(step, ProtectedWorkflowStepProof)
+                    or step.name not in proof.required_steps
+                    or step.status != "completed"
+                    or step.conclusion != "success"
+                    or isinstance(step.number, bool)
+                    or not isinstance(step.number, int)
+                    or step.number <= 0
+                ):
+                    return None
+                canonical_steps.append(
+                    {
+                        "conclusion": step.conclusion,
+                        "name": step.name,
+                        "number": step.number,
+                        "status": step.status,
+                    }
+                )
+            canonical_steps.sort(key=lambda item: str(item["name"]))
+            if tuple(
+                str(item["name"]) for item in canonical_steps
+            ) != proof.required_steps or len(
+                {int(item["number"]) for item in canonical_steps}
+            ) != len(canonical_steps):
+                return None
+            canonical_jobs.append(
+                {
+                    "app_id": job.app_id,
+                    "app_slug": job.app_slug,
+                    "check_conclusion": job.check_conclusion,
+                    "check_head_sha": job.check_head_sha,
+                    "check_run_id": job.check_run_id,
+                    "check_status": job.check_status,
+                    "conclusion": job.conclusion,
+                    "head_sha": job.head_sha,
+                    "job_id": job.job_id,
+                    "name": job.name,
+                    "run_attempt": job.run_attempt,
+                    "status": job.status,
+                    "required_steps": canonical_steps,
+                }
+            )
+        canonical_jobs.sort(key=lambda item: str(item["name"]))
+        if tuple(str(item["name"]) for item in canonical_jobs) != proof.required_jobs:
+            return None
+        if len({int(item["job_id"]) for item in canonical_jobs}) != len(
+            canonical_jobs
+        ) or len({int(item["check_run_id"]) for item in canonical_jobs}) != len(
+            canonical_jobs
+        ):
+            return None
+
+        return {
+            "app_id": proof.app_id,
+            "app_slug": proof.app_slug,
+            "base_sha": proof.base_sha,
+            "check_suite_id": proof.check_suite_id,
+            "check_suite_app_id": proof.check_suite_app_id,
+            "check_suite_conclusion": proof.check_suite_conclusion,
+            "check_suite_head_sha": proof.check_suite_head_sha,
+            "check_suite_status": proof.check_suite_status,
+            "checkout_mode": proof.checkout_mode,
+            "command": proof.command,
+            "event": proof.event,
+            "head_sha": proof.head_sha,
+            "head_tree_sha": proof.head_tree_sha,
+            "jobs": canonical_jobs,
+            "merge_parent_shas": list(proof.merge_parent_shas),
+            "merge_sha": proof.merge_sha,
+            "merge_tree_sha": proof.merge_tree_sha,
+            "pull_request_number": proof.pull_request_number,
+            "repo_identity": proof.repo_identity,
+            "repository": proof.repository,
+            "required_jobs": list(proof.required_jobs),
+            "required_steps": list(proof.required_steps),
+            "run_attempt": proof.run_attempt,
+            "run_conclusion": proof.run_conclusion,
+            "run_head_sha": proof.run_head_sha,
+            "run_id": proof.run_id,
+            "run_status": proof.run_status,
+            "schema_version": proof.schema_version,
+            "target_branch": proof.target_branch,
+            "task_audit_fingerprint": proof.task_audit_fingerprint,
+            "trust_config_fingerprint": proof.trust_config_fingerprint,
+            "work_branch": proof.work_branch,
+            "workflow_blob_sha": proof.workflow_blob_sha,
+            "workflow_id": proof.workflow_id,
+            "workflow_path": proof.workflow_path,
+        }
+
+    @classmethod
+    def _decode_protected_workflow_attestation(
+        cls,
+        entry: object,
+        *,
+        repo_identity: str,
+        target_branch: str,
+        work_branch: str,
+        head_sha: str,
+        command: str,
+        task_audit_fingerprint: str,
+        trust_config_fingerprint: str,
+    ) -> QualityGateResult | None:
+        """Decode a locally stored attestation only under current bindings."""
+
+        if not isinstance(entry, dict) or set(entry) != {
+            "command",
+            "duration_seconds",
+            "head_sha",
+            "output_tail",
+            "protected_workflow_provenance",
+            "protected_workflow_provenance_fingerprint",
+            "recorded_at",
+            "repo_identity",
+            "status",
+            "target_branch",
+            "work_branch",
+        }:
+            return None
+        if entry.get("status") != _PROTECTED_WORKFLOW_ATTESTED_STATUS:
+            return None
+        if entry.get("duration_seconds") != 0.0:
+            return None
+        expected_identity = {
+            "repo_identity": repo_identity,
+            "target_branch": target_branch,
+            "work_branch": work_branch,
+            "head_sha": head_sha,
+            "command": command,
+        }
+        if any(entry.get(name) != value for name, value in expected_identity.items()):
+            return None
+        provenance = entry.get("protected_workflow_provenance")
+        if not isinstance(provenance, dict):
+            return None
+        expected_provenance_fields = {
+            "app_id",
+            "app_slug",
+            "base_sha",
+            "check_suite_id",
+            "check_suite_app_id",
+            "check_suite_conclusion",
+            "check_suite_head_sha",
+            "check_suite_status",
+            "checkout_mode",
+            "command",
+            "event",
+            "head_sha",
+            "head_tree_sha",
+            "jobs",
+            "merge_parent_shas",
+            "merge_sha",
+            "merge_tree_sha",
+            "pull_request_number",
+            "repo_identity",
+            "repository",
+            "required_jobs",
+            "required_steps",
+            "run_attempt",
+            "run_conclusion",
+            "run_head_sha",
+            "run_id",
+            "run_status",
+            "schema_version",
+            "target_branch",
+            "task_audit_fingerprint",
+            "trust_config_fingerprint",
+            "work_branch",
+            "workflow_blob_sha",
+            "workflow_id",
+            "workflow_path",
+        }
+        if set(provenance) != expected_provenance_fields:
+            return None
+        raw_jobs = provenance.get("jobs")
+        raw_required_jobs = provenance.get("required_jobs")
+        raw_required_steps = provenance.get("required_steps")
+        raw_merge_parents = provenance.get("merge_parent_shas")
+        if (
+            not isinstance(raw_jobs, list)
+            or not isinstance(raw_required_jobs, list)
+            or not isinstance(raw_required_steps, list)
+            or not isinstance(raw_merge_parents, list)
+        ):
+            return None
+        try:
+            proof = ProtectedWorkflowQualityEvidenceProof(
+                repo_identity=provenance["repo_identity"],
+                repository=provenance["repository"],
+                target_branch=provenance["target_branch"],
+                work_branch=provenance["work_branch"],
+                head_sha=provenance["head_sha"],
+                head_tree_sha=provenance["head_tree_sha"],
+                base_sha=provenance["base_sha"],
+                merge_sha=provenance["merge_sha"],
+                merge_tree_sha=provenance["merge_tree_sha"],
+                merge_parent_shas=tuple(raw_merge_parents),
+                command=provenance["command"],
+                task_audit_fingerprint=provenance["task_audit_fingerprint"],
+                trust_config_fingerprint=provenance["trust_config_fingerprint"],
+                workflow_id=provenance["workflow_id"],
+                workflow_path=provenance["workflow_path"],
+                workflow_blob_sha=provenance["workflow_blob_sha"],
+                checkout_mode=provenance["checkout_mode"],
+                event=provenance["event"],
+                app_id=provenance["app_id"],
+                app_slug=provenance["app_slug"],
+                required_jobs=tuple(raw_required_jobs),
+                required_steps=tuple(raw_required_steps),
+                jobs=tuple(
+                    ProtectedWorkflowJobProof(
+                        name=raw_job["name"],
+                        job_id=raw_job["job_id"],
+                        run_attempt=raw_job["run_attempt"],
+                        head_sha=raw_job["head_sha"],
+                        status=raw_job["status"],
+                        conclusion=raw_job["conclusion"],
+                        check_run_id=raw_job["check_run_id"],
+                        check_status=raw_job["check_status"],
+                        check_conclusion=raw_job["check_conclusion"],
+                        check_head_sha=raw_job["check_head_sha"],
+                        app_id=raw_job["app_id"],
+                        app_slug=raw_job["app_slug"],
+                        required_steps=tuple(
+                            ProtectedWorkflowStepProof(
+                                name=raw_step["name"],
+                                number=raw_step["number"],
+                                status=raw_step["status"],
+                                conclusion=raw_step["conclusion"],
+                            )
+                            for raw_step in raw_job["required_steps"]
+                            if isinstance(raw_step, dict)
+                            and set(raw_step)
+                            == {"conclusion", "name", "number", "status"}
+                        ),
+                    )
+                    for raw_job in raw_jobs
+                    if isinstance(raw_job, dict)
+                    and set(raw_job)
+                    == {
+                        "app_id",
+                        "app_slug",
+                        "check_conclusion",
+                        "check_head_sha",
+                        "check_run_id",
+                        "check_status",
+                        "conclusion",
+                        "head_sha",
+                        "job_id",
+                        "name",
+                        "run_attempt",
+                        "status",
+                        "required_steps",
+                    }
+                ),
+                pull_request_number=provenance["pull_request_number"],
+                run_id=provenance["run_id"],
+                run_attempt=provenance["run_attempt"],
+                run_head_sha=provenance["run_head_sha"],
+                run_status=provenance["run_status"],
+                run_conclusion=provenance["run_conclusion"],
+                check_suite_id=provenance["check_suite_id"],
+                check_suite_status=provenance["check_suite_status"],
+                check_suite_conclusion=provenance["check_suite_conclusion"],
+                check_suite_head_sha=provenance["check_suite_head_sha"],
+                check_suite_app_id=provenance["check_suite_app_id"],
+                schema_version=provenance["schema_version"],
+            )
+        except (KeyError, TypeError, ValueError):
+            return None
+        canonical = cls._protected_workflow_provenance_from_proof(proof)
+        if canonical is None or canonical != provenance:
+            return None
+        if (
+            provenance["task_audit_fingerprint"] != task_audit_fingerprint
+            or provenance["trust_config_fingerprint"] != trust_config_fingerprint
+        ):
+            return None
+        provenance_fingerprint = hashlib.sha256(
+            json.dumps(
+                canonical,
+                ensure_ascii=True,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
+        if (
+            entry.get("protected_workflow_provenance_fingerprint")
+            != provenance_fingerprint
+        ):
+            return None
+        raw_recorded_at = entry.get("recorded_at")
+        if isinstance(raw_recorded_at, bool):
+            return None
+        try:
+            recorded_at = float(raw_recorded_at)
+        except (TypeError, ValueError):
+            return None
+        if (
+            not math.isfinite(recorded_at)
+            or recorded_at <= 0
+            or recorded_at > time.time()
+        ):
+            return None
+        return QualityGateResult(
+            status="passed",
+            head_sha=head_sha,
+            command=command,
+            duration_seconds=0.0,
+            output_tail=str(entry.get("output_tail") or ""),
+            cached=True,
+            recorded_at=recorded_at,
+        )
+
+    def import_protected_workflow_pass(
+        self,
+        proof: ProtectedWorkflowQualityEvidenceProof,
+        *,
+        output_tail: str = "",
+    ) -> bool:
+        """Persist a verified protected-workflow pass as distinct evidence."""
+
+        provenance = self._protected_workflow_provenance_from_proof(proof)
+        if provenance is None:
+            return False
+        key = self._evidence_key(
+            repo_identity=proof.repo_identity,
+            target_branch=proof.target_branch,
+            work_branch=proof.work_branch,
+            head_sha=proof.head_sha,
+            command=proof.command,
+        )
+        provenance_fingerprint = hashlib.sha256(
+            json.dumps(
+                provenance,
+                ensure_ascii=True,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
+        with self._key_lock(key):
+            try:
+                with self._lock:
+                    entries, duration_high_water, _status = self._load_state(
+                        strict=True
+                    )
+                    existing = entries.get(key)
+                    ordinary = self._decode_evidence_result(
+                        existing,
+                        repo_identity=proof.repo_identity,
+                        target_branch=proof.target_branch,
+                        work_branch=proof.work_branch,
+                        head_sha=proof.head_sha,
+                        command=proof.command,
+                    )
+                    if ordinary is not None and ordinary.status == "passed":
+                        return True
+                    if isinstance(existing, dict):
+                        existing_status = existing.get("status")
+                        if existing_status == _PROTECTED_WORKFLOW_ATTESTED_STATUS:
+                            existing_provenance = existing.get(
+                                "protected_workflow_provenance"
+                            )
+                            existing_fingerprint = existing.get(
+                                "protected_workflow_provenance_fingerprint"
+                            )
+                            if (
+                                existing_provenance == provenance
+                                and existing_fingerprint == provenance_fingerprint
+                            ):
+                                # An identical import is a no-op so its durable
+                                # timestamp remains stable across retries, but
+                                # only after the complete serialized row has
+                                # passed the same strict decoder as lookup.
+                                return (
+                                    self._decode_protected_workflow_attestation(
+                                        existing,
+                                        repo_identity=proof.repo_identity,
+                                        target_branch=proof.target_branch,
+                                        work_branch=proof.work_branch,
+                                        head_sha=proof.head_sha,
+                                        command=proof.command,
+                                        task_audit_fingerprint=(
+                                            proof.task_audit_fingerprint
+                                        ),
+                                        trust_config_fingerprint=(
+                                            proof.trust_config_fingerprint
+                                        ),
+                                    )
+                                    is not None
+                                )
+                            if not isinstance(existing_provenance, dict):
+                                return False
+                            stored_audit = existing_provenance.get(
+                                "task_audit_fingerprint"
+                            )
+                            stored_trust = existing_provenance.get(
+                                "trust_config_fingerprint"
+                            )
+                            if not isinstance(stored_audit, str) or not isinstance(
+                                stored_trust, str
+                            ):
+                                return False
+                            if (
+                                self._decode_protected_workflow_attestation(
+                                    existing,
+                                    repo_identity=proof.repo_identity,
+                                    target_branch=proof.target_branch,
+                                    work_branch=proof.work_branch,
+                                    head_sha=proof.head_sha,
+                                    command=proof.command,
+                                    task_audit_fingerprint=stored_audit,
+                                    trust_config_fingerprint=stored_trust,
+                                )
+                                is None
+                            ):
+                                return False
+                        elif existing_status not in {
+                            "failed",
+                            "timed_out",
+                            "error",
+                            "infrastructure_error",
+                            "interrupted",
+                        }:
+                            # Do not erase an unknown or malformed local PASS.
+                            return False
+                    entries[key] = {
+                        "command": proof.command,
+                        "duration_seconds": 0.0,
+                        "head_sha": proof.head_sha,
+                        "output_tail": str(output_tail or "")[
+                            -self.output_tail_bytes :
+                        ],
+                        "protected_workflow_provenance": provenance,
+                        "protected_workflow_provenance_fingerprint": (
+                            provenance_fingerprint
+                        ),
+                        "recorded_at": time.time(),
+                        "repo_identity": proof.repo_identity,
+                        "status": _PROTECTED_WORKFLOW_ATTESTED_STATUS,
+                        "target_branch": proof.target_branch,
+                        "work_branch": proof.work_branch,
+                    }
+                    if len(entries) > 500:
+                        entries = dict(
+                            sorted(
+                                entries.items(),
+                                key=lambda item: float(
+                                    item[1].get("recorded_at", 0) or 0
+                                ),
+                                reverse=True,
+                            )[:500]
+                        )
+                    self._save(entries, duration_high_water)
+            except (
+                OSError,
+                OverflowError,
+                QualityGateEvidenceCorrupt,
+                QualityGateEvidenceUnavailable,
+                TypeError,
+                ValueError,
+            ):
+                return False
+        return True
+
+    def lookup_protected_workflow_pass(
+        self,
+        *,
+        repo_identity: str,
+        target_branch: str,
+        work_branch: str,
+        head_sha: str,
+        command: str,
+        task_audit_fingerprint: str,
+        trust_config_fingerprint: str,
+    ) -> QualityGateResult | None:
+        """Locally consume an attestation under exact current audit/trust bindings."""
+
+        values = (
+            repo_identity,
+            target_branch,
+            work_branch,
+            command,
+        )
+        if any(
+            not isinstance(value, str) or not value or value != value.strip()
+            for value in values
+        ):
+            return None
+        if (
+            not isinstance(head_sha, str)
+            or head_sha != head_sha.strip().lower()
+            or re.fullmatch(r"[0-9a-f]{40,64}", head_sha) is None
+            or not isinstance(task_audit_fingerprint, str)
+            or re.fullmatch(r"[0-9a-f]{64}", task_audit_fingerprint) is None
+            or not isinstance(trust_config_fingerprint, str)
+            or re.fullmatch(r"[0-9a-f]{64}", trust_config_fingerprint) is None
+        ):
+            return None
+        key = self._evidence_key(
+            repo_identity=repo_identity,
+            target_branch=target_branch,
+            work_branch=work_branch,
+            head_sha=head_sha,
+            command=command,
+        )
+        try:
+            with self._lock:
+                entries, _duration_high_water, _status = self._load_state(strict=True)
+                entry = entries.get(key)
+        except (
+            OSError,
+            QualityGateEvidenceCorrupt,
+            QualityGateEvidenceUnavailable,
+        ):
+            return None
+        return self._decode_protected_workflow_attestation(
+            entry,
+            repo_identity=repo_identity,
+            target_branch=target_branch,
+            work_branch=work_branch,
+            head_sha=head_sha,
+            command=command,
+            task_audit_fingerprint=task_audit_fingerprint,
+            trust_config_fingerprint=trust_config_fingerprint,
         )
 
     def record_compatible_auditor_pass(
@@ -4651,10 +5396,7 @@ class BranchQualityGate:
             entry.lock.release()
             with self._lock:
                 entry.users -= 1
-                if (
-                    entry.users == 0
-                    and self._key_locks.get(key) is entry
-                ):
+                if entry.users == 0 and self._key_locks.get(key) is entry:
                     self._key_locks.pop(key, None)
 
     def run(
@@ -4760,8 +5502,7 @@ class BranchQualityGate:
 
             normalized_return_code = (
                 return_code
-                if isinstance(return_code, int)
-                and not isinstance(return_code, bool)
+                if isinstance(return_code, int) and not isinstance(return_code, bool)
                 else None
             )
             return QualityGateResult(
@@ -4774,33 +5515,25 @@ class BranchQualityGate:
                 return_code=normalized_return_code,
                 terminating_signal=(
                     -normalized_return_code
-                    if normalized_return_code is not None
-                    and normalized_return_code < 0
+                    if normalized_return_code is not None and normalized_return_code < 0
                     else None
                 ),
                 interrupted=bool(interrupted),
                 interruption_source=(
-                    str(interruption_source)[:128]
-                    if interruption_source
-                    else None
+                    str(interruption_source)[:128] if interruption_source else None
                 ),
                 owner=(owned_owner.to_dict() if owned_owner is not None else None),
                 authority_generation=(
-                    str(owned_generation)
-                    if owned_generation is not None
-                    else None
+                    str(owned_generation) if owned_generation is not None else None
                 ),
             )
 
         def _local_authority_cancelled() -> bool:
             """Return local cancellation without tracker or forge I/O."""
 
-            if (
-                owned_generation is not None
-                and self._generation_is_cancelled(
-                    owned_generation,
-                    owner_key,
-                )
+            if owned_generation is not None and self._generation_is_cancelled(
+                owned_generation,
+                owner_key,
             ):
                 return True
             if is_cancelled is None:
@@ -4939,21 +5672,26 @@ class BranchQualityGate:
             # reusable verdict about candidate code.  Legacy failed rows also
             # lack enough exit evidence to prove that the command completed,
             # so rerun them once under the structured schema.
-            if cached_result.status in {
-                "infrastructure_error",
-                "error",
-                "interrupted",
-            } or (
-                cached_result.status == "failed"
-                and (
-                    cached_result.return_code is None
-                    or cached_result.return_code <= 0
+            if (
+                cached_result.status
+                in {
+                    "infrastructure_error",
+                    "error",
+                    "interrupted",
+                }
+                or (
+                    cached_result.status == "failed"
+                    and (
+                        cached_result.return_code is None
+                        or cached_result.return_code <= 0
+                    )
                 )
-            ) or (
-                cached_result.status == "timed_out"
-                and (
-                    cached_result.return_code is None
-                    or cached_result.interruption_source != "timeout"
+                or (
+                    cached_result.status == "timed_out"
+                    and (
+                        cached_result.return_code is None
+                        or cached_result.interruption_source != "timeout"
+                    )
                 )
             ):
                 return loaded, None
@@ -4993,14 +5731,10 @@ class BranchQualityGate:
         if self.validation_lease is not None:
             validation_owner = ValidationLeaseOwner.exact_gate(
                 project_id=(
-                    owned_owner.project_id
-                    if owned_owner is not None
-                    else repo_identity
+                    owned_owner.project_id if owned_owner is not None else repo_identity
                 ),
                 task_id=(
-                    owned_owner.task_id
-                    if owned_owner is not None
-                    else work_branch
+                    owned_owner.task_id if owned_owner is not None else work_branch
                 ),
                 authority_generation=(
                     owned_owner.authority_generation
@@ -5244,6 +5978,7 @@ class BranchQualityGate:
                         pass
 
                 if is_cancelled is not None:
+
                     def _monitor_gate_authority() -> None:
                         while not monitor_stop.wait(0.1):
                             if _local_authority_cancelled():
@@ -5261,16 +5996,12 @@ class BranchQualityGate:
                     monitor.start()
                 stdout, stderr = process.communicate(timeout=self.timeout_seconds)
                 duration = time.monotonic() - started
-                combined = "\n".join(
-                    part for part in (stdout, stderr) if part
-                )
+                combined = "\n".join(part for part in (stdout, stderr) if part)
                 output_tail = combined.encode("utf-8", errors="replace")[
                     -self.output_tail_bytes :
                 ].decode("utf-8", errors="replace")
                 with self._processes_lock:
-                    interrupted = bool(
-                        getattr(process, "_oompah_interrupted", False)
-                    )
+                    interrupted = bool(getattr(process, "_oompah_interrupted", False))
                     self._active_processes.pop(process.pid, None)
                 cancellation = _lease_cancellation()
                 interrupted = interrupted or cancellation is not None
@@ -5381,9 +6112,7 @@ class BranchQualityGate:
                     if part
                 )
                 with self._processes_lock:
-                    interrupted = bool(
-                        getattr(process, "_oompah_interrupted", False)
-                    )
+                    interrupted = bool(getattr(process, "_oompah_interrupted", False))
                     self._active_processes.pop(process.pid, None)
                 cancellation = _lease_cancellation()
                 interrupted = interrupted or cancellation is not None

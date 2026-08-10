@@ -436,6 +436,9 @@ from oompah.prompt import (
 from oompah.quality_gate import (
     AuditorQualityEvidenceProof,
     BranchQualityGate,
+    ProtectedWorkflowJobProof,
+    ProtectedWorkflowQualityEvidenceProof,
+    ProtectedWorkflowStepProof,
     QualityGateOwner,
     QualityGateResult,
 )
@@ -456,7 +459,23 @@ from oompah.projects import (
 )
 from oompah.providers import ProviderStore
 from oompah.roles import Candidate, CandidateSelector, RoleStore
-from oompah.scm import SCMProvider, ReviewRequest, detect_provider, extract_repo_slug
+from oompah.scm import (
+    ProtectedGitCommitEvidence,
+    ProtectedReviewEvidence,
+    ProtectedWorkflowCheckEvidence,
+    ProtectedWorkflowCheckSuiteEvidence,
+    ProtectedWorkflowEvidenceDisposition,
+    ProtectedWorkflowEvidenceRequest,
+    ProtectedWorkflowEvidence,
+    ProtectedWorkflowJobEvidence,
+    ProtectedWorkflowMetadataEvidence,
+    ProtectedWorkflowRunEvidence,
+    ProtectedWorkflowStepEvidence,
+    SCMProvider,
+    ReviewRequest,
+    detect_provider,
+    extract_repo_slug,
+)
 from oompah.error_watcher import ErrorWatcher
 from oompah.tracker import (
     ADAPTER_REGISTRY,
@@ -33023,6 +33042,7 @@ class Orchestrator:
         audit_target: object,
         *,
         record_metrics: bool = True,
+        protected_workflow_trust_fingerprint: str | None = None,
     ) -> dict[str, Any]:
         """Build the trusted exact-head gate bundle for an auditor prompt.
 
@@ -33041,6 +33061,8 @@ class Orchestrator:
         result: QualityGateResult | None = None
         reason = ""
         authority_current = False
+        staged_attempt_identity = False
+        evidence_source = "ordinary"
         if not command:
             decision = "not_configured"
             status = "not_configured"
@@ -33152,6 +33174,41 @@ class Orchestrator:
                     head_sha=accepted_head,
                     command=command,
                 )
+                trust_fingerprint = str(
+                    protected_workflow_trust_fingerprint or ""
+                ).strip()
+                if result is None and trust_fingerprint:
+                    current_trust = (
+                        self.config.protected_workflow_quality_evidence
+                    )
+                    repository = extract_repo_slug(
+                        str(project.repo_url or "")
+                    ).strip().lower()
+                    current_matches = current_trust.matching_entries(
+                        repository=repository,
+                        target_branch=target_branch,
+                        command=command,
+                    )
+                    if (
+                        current_trust.fingerprint != trust_fingerprint
+                        or len(current_matches) != 1
+                    ):
+                        raise ValueError(
+                            "protected-workflow trust authority is stale"
+                        )
+                    result = (
+                        self._branch_quality_gate.lookup_protected_workflow_pass(
+                            repo_identity=repo_identity,
+                            target_branch=target_branch,
+                            work_branch=work_branch,
+                            head_sha=accepted_head,
+                            command=command,
+                            task_audit_fingerprint=target.evidence_fingerprint,
+                            trust_config_fingerprint=trust_fingerprint,
+                        )
+                    )
+                    if result is not None:
+                        evidence_source = "protected_workflow"
                 if result is None:
                     status = "missing"
                     raise ValueError(
@@ -33210,6 +33267,13 @@ class Orchestrator:
             "recorded_at": result.recorded_at if result is not None else None,
             "reason": reason,
             "authority_current": authority_current,
+            "staged_attempt_identity": staged_attempt_identity,
+            "evidence_source": evidence_source,
+            "protected_workflow_trust_fingerprint": (
+                str(protected_workflow_trust_fingerprint or "").strip()
+                if evidence_source == "protected_workflow"
+                else ""
+            ),
             "focused_evidence": {
                 "configured_auditor_targets": targets,
                 "supplemental_checks_allowed": True,
@@ -33239,6 +33303,649 @@ class Orchestrator:
             except Exception:  # telemetry must not block audit dispatch
                 logger.debug("Unable to record terminal-audit gate decision", exc_info=True)
         return bundle
+
+    def _prepare_terminal_audit_quality_gate_evidence(
+        self,
+        issue: Issue,
+        project: Project | None,
+        audit_target: object,
+    ) -> dict[str, Any]:
+        """Prepare launch-time gate evidence, importing protected CI if safe.
+
+        Remote forge evidence is deliberately collected only while preparing
+        an auditor launch.  Normal command-time authorization remains a local
+        lookup, and every unavailable or stale observation falls back to the
+        configured full gate.
+        """
+
+        initial = self._terminal_audit_quality_gate_evidence(
+            issue,
+            project,
+            audit_target,
+            record_metrics=False,
+        )
+        trust_fingerprint = ""
+        if (
+            project is not None
+            and initial.get("decision") == "full_gate_required"
+            and initial.get("authority_current") is True
+            and initial.get("staged_attempt_identity") is True
+        ):
+            trust_fingerprint = (
+                self._try_import_protected_workflow_gate(
+                    issue,
+                    project,
+                    audit_target,
+                    initial,
+                )
+                or ""
+            )
+        return self._terminal_audit_quality_gate_evidence(
+            issue,
+            project,
+            audit_target,
+            protected_workflow_trust_fingerprint=(trust_fingerprint or None),
+        )
+
+    @staticmethod
+    def _terminal_audit_target_identity(
+        target: AuditorTargetContract,
+    ) -> tuple[str, ...]:
+        """Return every immutable field that binds one pending audit target."""
+
+        return tuple(
+            str(getattr(target, name, "") or "")
+            for name in (
+                "project_id",
+                "task_id",
+                "audit_id",
+                "attempt_id",
+                "target_state",
+                "previous_state",
+                "evidence_fingerprint",
+                "selected_ref",
+                "selected_sha",
+            )
+        )
+
+    def _terminal_audit_remote_source_branch_current(
+        self,
+        project: Project,
+        work_branch: str,
+        expected_head: str,
+    ) -> bool:
+        """Prove a surviving remote source branch has not advanced.
+
+        A normally deleted review branch is acceptable.  If it still exists,
+        however, it must name the exact immutable audit head.
+        """
+
+        repo_path = str(getattr(project, "repo_path", "") or "").strip()
+        canonical_url = str(getattr(project, "repo_url", "") or "").strip()
+        branch = str(work_branch or "").strip()
+        head = str(expected_head or "").strip().lower()
+        if (
+            not repo_path
+            or not canonical_url
+            or not branch
+            or re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", head) is None
+        ):
+            return False
+        try:
+            valid = subprocess.run(
+                ["git", "check-ref-format", f"refs/heads/{branch}"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if valid.returncode != 0:
+                return False
+            observed = self._run_project_network_git(
+                project,
+                [
+                    "git",
+                    "ls-remote",
+                    "--heads",
+                    canonical_url,
+                    f"refs/heads/{branch}",
+                ],
+                cwd=repo_path,
+                timeout=15,
+            )
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            return False
+        if observed.returncode != 0:
+            return False
+        lines = [line.split() for line in observed.stdout.splitlines() if line.strip()]
+        if not lines:
+            return True
+        return (
+            len(lines) == 1
+            and len(lines[0]) == 2
+            and lines[0][0].strip().lower() == head
+            and lines[0][1] == f"refs/heads/{branch}"
+        )
+
+    def _terminal_audit_protected_head_containment(
+        self,
+        project: Project,
+        *,
+        accepted_head: str,
+        target_branch: str,
+    ) -> bool:
+        """Prove containment against the canonical project remote.
+
+        Both observation and fetch use the project-owned URL override.  A
+        candidate or stale shared-clone ``origin`` therefore cannot redirect
+        this privileged containment decision to a different repository.
+        """
+
+        repo_path = str(getattr(project, "repo_path", "") or "").strip()
+        canonical_url = str(getattr(project, "repo_url", "") or "").strip()
+        branch = str(target_branch or "").strip()
+        head = str(accepted_head or "").strip().lower()
+        if (
+            not repo_path
+            or not canonical_url
+            or not branch
+            or re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", head) is None
+        ):
+            return False
+        full_ref = f"refs/heads/{branch}"
+        remote_ref = f"refs/remotes/origin/{branch}"
+        try:
+            valid = subprocess.run(
+                ["git", "check-ref-format", full_ref],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if valid.returncode != 0:
+                return False
+            observed = self._run_project_network_git(
+                project,
+                ["git", "ls-remote", "--heads", canonical_url, full_ref],
+                cwd=repo_path,
+                timeout=15,
+            )
+            lines = [
+                line.split()
+                for line in observed.stdout.splitlines()
+                if line.strip()
+            ]
+            if (
+                observed.returncode != 0
+                or len(lines) != 1
+                or len(lines[0]) != 2
+                or lines[0][1] != full_ref
+                or re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", lines[0][0])
+                is None
+            ):
+                return False
+            observed_target = lines[0][0].lower()
+            fetched = self._run_project_network_git(
+                project,
+                [
+                    "git",
+                    "fetch",
+                    "--no-tags",
+                    "--quiet",
+                    canonical_url,
+                    f"+{full_ref}:{remote_ref}",
+                ],
+                cwd=repo_path,
+                timeout=30,
+            )
+            if fetched.returncode != 0:
+                return False
+            resolved = subprocess.run(
+                [
+                    "git",
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    f"{remote_ref}^{{commit}}",
+                ],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            if (
+                resolved.returncode != 0
+                or resolved.stdout.strip().lower() != observed_target
+            ):
+                return False
+            contained = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", head, observed_target],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            return contained.returncode == 0
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            return False
+
+    @staticmethod
+    def _protected_workflow_evidence_matches(
+        evidence: object,
+        request: ProtectedWorkflowEvidenceRequest,
+        trust: object,
+    ) -> bool:
+        """Independently bind every COMPLETE provider field before import."""
+
+        if not isinstance(evidence, ProtectedWorkflowEvidence):
+            return False
+        review = evidence.review
+        workflow = evidence.workflow
+        run = evidence.run
+        suite = evidence.check_suite
+        if (
+            not isinstance(review, ProtectedReviewEvidence)
+            or not isinstance(workflow, ProtectedWorkflowMetadataEvidence)
+            or not isinstance(run, ProtectedWorkflowRunEvidence)
+            or not isinstance(suite, ProtectedWorkflowCheckSuiteEvidence)
+            or not isinstance(evidence.head_commit, ProtectedGitCommitEvidence)
+            or not isinstance(evidence.merge_commit, ProtectedGitCommitEvidence)
+        ):
+            return False
+        repository = str(request.source_repository)
+        if (
+            evidence.repository != repository
+            or review.state != "merged"
+            or review.source_repository != repository
+            or review.source_branch != request.source_branch
+            or review.head_sha != request.head_sha
+            or review.target_repository != repository
+            or review.target_branch != request.target_branch
+            or not str(review.review_id or "").isdigit()
+            or int(review.review_id) <= 0
+            or not review.merged_at
+            or workflow.workflow_id != request.workflow_id
+            or workflow.path != request.workflow_path
+            or workflow.state != "active"
+            or not workflow.name
+            or not workflow.node_id
+            or evidence.workflow_blob_sha != request.workflow_blob_sha
+            or evidence.workflow_blob_commit_sha != review.merge_sha
+            or evidence.head_commit.sha != request.head_sha
+            or evidence.merge_commit.sha != review.merge_sha
+            or evidence.merge_commit.parent_shas
+            != (review.base_sha, request.head_sha)
+            or run.workflow_id != request.workflow_id
+            or run.workflow_path != request.workflow_path
+            or run.event != request.event
+            or run.head_repository != repository
+            or run.head_branch != request.source_branch
+            or run.head_sha != request.head_sha
+            or run.status != "completed"
+            or run.conclusion != "success"
+            or not run.html_url
+            or suite.check_suite_id != run.check_suite_id
+            or suite.head_sha != request.head_sha
+            or suite.status != "completed"
+            or suite.conclusion != "success"
+            or suite.app_id != request.app_id
+            or suite.app_slug != getattr(trust, "app_slug", None)
+            or suite.latest_check_runs_count != len(evidence.jobs)
+        ):
+            return False
+        expected_jobs = tuple(sorted(request.required_job_names))
+        expected_steps = tuple(sorted(request.required_step_names))
+        if (
+            not isinstance(evidence.jobs, tuple)
+            or any(
+                not isinstance(job, ProtectedWorkflowJobEvidence)
+                or not isinstance(job.check, ProtectedWorkflowCheckEvidence)
+                for job in evidence.jobs
+            )
+            or tuple(sorted(job.name for job in evidence.jobs)) != expected_jobs
+            or len({job.job_id for job in evidence.jobs}) != len(evidence.jobs)
+            or len({job.check.check_run_id for job in evidence.jobs})
+            != len(evidence.jobs)
+        ):
+            return False
+        for job in evidence.jobs:
+            if (
+                job.run_id != run.run_id
+                or job.run_attempt != run.run_attempt
+                or job.head_sha != request.head_sha
+                or job.status != "completed"
+                or job.conclusion != "success"
+                or job.check.check_run_id != job.job_id
+                or job.check.name != job.name
+                or job.check.head_sha != request.head_sha
+                or job.check.status != "completed"
+                or job.check.conclusion != "success"
+                or job.check.check_suite_id != run.check_suite_id
+                or job.check.app_id != request.app_id
+                or job.check.app_slug != getattr(trust, "app_slug", None)
+                or not job.check.details_url
+                or not isinstance(job.steps, tuple)
+                or any(
+                    not isinstance(step, ProtectedWorkflowStepEvidence)
+                    for step in job.steps
+                )
+            ):
+                return False
+            step_names = [step.name for step in job.steps]
+            step_numbers = [step.number for step in job.steps]
+            if (
+                len(step_names) != len(set(step_names))
+                or len(step_numbers) != len(set(step_numbers))
+            ):
+                return False
+            required = tuple(
+                sorted(
+                    step.name
+                    for step in job.steps
+                    if step.name in expected_steps
+                    and step.status == "completed"
+                    and step.conclusion == "success"
+                )
+            )
+            if required != expected_steps:
+                return False
+        return True
+
+    def _try_import_protected_workflow_gate(
+        self,
+        issue: Issue,
+        project: Project,
+        audit_target: object,
+        initial: Mapping[str, Any],
+    ) -> str | None:
+        """Import one complete protected-workflow proof under current authority."""
+
+        try:
+            target = auditor_target_contract(
+                audit_target,
+                task_id=issue.identifier,
+                project_id=str(issue.project_id or "legacy"),
+            )
+            if (
+                initial.get("decision") != "full_gate_required"
+                or initial.get("authority_current") is not True
+                or initial.get("staged_attempt_identity") is not True
+                or not target.attempt_id
+            ):
+                return None
+            command = str(initial.get("command") or "").strip()
+            accepted_head = str(
+                initial.get("accepted_head_sha") or ""
+            ).strip().lower()
+            work_branch = str(initial.get("work_branch") or "").strip()
+            target_branch = str(initial.get("target_branch") or "").strip()
+            repo_identity = str(
+                getattr(project, "repo_url", "")
+                or getattr(project, "repo_path", "")
+                or getattr(project, "id", "")
+                or ""
+            ).strip()
+            repository = extract_repo_slug(str(project.repo_url or "")).strip().lower()
+            if not all(
+                (
+                    command,
+                    accepted_head,
+                    work_branch,
+                    target_branch,
+                    repo_identity,
+                    repository,
+                )
+            ):
+                return None
+            if target.selected_sha != accepted_head:
+                return None
+
+            trust_config = self.config.protected_workflow_quality_evidence
+            matches = trust_config.matching_entries(
+                repository=repository,
+                target_branch=target_branch,
+                command=command,
+            )
+            if len(matches) != 1:
+                return None
+            trust = matches[0]
+            trust_fingerprint = trust_config.fingerprint
+            target_identity = self._terminal_audit_target_identity(target)
+            project_identity = (
+                str(project.id or ""),
+                str(project.repo_url or ""),
+                str(project.repo_path or ""),
+                str(project.default_branch or ""),
+                command,
+            )
+
+            provider = detect_provider(
+                str(project.repo_url or ""),
+                access_token=getattr(project, "access_token", None),
+            )
+            if provider is None:
+                return None
+            request = ProtectedWorkflowEvidenceRequest(
+                source_repository=repository,
+                source_branch=work_branch,
+                head_sha=accepted_head,
+                target_branch=target_branch,
+                workflow_id=trust.workflow_id,
+                workflow_path=trust.workflow_path,
+                workflow_blob_sha=trust.workflow_blob_sha,
+                app_id=trust.app_id,
+                required_job_names=trust.required_jobs,
+                required_step_names=trust.required_steps,
+                event=trust.event,
+                review_id=None,
+            )
+            observed = provider.collect_protected_workflow_evidence(
+                repository,
+                request,
+            )
+            if (
+                observed.disposition
+                is not ProtectedWorkflowEvidenceDisposition.COMPLETE
+                or observed.evidence is None
+            ):
+                return None
+            evidence = observed.evidence
+            if not self._protected_workflow_evidence_matches(
+                evidence,
+                request,
+                trust,
+            ):
+                return None
+
+            if not self._terminal_audit_remote_source_branch_current(
+                project,
+                work_branch,
+                accepted_head,
+            ):
+                return None
+            if not self._terminal_audit_protected_head_containment(
+                project,
+                accepted_head=accepted_head,
+                target_branch=target_branch,
+            ):
+                return None
+
+            # Remote observations can race task, project, and operator-policy
+            # mutation.  Reload every authority source after I/O and compare
+            # the complete immutable identity before persisting any proof.
+            current_config = self.config.protected_workflow_quality_evidence
+            current_matches = current_config.matching_entries(
+                repository=repository,
+                target_branch=target_branch,
+                command=command,
+            )
+            if (
+                current_config.fingerprint != trust_fingerprint
+                or len(current_matches) != 1
+                or current_matches[0] != trust
+            ):
+                return None
+            current_project = self.project_store.get(target.project_id)
+            if current_project is None:
+                return None
+            if (
+                str(current_project.id or ""),
+                str(current_project.repo_url or ""),
+                str(current_project.repo_path or ""),
+                str(current_project.default_branch or ""),
+                self._quality_gate_command(current_project),
+            ) != project_identity:
+                return None
+            tracker = self._tracker_for_project(target.project_id)
+            invalidate = getattr(tracker, "invalidate_read_cache", None)
+            if callable(invalidate):
+                invalidate()
+            current_issue = tracker.fetch_issue_detail(target.task_id)
+            if current_issue is None:
+                return None
+            if not current_issue.project_id:
+                current_issue.project_id = issue.project_id
+            if (
+                str(current_issue.project_id or "") != target.project_id
+                or canonicalize_status(current_issue.state) != IN_VALIDATION
+                or compute_issue_evidence_fingerprint(
+                    current_issue,
+                    target.project_id,
+                ).digest
+                != target.evidence_fingerprint
+            ):
+                return None
+            metadata = tracker.get_metadata(target.task_id)
+            current_target = pending_auditor_target(
+                metadata,
+                task_id=target.task_id,
+                project_id=target.project_id,
+            )
+            if (
+                current_target is None
+                or self._terminal_audit_target_identity(current_target)
+                != target_identity
+            ):
+                return None
+            (
+                current_head,
+                current_work_branch,
+                current_target_branch,
+                current_repo_identity,
+                current_staged_identity,
+            ) = self._terminal_audit_quality_gate_identity(
+                current_issue,
+                current_project,
+                current_target,
+                tracker,
+            )
+            if (
+                current_head,
+                current_work_branch,
+                current_target_branch,
+                current_repo_identity,
+                current_staged_identity,
+            ) != (
+                accepted_head,
+                work_branch,
+                target_branch,
+                repo_identity,
+                True,
+            ):
+                return None
+
+            proof = ProtectedWorkflowQualityEvidenceProof(
+                repo_identity=repo_identity,
+                repository=repository,
+                target_branch=target_branch,
+                work_branch=work_branch,
+                head_sha=evidence.head_commit.sha,
+                head_tree_sha=evidence.head_commit.tree_sha,
+                base_sha=evidence.review.base_sha,
+                merge_sha=evidence.review.merge_sha,
+                merge_tree_sha=evidence.merge_commit.tree_sha,
+                merge_parent_shas=evidence.merge_commit.parent_shas,
+                command=command,
+                task_audit_fingerprint=target.evidence_fingerprint,
+                trust_config_fingerprint=trust_fingerprint,
+                workflow_id=evidence.workflow.workflow_id,
+                workflow_path=evidence.workflow.path,
+                workflow_blob_sha=evidence.workflow_blob_sha,
+                checkout_mode=trust.checkout_mode,
+                event=evidence.run.event,
+                app_id=trust.app_id,
+                app_slug=trust.app_slug,
+                required_jobs=tuple(sorted(trust.required_jobs)),
+                required_steps=tuple(sorted(trust.required_steps)),
+                jobs=tuple(
+                    sorted(
+                        (
+                            ProtectedWorkflowJobProof(
+                                name=job.name,
+                                job_id=job.job_id,
+                                run_attempt=job.run_attempt,
+                                head_sha=job.head_sha,
+                                status=job.status,
+                                conclusion=job.conclusion,
+                                check_run_id=job.check.check_run_id,
+                                check_status=job.check.status,
+                                check_conclusion=job.check.conclusion,
+                                check_head_sha=job.check.head_sha,
+                                app_id=job.check.app_id,
+                                app_slug=job.check.app_slug,
+                                required_steps=tuple(
+                                    sorted(
+                                        (
+                                            ProtectedWorkflowStepProof(
+                                                name=step.name,
+                                                number=step.number,
+                                                status=step.status,
+                                                conclusion=step.conclusion,
+                                            )
+                                            for step in job.steps
+                                            if step.name in trust.required_steps
+                                        ),
+                                        key=lambda step: step.name,
+                                    )
+                                ),
+                            )
+                            for job in evidence.jobs
+                        ),
+                        key=lambda job: job.name,
+                    )
+                ),
+                pull_request_number=int(evidence.review.review_id),
+                run_id=evidence.run.run_id,
+                run_attempt=evidence.run.run_attempt,
+                run_head_sha=evidence.run.head_sha,
+                run_status=evidence.run.status,
+                run_conclusion=evidence.run.conclusion,
+                check_suite_id=evidence.check_suite.check_suite_id,
+                check_suite_status=evidence.check_suite.status,
+                check_suite_conclusion=evidence.check_suite.conclusion,
+                check_suite_head_sha=evidence.check_suite.head_sha,
+                check_suite_app_id=evidence.check_suite.app_id,
+            )
+            if not self._branch_quality_gate.import_protected_workflow_pass(
+                proof,
+                output_tail=(
+                    "protected workflow "
+                    f"{evidence.workflow.path} run {evidence.run.run_id} "
+                    f"attempt {evidence.run.run_attempt}"
+                ),
+            ):
+                return None
+            return trust_fingerprint
+        except Exception:  # noqa: BLE001 - protected imports always fail closed
+            logger.debug(
+                "Unable to import protected-workflow quality evidence",
+                exc_info=True,
+            )
+            return None
 
     def _terminal_audit_landed_gate_authority(
         self,
@@ -33412,6 +34119,9 @@ class Orchestrator:
             ).strip().lower(),
             "target_branch": str(bundle.get("target_branch") or "").strip(),
             "work_branch": str(bundle.get("work_branch") or "").strip(),
+            "protected_workflow_trust_fingerprint": str(
+                bundle.get("protected_workflow_trust_fingerprint") or ""
+            ).strip(),
             "invalid_authority": True,
         }
         try:
@@ -33472,6 +34182,15 @@ class Orchestrator:
                     current_project,
                     target,
                     record_metrics=False,
+                    protected_workflow_trust_fingerprint=(
+                        str(
+                            expected_policy.get(
+                                "protected_workflow_trust_fingerprint"
+                            )
+                            or ""
+                        ).strip()
+                        or None
+                    ),
                 )
                 if bundle.get("authority_current") is not True:
                     return "stale_authority"
@@ -33510,6 +34229,7 @@ class Orchestrator:
                     "accepted_head_sha",
                     "target_branch",
                     "work_branch",
+                    "protected_workflow_trust_fingerprint",
                 )
                 if any(
                     str(expected_policy.get(name) or "")
@@ -57431,7 +58151,7 @@ class Orchestrator:
                             "pending_target_count": pending_count,
                         }
                         quality_gate_evidence = (
-                            self._terminal_audit_quality_gate_evidence(
+                            self._prepare_terminal_audit_quality_gate_evidence(
                                 issue, project_obj, audit_target
                             )
                         )
@@ -58379,7 +59099,7 @@ class Orchestrator:
                             "pending_target_count": pending_count,
                         }
                         quality_gate_evidence = (
-                            self._terminal_audit_quality_gate_evidence(
+                            self._prepare_terminal_audit_quality_gate_evidence(
                                 issue, project_obj, audit_target
                             )
                         )

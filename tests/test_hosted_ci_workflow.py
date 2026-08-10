@@ -35,6 +35,13 @@ def test_hosted_ci_uses_the_supported_makefile_gate() -> None:
     assert 'pip install -e ".[dev]"' not in workflow
 
 
+def test_hosted_pull_request_ci_checks_out_the_immutable_review_head() -> None:
+    workflow = _hosted_ci_workflow()
+
+    assert "uses: actions/checkout@v4" in workflow
+    assert "ref: ${{ github.event.pull_request.head.sha || github.sha }}" in workflow
+
+
 def test_hosted_ci_configures_the_canonical_git_identity() -> None:
     workflow = _hosted_ci_workflow()
 
