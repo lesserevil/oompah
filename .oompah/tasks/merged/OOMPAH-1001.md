@@ -12,7 +12,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-10T17:36:35.101810Z'
-updated_at: '2026-08-10T20:11:14.021539Z'
+updated_at: '2026-08-10T20:11:27.724550Z'
 work_branch: OOMPAH-1001
 target_branch: null
 review_url: null
@@ -71,7 +71,19 @@ oompah.terminal_audit:
     created_at: '2026-08-10T20:11:09.034122+00:00'
     selected_ref: 1e8edb7bc7f8579e17d02610fd751ff9b5f812c2
     selected_sha: 1e8edb7bc7f8579e17d02610fd751ff9b5f812c2
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1001
+    target_state: Merged
+    evidence_fingerprint: b11b65e16b38d16d503cfa549a9010ea24103e06e70a9b87f7e31d37491c6bfa
+    audit_ids:
+    - audit-d765f0c89989
+    - audit-32e7c981afdc
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T20:11:18.335622+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -79,7 +91,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1001
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -109,13 +121,13 @@ oompah.terminal_audit:
     created_at: '2026-08-10T19:51:00.663431+00:00'
     selected_ref: 1e8edb7bc7f8579e17d02610fd751ff9b5f812c2
     selected_sha: 1e8edb7bc7f8579e17d02610fd751ff9b5f812c2
-    updated_at: '2026-08-10T19:51:41.662172+00:00'
+    updated_at: '2026-08-10T20:11:18.335576+00:00'
   - version: 1
     audit_id: audit-32e7c981afdc
     project_id: proj-14849f1b
     task_id: OOMPAH-1001
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -130,6 +142,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T19:51:00.663431+00:00'
     selected_ref: 1e8edb7bc7f8579e17d02610fd751ff9b5f812c2
     selected_sha: 1e8edb7bc7f8579e17d02610fd751ff9b5f812c2
+    updated_at: '2026-08-10T20:11:18.335606+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-b2f7a603c2ac
@@ -146,6 +159,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1001
     selected_ref: 1e8edb7bc7f8579e17d02610fd751ff9b5f812c2
     selected_sha: 1e8edb7bc7f8579e17d02610fd751ff9b5f812c2
+oompah.task_costs:
+  total_input_tokens: 46
+  total_output_tokens: 11
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 46
+      output_tokens: 11
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 46
+    output_tokens: 11
+    cost_usd: 0.0
+    recorded_at: '2026-08-10T20:11:21.836576+00:00'
 ---
 ## Summary
 
@@ -205,5 +234,22 @@ author: oompah
 created: 2026-08-10 19:51
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-10 20:11
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Exact submitted head 1e8edb7bc7f8579e17d02610fd751ff9b5f812c2 is contained in protected merge 2781962fd96fcf82b2746939d50a6736ddf9b454 via PR #801; required Python 3.11, 3.12, and 3.13 jobs all passed the pinned workflow command make test. Independent adversarial review and focused local verification were also green.
+---
+author: oompah
+created: 2026-08-10 20:11
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 2
+- Tokens: 46 in / 11 out [57 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 19m 37s
+- Log: OOMPAH-1001__20260810T195152Z.jsonl
 ---
 <!-- COMMENTS:END -->
