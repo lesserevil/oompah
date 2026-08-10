@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1006
 type: task
-status: In Progress
+status: Merged
 priority: null
 title: Normalize native project scope at epic mutation revalidation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T21:29:22.606379Z'
-updated_at: '2026-08-10T22:57:46.432742Z'
+updated_at: '2026-08-10T22:57:50.607931Z'
 work_branch: null
 target_branch: null
 review_url: null
