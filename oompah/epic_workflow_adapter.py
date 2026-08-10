@@ -56,6 +56,7 @@ from oompah.workflow_jobs import (
     WorkflowFailureCategory,
     WorkflowJobState,
 )
+from oompah.work_decision import retained_terminal_child_waiver
 from oompah.workflow_worker import WorkflowActionError, WorkflowActionSuperseded
 
 
@@ -777,6 +778,11 @@ class OrchestratorEpicWorkflowEffects:
         with self.orchestrator.issue_transition_lock(issue_id).sync():
             with self.orchestrator.project_store.project_write_lock(self.project_id):
                 current = self._fresh_epic_authority(epic, facts)
+                self._assert_terminal_containment_current(
+                    current,
+                    facts,
+                    operation="review metadata persistence",
+                )
                 observed = self._review_evidence(
                     current,
                     facts,
@@ -984,6 +990,7 @@ class OrchestratorEpicWorkflowEffects:
                 retryable=True,
             )
         expected: dict[str, str] = {}
+        expected_waivers: dict[str, Mapping[str, Any]] = {}
         for item in children:
             if not isinstance(item, Mapping):
                 raise WorkflowActionError(
@@ -1009,6 +1016,19 @@ class OrchestratorEpicWorkflowEffects:
                     replacement_generation=f"cleanup-active:{identifier}",
                 )
             expected[identifier] = authority
+            waiver = retained_terminal_child_waiver(
+                item,
+                project_id=self.project_id,
+                parent_id=epic.identifier,
+            )
+            if "retained_terminal_provenance" in item and waiver is None:
+                raise WorkflowActionSuperseded(
+                    f"epic child {identifier} has invalid retained provenance "
+                    f"during {operation}",
+                    replacement_generation=f"provenance-invalid:{identifier}",
+                )
+            if waiver is not None:
+                expected_waivers[identifier] = waiver
 
         tracker = self._tracker()
         try:
@@ -1070,6 +1090,73 @@ class OrchestratorEpicWorkflowEffects:
                     ).hexdigest()
                 ),
             )
+        observed_by_id = {child.identifier: child for child in scoped_children}
+        for identifier, waiver in expected_waivers.items():
+            self._assert_retained_terminal_waiver_current(
+                observed_by_id[identifier],
+                waiver,
+                tracker=tracker,
+                operation=operation,
+            )
+
+    def _assert_retained_terminal_waiver_current(
+        self,
+        child: Issue,
+        waiver: Mapping[str, Any],
+        *,
+        tracker: Any,
+        operation: str,
+    ) -> None:
+        """Re-prove one owner marker under the project mutation fence."""
+
+        source = getattr(self.orchestrator, "_provenance_suppression_status", None)
+        if not callable(source):
+            raise WorkflowActionError(
+                f"retained child authority is unavailable during {operation}",
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            )
+        try:
+            status = source(child, self.project_id, tracker)
+        except Exception as exc:  # noqa: BLE001 - metadata authority boundary
+            raise WorkflowActionError(
+                f"retained child authority refresh failed during {operation}: "
+                f"{type(exc).__name__}",
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            ) from exc
+        marker = getattr(status, "marker", None)
+        actor = getattr(marker, "actor", None)
+        generation = getattr(marker, "authority_generation", None)
+        current = bool(
+            getattr(status, "malformed", True) is False
+            and getattr(status, "suppressed", False) is True
+            and marker is not None
+            and getattr(marker, "suppressed", False) is True
+            and getattr(marker, "version", None) == waiver.get("marker_version")
+            and isinstance(generation, int)
+            and not isinstance(generation, bool)
+            and generation == waiver.get("provenance_authority_generation")
+            and actor is not None
+            and _text(getattr(actor, "identity", None))
+            == _text(waiver.get("authorized_by"))
+            and _text(getattr(actor, "source", None))
+            == _text(waiver.get("actor_source"))
+        )
+        if current:
+            return
+        replacement = (
+            str(generation)
+            if isinstance(generation, int) and not isinstance(generation, bool)
+            else "unavailable"
+        )
+        raise WorkflowActionSuperseded(
+            f"retained child {child.identifier} provenance changed before "
+            f"{operation}",
+            replacement_generation=(
+                f"provenance:{child.identifier}:{replacement}"
+            ),
+        )
 
     def _rebase_workflow_key(self, helper: Issue) -> str:
         """Return the durable workflow identity stamped on one helper."""
@@ -1466,6 +1553,22 @@ class OrchestratorEpicWorkflowEffects:
             identifier = _text(item.get("identifier"))
             status = canonicalize_status(item.get("status"))
             if not identifier or status not in {DONE, MERGED, ARCHIVED}:
+                continue
+            waiver = retained_terminal_child_waiver(
+                item,
+                project_id=self.project_id,
+                parent_id=epic.identifier,
+            )
+            if "retained_terminal_provenance" in item and waiver is None:
+                raise WorkflowActionError(
+                    f"Terminal child {identifier} has invalid retained "
+                    "provenance for cleanup",
+                    category=WorkflowFailureCategory.TRANSIENT,
+                    retryable=True,
+                )
+            if waiver is not None:
+                # A retained historical child has no delivery effect to prune.
+                # Its waiver is never branch-deletion or landing authority.
                 continue
             child = tracker.fetch_issue_detail(identifier)
             if child is None or _text(child.parent_id) != epic.identifier:

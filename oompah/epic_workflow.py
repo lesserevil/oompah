@@ -16,8 +16,8 @@ from __future__ import annotations
 import asyncio
 import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Protocol
 
@@ -40,12 +40,15 @@ from oompah.task_transition_service import (
 )
 from oompah.work_decision import WorkDecision, evaluate_task
 from oompah.workflow_fact_model import (
+    CollectedValue,
     FactDomain,
+    FactObservation,
     FactState,
     LandingFact,
     LandingRequest,
     LandingState,
     WorkflowFacts,
+    _parse_time,
 )
 from oompah.workflow_facts import GitLandingCollector, WorkflowFactCollector
 from oompah.workflow_jobs import (
@@ -68,6 +71,7 @@ from oompah.workflow_worker import (
 
 DEFAULT_EPIC_DECISION_LIMIT = 1000
 _EXACT_HEAD_RE = re.compile(r"^[0-9a-f]{40,64}$")
+_RETAINED_CHILD_PROVENANCE_SCHEMA_VERSION = 1
 
 
 class EpicTargetResolutionError(ValueError):
@@ -267,9 +271,122 @@ class EpicFactCollector:
             if repo_path
             else None
         )
-        self.sources = sources
+        self.sources = {
+            FactDomain(domain): source for domain, source in (sources or {}).items()
+        }
         self.clock = clock
         self.cooperative_checkpoint = cooperative_checkpoint
+
+    def _retained_terminal_provenance(
+        self,
+        child: Issue,
+        *,
+        parent_id: str,
+        status: str,
+        source: str,
+        target: str,
+        revision: str | None,
+        authority_version: str,
+    ) -> Mapping[str, Any] | None:
+        """Compose one exact owner-retention proof for parent rollup.
+
+        The terminal-audit source is the authenticated adapter over the durable
+        owner marker.  This projection deliberately remains containment
+        evidence: retention waives one parent's delivery obligation, but it is
+        not evidence that Git contains the child's commits.
+        """
+
+        provider = self.sources.get(FactDomain.TERMINAL_AUDIT)
+        exact_revision = _exact_head(revision)
+        if (
+            provider is None
+            or status != DONE
+            or not exact_revision
+            or not parent_id
+            or not source
+            or not target
+            or not authority_version
+        ):
+            return None
+        try:
+            observed = provider(child)
+        except Exception:  # noqa: BLE001 - authenticated fact-provider boundary
+            return None
+        if isinstance(observed, FactObservation):
+            if (
+                observed.domain is not FactDomain.TERMINAL_AUDIT
+                or observed.state is not FactState.KNOWN
+            ):
+                return None
+            observed = observed.value
+        elif isinstance(observed, CollectedValue):
+            try:
+                observed_at = _parse_time(observed.observed_at, "observed_at")
+                now = (
+                    self.clock()
+                    if self.clock is not None
+                    else datetime.now(timezone.utc)
+                )
+                if now.tzinfo is None:
+                    return None
+                stale = bool(
+                    observed.stale_after_seconds is not None
+                    and (now.astimezone(timezone.utc) - observed_at).total_seconds()
+                    > observed.stale_after_seconds
+                )
+            except (TypeError, ValueError, OverflowError):
+                return None
+            if stale:
+                return None
+            observed = observed.value
+        if not isinstance(observed, Mapping):
+            return None
+        raw = observed.get("terminal_provenance")
+        if not isinstance(raw, Mapping):
+            return None
+        generation = raw.get("authority_generation")
+        valid = bool(
+            isinstance(raw.get("schema_version"), int)
+            and not isinstance(raw.get("schema_version"), bool)
+            and raw.get("schema_version") == 1
+            and raw.get("marker_present") is True
+            and isinstance(raw.get("marker_version"), int)
+            and not isinstance(raw.get("marker_version"), bool)
+            and raw.get("marker_version") == 1
+            and raw.get("project_id") == self.project_id
+            and raw.get("task_id") == child.identifier
+            and raw.get("retained") is True
+            and raw.get("malformed") is False
+            and isinstance(generation, int)
+            and not isinstance(generation, bool)
+            and generation >= 0
+            and isinstance(raw.get("authorized_by"), str)
+            and str(raw.get("authorized_by") or "").strip()
+            and isinstance(raw.get("actor_source"), str)
+            and str(raw.get("actor_source") or "").strip()
+            and isinstance(raw.get("marked_at"), str)
+            and str(raw.get("marked_at") or "").strip()
+            and isinstance(raw.get("updated_at"), str)
+            and str(raw.get("updated_at") or "").strip()
+        )
+        if not valid:
+            return None
+        return {
+            "schema_version": _RETAINED_CHILD_PROVENANCE_SCHEMA_VERSION,
+            "kind": "owner_terminal_provenance",
+            "project_id": self.project_id,
+            "parent_id": parent_id,
+            "task_id": child.identifier,
+            "status": status,
+            "landing_source": source,
+            "landing_target": target,
+            "revision": exact_revision,
+            "authority_version": authority_version,
+            "marker_version": int(raw["marker_version"]),
+            "provenance_authority_generation": generation,
+            "authorized_by": str(raw["authorized_by"]).strip(),
+            "actor_source": str(raw["actor_source"]).strip(),
+        }
 
     def _graph(self, root: Issue) -> EpicGraph:
         direct: list[Mapping[str, Any]] = []
@@ -337,29 +454,49 @@ class EpicFactCollector:
                 # and makes a root decision depend on grandchildren that its
                 # nested child already owns.
                 if parent.identifier == root.identifier:
-                    direct.append(
-                        {
-                            "identifier": identifier,
-                            "status": status,
-                            "issue_type": child.issue_type,
-                            "parent_id": child.parent_id,
-                            "kind": "archived"
-                            if archived
-                            else "nested_epic"
-                            if nested
-                            else "maintenance"
-                            if maintenance
-                            else "normal",
-                            "maintenance": maintenance,
-                            "requires_landing": not maintenance and not archived,
-                            "landing_source": source,
-                            "landing_target": target,
-                            "revision": revision,
-                            "prefer_live_source": nested,
-                            "authority_version": issue_authority_version(child),
-                            "exact_head": issue_exact_head(child),
-                        }
+                    authority_version = issue_authority_version(child)
+                    projected: dict[str, Any] = {
+                        "identifier": identifier,
+                        "status": status,
+                        "issue_type": child.issue_type,
+                        "parent_id": child.parent_id,
+                        "kind": "archived"
+                        if archived
+                        else "nested_epic"
+                        if nested
+                        else "maintenance"
+                        if maintenance
+                        else "normal",
+                        "maintenance": maintenance,
+                        "requires_landing": not maintenance and not archived,
+                        "landing_source": source,
+                        "landing_target": target,
+                        "revision": revision,
+                        "prefer_live_source": nested,
+                        "authority_version": authority_version,
+                        "exact_head": issue_exact_head(child),
+                    }
+                    provenance_child = (
+                        child
+                        if child.project_id
+                        else replace(child, project_id=self.project_id)
                     )
+                    retained = (
+                        None
+                        if maintenance or archived
+                        else self._retained_terminal_provenance(
+                            provenance_child,
+                            parent_id=root.identifier,
+                            status=status,
+                            source=source,
+                            target=target,
+                            revision=revision,
+                            authority_version=authority_version,
+                        )
+                    )
+                    if retained is not None:
+                        projected["retained_terminal_provenance"] = retained
+                    direct.append(projected)
                 # Walk every node, not only declared epics.  A malformed
                 # task->epic->task cycle must be rejected before any rollup
                 # review can be created.
@@ -442,6 +579,7 @@ class EpicFactCollector:
             )
             for child in graph.children
             if child.get("requires_landing")
+            and child.get("retained_terminal_provenance") is None
         ]
         # The epic's own landing is deliberately included as a separate fact.
         # Rollup readiness only consumes child facts; auto-close/terminal
