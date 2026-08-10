@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-998
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Compose retained terminal child provenance into parent rollup authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T15:38:22.780396Z'
-updated_at: '2026-08-10T15:38:22.780396Z'
+updated_at: '2026-08-10T15:41:40.044033Z'
 work_branch: null
 target_branch: null
 review_url: null
