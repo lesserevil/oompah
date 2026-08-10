@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T02:42:39.740073Z'
-updated_at: '2026-08-10T05:15:17.080338Z'
+updated_at: '2026-08-10T05:15:24.129175Z'
 work_branch: OOMPAH-981
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/793
@@ -57,6 +57,16 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-10T05:04:52.603754+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-981
+    target_state: Merged
+    evidence_fingerprint: ae2e30ef3c71bc135ddebea0aac3b0eed37fe1cb534fa7d0517c3d9d8bf52c85
+    audit_ids:
+    - audit-dd2821494e7f
+    - audit-b2fe39e75f67
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T05:15:22.632961+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-981
@@ -71,6 +81,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-10T05:04:52.603766+00:00'
     applied_at: '2026-08-10T05:04:59.628211+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-a78f41ff99b0
@@ -94,7 +105,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T05:15:13.085677+00:00'
     selected_ref: ca2a1dc03822a181b57f153f60bbff851004d061
     selected_sha: ca2a1dc03822a181b57f153f60bbff851004d061
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -141,7 +152,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-981
     target_state: Merged
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -171,7 +182,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T04:40:15.636623+00:00'
     selected_ref: ca2a1dc03822a181b57f153f60bbff851004d061
     selected_sha: ca2a1dc03822a181b57f153f60bbff851004d061
-    updated_at: '2026-08-10T05:13:23.288953+00:00'
+    updated_at: '2026-08-10T05:15:22.632926+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-b542f1861b7f
@@ -312,5 +323,12 @@ author: oompah
 created: 2026-08-10 05:13
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-10 05:15
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Project-owner terminal override after exact accepted head ca2a1dc03822a181b57f153f60bbff851004d061 passed the authoritative branch gate, protected Python 3.11/3.12/3.13 CI, and an independent Done audit with 19,292 passing tests; PR #793 merged as 295df91c40f17a50ce6cf0d640c0667c48b469de and the exact head is contained in origin/main. The Merged-stage auditor entered the same redundant full-gate path already reproduced by OOMPAH-983; OOMPAH-988 tracks the deployed gate-reuse regression.
 ---
 <!-- COMMENTS:END -->
