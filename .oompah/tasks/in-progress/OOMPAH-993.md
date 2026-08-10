@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T10:52:26.512449Z'
-updated_at: '2026-08-10T10:52:51.612669Z'
+updated_at: '2026-08-10T11:25:05.542862Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Replace the lock-spanning standalone-delivery mutation path with admitted, gener
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 11:25
+---
+Implemented and pushed commit 03c67abb8 on branch OOMPAH-993. Standalone tracker/forge effects now use exact generation-bound admission without retaining project, authority, lifecycle, or issue locks across external callbacks. Busy terminal revocation marks the admitted generation pending and TaskTransitionService journals a retryable transition; replacement claims are deferred to preserve ABA fencing. Irreversible review creation remains admitted through capacity/metadata/In Review publication, preventing orphan PRs. Coverage includes the exact ProvenanceGuardedTracker quality-gate failure transition to Needs CI Fix, revocation/replacement races, terminal-during-create no-orphan publication, lock observations, all terminal revocation entry points, and retry journaling. Verification: standalone delivery 84 passed; task transition service 86 passed; terminal coordinator 228 passed; focused quality-gate 3 passed; make terminal-audit-scan passed.
+---
+<!-- COMMENTS:END -->
