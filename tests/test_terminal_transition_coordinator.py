@@ -539,6 +539,127 @@ def test_composed_landing_revision_binds_audit_without_mutable_task_ref() -> Non
     assert project_store.resolve_calls == [revision, revision]
 
 
+def test_headless_root_epic_landing_revision_binds_terminal_audit() -> None:
+    tracker = _MemoryTracker()
+    revision = "3" * 40
+    project_store = _RevisionLockStore({revision: revision})
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    issue = Issue(
+        id="OOMPAH-940",
+        identifier="OOMPAH-940",
+        title="Systemic workflow program",
+        description="Accepted into the default branch.",
+        state="In Progress",
+        issue_type="epic",
+        project_id=PROJECT_ID,
+        parent_id=None,
+        work_branch=None,
+        target_branch=None,
+        head_sha=None,
+        integration=None,
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, PROJECT_ID)
+    trigger = ContributorIdentity("oompah", "orchestrator")
+
+    result = _run(
+        coordinator.request_transition(
+            issue,
+            TargetState.MERGED,
+            trigger,
+            PROJECT_ID,
+            fingerprint,
+            mutation_guard=lambda: None,
+            revision_binding=AuditRevisionBinding(revision, revision),
+        )
+    )
+    document = TerminalAuditMetadataStore(
+        tracker, project_store, PROJECT_ID
+    ).read(issue.identifier)
+
+    assert result.success
+    assert [record.target_state for record in document.pending_chain] == [
+        TargetState.DONE,
+        TargetState.MERGED,
+    ]
+    assert all(record.selected_ref == revision for record in document.pending_chain)
+    assert all(record.selected_sha == revision for record in document.pending_chain)
+    assert tracker.current_status(issue.identifier) == IN_VALIDATION
+    assert project_store.resolve_calls == [revision]
+
+
+@pytest.mark.parametrize(
+    ("mutation", "reason"),
+    (
+        ("missing_guard", "requires a workflow mutation guard"),
+        ("wrong_role", "requires a current Done task"),
+        ("wrong_status", "requires a current In Progress task"),
+        ("wrong_target", "requires a Merged transition"),
+        ("parented", "requires a root epic"),
+        ("non_epic", "requires an epic task"),
+        ("ordinary_head", "cannot replace a task-owned head"),
+        ("wrong_project", "project authority changed"),
+        ("non_sha_ref", "must use its exact SHA as the ref"),
+        ("unresolvable", "revision is unavailable"),
+        ("mismatch", "resolved to a different commit"),
+    ),
+)
+def test_headless_root_epic_landing_revision_override_fails_closed(
+    mutation,
+    reason,
+) -> None:
+    revision = "3" * 40
+    revisions = {revision: revision}
+    if mutation == "unresolvable":
+        revisions = {}
+    elif mutation == "mismatch":
+        revisions = {revision: "4" * 40}
+    tracker = _MemoryTracker()
+    project_store = _RevisionLockStore(revisions)
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    issue = Issue(
+        id="OOMPAH-940",
+        identifier="OOMPAH-940",
+        title="Systemic workflow program",
+        state="In Review" if mutation == "wrong_status" else "In Progress",
+        issue_type="task" if mutation == "non_epic" else "epic",
+        project_id="wrong-project" if mutation == "wrong_project" else PROJECT_ID,
+        parent_id="PARENT-1" if mutation == "parented" else None,
+        head_sha=revision if mutation == "ordinary_head" else None,
+    )
+    trigger = ContributorIdentity(
+        "oompah",
+        "integrator" if mutation == "wrong_role" else "orchestrator",
+    )
+    binding = AuditRevisionBinding(
+        "origin/epic-OOMPAH-940" if mutation == "non_sha_ref" else revision,
+        revision,
+    )
+
+    result = _run(
+        coordinator.request_transition(
+            issue,
+            TargetState.DONE if mutation == "wrong_target" else TargetState.MERGED,
+            trigger,
+            PROJECT_ID,
+            compute_issue_evidence_fingerprint(issue, PROJECT_ID),
+            mutation_guard=None if mutation == "missing_guard" else lambda: None,
+            revision_binding=binding,
+        )
+    )
+
+    assert not result.success
+    assert reason in str(result.reason)
+    assert tracker.update_calls == []
+
+
 @pytest.mark.parametrize(
     ("mutation", "reason"),
     (

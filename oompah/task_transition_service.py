@@ -37,6 +37,7 @@ from oompah.models import Issue
 from oompah.statuses import (
     ARCHIVED,
     DONE,
+    IN_PROGRESS,
     IN_VALIDATION,
     MERGED,
     NEEDS_HUMAN,
@@ -407,6 +408,47 @@ class TransitionIntent:
         return cls(**dict(raw))
 
 
+def _guarded_landing_revision_lane(
+    intent: TransitionIntent,
+    issue: Issue,
+) -> str | None:
+    """Identify a narrowly authorized headless landing-revision intent.
+
+    A supplied immutable landing SHA is external revision authority: it may
+    replace a task-owned head only when the workflow intent binds both its
+    durable job generation and the freshly revalidated evidence revision.
+    The original composed-child lane remains unchanged.  A root epic gets the
+    same exception only for its orchestrator-owned auto-close from the live
+    ``In Progress`` rollup state.
+    """
+
+    if (
+        intent.exact_head is None
+        or issue_exact_head(issue) is not None
+        or intent.requested_status != MERGED
+        or intent.reason_code != "terminal.immediate_target_landing_proven"
+        or intent.precondition_revision is None
+        or intent.evidence_generation is None
+    ):
+        return None
+    parent_id = str(getattr(issue, "parent_id", "") or "").strip()
+    if (
+        canonicalize_status(issue.state) == DONE
+        and intent.authority is TransitionAuthority.INTEGRATOR
+        and parent_id
+    ):
+        return "composed_child"
+    if (
+        canonicalize_status(issue.state) == IN_PROGRESS
+        and intent.authority is TransitionAuthority.ORCHESTRATOR
+        and not parent_id
+        and str(getattr(issue, "issue_type", "") or "").strip().lower()
+        == "epic"
+    ):
+        return "root_epic"
+    return None
+
+
 @dataclass(frozen=True, slots=True)
 class TransitionOutcome:
     """Serializable result returned for new and replayed requests."""
@@ -506,18 +548,12 @@ class CoordinatorTerminalAdapter:
             ),
         )
         if (
-            intent.exact_head is not None
-            and issue_exact_head(issue) is None
-            and intent.requested_status == MERGED
-            and intent.authority is TransitionAuthority.INTEGRATOR
-            and intent.reason_code
-            == "terminal.immediate_target_landing_proven"
-            and intent.precondition_revision is not None
-            and str(getattr(issue, "parent_id", "") or "").strip()
+            _guarded_landing_revision_lane(intent, issue) is not None
+            and self._mutation_guard is not None
         ):
-            # A composed child no longer owns a mutable task branch/head.  Its
-            # guarded workflow intent carries the immutable parent-scoped
-            # landing SHA, which must also bind the terminal audit itself.
+            # A composed child or landed root epic no longer owns a mutable
+            # task head.  Its guarded workflow intent carries the immutable
+            # immediate-target landing SHA, which must bind the audit itself.
             fields["revision_binding"] = AuditRevisionBinding(
                 intent.exact_head,
                 intent.exact_head,
@@ -1818,17 +1854,10 @@ class TaskTransitionService:
                 return outcome
             if intent.exact_head:
                 observed_head = issue_exact_head(issue)
-                composed_landing_head = bool(
-                    observed_head is None
-                    and canonicalize_status(issue.state) == DONE
-                    and intent.requested_status == MERGED
-                    and intent.authority is TransitionAuthority.INTEGRATOR
-                    and intent.reason_code
-                    == "terminal.immediate_target_landing_proven"
-                    and intent.precondition_revision
-                    and str(getattr(issue, "parent_id", "") or "").strip()
+                guarded_landing_head = (
+                    _guarded_landing_revision_lane(intent, issue) is not None
                 )
-                if observed_head != intent.exact_head and not composed_landing_head:
+                if observed_head != intent.exact_head and not guarded_landing_head:
                     outcome = self._outcome(
                         transition_id,
                         intent,

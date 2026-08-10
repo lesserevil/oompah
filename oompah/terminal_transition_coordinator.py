@@ -80,6 +80,7 @@ from oompah.models import (
 from oompah.statuses import (
     ARCHIVED,
     DONE,
+    IN_PROGRESS,
     IN_REVIEW,
     IN_VALIDATION,
     MERGED,
@@ -1223,19 +1224,35 @@ class TerminalTransitionCoordinator:
         mutation_guard: Callable[[], str | None] | None,
         binding: AuditRevisionBinding,
     ) -> str | None:
-        """Re-prove the one lane allowed to supply external revision authority."""
+        """Re-prove the narrow lanes allowed external revision authority."""
 
         if target is not TargetState.MERGED:
             return "trusted composed landing revision requires a Merged transition"
-        if canonicalize_status(issue.state) != DONE:
-            return "trusted composed landing revision requires a current Done task"
-        if not str(getattr(issue, "parent_id", None) or "").strip():
-            return "trusted composed landing revision requires a parented task"
+        source = str(trigger_identity.source or "").strip().lower()
+        parent_id = str(getattr(issue, "parent_id", None) or "").strip()
+        if source == "orchestrator":
+            if canonicalize_status(issue.state) != IN_PROGRESS:
+                return (
+                    "trusted root-epic landing revision requires a current "
+                    "In Progress task"
+                )
+            if (
+                str(getattr(issue, "issue_type", None) or "").strip().lower()
+                != "epic"
+            ):
+                return "trusted root-epic landing revision requires an epic task"
+            if parent_id:
+                return "trusted root-epic landing revision requires a root epic"
+        else:
+            if canonicalize_status(issue.state) != DONE:
+                return "trusted composed landing revision requires a current Done task"
+            if not parent_id:
+                return "trusted composed landing revision requires a parented task"
         if self._issue_exact_head(issue) is not None:
             return "trusted composed landing revision cannot replace a task-owned head"
         if str(getattr(issue, "project_id", None) or "").strip() != project_id:
             return "trusted composed landing revision project authority changed"
-        if str(trigger_identity.source or "").strip().lower() != "integrator":
+        if source not in {"integrator", "orchestrator"}:
             return "trusted composed landing revision requires integrator authority"
         if mutation_guard is None:
             return "trusted composed landing revision requires a workflow mutation guard"
