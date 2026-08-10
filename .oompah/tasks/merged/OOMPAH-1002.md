@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T17:51:08.587712Z'
-updated_at: '2026-08-10T18:40:01.118670Z'
+updated_at: '2026-08-10T18:40:15.264527Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,7 +47,17 @@ oompah.terminal_audit:
     created_at: '2026-08-10T18:39:54.947426+00:00'
     selected_ref: origin/OOMPAH-1002
     selected_sha: 7cfcf162352a308c0cbabb18f617a9d688641d7b
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1002
+    target_state: Merged
+    evidence_fingerprint: e90a4c968e025127c8fc871e44d7a600a588142200124c6f75b2ecdcd7983f83
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T18:40:07.898486+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -80,5 +90,17 @@ author: oompah
 created: 2026-08-10 18:20
 ---
 Protected recovery candidate: PR #800 carries exact OOMPAH-1002 commit 7cfcf162352a308c0cbabb18f617a9d688641d7b in combined head 017956bd637bfd3dd9124396fef394b439f47d6a. Clean combined focused result: 426 passed; full Makefile gate, protected Python 3.11/3.12/3.13 CI, and independent adversarial review are running on that exact head.
+---
+author: oompah
+created: 2026-08-10 18:40
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Exact implementation 7cfcf162352a308c0cbabb18f617a9d688641d7b is contained in protected merge 8eac2ae5097e84840d6b07fe965b37224c0f7960 via PR #800; combined exact head 017956bd637bfd3dd9124396fef394b439f47d6a passed the complete local Makefile gate and protected Python 3.11/3.12/3.13 CI, with independent adversarial approval.
+---
+author: oompah
+created: 2026-08-10 18:40
+---
+Merged through protected PR #800. Exact combined verification: 19,520 passed, 7 skipped, 2 xfailed locally; protected Python 3.11/3.12/3.13 jobs passed; independent review approved. Deployed in server revision 8eac2ae5097e84840d6b07fe965b37224c0f7960.
 ---
 <!-- COMMENTS:END -->
