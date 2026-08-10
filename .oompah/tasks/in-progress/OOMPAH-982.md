@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-982
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Retire implementation recovery when direct owner holds authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T02:54:36.526201Z'
-updated_at: '2026-08-10T02:54:36.526201Z'
+updated_at: '2026-08-10T02:55:02.703146Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ Live reproduction on OOMPAH-981: after a supported direct-owner claim became act
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 02:55
+---
+Claimed for direct-owner completion from the exact OOMPAH-981 live exhausted recovery generation. A separate implementation branch is being worked in parallel with OOMPAH-981.
+---
+<!-- COMMENTS:END -->
