@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T10:52:35.641259Z'
-updated_at: '2026-08-10T11:13:50.944856Z'
+updated_at: '2026-08-10T11:18:59.048600Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-08-10 11:13
 ---
 Submission attempted after push but the server rejected it with: submission Git authority rejected: origin/epic-OOMPAH-992 is not published. Implementation is complete and branch OOMPAH-995 is clean/up to date at 853fa473ec258e9171a12d550891789b20906242; parent integration must publish/restore the expected epic-OOMPAH-992 authority before resubmitting.
+---
+author: oompah
+created: 2026-08-10 11:18
+---
+Exact-head integration review blocker fixed and pushed at replacement head c57295dce36f0d0a529aef5b6c9f904ec343af6d. Managed generic tracker mutations now use short ProjectStore admission/finalization tokens: admission marks the project mutation active and advances the revision under the project lock, external tracker/SCM/network work runs with no project lock, and finalization retires the token and advances the revision under the lock even when the callback raises. Publication requires a quiescent exact revision, so any active, completed, failed, or overlapping mutation supersedes stale evidence. Added barrier coverage proving a blocked external create does not own the project lock and quality publication fails closed without reading the tracker; success, exception cleanup, overlapping-active mutation, and MagicMock/legacy compatibility paths are covered. Replacement focused verification: 350 quality/workflow tests passed; 73 provenance/project-lock tests passed; py_compile, git diff --check, terminal-audit scan, and commit secret hooks passed. Per integration instruction, task submission was not retried.
 ---
 <!-- COMMENTS:END -->
