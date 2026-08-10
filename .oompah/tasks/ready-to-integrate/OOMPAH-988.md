@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-988
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Reuse exact branch gates after the accepted head lands and its branch is deleted
 parent: null
@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T05:18:40.854524Z'
-updated_at: '2026-08-10T05:47:16.378811Z'
-work_branch: null
+updated_at: '2026-08-10T05:47:26.228196Z'
+work_branch: OOMPAH-988
 target_branch: null
 review_url: null
 review_number: null
@@ -27,6 +27,7 @@ oompah.integration:
   head_sha: 2028162ed44c38137ac41b57d1286fe58e0d4ce7
   submitted_at: '2026-08-10T05:47:12.827963+00:00'
   updated_at: '2026-08-10T05:47:12.827963+00:00'
+oompah.work_branch: OOMPAH-988
 ---
 ## Summary
 
@@ -54,5 +55,10 @@ author: oompah
 created: 2026-08-10 05:47
 ---
 Independent exact-head review ACCEPTED 2028162ed44c38137ac41b57d1286fe58e0d4ce7 with no correctness blockers. The reviewer independently confirmed both OOMPAH-983 and OOMPAH-981 passing gate records, deleted local/tracking/remote source refs, and accepted-head ancestry on origin/main; all selected binding, review identity, source absence, target freshness/ancestry, live ABA, and fail-closed negative surfaces are covered.
+---
+author: oompah
+created: 2026-08-10 05:47
+---
+Preserved immutable terminal-audit revision bindings and reuse exact passing branch gates after normal post-review branch deletion only when review identity, remote absence, and target ancestry all prove the same accepted head. Added fail-closed regression coverage; 193 post-rebase affected tests passed and independent exact-head review accepted.
 ---
 <!-- COMMENTS:END -->
