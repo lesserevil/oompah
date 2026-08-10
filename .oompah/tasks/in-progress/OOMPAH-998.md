@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T15:38:22.780396Z'
-updated_at: '2026-08-10T15:42:02.468809Z'
+updated_at: '2026-08-10T16:12:41.942390Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,3 +37,11 @@ Triggered by OOMPAH-940. Problem: every one of OOMPAH-940s 16 children is termin
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 16:12
+---
+Implementation complete at 9bf6011ac2481cbf3f73fe23085788814aa69434 and pushed to origin/OOMPAH-998. Exact retained terminal child provenance now composes as a scoped parent-rollup waiver without forging Git landing or cleanup authority; generation-zero, revocation races, scope/head/route mismatches, restart idempotency, and cleanup non-authority are covered. Verification: 217 focused tests passed locally; independent implementation/review suites passed 358 and 121 tests; changed-code lint, diff check, terminal-audit scan, and secret scan pass.
+---
+<!-- COMMENTS:END -->
