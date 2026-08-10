@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-973
 type: task
-status: Done
+status: Merged
 priority: null
 title: Make deferred gate cleanup proof deterministic under loaded CI
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T20:35:08.355449Z'
-updated_at: '2026-08-09T21:05:39.097855Z'
+updated_at: '2026-08-10T01:17:33.919019Z'
 work_branch: OOMPAH-973
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/781
@@ -56,6 +56,25 @@ oompah.terminal_audit:
     selected_ref: ddf671f9397b923acf628bfdf1cc74cf03cb5fd3
     selected_sha: ddf671f9397b923acf628bfdf1cc74cf03cb5fd3
     applied: true
+  - version: 1
+    override_id: override-6ae9e39436be
+    project_id: proj-14849f1b
+    task_id: OOMPAH-973
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8c4b71dd008ac3a10d9028875b96d4e2da38aaaf38e5d396b61108f598a7c15a
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Selected or integrated head ddf671f is an ancestor of current main and
+      the completed audit evidence is preserved; retire the historical record as Merged.
+    created_at: '2026-08-10T01:17:28.969719+00:00'
+    selected_ref: ddf671f9397b923acf628bfdf1cc74cf03cb5fd3
+    selected_sha: ddf671f9397b923acf628bfdf1cc74cf03cb5fd3
+    applied: false
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-973

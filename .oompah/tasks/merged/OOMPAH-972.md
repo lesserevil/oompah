@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T20:03:49.482603Z'
-updated_at: '2026-08-10T01:17:20.394202Z'
+updated_at: '2026-08-10T01:17:26.958497Z'
 work_branch: OOMPAH-972
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/780
@@ -82,7 +82,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T01:17:15.326556+00:00'
     selected_ref: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
     selected_sha: 9f5bc28fb7daec2d1c0fa35ec46a535c6881272e
-    applied: false
+    applied: true
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-972
@@ -94,6 +94,16 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-08-09T20:45:08.904143+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-972
+    target_state: Merged
+    evidence_fingerprint: 7b7bc1bca3f3a6b5c7665b44fa302e34ebec9b426087ff6170d80c119fc8a269
+    audit_ids:
+    - audit-086401438eaf
+    - audit-421c9eb62469
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T01:17:25.457878+00:00'
   oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
@@ -229,5 +239,12 @@ author: oompah
 created: 2026-08-09 20:45
 ---
 Safe stale-editable repair after worktree pruning is merged via PR #780 with the protected three-version matrix green; the unrelated cleanup timing race is being fixed separately in OOMPAH-973.
+---
+author: oompah
+created: 2026-08-10 01:17
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Selected or integrated head 9f5bc28 is an ancestor of current main and the completed audit evidence is preserved; retire the historical record as Merged.
 ---
 <!-- COMMENTS:END -->
