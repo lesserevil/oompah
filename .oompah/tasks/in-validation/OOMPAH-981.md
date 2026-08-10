@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-981
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Route post-landing epic follow-ups to the live target branch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T02:42:39.740073Z'
-updated_at: '2026-08-10T04:21:49.597297Z'
+updated_at: '2026-08-10T04:40:24.431815Z'
 work_branch: OOMPAH-981
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/793
@@ -32,6 +32,62 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/793
 oompah.review_number: '793'
 oompah.target_branch: main
 oompah.review_head: ca2a1dc03822a181b57f153f60bbff851004d061
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-dd2821494e7f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-981
+    digest: ae2e30ef3c71bc135ddebea0aac3b0eed37fe1cb534fa7d0517c3d9d8bf52c85
+  - version: 1
+    audit_id: audit-b2fe39e75f67
+    project_id: proj-14849f1b
+    task_id: OOMPAH-981
+    digest: ae2e30ef3c71bc135ddebea0aac3b0eed37fe1cb534fa7d0517c3d9d8bf52c85
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-dd2821494e7f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-981
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ae2e30ef3c71bc135ddebea0aac3b0eed37fe1cb534fa7d0517c3d9d8bf52c85
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-10T04:40:15.636623+00:00'
+    selected_ref: ca2a1dc03822a181b57f153f60bbff851004d061
+    selected_sha: ca2a1dc03822a181b57f153f60bbff851004d061
+  - version: 1
+    audit_id: audit-b2fe39e75f67
+    project_id: proj-14849f1b
+    task_id: OOMPAH-981
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ae2e30ef3c71bc135ddebea0aac3b0eed37fe1cb534fa7d0517c3d9d8bf52c85
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-10T04:40:15.636623+00:00'
+    selected_ref: ca2a1dc03822a181b57f153f60bbff851004d061
+    selected_sha: ca2a1dc03822a181b57f153f60bbff851004d061
+  attempt_history: []
 ---
 ## Summary
 
@@ -71,5 +127,10 @@ author: oompah
 created: 2026-08-10 04:21
 ---
 Branch quality gate passed for `ca2a1dc03822a181b57f153f60bbff851004d061` using `make test` in 168.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-10 04:40
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
