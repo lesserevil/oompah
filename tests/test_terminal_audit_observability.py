@@ -13,7 +13,7 @@ import pytest
 
 from oompah.auditor_candidate_selector import AuditorCandidateSelector
 from oompah.config import ServiceConfig
-from oompah.models import Issue, RunningEntry
+from oompah.models import Issue, Project, RunningEntry
 from oompah.orchestrator import (
     DispatchEventType,
     Orchestrator,
@@ -30,6 +30,7 @@ from oompah.terminal_audit import (
     TargetState,
     TerminalAuditRecord,
     Verdict,
+    compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_health import (
     HEALTH_ALERT_PREFIX,
@@ -291,6 +292,96 @@ def test_quality_gate_decision_and_validation_lane_telemetry_survive_restart() -
     assert snapshot["validation"]["last_command"]["category"] == (
         "focused_supplemental_commands"
     )
+
+
+def test_direct_recovery_gate_telemetry_uses_durable_audit_head() -> None:
+    """A missing reusable gate must still report the exact staged audit head."""
+
+    head = "a" * 40
+    issue = Issue(
+        id="TASK-1",
+        identifier="TASK-1",
+        title="Direct recovery",
+        description="",
+        state="In Validation",
+        project_id="project-a",
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, "project-a")
+    attempt = AuditAttempt(
+        attempt_id="attempt-1",
+        target_state=TargetState.MERGED,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        branch_key="work",
+        selected_ref=head,
+        selected_sha=head,
+    )
+    record = TerminalAuditRecord(
+        audit_id="audit-1",
+        project_id="project-a",
+        task_id="TASK-1",
+        target_state=TargetState.MERGED,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        attempts=[attempt],
+        previous_state="Ready to Integrate",
+        selected_ref=head,
+        selected_sha=head,
+    )
+    tracker = _MetadataTracker()
+    tracker.issues[issue.identifier] = issue
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
+    }
+    project = Project(
+        id="project-a",
+        name="project-a",
+        repo_url="repo",
+        repo_path="/managed/repo",
+        default_branch="main",
+        test_command_full="make test",
+    )
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.project_store = MagicMock()
+    orchestrator.project_store.project_write_lock.return_value = threading.RLock()
+    orchestrator._tracker_for_project = MagicMock(return_value=tracker)
+    orchestrator._branch_quality_gate = MagicMock()
+    orchestrator._branch_quality_gate.lookup.return_value = None
+    orchestrator._quality_gate_branch_head = MagicMock()
+    orchestrator._terminal_audit_metrics = TerminalAuditMetrics()
+    target = SimpleNamespace(
+        project_id="project-a",
+        task_id="TASK-1",
+        audit_id="audit-1",
+        attempt_id="attempt-1",
+        target_state="Merged",
+        previous_state="Ready to Integrate",
+        evidence_fingerprint=fingerprint.digest,
+        selected_ref=head,
+        selected_sha=head,
+    )
+
+    bundle = orchestrator._terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        target,
+    )
+    snapshot = orchestrator._terminal_audit_metrics.snapshot()
+
+    assert bundle["decision"] == "full_gate_required"
+    assert bundle["accepted_head_sha"] == head
+    assert snapshot["validation"]["last_decision"]["decision"] == (
+        "full_gate_required"
+    )
+    assert snapshot["validation"]["last_decision"]["head_sha"] == head
+    orchestrator._branch_quality_gate.lookup.assert_called_once_with(
+        repo_identity="repo",
+        target_branch="main",
+        work_branch="work",
+        head_sha=head,
+        command="make test",
+    )
+    orchestrator._quality_gate_branch_head.assert_not_called()
 
 
 @pytest.mark.parametrize(
