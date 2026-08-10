@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T00:01:51.280685Z'
-updated_at: '2026-08-10T01:30:12.916173Z'
+updated_at: '2026-08-10T01:30:18.562104Z'
 work_branch: OOMPAH-979
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/788
@@ -45,7 +45,8 @@ oompah.terminal_audit:
     evidence_fingerprint: afd8ddcd70579812b8ac85a46768653c33469edb1027f13555242afcaf04a8fe
     audit_ids:
     - audit-15ac04e641a3
-    kind: result
+    - audit-70133afd9cb3
+    kind: override
     applied: true
     retired_at: '2026-08-10T01:29:22.070375+00:00'
   oompah.terminal_audit_result_intents:
@@ -62,6 +63,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-10T01:29:22.070386+00:00'
     applied_at: '2026-08-10T01:29:28.678507+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-ee3d560ea645
@@ -84,7 +86,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T01:30:07.843006+00:00'
     selected_ref: origin/OOMPAH-979
     selected_sha: 7fc8bc8ea4a36c952a96349406a173c6b85ec94e
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -132,7 +134,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-979
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -147,6 +149,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T01:04:21.175179+00:00'
     selected_ref: origin/OOMPAH-979
     selected_sha: 7fc8bc8ea4a36c952a96349406a173c6b85ec94e
+    updated_at: '2026-08-10T01:30:16.979093+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6928a15b52cd
@@ -248,5 +251,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 22m 53s
 - Log: OOMPAH-979__20260810T010657Z.jsonl
+---
+author: oompah
+created: 2026-08-10 01:30
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Exact head 7fc8bc8ea4a36c952a96349406a173c6b85ec94e is merged to main as 7f9d2bf37624badc6537789cb65be7d21ffa2a85; the exact-head full make test gate passed in 169.1s, 760 focused tests passed independently, and protected Python 3.11, 3.12, and 3.13 CI all passed. The later redundant rerun overlapped documented ext4 journal stalls and exited without a verdict.
 ---
 <!-- COMMENTS:END -->
