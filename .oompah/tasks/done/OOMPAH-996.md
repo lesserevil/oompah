@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T12:43:02.225351Z'
-updated_at: '2026-08-10T15:41:12.089332Z'
+updated_at: '2026-08-10T15:41:17.955142Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,7 +37,17 @@ oompah.terminal_audit:
       parent OOMPAH-992 is authoritatively terminal and protected CI passed. Recording
       shared-child completion as Done because no separate parent review record exists.'
     created_at: '2026-08-10T15:41:05.516475+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-996
+    target_state: Done
+    evidence_fingerprint: c2d2af68429c921f643244189a70b961f59b093b1adf45771ab47402f94a4b6f
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T15:41:16.380092+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -70,5 +80,12 @@ author: oompah
 created: 2026-08-10 14:31
 ---
 Residual stop-race repair is committed locally at exact integration head bb81282585fa91b1a88ae4409aaa58b99133482a. Root cause was an incomplete empty live-process snapshot being mistaken for proof of retirement, which skipped SIGKILL. The fix preserves snapshot completeness, escalates on uncertainty, partitions refresh/signal/observation deadlines, and adds deterministic incomplete-snapshot plus leak-safe fork coverage. Independent safety review approved. Focused evidence: Python 3.11 27 passed; Python 3.12 27 passed; original adversarial test 100/100 fresh-process runs; adjacent orchestrator 14 passed; process-global sentinel gate passed. Starting the exact full Makefile gate; head remains unpushed until it passes.
+---
+author: oompah
+created: 2026-08-10 15:41
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: PR #798 merged as 2ab880be5 with exact OOMPAH-996 integration head bb8128258; parent OOMPAH-992 is authoritatively terminal and protected CI passed. Recording shared-child completion as Done because no separate parent review record exists.
 ---
 <!-- COMMENTS:END -->
