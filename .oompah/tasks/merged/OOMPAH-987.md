@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-987
 type: bug
-status: Ready to Integrate
+status: Merged
 priority: 1
 title: Prevent post-gate auditor inspection from blocking behind the next full gate
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T04:50:28.752372Z'
-updated_at: '2026-08-10T06:28:06.854362Z'
+updated_at: '2026-08-10T06:38:32.939027Z'
 work_branch: OOMPAH-987
 target_branch: null
 review_url: null
@@ -28,6 +28,81 @@ oompah.integration:
   submitted_at: '2026-08-10T05:47:48.858881+00:00'
   updated_at: '2026-08-10T05:47:48.858881+00:00'
 oompah.work_branch: OOMPAH-987
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-1226d23d0cc3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-987
+    digest: 15ef33bb524a2e2f1e7c382acccf861138b2f80fb73de5bba5abfe0e4705a203
+  - version: 1
+    audit_id: audit-e2484f59e568
+    project_id: proj-14849f1b
+    task_id: OOMPAH-987
+    digest: 15ef33bb524a2e2f1e7c382acccf861138b2f80fb73de5bba5abfe0e4705a203
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-300a4cb7c63a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-987
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 15ef33bb524a2e2f1e7c382acccf861138b2f80fb73de5bba5abfe0e4705a203
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-10T06:38:28.688346+00:00'
+    selected_ref: dcfbceebeab1e489e88a87dc9e8da6b6ddff8623
+    selected_sha: dcfbceebeab1e489e88a87dc9e8da6b6ddff8623
+    applied: false
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-1226d23d0cc3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-987
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 15ef33bb524a2e2f1e7c382acccf861138b2f80fb73de5bba5abfe0e4705a203
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-10T06:38:20.255039+00:00'
+    selected_ref: dcfbceebeab1e489e88a87dc9e8da6b6ddff8623
+    selected_sha: dcfbceebeab1e489e88a87dc9e8da6b6ddff8623
+  - version: 1
+    audit_id: audit-e2484f59e568
+    project_id: proj-14849f1b
+    task_id: OOMPAH-987
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 15ef33bb524a2e2f1e7c382acccf861138b2f80fb73de5bba5abfe0e4705a203
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-10T06:38:20.255039+00:00'
+    selected_ref: dcfbceebeab1e489e88a87dc9e8da6b6ddff8623
+    selected_sha: dcfbceebeab1e489e88a87dc9e8da6b6ddff8623
+  attempt_history: []
 ---
 ## Summary
 
@@ -67,5 +142,10 @@ author: oompah
 created: 2026-08-10 06:28
 ---
 Exact full branch gate passed at unchanged pushed head dcfbceebeab1e489e88a87dc9e8da6b6ddff8623: make test completed with 19,306 passed, 7 skipped, 2 xfailed, 48 warnings in 1,393.61s. The task-status mutation scan passed 20/20; worktree is clean and origin/OOMPAH-987 resolves to the same exact head. Proceeding to protected PR CI against main through OOMPAH-982.
+---
+author: oompah
+created: 2026-08-10 06:38
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
