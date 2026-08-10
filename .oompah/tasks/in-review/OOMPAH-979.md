@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-979
 type: task
-status: In Progress
+status: In Review
 priority: null
 title: Bound terminal publication locks so owner control cannot starve
 parent: OOMPAH-940
@@ -11,13 +11,18 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T00:01:51.280685Z'
-updated_at: '2026-08-10T00:53:16.559194Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
-review_head: null
+updated_at: '2026-08-10T00:57:44.029722Z'
+work_branch: OOMPAH-979
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/788
+review_number: '788'
+review_head: 7fc8bc8ea4a36c952a96349406a173c6b85ec94e
 merged_at: null
+oompah.review_url: https://github.com/lesserevil/oompah/pull/788
+oompah.review_number: '788'
+oompah.work_branch: OOMPAH-979
+oompah.target_branch: main
+oompah.review_head: 7fc8bc8ea4a36c952a96349406a173c6b85ec94e
 ---
 ## Summary
 
@@ -50,5 +55,10 @@ author: oompah
 created: 2026-08-10 00:53
 ---
 Implementation is committed and pushed on branch OOMPAH-979 at 7fc8bc8ea4a36c952a96349406a173c6b85ec94e. Exact pushed head verification: 760 touched-suite tests passed in 10.38s; make check-secrets passed; git diff --check clean; worktree is clean and up to date with origin/OOMPAH-979. Final review found no remaining correctness or lock-order blockers. Per handoff, the task has not been submitted and the server has not been restarted.
+---
+author: oompah
+created: 2026-08-10 00:57
+---
+Branch quality gate passed for `7fc8bc8ea4a36c952a96349406a173c6b85ec94e` using `make test` in 169.1s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
