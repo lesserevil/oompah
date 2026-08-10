@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import sqlite3
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
 
@@ -27,6 +29,7 @@ from oompah.task_transition_service import (
     issue_exact_head,
     rollup_authority_generation,
 )
+from oompah.terminal_transition_coordinator import TerminalTransitionCoordinator
 
 
 class FakeTracker:
@@ -979,6 +982,195 @@ async def test_composed_child_landing_head_is_fenced_by_workflow_precondition(
 
 
 @pytest.mark.asyncio
+async def test_headless_root_epic_landing_head_reaches_terminal_staging(tmp_path):
+    issue = _issue(
+        state="In Progress",
+        issue_type="epic",
+        parent_id=None,
+        work_branch=None,
+        target_branch=None,
+        assignment_id=None,
+        head_sha=None,
+        integration=None,
+    )
+    tracker = FakeTracker(issue)
+    terminal = FakeTerminalAdapter(tracker)
+    service = _service(tmp_path, tracker, terminal_adapter=terminal)
+    intent = _intent(
+        issue,
+        requested_status="Merged",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="terminal.immediate_target_landing_proven",
+        evidence_generation="epic-auto-close-generation",
+        exact_head="b" * 40,
+        precondition_revision="landing-evidence-revision",
+    )
+
+    outcome = await service.execute(intent)
+
+    assert outcome.disposition is TransitionDisposition.STAGED
+    assert outcome.reason_code == "transition.terminal_staged"
+    assert terminal.calls == 1
+    assert tracker.issue.state == "In Validation"
+
+
+@pytest.mark.asyncio
+async def test_headless_root_epic_stages_through_real_terminal_boundary(tmp_path):
+    class TerminalTracker(FakeTracker):
+        def __init__(self, issue):
+            super().__init__(issue)
+            self.metadata = {}
+
+        def get_metadata(self, identifier):
+            assert identifier == self.issue.identifier
+            return copy.deepcopy(self.metadata)
+
+        def set_metadata_field(self, identifier, key, value):
+            assert identifier == self.issue.identifier
+            self.metadata[key] = copy.deepcopy(value)
+
+        def add_comment(self, identifier, text, author="oompah"):
+            assert identifier == self.issue.identifier
+            return {"id": "comment-1", "text": text, "author": author}
+
+        def current_status(self, identifier):
+            assert identifier == self.issue.identifier
+            return self.issue.state
+
+    class ProjectStore:
+        def __init__(self, revision):
+            self.revision = revision
+            self.lock = threading.RLock()
+
+        def project_write_lock(self, project_id):
+            assert project_id == "project-1"
+            return self.lock
+
+        def get(self, project_id):
+            return (
+                SimpleNamespace(default_branch="main")
+                if project_id == "project-1"
+                else None
+            )
+
+        def resolve_audit_revision(self, project_id, revision):
+            assert project_id == "project-1"
+            if revision != self.revision:
+                raise ValueError("terminal audit revision is unavailable")
+            return self.revision
+
+    revision = "b" * 40
+    issue = _issue(
+        state="In Progress",
+        issue_type="epic",
+        parent_id=None,
+        work_branch=None,
+        target_branch=None,
+        assignment_id=None,
+        head_sha=None,
+        integration=None,
+    )
+    tracker = TerminalTracker(issue)
+    project_store = ProjectStore(revision)
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    adapter = CoordinatorTerminalAdapter(
+        coordinator,
+        mutation_guard=lambda _intent: None,
+    )
+    service = _service(
+        tmp_path,
+        tracker,
+        terminal_adapter=adapter,
+        write_lock=lambda: project_store.lock,
+    )
+    intent = _intent(
+        issue,
+        requested_status="Merged",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="terminal.immediate_target_landing_proven",
+        evidence_generation="epic-auto-close-generation",
+        exact_head=revision,
+        precondition_revision="landing-evidence-revision",
+    )
+
+    outcome = await service.execute(intent)
+
+    assert outcome.disposition is TransitionDisposition.STAGED
+    assert outcome.reason_code == "transition.terminal_staged"
+    assert outcome.audit_id
+    assert tracker.issue.state == "In Validation"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "wrong_authority",
+        "wrong_reason",
+        "wrong_target",
+        "missing_generation",
+        "missing_precondition",
+        "non_epic",
+        "parented",
+        "wrong_status",
+    ),
+)
+async def test_headless_root_epic_cannot_broaden_landing_head_authority(
+    tmp_path,
+    mutation,
+):
+    issue_values = {
+        "state": "In Progress",
+        "issue_type": "epic",
+        "parent_id": None,
+        "work_branch": None,
+        "target_branch": None,
+        "assignment_id": None,
+        "head_sha": None,
+        "integration": None,
+    }
+    intent_values = {
+        "requested_status": "Merged",
+        "authority": TransitionAuthority.ORCHESTRATOR,
+        "reason_code": "terminal.immediate_target_landing_proven",
+        "evidence_generation": "epic-auto-close-generation",
+        "exact_head": "b" * 40,
+        "precondition_revision": "landing-evidence-revision",
+    }
+    if mutation == "wrong_authority":
+        intent_values["authority"] = TransitionAuthority.INTEGRATOR
+    elif mutation == "wrong_reason":
+        intent_values["reason_code"] = "rollup.children_complete"
+    elif mutation == "wrong_target":
+        intent_values["requested_status"] = "Done"
+    elif mutation == "missing_generation":
+        intent_values["evidence_generation"] = None
+    elif mutation == "missing_precondition":
+        intent_values["precondition_revision"] = None
+    elif mutation == "non_epic":
+        issue_values["issue_type"] = "task"
+    elif mutation == "parented":
+        issue_values["parent_id"] = "EPIC-1"
+    elif mutation == "wrong_status":
+        issue_values["state"] = "In Review"
+    issue = _issue(**issue_values)
+    tracker = FakeTracker(issue)
+    terminal = FakeTerminalAdapter(tracker)
+    service = _service(tmp_path, tracker, terminal_adapter=terminal)
+    intent = _intent(issue, **intent_values)
+
+    outcome = await service.execute(intent)
+
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == "transition.head_missing"
+    assert terminal.calls == 0
+
+
+@pytest.mark.asyncio
 async def test_parentless_task_cannot_substitute_landing_for_accepted_head(tmp_path):
     issue = _issue(
         state="Done",
@@ -1302,6 +1494,100 @@ async def test_coordinator_adapter_binds_composed_landing_revision():
     assert binding.selected_ref == "b" * 40
     assert binding.selected_sha == "b" * 40
     assert coordinator.kwargs["mutation_guard"]() is None
+
+
+@pytest.mark.asyncio
+async def test_coordinator_adapter_binds_headless_root_epic_landing_revision():
+    class Coordinator:
+        def __init__(self):
+            self.kwargs = None
+
+        async def request_transition(self, **kwargs):
+            self.kwargs = kwargs
+            return type(
+                "Result", (), {"success": True, "audit_id": "audit-x", "reason": None}
+            )()
+
+    coordinator = Coordinator()
+    issue = _issue(
+        state="In Progress",
+        issue_type="epic",
+        parent_id=None,
+        work_branch=None,
+        target_branch=None,
+        head_sha=None,
+        integration=None,
+    )
+    intent = _intent(
+        issue,
+        requested_status="Merged",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="terminal.immediate_target_landing_proven",
+        evidence_generation="epic-auto-close-generation",
+        exact_head="b" * 40,
+        precondition_revision="landing-evidence-revision",
+    )
+
+    result = await CoordinatorTerminalAdapter(
+        coordinator,
+        mutation_guard=lambda _intent: None,
+    ).stage(intent, issue)
+
+    assert result.success
+    binding = coordinator.kwargs["revision_binding"]
+    assert binding.selected_ref == "b" * 40
+    assert binding.selected_sha == "b" * 40
+    assert coordinator.kwargs["mutation_guard"]() is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mutation",
+    ("missing_guard", "missing_generation", "missing_precondition"),
+)
+async def test_coordinator_adapter_does_not_supply_unbound_root_epic_revision(
+    mutation,
+):
+    class Coordinator:
+        def __init__(self):
+            self.kwargs = None
+
+        async def request_transition(self, **kwargs):
+            self.kwargs = kwargs
+            return type(
+                "Result", (), {"success": True, "audit_id": "audit-x", "reason": None}
+            )()
+
+    coordinator = Coordinator()
+    issue = _issue(
+        state="In Progress",
+        issue_type="epic",
+        parent_id=None,
+        work_branch=None,
+        target_branch=None,
+        head_sha=None,
+        integration=None,
+    )
+    intent_values = {
+        "requested_status": "Merged",
+        "authority": TransitionAuthority.ORCHESTRATOR,
+        "reason_code": "terminal.immediate_target_landing_proven",
+        "evidence_generation": "epic-auto-close-generation",
+        "exact_head": "b" * 40,
+        "precondition_revision": "landing-evidence-revision",
+    }
+    if mutation == "missing_generation":
+        intent_values["evidence_generation"] = None
+    elif mutation == "missing_precondition":
+        intent_values["precondition_revision"] = None
+    guard = None if mutation == "missing_guard" else lambda _intent: None
+
+    await CoordinatorTerminalAdapter(
+        coordinator,
+        mutation_guard=guard,
+    ).stage(_intent(issue, **intent_values), issue)
+
+    assert "revision_binding" not in coordinator.kwargs
 
 
 @pytest.mark.asyncio
