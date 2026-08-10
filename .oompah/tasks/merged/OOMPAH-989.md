@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T15:37:57.559751Z'
+updated_at: '2026-08-10T15:38:10.540743Z'
 work_branch: OOMPAH-989
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/798
@@ -208,13 +208,13 @@ oompah.terminal_audit:
     selected_ref: bb81282585fa91b1a88ae4409aaa58b99133482a
     selected_sha: bb81282585fa91b1a88ae4409aaa58b99133482a
 oompah.task_costs:
-  total_input_tokens: 66
-  total_output_tokens: 2966
+  total_input_tokens: 188
+  total_output_tokens: 9645
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 66
-      output_tokens: 2966
+      input_tokens: 188
+      output_tokens: 9645
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -223,6 +223,12 @@ oompah.task_costs:
     output_tokens: 2966
     cost_usd: 0.0
     recorded_at: '2026-08-10T15:26:56.215344+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 122
+    output_tokens: 6679
+    cost_usd: 0.0
+    recorded_at: '2026-08-10T15:38:06.172507+00:00'
 ---
 ## Summary
 
@@ -479,5 +485,15 @@ Safe evidence:
 - acceptance_criteria_met[1]: bounded_failures_leave_responsive_service
 - acceptance_criteria_met[2]: lifecycle_runtime_server_tests_passing
 - acceptance_criteria_met[3]: full_makefile_gate_passing
+---
+author: oompah
+created: 2026-08-10 15:38
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 38, Tool calls: 16
+- Tokens: 122 in / 6.7K out [6.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 22s
+- Log: OOMPAH-989__20260810T153553Z.jsonl
 ---
 <!-- COMMENTS:END -->
