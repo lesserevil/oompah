@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T10:32:43.695792Z'
-updated_at: '2026-08-10T15:39:24.856860Z'
+updated_at: '2026-08-10T15:39:33.748115Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +43,17 @@ oompah.terminal_audit:
     created_at: '2026-08-10T15:39:20.151549+00:00'
     selected_ref: origin/main
     selected_sha: 2ab880be5c25d7b5c70000845698d39d5d53d3c8
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-992
+    target_state: Merged
+    evidence_fingerprint: 3abf08bb74d4f83f352d2c57c809737198d7052f31851035f33ada7611ae373c
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T15:39:31.945936+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -60,3 +70,13 @@ While filing OOMPAH-991 immediately after OOMPAH-989's submitted branch quality 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-10 15:39
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #798 merged as 2ab880be5 and contains all reviewed OOMPAH-992 child patches plus combined authority hardening e09ad2e26 and 2c26f79aa; this owner disposition establishes the parent landing authority required to terminalize its contained child tasks.
+---
+<!-- COMMENTS:END -->
