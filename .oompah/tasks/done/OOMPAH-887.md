@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-07T12:49:52.129482Z'
-updated_at: '2026-08-08T03:57:37.085913Z'
+updated_at: '2026-08-10T00:09:50.978588Z'
 work_branch: OOMPAH-887
 target_branch: null
 review_url: null
@@ -93,8 +93,60 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-08T03:57:23.541042+00:00'
   oompah.terminal_audit_result_intents: []
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-dd58b89db6ee
+    project_id: proj-14849f1b
+    task_id: OOMPAH-887
+    digest: bf48c50ab000d7751d4abc164c5b32aa3f52995e3e92cd638dc7b4624d31e2ae
+  - version: 1
+    audit_id: audit-ecba0ef094b7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-887
+    digest: bf48c50ab000d7751d4abc164c5b32aa3f52995e3e92cd638dc7b4624d31e2ae
   version: 1
-  pending_chain: []
+  pending_chain:
+  - version: 1
+    audit_id: audit-dd58b89db6ee
+    project_id: proj-14849f1b
+    task_id: OOMPAH-887
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bf48c50ab000d7751d4abc164c5b32aa3f52995e3e92cd638dc7b4624d31e2ae
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah-workflow-rollup
+      source: integrator
+    previous_state: Done
+    created_at: '2026-08-10T00:09:45.914128+00:00'
+    selected_ref: 5403e4b196cfae75cc7333d69b062d66c33fef8e
+    selected_sha: 5403e4b196cfae75cc7333d69b062d66c33fef8e
+  - version: 1
+    audit_id: audit-ecba0ef094b7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-887
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bf48c50ab000d7751d4abc164c5b32aa3f52995e3e92cd638dc7b4624d31e2ae
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah-workflow-rollup
+      source: integrator
+    previous_state: Done
+    created_at: '2026-08-10T00:09:45.914128+00:00'
+    selected_ref: 5403e4b196cfae75cc7333d69b062d66c33fef8e
+    selected_sha: 5403e4b196cfae75cc7333d69b062d66c33fef8e
   attempt_history: []
 ---
 ## Summary
@@ -265,5 +317,10 @@ author: oompah
 created: 2026-08-08 03:57
 ---
 Integrated and validated on epic-OOMPAH-763 at e74449e4f9303f35c2cc2c1c5fc78ee979f4d268.
+---
+author: oompah
+created: 2026-08-10 00:09
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
