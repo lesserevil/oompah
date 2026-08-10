@@ -11466,11 +11466,36 @@ class Orchestrator:
         ):
             return False
         self._workflow_admission_wake_pending = False
-        self._workflow_admission_future = asyncio.create_task(
+        owner = asyncio.create_task(
             self._run_workflow_admission_lane(),
             name="workflow-admission",
         )
+        self._workflow_admission_future = owner
+        owner.add_done_callback(self._workflow_admission_lane_finished)
         return True
+
+    def _workflow_admission_lane_finished(
+        self,
+        owner: asyncio.Future[None],
+    ) -> None:
+        """Hand durable wake intent from an exiting owner to one successor."""
+
+        try:
+            owner.result()
+        except asyncio.CancelledError:
+            pass
+        except Exception:  # noqa: BLE001 - background failure remains observable
+            logger.exception("Durable workflow admission lane failed")
+        if self._workflow_admission_future is not owner:
+            return
+        self._workflow_admission_future = None
+        if not self._workflow_admission_wake_pending:
+            return
+        if not self._ensure_workflow_admission_lane():
+            # Pause, quiesce, and shutdown are authority fences. A later
+            # unpause/startup world scan rediscovers durable queued work; do
+            # not carry a stale admission-only wake across that boundary.
+            self._workflow_admission_wake_pending = False
 
     def _wake_workflow_admission_lane_on_loop(self) -> None:
         """Coalesce one workflow-admission wake on the scheduler loop."""
@@ -11484,6 +11509,10 @@ class Orchestrator:
             or not runtime.worker.accepting
         ):
             return
+        # Record intent before inspecting the current owner. If that owner has
+        # already chosen its return path but is not yet observably done, its
+        # done callback transfers this edge to exactly one successor.
+        self._workflow_admission_wake_pending = True
         if (
             self._workflow_admission_future is not None
             and not self._workflow_admission_future.done()
@@ -11511,8 +11540,10 @@ class Orchestrator:
 
         while not self._stopping:
             self._workflow_admission_recheck_requested = False
+            self._workflow_admission_wake_pending = False
             requires_full_tick = await self._run_workflow_admission_tick()
             if requires_full_tick:
+                self._workflow_admission_wake_pending = False
                 self._request_workflow_reconcile_continuation(
                     reason="workflow_admission_cut_stale"
                 )
