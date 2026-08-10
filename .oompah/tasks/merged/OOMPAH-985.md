@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T04:20:13.834988Z'
-updated_at: '2026-08-10T05:46:59.750412Z'
+updated_at: '2026-08-10T05:47:06.559522Z'
 work_branch: OOMPAH-985
 target_branch: null
 review_url: null
@@ -47,7 +47,17 @@ oompah.terminal_audit:
     created_at: '2026-08-10T05:46:55.571267+00:00'
     selected_ref: 2a255c5c0d2f8d9850c4135809422c33f9409571
     selected_sha: 2a255c5c0d2f8d9850c4135809422c33f9409571
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-985
+    target_state: Merged
+    evidence_fingerprint: a867cb0ccf3fd7ad055b872f68d606f0372bdb68727259a42a922eff3b225c0f
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T05:47:05.035074+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -73,5 +83,12 @@ author: oompah
 created: 2026-08-10 05:37
 ---
 Exact head 2a255c5c0d2f8d9850c4135809422c33f9409571 is contained in merged OOMPAH-984 PR #792 / main merge 148db44a97e42140160a428bd11eed2c50f75381. Combined exact-head make test passed 19,279 tests plus protected Python 3.11/3.12/3.13 CI; submit through the supported already-landed path.
+---
+author: oompah
+created: 2026-08-10 05:47
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: [REDACTED]
 ---
 <!-- COMMENTS:END -->
