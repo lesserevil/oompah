@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:23:52.854950Z'
-updated_at: '2026-08-07T08:43:28.922613Z'
+updated_at: '2026-08-10T01:18:32.355460Z'
 work_branch: OOMPAH-729
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/686
@@ -160,6 +160,30 @@ oompah.terminal_audit:
       In Validation and a redundant second auditor was dispatched.
     created_at: '2026-08-03T19:04:45.441995+00:00'
     applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Historical audited Done work is complete and its selected head is on main,
+      but current parent-landing evidence cannot be reconstructed safely enough for
+      Merged; retain immutable terminal provenance and retire reassessment.
+    marked_at: '2026-08-10T01:18:30.840496+00:00'
+    updated_at: '2026-08-10T01:18:30.840496+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Historical audited Done work is complete and its selected head is on
+        main, but current parent-landing evidence cannot be reconstructed safely enough
+        for Merged; retain immutable terminal provenance and retire reassessment.
+      recorded_at: '2026-08-10T01:18:30.840496+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -196,6 +220,7 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-03T18:05:26.259667+00:00'
     updated_at: '2026-08-03T18:38:33.293470+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-a3a0625726f5
     project_id: proj-14849f1b
@@ -227,6 +252,7 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-03T18:05:26.259667+00:00'
     updated_at: '2026-08-03T19:04:55.129702+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-6a41fda9c1bf
     project_id: proj-14849f1b
@@ -244,6 +270,7 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Done
     created_at: '2026-08-03T19:24:27.110103+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-195960bc9661
     project_id: proj-14849f1b
@@ -263,6 +290,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:43:26.409001+00:00'
     selected_ref: e4b2865eaff689389c35305372785511457b9cd9
     selected_sha: e4b2865eaff689389c35305372785511457b9cd9
+    source_generation: 1
   - version: 1
     audit_id: audit-5c3f1c964790
     project_id: proj-14849f1b
@@ -282,6 +310,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:43:26.409001+00:00'
     selected_ref: e4b2865eaff689389c35305372785511457b9cd9
     selected_sha: e4b2865eaff689389c35305372785511457b9cd9
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-165d83e2ba60

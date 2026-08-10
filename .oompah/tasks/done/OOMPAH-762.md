@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:16:19.341290Z'
-updated_at: '2026-08-04T13:23:46.795366Z'
+updated_at: '2026-08-10T01:18:36.043040Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: null
@@ -111,6 +111,30 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T13:23:05.854354+00:00'
     applied_at: '2026-08-04T13:23:13.190417+00:00'
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Historical audited Done maintenance work is complete; retain immutable
+      terminal provenance and retire reassessment rather than promoting an epic-branch
+      maintenance child to Merged.
+    marked_at: '2026-08-10T01:18:34.529029+00:00'
+    updated_at: '2026-08-10T01:18:34.529029+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Historical audited Done maintenance work is complete; retain immutable
+        terminal provenance and retire reassessment rather than promoting an epic-branch
+        maintenance child to Merged.
+      recorded_at: '2026-08-10T01:18:34.529029+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -147,6 +171,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-08-04T13:20:29.451586+00:00'
     updated_at: '2026-08-04T13:23:05.854159+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-3ac4c15d8588
