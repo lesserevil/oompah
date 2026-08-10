@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T16:13:42.956499Z'
-updated_at: '2026-08-10T17:33:02.778261Z'
+updated_at: '2026-08-10T17:33:20.740295Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,7 +61,19 @@ oompah.terminal_audit:
     created_at: '2026-08-10T17:32:58.280323+00:00'
     selected_ref: origin/OOMPAH-999
     selected_sha: 6418a935de7b4aab93a24af4756a54b344463513
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-999
+    target_state: Merged
+    evidence_fingerprint: 807aaf8e132e5bf7583701aa44b3db22f8edb5929a01df77d5bc97ec6a772bf5
+    audit_ids:
+    - audit-8b68e42682a2
+    - audit-31373eb67eb6
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T17:33:08.466599+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -69,7 +81,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-999
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -99,13 +111,13 @@ oompah.terminal_audit:
     created_at: '2026-08-10T17:22:55.380838+00:00'
     selected_ref: origin/OOMPAH-999
     selected_sha: 6418a935de7b4aab93a24af4756a54b344463513
-    updated_at: '2026-08-10T17:26:05.596980+00:00'
+    updated_at: '2026-08-10T17:33:08.466557+00:00'
   - version: 1
     audit_id: audit-31373eb67eb6
     project_id: proj-14849f1b
     task_id: OOMPAH-999
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -120,6 +132,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T17:22:55.380838+00:00'
     selected_ref: origin/OOMPAH-999
     selected_sha: 6418a935de7b4aab93a24af4756a54b344463513
+    updated_at: '2026-08-10T17:33:08.466585+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-c918e21eb175
@@ -136,6 +149,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-999
     selected_ref: origin/OOMPAH-999
     selected_sha: 6418a935de7b4aab93a24af4756a54b344463513
+oompah.task_costs:
+  total_input_tokens: 198
+  total_output_tokens: 43
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 198
+      output_tokens: 43
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 198
+    output_tokens: 43
+    cost_usd: 0.0
+    recorded_at: '2026-08-10T17:33:12.862583+00:00'
 ---
 ## Summary
 
@@ -189,5 +218,27 @@ author: oompah
 created: 2026-08-10 17:26
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-10 17:33
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Project-owner completion override after exact recovery head 6418a935de7b4aab93a24af4756a54b344463513 passed the complete local make test gate (19,472 passed, 7 skipped, 2 xfailed), 815 focused tests, terminal/secret/diff checks, and independent adversarial review; protected PR #799 passed Python 3.11, 3.12, and 3.13 CI and merged as 0ce6c3131af200ab89090c13255c3606fc8d753b. The running terminal audit was repeating the same full gate because recovery-PR evidence was not imported into the branch-gate store.
+---
+author: oompah
+created: 2026-08-10 17:33
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 10
+- Tokens: 198 in / 43 out [241 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 4s
+- Log: OOMPAH-999__20260810T172618Z.jsonl
+---
+author: oompah
+created: 2026-08-10 17:33
+---
+Merged the exact OOMPAH-999 recovery head through protected PR #799; deployed revision 0ce6c3131af200ab89090c13255c3606fc8d753b is live and healthy at /healthz.
 ---
 <!-- COMMENTS:END -->
