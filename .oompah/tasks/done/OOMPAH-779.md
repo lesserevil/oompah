@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:55.460558Z'
-updated_at: '2026-08-07T17:36:52.200433Z'
+updated_at: '2026-08-10T01:23:46.896547Z'
 work_branch: epic-OOMPAH-765
 target_branch: null
 review_url: null
@@ -90,6 +90,30 @@ oompah.terminal_audit:
     retired_at: '2026-08-07T12:50:13.639231+00:00'
   oompah.terminal_audit_result_intents: []
   queued_comment_posted: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Historical audited Done record lacks safe exact current landing proof;
+      retain immutable terminal provenance and retire recurring reassessment without
+      creating new work.
+    marked_at: '2026-08-10T01:23:44.874061+00:00'
+    updated_at: '2026-08-10T01:23:44.874061+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Historical audited Done record lacks safe exact current landing proof;
+        retain immutable terminal provenance and retire recurring reassessment without
+        creating new work.
+      recorded_at: '2026-08-10T01:23:44.874061+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -109,6 +133,7 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Done
     created_at: '2026-08-04T17:02:17.788190+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-0006f51f444e
     project_id: proj-14849f1b
@@ -126,6 +151,7 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Done
     created_at: '2026-08-04T17:02:17.788190+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-2a8e57633d32
     project_id: proj-14849f1b
@@ -146,6 +172,7 @@ oompah.terminal_audit:
     selected_ref: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
     selected_sha: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
     updated_at: '2026-08-07T12:50:13.639184+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-cdcfd665d497
     project_id: proj-14849f1b
@@ -166,6 +193,7 @@ oompah.terminal_audit:
     selected_ref: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
     selected_sha: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
     updated_at: '2026-08-07T12:50:13.639213+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-3b17fa83eb60
     project_id: proj-14849f1b
@@ -185,6 +213,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T12:54:22.208319+00:00'
     selected_ref: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
     selected_sha: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
+    source_generation: 1
   - version: 1
     audit_id: audit-76a07a531a78
     project_id: proj-14849f1b
@@ -204,6 +233,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T12:54:22.208319+00:00'
     selected_ref: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
     selected_sha: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
+    source_generation: 1
   - version: 1
     audit_id: audit-9fe2c641a9db
     project_id: proj-14849f1b
@@ -223,6 +253,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T17:36:50.707341+00:00'
     selected_ref: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
     selected_sha: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
+    source_generation: 1
   - version: 1
     audit_id: audit-ae9c8dc64f5d
     project_id: proj-14849f1b
@@ -242,6 +273,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T17:36:50.707341+00:00'
     selected_ref: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
     selected_sha: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
+    source_generation: 1
   attempt_history: []
 oompah.work_branch: epic-OOMPAH-765
 ---
