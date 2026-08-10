@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-998
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Compose retained terminal child provenance into parent rollup authority
 parent: null
@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T15:38:22.780396Z'
-updated_at: '2026-08-10T16:12:41.942390Z'
-work_branch: null
+updated_at: '2026-08-10T16:12:59.337705Z'
+work_branch: OOMPAH-998
 target_branch: null
 review_url: null
 review_number: null
@@ -24,6 +24,16 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: oompah-940-retained-provenance-rollup-20260810
   request_fingerprint: 52409ac71c809689caef0d4569c65a8406c4f58c6fec8bda35b1a1b442827934
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-998
+  head_sha: 9bf6011ac2481cbf3f73fe23085788814aa69434
+  submitted_at: '2026-08-10T16:12:43.105671+00:00'
+  updated_at: '2026-08-10T16:12:43.105671+00:00'
+oompah.work_branch: OOMPAH-998
 ---
 ## Summary
 
@@ -43,5 +53,10 @@ author: oompah
 created: 2026-08-10 16:12
 ---
 Implementation complete at 9bf6011ac2481cbf3f73fe23085788814aa69434 and pushed to origin/OOMPAH-998. Exact retained terminal child provenance now composes as a scoped parent-rollup waiver without forging Git landing or cleanup authority; generation-zero, revocation races, scope/head/route mismatches, restart idempotency, and cleanup non-authority are covered. Verification: 217 focused tests passed locally; independent implementation/review suites passed 358 and 121 tests; changed-code lint, diff check, terminal-audit scan, and secret scan pass.
+---
+author: oompah
+created: 2026-08-10 16:12
+---
+Compose exact retained-child provenance into parent rollup authority; fail closed on stale/revoked/mismatched evidence and prevent waiver reuse as landing or cleanup authority.
 ---
 <!-- COMMENTS:END -->
