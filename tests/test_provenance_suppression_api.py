@@ -17,7 +17,10 @@ from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectStore
 from oompah.provenance_suppression import PROVENANCE_SUPPRESSION_KEY
-from oompah.provenance_suppression import ProvenanceGuardedTracker
+from oompah.provenance_suppression import (
+    ProvenanceControlBusyError,
+    ProvenanceGuardedTracker,
+)
 from oompah.server import app
 from oompah.terminal_audit_metadata import METADATA_KEY
 
@@ -138,6 +141,74 @@ def test_authenticated_owner_retains_terminal_task_as_provenance_only(tmp_path):
     marker = tracker.metadata[METADATA_KEY][PROVENANCE_SUPPRESSION_KEY]  # type: ignore[index]
     assert marker["actor"]["identity"] == "alice"  # type: ignore[index]
     assert tracker.update_calls == []
+
+
+def test_provenance_control_busy_is_structured_and_never_mutates(tmp_path):
+    orch, tracker, _issue = _orchestrator(tmp_path)
+    guarded = orch._project_trackers["proj-1"]
+    assert isinstance(guarded, ProvenanceGuardedTracker)
+    broadcast = AsyncMock()
+
+    @contextlib.contextmanager
+    def busy_control_lock():
+        raise ProvenanceControlBusyError("project authority busy")
+        yield  # pragma: no cover - contextmanager shape only
+
+    guarded.owner_control_lock = busy_control_lock  # type: ignore[method-assign]
+    client = TestClient(app, raise_server_exceptions=False)
+    with (
+        _server_auth(),
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new=broadcast),
+    ):
+        response = _request(client, "retain")
+
+    assert response.status_code == 503
+    assert response.json()["error"] == {
+        "code": "control_busy",
+        "message": response.json()["error"]["message"],
+        "retryable": True,
+    }
+    assert tracker.metadata == {}
+    assert tracker.update_calls == []
+    broadcast.assert_not_awaited()
+
+
+def test_new_revision_control_busy_preserves_retained_marker_and_status(tmp_path):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    guarded = orch._project_trackers["proj-1"]
+    client = TestClient(app, raise_server_exceptions=False)
+    with (
+        _server_auth(),
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new=AsyncMock()),
+    ):
+        retained = _request(client, "retain")
+    assert retained.status_code == 200
+    retained_metadata = copy.deepcopy(tracker.metadata)
+    tracker.update_calls.clear()
+    broadcast = AsyncMock()
+
+    @contextlib.contextmanager
+    def busy_control_lock():
+        raise ProvenanceControlBusyError("project authority busy")
+        yield  # pragma: no cover - contextmanager shape only
+
+    guarded.owner_control_lock = busy_control_lock  # type: ignore[method-assign]
+    with (
+        _server_auth(),
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new=broadcast),
+    ):
+        response = _request(client, "new-revision")
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "control_busy"
+    assert response.json()["error"]["retryable"] is True
+    assert tracker.metadata == retained_metadata
+    assert tracker.update_calls == []
+    assert issue.state == "Merged"
+    broadcast.assert_not_awaited()
 
 
 def test_terminal_provenance_rejects_nonowner_actor_mismatch_and_missing_reason(tmp_path):

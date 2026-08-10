@@ -753,6 +753,10 @@ class ServiceConfig:
     # controls (revocation, submission, and recovery).
     workflow_runtime_max_concurrent: int = 4
     workflow_runtime_control_reserved_slots: int = 1
+    # Maximum time an owner terminal-control request may wait for the shared
+    # project mutation lock.  Timing out is fail-closed and retryable; it never
+    # leaves a background mutation running after the API response.
+    terminal_control_lock_timeout_seconds: float = 5.0
     # A synchronous adapter which remains live after its operation timeout
     # retains a non-expiring durable quarantine.  Wait this additional bounded
     # interval for a late result before requesting one coalesced service
@@ -1064,6 +1068,9 @@ class ServiceConfig:
         self.workflow_runtime_control_reserved_slots = min(
             max(int(self.workflow_runtime_control_reserved_slots), 1),
             self.workflow_runtime_max_concurrent - 1,
+        )
+        self.terminal_control_lock_timeout_seconds = max(
+            float(self.terminal_control_lock_timeout_seconds), 0.1
         )
         self.workflow_quarantine_recycle_seconds = max(
             float(self.workflow_quarantine_recycle_seconds), 0.1
@@ -1597,6 +1604,9 @@ class ServiceConfig:
             ),
             workflow_runtime_control_reserved_slots=_env_int(
                 "OOMPAH_WORKFLOW_RUNTIME_CONTROL_RESERVED_SLOTS", None, 1
+            ),
+            terminal_control_lock_timeout_seconds=_env_float(
+                "OOMPAH_TERMINAL_CONTROL_LOCK_TIMEOUT_SECONDS", None, 5.0
             ),
             workflow_quarantine_recycle_seconds=_env_float(
                 "OOMPAH_WORKFLOW_QUARANTINE_RECYCLE_SECONDS", None, 60.0

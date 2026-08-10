@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 import threading
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -17,6 +18,7 @@ from oompah.provenance_suppression import (
     MARKER_VERSION,
     PROVENANCE_SUPPRESSION_KEY,
     ProvenanceGuardedTracker,
+    ProvenanceControlBusyError,
     ProvenanceSuppression,
     ProvenanceSuppressionBlockedError,
     ProvenanceSuppressionError,
@@ -661,6 +663,43 @@ class TestProvenanceGuardedTracker:
         restarted.update_issue("TASK-1", status="Open")
 
         assert tracker.updates == [("TASK-1", {"status": "Open"})]
+
+    def test_owner_control_lock_timeout_is_bounded_and_observable(self) -> None:
+        tracker = _StatusTracker()
+        locks = _LockStore()
+        observations: list[dict[str, object]] = []
+        guarded = ProvenanceGuardedTracker(
+            tracker,
+            locks,
+            "proj-1",
+            control_lock_timeout_seconds=0.02,
+            control_lock_observer=lambda project_id, **values: observations.append(
+                {"project_id": project_id, **values}
+            ),
+        )
+        held = threading.Event()
+        release = threading.Event()
+
+        def holder() -> None:
+            with locks.project_write_lock("proj-1"):
+                held.set()
+                release.wait(timeout=2)
+
+        thread = threading.Thread(target=holder)
+        thread.start()
+        assert held.wait(timeout=1)
+        started = time.monotonic()
+        try:
+            with pytest.raises(ProvenanceControlBusyError):
+                with guarded.owner_control_lock():
+                    pytest.fail("busy control lock unexpectedly acquired")
+        finally:
+            release.set()
+            thread.join(timeout=1)
+
+        assert time.monotonic() - started < 0.5
+        assert observations[-1]["timed_out"] is True
+        assert tracker.updates == []
 
     def test_owner_revision_releases_project_lock_for_status_transition(self) -> None:
         class _RevisionTracker(_StatusTracker):

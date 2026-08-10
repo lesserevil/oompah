@@ -63,6 +63,7 @@ import hashlib
 import json
 import logging
 import re
+import time
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
@@ -118,6 +119,10 @@ from oompah.transition_gate import is_project_owner
 from oompah.tracker import TrackerProtocol, validate_needs_human_comment
 
 logger = logging.getLogger(__name__)
+
+
+class TerminalTransitionBusyError(RuntimeError):
+    """Project mutation authority was not available within its control SLO."""
 
 _QUEUED_COMMENT_KEY = "queued_comment_posted"
 """Metadata key that tracks whether the queued comment has been posted."""
@@ -730,6 +735,7 @@ class TerminalTransitionCoordinator:
         | None = None,
         validate_terminal_transition: Callable[[Issue, TargetState, str], str | None]
         | None = None,
+        owner_control_lock_timeout_seconds: float = 5.0,
     ) -> None:
         # The standalone API accepts one tracker, while the server passes a
         # project-aware factory because managed projects each have their own
@@ -772,6 +778,10 @@ class TerminalTransitionCoordinator:
         # Keep the coordinator as the single mutation boundary while letting
         # that owner supply a fail-closed lifecycle compatibility check.
         self._validate_terminal_transition = validate_terminal_transition
+        timeout = float(owner_control_lock_timeout_seconds)
+        if timeout <= 0:
+            raise ValueError("owner_control_lock_timeout_seconds must be positive")
+        self._owner_control_lock_timeout_seconds = timeout
 
     def _run_project_serialized(
         self,
@@ -782,6 +792,62 @@ class TerminalTransitionCoordinator:
 
         with self._project_store.project_write_lock(project_id):
             return operation()
+
+    def _run_owner_control_serialized(
+        self,
+        project_id: str,
+        operation: Callable[[], Any],
+    ) -> Any:
+        """Run an authenticated owner-control mutation within its lock SLO."""
+
+        lock = self._project_store.project_write_lock(project_id)
+        acquire = getattr(lock, "acquire", None)
+        release = getattr(lock, "release", None)
+        if not callable(acquire) or not callable(release):
+            # Compatibility for tracker-neutral context-manager doubles.
+            wait_started = time.monotonic()
+            with lock:
+                acquired_at = time.monotonic()
+                try:
+                    return operation()
+                finally:
+                    self._record_metric(
+                        "record_control_lock_timing",
+                        project_id,
+                        wait_seconds=acquired_at - wait_started,
+                        hold_seconds=time.monotonic() - acquired_at,
+                        timed_out=False,
+                    )
+
+        wait_started = time.monotonic()
+        acquired = bool(
+            acquire(timeout=self._owner_control_lock_timeout_seconds)
+        )
+        acquired_at = time.monotonic()
+        if not acquired:
+            self._record_metric(
+                "record_control_lock_timing",
+                project_id,
+                wait_seconds=acquired_at - wait_started,
+                hold_seconds=0.0,
+                timed_out=True,
+            )
+            raise TerminalTransitionBusyError(
+                "terminal control could not acquire project authority within "
+                f"{self._owner_control_lock_timeout_seconds:g}s"
+            )
+        try:
+            return operation()
+        finally:
+            released_at = time.monotonic()
+            release()
+            self._record_metric(
+                "record_control_lock_timing",
+                project_id,
+                wait_seconds=acquired_at - wait_started,
+                hold_seconds=released_at - acquired_at,
+                timed_out=False,
+            )
 
     def set_metrics(self, metrics: Any | None) -> None:
         """Attach or replace the service-owned audit metrics sink."""
@@ -2422,7 +2488,7 @@ class TerminalTransitionCoordinator:
             return decision
 
         return await asyncio.to_thread(
-            self._run_project_serialized,
+            self._run_owner_control_serialized,
             project_id,
             _operation,
         )
@@ -2873,7 +2939,7 @@ class TerminalTransitionCoordinator:
             return outcome
 
         outcome = await asyncio.to_thread(
-            self._run_project_serialized,
+            self._run_owner_control_serialized,
             project_id,
             _operation,
         )
@@ -5747,6 +5813,7 @@ __all__ = [
     "ResultOutcome",
     "ResultRejection",
     "TerminalTransitionCoordinator",
+    "TerminalTransitionBusyError",
     "TransitionResult",
     "classify_failure_to_status",
     "route_failure_status",

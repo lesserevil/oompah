@@ -121,6 +121,7 @@ class TestSetupServicesSuccess:
         mock_config.strict_profile_source = "warn"
         mock_config.workflow_has_profiles_block = False
         mock_config.agent_profiles_drift = False
+        mock_config.terminal_control_lock_timeout_seconds = 0.37
 
         mock_orch = MagicMock(name="orchestrator")
         mock_orch.is_paused = False
@@ -218,6 +219,11 @@ class TestSetupServicesSuccess:
         assert (
             services.terminal_transition_coordinator._revoke_auditor_authority
             is mocks["orchestrator"]._revoke_auditor_authority
+        )
+        assert (
+            services.terminal_transition_coordinator
+            ._owner_control_lock_timeout_seconds
+            == 0.37
         )
         mock_forwarder_cls.assert_called_once_with(
             project_store=mocks["projects"],

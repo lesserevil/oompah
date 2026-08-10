@@ -39,8 +39,10 @@ Design invariants
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
+import time
 from typing import Any, Mapping
 
 from oompah.statuses import OPEN, TERMINAL_STATUSES, canonicalize_status
@@ -716,6 +718,10 @@ class ProvenanceOwnerRevisionStateError(TrackerError):
     """The target is not in a state eligible for an owner revision."""
 
 
+class ProvenanceControlBusyError(TrackerError):
+    """Owner provenance authority was busy past its bounded wait."""
+
+
 class ProvenanceGuardedTracker:
     """Project-scoped tracker facade enforcing provenance suppression.
 
@@ -744,15 +750,59 @@ class ProvenanceGuardedTracker:
         tracker: TrackerProtocol,
         project_store: Any,
         project_id: str,
+        *,
+        control_lock_timeout_seconds: float = 5.0,
+        control_lock_observer: Callable[..., None] | None = None,
     ) -> None:
         if not isinstance(project_id, str) or not project_id.strip():
             raise ValueError("project_id must be a non-empty string")
         self._provenance_tracker = tracker
         self._provenance_project_store = project_store
         self._provenance_project_id = project_id
+        timeout = float(control_lock_timeout_seconds)
+        if timeout <= 0:
+            raise ValueError("control_lock_timeout_seconds must be positive")
+        self._control_lock_timeout_seconds = timeout
+        self._control_lock_observer = control_lock_observer
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._provenance_tracker, name)
+
+    @contextmanager
+    def owner_control_lock(self):
+        """Acquire project authority with a bounded, observable owner wait."""
+
+        lock = self._provenance_project_store.project_write_lock(
+            self._provenance_project_id
+        )
+        wait_started = time.monotonic()
+        acquired = lock.acquire(timeout=self._control_lock_timeout_seconds)
+        acquired_at = time.monotonic()
+        if not acquired:
+            observer = self._control_lock_observer
+            if callable(observer):
+                observer(
+                    self._provenance_project_id,
+                    wait_seconds=acquired_at - wait_started,
+                    hold_seconds=0.0,
+                    timed_out=True,
+                )
+            raise ProvenanceControlBusyError(
+                "terminal provenance control is busy; retry the request"
+            )
+        try:
+            yield
+        finally:
+            released_at = time.monotonic()
+            lock.release()
+            observer = self._control_lock_observer
+            if callable(observer):
+                observer(
+                    self._provenance_project_id,
+                    wait_seconds=acquired_at - wait_started,
+                    hold_seconds=released_at - acquired_at,
+                    timed_out=False,
+                )
 
     def _assert_status_mutation_allowed(
         self,
@@ -848,9 +898,7 @@ class ProvenanceGuardedTracker:
         if not isinstance(reason, str) or not reason.strip():
             raise ValueError("reason must be a non-empty string")
 
-        with self._provenance_project_store.project_write_lock(
-            self._provenance_project_id
-        ):
+        with self.owner_control_lock():
             current = self._provenance_tracker.fetch_issue_detail(identifier)
             if current is None:
                 raise ProvenanceOwnerRevisionNotFoundError(
@@ -895,11 +943,10 @@ class ProvenanceGuardedTracker:
                     f"provenance-owner-revision:{self._provenance_project_id}:"
                     f"{identifier}:{authority_generation + 1}"
                 ),
+                write_lock=self.owner_control_lock,
             )
 
-        with self._provenance_project_store.project_write_lock(
-            self._provenance_project_id
-        ):
+        with self.owner_control_lock():
             current = self._provenance_tracker.fetch_issue_detail(identifier)
             if current is None:
                 raise ProvenanceOwnerRevisionNotFoundError(
@@ -940,6 +987,7 @@ __all__ = [
     "ProvenanceSuppressionError",
     "ProvenanceOwnerRevisionNotFoundError",
     "ProvenanceOwnerRevisionStateError",
+    "ProvenanceControlBusyError",
     "RevisionAuthorization",
     "SuppressionMutationResult",
     "SuppressionStatus",

@@ -132,6 +132,43 @@ class TestProjectWriteLockApi:
         lock_after = store.project_write_lock("proj-reload")
         assert lock_before is lock_after
 
+    def test_authority_revisions_are_monotonic_and_project_scoped(self, tmp_path):
+        store = _make_store(tmp_path)
+
+        assert store.terminal_authority_revision("proj-a") == 0
+        assert store.workflow_authority_revision("proj-a") == 0
+        assert store.advance_terminal_authority_revision("proj-a") == 1
+        assert store.advance_terminal_authority_revision("proj-a") == 2
+        assert store.advance_workflow_authority_revision("proj-a") == 1
+
+        assert store.terminal_authority_revision("proj-a") == 2
+        assert store.workflow_authority_revision("proj-a") == 1
+        assert store.terminal_authority_revision("proj-b") == 0
+        assert store.workflow_authority_revision("proj-b") == 0
+
+    def test_project_update_advances_workflow_authority_under_project_lock(
+        self, tmp_path
+    ):
+        store = _make_store(tmp_path)
+        project = _add_project(store, "proj-a")
+
+        assert store.workflow_authority_revision("proj-a") == 0
+        updated = store.update("proj-a", paused=not project.paused)
+
+        assert updated is project
+        assert store.workflow_authority_revision("proj-a") == 1
+
+        store.update("proj-a", max_in_flight_prs=2)
+        assert store.workflow_authority_revision("proj-a") == 2
+
+        assert store.update("missing", paused=True) is None
+        assert store.workflow_authority_revision("missing") == 0
+        assert store.update("proj-a") is project
+        assert store.workflow_authority_revision("proj-a") == 2
+        with pytest.raises(ProjectError):
+            store.update("proj-a", unknown_authority_field=True)
+        assert store.workflow_authority_revision("proj-a") == 2
+
 
 # ---------------------------------------------------------------------------
 # Serialization: same project, multiple threads

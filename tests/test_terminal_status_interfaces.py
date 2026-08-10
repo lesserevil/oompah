@@ -44,6 +44,7 @@ from oompah.terminal_audit_metadata import (
 from oompah.terminal_transition_coordinator import (
     OverrideRejection,
     OverrideResult,
+    TerminalTransitionBusyError,
     TransitionResult,
 )
 
@@ -1138,6 +1139,69 @@ def test_patch_terminal_status_rolls_back_dispatch_fence_when_staging_fails(clie
     assert tracker.status_updates == []
     assert issue.id not in orch.state.completed
     orch.request_refresh.assert_called_once_with()
+
+
+@pytest.mark.parametrize(
+    ("operation", "state", "body"),
+    (
+        ("request_transition", "Open", {}),
+        (
+            "override_transition",
+            "Open",
+            {
+                "audit_override": True,
+                "override_reason": "Owner control retry contract.",
+                "actor_login": "owner",
+            },
+        ),
+        (
+            "retry_failed_audit",
+            "Needs Human",
+            {
+                "audit_retry": True,
+                "audit_retry_reason": "Auditor transport is restored.",
+                "actor_login": "owner",
+            },
+        ),
+    ),
+)
+def test_terminal_control_busy_is_structured_and_rolls_back_dispatch_fence(
+    client,
+    operation,
+    state,
+    body,
+):
+    issue = Issue(
+        f"task-busy-{operation}",
+        f"task-busy-{operation}",
+        "Task",
+        description="work",
+        state=state,
+    )
+    orch, tracker, coordinator = _orchestrator(issue)
+    setattr(
+        coordinator,
+        operation,
+        AsyncMock(side_effect=TerminalTransitionBusyError("project lock busy")),
+    )
+
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            f"/api/v1/issues/{issue.identifier}",
+            json={"project_id": "proj-1", "status": "Done", **body},
+        )
+
+    assert response.status_code == 503
+    assert response.json()["error"] == {
+        "code": "terminal_control_busy",
+        "message": response.json()["error"]["message"],
+        "retryable": True,
+    }
+    assert issue.id not in orch.state.completed
+    assert tracker.status_updates == []
 
 
 def test_patch_terminal_status_reports_unrepaired_current_state(client):

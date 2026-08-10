@@ -232,6 +232,7 @@ from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadataSt
 from oompah.provenance_suppression import (
     describe_malformed_marker,
     load_provenance_suppression_status,
+    ProvenanceControlBusyError,
     ProvenanceGuardedTracker,
 )
 from oompah.terminal_audit_workflow import (
@@ -2047,6 +2048,9 @@ class Orchestrator:
                 self._clear_integrated_audit_recovery_alert
             ),
             validate_terminal_transition=self._validate_terminal_transition,
+            owner_control_lock_timeout_seconds=(
+                getattr(config, "terminal_control_lock_timeout_seconds", 5.0)
+            ),
         )
         self._task_transition_terminal_adapter = CoordinatorTerminalAdapter(
             self.terminal_transition_coordinator
@@ -5223,6 +5227,19 @@ class Orchestrator:
             }
         )
 
+    def _advance_owner_claim_authority(self, project_id: str | None) -> None:
+        """Invalidate a collected workflow cut after owner-claim mutation."""
+
+        if not project_id:
+            return
+        advance = getattr(
+            self.project_store,
+            "advance_workflow_authority_revision",
+            None,
+        )
+        if callable(advance):
+            advance(project_id)
+
     def _restore_owner_claims(self) -> None:
         """Restore direct-owner claims without treating bad state as live work."""
 
@@ -5292,6 +5309,7 @@ class Orchestrator:
                     project_id or "legacy",
                 )
         if pruned:
+            self._advance_owner_claim_authority(project_id)
             logger.info(
                 "Pruned expired direct-owner claim for issue_id=%s project_id=%s",
                 issue_id,
@@ -5321,6 +5339,10 @@ class Orchestrator:
                         "durable service state before publication"
                     )
         if expired and not persistence_failed:
+            for project_id in {
+                claim.project_id for claim in expired.values() if claim.project_id
+            }:
+                self._advance_owner_claim_authority(project_id)
             logger.info(
                 "Pruned %d expired direct-owner claim(s) before state publication",
                 len(expired),
@@ -5413,6 +5435,7 @@ class Orchestrator:
                     project_id or "legacy",
                 )
         if pruned:
+            self._advance_owner_claim_authority(project_id)
             logger.info(
                 "Expired direct-owner claim for issue_id=%s project_id=%s owner=%s",
                 issue_id,
@@ -5460,6 +5483,7 @@ class Orchestrator:
                     else:
                         self.state.owner_claims[key] = previous
                     raise OSError("direct-owner claim was not durably persisted")
+            self._advance_owner_claim_authority(project_id)
             return claim
 
     def release_owner_claim(
@@ -5488,6 +5512,7 @@ class Orchestrator:
                 if not self._persist_owner_claims_locked():
                     self.state.owner_claims[key] = removed
                     raise OSError("direct-owner claim release was not persisted")
+                self._advance_owner_claim_authority(project_id)
             return removed is not None
 
     def mark_owner_claim_retirement_pending(
@@ -5516,6 +5541,7 @@ class Orchestrator:
             if not self._persist_owner_claims_locked():
                 self.state.owner_claims[key] = current
                 raise OSError("direct-owner retirement marker was not persisted")
+            self._advance_owner_claim_authority(project_id)
             return True
 
     def _retire_owner_claim_after_status_commit_now(
@@ -9201,6 +9227,18 @@ class Orchestrator:
             tracker,
             self.project_store,
             str(project.id),
+            control_lock_timeout_seconds=(
+                getattr(
+                    self.config,
+                    "terminal_control_lock_timeout_seconds",
+                    5.0,
+                )
+            ),
+            control_lock_observer=(
+                self._terminal_audit_metrics.record_control_lock_timing
+                if hasattr(self, "_terminal_audit_metrics")
+                else None
+            ),
         )
 
     def _has_managed_projects(self) -> bool:
@@ -10366,6 +10404,7 @@ class Orchestrator:
         actor: str,
         reason_code: str,
         idempotency_key: str,
+        write_lock: Callable[[], Any] | None = None,
     ) -> TransitionOutcome:
         """Journal and verify one already-authorized audit compensation."""
 
@@ -10394,7 +10433,11 @@ class Orchestrator:
             project_id=project_id,
             tracker=tracker,
             journal=self.task_transition_journal,
-            write_lock=lambda: self.project_store.project_write_lock(project_id),
+            write_lock=(
+                write_lock
+                if write_lock is not None
+                else lambda: self.project_store.project_write_lock(project_id)
+            ),
         )
         request = service.recover_authorized(intent)
         try:
@@ -10407,6 +10450,15 @@ class Orchestrator:
                 thread_name_prefix="task-recovery-transition",
             ) as pool:
                 outcome = pool.submit(asyncio.run, request).result()
+        if (
+            reason_code == "provenance.owner_revision_authorized"
+            and outcome.reason_code == "transition.tracker_write_failed"
+            and (outcome.details or {}).get("error_type")
+            == ProvenanceControlBusyError.__name__
+        ):
+            raise ProvenanceControlBusyError(
+                "terminal provenance control is busy; retry the request"
+            )
         return self._require_committed_transition(outcome)
 
     @staticmethod
@@ -41416,7 +41468,7 @@ class Orchestrator:
                     )
                 else:
                     expected_epic_branch = None
-                
+
                 # Normalize both branch identities before returning to the
                 # caller.  ``branch_name`` is rendered into agent prompts and
                 # can be stale independently of ``work_branch`` on a partial
@@ -58753,7 +58805,7 @@ class Orchestrator:
         recovery_context = None
         recovery_publication_error: RecoveryPublicationError | None = None
         recovery_preservation_error: Exception | None = None
-        
+
         # Preserve any dirty changes to recovery checkpoint before validation.
         # This must happen even if HEAD matches — any generated files or
         # transient changes must be captured so they're not lost.
@@ -58803,7 +58855,7 @@ class Orchestrator:
                 )
                 # The revoked generation has no authority to continue and an
                 # unpreserved late mutation must never be integrated.
-        
+
         # Now validate that final worktree HEAD matches submitted HEAD
         final_head = None
         if workspace_path:
@@ -58889,7 +58941,7 @@ class Orchestrator:
                 record.head_sha,
                 recovery_snapshot,
             )
-        
+
         # Atomically retire only the generation that entered this handler.
         # Worktree preservation yielded above, so a replacement run may now
         # own the task.  Never clear its claims or let the retired submission
@@ -59317,7 +59369,7 @@ class Orchestrator:
             )
             logger.error("%s for %s", message, current.identifier)
             return False, message, integrated
-        
+
         # Cancel any stale concurrent ordinary integration rows created by
         # background sync before this direct path acquired authority.  Direct
         # epic maintenance tasks must never enter the ordinary child queue.

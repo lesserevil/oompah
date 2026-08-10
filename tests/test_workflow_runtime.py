@@ -7,12 +7,14 @@ import logging
 import os
 import subprocess
 import threading
+import time
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -99,13 +101,23 @@ from tests.fixtures_workflow_incidents import (
 
 
 class NativeTracker:
+    supports_generation_bound_reads = True
+    state_branch_enabled = True
+
     def __init__(self, issues: list[Issue]):
         self.issues = {issue.identifier: issue for issue in issues}
+        self.authority_generation = "test-native:1"
 
     def fetch_all_issues_enriched(self):
         return list(self.issues.values())
 
     fetch_all_issues = fetch_all_issues_enriched
+
+    def fetch_all_issues_with_generation(self):
+        return self.fetch_all_issues(), self.authority_generation
+
+    def get_state_branch_generation(self):
+        return self.authority_generation
 
     def fetch_issue_detail(self, identifier):
         return self.issues.get(identifier)
@@ -148,6 +160,7 @@ def make_binding(
     store: WorkflowJobStore,
     project_id: str = "project-1",
 ):
+    publication_lock = threading.RLock()
     collector = WorkflowFactCollector(
         project_id=project_id,
         tracker=tracker,
@@ -183,6 +196,12 @@ def make_binding(
         ),
         terminal_audit_workflow=terminal,
         transition_journal=journal,
+        terminal_audit_publication_lock=lambda: publication_lock,
+        tracker_authority_revision_source=(
+            tracker.get_state_branch_generation
+            if callable(getattr(tracker, "get_state_branch_generation", None))
+            else None
+        ),
     )
     return binding, journal
 
@@ -502,6 +521,571 @@ def test_terminal_audit_proof_rejects_metadata_race_until_current_job_exists(
     assert not proof(decision_b, mismatched_audit, "terminal_audit")
     assert proof(decision_b, observed_b, "terminal_audit")
 
+    runtime.close()
+    store.close()
+
+
+def test_native_tracker_generation_race_supersedes_stale_status_publication(
+    tmp_path,
+):
+    """An owner status mutation after collection cannot publish the old cut."""
+
+    task = make_issue("TASK-OWNER-RACE", state="Backlog")
+    store = WorkflowJobStore(str(tmp_path / "jobs-owner-race.sqlite3"))
+    tracker = NativeTracker([task])
+    tracker.supports_generation_bound_reads = True
+    tracker.fetch_all_issues_with_generation = lambda: (
+        tracker.fetch_all_issues(),
+        "native-head:1",
+    )
+    tracker.get_state_branch_generation = lambda: "native-head:2"
+    binding, journal = make_binding(tmp_path, tracker, store)
+    binding.tracker_authority_revision_source = (
+        tracker.get_state_branch_generation
+    )
+    binding.terminal_audit_publication_lock = lambda: threading.RLock()
+    controller = UniversalTotalityLivenessController(store=store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert report["requires_reconcile"] is True
+    assert report["reconcile_reason"] == "publication_authority_changed"
+    assert report["projects"]["project-1"] == {
+        "publication_superseded": True,
+        "reason": "tracker authority changed before publication",
+    }
+    health = store.health_snapshot()
+    assert health["accepted_snapshot_generation"] == (
+        health["published_snapshot_generation"]
+    )
+    runtime.close()
+    store.close()
+
+
+@pytest.mark.parametrize("generation", (None, "unavailable", "unavailable:fetch"))
+def test_enabled_native_tracker_missing_generation_fails_closed(
+    tmp_path,
+    generation,
+):
+    tracker = NativeTracker([make_issue("TASK-NATIVE-UNAVAILABLE")])
+    tracker.fetch_all_issues_with_generation = lambda: (
+        tracker.fetch_all_issues(),
+        generation,
+    )
+    store = WorkflowJobStore(str(tmp_path / "native-unavailable.sqlite3"))
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=UniversalTotalityLivenessController(store=store),
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert report["projects"]["project-1"] == {
+        "error": "WorkflowRuntimeError"
+    }
+    assert runtime.projections() == ()
+    assert store.list_jobs(project_id="project-1") == ()
+    runtime.close()
+    store.close()
+
+
+def test_disabled_native_tracker_uses_one_grouped_publication_refresh(tmp_path):
+    tracker = NativeTracker([make_issue("TASK-NATIVE-LEGACY")])
+    tracker.state_branch_enabled = False
+    corpus_reads = 0
+    original = tracker.fetch_all_issues
+
+    def fetch_bound():
+        nonlocal corpus_reads
+        corpus_reads += 1
+        return original(), None
+
+    tracker.fetch_all_issues_with_generation = fetch_bound
+    tracker.get_state_branch_generation = lambda: None
+    store = WorkflowJobStore(str(tmp_path / "native-legacy.sqlite3"))
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=UniversalTotalityLivenessController(store=store),
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert report["projects"]["project-1"]["snapshot"]["published"] is True
+    assert corpus_reads == 2
+    runtime.close()
+    store.close()
+
+
+def test_generic_unversioned_tracker_cannot_publish_enforce_cut(tmp_path):
+    tracker = NativeTracker([make_issue("TASK-GENERIC-UNVERSIONED")])
+    tracker.supports_generation_bound_reads = False
+    store = WorkflowJobStore(str(tmp_path / "generic-unversioned.sqlite3"))
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=UniversalTotalityLivenessController(store=store),
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert report["projects"]["project-1"] == {
+        "error": "WorkflowRuntimeError"
+    }
+    assert runtime.projections() == ()
+    assert store.list_jobs(project_id="project-1") == ()
+    runtime.close()
+    store.close()
+
+
+def test_terminal_publication_lock_health_metrics_are_bounded_and_complete(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "publication-lock-health.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="shadow",
+    )
+
+    assert runtime.health_snapshot()["terminal_publication_lock"] == {
+        "acquisitions": 0,
+        "superseded": 0,
+        "wait_seconds_total": 0.0,
+        "wait_seconds_max": 0.0,
+        "wait_seconds_last": 0.0,
+        "hold_seconds_total": 0.0,
+        "hold_seconds_max": 0.0,
+        "hold_seconds_last": 0.0,
+    }
+    runtime._record_terminal_publication_lock_timing(
+        wait_seconds=0.1,
+        hold_seconds=0.2,
+        superseded=True,
+    )
+    runtime._record_terminal_publication_lock_timing(
+        wait_seconds=0.3,
+        hold_seconds=0.0,
+        superseded=False,
+    )
+
+    assert runtime.health_snapshot()["terminal_publication_lock"] == {
+        "acquisitions": 2,
+        "superseded": 1,
+        "wait_seconds_total": pytest.approx(0.4),
+        "wait_seconds_max": pytest.approx(0.3),
+        "wait_seconds_last": pytest.approx(0.3),
+        "hold_seconds_total": pytest.approx(0.2),
+        "hold_seconds_max": pytest.approx(0.2),
+        "hold_seconds_last": 0.0,
+    }
+    runtime.close()
+    store.close()
+
+
+def test_pause_racing_enabled_read_supersedes_stale_dispatchable_cut(tmp_path):
+    from oompah.models import Project
+    from oompah.projects import ProjectStore
+
+    project_store = ProjectStore(
+        path=str(tmp_path / "projects-pause.json"),
+        repos_root=str(tmp_path / "repos"),
+        worktree_root=str(tmp_path / "worktrees"),
+    )
+    project = Project(
+        id="project-1",
+        name="pause-race",
+        repo_url="https://example.invalid/pause-race.git",
+        repo_path=str(tmp_path / "repo"),
+        branch="main",
+    )
+    project_store._projects[project.id] = project
+    tracker = NativeTracker([make_issue("TASK-PAUSE-RACE", state="Backlog")])
+    enabled_read = threading.Event()
+    owner_attempted = threading.Event()
+    owner_finished = threading.Event()
+
+    def read_enabled():
+        stale_enabled = not project.paused
+        enabled_read.set()
+        assert owner_attempted.wait(timeout=2)
+        return stale_enabled
+
+    original_bound = tracker.fetch_all_issues_with_generation
+
+    def fetch_after_pause():
+        assert owner_finished.wait(timeout=2)
+        return original_bound()
+
+    tracker.fetch_all_issues_with_generation = fetch_after_pause
+    store = WorkflowJobStore(str(tmp_path / "pause-race.sqlite3"))
+    binding, journal = make_binding(tmp_path, tracker, store)
+    binding.dispatch_enabled = read_enabled
+    binding.terminal_audit_publication_lock = (
+        lambda: project_store.project_write_lock("project-1")
+    )
+    binding.workflow_authority_revision_source = (
+        lambda: project_store.workflow_authority_revision("project-1")
+    )
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=UniversalTotalityLivenessController(store=store),
+        **accepted_projection_wiring(),
+    )
+
+    def pause_project():
+        assert enabled_read.wait(timeout=2)
+        owner_attempted.set()
+        project_store.update("project-1", paused=True)
+        owner_finished.set()
+
+    owner = threading.Thread(target=pause_project)
+    owner.start()
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+    owner.join(timeout=2)
+
+    assert not owner.is_alive()
+    assert report["projects"]["project-1"] == {
+        "publication_superseded": True,
+        "reason": "workflow authority changed before publication",
+    }
+    assert store.health_snapshot()["accepted_snapshot_generation"] == 0
+    runtime.close()
+    store.close()
+
+
+def test_200_task_native_publication_never_refreshes_per_task_and_owner_is_bounded(
+    tmp_path,
+):
+    from oompah.orchestrator import Orchestrator
+    from oompah.projects import ProjectStore
+    from oompah.terminal_transition_coordinator import (
+        TerminalTransitionBusyError,
+        TerminalTransitionCoordinator,
+    )
+
+    tasks = [
+        make_issue(f"TASK-BULK-{index:03d}", state="Done")
+        for index in range(200)
+    ]
+    store = WorkflowJobStore(str(tmp_path / "jobs-bulk-owner.sqlite3"))
+    tracker = NativeTracker(tasks)
+    detail_reads = 0
+    invalidations = 0
+    corpus_reads = 0
+    original_detail = tracker.fetch_issue_detail
+    original_corpus = tracker.fetch_all_issues
+
+    def fetch_detail(identifier):
+        nonlocal detail_reads
+        detail_reads += 1
+        return original_detail(identifier)
+
+    def fetch_corpus():
+        nonlocal corpus_reads
+        corpus_reads += 1
+        return original_corpus()
+
+    def invalidate_read_cache():
+        nonlocal invalidations
+        invalidations += 1
+
+    tracker.fetch_issue_detail = fetch_detail
+    tracker.fetch_all_issues = fetch_corpus
+    tracker.invalidate_read_cache = invalidate_read_cache
+    tracker.fetch_all_issues_with_generation = lambda: (
+        tracker.fetch_all_issues(),
+        "native-bulk:1",
+    )
+    tracker.get_state_branch_generation = lambda: "native-bulk:1"
+    binding, journal = make_binding(tmp_path, tracker, store)
+    project_store = ProjectStore(
+        path=str(tmp_path / "projects.json"),
+        repos_root=str(tmp_path / "repos"),
+        worktree_root=str(tmp_path / "worktrees"),
+    )
+    project_lock = project_store.project_write_lock("project-1")
+    binding.terminal_audit_publication_lock = (
+        lambda: project_store.project_write_lock("project-1")
+    )
+    binding.terminal_authority_revision_source = (
+        lambda: project_store.terminal_authority_revision("project-1")
+    )
+    binding.workflow_authority_revision_source = (
+        lambda: project_store.workflow_authority_revision("project-1")
+    )
+    binding.tracker_authority_revision_source = (
+        tracker.get_state_branch_generation
+    )
+    binding.collector.sources[FactDomain.TERMINAL_AUDIT] = lambda issue: {
+        "terminal_provenance": {
+            "schema_version": 1,
+            "marker_present": False,
+            "project_id": "project-1",
+            "task_id": issue.identifier,
+            "retained": False,
+            "malformed": False,
+            "authority_generation": 0,
+        }
+    }
+    lane_proofs = 0
+
+    def prove_lane(_decision, _observed, _action):
+        nonlocal lane_proofs
+        lane_proofs += 1
+        return True
+
+    binding.terminal_audit_lane_proof_source = prove_lane
+    controller = UniversalTotalityLivenessController(store=store)
+    publish_entered = threading.Event()
+    release_publish = threading.Event()
+
+    owner_orchestrator = object.__new__(Orchestrator)
+    owner_orchestrator.project_store = project_store
+    owner_orchestrator.config = SimpleNamespace(owner_claim_ttl_hours=48)
+    owner_orchestrator._owner_claims_lock = threading.RLock()
+    owner_orchestrator.state = SimpleNamespace(owner_claims={})
+    owner_orchestrator._persist_owner_claims_locked = lambda: True
+    owner_orchestrator._scheduler_owns_project_issue = lambda *_args: False
+    original_publish = store.publish_snapshot_generation
+
+    def interleaved_publish(generation, callback, **kwargs):
+        publish_entered.set()
+        assert release_publish.wait(timeout=2)
+        owner_orchestrator.grant_owner_claim(
+            issue_id=tasks[0].id,
+            project_id="project-1",
+            owner_login="owner",
+            claim_id="owner-raced-generation",
+        )
+        return original_publish(generation, callback, **kwargs)
+
+    store.publish_snapshot_generation = interleaved_publish
+
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+    asyncio.run(runtime.start())
+    reports: list[dict[str, Any]] = []
+    reconcile_thread = threading.Thread(
+        target=lambda: reports.append(runtime.reconcile())
+    )
+    reconcile_thread.start()
+    assert publish_entered.wait(timeout=2)
+    detail_reads_before_publication = detail_reads
+
+    class LockStore:
+        def project_write_lock(self, _project_id):
+            return project_lock
+
+    operation_ran = False
+
+    def owner_operation():
+        nonlocal operation_ran
+        operation_ran = True
+
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=LockStore(),
+        owner_control_lock_timeout_seconds=0.02,
+    )
+    started = time.monotonic()
+    try:
+        with pytest.raises(TerminalTransitionBusyError):
+            coordinator._run_owner_control_serialized(
+                "project-1", owner_operation
+            )
+    finally:
+        release_publish.set()
+        reconcile_thread.join(timeout=3)
+
+    assert time.monotonic() - started < 0.5
+    assert operation_ran is False
+    assert not reconcile_thread.is_alive()
+    assert reports[0]["projects"]["project-1"] == {
+        "publication_superseded": True,
+        "reason": "workflow authority changed before publication",
+    }
+    assert reports[0]["requires_reconcile"] is True
+    assert store.health_snapshot()["accepted_snapshot_generation"] == 0
+    assert corpus_reads == 1
+    assert detail_reads == detail_reads_before_publication
+    assert invalidations == 0
+    assert lane_proofs == 0
+
+    retried_owner_result = coordinator._run_owner_control_serialized(
+        "project-1",
+        lambda: owner_orchestrator.release_owner_claim(
+            issue_id=tasks[0].id,
+            project_id="project-1",
+            expected_claim_id="owner-raced-generation",
+        ),
+    )
+    assert retried_owner_result is True
+
+    store.publish_snapshot_generation = original_publish
+    detail_reads_before_retry = detail_reads
+    retry_report = runtime.reconcile()
+    assert retry_report["projects"]["project-1"]["snapshot"]["published"] is True
+    assert corpus_reads == 2
+    assert detail_reads - detail_reads_before_retry == 400
+    assert invalidations == 0
+    assert lane_proofs == 0
+    runtime.close()
+    store.close()
+
+
+def test_real_terminal_revision_cas_fences_absent_to_retained_provenance(
+    tmp_path,
+):
+    from oompah.projects import ProjectStore
+    from oompah.provenance_suppression import load_provenance_suppression_status
+
+    class AuditTracker(NativeTracker):
+        def __init__(self, issues):
+            super().__init__(issues)
+            self.metadata = {}
+
+        def get_metadata(self, identifier):
+            return self.metadata.get(identifier, {})
+
+        def set_metadata_field(self, identifier, key, value):
+            self.metadata.setdefault(identifier, {})[key] = value
+
+        def invalidate_read_cache(self):
+            return None
+
+    task = make_issue("TASK-REAL-TERMINAL-CAS", state="Done")
+    tracker = AuditTracker([task])
+    project_store = ProjectStore(
+        path=str(tmp_path / "projects-terminal-cas.json"),
+        repos_root=str(tmp_path / "repos"),
+        worktree_root=str(tmp_path / "worktrees"),
+    )
+    metadata = TerminalAuditMetadataStore(
+        tracker,
+        project_store,
+        "project-1",
+    )
+    store = WorkflowJobStore(str(tmp_path / "real-terminal-cas.sqlite3"))
+    binding, journal = make_binding(tmp_path, tracker, store)
+    binding.terminal_audit_publication_lock = (
+        lambda: project_store.project_write_lock("project-1")
+    )
+    binding.terminal_authority_revision_source = (
+        lambda: project_store.terminal_authority_revision("project-1")
+    )
+
+    def terminal_fact(issue):
+        status = load_provenance_suppression_status(metadata, issue.identifier)
+        marker = status.marker
+        if marker is None:
+            return {
+                "terminal_provenance": {
+                    "schema_version": 1,
+                    "marker_present": False,
+                    "project_id": "project-1",
+                    "task_id": issue.identifier,
+                    "retained": False,
+                    "malformed": False,
+                    "authority_generation": 0,
+                }
+            }
+        return {
+            "terminal_provenance": {
+                "schema_version": 1,
+                "marker_present": True,
+                "marker_version": marker.version,
+                "project_id": "project-1",
+                "task_id": issue.identifier,
+                "retained": marker.suppressed,
+                "malformed": False,
+                "authority_generation": marker.authority_generation,
+                "authorized_by": marker.actor.identity,
+                "actor_source": marker.actor.source,
+                "marked_at": marker.marked_at,
+                "updated_at": marker.updated_at,
+            }
+        }
+
+    binding.collector.sources[FactDomain.TERMINAL_AUDIT] = terminal_fact
+    original_publish = store.publish_snapshot_generation
+
+    def retain_before_marker(generation, callback, **kwargs):
+        mark_provenance_only(
+            metadata,
+            task.identifier,
+            ContributorIdentity("owner", "api"),
+            "Retain the completed revision as historical provenance.",
+            now="2026-08-09T00:00:00+00:00",
+        )
+        return original_publish(generation, callback, **kwargs)
+
+    store.publish_snapshot_generation = retain_before_marker
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=UniversalTotalityLivenessController(store=store),
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert report["projects"]["project-1"] == {
+        "publication_superseded": True,
+        "reason": "terminal-audit disposition changed before publication",
+    }
+    assert store.health_snapshot()["accepted_snapshot_generation"] == 0
+
+    store.publish_snapshot_generation = original_publish
+    retry = runtime.reconcile()
+    assert retry["projects"]["project-1"]["snapshot"]["published"] is True
+    assert runtime.projections()[0]["reason_code"] == "terminal.provenance_retained"
     runtime.close()
     store.close()
 
@@ -1831,9 +2415,9 @@ def test_fast_admission_drains_multiple_slices_without_world_reconcile(tmp_path)
     class CountingTracker(NativeTracker):
         fetch_count = 0
 
-        def fetch_all_issues_enriched(self):
+        def fetch_all_issues_with_generation(self):
             self.fetch_count += 1
-            return super().fetch_all_issues_enriched()
+            return super().fetch_all_issues_with_generation()
 
     tracker = CountingTracker([])
     binding, journal = make_binding(tmp_path, tracker, store)
