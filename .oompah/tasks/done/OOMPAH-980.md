@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-980
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Reuse authoritative full branch gates in terminal audits
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T01:42:03.823626Z'
-updated_at: '2026-08-10T02:36:06.836445Z'
+updated_at: '2026-08-10T02:37:14.405199Z'
 work_branch: OOMPAH-980
 target_branch: null
 review_url: null
@@ -45,6 +45,29 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-980
     digest: 3e8483858cb6678a11d1ad45db692f279d49ed26910557e96c6f56631b4c52a4
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f1ccfa22e053
+    project_id: proj-14849f1b
+    task_id: OOMPAH-980
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3e8483858cb6678a11d1ad45db692f279d49ed26910557e96c6f56631b4c52a4
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner completion override: exact head 10f586bbcdd87287f486906840e4a5405de4bddd
+      passed the complete local gate with 19,279 tests and protected Python 3.11,
+      3.12, and 3.13 CI, independent review approved, and PR 789 landed main at 2dde7ad8734542a056e45e1fb5d52fff8204b9fb.
+      The automatic audit was cancelled to avoid rerunning the same twenty-minute
+      full gate while the post-landed epic routing workaround is active.'
+    created_at: '2026-08-10T02:37:09.928178+00:00'
+    selected_ref: 10f586bbcdd87287f486906840e4a5405de4bddd
+    selected_sha: 10f586bbcdd87287f486906840e4a5405de4bddd
+    applied: false
   version: 1
   pending_chain:
   - version: 1
