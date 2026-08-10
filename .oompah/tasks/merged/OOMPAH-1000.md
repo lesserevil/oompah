@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1000
 type: bug
-status: In Progress
+status: Merged
 priority: 1
 title: Bind direct-recovery terminal gate identity to the immutable audit revision
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T17:36:32.614914Z'
-updated_at: '2026-08-10T18:20:30.971142Z'
+updated_at: '2026-08-10T18:39:32.447851Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,33 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: o999-terminal-gate-audit-selected-sha-v1
   request_fingerprint: 277a198f28adbc26f867ebadc4659c02b081c3e20661b5b3f8d5bf088cd7fd2e
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-419e36e0f73d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1000
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dd9586d47ac8ece8e7c927ae055c2ed28127b1bd18cb4d87d5dfb284eebd1038
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Exact implementation d8232d4f250fade0da5603f0ed31dfa043b0d258 is contained
+      in protected merge 8eac2ae5097e84840d6b07fe965b37224c0f7960 via PR #800; combined
+      exact head 017956bd637bfd3dd9124396fef394b439f47d6a passed the complete local
+      Makefile gate and protected Python 3.11/3.12/3.13 CI, with independent adversarial
+      approval.'
+    created_at: '2026-08-10T18:39:24.808065+00:00'
+    selected_ref: origin/OOMPAH-1000
+    selected_sha: d8232d4f250fade0da5603f0ed31dfa043b0d258
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
