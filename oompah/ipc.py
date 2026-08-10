@@ -64,6 +64,11 @@ COMMAND_TTL_SECONDS = 3600  # 1 hour
 # How many pending commands to process in a single poll() call.
 COMMAND_POLL_BATCH = 20
 
+# sqlite3's normal connection busy timeout. Bounded lifecycle revocation may
+# temporarily lower it, but must restore this default before returning a
+# reconnected handle to ordinary IPC callers.
+_SQLITE_BUSY_TIMEOUT_SECONDS = 5.0
+
 # Schema version — bump when the schema changes in a backward-incompatible way.
 _SCHEMA_VERSION = 1
 
@@ -136,7 +141,7 @@ class OrchestratorIPC:
             conn = sqlite3.connect(
                 self._db_path,
                 check_same_thread=False,
-                timeout=5.0,
+                timeout=_SQLITE_BUSY_TIMEOUT_SECONDS,
             )
             conn.row_factory = sqlite3.Row
             conn.executescript(_SCHEMA_SQL)
@@ -182,6 +187,57 @@ class OrchestratorIPC:
         if self._conn is None:
             self._open()
         return self._conn
+
+    def _open_existing_for_bounded_revocation(
+        self,
+        deadline: float,
+    ) -> sqlite3.Connection | None:
+        """Open an existing authority DB without unbounded schema writes."""
+
+        if not os.path.exists(self._db_path):
+            return None
+        conn: sqlite3.Connection | None = None
+        try:
+            remaining = max(0.0, deadline - time.monotonic())
+            if remaining <= 0:
+                return None
+            conn = sqlite3.connect(
+                self._db_path,
+                check_same_thread=False,
+                timeout=remaining,
+            )
+            conn.row_factory = sqlite3.Row
+            remaining = max(0.0, deadline - time.monotonic())
+            if remaining <= 0:
+                conn.close()
+                return None
+            conn.execute(
+                f"PRAGMA busy_timeout = {int(remaining * 1000)}"
+            )
+            columns = {
+                str(row[1])
+                for row in conn.execute(
+                    "PRAGMA table_info(publication_sources)"
+                ).fetchall()
+            }
+            if not {"key", "source_id", "epoch", "generation"} <= columns:
+                conn.close()
+                return None
+            self._conn = conn
+            return conn
+        except sqlite3.Error as exc:
+            if conn is not None:
+                try:
+                    conn.close()
+                except sqlite3.Error:
+                    pass
+            logger.warning(
+                "OrchestratorIPC: bounded revocation reconnect failed for "
+                "%s: %s",
+                self._db_path,
+                exc,
+            )
+            return None
 
     # ------------------------------------------------------------------
     # Key-value snapshot store
@@ -540,14 +596,22 @@ class OrchestratorIPC:
         conn: sqlite3.Connection | None = None
         previous_busy_timeout_ms: int | None = None
         try:
-            conn = self._ensure_conn()
+            reconnected = deadline is not None and self._conn is None
+            if reconnected:
+                conn = self._open_existing_for_bounded_revocation(deadline)
+            else:
+                conn = self._ensure_conn()
             if conn is None:
                 return False
             try:
                 if deadline is not None:
                     remaining = max(0.0, deadline - time.monotonic())
-                    previous_busy_timeout_ms = int(
-                        conn.execute("PRAGMA busy_timeout").fetchone()[0]
+                    previous_busy_timeout_ms = (
+                        int(_SQLITE_BUSY_TIMEOUT_SECONDS * 1000)
+                        if reconnected
+                        else int(
+                            conn.execute("PRAGMA busy_timeout").fetchone()[0]
+                        )
                     )
                     conn.execute(
                         f"PRAGMA busy_timeout = {int(remaining * 1000)}"

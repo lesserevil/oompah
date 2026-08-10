@@ -273,6 +273,36 @@ def test_deactivate_state_source_bounds_sqlite_writer_contention(ipc):
     assert ipc.deactivate_state_source("old", timeout=1)
 
 
+def test_deactivate_state_source_bounds_reconnect_and_preserves_authority(ipc):
+    """A disconnected revoker cannot escape its deadline through _open()."""
+
+    assert ipc.activate_state_source("old", epoch=3, generation=5)
+    ipc.close()
+    blocker = sqlite3.connect(ipc._db_path, timeout=5)
+    blocker.execute("BEGIN IMMEDIATE")
+    try:
+        started = time.monotonic()
+        assert not ipc.deactivate_state_source("old", timeout=0.05)
+        assert time.monotonic() - started < 1
+        assert ipc._conn is not None
+        assert ipc._conn.execute("PRAGMA busy_timeout").fetchone()[0] == 5000
+    finally:
+        blocker.rollback()
+        blocker.close()
+
+    verifier = OrchestratorIPC(ipc._db_path)
+    try:
+        assert verifier.publish_state(
+            {"source": "authority-preserved"},
+            source_id="old",
+            source_epoch=3,
+            source_generation=5,
+        )
+    finally:
+        verifier.close()
+    assert ipc.deactivate_state_source("old", timeout=1)
+
+
 def test_publish_issues_read_issues(ipc):
     issues = {"Open": [{"id": "T1"}], "Done": []}
     ipc.publish_issues(issues)
