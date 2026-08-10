@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1003
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Revalidate root epic auto-close from durable landing authority without a mutable
   issue head
@@ -12,9 +12,9 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T19:11:49.831627Z'
-updated_at: '2026-08-10T19:49:09.201395Z'
-work_branch: null
-target_branch: null
+updated_at: '2026-08-10T19:49:41.965443Z'
+work_branch: OOMPAH-1003
+target_branch: main
 review_url: null
 review_number: null
 review_head: null
@@ -25,6 +25,20 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: o940-root-epic-auto-close-null-head
   request_fingerprint: 6e42d1ebee1399c57ba567812850dfa474f446e9fa9271a6cee34474222ffa31
+oompah.target_branch: main
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  post_landed_parent_id: OOMPAH-940
+  task_branch: OOMPAH-1003
+  base_branch: main
+  base_sha: 8eac2ae5097e84840d6b07fe965b37224c0f7960
+  head_sha: 7186cce68e1ad569bd2e0f2dec225787902100bd
+  submitted_at: '2026-08-10T19:49:22.598132+00:00'
+  updated_at: '2026-08-10T19:49:22.598132+00:00'
+oompah.work_branch: OOMPAH-1003
 ---
 ## Summary
 
@@ -42,5 +56,10 @@ author: oompah
 created: 2026-08-10 19:49
 ---
 Implementation is complete and pushed at exact head 7186cce68e1ad569bd2e0f2dec225787902100bd. The auto-close path now binds one durable containment-scoped immediate-target landing through revalidation/apply/verify/transition, preserves ordinary mutable-head CAS, permits fallback only for headless root epics still In Progress under ORCHESTRATOR authority, and rechecks the immutable SHA in TaskTransitionService, terminal coordinator, and final runtime guard. Validation: 557 combined focused tests, terminal mutation scan 20/20, diff/secret checks, and independent adversarial review are green.
+---
+author: oompah
+created: 2026-08-10 19:49
+---
+Fix headless root-epic auto-close using immutable durable landing authority
 ---
 <!-- COMMENTS:END -->
