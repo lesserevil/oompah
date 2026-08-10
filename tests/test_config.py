@@ -1,5 +1,6 @@
 """Tests for oompah.config."""
 
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -137,13 +138,9 @@ class TestServiceConfig:
 
     def test_workflow_runtime_effect_lanes_come_from_environment(self, monkeypatch):
         monkeypatch.setenv("OOMPAH_WORKFLOW_RUNTIME_MAX_CONCURRENT", "7")
-        monkeypatch.setenv(
-            "OOMPAH_WORKFLOW_RUNTIME_CONTROL_RESERVED_SLOTS", "2"
-        )
+        monkeypatch.setenv("OOMPAH_WORKFLOW_RUNTIME_CONTROL_RESERVED_SLOTS", "2")
         monkeypatch.setenv("OOMPAH_WORKFLOW_QUARANTINE_RECYCLE_SECONDS", "17.5")
-        monkeypatch.setenv(
-            "OOMPAH_TERMINAL_CONTROL_LOCK_TIMEOUT_SECONDS", "2.5"
-        )
+        monkeypatch.setenv("OOMPAH_TERMINAL_CONTROL_LOCK_TIMEOUT_SECONDS", "2.5")
 
         cfg = ServiceConfig.from_workflow(
             WorkflowDefinition(config={}, prompt_template="test")
@@ -168,12 +165,18 @@ class TestServiceConfig:
         assert minimum.workflow_runtime_control_reserved_slots == 1
         assert bounded.workflow_runtime_max_concurrent == 3
         assert bounded.workflow_runtime_control_reserved_slots == 2
-        assert ServiceConfig(
-            workflow_quarantine_recycle_seconds=0
-        ).workflow_quarantine_recycle_seconds == 0.1
-        assert ServiceConfig(
-            terminal_control_lock_timeout_seconds=0
-        ).terminal_control_lock_timeout_seconds == 0.1
+        assert (
+            ServiceConfig(
+                workflow_quarantine_recycle_seconds=0
+            ).workflow_quarantine_recycle_seconds
+            == 0.1
+        )
+        assert (
+            ServiceConfig(
+                terminal_control_lock_timeout_seconds=0
+            ).terminal_control_lock_timeout_seconds
+            == 0.1
+        )
 
     def test_container_cycle_repair_policy_comes_from_environment(self, monkeypatch):
         monkeypatch.setenv("OOMPAH_CONTAINER_CYCLE_REPAIR_ENABLED", "false")
@@ -184,7 +187,9 @@ class TestServiceConfig:
         monkeypatch.setenv(
             "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL", "https://oompah.example.com/"
         )
-        cfg = ServiceConfig.from_workflow(WorkflowDefinition(config={}, prompt_template="test"))
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
         assert cfg.gitlab_webhook_public_url == "https://oompah.example.com/"
 
     def test_prompt_history_budgets_come_from_environment(self, monkeypatch):
@@ -346,6 +351,154 @@ class TestServiceConfig:
             encoding="utf-8"
         )
 
+    @staticmethod
+    def _protected_workflow_policy(**entry_updates):
+        entry = {
+            "repository": "Lesserevil/Oompah",
+            "target_branch": "main",
+            "workflow_id": 242651660,
+            "workflow_path": ".github/workflows/ci.yml",
+            "workflow_blob_sha": "a" * 40,
+            "checkout_mode": "merge_tree_equivalent",
+            "event": "pull_request",
+            "app_id": 15368,
+            "app_slug": "github-actions",
+            "required_jobs": ["test (3.13)", "test (3.11)", "test (3.12)"],
+            "required_steps": ["Run tests"],
+            "command": "make test",
+        }
+        entry.update(entry_updates)
+        return {"version": 1, "enabled": True, "allowlist": [entry]}
+
+    def test_protected_workflow_quality_evidence_is_disabled_by_default(
+        self,
+        monkeypatch,
+    ):
+        monkeypatch.delenv(
+            "OOMPAH_PROTECTED_WORKFLOW_QUALITY_EVIDENCE_JSON",
+            raising=False,
+        )
+
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(
+                config={
+                    "protected_workflow_quality_evidence": self._protected_workflow_policy()
+                },
+                prompt_template="test",
+            )
+        )
+
+        assert cfg.protected_workflow_quality_evidence.enabled is False
+        assert cfg.protected_workflow_quality_evidence.allowlist == ()
+
+    def test_protected_workflow_quality_evidence_is_strict_and_canonical(
+        self,
+        monkeypatch,
+    ):
+        policy = self._protected_workflow_policy()
+        reordered = self._protected_workflow_policy(
+            required_jobs=["test (3.12)", "test (3.13)", "test (3.11)"]
+        )
+        monkeypatch.setenv(
+            "OOMPAH_PROTECTED_WORKFLOW_QUALITY_EVIDENCE_JSON",
+            json.dumps(policy),
+        )
+        first = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        ).protected_workflow_quality_evidence
+        monkeypatch.setenv(
+            "OOMPAH_PROTECTED_WORKFLOW_QUALITY_EVIDENCE_JSON",
+            json.dumps(reordered, sort_keys=True),
+        )
+        second = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        ).protected_workflow_quality_evidence
+
+        assert first.enabled is True
+        assert first.fingerprint == second.fingerprint
+        assert len(first.fingerprint) == 64
+        assert first.allowlist[0].repository == "lesserevil/oompah"
+        assert first.allowlist[0].required_jobs == (
+            "test (3.11)",
+            "test (3.12)",
+            "test (3.13)",
+        )
+        assert (
+            first.matching_entries(
+                repository="LESSEREVIL/OOMPAH",
+                target_branch="main",
+                command="make test",
+            )
+            == first.allowlist
+        )
+        assert (
+            first.matching_entries(
+                repository="lesserevil/other",
+                target_branch="main",
+                command="make test",
+            )
+            == ()
+        )
+
+    @pytest.mark.parametrize(
+        "mutation",
+        [
+            lambda policy: policy.update(extra=True),
+            lambda policy: policy.update(version=2),
+            lambda policy: policy.update(enabled="true"),
+            lambda policy: policy.update(allowlist=[]),
+            lambda policy: policy["allowlist"][0].update(event="push"),
+            lambda policy: policy["allowlist"][0].update(workflow_path="../ci.yml"),
+            lambda policy: policy["allowlist"][0].update(checkout_mode="unverified"),
+            lambda policy: policy["allowlist"][0].update(
+                required_jobs=["test", "test"]
+            ),
+            lambda policy: policy["allowlist"][0].update(required_steps=[]),
+            lambda policy: policy["allowlist"][0].update(app_slug="GitHub-Actions"),
+        ],
+    )
+    def test_protected_workflow_quality_evidence_rejects_ambiguous_policy(
+        self,
+        monkeypatch,
+        mutation,
+    ):
+        policy = self._protected_workflow_policy()
+        mutation(policy)
+        monkeypatch.setenv(
+            "OOMPAH_PROTECTED_WORKFLOW_QUALITY_EVIDENCE_JSON",
+            json.dumps(policy),
+        )
+
+        with pytest.raises(WorkflowError) as exc_info:
+            ServiceConfig.from_workflow(
+                WorkflowDefinition(config={}, prompt_template="test")
+            )
+
+        assert exc_info.value.error_class == (
+            "protected_workflow_quality_evidence_config_error"
+        )
+
+    def test_protected_workflow_quality_evidence_is_documented(self):
+        env_example = Path(__file__).parents[1] / ".env.example"
+        contents = env_example.read_text(encoding="utf-8")
+        assert "OOMPAH_PROTECTED_WORKFLOW_QUALITY_EVIDENCE_JSON=" in contents
+        assert '"checkout_mode":"merge_tree_equivalent"' in contents
+        assert '"required_steps":["Run tests"]' in contents
+
+    def test_protected_workflow_quality_evidence_rejects_duplicate_json_keys(
+        self,
+        monkeypatch,
+    ):
+        monkeypatch.setenv(
+            "OOMPAH_PROTECTED_WORKFLOW_QUALITY_EVIDENCE_JSON",
+            '{"version":1,"version":1,"enabled":false,"allowlist":[]}',
+        )
+
+        with pytest.raises(WorkflowError, match="duplicate JSON field"):
+            ServiceConfig.from_workflow(
+                WorkflowDefinition(config={}, prompt_template="test")
+            )
+
 
 class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
     """Repository-map settings are environment-only operator controls."""
@@ -370,7 +523,12 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
         assert cfg.repo_map_enabled is False
         assert cfg.repo_map_token_budget == 2000
         assert set(cfg.repo_map_languages) == {
-            "javascript", "markdown", "python", "rust", "typescript", "yaml"
+            "javascript",
+            "markdown",
+            "python",
+            "rust",
+            "typescript",
+            "yaml",
         }
         assert cfg.repo_map_max_file_size == 1_000_000
         assert cfg.repo_map_generation_timeout == 120
@@ -397,9 +555,24 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
         ("env_name", "bad_value", "attribute", "expected"),
         [
             ("OOMPAH_REPO_MAP_TOKEN_BUDGET", "0", "repo_map_token_budget", 2000),
-            ("OOMPAH_REPO_MAP_MAX_FILE_SIZE", "-1", "repo_map_max_file_size", 1_000_000),
-            ("OOMPAH_REPO_MAP_GENERATION_TIMEOUT", "nope", "repo_map_generation_timeout", 120),
-            ("OOMPAH_REPO_MAP_RETAINED_ARTIFACTS", "0", "repo_map_retained_artifacts", 5),
+            (
+                "OOMPAH_REPO_MAP_MAX_FILE_SIZE",
+                "-1",
+                "repo_map_max_file_size",
+                1_000_000,
+            ),
+            (
+                "OOMPAH_REPO_MAP_GENERATION_TIMEOUT",
+                "nope",
+                "repo_map_generation_timeout",
+                120,
+            ),
+            (
+                "OOMPAH_REPO_MAP_RETAINED_ARTIFACTS",
+                "0",
+                "repo_map_retained_artifacts",
+                5,
+            ),
         ],
     )
     def test_invalid_numeric_overrides_fall_back_to_safe_defaults(
@@ -409,14 +582,23 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
 
         assert getattr(self._config(), attribute) == expected
 
-    def test_invalid_language_policy_falls_back_to_supported_languages(self, monkeypatch):
+    def test_invalid_language_policy_falls_back_to_supported_languages(
+        self, monkeypatch
+    ):
         monkeypatch.setenv("OOMPAH_REPO_MAP_LANGUAGES", "python,fortran")
 
         assert set(self._config().repo_map_languages) == {
-            "javascript", "markdown", "python", "rust", "typescript", "yaml"
+            "javascript",
+            "markdown",
+            "python",
+            "rust",
+            "typescript",
+            "yaml",
         }
 
-    def test_explicit_disabled_mode_remains_disabled_with_other_tuning(self, monkeypatch):
+    def test_explicit_disabled_mode_remains_disabled_with_other_tuning(
+        self, monkeypatch
+    ):
         monkeypatch.setenv("OOMPAH_REPO_MAP_ENABLED", "false")
         monkeypatch.setenv("OOMPAH_REPO_MAP_TOKEN_BUDGET", "4096")
 
@@ -604,7 +786,11 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
                     "stall_turns": 10,
                     "budget_limit": 100.0,
                     "profiles": [
-                        {"name": "quick", "model_role": "fast", "issue_types": ["chore"]},
+                        {
+                            "name": "quick",
+                            "model_role": "fast",
+                            "issue_types": ["chore"],
+                        },
                     ],
                 },
                 "server": {"port": 9090},
@@ -630,7 +816,9 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
         assert cfg.tracker_active_states == ["open", "in_progress"]
 
     def test_json_profile_store_overrides_workflow_md(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         """When .oompah/agent_profiles.json exists, its profiles override the
         WORKFLOW.md ones (oompah-zlz_2-mif / oompah-zlz_2-xaj).
@@ -663,7 +851,8 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
         """Without the JSON store, WORKFLOW.md profiles are used (back-compat)."""
         # Point at a non-existent store file
         monkeypatch.setenv(
-            "OOMPAH_AGENT_PROFILES_PATH", str(tmp_path / "not-here.json"),
+            "OOMPAH_AGENT_PROFILES_PATH",
+            str(tmp_path / "not-here.json"),
         )
         wf = WorkflowDefinition(
             config={
@@ -880,6 +1069,7 @@ class TestAuditDispatchConfiguration:
     def test_verify_completion_deprecation_warning_when_set(self, monkeypatch, caplog):
         import logging
         from oompah.config import warn_deprecated_verify_completion_vars
+
         monkeypatch.setenv("OOMPAH_VERIFY_COMPLETION", "true")
         monkeypatch.delenv("OOMPAH_VERIFY_COMPLETION_LLM", raising=False)
         with caplog.at_level(logging.WARNING, logger="oompah.config"):
@@ -887,9 +1077,12 @@ class TestAuditDispatchConfiguration:
         assert "OOMPAH_VERIFY_COMPLETION" in caplog.text
         assert "deprecated" in caplog.text.lower()
 
-    def test_verify_completion_llm_deprecation_warning_when_set(self, monkeypatch, caplog):
+    def test_verify_completion_llm_deprecation_warning_when_set(
+        self, monkeypatch, caplog
+    ):
         import logging
         from oompah.config import warn_deprecated_verify_completion_vars
+
         monkeypatch.delenv("OOMPAH_VERIFY_COMPLETION", raising=False)
         monkeypatch.setenv("OOMPAH_VERIFY_COMPLETION_LLM", "false")
         with caplog.at_level(logging.WARNING, logger="oompah.config"):
@@ -900,14 +1093,18 @@ class TestAuditDispatchConfiguration:
     def test_no_deprecation_warning_when_vars_not_set(self, monkeypatch, caplog):
         import logging
         from oompah.config import warn_deprecated_verify_completion_vars
+
         monkeypatch.delenv("OOMPAH_VERIFY_COMPLETION", raising=False)
         monkeypatch.delenv("OOMPAH_VERIFY_COMPLETION_LLM", raising=False)
         with caplog.at_level(logging.WARNING, logger="oompah.config"):
             warn_deprecated_verify_completion_vars()
         assert "VERIFY_COMPLETION" not in caplog.text
 
-    def test_from_workflow_emits_deprecation_warning_when_var_set(self, monkeypatch, caplog):
+    def test_from_workflow_emits_deprecation_warning_when_var_set(
+        self, monkeypatch, caplog
+    ):
         import logging
+
         monkeypatch.setenv("OOMPAH_VERIFY_COMPLETION", "false")
         wf = WorkflowDefinition(config={}, prompt_template="test")
         with caplog.at_level(logging.WARNING, logger="oompah.config"):
@@ -946,21 +1143,29 @@ class TestHTTPAuthConfiguration:
                 os.environ.pop(key, None)
 
     def test_htpasswd_file_defaults_to_none(self):
-        cfg = ServiceConfig.from_workflow(WorkflowDefinition(config={}, prompt_template="test"))
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
         assert cfg.htpasswd_file is None
 
     def test_htpasswd_file_from_environment(self, monkeypatch):
         monkeypatch.setenv("OOMPAH_HTPASSWD_FILE", "/etc/oompah/.htpasswd")
-        cfg = ServiceConfig.from_workflow(WorkflowDefinition(config={}, prompt_template="test"))
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
         assert cfg.htpasswd_file == "/etc/oompah/.htpasswd"
 
     def test_htpasswd_file_from_environment_relative_path(self, monkeypatch):
         monkeypatch.setenv("OOMPAH_HTPASSWD_FILE", "creds.htpasswd")
-        cfg = ServiceConfig.from_workflow(WorkflowDefinition(config={}, prompt_template="test"))
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
         assert cfg.htpasswd_file == "creds.htpasswd"
 
     def test_env_file_dir_defaults_to_empty(self):
-        cfg = ServiceConfig.from_workflow(WorkflowDefinition(config={}, prompt_template="test"))
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
         # env_file_dir is set by __main__.py, not from workflow
         assert cfg.env_file_dir == ""
 
@@ -1093,9 +1298,7 @@ class TestLoadDotenv:
         finally:
             os.environ.pop("OOMPAH_TEST_OV", None)
 
-    def test_startup_env_overrides_inherited_oompah_config(
-        self, tmp_path, monkeypatch
-    ):
+    def test_startup_env_overrides_inherited_oompah_config(self, tmp_path, monkeypatch):
         from oompah import __main__ as main_mod
 
         monkeypatch.setattr(main_mod, "_STARTUP_ENV_KEYS", set())

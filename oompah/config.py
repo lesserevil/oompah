@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from pathlib import PurePosixPath
+from typing import Any, Mapping
 
 import yaml
 
@@ -19,12 +22,20 @@ from oompah.statuses import (
     NEEDS_REBASE,
     OPEN,
 )
-from oompah.temp_root import default_temp_root, default_workspace_root, resolve_temp_root
+from oompah.temp_root import (
+    default_temp_root,
+    default_workspace_root,
+    resolve_temp_root,
+)
 from oompah.workflow_reasons import LIVENESS_SLOS, build_liveness_slos
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_SERVER_PORT = 8080
+_PROTECTED_WORKFLOW_QUALITY_EVIDENCE_ENV = (
+    "OOMPAH_PROTECTED_WORKFLOW_QUALITY_EVIDENCE_JSON"
+)
+_PROTECTED_WORKFLOW_QUALITY_EVIDENCE_VERSION = 1
 
 
 class WorkflowError(Exception):
@@ -33,6 +44,369 @@ class WorkflowError(Exception):
     def __init__(self, message: str, error_class: str = "workflow_parse_error"):
         super().__init__(message)
         self.error_class = error_class
+
+
+def _canonical_json_fingerprint(value: object) -> str:
+    """Return a stable SHA-256 fingerprint for normalized JSON data."""
+
+    encoded = json.dumps(
+        value,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _protected_workflow_config_error(message: str) -> WorkflowError:
+    return WorkflowError(
+        f"{_PROTECTED_WORKFLOW_QUALITY_EVIDENCE_ENV}: {message}",
+        error_class="protected_workflow_quality_evidence_config_error",
+    )
+
+
+def _require_exact_json_keys(
+    raw: Mapping[str, object],
+    expected: set[str],
+    *,
+    context: str,
+) -> None:
+    actual = set(raw)
+    if actual == expected:
+        return
+    details: list[str] = []
+    missing = sorted(expected - actual)
+    unexpected = sorted(actual - expected)
+    if missing:
+        details.append(f"missing {', '.join(missing)}")
+    if unexpected:
+        details.append(f"unexpected {', '.join(unexpected)}")
+    raise _protected_workflow_config_error(
+        f"{context} must contain exactly the documented fields ({'; '.join(details)})"
+    )
+
+
+def _bounded_config_string(
+    raw: object,
+    *,
+    field_name: str,
+    maximum: int = 512,
+) -> str:
+    if not isinstance(raw, str):
+        raise _protected_workflow_config_error(f"{field_name} must be a string")
+    value = raw.strip()
+    if (
+        not value
+        or len(value) > maximum
+        or any(ord(character) < 32 or ord(character) == 127 for character in value)
+    ):
+        raise _protected_workflow_config_error(
+            f"{field_name} must be a non-empty printable string of at most "
+            f"{maximum} characters"
+        )
+    return value
+
+
+def _positive_config_integer(raw: object, *, field_name: str) -> int:
+    if (
+        isinstance(raw, bool)
+        or not isinstance(raw, int)
+        or raw <= 0
+        or raw > (2**63 - 1)
+    ):
+        raise _protected_workflow_config_error(
+            f"{field_name} must be a positive signed 64-bit integer"
+        )
+    return raw
+
+
+def _strict_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise _protected_workflow_config_error(
+                f"duplicate JSON field {key!r} is not allowed"
+            )
+        result[key] = value
+    return result
+
+
+@dataclass(frozen=True)
+class ProtectedWorkflowQualityEvidenceTrust:
+    """One exact operator-approved protected-workflow evidence source."""
+
+    repository: str
+    target_branch: str
+    workflow_id: int
+    workflow_path: str
+    workflow_blob_sha: str
+    checkout_mode: str
+    event: str
+    app_id: int
+    app_slug: str
+    required_jobs: tuple[str, ...]
+    required_steps: tuple[str, ...]
+    command: str
+
+    def to_canonical_dict(self) -> dict[str, object]:
+        return {
+            "app_id": self.app_id,
+            "app_slug": self.app_slug,
+            "command": self.command,
+            "checkout_mode": self.checkout_mode,
+            "event": self.event,
+            "repository": self.repository,
+            "required_jobs": list(self.required_jobs),
+            "required_steps": list(self.required_steps),
+            "target_branch": self.target_branch,
+            "workflow_blob_sha": self.workflow_blob_sha,
+            "workflow_id": self.workflow_id,
+            "workflow_path": self.workflow_path,
+        }
+
+    @property
+    def fingerprint(self) -> str:
+        return _canonical_json_fingerprint(self.to_canonical_dict())
+
+
+@dataclass(frozen=True)
+class ProtectedWorkflowQualityEvidenceConfig:
+    """Immutable environment-only trust policy for protected CI imports."""
+
+    enabled: bool = False
+    allowlist: tuple[ProtectedWorkflowQualityEvidenceTrust, ...] = ()
+    version: int = _PROTECTED_WORKFLOW_QUALITY_EVIDENCE_VERSION
+
+    def to_canonical_dict(self) -> dict[str, object]:
+        entries = sorted(
+            (entry.to_canonical_dict() for entry in self.allowlist),
+            key=lambda entry: json.dumps(
+                entry,
+                ensure_ascii=True,
+                separators=(",", ":"),
+                sort_keys=True,
+            ),
+        )
+        return {
+            "allowlist": entries,
+            "enabled": self.enabled,
+            "version": self.version,
+        }
+
+    @property
+    def fingerprint(self) -> str:
+        return _canonical_json_fingerprint(self.to_canonical_dict())
+
+    def matching_entries(
+        self,
+        *,
+        repository: str,
+        target_branch: str,
+        command: str,
+    ) -> tuple[ProtectedWorkflowQualityEvidenceTrust, ...]:
+        """Return exact enabled entries for one repository/target/command."""
+
+        if not self.enabled:
+            return ()
+        normalized_repository = str(repository or "").strip().lower()
+        return tuple(
+            entry
+            for entry in self.allowlist
+            if entry.repository == normalized_repository
+            and entry.target_branch == str(target_branch or "").strip()
+            and entry.command == str(command or "").strip()
+        )
+
+
+def _parse_protected_workflow_trust_entry(
+    raw: object,
+    *,
+    index: int,
+) -> ProtectedWorkflowQualityEvidenceTrust:
+    context = f"allowlist[{index}]"
+    if not isinstance(raw, Mapping) or not all(isinstance(key, str) for key in raw):
+        raise _protected_workflow_config_error(f"{context} must be an object")
+    expected_fields = {
+        "repository",
+        "target_branch",
+        "workflow_id",
+        "workflow_path",
+        "workflow_blob_sha",
+        "checkout_mode",
+        "event",
+        "app_id",
+        "app_slug",
+        "required_jobs",
+        "required_steps",
+        "command",
+    }
+    _require_exact_json_keys(raw, expected_fields, context=context)
+
+    repository = _bounded_config_string(
+        raw["repository"], field_name=f"{context}.repository"
+    ).lower()
+    if re.fullmatch(r"[a-z0-9_.-]+/[a-z0-9_.-]+", repository) is None:
+        raise _protected_workflow_config_error(
+            f"{context}.repository must be an owner/repository slug"
+        )
+    target_branch = _bounded_config_string(
+        raw["target_branch"], field_name=f"{context}.target_branch"
+    )
+    workflow_path = _bounded_config_string(
+        raw["workflow_path"], field_name=f"{context}.workflow_path"
+    )
+    parsed_path = PurePosixPath(workflow_path)
+    if (
+        parsed_path.is_absolute()
+        or ".." in parsed_path.parts
+        or not workflow_path.startswith(".github/workflows/")
+        or parsed_path.suffix not in {".yml", ".yaml"}
+        or str(parsed_path) != workflow_path
+    ):
+        raise _protected_workflow_config_error(
+            f"{context}.workflow_path must be a normalized .github/workflows/"
+            "*.yml or *.yaml path"
+        )
+    workflow_blob_sha = _bounded_config_string(
+        raw["workflow_blob_sha"], field_name=f"{context}.workflow_blob_sha"
+    ).lower()
+    if re.fullmatch(r"[0-9a-f]{40,64}", workflow_blob_sha) is None:
+        raise _protected_workflow_config_error(
+            f"{context}.workflow_blob_sha must be a full lowercase Git object ID"
+        )
+    checkout_mode = _bounded_config_string(
+        raw["checkout_mode"], field_name=f"{context}.checkout_mode"
+    )
+    if checkout_mode not in {"explicit_review_head", "merge_tree_equivalent"}:
+        raise _protected_workflow_config_error(
+            f"{context}.checkout_mode must be 'explicit_review_head' or "
+            "'merge_tree_equivalent'"
+        )
+    event = _bounded_config_string(raw["event"], field_name=f"{context}.event")
+    if event != "pull_request":
+        raise _protected_workflow_config_error(
+            f"{context}.event must be 'pull_request'"
+        )
+    app_slug = _bounded_config_string(
+        raw["app_slug"], field_name=f"{context}.app_slug", maximum=100
+    )
+    if re.fullmatch(r"[a-z0-9][a-z0-9-]{0,99}", app_slug) is None:
+        raise _protected_workflow_config_error(
+            f"{context}.app_slug must be a lowercase GitHub App slug"
+        )
+    raw_jobs = raw["required_jobs"]
+    if not isinstance(raw_jobs, list) or not raw_jobs or len(raw_jobs) > 256:
+        raise _protected_workflow_config_error(
+            f"{context}.required_jobs must be a non-empty array of at most 256 names"
+        )
+    jobs = tuple(
+        sorted(
+            _bounded_config_string(
+                job,
+                field_name=f"{context}.required_jobs[{job_index}]",
+                maximum=255,
+            )
+            for job_index, job in enumerate(raw_jobs)
+        )
+    )
+    if len(jobs) != len(set(jobs)):
+        raise _protected_workflow_config_error(
+            f"{context}.required_jobs must not contain duplicates"
+        )
+    raw_steps = raw["required_steps"]
+    if not isinstance(raw_steps, list) or not raw_steps or len(raw_steps) > 64:
+        raise _protected_workflow_config_error(
+            f"{context}.required_steps must be a non-empty array of at most 64 names"
+        )
+    steps = tuple(
+        sorted(
+            _bounded_config_string(
+                step,
+                field_name=f"{context}.required_steps[{step_index}]",
+                maximum=255,
+            )
+            for step_index, step in enumerate(raw_steps)
+        )
+    )
+    if len(steps) != len(set(steps)):
+        raise _protected_workflow_config_error(
+            f"{context}.required_steps must not contain duplicates"
+        )
+    return ProtectedWorkflowQualityEvidenceTrust(
+        repository=repository,
+        target_branch=target_branch,
+        workflow_id=_positive_config_integer(
+            raw["workflow_id"], field_name=f"{context}.workflow_id"
+        ),
+        workflow_path=workflow_path,
+        workflow_blob_sha=workflow_blob_sha,
+        checkout_mode=checkout_mode,
+        event=event,
+        app_id=_positive_config_integer(raw["app_id"], field_name=f"{context}.app_id"),
+        app_slug=app_slug,
+        required_jobs=jobs,
+        required_steps=steps,
+        command=_bounded_config_string(
+            raw["command"], field_name=f"{context}.command", maximum=4096
+        ),
+    )
+
+
+def parse_protected_workflow_quality_evidence_config(
+    raw: str | None,
+) -> ProtectedWorkflowQualityEvidenceConfig:
+    """Parse the strict environment-only protected-workflow trust policy."""
+
+    if raw is None or not raw.strip():
+        return ProtectedWorkflowQualityEvidenceConfig()
+    try:
+        decoded = json.loads(raw, object_pairs_hook=_strict_json_object)
+    except json.JSONDecodeError as exc:
+        raise _protected_workflow_config_error("must contain valid JSON") from exc
+    if not isinstance(decoded, Mapping) or not all(
+        isinstance(key, str) for key in decoded
+    ):
+        raise _protected_workflow_config_error("root must be an object")
+    _require_exact_json_keys(
+        decoded,
+        {"version", "enabled", "allowlist"},
+        context="root",
+    )
+    version = decoded["version"]
+    if (
+        isinstance(version, bool)
+        or not isinstance(version, int)
+        or version != _PROTECTED_WORKFLOW_QUALITY_EVIDENCE_VERSION
+    ):
+        raise _protected_workflow_config_error("version must be integer 1")
+    enabled = decoded["enabled"]
+    if not isinstance(enabled, bool):
+        raise _protected_workflow_config_error("enabled must be a boolean")
+    raw_allowlist = decoded["allowlist"]
+    if not isinstance(raw_allowlist, list):
+        raise _protected_workflow_config_error("allowlist must be an array")
+    if len(raw_allowlist) > 64:
+        raise _protected_workflow_config_error(
+            "allowlist must contain at most 64 entries"
+        )
+    entries = tuple(
+        _parse_protected_workflow_trust_entry(entry, index=index)
+        for index, entry in enumerate(raw_allowlist)
+    )
+    if enabled and not entries:
+        raise _protected_workflow_config_error(
+            "enabled policy requires at least one allowlist entry"
+        )
+    fingerprints = tuple(entry.fingerprint for entry in entries)
+    if len(fingerprints) != len(set(fingerprints)):
+        raise _protected_workflow_config_error(
+            "allowlist must not contain duplicate entries"
+        )
+    return ProtectedWorkflowQualityEvidenceConfig(
+        enabled=enabled,
+        allowlist=entries,
+        version=version,
+    )
 
 
 def load_dotenv(
@@ -123,7 +497,7 @@ def load_dotenv(
 
 def _is_valid_env_key(key: str) -> bool:
     """Return True if key is a valid environment variable name."""
-    return bool(re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', key))
+    return bool(re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", key))
 
 
 def _parse_env_value(raw: str) -> str:
@@ -141,10 +515,10 @@ def _parse_env_value(raw: str) -> str:
         inner = raw[1:-1]
         # Process basic escape sequences
         inner = inner.replace('\\"', '"')
-        inner = inner.replace('\\n', '\n')
-        inner = inner.replace('\\r', '\r')
-        inner = inner.replace('\\t', '\t')
-        inner = inner.replace('\\\\', '\\')
+        inner = inner.replace("\\n", "\n")
+        inner = inner.replace("\\r", "\r")
+        inner = inner.replace("\\t", "\t")
+        inner = inner.replace("\\\\", "\\")
         return inner
 
     # Single-quoted value (literal, no escapes)
@@ -343,7 +717,8 @@ def _parse_strict_profile_source(value: Any) -> str:
         return s
     logger.warning(
         "Unknown strict_profile_source=%r; falling back to 'warn'. Valid: %s",
-        value, ", ".join(_STRICT_PROFILE_SOURCE_VALUES),
+        value,
+        ", ".join(_STRICT_PROFILE_SOURCE_VALUES),
     )
     return "warn"
 
@@ -368,7 +743,9 @@ def _profiles_differ(
     that gets persisted to .oompah/agent_profiles.json so semantically
     equivalent inputs from either source compare equal.
     """
-    return _profiles_to_canonical(workflow_profiles) != _profiles_to_canonical(store_profiles)
+    return _profiles_to_canonical(workflow_profiles) != _profiles_to_canonical(
+        store_profiles
+    )
 
 
 def _parse_profile_mode(value: Any) -> str:
@@ -382,7 +759,8 @@ def _parse_profile_mode(value: Any) -> str:
         return s
     logger.warning(
         "Unknown agent profile mode=%r; falling back to 'auto'. Valid: %s",
-        value, ", ".join(_PROFILE_MODE_VALUES),
+        value,
+        ", ".join(_PROFILE_MODE_VALUES),
     )
     return "auto"
 
@@ -398,7 +776,8 @@ def _parse_budget_window(value: Any) -> str:
         return s
     logger.warning(
         "Unknown budget_window=%r; falling back to 'day'. Valid: %s",
-        value, ", ".join(_BUDGET_WINDOW_VALUES),
+        value,
+        ", ".join(_BUDGET_WINDOW_VALUES),
     )
     return "day"
 
@@ -486,7 +865,9 @@ class ServiceConfig:
     read_timeout_ms: int = 5000
     stall_timeout_ms: int = 300_000
     stall_turns: int = 10
-    escalate_after_attempts: int = 1  # escalate profile after N failed attempts (stall or max_turns)
+    escalate_after_attempts: int = (
+        1  # escalate profile after N failed attempts (stall or max_turns)
+    )
     decompose_after_attempts: int = 2
     server_port: int | None = DEFAULT_SERVER_PORT
     # Optional public HTTPS base URL override used for GitLab Project Hooks.
@@ -688,6 +1069,12 @@ class ServiceConfig:
     # intentionally server configuration, never candidate-branch input; set
     # it only after a lifecycle change has been separately reviewed/deployed.
     quality_gate_safety_head: str = ""
+    # Explicit environment-only trust policy for importing exact protected CI
+    # evidence.  The empty default is disabled; candidate-owned WORKFLOW.md
+    # cannot add or alter this authority.
+    protected_workflow_quality_evidence: ProtectedWorkflowQualityEvidenceConfig = field(
+        default_factory=ProtectedWorkflowQualityEvidenceConfig
+    )
     # Give epic children isolated branches and integrate submitted heads in
     # finish-dependency order. Environment-only rollout switch.
     parallel_epic_children_enabled: bool = False
@@ -738,8 +1125,7 @@ class ServiceConfig:
     # or tests use different operating objectives.
     workflow_liveness_slo_seconds: dict[str, int] = field(
         default_factory=lambda: {
-            key: value.max_reassessment_seconds
-            for key, value in LIVENESS_SLOS.items()
+            key: value.max_reassessment_seconds for key, value in LIVENESS_SLOS.items()
         }
     )
     # Durable runtime bounds.  These values apply to the shared workflow
@@ -888,9 +1274,7 @@ class ServiceConfig:
         self.auto_archive_interval_seconds = max(
             int(self.auto_archive_interval_seconds), 1
         )
-        self.worktree_cleanup_batch_size = max(
-            int(self.worktree_cleanup_batch_size), 0
-        )
+        self.worktree_cleanup_batch_size = max(int(self.worktree_cleanup_batch_size), 0)
         self.worktree_cleanup_interval_seconds = max(
             int(self.worktree_cleanup_interval_seconds), 1
         )
@@ -953,12 +1337,8 @@ class ServiceConfig:
         self.storage_cleanup_min_age_seconds = max(
             int(self.storage_cleanup_min_age_seconds), 60
         )
-        self.storage_cleanup_batch_size = max(
-            int(self.storage_cleanup_batch_size), 0
-        )
-        self.storage_cleanup_max_bytes = max(
-            int(self.storage_cleanup_max_bytes), 0
-        )
+        self.storage_cleanup_batch_size = max(int(self.storage_cleanup_batch_size), 0)
+        self.storage_cleanup_max_bytes = max(int(self.storage_cleanup_max_bytes), 0)
         self.storage_cleanup_log_retention_seconds = max(
             int(self.storage_cleanup_log_retention_seconds), 60
         )
@@ -1038,21 +1418,15 @@ class ServiceConfig:
             int(self.stalled_task_watchdog_interval_seconds), 60
         )
         self.audit_max_attempts = max(int(self.audit_max_attempts), 1)
-        self.audit_max_transport_retries = max(
-            int(self.audit_max_transport_retries), 0
-        )
+        self.audit_max_transport_retries = max(int(self.audit_max_transport_retries), 0)
         self.audit_attempt_ttl = max(int(self.audit_attempt_ttl), 1)
         self.audit_priority = max(int(self.audit_priority), 1)
         self.audit_lane_scan_limit = max(int(self.audit_lane_scan_limit), 0)
-        self.audit_lane_operation_limit = max(
-            int(self.audit_lane_operation_limit), 1
-        )
+        self.audit_lane_operation_limit = max(int(self.audit_lane_operation_limit), 1)
         self.audit_lane_max_runtime_seconds = max(
             float(self.audit_lane_max_runtime_seconds), 0.1
         )
-        self.audit_lane_dispatch_limit = max(
-            int(self.audit_lane_dispatch_limit), 1
-        )
+        self.audit_lane_dispatch_limit = max(int(self.audit_lane_dispatch_limit), 1)
         self.audit_non_audit_reserved_slots = max(
             int(self.audit_non_audit_reserved_slots), 0
         )
@@ -1124,7 +1498,7 @@ class ServiceConfig:
         else:
             ws_root = default_workspace_root()
 
-       # Parse agent profiles from WORKFLOW.md YAML.
+        # Parse agent profiles from WORKFLOW.md YAML.
         # These are the *YAML-authored* profiles. Source precedence:
         # .oompah/agent_profiles.json (UI-editable store) wins by default.
         # WORKFLOW.md profiles are the migration seed when the JSON file
@@ -1146,29 +1520,44 @@ class ServiceConfig:
         for p in raw_profiles:
             if not isinstance(p, dict):
                 continue
-            workflow_profiles.append(AgentProfile(
-                name=str(p.get("name", "default")),
-                command=str(p.get("command", "claude --dangerously-skip-permissions")),
-                provider_id=p.get("provider_id"),
-                model=p.get("model"),
-                model_role=p.get("model_role"),
-                cost_per_1k_input=float(p.get("cost_per_1k_input", 0)),  # optional; prefer provider model_costs
-                cost_per_1k_output=float(p.get("cost_per_1k_output", 0)),  # optional; prefer provider model_costs
-                max_turns=_coerce_int(p.get("max_turns"), None) if p.get("max_turns") is not None else None,
-                keywords=[str(k) for k in (p.get("keywords", []) or [])],
-                issue_types=[str(t) for t in (p.get("issue_types", []) or [])],
-                min_priority=_coerce_int(p.get("min_priority"), None) if p.get("min_priority") is not None else None,
-                max_priority=_coerce_int(p.get("max_priority"), None) if p.get("max_priority") is not None else None,
-                mode=_parse_profile_mode(p.get("mode")),
-            ))
+            workflow_profiles.append(
+                AgentProfile(
+                    name=str(p.get("name", "default")),
+                    command=str(
+                        p.get("command", "claude --dangerously-skip-permissions")
+                    ),
+                    provider_id=p.get("provider_id"),
+                    model=p.get("model"),
+                    model_role=p.get("model_role"),
+                    cost_per_1k_input=float(
+                        p.get("cost_per_1k_input", 0)
+                    ),  # optional; prefer provider model_costs
+                    cost_per_1k_output=float(
+                        p.get("cost_per_1k_output", 0)
+                    ),  # optional; prefer provider model_costs
+                    max_turns=_coerce_int(p.get("max_turns"), None)
+                    if p.get("max_turns") is not None
+                    else None,
+                    keywords=[str(k) for k in (p.get("keywords", []) or [])],
+                    issue_types=[str(t) for t in (p.get("issue_types", []) or [])],
+                    min_priority=_coerce_int(p.get("min_priority"), None)
+                    if p.get("min_priority") is not None
+                    else None,
+                    max_priority=_coerce_int(p.get("max_priority"), None)
+                    if p.get("max_priority") is not None
+                    else None,
+                    mode=_parse_profile_mode(p.get("mode")),
+                )
+            )
 
-       # Resolve effective profiles. Source precedence + opt-out env var
+        # Resolve effective profiles. Source precedence + opt-out env var
         # live in oompah.agent_profile_store.resolve_agent_profiles; lazy
         # import avoids any chance of a circular import at module load.
         from oompah.agent_profile_store import (
             DEFAULT_AGENT_PROFILES_PATH,
             resolve_agent_profiles,
         )
+
         effective_store_path = (
             agent_profiles_path
             or os.environ.get("OOMPAH_AGENT_PROFILES_PATH")
@@ -1210,12 +1599,14 @@ class ServiceConfig:
             logger.info(
                 "AgentProfile source: %s (just migrated from WORKFLOW.md; "
                 "%d profile(s))",
-                effective_store_path, len(profiles),
+                effective_store_path,
+                len(profiles),
             )
         elif profiles:
             logger.info(
                 "AgentProfile source: %s (%d profile(s))",
-                effective_store_path, len(profiles),
+                effective_store_path,
+                len(profiles),
             )
 
         budget_limit = float(agent.get("budget_limit", 0) or 0)
@@ -1250,7 +1641,9 @@ class ServiceConfig:
                 return default
 
         def _env_str(env_key: str, yaml_val: Any, default: str) -> str:
-            return os.environ.get(env_key) or (str(yaml_val) if yaml_val is not None else default)
+            return os.environ.get(env_key) or (
+                str(yaml_val) if yaml_val is not None else default
+            )
 
         # Server port: env > yaml > default. An explicit empty env value or
         # YAML null disables the HTTP dashboard.
@@ -1272,17 +1665,14 @@ class ServiceConfig:
 
         workflow_liveness_slo_seconds = {
             key: _env_int(
-                "OOMPAH_WORKFLOW_LIVENESS_SLO_"
-                f"{key.upper()}_SECONDS",
+                f"OOMPAH_WORKFLOW_LIVENESS_SLO_{key.upper()}_SECONDS",
                 None,
                 slo.max_reassessment_seconds,
             )
             for key, slo in LIVENESS_SLOS.items()
         }
 
-        legacy_workflow_mode = _env_str(
-            "OOMPAH_WORKFLOW_ENGINE_MODE", None, "off"
-        )
+        legacy_workflow_mode = _env_str("OOMPAH_WORKFLOW_ENGINE_MODE", None, "off")
         workflow_domain_env = {
             "implementation": "OOMPAH_WORKFLOW_IMPLEMENTATION_MODE",
             "review": "OOMPAH_WORKFLOW_REVIEW_MODE",
@@ -1313,27 +1703,35 @@ class ServiceConfig:
             tracker_terminal_states=_parse_state_list(
                 tracker.get("terminal_states"), terminal_default
             ),
-            poll_interval_ms=_env_int("OOMPAH_POLL_INTERVAL_MS", polling.get("interval_ms"), 120000),
-            full_sync_interval_ms=_env_int("OOMPAH_FULL_SYNC_INTERVAL_MS", polling.get("full_sync_interval_ms"), 300000),
+            poll_interval_ms=_env_int(
+                "OOMPAH_POLL_INTERVAL_MS", polling.get("interval_ms"), 120000
+            ),
+            full_sync_interval_ms=_env_int(
+                "OOMPAH_FULL_SYNC_INTERVAL_MS",
+                polling.get("full_sync_interval_ms"),
+                300000,
+            ),
             workspace_root=ws_root,
             temp_root=temp_root,
             hooks_after_create=hooks.get("after_create"),
             hooks_before_run=hooks.get("before_run"),
             hooks_after_run=hooks.get("after_run"),
             hooks_before_remove=hooks.get("before_remove"),
-            hooks_timeout_ms=_env_int("OOMPAH_HOOKS_TIMEOUT_MS", hooks.get("timeout_ms"), 60000),
-            max_concurrent_agents=_env_int("OOMPAH_MAX_CONCURRENT_AGENTS", agent.get("max_concurrent_agents"), 10),
-            max_turns=_env_int("OOMPAH_MAX_TURNS", agent.get("max_turns"), 200),
-            max_retry_backoff_ms=_env_int("OOMPAH_MAX_RETRY_BACKOFF_MS", agent.get("max_retry_backoff_ms"), 300000),
-            audit_max_attempts=_parse_positive_env_int(
-                "OOMPAH_AUDIT_MAX_ATTEMPTS", 3
+            hooks_timeout_ms=_env_int(
+                "OOMPAH_HOOKS_TIMEOUT_MS", hooks.get("timeout_ms"), 60000
             ),
+            max_concurrent_agents=_env_int(
+                "OOMPAH_MAX_CONCURRENT_AGENTS", agent.get("max_concurrent_agents"), 10
+            ),
+            max_turns=_env_int("OOMPAH_MAX_TURNS", agent.get("max_turns"), 200),
+            max_retry_backoff_ms=_env_int(
+                "OOMPAH_MAX_RETRY_BACKOFF_MS", agent.get("max_retry_backoff_ms"), 300000
+            ),
+            audit_max_attempts=_parse_positive_env_int("OOMPAH_AUDIT_MAX_ATTEMPTS", 3),
             audit_max_transport_retries=_env_int(
                 "OOMPAH_AUDIT_MAX_TRANSPORT_RETRIES", None, 3
             ),
-            audit_attempt_ttl=_parse_positive_env_int(
-                "OOMPAH_AUDIT_ATTEMPT_TTL", 3600
-            ),
+            audit_attempt_ttl=_parse_positive_env_int("OOMPAH_AUDIT_ATTEMPT_TTL", 3600),
             provider_health_ttl_seconds=_parse_positive_env_int(
                 "OOMPAH_PROVIDER_HEALTH_TTL_SECONDS", 300
             ),
@@ -1344,9 +1742,7 @@ class ServiceConfig:
                 "OOMPAH_AUDIT_PROJECTED_OUTPUT_TOKENS", 32768
             ),
             audit_priority=_env_int("OOMPAH_AUDIT_PRIORITY", None, 100),
-            audit_lane_scan_limit=_env_int(
-                "OOMPAH_AUDIT_LANE_SCAN_LIMIT", None, 32
-            ),
+            audit_lane_scan_limit=_env_int("OOMPAH_AUDIT_LANE_SCAN_LIMIT", None, 32),
             audit_lane_operation_limit=_env_int(
                 "OOMPAH_AUDIT_LANE_OPERATION_LIMIT", None, 8
             ),
@@ -1363,26 +1759,47 @@ class ServiceConfig:
                 "OOMPAH_AUDIT_STALE_PENDING_SECONDS", 3600
             ),
             max_concurrent_agents_by_state=by_state,
-            agent_command=_env_str("OOMPAH_AGENT_COMMAND", codex.get("command"), "claude --dangerously-skip-permissions"),
-            turn_timeout_ms=_env_int("OOMPAH_TURN_TIMEOUT_MS", codex.get("turn_timeout_ms"), 3_600_000),
-            read_timeout_ms=_env_int("OOMPAH_READ_TIMEOUT_MS", codex.get("read_timeout_ms"), 5000),
-            stall_timeout_ms=_env_int("OOMPAH_STALL_TIMEOUT_MS", codex.get("stall_timeout_ms"), 300_000),
+            agent_command=_env_str(
+                "OOMPAH_AGENT_COMMAND",
+                codex.get("command"),
+                "claude --dangerously-skip-permissions",
+            ),
+            turn_timeout_ms=_env_int(
+                "OOMPAH_TURN_TIMEOUT_MS", codex.get("turn_timeout_ms"), 3_600_000
+            ),
+            read_timeout_ms=_env_int(
+                "OOMPAH_READ_TIMEOUT_MS", codex.get("read_timeout_ms"), 5000
+            ),
+            stall_timeout_ms=_env_int(
+                "OOMPAH_STALL_TIMEOUT_MS", codex.get("stall_timeout_ms"), 300_000
+            ),
             stall_turns=_env_int("OOMPAH_STALL_TURNS", agent.get("stall_turns"), 10),
-            escalate_after_attempts=_env_int("OOMPAH_ESCALATE_AFTER_ATTEMPTS", agent.get("escalate_after_attempts"), 1),
-            decompose_after_attempts=_env_int("OOMPAH_DECOMPOSE_AFTER_ATTEMPTS", agent.get("decompose_after_attempts"), 2),
+            escalate_after_attempts=_env_int(
+                "OOMPAH_ESCALATE_AFTER_ATTEMPTS",
+                agent.get("escalate_after_attempts"),
+                1,
+            ),
+            decompose_after_attempts=_env_int(
+                "OOMPAH_DECOMPOSE_AFTER_ATTEMPTS",
+                agent.get("decompose_after_attempts"),
+                2,
+            ),
             server_port=server_port,
             gitlab_webhook_public_url=(
-                os.environ.get("OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL", "").strip()
-                or None
+                os.environ.get("OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL", "").strip() or None
             ),
             agent_profiles=profiles,
             agent_profiles_source=profiles_source,
-            budget_limit=_env_float("OOMPAH_BUDGET_LIMIT", agent.get("budget_limit"), 0.0),
+            budget_limit=_env_float(
+                "OOMPAH_BUDGET_LIMIT", agent.get("budget_limit"), 0.0
+            ),
             budget_window=_parse_budget_window(
                 _env_str("OOMPAH_BUDGET_WINDOW", agent.get("budget_window"), "day"),
             ),
             budget_timezone=_env_str(
-                "OOMPAH_BUDGET_TIMEZONE", agent.get("budget_timezone"), "",
+                "OOMPAH_BUDGET_TIMEZONE",
+                agent.get("budget_timezone"),
+                "",
             ),
             default_first_dispatch=_env_bool(
                 "OOMPAH_DEFAULT_FIRST_DISPATCH",
@@ -1523,6 +1940,11 @@ class ServiceConfig:
             quality_gate_safety_head=_env_str(
                 "OOMPAH_QUALITY_GATE_SAFETY_HEAD", None, ""
             ),
+            protected_workflow_quality_evidence=(
+                parse_protected_workflow_quality_evidence_config(
+                    os.environ.get(_PROTECTED_WORKFLOW_QUALITY_EVIDENCE_ENV)
+                )
+            ),
             parallel_epic_children_enabled=_env_bool(
                 "OOMPAH_PARALLEL_EPIC_CHILDREN_ENABLED", None, False
             ),
@@ -1568,9 +1990,7 @@ class ServiceConfig:
             ),
             workflow_engine_mode=legacy_workflow_mode,
             workflow_domain_modes=workflow_domain_modes,
-            workflow_rollout_require_qualification=(
-                workflow_domain_controls_explicit
-            ),
+            workflow_rollout_require_qualification=(workflow_domain_controls_explicit),
             workflow_rollout_min_shadow_sweeps=_env_int(
                 "OOMPAH_WORKFLOW_ROLLOUT_MIN_SHADOW_SWEEPS", None, 3
             ),
@@ -1635,9 +2055,7 @@ class ServiceConfig:
             ),
             prompt_max_comment_bytes=max(
                 1024,
-                _parse_positive_env_int(
-                    "OOMPAH_PROMPT_MAX_COMMENT_BYTES", 32 * 1024
-                ),
+                _parse_positive_env_int("OOMPAH_PROMPT_MAX_COMMENT_BYTES", 32 * 1024),
             ),
             dispatch_stale_threshold_ms=_env_int(
                 "OOMPAH_DISPATCH_STALE_THRESHOLD_MS", None, 120000
