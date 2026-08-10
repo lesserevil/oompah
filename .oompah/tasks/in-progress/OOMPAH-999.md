@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T16:13:42.956499Z'
-updated_at: '2026-08-10T16:54:17.130346Z'
+updated_at: '2026-08-10T16:54:30.305982Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,5 +57,10 @@ Output tail:
 ```text
 Candidate CI was not run because the submitted review branch tip is unavailable in the managed repository.
 ```
+---
+author: oompah
+created: 2026-08-10 16:54
+---
+Recovery head 6418a935de7b4aab93a24af4756a54b344463513 is pushed and protected PR #799 is open: https://github.com/lesserevil/oompah/pull/799. It preserves exact OOMPAH-997 94f1f5b84aa60bebf02cdd7d049de698df1e79ee, OOMPAH-998 9bf6011ac2481cbf3f73fe23085788814aa69434, and OOMPAH-999 76c86f0d760e4fa03361031d2055e02ade116b08 commits as ancestors. Exact-head verification: 815 combined focused tests passed; complete make test passed 19,472 tests with 7 skipped and 2 xfailed, zero failures, in 21m05s; terminal status-write scan, secret scan, diff check, and independent adversarial review passed. Project remains paused while protected Python 3.11/3.12/3.13 CI runs.
 ---
 <!-- COMMENTS:END -->
