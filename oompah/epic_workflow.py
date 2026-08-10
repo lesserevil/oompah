@@ -83,6 +83,32 @@ class EpicTargetResolutionError(ValueError):
     """The containment graph cannot provide a safe immediate target."""
 
 
+class EpicProjectScopeError(ValueError):
+    """An issue conflicts with the project bound to its workflow."""
+
+
+def normalize_issue_project_scope(issue: Issue, project_id: object) -> Issue:
+    """Return ``issue`` bound to its authoritative workflow project.
+
+    Native Markdown issues do not persist a project identifier because their
+    repository is already the project boundary.  Workflow snapshots must
+    nevertheless include that boundary before computing authority versions.
+    An explicit, conflicting project remains a fail-closed error.
+    """
+
+    bound_project_id = str(project_id or "").strip()
+    if not bound_project_id:
+        raise EpicProjectScopeError("epic workflow project binding is required")
+    observed_project_id = str(issue.project_id or "").strip()
+    if observed_project_id and observed_project_id != bound_project_id:
+        raise EpicProjectScopeError(
+            "issue project identity conflicts with its workflow binding"
+        )
+    if observed_project_id == bound_project_id:
+        return issue
+    return replace(issue, project_id=bound_project_id)
+
+
 class EpicAction(str, Enum):
     """Durable epic actions exposed to workers and restart reconciliation."""
 
@@ -1029,14 +1055,20 @@ class ProductionEpicWorkflowBackend:
                 category=WorkflowFailureCategory.TRANSIENT,
                 retryable=True,
             )
-        if str(epic.project_id or self.collector.project_id) != context.job.project_id:
+        if str(self.collector.project_id or "").strip() != context.job.project_id:
             raise WorkflowActionError(
                 "epic workflow task resolved outside its project binding",
                 category=WorkflowFailureCategory.POLICY,
                 retryable=False,
             )
-        if not epic.project_id:
-            epic.project_id = self.collector.project_id
+        try:
+            epic = normalize_issue_project_scope(epic, context.job.project_id)
+        except EpicProjectScopeError as exc:
+            raise WorkflowActionError(
+                "epic workflow task resolved outside its project binding",
+                category=WorkflowFailureCategory.POLICY,
+                retryable=False,
+            ) from exc
         if str(epic.issue_type or "").strip().lower() != "epic":
             raise WorkflowActionError(
                 f"{epic.identifier} is not an epic",

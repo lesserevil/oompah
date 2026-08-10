@@ -11,6 +11,7 @@ Verifies that:
 from __future__ import annotations
 
 import asyncio
+import threading
 import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -438,6 +439,181 @@ class TestRunLoopUpdatesSyncTime:
         assert calls == 2
         assert maximum_active == 1
 
+    def test_completion_wake_survives_admission_owner_exit_and_claims_suffix(
+        self, tmp_path
+    ):
+        """A wake retained by an exiting owner starts exactly one successor."""
+
+        orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
+        first_owner_started = asyncio.Event()
+        release_first_owner = asyncio.Event()
+        current_job_claimed = asyncio.Event()
+        queued = ["CURRENT-JOB"]
+        claims = []
+
+        async def continue_admission_async():
+            if queued:
+                claims.append(queued.pop(0))
+                current_job_claimed.set()
+            return {
+                "admission_only": True,
+                "requires_reconcile": False,
+                "worker": {"processed": len(claims), "batch_saturated": False},
+            }
+
+        runtime = SimpleNamespace(
+            continue_admission_async=AsyncMock(
+                side_effect=continue_admission_async
+            ),
+            worker=SimpleNamespace(accepting=True, active_count=0),
+        )
+        orch.workflow_runtime = runtime
+        orch._notify_observers = MagicMock()
+        production_lane = orch._run_workflow_admission_lane
+
+        async def owner_already_exiting():
+            first_owner_started.set()
+            await release_first_owner.wait()
+
+        async def scenario():
+            orch._dispatch_loop = asyncio.get_running_loop()
+            orch._run_workflow_admission_lane = owner_already_exiting
+            orch._wake_workflow_admission_lane_on_loop()
+            first_owner = orch._workflow_admission_future
+            assert first_owner is not None
+            await asyncio.wait_for(first_owner_started.wait(), timeout=2.0)
+
+            # Model a superseded invocation completing after this owner chose
+            # its exit path but before its Task became observably done.
+            for _ in range(8):
+                orch._wake_workflow_admission_lane_on_loop()
+            assert orch._workflow_admission_future is first_owner
+            assert orch._workflow_admission_wake_pending is True
+
+            orch._run_workflow_admission_lane = production_lane
+            release_first_owner.set()
+            await asyncio.wait_for(current_job_claimed.wait(), timeout=2.0)
+            successor = orch._workflow_admission_future
+            if successor is not None:
+                await asyncio.wait_for(asyncio.shield(successor), timeout=2.0)
+            await asyncio.sleep(0)
+
+        asyncio.run(scenario())
+
+        assert claims == ["CURRENT-JOB"]
+        assert runtime.continue_admission_async.await_count == 1
+        assert orch._workflow_admission_future is None
+        assert orch._workflow_admission_wake_pending is False
+
+    def test_stale_admission_owner_callback_cannot_clear_new_owner(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
+
+        async def scenario():
+            release_new_owner = asyncio.Event()
+
+            async def failed_old_owner():
+                raise RuntimeError("stale admission owner failed")
+
+            old_owner = asyncio.create_task(failed_old_owner())
+            await asyncio.sleep(0)
+            assert old_owner.done()
+            new_owner = asyncio.create_task(release_new_owner.wait())
+            orch._workflow_admission_future = new_owner
+
+            with patch("oompah.orchestrator.logger.exception") as log_failure:
+                orch._workflow_admission_lane_finished(old_owner)
+
+            log_failure.assert_called_once_with(
+                "Durable workflow admission lane failed"
+            )
+            assert orch._workflow_admission_future is new_owner
+            release_new_owner.set()
+            await new_owner
+
+        asyncio.run(scenario())
+
+    def test_foreign_thread_completion_wake_claims_one_current_job(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
+        claimed = asyncio.Event()
+        calls = 0
+
+        async def continue_admission_async():
+            nonlocal calls
+            calls += 1
+            claimed.set()
+            return {
+                "admission_only": True,
+                "requires_reconcile": False,
+                "worker": {"processed": 1, "batch_saturated": False},
+            }
+
+        runtime = SimpleNamespace(
+            continue_admission_async=AsyncMock(
+                side_effect=continue_admission_async
+            ),
+            worker=SimpleNamespace(accepting=True, active_count=0),
+        )
+        orch.workflow_runtime = runtime
+        orch._notify_observers = MagicMock()
+
+        async def scenario():
+            orch._dispatch_loop = asyncio.get_running_loop()
+            wake = threading.Thread(target=orch._wake_workflow_admission_lane)
+            wake.start()
+            await asyncio.to_thread(wake.join, 2)
+            assert not wake.is_alive()
+            await asyncio.wait_for(claimed.wait(), timeout=2.0)
+            owner = orch._workflow_admission_future
+            if owner is not None:
+                await asyncio.wait_for(asyncio.shield(owner), timeout=2.0)
+            await asyncio.sleep(0)
+
+        asyncio.run(scenario())
+
+        assert calls == 1
+        assert orch._workflow_admission_future is None
+        assert orch._workflow_admission_wake_pending is False
+
+    @pytest.mark.parametrize("fence", ("_paused", "_quiesced"))
+    def test_completion_wake_handoff_respects_lifecycle_fence(
+        self, tmp_path, fence
+    ):
+        orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
+        owner_started = asyncio.Event()
+        release_owner = asyncio.Event()
+        runtime = SimpleNamespace(
+            continue_admission_async=AsyncMock(),
+            worker=SimpleNamespace(accepting=True, active_count=0),
+        )
+        orch.workflow_runtime = runtime
+
+        async def owner_already_exiting():
+            owner_started.set()
+            await release_owner.wait()
+
+        async def scenario():
+            orch._dispatch_loop = asyncio.get_running_loop()
+            orch._run_workflow_admission_lane = owner_already_exiting
+            orch._wake_workflow_admission_lane_on_loop()
+            owner = orch._workflow_admission_future
+            assert owner is not None
+            await asyncio.wait_for(owner_started.wait(), timeout=2.0)
+            orch._wake_workflow_admission_lane_on_loop()
+            setattr(orch, fence, True)
+            release_owner.set()
+            await asyncio.wait_for(asyncio.shield(owner), timeout=2.0)
+            await asyncio.sleep(0)
+
+        asyncio.run(scenario())
+
+        runtime.continue_admission_async.assert_not_awaited()
+        assert orch._workflow_admission_future is None
+        assert orch._workflow_admission_wake_pending is False
+
     @pytest.mark.parametrize("fence", ("_paused", "_quiesced"))
     def test_admission_lane_respects_pause_and_quiesce_fences(
         self, tmp_path, fence
@@ -459,6 +635,79 @@ class TestRunLoopUpdatesSyncTime:
 
         assert orch._workflow_admission_future is None
         runtime.continue_admission_async.assert_not_awaited()
+
+    @pytest.mark.parametrize("fence", ("_paused", "_quiesced", "draining"))
+    def test_effect_exit_refreshes_state_while_admission_is_fenced(
+        self, tmp_path, fence
+    ):
+        orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
+        production_runtime = WorkflowRuntime.from_orchestrator(
+            orch,
+            state_dir=tmp_path / f"completion-state-{fence}",
+        )
+        orch.workflow_runtime = production_runtime
+        orch._notify_state_only = MagicMock()
+        continuation = MagicMock(
+            wraps=orch._request_workflow_batch_continuation
+        )
+        orch._request_workflow_batch_continuation = continuation
+        if fence == "draining":
+            production_runtime._draining = True
+            production_runtime.worker._accepting = False
+        else:
+            setattr(orch, fence, True)
+
+        async def completed_result():
+            return SimpleNamespace(job_id="completed-while-fenced")
+
+        async def scenario():
+            effect = asyncio.create_task(completed_result())
+            with production_runtime._lock:
+                production_runtime._effect_tasks[effect] = "shared"
+            effect.add_done_callback(production_runtime._effect_finished)
+            await effect
+            await asyncio.sleep(0)
+
+        asyncio.run(scenario())
+
+        orch._notify_state_only.assert_called_once_with()
+        continuation.assert_called_once_with(reason="workflow_effect_completed")
+        assert orch._workflow_admission_future is None
+        assert production_runtime.health_snapshot()["worker"]["retained"] == 0
+        production_runtime.close()
+
+    def test_state_refresh_failure_cannot_suppress_completion_wake(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path, full_sync_interval_ms=600_000)
+        production_runtime = WorkflowRuntime.from_orchestrator(
+            orch,
+            state_dir=tmp_path / "completion-state-failure",
+        )
+        orch.workflow_runtime = production_runtime
+        orch._notify_state_only = MagicMock(
+            side_effect=RuntimeError("state publication failed")
+        )
+        continuation = MagicMock(return_value=True)
+        orch._request_workflow_batch_continuation = continuation
+
+        async def completed_result():
+            return SimpleNamespace(job_id="completed-after-state-failure")
+
+        async def scenario():
+            effect = asyncio.create_task(completed_result())
+            with production_runtime._lock:
+                production_runtime._effect_tasks[effect] = "shared"
+            effect.add_done_callback(production_runtime._effect_finished)
+            await effect
+            await asyncio.sleep(0)
+
+        asyncio.run(scenario())
+
+        orch._notify_state_only.assert_called_once_with()
+        continuation.assert_called_once_with(reason="workflow_effect_completed")
+        assert production_runtime.health_snapshot()["worker"]["retained"] == 0
+        production_runtime.close()
 
     def test_transition_completions_keep_fast_admission_until_empty(
         self, tmp_path
@@ -597,6 +846,10 @@ class TestRunLoopUpdatesSyncTime:
         orch._run_non_lifecycle_housekeeping = MagicMock()
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
+        retained_at_state_refresh = []
+        orch._notify_state_only = lambda: retained_at_state_refresh.append(
+            production_runtime.health_snapshot()["worker"]["retained"]
+        )
 
         try:
             asyncio.run(orch.run())
@@ -606,6 +859,7 @@ class TestRunLoopUpdatesSyncTime:
 
         assert runtime.reconcile_async.await_count == 2
         assert runtime.continue_admission_async.await_count == 3
+        assert retained_at_state_refresh == [0, 0]
         assert observed_events == [
             (
                 EventType.ISSUE_STATE_CHANGED,
