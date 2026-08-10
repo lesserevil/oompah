@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-982
 type: bug
-status: In Review
+status: Needs CI Fix
 priority: 1
 title: Retire implementation recovery when direct owner holds authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T02:54:36.526201Z'
-updated_at: '2026-08-10T03:29:08.805186Z'
+updated_at: '2026-08-10T03:56:11.964057Z'
 work_branch: OOMPAH-982
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/790
