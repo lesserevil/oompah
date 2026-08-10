@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T19:36:11.713277Z'
-updated_at: '2026-08-10T21:02:20.746054Z'
+updated_at: '2026-08-10T21:02:33.701903Z'
 work_branch: OOMPAH-1004
 target_branch: null
 review_url: null
@@ -105,5 +105,10 @@ created: 2026-08-10 21:02
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Delivered in protected PR #803 at merge a9e6cf0047af5d2e37a53853cf49467b2cf16f22; exact review head 1d35b2e922b59077dc4b0d758e7e0c823affe027 passed local complete gate and hosted Python 3.11/3.12/3.13 checks.
+---
+author: oompah
+created: 2026-08-10 21:02
+---
+Merged authoritative dependency-status recovery through protected PR #803.
 ---
 <!-- COMMENTS:END -->
