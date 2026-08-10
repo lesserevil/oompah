@@ -11,6 +11,7 @@ import pytest
 
 from oompah.integration import IntegrationRecord
 from oompah.models import BlockerRef, Issue
+from oompah.workflow_contract import TaskDisposition
 from oompah.workflow_facts import (
     CollectedValue,
     FactDomain,
@@ -25,6 +26,7 @@ from oompah.workflow_facts import (
     WorkflowFactCollector,
     WorkflowFacts,
 )
+from oompah.work_decision import evaluate_task
 from tests.fixtures_workflow_incidents import INCIDENTS_BY_ID, materialize_git
 
 NOW = datetime(2026, 8, 4, 12, 0, tzinfo=timezone.utc)
@@ -721,6 +723,181 @@ def test_collector_normalizes_task_graph_and_explicit_missing_domains():
     for domain in WorkflowFactCollector._EXTERNAL_DOMAINS:
         assert facts.fact(domain).state is FactState.MISSING
     assert facts.fact(FactDomain.LANDING).state is FactState.MISSING
+
+
+def test_collector_resolves_stateless_dependencies_from_authoritative_corpus():
+    task = _issue(
+        blocked_by=[BlockerRef(identifier="TASK-0")],
+        start_blocked_by=[BlockerRef(identifier="TASK-X")],
+    )
+    merged = _issue(
+        id="TASK-0",
+        identifier="TASK-0",
+        state="Merged",
+        blocked_by=[],
+        start_blocked_by=[],
+    )
+    open_dependency = _issue(
+        id="TASK-X",
+        identifier="TASK-X",
+        state="Open",
+        blocked_by=[],
+        start_blocked_by=[],
+    )
+    corpus = {
+        issue.identifier: issue for issue in (task, merged, open_dependency)
+    }
+    collector = WorkflowFactCollector(
+        project_id="project-1",
+        tracker=FakeTracker(None),
+        clock=lambda: NOW,
+    )
+
+    facts = collector.collect("TASK-1", authoritative_issues=corpus)
+    dependencies = facts.fact(FactDomain.DEPENDENCIES)
+
+    assert dependencies.state is FactState.KNOWN
+    assert dependencies.value["finish"][0]["status"] == "Merged"
+    assert dependencies.value["hard_start"][0]["status"] == "Open"
+
+
+@pytest.mark.parametrize(
+    ("corpus", "error_code"),
+    (
+        (
+            {
+                "TASK-1": _issue(
+                    blocked_by=[],
+                    start_blocked_by=[
+                        BlockerRef(identifier="MISSING-1", state="Merged")
+                    ],
+                )
+            },
+            "dependency_state_unavailable",
+        ),
+        (
+            {
+                "TASK-1": _issue(
+                    blocked_by=[],
+                    start_blocked_by=[BlockerRef(identifier="TASK-X")],
+                ),
+                "TASK-X": _issue(
+                    id="TASK-X",
+                    identifier="TASK-X",
+                    project_id="project-2",
+                    blocked_by=[],
+                    start_blocked_by=[],
+                ),
+            },
+            "dependency_project_scope_mismatch",
+        ),
+    ),
+)
+def test_collector_fails_closed_for_unavailable_dependency_authority(
+    corpus, error_code
+):
+    collector = WorkflowFactCollector(
+        project_id="project-1",
+        tracker=FakeTracker(None),
+        clock=lambda: NOW,
+    )
+
+    dependency = collector.collect(
+        "TASK-1", authoritative_issues=corpus
+    ).fact(FactDomain.DEPENDENCIES)
+
+    assert dependency.state is FactState.ERROR
+    assert dependency.error_code == error_code
+    assert dependency.value is None
+
+
+def test_collector_fails_closed_when_dependency_authority_read_errors():
+    task = _issue(
+        blocked_by=[],
+        start_blocked_by=[BlockerRef(identifier="TASK-X")],
+    )
+
+    class ErroringAuthority(dict):
+        def get(self, key, default=None):
+            if key == task.identifier:
+                return task
+            raise ConnectionError("dependency source unavailable")
+
+    dependency = WorkflowFactCollector(
+        project_id="project-1",
+        tracker=FakeTracker(None),
+        clock=lambda: NOW,
+    ).collect(
+        task.identifier,
+        authoritative_issues=ErroringAuthority(),
+    ).fact(FactDomain.DEPENDENCIES)
+
+    assert dependency.state is FactState.ERROR
+    assert dependency.error_code == "dependency_connectionerror"
+    assert dependency.value is None
+
+
+def test_collector_does_not_default_unresolved_direct_ref_to_backlog():
+    task = _issue(
+        blocked_by=[],
+        start_blocked_by=[BlockerRef(identifier="TASK-X")],
+    )
+
+    dependency = WorkflowFactCollector(
+        project_id="project-1",
+        tracker=FakeTracker(task),
+        clock=lambda: NOW,
+    ).collect(task.identifier).fact(FactDomain.DEPENDENCIES)
+
+    assert dependency.state is FactState.ERROR
+    assert dependency.error_code == "dependency_state_unavailable"
+
+
+@pytest.mark.parametrize(
+    ("dependency_status", "disposition", "reason_code"),
+    (
+        ("Merged", TaskDisposition.RETRY_SCHEDULED, "integration.queued"),
+        ("Open", TaskDisposition.BLOCKED, "integration.dependencies_blocked"),
+    ),
+)
+def test_ready_integration_uses_authoritative_hard_start_status(
+    dependency_status, disposition, reason_code
+):
+    task = _issue(
+        blocked_by=[],
+        start_blocked_by=[BlockerRef(identifier="TASK-X")],
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch="task-1",
+            base_branch="epic-1",
+            head_sha="a" * 40,
+        ),
+    )
+    dependency = _issue(
+        id="TASK-X",
+        identifier="TASK-X",
+        state=dependency_status,
+        blocked_by=[],
+        start_blocked_by=[],
+    )
+    corpus = {
+        task.identifier: task,
+        dependency.identifier: dependency,
+    }
+    collector = WorkflowFactCollector(
+        project_id="project-1",
+        tracker=FakeTracker(None),
+        clock=lambda: NOW,
+    )
+
+    decision = evaluate_task(
+        task,
+        collector.collect(task.identifier, authoritative_issues=corpus),
+        now=NOW,
+    )
+
+    assert decision.disposition is disposition
+    assert decision.reason_code == reason_code
 
 
 def test_task_graph_order_does_not_change_facts_version():
