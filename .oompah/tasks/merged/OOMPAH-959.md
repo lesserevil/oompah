@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-959
 type: task
-status: Done
+status: Merged
 priority: null
 title: Continue durable effects when concurrency fills before batch size
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T14:08:58.066871Z'
-updated_at: '2026-08-09T16:16:40.840442Z'
+updated_at: '2026-08-10T01:16:22.476993Z'
 work_branch: OOMPAH-959
 target_branch: null
 review_url: null
@@ -74,6 +74,25 @@ oompah.terminal_audit:
     selected_ref: 42e5355de509b5768668ca2d4462862b57d39e44
     selected_sha: 42e5355de509b5768668ca2d4462862b57d39e44
     applied: true
+  - version: 1
+    override_id: override-8873b9a5a04e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-959
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cb200a77409736d9c5bd729981e55649de1ceaafc6f2802d65e09a4796c1414d
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Selected or integrated head 42e5355 is an ancestor of current main and
+      the completed audit evidence is preserved; retire the historical record as Merged.
+    created_at: '2026-08-10T01:16:17.812440+00:00'
+    selected_ref: 42e5355de509b5768668ca2d4462862b57d39e44
+    selected_sha: 42e5355de509b5768668ca2d4462862b57d39e44
+    applied: false
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-959

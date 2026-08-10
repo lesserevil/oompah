@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-10T01:16:08.750901Z'
+updated_at: '2026-08-10T01:16:15.648690Z'
 work_branch: OOMPAH-957
 target_branch: null
 review_url: null
@@ -81,7 +81,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T01:16:03.872484+00:00'
     selected_ref: 7d0807c2005cf299bc2a90a97909600d65171573
     selected_sha: 7d0807c2005cf299bc2a90a97909600d65171573
-    applied: false
+    applied: true
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-957
@@ -93,6 +93,16 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-08-09T16:13:54.408487+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-957
+    target_state: Merged
+    evidence_fingerprint: 395deaefdf523e61a4892a5aa578e0c64e2a260b52c7c3cb2d01f0badc629ddd
+    audit_ids:
+    - audit-fee0ad90fd0f
+    - audit-fa8de4cae680
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T01:16:14.056768+00:00'
   oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
@@ -316,5 +326,12 @@ author: oompah
 created: 2026-08-09 16:14
 ---
 Merged PR #772 after exact-head hosted CI and independent no-blocker review; merge tree equals the qualified head.
+---
+author: oompah
+created: 2026-08-10 01:16
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Selected or integrated head 7d0807c is an ancestor of current main and the completed audit evidence is preserved; retire the historical record as Merged.
 ---
 <!-- COMMENTS:END -->
