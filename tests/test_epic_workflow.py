@@ -693,6 +693,35 @@ async def test_auto_close_revalidation_fails_closed_without_canonical_authority(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("state", "parent_id", "review_head"),
+    (
+        (IN_REVIEW, None, "b" * 40),
+        (IN_PROGRESS, "PARENT", None),
+        (OPEN, None, None),
+    ),
+)
+async def test_auto_close_durable_fallback_is_only_for_headless_root_in_progress(
+    state,
+    parent_id,
+    review_head,
+):
+    top = issue(
+        "TOP",
+        state=state,
+        issue_type="epic",
+        parent_id=parent_id,
+    )
+    top.review_head = review_head
+    backend, effects = auto_close_backend([auto_close_snapshot(top)])
+
+    result = await backend.revalidate(auto_close_context())
+
+    assert not result.current
+    effects.apply_epic_effect.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_auto_close_uses_persisted_review_head_as_terminal_cas(tmp_path):
     make_git_fixture(tmp_path)
     git(tmp_path, "checkout", "main")

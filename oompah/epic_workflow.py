@@ -27,6 +27,7 @@ from oompah.projects import sanitize_branch_identifier
 from oompah.statuses import (
     ARCHIVED,
     DONE,
+    IN_PROGRESS,
     IN_REVIEW,
     MERGED,
     canonicalize_status,
@@ -1233,11 +1234,26 @@ class ProductionEpicWorkflowBackend:
         payload: Mapping[str, Any],
     ) -> bool:
         if action is EpicAction.AUTO_CLOSE:
+            authority = cls._auto_close_landing_authority(snapshot)
+            mutable_head = _exact_head(issue_exact_head(snapshot.epic))
+            if mutable_head is not None:
+                landing_matches_task = bool(
+                    authority is not None
+                    and authority.exact_head == mutable_head
+                )
+            else:
+                landing_matches_task = bool(
+                    authority is not None
+                    and str(snapshot.epic.issue_type or "").strip().lower()
+                    == "epic"
+                    and not str(snapshot.epic.parent_id or "").strip()
+                    and canonicalize_status(snapshot.epic.state) == IN_PROGRESS
+                )
             return bool(
                 action.value in snapshot.decision.durable_jobs
                 and snapshot.decision.reason_code
                 == "terminal.immediate_target_landing_proven"
-                and cls._auto_close_landing_authority(snapshot) is not None
+                and landing_matches_task
             )
         if action is EpicAction.CLEANUP:
             own = cls._own_landing(snapshot)
