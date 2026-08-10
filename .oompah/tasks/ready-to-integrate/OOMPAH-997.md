@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-997
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 2
 title: '[backend:workflow_runtime] Durable workflow source evaluation failed for proj-14849f1b'
 parent: null
@@ -11,13 +11,23 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T15:04:29.205558Z'
-updated_at: '2026-08-10T15:29:38.220089Z'
-work_branch: null
+updated_at: '2026-08-10T15:34:30.268325Z'
+work_branch: OOMPAH-997
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-997
+  head_sha: 94f1f5b84aa60bebf02cdd7d049de698df1e79ee
+  submitted_at: '2026-08-10T15:34:15.105659+00:00'
+  updated_at: '2026-08-10T15:34:15.105659+00:00'
+oompah.work_branch: OOMPAH-997
 ---
 ## Summary
 
@@ -64,5 +74,10 @@ author: oompah
 created: 2026-08-10 15:29
 ---
 Direct-owner hotfix is committed locally at exact head 94f1f5b84aa60bebf02cdd7d049de698df1e79ee on branch OOMPAH-997. Transient None publication revisions now cleanly supersede source/preflight/finalization snapshots; superseded async reconciles clear admission and cannot claim prior shared work; active projects and controller caches are preserved for stable retry. Regressions cover five None windows, integer revision change, production composition, multi-project reporting, and real prior-generation job fencing with zero attempts/effects until a newer cut republishes. Full workflow-runtime suite: 130 passed; Python 3.11 focused new regressions: 10 passed; independent adversarial review approved; terminal mutation scan and secret checks passed. Exact complete Makefile gate is now running before push/submission.
+---
+author: oompah
+created: 2026-08-10 15:34
+---
+Fixed tracker publication-revision races so transient mutation authority cleanly supersedes and retries, while prior shared jobs remain fenced until a stable world snapshot republishes. Added source/preflight/finalization, async admission, retry, composition, and multi-project regressions; 130 workflow-runtime tests and focused Python 3.11 checks pass; independent review approved.
 ---
 <!-- COMMENTS:END -->
