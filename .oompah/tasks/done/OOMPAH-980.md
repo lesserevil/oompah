@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T01:42:03.823626Z'
-updated_at: '2026-08-10T02:37:34.850015Z'
+updated_at: '2026-08-10T02:37:47.087641Z'
 work_branch: OOMPAH-980
 target_branch: null
 review_url: null
@@ -80,6 +80,34 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-10T02:37:19.848449+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Exact implementation head 10f586bbcdd87287f486906840e4a5405de4bddd landed
+      on main through protected PR 789 at merge 2dde7ad8734542a056e45e1fb5d52fff8204b9fb
+      after complete local and three-version hosted gates. Retain the Done record
+      because this emergency follow-up landed directly on main after the active epic
+      branch had already landed.
+    marked_at: '2026-08-10T02:37:45.471232+00:00'
+    updated_at: '2026-08-10T02:37:45.471232+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Exact implementation head 10f586bbcdd87287f486906840e4a5405de4bddd landed
+        on main through protected PR 789 at merge 2dde7ad8734542a056e45e1fb5d52fff8204b9fb
+        after complete local and three-version hosted gates. Retain the Done record
+        because this emergency follow-up landed directly on main after the active
+        epic branch had already landed.
+      recorded_at: '2026-08-10T02:37:45.471232+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
