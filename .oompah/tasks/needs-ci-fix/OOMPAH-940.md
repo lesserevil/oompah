@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-940
 type: epic
-status: In Validation
+status: Needs CI Fix
 priority: 1
 title: Converge the legacy Done backlog from authoritative delivery evidence
 parent: null
@@ -32,7 +32,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-10T23:08:27.807528Z'
+updated_at: '2026-08-10T23:11:36.337188Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,7 +66,8 @@ oompah.terminal_audit:
     evidence_fingerprint: 0a8f66ccd7cf1de072dd1b0feb8ac319adc1bf49c227fd03ebf4eaf1970e9daa
     audit_ids:
     - audit-fddacbaa91fb
-    kind: result
+    - audit-9ac757c7ad64
+    kind: completed_workflow_recurrence
     applied: true
     retired_at: '2026-08-09T18:06:20.147268+00:00'
   oompah.terminal_audit_result_intents:
@@ -83,6 +84,20 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-09T18:06:20.147278+00:00'
     applied_at: '2026-08-09T18:06:28.039581+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-940
+    audit_id: audit-fddacbaa91fb
+    attempt_id: workflow-recurrence:audit-9ac757c7ad64
+    target_state: Done
+    evidence_fingerprint: 0a8f66ccd7cf1de072dd1b0feb8ac319adc1bf49c227fd03ebf4eaf1970e9daa
+    status: Needs CI Fix
+    audit_ids:
+    - audit-fddacbaa91fb
+    - audit-9ac757c7ad64
+    kind: result
+    applied: true
+    created_at: '2026-08-10T23:11:29.607132+00:00'
+    applied_at: '2026-08-10T23:11:34.684182+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -149,7 +164,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-940
     target_state: Done
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -164,6 +179,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T23:08:23.525891+00:00'
     selected_ref: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
     selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
+    updated_at: '2026-08-10T23:11:29.607081+00:00'
   - version: 1
     audit_id: audit-47936c819189
     project_id: proj-14849f1b
