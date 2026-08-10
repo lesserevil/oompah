@@ -1998,6 +1998,70 @@ class WorkflowRuntime:
         return self._issues(binding), None, None
 
     @staticmethod
+    def _authoritative_issue_index(issues: Sequence[Any]) -> dict[str, Any]:
+        """Index one project corpus by canonical tracker identity aliases.
+
+        Native task lookup is case-insensitive.  Dependency facts must use the
+        same semantics without scanning the corpus per edge, while rejecting
+        two rows that collapse to one canonical alias.
+        """
+
+        indexed: dict[str, Any] = {}
+        for issue in issues:
+            aliases = {
+                str(getattr(issue, "identifier", "") or "").strip(),
+                str(getattr(issue, "id", "") or "").strip(),
+            }
+            for alias in aliases - {""}:
+                canonical_alias = alias.casefold()
+                existing = indexed.get(canonical_alias)
+                if existing is not None and existing is not issue:
+                    raise WorkflowRuntimeError(
+                        "tracker authority contains an ambiguous task identity"
+                    )
+                indexed[canonical_alias] = issue
+        return indexed
+
+    @staticmethod
+    def _dependency_target_identities(
+        issues: Sequence[Any],
+        authoritative_issues: Mapping[str, Any],
+    ) -> tuple[frozenset[str], bool]:
+        """Return canonical dependency-target aliases and ambiguity state."""
+
+        targets: set[str] = set()
+        ambiguous = False
+        for issue in issues:
+            blockers = (
+                *tuple(getattr(issue, "blocked_by", ()) or ()),
+                *tuple(getattr(issue, "start_blocked_by", ()) or ()),
+            )
+            for blocker in blockers:
+                reference = str(
+                    getattr(blocker, "identifier", None)
+                    or getattr(blocker, "id", None)
+                    or ""
+                ).strip()
+                if not reference:
+                    ambiguous = True
+                    continue
+                target = authoritative_issues.get(reference.casefold())
+                if target is None:
+                    # A missing or project-filtered row cannot prove whether a
+                    # concurrent task delta changes this dependency edge.
+                    ambiguous = True
+                    continue
+                aliases = {
+                    str(getattr(target, "identifier", "") or "").strip(),
+                    str(getattr(target, "id", "") or "").strip(),
+                } - {""}
+                if not aliases:
+                    ambiguous = True
+                    continue
+                targets.update(alias.casefold() for alias in aliases)
+        return frozenset(targets), ambiguous
+
+    @staticmethod
     def _tracker_corpus_authority_digest(issues: Sequence[Any]) -> str:
         """Return a stable digest for an explicitly legacy native corpus."""
 
@@ -2504,7 +2568,12 @@ class WorkflowRuntime:
                             "reason": "project paused or orchestrator quiesced",
                         }
                         continue
-                    issues = self._issues(binding)
+                    issues, _tracker_revision, _tracker_mode = (
+                        self._issues_with_authority(binding)
+                    )
+                    authoritative_issues = self._authoritative_issue_index(
+                        issues
+                    )
                     task_issues = [
                         issue
                         for issue in issues
@@ -2531,6 +2600,7 @@ class WorkflowRuntime:
                                 binding.implementation_controller.evaluate(
                                     task_issues,
                                     liveness_slo_seconds=liveness_slo_seconds,
+                                    authoritative_issues=authoritative_issues,
                                 ),
                             )
                         )
@@ -2541,6 +2611,7 @@ class WorkflowRuntime:
                                 binding.review_controller.evaluate(
                                     task_issues,
                                     liveness_slo_seconds=liveness_slo_seconds,
+                                    authoritative_issues=authoritative_issues,
                                 ),
                             )
                         )
@@ -2551,6 +2622,7 @@ class WorkflowRuntime:
                                 binding.integration_controller.evaluate(
                                     task_issues,
                                     liveness_slo_seconds=liveness_slo_seconds,
+                                    authoritative_issues=authoritative_issues,
                                 ),
                             )
                         )
@@ -2802,6 +2874,14 @@ class WorkflowRuntime:
                     == "epic"
                     and canonicalize_status(issue.state) != IN_VALIDATION
                 ]
+                authoritative_issues = self._authoritative_issue_index(issues)
+                (
+                    dependency_target_identities,
+                    dependency_target_membership_ambiguous,
+                ) = self._dependency_target_identities(
+                    issues,
+                    authoritative_issues,
+                )
                 report["projects"][project_id] = {"issues": len(issues)}
                 implementation_checkpoint = dict(
                     binding.implementation_controller._latest
@@ -2811,6 +2891,7 @@ class WorkflowRuntime:
                         binding.implementation_controller.evaluate(
                             task_issues,
                             liveness_slo_seconds=liveness_slo_seconds,
+                            authoritative_issues=authoritative_issues,
                         )
                     )
                 finally:
@@ -2823,6 +2904,7 @@ class WorkflowRuntime:
                 review_batch = binding.review_controller.evaluate(
                     task_issues,
                     liveness_slo_seconds=liveness_slo_seconds,
+                    authoritative_issues=authoritative_issues,
                 )
                 review_batch = self._scope_domain_decisions(
                     "review", review_batch, REVIEW_ACTION_JOBS
@@ -2835,6 +2917,7 @@ class WorkflowRuntime:
                     integration_batch = binding.integration_controller.evaluate(
                         task_issues,
                         liveness_slo_seconds=liveness_slo_seconds,
+                        authoritative_issues=authoritative_issues,
                     )
                 finally:
                     binding.integration_controller._latest = (
@@ -2872,7 +2955,8 @@ class WorkflowRuntime:
                 ]
                 project_liveness_facts = {
                     (project_id, issue.identifier): binding.collector.collect(
-                        issue.identifier
+                        issue.identifier,
+                        authoritative_issues=authoritative_issues,
                     )
                     for issue in project_liveness_tasks
                 }
@@ -2951,6 +3035,12 @@ class WorkflowRuntime:
                             tracker_publication_revision
                         ),
                         "tracker_authority_mode": tracker_authority_mode,
+                        "dependency_target_identities": (
+                            dependency_target_identities
+                        ),
+                        "dependency_target_membership_ambiguous": (
+                            dependency_target_membership_ambiguous
+                        ),
                         "workflow_authority_revision": (
                             workflow_authority_revision
                         ),
@@ -3583,7 +3673,33 @@ class WorkflowRuntime:
                         raise WorkflowPublicationSuperseded(
                             "tracker authority changed before publication"
                         )
-                    tracker_terminal_changes[project_id] = scoped_tracker_changes
+                    canonical_changes = frozenset(
+                        str(task_id or "").strip().casefold()
+                        for task_id in scoped_tracker_changes
+                        if str(task_id or "").strip()
+                    )
+                    if len(canonical_changes) != len(scoped_tracker_changes):
+                        raise WorkflowPublicationSuperseded(
+                            "tracker authority changed before publication"
+                        )
+                    prepared_item = prepared_by_project[project_id]
+                    dependency_targets = frozenset(
+                        prepared_item.get("dependency_target_identities") or ()
+                    )
+                    if canonical_changes and (
+                        prepared_item.get(
+                            "dependency_target_membership_ambiguous", False
+                        )
+                        or not canonical_changes.isdisjoint(dependency_targets)
+                    ):
+                        # A task status is cross-row dependency evidence.  If
+                        # a changed audit task is a dependency target (or that
+                        # membership cannot be proven), excluding only its own
+                        # decision would publish stale dependents.
+                        raise WorkflowPublicationSuperseded(
+                            "tracker authority changed before publication"
+                        )
+                    tracker_terminal_changes[project_id] = canonical_changes
                 publication_revision_after = _tracker_publication_revision(
                     publication_revision_source,
                     unavailable_reason=(
@@ -3711,7 +3827,7 @@ class WorkflowRuntime:
                                         )
                                         changed_revision, changed_tasks = scoped_changes
                                         active_audit_tasks = {
-                                            decision.task_id
+                                            decision.task_id.casefold()
                                             for (
                                                 proof_binding,
                                                 decision,
@@ -3721,15 +3837,24 @@ class WorkflowRuntime:
                                             and str(observed.get("request_state") or "")
                                             in {"pending", "in_progress"}
                                         }
+                                        raw_changed_tasks = changed_tasks or ()
+                                        canonical_changed_tasks = frozenset(
+                                            str(task_id or "").strip().casefold()
+                                            for task_id in raw_changed_tasks
+                                            if str(task_id or "").strip()
+                                        )
                                         if (
                                             int(changed_revision) != current_revision
                                             or not changed_tasks
-                                            or not changed_tasks <= active_audit_tasks
+                                            or len(canonical_changed_tasks)
+                                            != len(raw_changed_tasks)
+                                            or not canonical_changed_tasks
+                                            <= active_audit_tasks
                                             or (
                                                 project_id
                                                 in tracker_terminal_changes
                                                 and tracker_terminal_changes[project_id]
-                                                != changed_tasks
+                                                != canonical_changed_tasks
                                             )
                                         ):
                                             superseded = True
