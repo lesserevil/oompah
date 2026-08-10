@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T17:36:32.614914Z'
-updated_at: '2026-08-10T18:39:42.300354Z'
+updated_at: '2026-08-10T18:39:52.428168Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -97,5 +97,10 @@ created: 2026-08-10 18:39
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Exact implementation d8232d4f250fade0da5603f0ed31dfa043b0d258 is contained in protected merge 8eac2ae5097e84840d6b07fe965b37224c0f7960 via PR #800; combined exact head 017956bd637bfd3dd9124396fef394b439f47d6a passed the complete local Makefile gate and protected Python 3.11/3.12/3.13 CI, with independent adversarial approval.
+---
+author: oompah
+created: 2026-08-10 18:39
+---
+Merged through protected PR #800. Exact combined verification: 19,520 passed, 7 skipped, 2 xfailed locally; protected Python 3.11/3.12/3.13 jobs passed; independent review approved. Deployed in server revision 8eac2ae5097e84840d6b07fe965b37224c0f7960.
 ---
 <!-- COMMENTS:END -->

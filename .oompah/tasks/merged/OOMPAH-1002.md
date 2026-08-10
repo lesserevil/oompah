@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1002
 type: bug
-status: In Progress
+status: Merged
 priority: 1
 title: Keep expected bounded terminal-audit continuation out of degraded service health
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T17:51:08.587712Z'
-updated_at: '2026-08-10T18:20:33.746620Z'
+updated_at: '2026-08-10T18:40:01.118670Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,33 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: terminal-audit-bounded-scan-health-canary-v1
   request_fingerprint: e27c950bbdd5a9f653862121b7839a09138c5d69fa61ffe319e96acf827baad6
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-429183d672c2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1002
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e90a4c968e025127c8fc871e44d7a600a588142200124c6f75b2ecdcd7983f83
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Exact implementation 7cfcf162352a308c0cbabb18f617a9d688641d7b is contained
+      in protected merge 8eac2ae5097e84840d6b07fe965b37224c0f7960 via PR #800; combined
+      exact head 017956bd637bfd3dd9124396fef394b439f47d6a passed the complete local
+      Makefile gate and protected Python 3.11/3.12/3.13 CI, with independent adversarial
+      approval.'
+    created_at: '2026-08-10T18:39:54.947426+00:00'
+    selected_ref: origin/OOMPAH-1002
+    selected_sha: 7cfcf162352a308c0cbabb18f617a9d688641d7b
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
