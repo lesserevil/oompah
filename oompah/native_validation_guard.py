@@ -1788,7 +1788,7 @@ class _NativeValidationLeaseBroker:
                     invocation_id=validation_invocation_id,
                     records_session_gate=_session_full_gate_candidate(
                         self.validation_reuse_policy,
-                        classification,
+                        command,
                     ),
                 )
                 lifecycle_group = boundary_group

@@ -179,23 +179,22 @@ _SESSION_FULL_GATE_PASSED = "_session_full_gate_passed"
 
 def _session_full_gate_candidate(
     policy: Mapping[str, Any] | None,
-    classification: ValidationCommandClassification | None,
+    command: object,
 ) -> bool:
-    """Return whether a successful command completes this session's full gate."""
+    """Return whether a successful command is the exact configured full gate.
 
-    if (
-        not isinstance(policy, Mapping)
-        or str(policy.get("decision") or "") != "full_gate_required"
-        or classification is None
+    ``contains_configured`` is deliberately insufficient here. Compound shell
+    input such as ``make test || true`` contains the gate but can replace its
+    failing exit status. Session-local pass evidence therefore uses the same
+    outer-whitespace-normalized command identity as durable gate evidence.
+    """
+
+    if not isinstance(policy, Mapping) or (
+        str(policy.get("decision") or "") != "full_gate_required"
     ):
         return False
-    return bool(
-        classification.contains_configured
-        or (
-            not str(policy.get("command") or "").strip()
-            and classification.full_suite
-        )
-    )
+    configured = str(policy.get("command") or "").strip()
+    return bool(configured and str(command or "").strip() == configured)
 
 
 def _validation_reuse_policy_decision(
@@ -1394,7 +1393,7 @@ def _exec_run_command(
             and isinstance(validation_reuse_policy, MutableMapping)
             and _session_full_gate_candidate(
                 validation_reuse_policy,
-                validation_classification,
+                command,
             )
         ):
             # Remember the pass only for this target-bound in-memory session.

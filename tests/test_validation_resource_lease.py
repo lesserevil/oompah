@@ -20,6 +20,7 @@ from oompah.acp_tools import _auditor_validation_success_handler
 from oompah.api_agent import (
     _exec_run_command,
     _execute_tool,
+    _session_full_gate_candidate,
     _validation_reuse_policy_decision,
 )
 from oompah.auditor import check_auditor_command
@@ -3472,6 +3473,30 @@ def test_validation_reuse_policy_fails_closed_without_fresh_authority(
 
 
 @pytest.mark.parametrize(
+    ("configured", "command", "expected"),
+    [
+        (" make test ", "make test", True),
+        ("make test", " make test ", True),
+        ("make test", "make test || true", False),
+        ("make test", "timeout 30 make test", False),
+        ("", "make test", False),
+    ],
+)
+def test_session_gate_candidate_requires_exact_nonempty_configured_identity(
+    configured,
+    command,
+    expected,
+):
+    assert (
+        _session_full_gate_candidate(
+            {"decision": "full_gate_required", "command": configured},
+            command,
+        )
+        is expected
+    )
+
+
+@pytest.mark.parametrize(
     ("args", "scope", "expected_decision", "denied"),
     [
         (
@@ -3589,6 +3614,56 @@ def test_passed_required_gate_blocks_post_gate_git_before_unrelated_owner(
         )
     finally:
         unrelated_gate.release()
+    authority_check.assert_not_called()
+
+
+def test_masked_required_gate_failure_never_creates_session_pass(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "Makefile").write_text("test:\n\t@exit 17\n", encoding="utf-8")
+    lease = ValidationResourceLease(
+        tmp_path / "validation.sqlite3",
+        capacity=1,
+        poll_seconds=0.01,
+    )
+    policy = {
+        "decision": "full_gate_required",
+        "command": "make test",
+        "attempt_id": "attempt-a",
+    }
+    telemetry = MagicMock()
+    authority_check = MagicMock(side_effect=AssertionError("must not recheck"))
+
+    masked_result = _exec_run_command(
+        tmp_path,
+        {"command": "make test || true"},
+        timeout=5,
+        validation_lease=lease,
+        validation_owner=_audit_owner("p", "auditor-a"),
+        validation_reuse_policy=policy,
+        validation_reuse_authority_check=authority_check,
+        validation_reuse_policy_handler=telemetry,
+    )
+
+    assert "exit_code: 0" in masked_result
+    assert "_session_full_gate_passed" not in policy
+
+    inspection_result = _exec_run_command(
+        tmp_path,
+        {"command": "git diff HEAD~1 HEAD tests/test_one.py"},
+        timeout=5,
+        validation_lease=lease,
+        validation_owner=_audit_owner("p", "auditor-a"),
+        validation_reuse_policy=policy,
+        validation_reuse_authority_check=authority_check,
+        validation_reuse_policy_handler=telemetry,
+    )
+
+    assert "later non-focused heavyweight command was not executed" not in (
+        inspection_result
+    )
+    assert "exit_code:" in inspection_result
+    telemetry.assert_not_called()
     authority_check.assert_not_called()
 
 
