@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T05:18:40.854524Z'
-updated_at: '2026-08-10T05:31:14.653983Z'
+updated_at: '2026-08-10T05:39:45.608503Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,5 +35,10 @@ author: oompah
 created: 2026-08-10 05:31
 ---
 Root cause reproduced from live OOMPAH-983 evidence: .oompah/quality_gates.json contains a passing exact make test result for accepted head 2a10a77 (169.47s), while the managed repository has neither local nor remote OOMPAH-983 refs and git proves 2a10a77 is an ancestor of origin/main. OOMPAH-980 fixed review_head selection but retained mutable work-branch equality as mandatory authority, so both post-review terminal stages fall back to full_gate_required after normal branch deletion. A narrow fix is in progress on branch OOMPAH-988: preserve the durable audit revision binding in the auditor contract, accept deleted-branch fallback only for Done/Merged from In Review with matching review head/ID and exact selected SHA, refresh the target ref, and require Git ancestry. Advanced branches, absent/ambiguous refs, mismatched bindings, and non-ancestors remain fail closed. Compile/diff checks pass; focused pytest is deferred while two authoritative full gates own the validation resource.
+---
+author: oompah
+created: 2026-08-10 05:39
+---
+Implementation is pushed at exact head 2028162ed44c38137ac41b57d1286fe58e0d4ce7 after rebasing onto main through OOMPAH-984. Verification: 43 focused landing/gate-selection regressions passed; 157 auditor contract/bridge/API tests passed; post-rebase combined affected selection passed 193 tests; py_compile, git diff --check, terminal mutation scan, paranoid secret scan, gitleaks, private-key, merge-conflict, and large-file hooks passed. The repository-wide trailing-whitespace hook was skipped because it rewrites pre-existing unrelated whitespace throughout oompah/auditor.py; git diff --check passes for this patch. Independent exact-head review is running.
 ---
 <!-- COMMENTS:END -->
