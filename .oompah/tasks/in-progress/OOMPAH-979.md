@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T00:01:51.280685Z'
-updated_at: '2026-08-10T00:10:43.712379Z'
+updated_at: '2026-08-10T00:51:41.411494Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-08-10 00:10
 ---
 Additional live race evidence from generation 923: collection observed newly created OOMPAH-979 as Backlog, the supported owner claim changed it to In Progress by 00:02 UTC, but generation 923 still published at 00:08:37 with the stale Backlog decision. Liveness then reported exactly one unexplained divergence (evidence.task_status_mismatch) while current exhausted was zero. The authority revision/digest fence must cover task lifecycle/owner-control mutations as well as terminal metadata, causing stale publication to supersede/retry.
+---
+author: oompah
+created: 2026-08-10 00:51
+---
+Implemented generation-wide publication authority fencing and bounded owner-control latency. Final stable coverage includes native state-branch CAS, explicit legacy grouped digest fallback, generic unversioned fail-closed behavior, terminal metadata/workflow authority revisions, 200-task terminal-provenance scaling with no final per-task tracker refresh, pause/owner races, structured retryable 503s, and lock observability. Combined touched suites: 760 passed; make check-secrets and git diff --check passed. Preparing the reviewed commit/push; task is intentionally not submitted and service is not restarted.
 ---
 <!-- COMMENTS:END -->
