@@ -827,11 +827,14 @@ async def test_completed_call_settlement_store_failure_requests_safe_recycle(
     await handler.started.wait()
     assert timed_out.disposition is WorkflowRunDisposition.ACTION_REQUIRED
     monkeypatch.setattr(store, "settle_quarantined_call", unavailable_settlement)
+    assert runner.quarantine_monitor_count == 2
 
     handler.release.set()
-    await asyncio.wait_for(requested.wait(), timeout=0.5)
+    while runner.quarantine_monitor_count:
+        await asyncio.sleep(0)
 
     retained = store.get(queued.job_id)
+    assert requested.is_set()
     assert settlement_calls == 1
     assert retained.state is WorkflowJobState.RUNNING
     assert retained.phase == "quarantined"
