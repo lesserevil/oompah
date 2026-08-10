@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-867
 type: task
-status: Done
+status: Merged
 priority: null
 title: Use canonical epic branches for terminal-audit workspace resolution
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-07T10:53:29.716011Z'
+updated_at: '2026-08-10T01:15:31.262473Z'
 work_branch: OOMPAH-867
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/735
@@ -161,6 +161,25 @@ oompah.terminal_audit:
       fixes pre-verdict transport exhaustion.'
     created_at: '2026-08-07T09:33:33.776478+00:00'
     applied: true
+  - version: 1
+    override_id: override-000d01fbdead
+    project_id: proj-14849f1b
+    task_id: OOMPAH-867
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1ea8ecfc853b79bfe6509b517f6327cce4efa608001c4005970c31977bea5244
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Selected or integrated head 8b7ba2e is an ancestor of current main and
+      the completed audit evidence is preserved; retire the historical record as Merged.
+    created_at: '2026-08-10T01:15:25.060550+00:00'
+    selected_ref: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
+    selected_sha: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -250,6 +269,7 @@ oompah.terminal_audit:
     selected_ref: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
     selected_sha: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
     updated_at: '2026-08-07T09:31:45.299273+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-a8bca1ec2de3
     project_id: proj-14849f1b
@@ -268,6 +288,7 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-07T07:31:07.784061+00:00'
     updated_at: '2026-08-07T09:33:47.322690+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-653499ef5daf
     project_id: proj-14849f1b
@@ -287,6 +308,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T10:53:28.280488+00:00'
     selected_ref: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
     selected_sha: 8b7ba2e54cc05f9c998bf6b6e9f02e042b121bae
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-23d90ec08efa
