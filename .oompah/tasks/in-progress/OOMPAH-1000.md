@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T17:36:32.614914Z'
-updated_at: '2026-08-10T18:13:02.389841Z'
+updated_at: '2026-08-10T18:20:30.971142Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,5 +48,10 @@ author: oompah
 created: 2026-08-10 18:13
 ---
 Review correction pushed as d8232d4f250fade0da5603f0ed31dfa043b0d258. Terminal quality-gate fallback now verifies both the supplied Project.id and the freshly reloaded task project_id match the audit target project before deriving or looking up gate identity; both mismatch paths fail closed without a gate or branch-head lookup. Verification: 334 focused tests passed across tests/test_quality_gate.py and tests/test_terminal_audit_observability.py; targeted authority regressions 30 passed; terminal-audit mutation scan 20/20; git diff --check and secret scan passed. Branch OOMPAH-1000 is clean and exactly synchronized with origin. Task intentionally remains In Progress pending integration review.
+---
+author: oompah
+created: 2026-08-10 18:20
+---
+Protected recovery candidate: PR #800 carries exact OOMPAH-1000 commit d8232d4f250fade0da5603f0ed31dfa043b0d258 in combined head 017956bd637bfd3dd9124396fef394b439f47d6a. Clean combined focused result: 426 passed; full Makefile gate, protected Python 3.11/3.12/3.13 CI, and independent adversarial review are running on that exact head.
 ---
 <!-- COMMENTS:END -->
