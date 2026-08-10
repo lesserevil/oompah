@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T19:11:49.831627Z'
-updated_at: '2026-08-10T21:03:19.137127Z'
+updated_at: '2026-08-10T21:03:27.276207Z'
 work_branch: OOMPAH-1003
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/802
@@ -177,5 +177,10 @@ created: 2026-08-10 21:03
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Implementation is delivered in protected PR #803 at merge a9e6cf0047af5d2e37a53853cf49467b2cf16f22 with exact local and hosted gates green. Done is the topology-valid child terminal lane while parent epic OOMPAH-940 remains the live natural auto-close canary.
+---
+author: oompah
+created: 2026-08-10 21:03
+---
+Delivered root-epic auto-close recovery through protected PR #803; terminalized as Done pending natural parent rollup.
 ---
 <!-- COMMENTS:END -->
