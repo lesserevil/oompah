@@ -369,7 +369,7 @@ class TerminalAuditMetadataStore:
             None,
         )
         if callable(advance_revision):
-            advance_revision(self._project_id)
+            advance_revision(self._project_id, identifier)
         return True
 
     @staticmethod

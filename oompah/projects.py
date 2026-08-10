@@ -33,6 +33,7 @@ DEFAULT_PROJECTS_PATH = ".oompah/projects.json"
 DEFAULT_REPOS_ROOT = os.path.expanduser("~/.oompah/repos")
 DEFAULT_WORKTREE_ROOT = os.path.expanduser("~/.oompah/worktrees")
 DEFAULT_SOURCE_SYNC_TIMEOUT_S = 45.0
+_TERMINAL_AUTHORITY_CHANGE_HISTORY_LIMIT = 4096
 
 
 class ProjectError(Exception):
@@ -1814,6 +1815,13 @@ class ProjectStore:
         # while owner control is blocked.  The token need not survive restart:
         # no pre-restart publication callback can survive with it.
         self._terminal_authority_revisions: dict[str, int] = {}
+        # Retain the task identity for every in-process terminal mutation so a
+        # publication that observes a changed project token can distinguish a
+        # scoped active-audit update from an unscoped authority change.  The
+        # journal shares the process lifetime of the revision above; a restart
+        # cannot leave an old publication callback behind to query it.
+        self._terminal_authority_changes: dict[str, list[tuple[int, str | None]]] = {}
+        self._terminal_authority_change_floors: dict[str, int] = {}
         self._workflow_authority_revisions: dict[str, int] = {}
 
         self._load()
@@ -1905,14 +1913,65 @@ class ProjectStore:
             with self._project_locks_meta:
                 return self._terminal_authority_revisions.get(project_id, 0)
 
-    def advance_terminal_authority_revision(self, project_id: str) -> int:
-        """Advance terminal-metadata authority after one committed write."""
+    def advance_terminal_authority_revision(
+        self,
+        project_id: str,
+        task_id: str | None = None,
+    ) -> int:
+        """Advance terminal authority and record its exact task when known."""
 
         with self.project_write_lock(project_id):
             with self._project_locks_meta:
                 revision = self._terminal_authority_revisions.get(project_id, 0) + 1
                 self._terminal_authority_revisions[project_id] = revision
+                normalized_task = str(task_id or "").strip() or None
+                changes = self._terminal_authority_changes.setdefault(project_id, [])
+                changes.append((revision, normalized_task))
+                excess = len(changes) - _TERMINAL_AUTHORITY_CHANGE_HISTORY_LIMIT
+                if excess > 0:
+                    self._terminal_authority_change_floors[project_id] = changes[
+                        excess - 1
+                    ][0]
+                    del changes[:excess]
                 return revision
+
+    def terminal_authority_changes_since(
+        self,
+        project_id: str,
+        revision: int,
+    ) -> tuple[int, frozenset[str] | None]:
+        """Return the current token and task identities changed after *revision*.
+
+        ``None`` means at least one mutation did not carry task identity, so a
+        caller must retain the project-wide fail-closed fence.  The result is
+        read under the project write lock and can therefore be used in the
+        final publication proof without racing a new metadata mutation.
+        """
+
+        if isinstance(revision, bool) or int(revision) < 0:
+            raise ValueError("revision must be a nonnegative integer")
+        expected = int(revision)
+        with self.project_write_lock(project_id):
+            with self._project_locks_meta:
+                current = self._terminal_authority_revisions.get(project_id, 0)
+                if (
+                    expected > current
+                    or expected
+                    < self._terminal_authority_change_floors.get(project_id, 0)
+                ):
+                    return current, None
+                changes = [
+                    task_id
+                    for changed_revision, task_id in self._terminal_authority_changes.get(
+                        project_id, []
+                    )
+                    if changed_revision > expected
+                ]
+                if any(task_id is None for task_id in changes):
+                    return current, None
+                return current, frozenset(
+                    task_id for task_id in changes if task_id is not None
+                )
 
     def workflow_authority_revision(self, project_id: str) -> int:
         """Return the in-process revision for non-tracker workflow authority."""

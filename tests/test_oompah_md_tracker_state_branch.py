@@ -353,6 +353,57 @@ class TestStateBranchTrackerIntegration:
             after_checkpoint.split(":", 1)[0]
         )
 
+    def test_terminal_metadata_generation_delta_is_exactly_task_scoped(
+        self, state_branch_repo: tuple[Path, str]
+    ) -> None:
+        repo, state_branch = state_branch_repo
+        tracker = _make_tracker(
+            repo,
+            state_branch_enabled=True,
+            state_branch_name=state_branch,
+            git_sync=True,
+        )
+        issue = tracker.create_issue("Scoped terminal metadata")
+        tracker.flush_checkpoint(reason="seed-terminal-metadata")
+        before = tracker.get_state_branch_generation()
+
+        terminal_document = {
+            "version": 1,
+            "pending_chain": [],
+            "attempt_history": [],
+        }
+        tracker.set_metadata_field(
+            issue.identifier,
+            "oompah.terminal_audit",
+            terminal_document,
+        )
+        direct = tracker.get_state_branch_generation()
+
+        assert direct != before
+        assert tracker.terminal_metadata_changes_between(before, direct) == (
+            frozenset({issue.identifier})
+        )
+
+        tracker.flush_checkpoint(reason="commit-terminal-metadata")
+        committed = tracker.get_state_branch_generation()
+        assert tracker.terminal_metadata_changes_between(before, committed) == (
+            frozenset({issue.identifier})
+        )
+        tracker.set_metadata_field(
+            issue.identifier,
+            "oompah.terminal_audit",
+            terminal_document,
+        )
+        assert tracker.get_state_branch_generation() == committed
+
+        tracker.set_metadata_field(
+            issue.identifier,
+            "oompah.work_branch",
+            "unrelated-owner-change",
+        )
+        unrelated = tracker.get_state_branch_generation()
+        assert tracker.terminal_metadata_changes_between(committed, unrelated) is None
+
     def test_generation_bound_list_matches_detail_after_status_file_move(
         self, state_branch_repo: tuple[Path, str]
     ) -> None:
