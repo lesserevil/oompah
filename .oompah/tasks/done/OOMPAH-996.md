@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-996
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Do not return from AgentSession.stop before stderr transport retirement
 parent: null
@@ -11,13 +11,36 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T12:43:02.225351Z'
-updated_at: '2026-08-10T14:31:34.403942Z'
+updated_at: '2026-08-10T15:41:12.089332Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-93ede1e8847f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-996
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c2d2af68429c921f643244189a70b961f59b093b1adf45771ab47402f94a4b6f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #798 merged as 2ab880be5 with exact OOMPAH-996 integration head bb8128258;
+      parent OOMPAH-992 is authoritatively terminal and protected CI passed. Recording
+      shared-child completion as Done because no separate parent review record exists.'
+    created_at: '2026-08-10T15:41:05.516475+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
