@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T09:12:07.010994Z'
+updated_at: '2026-08-10T09:45:17.270799Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,5 +72,10 @@ author: oompah
 created: 2026-08-10 09:12
 ---
 Reviewer fail-open blocker fixed and pushed at exact head d2cbe93047a08085f784699f7ffb88cae703af0a. Lifecycle IPC writes now require a non-empty activated source ID plus explicit epoch and generation whenever source_is_current is supplied; missing authority is rejected at OrchestratorIPC.put_kv, and Orchestrator skips the lifecycle IPC sink when set_orchestrator source activation failed. Non-lifecycle source-less publish_state compatibility remains unchanged and is explicitly tested. Real shared-SQLite activation-failure regression proves an unclaimed lifecycle publisher cannot overwrite replacement-owned state. Rollback re-audit found no other partial-advance, ABA, or lock-order blocker. Evidence: exact fail-open/generation/replacement selector 4 passed; restart+EventBus+IPC core 112 passed; broad focused regression selection 1,361 passed with 3 existing warnings; git diff/check and commit hooks passed. Branch OOMPAH-989 is clean and up to date with origin. Full gate not launched pending re-review.
+---
+author: oompah
+created: 2026-08-10 09:45
+---
+Full-gate repair pushed at exact head dde652463d3ef5a732c229640c84ae42ecd59bca. Prior exact full make test on d2cbe93047a08085f784699f7ffb88cae703af0a failed 3 tests after 19,368 passed, 7 skipped, 2 xfailed, 48 warnings in 1,255.30s: lightweight workflow-store shutdown compatibility, daemon-publication subprocess startup/exit timing, and replacement vs blocked IPC predicate. Root cause repair: cooperative source_is_current now runs before OrchestratorIPC._lock (test asserts mutex is free), while exact source+epoch+generation INSERT...SELECT remains the authoritative commit fence; source revocation has bounded Python-lock and SQLite busy timeouts using the remaining lifecycle deadline; undrained callback shutdown fails closed before persistent stores close. Tests now use event-ordered barriers: subprocess startup readiness is separated from the 2s post-ready exit proof, and replacement synchronously revokes authority before the cached-true writer resumes and is rejected by SQL. Evidence: original failed trio plus new Python-lock/SQLite-lock/store-close cases pass 6/6 post-commit; five race cases passed 10x (50/50); affected core including full epic workflow adapter passes 167; broad focused selection passes 1,415 with 3 existing warnings; py_compile, static lock scan, diff check, commit secret hooks all pass. Branch is clean/up to date. Full gate intentionally not rerun pending re-review.
 ---
 <!-- COMMENTS:END -->
