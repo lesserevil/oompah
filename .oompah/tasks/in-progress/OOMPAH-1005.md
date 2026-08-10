@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T21:14:15.251946Z'
-updated_at: '2026-08-10T21:29:56.709554Z'
+updated_at: '2026-08-10T21:40:27.911886Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-08-10 21:29
 ---
 Accepted for direct-owner repair after live OOMPAH-940 canary reproduced the missing asynchronous completion wake.
+---
+author: oompah
+created: 2026-08-10 21:40
+---
+Implementation in progress on branch OOMPAH-1005. The lost-wake boundary is the admission owner's exit handoff: completion can arrive after its last recheck but before its Future is observably done. The fix records durable coalesced wake intent, transfers it to exactly one successor, keeps pause/quiesce/drain admission fenced, and publishes retained-worker state after every exit. Focused race, non-success, exception/cancellation, fencing, and state-convergence regressions are being added; independent review is active.
 ---
 <!-- COMMENTS:END -->

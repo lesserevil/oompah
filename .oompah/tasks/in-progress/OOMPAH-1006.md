@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T21:29:22.606379Z'
-updated_at: '2026-08-10T21:29:59.559021Z'
+updated_at: '2026-08-10T21:40:30.693213Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-08-10 21:29
 ---
 Accepted for direct-owner repair after live generation 1726 reproduced native project-scope self-supersession.
+---
+author: oompah
+created: 2026-08-10 21:40
+---
+Implementation in progress on branch OOMPAH-1006. The fix normalizes only blank native Markdown project identities to the bound workflow project using immutable Issue replacement, while conflicting non-empty identities remain fail-closed. It covers backend and fresh effect authority plus child cleanup, with a real on-disk OompahMarkdownTracker headless-root auto-close regression and mutation-authority negatives under independent review.
 ---
 <!-- COMMENTS:END -->
