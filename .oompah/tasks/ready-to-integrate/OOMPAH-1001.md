@@ -8,12 +8,11 @@ title: Import trusted protected recovery-PR exact-head gates before terminal-aud
 parent: null
 children: []
 blocked_by: []
-start_blocked_by: &id001
-- OOMPAH-1000
+start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-10T17:36:35.101810Z'
-updated_at: '2026-08-10T19:23:07.266753Z'
+updated_at: '2026-08-10T19:36:27.844378Z'
 work_branch: OOMPAH-1001
 target_branch: null
 review_url: null
@@ -66,5 +65,10 @@ author: oompah
 created: 2026-08-10 19:23
 ---
 Implemented and pushed exact protected recovery-PR gate import at 1e8edb7bc. Real PR #799 evidence binds successfully; 771 affected tests, terminal mutation scan, secret scan, and independent adversarial review are green.
+---
+author: oompah
+created: 2026-08-10 19:36
+---
+Live diagnosis: OOMPAH-1000 is authoritatively Merged on the current state branch, but universal workflow facts projected its state-less native Markdown BlockerRef as Backlog. Filed OOMPAH-1004 for generation-consistent dependency status resolution. Removing this now-obsolete hard-start edge as the scoped in-flight workaround; implementation ancestry and protected integration gates remain mandatory.
 ---
 <!-- COMMENTS:END -->
