@@ -22454,6 +22454,7 @@ class Orchestrator:
             if existing is not None:
                 existing.revoked = True
                 superseded_generation = existing.generation
+                self._clear_quality_gate_result(project_id, task_id)
             authority = StandaloneDeliveryAuthority(
                 project_id=project_id,
                 task_id=task_id,
@@ -22764,6 +22765,10 @@ class Orchestrator:
             self._standalone_delivery_authorities.pop(
                 (authority.project_id, authority.task_id), None
             )
+            self._clear_quality_gate_result(
+                authority.project_id,
+                authority.task_id,
+            )
             return False
         current_generation = self._standalone_integration_generation_revision(current)
         expected_generation = authority.evidence_revision[-len(current_generation) :]
@@ -22772,6 +22777,10 @@ class Orchestrator:
             self._standalone_delivery_authorities.pop(
                 (authority.project_id, authority.task_id),
                 None,
+            )
+            self._clear_quality_gate_result(
+                authority.project_id,
+                authority.task_id,
             )
             return False
         authority.issue = current
@@ -23540,6 +23549,10 @@ class Orchestrator:
                 # gate owned by this claim; a replacement claim may already
                 # be running for the new head.
                 self._cancel_standalone_delivery_gate(authority)
+            # Publication takes this authority lock before the outcome lock.
+            # Therefore either a result is stored first and retired here, or
+            # revocation wins first and the late producer refuses to store it.
+            self._clear_quality_gate_result(*key)
             source = f"standalone_ready_delivery:{key[0]}:{key[1]}"
             self._replace_alert_source(source)
 
@@ -33137,24 +33150,58 @@ class Orchestrator:
         project_id: str,
         task_id: str,
         result: QualityGateResult,
-    ) -> None:
-        """Expose the latest gate disposition to delivery reconciliation."""
+        *,
+        authority: StandaloneDeliveryAuthority | None = None,
+    ) -> bool:
+        """Expose a current gate disposition to delivery reconciliation.
+
+        Standalone gates can finish after terminal reconciliation has revoked
+        their delivery authority.  Serialize their publication with that
+        revocation so a late result cannot recreate an outcome that no longer
+        has a retry owner.  The same fence prevents an obsolete generation's
+        passing result from clearing a failure for a replacement exact head.
+        """
         lock = getattr(self, "_quality_gate_outcomes_lock", None)
         outcomes = getattr(self, "_quality_gate_outcomes", None)
         if lock is None or outcomes is None:
-            return
-        with lock:
-            key = (str(project_id), str(task_id))
+            return True
+        key = (str(project_id), str(task_id))
+
+        def remember() -> bool:
+            if authority is not None:
+                current = self._standalone_delivery_authorities.get(key)
+                result_head = str(result.head_sha or "").strip().lower()
+                authority_head = str(authority.head_sha or "").strip().lower()
+                if (
+                    authority.revoked
+                    or current is not authority
+                    or authority.project_id != key[0]
+                    or authority.task_id != key[1]
+                    or (authority_head and result_head != authority_head)
+                ):
+                    return False
             # A passing retry is the recovery boundary for prior transient
             # interruptions. Do not keep a stale outcome around to make a
             # later reconciliation look degraded.
-            if result.passed:
+            with lock:
+                if result.passed:
+                    outcomes.pop(key, None)
+                    return True
                 outcomes.pop(key, None)
-                return
-            outcomes.pop(key, None)
-            outcomes[key] = result
-            while len(outcomes) > self._QUALITY_GATE_OUTCOME_LIMIT:
-                outcomes.pop(next(iter(outcomes)))
+                outcomes[key] = result
+                while len(outcomes) > self._QUALITY_GATE_OUTCOME_LIMIT:
+                    outcomes.pop(next(iter(outcomes)))
+            return True
+
+        if authority is None:
+            return remember()
+        authority_lock = getattr(self, "_standalone_delivery_authority_lock", None)
+        if authority_lock is None:
+            return False
+        # Lock ordering is authority -> outcome everywhere that needs both.
+        # Terminal revocation uses the same ordering before it clears a row.
+        with authority_lock:
+            return remember()
 
     def _clear_quality_gate_result(self, project_id: str, task_id: str) -> None:
         """Forget a transient outcome once delivery has consumed it."""
@@ -33164,6 +33211,52 @@ class Orchestrator:
             return
         with lock:
             outcomes.pop((str(project_id), str(task_id)), None)
+
+    def _publish_quality_gate_result(
+        self,
+        project_id: str,
+        task_id: str,
+        result: QualityGateResult,
+        *,
+        authority: StandaloneDeliveryAuthority | None = None,
+    ) -> bool:
+        """Publish a result at a tracker/terminal-authority boundary.
+
+        A Ready scan may hold an old issue snapshot while terminal ownership
+        commits under the project write lock.  Revalidate standalone results
+        while holding that same project fence: publication either precedes
+        the terminal operation and is cleared by its revocation, or follows
+        the terminal write and observes that the claim is no longer current.
+        """
+
+        if authority is None:
+            return self._remember_quality_gate_result(
+                project_id,
+                task_id,
+                result,
+            )
+        try:
+            tracker = self._tracker_for_project(str(project_id))
+        except Exception as exc:  # noqa: BLE001 - publication must fail closed
+            logger.warning(
+                "Could not revalidate quality gate authority for %s: %s",
+                task_id,
+                exc,
+            )
+            return False
+        lock_factory = getattr(self.project_store, "project_write_lock", None)
+        project_lock = (
+            lock_factory(str(project_id)) if callable(lock_factory) else None
+        ) or contextlib.nullcontext()
+        with project_lock:
+            if not self._standalone_delivery_authorized(authority, tracker):
+                return False
+            return self._remember_quality_gate_result(
+                project_id,
+                task_id,
+                result,
+                authority=authority,
+            )
 
     def _quality_gate_result_for(
         self,
@@ -33394,29 +33487,21 @@ class Orchestrator:
                         f"to {current_head or 'unknown'} during the gate."
                     ),
                 )
-            elif authority is not None:
-                try:
-                    tracker = self._tracker_for_project(project_id)
-                    if not self._standalone_delivery_authorized(
-                        authority,
-                        tracker,
-                    ):
-                        self._record_superseded_standalone_delivery(
-                            authority,
-                            "delivery authority changed while quality gate ran",
-                        )
-                        return False
-                except Exception as exc:  # noqa: BLE001 - fail closed
-                    logger.warning(
-                        "Could not revalidate quality gate authority for %s: %s",
-                        issue.identifier,
-                        exc,
-                    )
-                    return False
         # Record the final disposition after the exact-head revalidation. In
         # particular, a passed gate that discovers a branch advance must be
         # visible as stale rather than leaving a misleading passed row.
-        self._remember_quality_gate_result(project_id, str(issue.identifier), result)
+        if not self._publish_quality_gate_result(
+            project_id,
+            str(issue.identifier),
+            result,
+            authority=authority,
+        ):
+            logger.info(
+                "Discarding quality gate outcome for superseded delivery %s at %s",
+                issue.identifier,
+                result.head_sha or "unknown",
+            )
+            return False
         if not result.passed:
             # Obsolete/cancelled evidence must not create a new CI-fix state;
             # the replacement generation owns the next attempt.

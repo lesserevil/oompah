@@ -26,7 +26,7 @@ import oompah.quality_gate as quality_gate
 from oompah.auditor import auditor_target_contract
 from oompah.integration import IntegrationRecord
 from oompah.models import Issue, Project
-from oompah.orchestrator import Orchestrator
+from oompah.orchestrator import Orchestrator, StandaloneDeliveryAuthority
 from oompah.quality_gate import (
     AuditorQualityEvidenceProof,
     BranchQualityGate,
@@ -41,7 +41,7 @@ from oompah.quality_gate import (
     _editable_oompah_source,
     _validate_trusted_runtime_source,
 )
-from oompah.statuses import IN_VALIDATION, OPEN, READY_TO_INTEGRATE
+from oompah.statuses import IN_VALIDATION, MERGED, OPEN, READY_TO_INTEGRATE
 from oompah.terminal_audit import compute_issue_evidence_fingerprint
 from oompah.validation_resource_lease import (
     ValidationLeaseOwner,
@@ -2117,6 +2117,259 @@ def test_quality_gate_state_reports_retryable_interrupt_and_clears_on_pass():
     )
     assert orch._quality_gate_state_snapshot()["status"] == "idle"
     assert orch._quality_gate_state_snapshot()["recent"] == []
+
+
+def _outcome_fence_orchestrator() -> Orchestrator:
+    orch = Orchestrator.__new__(Orchestrator)
+    orch._quality_gate_outcomes_lock = threading.Lock()
+    orch._quality_gate_outcomes = {}
+    orch._standalone_delivery_authority_lock = threading.RLock()
+    orch._standalone_delivery_authorities = {}
+    orch._cancel_standalone_delivery_gate = MagicMock()
+    orch._replace_alert_source = MagicMock()
+    return orch
+
+
+def _outcome_authority(
+    *,
+    task_id: str = "task-1",
+    head_sha: str = "a" * 40,
+    generation: str = "generation-1",
+) -> StandaloneDeliveryAuthority:
+    issue = Issue(
+        id=task_id,
+        identifier=task_id,
+        title="Task",
+        project_id="project-1",
+        state=READY_TO_INTEGRATE,
+    )
+    return StandaloneDeliveryAuthority(
+        project_id="project-1",
+        task_id=task_id,
+        issue=issue,
+        expected_state=READY_TO_INTEGRATE,
+        branch=task_id,
+        target_branch="main",
+        evidence_revision=(),
+        dependency_revision=(),
+        allows_parent=False,
+        generation=generation,
+        head_sha=head_sha,
+        head_resolver=lambda: head_sha,
+    )
+
+
+def _interrupted_outcome(
+    authority: StandaloneDeliveryAuthority,
+) -> QualityGateResult:
+    return QualityGateResult(
+        status="interrupted",
+        head_sha=str(authority.head_sha),
+        command="make test",
+        return_code=-signal.SIGTERM,
+        terminating_signal=signal.SIGTERM,
+        interrupted=True,
+        interruption_source="owner_cancellation",
+        owner=QualityGateOwner(
+            authority.project_id,
+            authority.task_id,
+            str(authority.head_sha),
+            authority.generation,
+        ).to_dict(),
+        authority_generation=authority.generation,
+    )
+
+
+@pytest.mark.parametrize(
+    "terminal_first",
+    [True, False],
+    ids=["terminal-before-late-result", "result-before-terminal"],
+)
+def test_terminal_reconciliation_retires_racing_quality_gate_outcome(
+    terminal_first,
+):
+    orch = _outcome_fence_orchestrator()
+    authority = _outcome_authority()
+    key = (authority.project_id, authority.task_id)
+    orch._standalone_delivery_authorities[key] = authority
+    result = _interrupted_outcome(authority)
+
+    if terminal_first:
+        authority.issue.state = MERGED
+        orch._revoke_standalone_delivery_authority(*key)
+        assert not orch._remember_quality_gate_result(
+            *key,
+            result,
+            authority=authority,
+        )
+    else:
+        assert orch._remember_quality_gate_result(
+            *key,
+            result,
+            authority=authority,
+        )
+        assert orch._quality_gate_result_for(*key) is result
+        authority.issue.state = MERGED
+        orch._revoke_standalone_delivery_authority(*key)
+
+    snapshot = orch._quality_gate_state_snapshot()
+    assert snapshot["recent"] == []
+    assert not any(
+        alert.get("task_id") == authority.task_id
+        for alert in orch._quality_gate_dashboard_alerts(snapshot)
+    )
+
+
+def test_stale_ready_snapshot_cannot_publish_after_terminal_persistence():
+    orch = _outcome_fence_orchestrator()
+    authority = _outcome_authority()
+    key = (authority.project_id, authority.task_id)
+    orch._standalone_delivery_authorities[key] = authority
+    project = Project(
+        id=authority.project_id,
+        name="Project",
+        repo_url="https://example.test/org/repo.git",
+        repo_path="/unused",
+        default_branch="main",
+    )
+    terminal_issue = replace(authority.issue, state=MERGED)
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = terminal_issue
+    project_store = MagicMock()
+    project_store.get.return_value = project
+    project_store.project_write_lock.return_value = threading.RLock()
+    orch.project_store = project_store
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+
+    assert not orch._publish_quality_gate_result(
+        *key,
+        _interrupted_outcome(authority),
+        authority=authority,
+    )
+
+    assert orch._quality_gate_state_snapshot()["recent"] == []
+
+
+def test_terminal_project_fence_orders_result_publication_before_revocation():
+    orch = _outcome_fence_orchestrator()
+    authority = _outcome_authority()
+    key = (authority.project_id, authority.task_id)
+    orch._standalone_delivery_authorities[key] = authority
+    project_lock = threading.RLock()
+    project_store = MagicMock()
+    project_store.project_write_lock.return_value = project_lock
+    orch.project_store = project_store
+    orch._tracker_for_project = MagicMock(return_value=MagicMock())
+    checked = threading.Event()
+    release_publication = threading.Event()
+
+    def authorize(_authority, _tracker):
+        checked.set()
+        assert release_publication.wait(timeout=5)
+        return True
+
+    def reconcile_terminal():
+        with project_lock:
+            orch._revoke_standalone_delivery_authority(*key)
+
+    orch._standalone_delivery_authorized = MagicMock(side_effect=authorize)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        publication = pool.submit(
+            orch._publish_quality_gate_result,
+            *key,
+            _interrupted_outcome(authority),
+            authority=authority,
+        )
+        assert checked.wait(timeout=5)
+        terminal = pool.submit(reconcile_terminal)
+        release_publication.set()
+        assert publication.result(timeout=5)
+        terminal.result(timeout=5)
+
+    assert orch._quality_gate_state_snapshot()["recent"] == []
+
+
+def test_nonterminal_interrupted_quality_gate_keeps_scheduled_retry_visible():
+    orch = _outcome_fence_orchestrator()
+    authority = _outcome_authority()
+    key = (authority.project_id, authority.task_id)
+    orch._standalone_delivery_authorities[key] = authority
+
+    assert orch._remember_quality_gate_result(
+        *key,
+        _interrupted_outcome(authority),
+        authority=authority,
+    )
+
+    snapshot = orch._quality_gate_state_snapshot()
+    alert = next(
+        alert
+        for alert in orch._quality_gate_dashboard_alerts(snapshot)
+        if alert.get("task_id") == authority.task_id
+    )
+    assert snapshot["status"] == "interrupted_for_retry"
+    assert alert["recovery_state"] == "scheduled_retry"
+    assert alert["action_required"] is False
+
+
+def test_late_old_head_result_cannot_suppress_current_head_failure():
+    orch = _outcome_fence_orchestrator()
+    old = _outcome_authority(head_sha="a" * 40, generation="old-generation")
+    current = _outcome_authority(
+        head_sha="b" * 40,
+        generation="current-generation",
+    )
+    key = (current.project_id, current.task_id)
+    old.revoked = True
+    orch._standalone_delivery_authorities[key] = current
+    current_failure = QualityGateResult(
+        status="failed",
+        head_sha=str(current.head_sha),
+        command="make test",
+    )
+
+    assert orch._remember_quality_gate_result(
+        *key,
+        current_failure,
+        authority=current,
+    )
+    assert not orch._remember_quality_gate_result(
+        *key,
+        QualityGateResult(
+            status="passed",
+            head_sha=str(old.head_sha),
+            command="make test",
+        ),
+        authority=old,
+    )
+
+    assert orch._quality_gate_result_for(
+        *key,
+        head_sha=str(current.head_sha),
+    ) is current_failure
+
+
+def test_quality_gate_outcome_restart_rebuild_converges_after_terminal_state():
+    before_restart = _outcome_fence_orchestrator()
+    authority = _outcome_authority()
+    key = (authority.project_id, authority.task_id)
+    before_restart._standalone_delivery_authorities[key] = authority
+    assert before_restart._remember_quality_gate_result(
+        *key,
+        _interrupted_outcome(authority),
+        authority=authority,
+    )
+    assert before_restart._quality_gate_state_snapshot()["recent"]
+
+    # Outcomes are transient process state.  A rebuilt orchestrator starts
+    # empty, and terminal reconciliation is idempotent even without a restored
+    # standalone authority.
+    after_restart = _outcome_fence_orchestrator()
+    after_restart._revoke_standalone_delivery_authority(*key)
+
+    assert after_restart._quality_gate_state_snapshot()["status"] == "idle"
+    assert after_restart._quality_gate_state_snapshot()["recent"] == []
 
 
 def test_standalone_signal_termination_is_truthful_and_never_needs_ci_fix():
