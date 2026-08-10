@@ -21302,16 +21302,16 @@ class Orchestrator:
                     if gate_result is not None and gate_result.status == "interrupted":
                         # A lifecycle cancellation is retryable.  Keep the
                         # task Ready and let the next reconciliation retry
-                        # the same accepted head instead of stranding it with
-                        # a false test-failure warning.
-                        self._clear_quality_gate_result(project_id, task_id)
+                        # the same accepted head.  Retain the bounded outcome
+                        # until that retry passes or authority changes so the
+                        # dashboard truthfully shows scheduled recovery.
                         self._clear_standalone_delivery_alert(
                             project_id,
                             task_id,
                             authority=authority,
                         )
                         logger.info(
-                            "Retrying interrupted standalone quality gate "
+                            "Scheduled retry for interrupted standalone quality gate "
                             "project=%s task=%s head=%s",
                             project_id,
                             task_id,
@@ -33152,6 +33152,7 @@ class Orchestrator:
         result: QualityGateResult,
         *,
         authority: StandaloneDeliveryAuthority | None = None,
+        producer: QualityGateOwner | None = None,
     ) -> bool:
         """Expose a current gate disposition to delivery reconciliation.
 
@@ -33166,6 +33167,37 @@ class Orchestrator:
         if lock is None or outcomes is None:
             return True
         key = (str(project_id), str(task_id))
+        published_result = result
+        if producer is not None:
+            result_head = str(result.head_sha or "").strip().lower()
+            producer_head = str(producer.head_sha or "").strip().lower()
+            if (
+                not producer.complete
+                or producer.project_id != key[0]
+                or producer.task_id != key[1]
+                or (result_head and result_head != producer_head)
+            ):
+                return False
+            published_result = replace(
+                result,
+                owner=producer.to_dict(),
+                authority_generation=producer.authority_generation,
+            )
+
+        def owned_by_producer(candidate: QualityGateResult) -> bool:
+            if producer is None or not isinstance(candidate.owner, Mapping):
+                return False
+            owner = candidate.owner
+            return (
+                str(owner.get("project_id") or "") == producer.project_id
+                and str(owner.get("task_id") or "") == producer.task_id
+                and str(owner.get("head_sha") or "").strip().lower()
+                == str(producer.head_sha or "").strip().lower()
+                and str(owner.get("authority_generation") or "")
+                == producer.authority_generation
+                and str(candidate.authority_generation or "")
+                == producer.authority_generation
+            )
 
         def remember() -> bool:
             if authority is not None:
@@ -33184,11 +33216,18 @@ class Orchestrator:
             # interruptions. Do not keep a stale outcome around to make a
             # later reconciliation look degraded.
             with lock:
-                if result.passed:
+                if published_result.passed:
+                    existing = outcomes.get(key)
+                    if (
+                        producer is not None
+                        and existing is not None
+                        and not owned_by_producer(existing)
+                    ):
+                        return False
                     outcomes.pop(key, None)
                     return True
                 outcomes.pop(key, None)
-                outcomes[key] = result
+                outcomes[key] = published_result
                 while len(outcomes) > self._QUALITY_GATE_OUTCOME_LIMIT:
                     outcomes.pop(next(iter(outcomes)))
             return True
@@ -33218,7 +33257,12 @@ class Orchestrator:
         task_id: str,
         result: QualityGateResult,
         *,
-        authority: StandaloneDeliveryAuthority | None = None,
+        authority: StandaloneDeliveryAuthority | None,
+        producer: QualityGateOwner,
+        project: Project,
+        issue: Issue,
+        branch: str,
+        target_branch: str,
     ) -> bool:
         """Publish a result at a tracker/terminal-authority boundary.
 
@@ -33229,12 +33273,6 @@ class Orchestrator:
         the terminal write and observes that the claim is no longer current.
         """
 
-        if authority is None:
-            return self._remember_quality_gate_result(
-                project_id,
-                task_id,
-                result,
-            )
         try:
             tracker = self._tracker_for_project(str(project_id))
         except Exception as exc:  # noqa: BLE001 - publication must fail closed
@@ -33249,13 +33287,61 @@ class Orchestrator:
             lock_factory(str(project_id)) if callable(lock_factory) else None
         ) or contextlib.nullcontext()
         with project_lock:
-            if not self._standalone_delivery_authorized(authority, tracker):
-                return False
+            if authority is not None:
+                if not self._standalone_delivery_authorized(authority, tracker):
+                    return False
+            else:
+                try:
+                    current = tracker.fetch_issue_detail(str(task_id))
+                except Exception as exc:  # noqa: BLE001 - fail closed
+                    logger.warning(
+                        "Could not refresh quality gate task %s: %s",
+                        task_id,
+                        exc,
+                    )
+                    return False
+                if (
+                    not isinstance(current, Issue)
+                    or str(current.identifier or "") != str(task_id)
+                    or (
+                        str(current.project_id or "")
+                        and str(current.project_id) != str(project_id)
+                    )
+                    or canonicalize_status(current.state) in {MERGED, ARCHIVED}
+                    or self._standalone_delivery_evidence_revision(current)
+                    != self._standalone_delivery_evidence_revision(issue)
+                    or self._branch_for_issue(current, project) != str(branch)
+                    or str(
+                        current.target_branch or project.default_branch or ""
+                    ).strip()
+                    != str(target_branch)
+                ):
+                    return False
+                producer_head = str(producer.head_sha or "").strip().lower()
+                if not producer_head.startswith("unresolved:"):
+                    current_head = str(
+                        self._quality_gate_branch_head(project, branch) or ""
+                    ).strip().lower()
+                    if current_head != producer_head:
+                        return False
+
+                # A newly-current head retires an older head's transient row.
+                # This is currentness cleanup, not PASS consumption: the PASS
+                # below may clear only its own exact producer generation.
+                stored = self._quality_gate_result_for(project_id, task_id)
+                if (
+                    result.passed
+                    and stored is not None
+                    and str(stored.head_sha or "").strip().lower()
+                    != producer_head
+                ):
+                    self._clear_quality_gate_result(project_id, task_id)
             return self._remember_quality_gate_result(
                 project_id,
                 task_id,
                 result,
                 authority=authority,
+                producer=producer,
             )
 
     def _quality_gate_result_for(
@@ -33395,6 +33481,34 @@ class Orchestrator:
         )
         source_requires_head_match = bool(worktree)
         gate_source = worktree or str(project.repo_path or "")
+        publication_head = str(
+            authority.head_sha
+            if authority is not None and authority.head_sha
+            else expected_head or f"unresolved:{branch}"
+        )
+        gate_generation = (
+            authority.generation
+            if authority is not None
+            else "review:"
+            + hashlib.sha256(
+                "\0".join(
+                    (
+                        project_id,
+                        str(issue.identifier),
+                        str(branch),
+                        str(target_branch),
+                        publication_head,
+                        str(command),
+                    )
+                ).encode("utf-8")
+            ).hexdigest()
+        )
+        gate_owner = QualityGateOwner(
+            project_id=project_id,
+            task_id=str(issue.identifier),
+            head_sha=publication_head,
+            authority_generation=gate_generation,
+        )
         if materialize_status:
             result = QualityGateResult(
                 status=materialize_status,
@@ -33424,21 +33538,6 @@ class Orchestrator:
                 ),
             )
         else:
-            gate_generation = (
-                authority.generation
-                if authority is not None
-                else f"review:{project_id}:{issue.identifier}:{branch}:{expected_head}"
-            )
-            gate_owner = QualityGateOwner(
-                project_id=project_id,
-                task_id=str(issue.identifier),
-                head_sha=str(
-                    authority.head_sha
-                    if authority is not None and authority.head_sha
-                    else expected_head
-                ),
-                authority_generation=gate_generation,
-            )
             result = self._branch_quality_gate.run(
                 repo_path=gate_source,
                 repo_identity=project.repo_url or project.repo_path or str(project.id),
@@ -33495,6 +33594,11 @@ class Orchestrator:
             str(issue.identifier),
             result,
             authority=authority,
+            producer=gate_owner,
+            project=project,
+            issue=issue,
+            branch=branch,
+            target_branch=target_branch,
         ):
             logger.info(
                 "Discarding quality gate outcome for superseded delivery %s at %s",
