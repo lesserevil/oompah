@@ -22,9 +22,11 @@ from typing import Any
 from oompah.epic_workflow import (
     EPIC_ACTIONS,
     EpicAction,
+    EpicProjectScopeError,
     EpicWorkflowController,
     EpicWorkflowHandler,
     ProductionEpicWorkflowBackend,
+    normalize_issue_project_scope,
 )
 from oompah.events import EventType
 from oompah.models import EpicRebaseState, Issue
@@ -694,17 +696,26 @@ class OrchestratorEpicWorkflowEffects:
                 category=WorkflowFailureCategory.TRANSIENT,
                 retryable=True,
             )
+        try:
+            expected = normalize_issue_project_scope(epic, self.project_id)
+            current = normalize_issue_project_scope(current, self.project_id)
+        except EpicProjectScopeError as exc:
+            raise WorkflowActionSuperseded(
+                "epic project, parent, status, or delivery authority changed",
+                replacement_generation=(
+                    f"authority:{issue_authority_version(current)}"
+                ),
+            ) from exc
         if (
-            _text(current.project_id) != self.project_id
-            or _text(current.identifier) != _text(epic.identifier)
+            _text(current.identifier) != _text(expected.identifier)
             or _text(current.issue_type).lower() != "epic"
-            or issue_authority_version(current) != issue_authority_version(epic)
+            or issue_authority_version(current) != issue_authority_version(expected)
         ):
             raise WorkflowActionSuperseded(
                 "epic project, parent, status, or delivery authority changed",
                 replacement_generation=f"authority:{issue_authority_version(current)}",
             )
-        source, target = self._branches(epic, facts)
+        source, target = self._branches(expected, facts)
         project = self._project(current)
         try:
             current_source = self.orchestrator._epic_branch_for_issue(current)
@@ -823,6 +834,30 @@ class OrchestratorEpicWorkflowEffects:
                     if callable(invalidate):
                         invalidate()
                     current = tracker.fetch_issue_detail(child.identifier)
+                    try:
+                        expected_child = normalize_issue_project_scope(
+                            child, self.project_id
+                        )
+                    except EpicProjectScopeError as exc:
+                        raise WorkflowActionSuperseded(
+                            f"child {child.identifier} changed before branch deletion",
+                            replacement_generation=(
+                                f"cleanup:{issue_authority_version(child)}"
+                            ),
+                        ) from exc
+                    if isinstance(current, Issue):
+                        try:
+                            current = normalize_issue_project_scope(
+                                current, self.project_id
+                            )
+                        except EpicProjectScopeError as exc:
+                            raise WorkflowActionSuperseded(
+                                f"child {child.identifier} changed before "
+                                "branch deletion",
+                                replacement_generation=(
+                                    f"cleanup:{issue_authority_version(current)}"
+                                ),
+                            ) from exc
                     current_head = (
                         _text(issue_exact_head(current)).lower()
                         if isinstance(current, Issue)
@@ -847,7 +882,7 @@ class OrchestratorEpicWorkflowEffects:
                         or canonicalize_status(current.state)
                         not in {DONE, MERGED, ARCHIVED}
                         or issue_authority_version(current)
-                        != issue_authority_version(child)
+                        != issue_authority_version(expected_child)
                         or (current_head and current_head != expected_revision)
                         or (
                             not current_head
@@ -1072,6 +1107,10 @@ class OrchestratorEpicWorkflowEffects:
                 f"{operation}",
                 replacement_generation="cleanup-active:" + ",".join(active),
             )
+        # ``expected`` was collected from these same tracker-shaped child
+        # records.  Keep this containment-only CAS raw/raw: blank native
+        # project scope is admitted by the explicit filter above, while an
+        # explicit foreign project is excluded and changes the child set.
         observed = {
             child.identifier: issue_authority_version(child)
             for child in scoped_children
@@ -1575,6 +1614,10 @@ class OrchestratorEpicWorkflowEffects:
                 continue
             current_status = canonicalize_status(child.state)
             expected_authority = _text(item.get("authority_version"))
+            # Collector containment and this selection refresh both retain the
+            # tracker-native child shape, so their authority comparison is
+            # deliberately raw/raw.  The branch-deletion mutation boundary
+            # binds both copies to the project before its final CAS.
             current_authority = issue_authority_version(child)
             if current_status != status or (
                 expected_authority and current_authority != expected_authority

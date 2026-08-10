@@ -8,7 +8,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -21,7 +21,9 @@ from oompah.epic_workflow import (
     ProductionEpicWorkflowBackend,
     epic_branch,
 )
+from oompah.epic_workflow_adapter import OrchestratorEpicWorkflowEffects
 from oompah.models import Issue
+from oompah.oompah_md_tracker import OompahMarkdownTracker
 from oompah.orchestrator import (
     EpicTargetResolutionError as OrchestratorEpicTargetResolutionError,
     Orchestrator,
@@ -578,6 +580,143 @@ async def test_headless_root_epic_auto_close_uses_durable_landing_authority(
     assert len(transitions.intents) == 1
     assert transitions.intents[0].requested_status == MERGED
     assert transitions.intents[0].exact_head == exact_head
+    store.close()
+
+
+@pytest.mark.asyncio
+async def test_native_headless_root_auto_close_normalizes_fresh_project_scope(
+    tmp_path,
+):
+    git(tmp_path, "init", "-b", "main")
+    (tmp_path / "base.txt").write_text("base\n")
+    git(tmp_path, "add", "base.txt")
+    git(tmp_path, "commit", "-m", "base")
+    tracker = OompahMarkdownTracker(
+        active_states=[OPEN, IN_PROGRESS],
+        terminal_states=[DONE, MERGED, ARCHIVED],
+        cwd=str(tmp_path),
+        default_branch="main",
+        git_sync=False,
+    )
+    native_epic = tracker.create_issue(
+        "Native headless root epic",
+        issue_type="epic",
+        initial_status=IN_PROGRESS,
+    )
+    assert native_epic.project_id is None
+    native_child = tracker.create_issue(
+        "Native landed child",
+        initial_status=DONE,
+        parent=native_epic.identifier,
+    )
+    source = epic_branch(native_epic.identifier)
+    child_source = native_child.identifier
+    git(tmp_path, "checkout", "-b", child_source)
+    (tmp_path / "landed-child.txt").write_text("landed\n")
+    git(tmp_path, "add", "landed-child.txt")
+    git(tmp_path, "commit", "-m", "land native child")
+    child_head = git(tmp_path, "rev-parse", "HEAD")
+    git(tmp_path, "checkout", "main")
+    git(tmp_path, "branch", source, child_head)
+    git(tmp_path, "merge", "--ff-only", source)
+    exact_head = git(tmp_path, "rev-parse", source)
+    tracker.update_issue(
+        native_child.identifier,
+        work_branch=child_source,
+        target_branch=source,
+        **{
+            "oompah.integration": IntegrationRecord(
+                state="integrated",
+                mode="queue",
+                task_branch=child_source,
+                base_branch=source,
+                head_sha=child_head,
+                integrated_sha=exact_head,
+            ).to_dict()
+        },
+    )
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = EpicWorkflowController(
+        collector=EpicFactCollector(
+            project_id="project-1",
+            tracker=tracker,
+            repo_path=str(tmp_path),
+        ),
+        store=store,
+    )
+    native_epic = tracker.fetch_issue_detail(native_epic.identifier)
+    assert native_epic is not None and native_epic.project_id is None
+    bound_epic = replace(native_epic, project_id="project-1")
+    _batch, scheduled = controller.reconcile([bound_epic])
+    assert scheduled.jobs_created == 1
+    job = store.list_jobs()[0]
+    assert job.action == EpicAction.AUTO_CLOSE.value
+
+    project = SimpleNamespace(
+        id="project-1",
+        repo_url="https://github.com/owner/repo.git",
+        repo_path=str(tmp_path),
+        access_token=None,
+    )
+    orchestrator = MagicMock()
+    orchestrator.project_store.get.return_value = project
+    orchestrator._tracker_for_project.return_value = tracker
+    orchestrator._epic_branch_for_issue.side_effect = (
+        lambda current: epic_branch(current.identifier)
+    )
+    orchestrator._resolve_epic_target_branch.return_value = "main"
+    orchestrator.review_capacity_store.active.return_value = []
+    effects = OrchestratorEpicWorkflowEffects(
+        orchestrator,
+        project_id="project-1",
+    )
+    review_open = {"value": True}
+    review = SimpleNamespace(
+        id="1726",
+        state="open",
+        source_branch=source,
+        target_branch="main",
+        head_sha=exact_head,
+    )
+    provider = MagicMock()
+    provider.list_open_reviews.side_effect = (
+        lambda _slug: [review] if review_open["value"] else []
+    )
+    provider.get_branch_head_sha.return_value = exact_head
+
+    def close_review(_slug, _review_id):
+        review_open["value"] = False
+        return True, "closed"
+
+    provider.close_review.side_effect = close_review
+    transitions = RecordingTransitionService()
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers={job.action: production_handler(controller, tracker, effects)},
+        transition_services={"project-1": transitions},
+        worker_id="epic-worker",
+    )
+
+    with patch(
+        "oompah.epic_workflow_adapter.detect_provider",
+        return_value=provider,
+    ):
+        result = await worker.run_once()
+
+    assert result.disposition is WorkflowRunDisposition.COMPLETED
+    completed = store.get(job.job_id)
+    assert completed.state is WorkflowJobState.COMPLETED
+    assert (
+        completed.checkpoint["revalidation"]["details"]["auto_close_exact_head"]
+        == exact_head
+    )
+    assert completed.checkpoint["effect"]["source_head"] == exact_head
+    assert completed.checkpoint["verification"]["source_head"] == exact_head
+    assert len(transitions.intents) == 1
+    assert transitions.intents[0].requested_status == MERGED
+    assert transitions.intents[0].exact_head == exact_head
+    provider.close_review.assert_called_once_with("owner/repo", "1726")
     store.close()
 
 
