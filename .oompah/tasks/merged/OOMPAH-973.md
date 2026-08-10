@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T20:35:08.355449Z'
-updated_at: '2026-08-10T01:17:33.919019Z'
+updated_at: '2026-08-10T01:17:44.916450Z'
 work_branch: OOMPAH-973
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/781
@@ -74,7 +74,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T01:17:28.969719+00:00'
     selected_ref: ddf671f9397b923acf628bfdf1cc74cf03cb5fd3
     selected_sha: ddf671f9397b923acf628bfdf1cc74cf03cb5fd3
-    applied: false
+    applied: true
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-973
@@ -84,7 +84,39 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-08-09T21:05:33.425219+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-973
+    target_state: Merged
+    evidence_fingerprint: 8c4b71dd008ac3a10d9028875b96d4e2da38aaaf38e5d396b61108f598a7c15a
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T01:17:39.147829+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Historical audited Done work is complete and its selected head is on main,
+      but current parent-landing evidence cannot be reconstructed safely enough for
+      Merged; retain immutable terminal provenance and retire reassessment.
+    marked_at: '2026-08-10T01:17:43.305150+00:00'
+    updated_at: '2026-08-10T01:17:43.305150+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Historical audited Done work is complete and its selected head is on
+        main, but current parent-landing evidence cannot be reconstructed safely enough
+        for Merged; retain immutable terminal provenance and retire reassessment.
+      recorded_at: '2026-08-10T01:17:43.305150+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []
@@ -132,5 +164,12 @@ author: oompah
 created: 2026-08-09 21:05
 ---
 Merged deterministic cleanup proof in PR #781 with the full protected Python matrix green.
+---
+author: oompah
+created: 2026-08-10 01:17
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Selected or integrated head ddf671f is an ancestor of current main and the completed audit evidence is preserved; retire the historical record as Merged.
 ---
 <!-- COMMENTS:END -->
