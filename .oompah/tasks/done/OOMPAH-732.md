@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-07T08:43:38.452167Z'
+updated_at: '2026-08-10T01:14:52.573096Z'
 work_branch: OOMPAH-732
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/688
@@ -222,6 +222,25 @@ oompah.terminal_audit:
       tracker In Validation.
     created_at: '2026-08-03T19:35:12.384405+00:00'
     applied: true
+  - version: 1
+    override_id: override-13fd47df7298
+    project_id: proj-14849f1b
+    task_id: OOMPAH-732
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f5969ba60f6c3e053fe89bbe102d8621e2f6ff4f2d89399d8902dedf930515b5
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Selected or integrated head 9aadb07 is an ancestor of current main and
+      the completed audit evidence is preserved; retire the historical record as Merged.
+    created_at: '2026-08-10T01:14:50.428646+00:00'
+    selected_ref: 9aadb07d1e9551c3527dec414a426c6eb9b1b857
+    selected_sha: 9aadb07d1e9551c3527dec414a426c6eb9b1b857
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -258,6 +277,7 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-03T19:22:09.888848+00:00'
     updated_at: '2026-08-03T19:33:05.331642+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-99053d9cd785
     project_id: proj-14849f1b
@@ -289,6 +309,7 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-03T19:22:09.888848+00:00'
     updated_at: '2026-08-03T19:35:19.831671+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-0477ab3d24ad
     project_id: proj-14849f1b
@@ -306,6 +327,7 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Done
     created_at: '2026-08-03T19:44:53.313692+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-7a33c8d7246a
     project_id: proj-14849f1b
@@ -325,6 +347,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:43:36.981123+00:00'
     selected_ref: 9aadb07d1e9551c3527dec414a426c6eb9b1b857
     selected_sha: 9aadb07d1e9551c3527dec414a426c6eb9b1b857
+    source_generation: 1
   - version: 1
     audit_id: audit-dffd49eb66a8
     project_id: proj-14849f1b
@@ -344,6 +367,7 @@ oompah.terminal_audit:
     created_at: '2026-08-07T08:43:36.981123+00:00'
     selected_ref: 9aadb07d1e9551c3527dec414a426c6eb9b1b857
     selected_sha: 9aadb07d1e9551c3527dec414a426c6eb9b1b857
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-6011975b42a6

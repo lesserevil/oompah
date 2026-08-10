@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-10T01:14:39.332254Z'
+updated_at: '2026-08-10T01:14:46.773349Z'
 work_branch: OOMPAH-730
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/687
@@ -157,6 +157,19 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-08-03T19:29:02.838901+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-730
+    target_state: Merged
+    evidence_fingerprint: dc911203c8cce9f04768b0b8e89d2d895b2d1bab7ad898b7799660b6aa2d97b1
+    audit_ids:
+    - audit-9d581825cc7b
+    - audit-5537cd234487
+    - audit-79e3511c1e90
+    - audit-6c4f45c75dc0
+    - audit-756265816f3f
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T01:14:44.899715+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-730
@@ -209,7 +222,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T01:14:32.942519+00:00'
     selected_ref: 6046b2340c539b2f770e8448648b2d1d729084fc
     selected_sha: 6046b2340c539b2f770e8448648b2d1d729084fc
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -328,7 +341,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-730
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -343,12 +356,13 @@ oompah.terminal_audit:
     selected_ref: 6046b2340c539b2f770e8448648b2d1d729084fc
     selected_sha: 6046b2340c539b2f770e8448648b2d1d729084fc
     source_generation: 1
+    updated_at: '2026-08-10T01:14:44.899673+00:00'
   - version: 1
     audit_id: audit-756265816f3f
     project_id: proj-14849f1b
     task_id: OOMPAH-730
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -363,6 +377,7 @@ oompah.terminal_audit:
     selected_ref: 6046b2340c539b2f770e8448648b2d1d729084fc
     selected_sha: 6046b2340c539b2f770e8448648b2d1d729084fc
     source_generation: 1
+    updated_at: '2026-08-10T01:14:44.899696+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-83ebd6844473
@@ -686,5 +701,12 @@ author: oompah
 created: 2026-08-03 19:38
 ---
 Applied the already-recorded independent PASS; OOMPAH-734 tracks stranded PASS finalization and OOMPAH-736 tracks the redundant audit's command-policy denials.
+---
+author: oompah
+created: 2026-08-10 01:14
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Selected or integrated head 6046b23 is an ancestor of current main and the completed audit evidence is preserved; retire the historical record as Merged.
 ---
 <!-- COMMENTS:END -->
