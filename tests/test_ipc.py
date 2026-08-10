@@ -67,6 +67,55 @@ def test_ipc_opens_and_creates_tables(tmp_path):
     ipc.close()
 
 
+def test_ipc_migrates_legacy_publication_source_to_exact_authority(tmp_path):
+    """Existing source-only databases gain epoch and generation fences."""
+
+    db_path = str(tmp_path / "legacy-publication-source.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE publication_sources "
+        "(key TEXT PRIMARY KEY, source_id TEXT NOT NULL)"
+    )
+    conn.execute(
+        "INSERT INTO publication_sources(key, source_id) VALUES('state', 'old')"
+    )
+    conn.commit()
+    conn.close()
+
+    ipc = OrchestratorIPC(db_path)
+    try:
+        conn = sqlite3.connect(db_path)
+        columns = {
+            row[1] for row in conn.execute(
+                "PRAGMA table_info(publication_sources)"
+            ).fetchall()
+        }
+        conn.close()
+        assert {"source_id", "epoch", "generation"} <= columns
+        assert ipc.publish_state(
+            {"generation": 0},
+            source_id="old",
+            source_epoch=0,
+            source_generation=0,
+        )
+        assert ipc.advance_state_source("old", epoch=0, generation=1)
+        assert not ipc.publish_state(
+            {"generation": "stale"},
+            source_id="old",
+            source_epoch=0,
+            source_generation=0,
+        )
+        assert ipc.publish_state(
+            {"generation": 1},
+            source_id="old",
+            source_epoch=0,
+            source_generation=1,
+        )
+        assert ipc.read_state()[0] == {"generation": 1}
+    finally:
+        ipc.close()
+
+
 def test_ipc_repr(ipc):
     r = repr(ipc)
     assert "OrchestratorIPC" in r
@@ -130,6 +179,128 @@ def test_publish_state_read_state(ipc):
     val, ts = ipc.read_state()
     assert val == state
     assert ts is not None
+
+
+def test_lifecycle_state_write_requires_complete_exact_authority(ipc):
+    """A lifecycle predicate cannot fall through to the legacy write path."""
+
+    assert ipc.activate_state_source("replacement", epoch=4, generation=9)
+    replacement = {"source": "replacement"}
+    assert ipc.publish_state(
+        replacement,
+        source_id="replacement",
+        source_epoch=4,
+        source_generation=9,
+    )
+
+    assert not ipc.publish_state(
+        {"source": "unclaimed-lifecycle"},
+        source_is_current=lambda: True,
+        source_id=None,
+        source_epoch=4,
+        source_generation=9,
+    )
+    assert ipc.read_state()[0] == replacement
+
+    # Source-less publication remains available only to non-lifecycle legacy
+    # callers that do not supply a current-source predicate.
+    compatibility = {"source": "legacy-compatibility"}
+    assert ipc.publish_state(compatibility)
+    assert ipc.read_state()[0] == compatibility
+
+
+def test_deactivate_state_source_times_out_behind_connection_lock(ipc):
+    """A lock timeout leaves exact source authority unchanged."""
+
+    assert ipc.activate_state_source("old", epoch=0, generation=0)
+    lock_entered = threading.Event()
+    release_lock = threading.Event()
+
+    def _hold_connection_lock() -> None:
+        with ipc._lock:
+            lock_entered.set()
+            assert release_lock.wait(timeout=10)
+
+    holder = threading.Thread(target=_hold_connection_lock)
+    holder.start()
+    assert lock_entered.wait(timeout=10)
+    try:
+        revoked = ipc.deactivate_state_source("old", timeout=0.05)
+        verifier = OrchestratorIPC(ipc._db_path)
+        try:
+            authority_preserved = verifier.publish_state(
+                {"source": "authority-preserved"},
+                source_id="old",
+                source_epoch=0,
+                source_generation=0,
+            )
+        finally:
+            verifier.close()
+    finally:
+        release_lock.set()
+        holder.join(timeout=10)
+    assert holder.is_alive() is False
+    assert not revoked
+    assert authority_preserved
+    assert ipc.deactivate_state_source("old", timeout=1)
+    assert not ipc.publish_state(
+        {"source": "revoked"},
+        source_id="old",
+        source_epoch=0,
+        source_generation=0,
+    )
+
+
+def test_deactivate_state_source_bounds_sqlite_writer_contention(ipc):
+    """The revocation deadline also bounds SQLite's busy handler."""
+
+    assert ipc.activate_state_source("old", epoch=0, generation=0)
+    blocker = sqlite3.connect(ipc._db_path, timeout=5)
+    blocker.execute("BEGIN IMMEDIATE")
+    try:
+        started = time.monotonic()
+        assert not ipc.deactivate_state_source("old", timeout=0.05)
+        assert time.monotonic() - started < 1
+    finally:
+        blocker.rollback()
+        blocker.close()
+    assert ipc.publish_state(
+        {"source": "authority-preserved"},
+        source_id="old",
+        source_epoch=0,
+        source_generation=0,
+    )
+    assert ipc.deactivate_state_source("old", timeout=1)
+
+
+def test_deactivate_state_source_bounds_reconnect_and_preserves_authority(ipc):
+    """A disconnected revoker cannot escape its deadline through _open()."""
+
+    assert ipc.activate_state_source("old", epoch=3, generation=5)
+    ipc.close()
+    blocker = sqlite3.connect(ipc._db_path, timeout=5)
+    blocker.execute("BEGIN IMMEDIATE")
+    try:
+        started = time.monotonic()
+        assert not ipc.deactivate_state_source("old", timeout=0.05)
+        assert time.monotonic() - started < 1
+        assert ipc._conn is not None
+        assert ipc._conn.execute("PRAGMA busy_timeout").fetchone()[0] == 5000
+    finally:
+        blocker.rollback()
+        blocker.close()
+
+    verifier = OrchestratorIPC(ipc._db_path)
+    try:
+        assert verifier.publish_state(
+            {"source": "authority-preserved"},
+            source_id="old",
+            source_epoch=3,
+            source_generation=5,
+        )
+    finally:
+        verifier.close()
+    assert ipc.deactivate_state_source("old", timeout=1)
 
 
 def test_publish_issues_read_issues(ipc):

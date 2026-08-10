@@ -30,10 +30,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
+import time
 from enum import Enum
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
+
+LIFECYCLE_PUBLICATION_PERMIT_KEY = "_oompah_lifecycle_publication_permit"
 
 
 class EventType(str, Enum):
@@ -97,6 +101,12 @@ class EventBus:
     def __init__(self) -> None:
         # Maps EventType -> list of (handler, is_async) tuples in order
         self._handlers: dict[str, list[tuple[Handler, bool]]] = {}
+        self._lifecycle_publication_lock = threading.RLock()
+        self._lifecycle_publication_condition = threading.Condition(
+            self._lifecycle_publication_lock
+        )
+        self._lifecycle_publication_authority: tuple[Any, int, int] | None = None
+        self._lifecycle_publication_inflight: dict[Any, int] = {}
 
     # ------------------------------------------------------------------
     # Subscription management
@@ -131,6 +141,63 @@ class EventBus:
         handlers.append((handler, is_async))
         logger.debug("EventBus: subscribed %s to %s (async=%s)", handler, key, is_async)
 
+    def activate_lifecycle_publication_authority(
+        self,
+        source: Any,
+        epoch: int,
+        generation: int,
+    ) -> None:
+        """Install the exact lifecycle source accepted by this event sink."""
+
+        with self._lifecycle_publication_lock:
+            self._lifecycle_publication_authority = (
+                source,
+                int(epoch),
+                int(generation),
+            )
+
+    def advance_lifecycle_publication_authority(
+        self,
+        source: Any,
+        epoch: int,
+        generation: int,
+    ) -> bool:
+        """Advance one source monotonically without reviving stale work."""
+
+        candidate = (source, int(epoch), int(generation))
+        with self._lifecycle_publication_lock:
+            authority = self._lifecycle_publication_authority
+            if authority is not None:
+                if authority[0] is not source:
+                    return False
+                if authority[1:] > candidate[1:]:
+                    return False
+            self._lifecycle_publication_authority = candidate
+            return True
+
+    def deactivate_lifecycle_publication_authority(
+        self,
+        source: Any,
+        *,
+        timeout: float,
+    ) -> bool:
+        """Close admission and drain callbacks without locking across them."""
+
+        deadline = time.monotonic() + max(float(timeout), 0.0)
+        with self._lifecycle_publication_condition:
+            authority = self._lifecycle_publication_authority
+            if authority is not None and authority[0] is source:
+                self._lifecycle_publication_authority = None
+            while self._lifecycle_publication_inflight.get(source, 0):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    if authority is not None and authority[0] is source:
+                        self._lifecycle_publication_authority = authority
+                    return False
+                self._lifecycle_publication_condition.wait(timeout=remaining)
+            self._lifecycle_publication_inflight.pop(source, None)
+            return True
+
     def unsubscribe(self, event_type: EventType | str, handler: Handler) -> bool:
         """Remove *handler* from *event_type*.
 
@@ -163,28 +230,65 @@ class EventBus:
     # Synchronous dispatch
     # ------------------------------------------------------------------
 
-    def emit(self, event_type: EventType | str, payload: dict[str, Any] | None = None) -> int:
+    def emit(
+        self,
+        event_type: EventType | str,
+        payload: dict[str, Any] | None = None,
+        *,
+        source_is_current: Callable[[], bool] | None = None,
+        publication_permit: Any | None = None,
+    ) -> int:
         """Dispatch *event_type* to all **sync** handlers.
 
         Async handlers registered for this event are skipped with a warning —
-        use :meth:`emit_async` if you need to call async handlers.
+        use :meth:`emit_async` if you need to call async handlers. Lifecycle
+        publishers can provide a source predicate; checking it inside the bus
+        and again before each handler prevents a retired orchestrator from
+        entering a replacement-owned subscriber.
 
         Returns the number of handlers successfully called.
         """
+        if source_is_current is not None and not source_is_current():
+            return 0
         key = self._key(event_type)
         # Resolve to the EventType member if possible, else keep as raw string
         value_map = EventType._value2member_map_  # type: ignore[attr-defined]
         et: EventType | str = value_map[key] if key in value_map else key
-        payload = payload or {}
+        payload = dict(payload or {})
+        if publication_permit is not None:
+            payload[LIFECYCLE_PUBLICATION_PERMIT_KEY] = publication_permit
         handlers = list(self._handlers.get(key, []))
         called = 0
         for handler, is_async in handlers:
+            if source_is_current is not None and not source_is_current():
+                break
+            admitted_source = None
+            if publication_permit is not None:
+                with self._lifecycle_publication_condition:
+                    if self._lifecycle_publication_authority != (
+                        publication_permit.source,
+                        publication_permit.epoch,
+                        publication_permit.expected_generation,
+                    ):
+                        break
+                    admitted_source = publication_permit.source
+                    self._lifecycle_publication_inflight[admitted_source] = (
+                        self._lifecycle_publication_inflight.get(
+                            admitted_source,
+                            0,
+                        )
+                        + 1
+                    )
             if is_async:
                 logger.warning(
                     "EventBus.emit: async handler %s skipped for %s — use emit_async()",
                     handler,
                     key,
                 )
+                if admitted_source is not None:
+                    with self._lifecycle_publication_condition:
+                        self._lifecycle_publication_inflight[admitted_source] -= 1
+                        self._lifecycle_publication_condition.notify_all()
                 continue
             try:
                 handler(et, payload)
@@ -196,6 +300,11 @@ class EventBus:
                     key,
                     exc_info=True,
                 )
+            finally:
+                if admitted_source is not None:
+                    with self._lifecycle_publication_condition:
+                        self._lifecycle_publication_inflight[admitted_source] -= 1
+                        self._lifecycle_publication_condition.notify_all()
         return called
 
     # ------------------------------------------------------------------

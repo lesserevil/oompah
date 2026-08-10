@@ -257,6 +257,15 @@ class TestUpdateFieldsVisibilityNative:
 
 
 class TestSubmitCreateDialogNative:
+    def test_same_payload_retry_reuses_idempotency_key(self):
+        script = _extract_script(_load_dashboard())
+        submit = _extract_func_body(script, "submitCreateDialog")
+        helper = _extract_func_body(script, "createIdempotencyKey")
+
+        assert "'Idempotency-Key': createIdempotencyKey(body)" in submit
+        assert "_createIdempotency.payload === payload" in helper
+        assert "window.crypto.randomUUID()" in helper
+
     def test_labels_gated_on_supports_labels(self):
         """submitCreateDialog() gates focus labels on supportsLabels(), not only isGitHubBacked."""
         script = _extract_script(_load_dashboard())

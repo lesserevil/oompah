@@ -51,7 +51,7 @@ import os
 import sqlite3
 import threading
 import time
-from typing import Any
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +63,11 @@ COMMAND_TTL_SECONDS = 3600  # 1 hour
 
 # How many pending commands to process in a single poll() call.
 COMMAND_POLL_BATCH = 20
+
+# sqlite3's normal connection busy timeout. Bounded lifecycle revocation may
+# temporarily lower it, but must restore this default before returning a
+# reconnected handle to ordinary IPC callers.
+_SQLITE_BUSY_TIMEOUT_SECONDS = 5.0
 
 # Schema version — bump when the schema changes in a backward-incompatible way.
 _SCHEMA_VERSION = 1
@@ -80,6 +85,13 @@ CREATE TABLE IF NOT EXISTS kv (
     key        TEXT PRIMARY KEY,
     value      TEXT NOT NULL,
     updated_at REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS publication_sources (
+    key       TEXT PRIMARY KEY,
+    source_id TEXT NOT NULL,
+    epoch     INTEGER NOT NULL DEFAULT 0,
+    generation INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS commands (
@@ -129,10 +141,26 @@ class OrchestratorIPC:
             conn = sqlite3.connect(
                 self._db_path,
                 check_same_thread=False,
-                timeout=5.0,
+                timeout=_SQLITE_BUSY_TIMEOUT_SECONDS,
             )
             conn.row_factory = sqlite3.Row
             conn.executescript(_SCHEMA_SQL)
+            publication_columns = {
+                str(row[1])
+                for row in conn.execute(
+                    "PRAGMA table_info(publication_sources)"
+                ).fetchall()
+            }
+            if "epoch" not in publication_columns:
+                conn.execute(
+                    "ALTER TABLE publication_sources "
+                    "ADD COLUMN epoch INTEGER NOT NULL DEFAULT 0"
+                )
+            if "generation" not in publication_columns:
+                conn.execute(
+                    "ALTER TABLE publication_sources "
+                    "ADD COLUMN generation INTEGER NOT NULL DEFAULT 0"
+                )
             conn.execute(
                 "INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)",
                 ("version", str(_SCHEMA_VERSION)),
@@ -160,28 +188,135 @@ class OrchestratorIPC:
             self._open()
         return self._conn
 
+    def _open_existing_for_bounded_revocation(
+        self,
+        deadline: float,
+    ) -> sqlite3.Connection | None:
+        """Open an existing authority DB without unbounded schema writes."""
+
+        if not os.path.exists(self._db_path):
+            return None
+        conn: sqlite3.Connection | None = None
+        try:
+            remaining = max(0.0, deadline - time.monotonic())
+            if remaining <= 0:
+                return None
+            conn = sqlite3.connect(
+                self._db_path,
+                check_same_thread=False,
+                timeout=remaining,
+            )
+            conn.row_factory = sqlite3.Row
+            remaining = max(0.0, deadline - time.monotonic())
+            if remaining <= 0:
+                conn.close()
+                return None
+            conn.execute(
+                f"PRAGMA busy_timeout = {int(remaining * 1000)}"
+            )
+            columns = {
+                str(row[1])
+                for row in conn.execute(
+                    "PRAGMA table_info(publication_sources)"
+                ).fetchall()
+            }
+            if not {"key", "source_id", "epoch", "generation"} <= columns:
+                conn.close()
+                return None
+            self._conn = conn
+            return conn
+        except sqlite3.Error as exc:
+            if conn is not None:
+                try:
+                    conn.close()
+                except sqlite3.Error:
+                    pass
+            logger.warning(
+                "OrchestratorIPC: bounded revocation reconnect failed for "
+                "%s: %s",
+                self._db_path,
+                exc,
+            )
+            return None
+
     # ------------------------------------------------------------------
     # Key-value snapshot store
     # ------------------------------------------------------------------
 
-    def put_kv(self, key: str, value: Any) -> bool:
+    def put_kv(
+        self,
+        key: str,
+        value: Any,
+        *,
+        source_is_current: Callable[[], bool] | None = None,
+        required_source_id: str | None = None,
+        required_source_epoch: int | None = None,
+        required_source_generation: int | None = None,
+    ) -> bool:
         """Write *value* (serialised to JSON) under *key*.
 
         Returns True on success, False on any SQLite error (logged; does not
-        raise so that a broken IPC channel never crashes the scheduler).
+        raise so that a broken IPC channel never crashes the scheduler).  A
+        lifecycle publisher may supply a source predicate, but must also
+        supply its complete source, epoch, and generation authority. The
+        predicate is evaluated inside the sink lock immediately before the
+        exact-authority SQLite mutation so a retired or unclaimed orchestrator
+        cannot overwrite the replacement's cached state. Calls without a
+        predicate retain the legacy unguarded compatibility path.
         """
+        if source_is_current is not None and (
+            not str(required_source_id or "").strip()
+            or required_source_epoch is None
+            or required_source_generation is None
+        ):
+            logger.debug(
+                "OrchestratorIPC.put_kv(%s): rejected lifecycle write "
+                "without exact source authority",
+                key,
+            )
+            return False
+        # This predicate is cooperative advisory state and may execute caller
+        # code. Never retain the IPC mutex across it. The exact source tuple
+        # checked by the INSERT ... SELECT below is the authoritative fence
+        # against a cached-true predicate racing source replacement.
+        if source_is_current is not None and not source_is_current():
+            return False
         with self._lock:
             conn = self._ensure_conn()
             if conn is None:
                 return False
             try:
                 payload = json.dumps(value, default=str)
-                conn.execute(
-                    "INSERT OR REPLACE INTO kv(key, value, updated_at) VALUES(?, ?, ?)",
-                    (key, payload, time.monotonic()),
-                )
+                updated_at = time.monotonic()
+                if required_source_id is None:
+                    cursor = conn.execute(
+                        "INSERT OR REPLACE INTO kv(key, value, updated_at) "
+                        "VALUES(?, ?, ?)",
+                        (key, payload, updated_at),
+                    )
+                else:
+                    # The source comparison and state replacement are one
+                    # SQLite statement. A replacement scheduler's source claim
+                    # therefore orders strictly before or after this write;
+                    # an old process cannot pass a Python check and mutate the
+                    # shared cache after the new claim commits.
+                    cursor = conn.execute(
+                        "INSERT OR REPLACE INTO kv(key, value, updated_at) "
+                        "SELECT ?, ?, ? FROM publication_sources "
+                        "WHERE key = ? AND source_id = ? "
+                        "AND epoch = ? AND generation = ?",
+                        (
+                            key,
+                            payload,
+                            updated_at,
+                            key,
+                            str(required_source_id),
+                            int(required_source_epoch or 0),
+                            int(required_source_generation or 0),
+                        ),
+                    )
                 conn.commit()
-                return True
+                return bool(cursor.rowcount)
             except (sqlite3.Error, TypeError) as exc:
                 logger.warning("OrchestratorIPC.put_kv(%s): %s", key, exc)
                 return False
@@ -348,9 +483,168 @@ class OrchestratorIPC:
     # Convenience — state/issues/maintenance snapshots
     # ------------------------------------------------------------------
 
-    def publish_state(self, snapshot: dict[str, Any]) -> bool:
+    def publish_state(
+        self,
+        snapshot: dict[str, Any],
+        *,
+        source_is_current: Callable[[], bool] | None = None,
+        source_id: str | None = None,
+        source_epoch: int | None = None,
+        source_generation: int | None = None,
+    ) -> bool:
         """Write the orchestrator state snapshot (scheduler side)."""
-        return self.put_kv("state", snapshot)
+        return self.put_kv(
+            "state",
+            snapshot,
+            source_is_current=source_is_current,
+            required_source_id=source_id,
+            required_source_epoch=source_epoch,
+            required_source_generation=source_generation,
+        )
+
+    def activate_state_source(
+        self,
+        source_id: str,
+        *,
+        epoch: int = 0,
+        generation: int = 0,
+    ) -> bool:
+        """Atomically grant one scheduler ownership of the state cache."""
+
+        source_id = str(source_id or "").strip()
+        if not source_id:
+            return False
+        with self._lock:
+            conn = self._ensure_conn()
+            if conn is None:
+                return False
+            try:
+                conn.execute(
+                    "INSERT OR REPLACE INTO publication_sources"
+                    "(key, source_id, epoch, generation) "
+                    "VALUES('state', ?, ?, ?)",
+                    (source_id, int(epoch), int(generation)),
+                )
+                conn.commit()
+                return True
+            except sqlite3.Error as exc:
+                logger.warning(
+                    "OrchestratorIPC.activate_state_source(%s): %s",
+                    source_id,
+                    exc,
+                )
+                return False
+
+    def advance_state_source(
+        self,
+        source_id: str,
+        *,
+        epoch: int,
+        generation: int,
+    ) -> bool:
+        """Advance only the currently claimed scheduler source authority."""
+
+        with self._lock:
+            conn = self._ensure_conn()
+            if conn is None:
+                return False
+            try:
+                cursor = conn.execute(
+                    "UPDATE publication_sources SET epoch = ?, generation = ? "
+                    "WHERE key = 'state' AND source_id = ? AND "
+                    "(epoch < ? OR (epoch = ? AND generation <= ?))",
+                    (
+                        int(epoch),
+                        int(generation),
+                        str(source_id),
+                        int(epoch),
+                        int(epoch),
+                        int(generation),
+                    ),
+                )
+                conn.commit()
+                return bool(cursor.rowcount)
+            except sqlite3.Error as exc:
+                logger.warning(
+                    "OrchestratorIPC.advance_state_source(%s): %s",
+                    source_id,
+                    exc,
+                )
+                return False
+
+    def deactivate_state_source(
+        self,
+        source_id: str,
+        *,
+        timeout: float | None = None,
+    ) -> bool:
+        """Revoke one scheduler source within an optional bounded deadline."""
+
+        deadline = (
+            None
+            if timeout is None
+            else time.monotonic() + max(float(timeout), 0.0)
+        )
+        if deadline is None:
+            acquired = self._lock.acquire()
+        else:
+            acquired = self._lock.acquire(
+                timeout=max(0.0, deadline - time.monotonic())
+            )
+        if not acquired:
+            return False
+        conn: sqlite3.Connection | None = None
+        previous_busy_timeout_ms: int | None = None
+        try:
+            reconnected = deadline is not None and self._conn is None
+            if reconnected:
+                conn = self._open_existing_for_bounded_revocation(deadline)
+            else:
+                conn = self._ensure_conn()
+            if conn is None:
+                return False
+            try:
+                if deadline is not None:
+                    remaining = max(0.0, deadline - time.monotonic())
+                    previous_busy_timeout_ms = (
+                        int(_SQLITE_BUSY_TIMEOUT_SECONDS * 1000)
+                        if reconnected
+                        else int(
+                            conn.execute("PRAGMA busy_timeout").fetchone()[0]
+                        )
+                    )
+                    conn.execute(
+                        f"PRAGMA busy_timeout = {int(remaining * 1000)}"
+                    )
+                conn.execute(
+                    "DELETE FROM publication_sources "
+                    "WHERE key = 'state' AND source_id = ?",
+                    (str(source_id),),
+                )
+                conn.commit()
+                return True
+            except sqlite3.Error as exc:
+                try:
+                    conn.rollback()
+                except sqlite3.Error:
+                    pass
+                logger.warning(
+                    "OrchestratorIPC.deactivate_state_source(%s): %s",
+                    source_id,
+                    exc,
+                )
+                return False
+            finally:
+                if previous_busy_timeout_ms is not None:
+                    try:
+                        conn.execute(
+                            "PRAGMA busy_timeout = "
+                            f"{previous_busy_timeout_ms}"
+                        )
+                    except sqlite3.Error:
+                        pass
+        finally:
+            self._lock.release()
 
     def publish_issues(self, issues: dict[str, Any]) -> bool:
         """Write the issues board snapshot (scheduler side)."""

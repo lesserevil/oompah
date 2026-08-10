@@ -1823,6 +1823,12 @@ class ProjectStore:
         self._terminal_authority_changes: dict[str, list[tuple[int, str | None]]] = {}
         self._terminal_authority_change_floors: dict[str, int] = {}
         self._workflow_authority_revisions: dict[str, int] = {}
+        # Project-scoped task mutation epoch shared by every tracker facade.
+        # External trackers do not expose a durable read generation, so result
+        # publication uses this process-local token to fence server-mediated
+        # mutations between external preflight and final project-lock CAS.
+        self._tracker_authority_revisions: dict[str, int] = {}
+        self._tracker_authority_active_mutations: dict[str, set[str]] = {}
 
         self._load()
 
@@ -1987,6 +1993,68 @@ class ProjectStore:
             with self._project_locks_meta:
                 revision = self._workflow_authority_revisions.get(project_id, 0) + 1
                 self._workflow_authority_revisions[project_id] = revision
+                return revision
+
+    def tracker_authority_revision(self, project_id: str) -> int:
+        """Return the in-process revision for tracker facade mutations."""
+
+        with self.project_write_lock(project_id):
+            with self._project_locks_meta:
+                return self._tracker_authority_revisions.get(project_id, 0)
+
+    def tracker_publication_revision(self, project_id: str) -> int | None:
+        """Return a publishable task revision, or ``None`` during a mutation."""
+
+        with self.project_write_lock(project_id):
+            with self._project_locks_meta:
+                active = self._tracker_authority_active_mutations.get(project_id)
+                if active:
+                    return None
+                return self._tracker_authority_revisions.get(project_id, 0)
+
+    def admit_tracker_authority_mutation(self, project_id: str) -> str:
+        """Fence publication before one external managed tracker callback."""
+
+        with self.project_write_lock(project_id):
+            with self._project_locks_meta:
+                token = uuid.uuid4().hex
+                active = self._tracker_authority_active_mutations.setdefault(
+                    project_id, set()
+                )
+                active.add(token)
+                self._tracker_authority_revisions[project_id] = (
+                    self._tracker_authority_revisions.get(project_id, 0) + 1
+                )
+                return token
+
+    def finalize_tracker_authority_mutation(
+        self,
+        project_id: str,
+        token: str,
+    ) -> int:
+        """Retire an admitted callback and advance its final publication cut."""
+
+        with self.project_write_lock(project_id):
+            with self._project_locks_meta:
+                active = self._tracker_authority_active_mutations.get(project_id)
+                if active is None or token not in active:
+                    raise ProjectError(
+                        "managed tracker mutation token is not active"
+                    )
+                active.remove(token)
+                if not active:
+                    self._tracker_authority_active_mutations.pop(project_id, None)
+                revision = self._tracker_authority_revisions.get(project_id, 0) + 1
+                self._tracker_authority_revisions[project_id] = revision
+                return revision
+
+    def advance_tracker_authority_revision(self, project_id: str) -> int:
+        """Advance task authority after a successful managed tracker write."""
+
+        with self.project_write_lock(project_id):
+            with self._project_locks_meta:
+                revision = self._tracker_authority_revisions.get(project_id, 0) + 1
+                self._tracker_authority_revisions[project_id] = revision
                 return revision
 
     def canonical_remote_name(self, project_id: str) -> str:

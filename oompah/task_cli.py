@@ -35,6 +35,7 @@ import re
 import subprocess
 import sys
 import urllib.parse
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -199,6 +200,7 @@ def _http(
     params: dict[str, str] | None = None,
     auth: ClientCredentials | None = None,
     task_capability: str | None = None,
+    headers: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Make an HTTP request to the oompah API and return the JSON body.
 
@@ -248,37 +250,70 @@ def _http(
         if effective_auth is not None
         else None
     )
-    headers = {TASK_HANDOFF_HEADER: task_capability} if task_capability else None
+    request_headers = dict(headers or {})
+    if task_capability:
+        request_headers[TASK_HANDOFF_HEADER] = task_capability
 
-    try:
-        client_kwargs: dict[str, Any] = {
-            "timeout": _resolve_http_timeout(),
-            "auth": httpx_auth,
-        }
-        if headers is not None:
-            client_kwargs["headers"] = headers
-        with _httpx.Client(**client_kwargs) as client:
-            if method == "GET":
-                resp = client.get(url, params=params)
-            elif method == "POST":
-                resp = client.post(url, json=data, params=params)
-            elif method == "PATCH":
-                resp = client.patch(url, json=data, params=params)
-            elif method == "DELETE":
-                resp = client.delete(url, params=params)
-            else:  # pragma: no cover
-                raise ValueError(f"Unsupported HTTP method: {method}")
-    except _httpx.ConnectError:
-        sys.exit(
-            f"ERROR: Cannot connect to oompah server at {base_url}.\n"
-            "Is the server running?  Start it with: make start\n"
-            "Override the server with --server, --port, or OOMPAH_SERVER_URL."
-        )
-    except _httpx.TimeoutException:
-        sys.exit(
-            f"ERROR: Request to oompah server timed out at {base_url}.\n"
-            "The server may be busy or overloaded."
-        )
+    idempotency_key = request_headers.get("Idempotency-Key")
+    transport_attempts = 2 if idempotency_key else 1
+    for attempt in range(transport_attempts):
+        try:
+            client_kwargs: dict[str, Any] = {
+                "timeout": _resolve_http_timeout(),
+                "auth": httpx_auth,
+            }
+            if request_headers:
+                client_kwargs["headers"] = request_headers
+            with _httpx.Client(**client_kwargs) as client:
+                if method == "GET":
+                    resp = client.get(url, params=params)
+                elif method == "POST":
+                    resp = client.post(url, json=data, params=params)
+                elif method == "PATCH":
+                    resp = client.patch(url, json=data, params=params)
+                elif method == "DELETE":
+                    resp = client.delete(url, params=params)
+                else:  # pragma: no cover
+                    raise ValueError(f"Unsupported HTTP method: {method}")
+            break
+        except _httpx.TimeoutException:
+            if attempt + 1 < transport_attempts:
+                continue
+            retry_hint = (
+                f"\nRetry with --idempotency-key {idempotency_key!r}."
+                if idempotency_key
+                else ""
+            )
+            sys.exit(
+                f"ERROR: Request to oompah server timed out at {base_url}.\n"
+                f"The server may be busy or overloaded.{retry_hint}"
+            )
+        except _httpx.ConnectError:
+            if attempt + 1 < transport_attempts:
+                continue
+            retry_hint = (
+                f"\nRetry with --idempotency-key {idempotency_key!r}."
+                if idempotency_key
+                else ""
+            )
+            sys.exit(
+                f"ERROR: Cannot connect to oompah server at {base_url}.\n"
+                "Is the server running?  Start it with: make start\n"
+                "Override the server with --server, --port, or "
+                f"OOMPAH_SERVER_URL.{retry_hint}"
+            )
+        except _httpx.TransportError as exc:
+            if attempt + 1 < transport_attempts:
+                continue
+            retry_hint = (
+                f" Retry with --idempotency-key {idempotency_key!r}."
+                if idempotency_key
+                else ""
+            )
+            sys.exit(
+                f"ERROR: Transport failure contacting oompah at {base_url}: "
+                f"{type(exc).__name__}.{retry_hint}"
+            )
 
     try:
         body: dict[str, Any] = resp.json()
@@ -322,6 +357,10 @@ def _http(
             or (body.get("detail") if isinstance(body, dict) else None)
             or resp.text
         )
+        if idempotency_key and resp.status_code >= 500:
+            msg = (
+                f"{msg}\nRetry with --idempotency-key {idempotency_key!r}."
+            )
         sys.exit(f"ERROR ({resp.status_code}): {msg}")
 
     return body
@@ -522,6 +561,14 @@ def _cmd_comment(base_url: str, args: argparse.Namespace) -> None:
     print("Comment posted.")
 
 
+def _creation_idempotency_key(args: argparse.Namespace) -> str:
+    """Return a caller-supplied stable key or generate one for this command."""
+    supplied = getattr(args, "idempotency_key", None)
+    if isinstance(supplied, str) and supplied.strip():
+        return supplied.strip()
+    return str(uuid.uuid4())
+
+
 def _cmd_create(base_url: str, args: argparse.Namespace) -> None:
     """oompah task create --project <id> --title "..." [...]"""
     data: dict[str, Any] = {
@@ -541,7 +588,13 @@ def _cmd_create(base_url: str, args: argparse.Namespace) -> None:
     source_task_id = getattr(args, "source", None)
     if source_task_id:
         data["source_task_id"] = source_task_id
-    result = _http("POST", f"{base_url}/api/v1/issues", data=data)
+    idempotency_key = _creation_idempotency_key(args)
+    result = _http(
+        "POST",
+        f"{base_url}/api/v1/issues",
+        data=data,
+        headers={"Idempotency-Key": idempotency_key},
+    )
     issue = result.get("issue") or {}
     identifier = issue.get("identifier", "?")
     title = issue.get("title") or args.title
@@ -564,7 +617,13 @@ def _cmd_child_create(base_url: str, args: argparse.Namespace) -> None:
         data["description"] = args.description
     if getattr(args, "priority", None):
         data["priority"] = args.priority
-    result = _http("POST", f"{base_url}/api/v1/issues", data=data)
+    idempotency_key = _creation_idempotency_key(args)
+    result = _http(
+        "POST",
+        f"{base_url}/api/v1/issues",
+        data=data,
+        headers={"Idempotency-Key": idempotency_key},
+    )
     issue = result.get("issue") or {}
     identifier = issue.get("identifier", "?")
     title = issue.get("title") or args.title
@@ -1281,6 +1340,11 @@ def build_parser() -> argparse.ArgumentParser:
             "Preserved in the description across all tracker backends."
         ),
     )
+    p_create.add_argument(
+        "--idempotency-key",
+        default=None,
+        help="Stable create key to reuse after an ambiguous timeout",
+    )
 
     # --- child-create ---
     p_child = sub.add_parser("child-create", help="Create a child task under a parent")
@@ -1310,6 +1374,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--priority",
         default=None,
         choices=["high", "medium", "low"],
+    )
+    p_child.add_argument(
+        "--idempotency-key",
+        default=None,
+        help="Stable create key to reuse after an ambiguous timeout",
     )
 
     # --- set-status ---

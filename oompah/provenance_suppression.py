@@ -45,6 +45,7 @@ from datetime import datetime, timezone
 import time
 from typing import Any, Mapping
 
+from oompah.models import Issue
 from oompah.statuses import OPEN, TERMINAL_STATUSES, canonicalize_status
 from oompah.terminal_audit import ContributorIdentity
 from oompah.terminal_audit_metadata import (
@@ -768,6 +769,117 @@ class ProvenanceGuardedTracker:
     def __getattr__(self, name: str) -> Any:
         return getattr(self._provenance_tracker, name)
 
+    def get_publication_revision(self) -> int | None:
+        """Return the quiescent managed tracker mutation epoch."""
+
+        source = getattr(
+            self._provenance_project_store, "tracker_publication_revision", None
+        )
+        if callable(source):
+            revision = source(self._provenance_project_id)
+            return int(revision) if revision is not None else None
+        fallback = getattr(
+            self._provenance_project_store, "tracker_authority_revision", None
+        )
+        return int(fallback(self._provenance_project_id)) if callable(fallback) else 0
+
+    def _advance_publication_revision(self) -> None:
+        advance = getattr(
+            self._provenance_project_store,
+            "advance_tracker_authority_revision",
+            None,
+        )
+        if callable(advance):
+            advance(self._provenance_project_id)
+
+    def _publication_mutation(self, operation: Callable[[], Any]) -> Any:
+        """Fence one external tracker write without retaining project authority."""
+
+        admit = getattr(
+            self._provenance_project_store,
+            "admit_tracker_authority_mutation",
+            None,
+        )
+        finalize = getattr(
+            self._provenance_project_store,
+            "finalize_tracker_authority_mutation",
+            None,
+        )
+        if not callable(admit) or not callable(finalize):
+            result = operation()
+            self._advance_publication_revision()
+            return result
+        token = str(admit(self._provenance_project_id))
+        try:
+            return operation()
+        finally:
+            finalize(self._provenance_project_id, token)
+
+    def create_issue(self, *args: Any, **kwargs: Any) -> Issue:
+        return self._publication_mutation(
+            lambda: self._provenance_tracker.create_issue(*args, **kwargs)
+        )
+
+    def create_issue_once(self, *args: Any, **kwargs: Any) -> Issue:
+        return self._publication_mutation(
+            lambda: self._provenance_tracker.create_issue_once(*args, **kwargs)
+        )
+
+    def add_comment(self, *args: Any, **kwargs: Any) -> dict:
+        return self._publication_mutation(
+            lambda: self._provenance_tracker.add_comment(*args, **kwargs)
+        )
+
+    def append_comment(self, *args: Any, **kwargs: Any) -> Any:
+        return self._publication_mutation(
+            lambda: self._provenance_tracker.append_comment(*args, **kwargs)
+        )
+
+    def add_label(self, *args: Any, **kwargs: Any) -> None:
+        self._publication_mutation(
+            lambda: self._provenance_tracker.add_label(*args, **kwargs)
+        )
+
+    def remove_label(self, *args: Any, **kwargs: Any) -> None:
+        self._publication_mutation(
+            lambda: self._provenance_tracker.remove_label(*args, **kwargs)
+        )
+
+    def add_parent_child(self, *args: Any, **kwargs: Any) -> None:
+        self._publication_mutation(
+            lambda: self._provenance_tracker.add_parent_child(*args, **kwargs)
+        )
+
+    def add_dependency(self, *args: Any, **kwargs: Any) -> None:
+        self._publication_mutation(
+            lambda: self._provenance_tracker.add_dependency(*args, **kwargs)
+        )
+
+    def remove_dependency(self, *args: Any, **kwargs: Any) -> None:
+        self._publication_mutation(
+            lambda: self._provenance_tracker.remove_dependency(*args, **kwargs)
+        )
+
+    def add_start_dependency(self, *args: Any, **kwargs: Any) -> None:
+        self._publication_mutation(
+            lambda: self._provenance_tracker.add_start_dependency(*args, **kwargs)
+        )
+
+    def remove_start_dependency(self, *args: Any, **kwargs: Any) -> None:
+        self._publication_mutation(
+            lambda: self._provenance_tracker.remove_start_dependency(*args, **kwargs)
+        )
+
+    def set_attachments(self, *args: Any, **kwargs: Any) -> None:
+        self._publication_mutation(
+            lambda: self._provenance_tracker.set_attachments(*args, **kwargs)
+        )
+
+    def set_metadata_field(self, *args: Any, **kwargs: Any) -> None:
+        self._publication_mutation(
+            lambda: self._provenance_tracker.set_metadata_field(*args, **kwargs)
+        )
+
     @contextmanager
     def owner_control_lock(self):
         """Acquire project authority with a bounded, observable owner wait."""
@@ -831,13 +943,16 @@ class ProvenanceGuardedTracker:
 
     def update_issue(self, identifier: str, **fields: str) -> None:
         if "status" not in fields:
-            self._provenance_tracker.update_issue(identifier, **fields)
+            self._publication_mutation(
+                lambda: self._provenance_tracker.update_issue(identifier, **fields)
+            )
             return
         with self._provenance_project_store.project_write_lock(
             self._provenance_project_id
         ):
             self._assert_status_mutation_allowed(identifier)
             self._provenance_tracker.update_issue(identifier, **fields)
+            self._advance_publication_revision()
 
     def reopen_issue(self, identifier: str) -> None:
         with self._provenance_project_store.project_write_lock(
@@ -845,6 +960,7 @@ class ProvenanceGuardedTracker:
         ):
             self._assert_status_mutation_allowed(identifier)
             self._provenance_tracker.reopen_issue(identifier)
+            self._advance_publication_revision()
 
     def mark_needs_human(
         self,
@@ -861,6 +977,7 @@ class ProvenanceGuardedTracker:
                 comment,
                 author=author,
             )
+            self._advance_publication_revision()
 
     def close_issue(self, identifier: str, *, reason: str | None = None) -> None:
         with self._provenance_project_store.project_write_lock(
@@ -868,6 +985,7 @@ class ProvenanceGuardedTracker:
         ):
             self._assert_status_mutation_allowed(identifier)
             self._provenance_tracker.close_issue(identifier, reason=reason)
+            self._advance_publication_revision()
 
     def archive_issue(self, identifier: str) -> None:
         with self._provenance_project_store.project_write_lock(
@@ -875,6 +993,7 @@ class ProvenanceGuardedTracker:
         ):
             self._assert_status_mutation_allowed(identifier)
             self._provenance_tracker.archive_issue(identifier)
+            self._advance_publication_revision()
 
     def authorize_owner_revision(
         self,
@@ -968,7 +1087,9 @@ class ProvenanceGuardedTracker:
                 raise ProvenanceOwnerRevisionStateError(
                     "owner revision authority changed during status transition"
                 )
-            return authorize_new_revision(store, identifier, actor, reason)
+            result = authorize_new_revision(store, identifier, actor, reason)
+            self._advance_publication_revision()
+            return result
 
 
 def issue_is_terminal(issue: Any) -> bool:

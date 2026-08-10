@@ -1317,6 +1317,69 @@ class DispatchTarget:
 # ---------------------------------------------------------------------------
 
 
+class LifecyclePublicationSource:
+    """Revocable source authority propagated into lifecycle state sinks."""
+
+    def __init__(self, orchestrator: "Orchestrator") -> None:
+        self._orchestrator = orchestrator
+        self._lock = threading.RLock()
+        self._active = True
+
+    def deactivate(self) -> None:
+        """Prevent every later source-bound sink mutation."""
+
+        with self._lock:
+            self._active = False
+
+    def is_current(self, epoch: int, expected_generation: int) -> bool:
+        """Check source, epoch, and lifecycle generation atomically."""
+
+        with self._lock:
+            orchestrator = self._orchestrator
+            return bool(
+                self._active
+                and not orchestrator._lifecycle_publication_closed
+                and orchestrator._lifecycle_publication_epoch == epoch
+                and orchestrator._provider_admission_generation
+                == expected_generation
+            )
+
+    def mutate_if_current(
+        self,
+        epoch: int,
+        expected_generation: int,
+        mutation: Callable[[], Any],
+    ) -> bool:
+        """Run a cooperative mutation without retaining source authority."""
+
+        if not self.is_current(epoch, expected_generation):
+            return False
+        # This compatibility helper deliberately does not hold source,
+        # provider, or lifecycle authority across arbitrary user code. Core
+        # state sinks use their own active-token/mutation CAS instead.
+        mutation()
+        return True
+
+
+@dataclass(frozen=True)
+class LifecyclePublicationPermit:
+    """Exact source token passed through publication into state sinks."""
+
+    source: LifecyclePublicationSource
+    epoch: int
+    expected_generation: int
+
+    def is_current(self) -> bool:
+        return self.source.is_current(self.epoch, self.expected_generation)
+
+    def mutate_if_current(self, mutation: Callable[[], Any]) -> bool:
+        return self.source.mutate_if_current(
+            self.epoch,
+            self.expected_generation,
+            mutation,
+        )
+
+
 @dataclass
 class MaintenanceJobState:
     """Per-job scheduling state for the maintenance lane.
@@ -1404,6 +1467,14 @@ class StandaloneDeliveryAuthority:
     head_resolver: Any | None = None
     dependency_checked_monotonic: float = 0.0
     revoked: bool = False
+    # Tracker mutations are admitted while the authority is current, then run
+    # without retaining either the authority lock or the thread-owned project
+    # lock.  Terminal ownership marks an admitted generation for revocation
+    # and retries after the exact operation finishes; it must never wait for a
+    # helper-thread tracker write while holding the project lock.
+    active_operations: int = 0
+    active_operation_thread_id: int | None = None
+    revocation_pending: bool = False
 
 
 @dataclass(slots=True)
@@ -2108,6 +2179,34 @@ class Orchestrator:
         # newly installed lifecycle fence.
         self._provider_admission_lock = threading.RLock()
         self._provider_admission_generation = 0
+        # Lifecycle snapshots are advisory publication, never transition
+        # authority. One owned worker builds a snapshot at a time and one
+        # latest-generation request is coalesced behind it. Shutdown advances
+        # the publication epoch and cancels queued work, so a snapshot blocked
+        # in an old orchestrator becomes inert when it eventually unwinds.
+        self._lifecycle_publication_lock = threading.RLock()
+        self._lifecycle_publication_epoch = 0
+        self._lifecycle_publication_closed = False
+        self._lifecycle_publication_running = False
+        self._lifecycle_publication_pending_generation: int | None = None
+        self._lifecycle_publication_thread: threading.Thread | None = None
+        self._lifecycle_publication_source = LifecyclePublicationSource(self)
+        self._lifecycle_publication_closing = False
+        self._lifecycle_publication_drain_timeout_s = 1.0
+        self._lifecycle_observer_sink_lock = threading.RLock()
+        self._lifecycle_observer_sink_condition = threading.Condition(
+            self._lifecycle_observer_sink_lock
+        )
+        self._lifecycle_observer_sink_authority: (
+            tuple[LifecyclePublicationSource, int, int] | None
+        ) = (
+            self._lifecycle_publication_source,
+            self._lifecycle_publication_epoch,
+            self._provider_admission_generation,
+        )
+        self._lifecycle_observer_sink_inflight: dict[
+            LifecyclePublicationSource, int
+        ] = {}
         # Bug fix: load persisted paused state from disk so it survives
         # service restarts. Previously _paused was always initialized to False.
         self._paused = self._load_paused_state()
@@ -2307,6 +2406,11 @@ class Orchestrator:
         # are kept for backward compatibility with server.py, but internally
         # the EventBus is the canonical dispatch mechanism.
         self.event_bus: EventBus = EventBus()
+        self.event_bus.activate_lifecycle_publication_authority(
+            self._lifecycle_publication_source,
+            self._lifecycle_publication_epoch,
+            self._provider_admission_generation,
+        )
         # Release addendums have their own durable queue.  A ready event is a
         # prompt wake-up only; the queue's metadata scan remains authoritative
         # after missed events or process restarts.
@@ -6373,6 +6477,28 @@ class Orchestrator:
         """Persist paused state to disk."""
         self._save_state(paused=self._paused)
 
+    def _save_paused_state_if_generation(
+        self,
+        expected_generation: int,
+        paused: bool,
+    ) -> bool:
+        """Persist pause intent only while its lifecycle mutation is current.
+
+        The provider-admission fence is held through the state-file replace.
+        A newer pause/unpause therefore either commits after this write, or
+        wins before admission and makes this stale persistence a no-op. This
+        is deliberately synchronous; HTTP callers run lifecycle mutation on
+        a dedicated executor so disk latency cannot park the API loop.
+        """
+
+        with self._provider_admission_lock:
+            if (
+                self._provider_admission_generation != expected_generation
+                or bool(self._paused) != bool(paused)
+            ):
+                return False
+            return self._save_state(paused=bool(paused))
+
     def _persist_workflow_liveness_state(
         self, state: Mapping[str, Any]
     ) -> None:
@@ -6704,21 +6830,30 @@ class Orchestrator:
     def set_prompt_template(self, template: str) -> None:
         self._prompt_template = template
 
-    def pause(self) -> None:
+    def pause(
+        self,
+        *,
+        notify: bool = True,
+        termination_loop: asyncio.AbstractEventLoop | None = None,
+    ) -> int:
         """Pause agents and dispatch without forgetting recovery authority.
 
         Ordinary retry intents are cancelled. A pre-admission recovery owns a
         tracker mutation that has not yet been rolled back, so pause suspends
-        its timer but preserves the durable owner for resume/restart.
+        its timer but preserves the durable owner for resume/restart.  The
+        optional loop lets an HTTP caller perform the blocking authority and
+        persistence transaction on a worker while still publishing agent
+        retirement on its live asyncio loop.
         """
         with self._provider_admission_lock:
             self._paused = True
             self._provider_admission_generation += 1
+            pause_generation = self._provider_admission_generation
             self._mark_running_auditors_for_lifecycle_retirement_locked(
                 reason="scheduler_pause",
                 error="operator pause interrupted auditor before verdict",
             )
-        self._save_paused_state()
+        self._save_paused_state_if_generation(pause_generation, True)
         preserved_recovery_ids: set[str] = set()
         with self._retry_authority_lock:
             recovery_entries = list(self.state.retry_attempts.items())
@@ -6760,16 +6895,35 @@ class Orchestrator:
         # Use get_running_loop() so we don't accidentally create a new
         # event loop when called from a synchronous context (e.g. tests).
         try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(self._terminate_all_running())
+            running_loop = asyncio.get_running_loop()
         except RuntimeError:
-            # No running event loop — no active agents to terminate.
-            pass
+            running_loop = None
+        loop = termination_loop
+        if loop is None:
+            dispatch_loop = getattr(self, "_dispatch_loop", None)
+            loop = (
+                dispatch_loop
+                if dispatch_loop is not None and dispatch_loop.is_running()
+                else running_loop
+            )
+        if loop is not None and loop.is_running():
+            def _schedule_termination() -> None:
+                loop.create_task(
+                    self._terminate_all_running(),
+                    name="operator-pause-retire-running",
+                )
+
+            if running_loop is loop:
+                _schedule_termination()
+            else:
+                loop.call_soon_threadsafe(_schedule_termination)
         logger.info("Orchestrator paused — all agents stopped")
         self.event_bus.emit(EventType.ORCHESTRATOR_PAUSED, {})
-        self._notify_observers()
+        if notify:
+            self._notify_observers()
+        return pause_generation
 
-    def quiesce(self) -> None:
+    def quiesce(self, *, notify: bool = True) -> int:
         """Stop new dispatch while allowing running workers to finish.
 
         This is the lifecycle-cutover counterpart to :meth:`pause`.  It is a
@@ -6784,8 +6938,31 @@ class Orchestrator:
         with self._provider_admission_lock:
             self._quiesced = True
             self._provider_admission_generation += 1
-        self._notify_observers()
+            generation = self._provider_admission_generation
+        if notify:
+            self._notify_observers()
         logger.info("Orchestrator quiesced — new dispatch stopped for lifecycle drain")
+        return generation
+
+    @contextlib.asynccontextmanager
+    async def _provider_admission_async(self):
+        """Own the cross-thread admission fence without blocking this loop.
+
+        Provider setup and lifecycle maintenance run on worker threads and use
+        a ``threading.RLock`` for their final linearization boundary.  Awaiting
+        that lock with a normal ``with`` from an asyncio loop parks the entire
+        HTTP or scheduler control plane in ``futex_wait``.  Cooperative
+        non-blocking acquisition preserves the same lock ownership and
+        ordering while allowing health, cancellation, and state requests to
+        run until the short critical section becomes available.
+        """
+
+        while not self._provider_admission_lock.acquire(blocking=False):
+            await asyncio.sleep(0.01)
+        try:
+            yield
+        finally:
+            self._provider_admission_lock.release()
 
     def _dispatch_is_blocked(self, issue: Issue | None = None) -> bool:
         """Return whether ordinary or retry dispatch is currently blocked."""
@@ -8591,7 +8768,7 @@ class Orchestrator:
             entry.forced_exit_reason = reason
             entry.forced_exit_error = error
 
-    def _activate_unpaused_dispatch(self) -> bool:
+    def _activate_unpaused_dispatch(self, *, notify: bool = True) -> bool:
         """Open timers and publish resume after every durable owner is ready."""
 
         with self._retry_authority_lock:
@@ -8618,38 +8795,45 @@ class Orchestrator:
                 "Resume remains fenced because an implementation retry timer "
                 "could not be armed on a live event loop"
             )
-            self._notify_observers()
+            if notify:
+                self._notify_observers()
             return False
         if suspended_recoveries and not self._persist_retry_entries():
             logger.error(
                 "Resume remains fenced because rearmed implementation retry "
                 "authority could not be persisted"
             )
-            self._notify_observers()
+            if notify:
+                self._notify_observers()
             return False
+        blocked = False
         with self._provider_admission_lock:
             if self._dispatch_is_blocked():
-                logger.error(
-                    "Resume publication suppressed because provider admission "
-                    "became blocked during activation"
+                blocked = True
+            else:
+                # The final gate observation and resume publication are one
+                # admission transaction. A concurrent persistence failure can
+                # either quiesce first (suppressing this event) or immediately
+                # after a truthful resume, never between the check and event.
+                logger.info("Orchestrator unpaused")
+                self._set_refresh_requested()
+                self._post_event(
+                    DispatchEvent(
+                        event_type=DispatchEventType.REFRESH_REQUESTED,
+                        payload={"reason": "unpaused"},
+                    )
                 )
-                self._notify_observers()
-                return False
-            # The final gate observation and resume publication are one
-            # admission transaction. A concurrent persistence failure can
-            # either quiesce first (suppressing this event) or immediately
-            # after a truthful resume, never between the check and event.
-            logger.info("Orchestrator unpaused")
-            self._set_refresh_requested()
-            self._post_event(
-                DispatchEvent(
-                    event_type=DispatchEventType.REFRESH_REQUESTED,
-                    payload={"reason": "unpaused"},
-                )
+                self.event_bus.emit(EventType.ORCHESTRATOR_RESUMED, {})
+        if blocked:
+            logger.error(
+                "Resume publication suppressed because provider admission "
+                "became blocked during activation"
             )
-            self.event_bus.emit(EventType.ORCHESTRATOR_RESUMED, {})
+        # ``get_snapshot`` may take workflow/project/journal locks. Never hold
+        # provider admission while notifying, even for the blocked result.
+        if notify:
             self._notify_observers()
-        return True
+        return not blocked
 
     async def _recover_restart_issues_for_resume(self) -> None:
         """Keep resume fenced until interrupted setup rows are acknowledged."""
@@ -8673,10 +8857,13 @@ class Orchestrator:
                 "retrying in %.1fs",
                 retry_delay_s,
             )
-            self._notify_observers()
             with self._provider_admission_lock:
                 if self._restart_in_progress or self._stopping:
                     return
+                retry_generation = self._provider_admission_generation
+            self.request_lifecycle_publication(
+                expected_generation=retry_generation
+            )
             await asyncio.sleep(retry_delay_s)
         with self._provider_admission_lock:
             if self._restart_in_progress or self._paused or self._stopping:
@@ -8687,7 +8874,11 @@ class Orchestrator:
             # in the same admission transaction. A concurrent stop therefore
             # wins either before all three or after all three, never between
             # the unquiesce and its event/timer publication.
-            self._activate_unpaused_dispatch()
+            self._activate_unpaused_dispatch(notify=False)
+            resume_generation = self._provider_admission_generation
+        self.request_lifecycle_publication(
+            expected_generation=resume_generation
+        )
 
     def _schedule_restart_issue_recovery_for_resume(self) -> bool:
         """Publish and confirm one recovery owner on the orchestrator loop."""
@@ -8779,7 +8970,7 @@ class Orchestrator:
                 return False
         return bool(publication_result["published"])
 
-    def unpause(self) -> bool:
+    def unpause(self, *, notify: bool = True) -> bool:
         """Resume dispatch unless a restart transaction owns admission.
 
         A restart request is an admission fence as soon as it is claimed, even
@@ -8834,12 +9025,14 @@ class Orchestrator:
             self._paused = False
             self._quiesced = pending_restart_recovery
             self._provider_admission_generation += 1
-        self._save_paused_state()
+            unpause_generation = self._provider_admission_generation
+        self._save_paused_state_if_generation(unpause_generation, False)
         if pending_restart_recovery:
             scheduled = self._schedule_restart_issue_recovery_for_resume()
-            self._notify_observers()
+            if notify:
+                self._notify_observers()
             return scheduled
-        return self._activate_unpaused_dispatch()
+        return self._activate_unpaused_dispatch(notify=notify)
 
     async def graceful_restart(
         self,
@@ -8863,7 +9056,7 @@ class Orchestrator:
         restart_snapshot: dict[str, Any]
         restart_rollback_generation: int
         restart_staging_failed = False
-        with self._provider_admission_lock:
+        async with self._provider_admission_async():
             restart_snapshot = {
                 "in_progress": self._restart_in_progress,
                 "request_id": self._restart_request_id,
@@ -8878,7 +9071,6 @@ class Orchestrator:
                 "stopping": self._stopping,
                 "restart_requested": self._restart_requested,
                 "safe_stop_acknowledged": self._safe_stop_acknowledged,
-                "admission_generation": self._provider_admission_generation,
             }
             if self._restart_in_progress:
                 matching_preclaim = request_id == self._restart_request_id
@@ -8931,7 +9123,9 @@ class Orchestrator:
                 drain_timeout_s,
                 self._restart_initial_running,
             )
-            self._notify_observers()
+            self.request_lifecycle_publication(
+                expected_generation=restart_rollback_generation
+            )
 
             deadline = time.monotonic() + drain_timeout_s
             while self.state.running and time.monotonic() < deadline:
@@ -8955,7 +9149,7 @@ class Orchestrator:
             for issue_id, entry in self._running_items_snapshot():
                 if not entry.is_auditor:
                     continue
-                with self._provider_admission_lock:
+                async with self._provider_admission_async():
                     if (
                         self._current_running_entry(issue_id) is not entry
                         or self._auditor_provider_admission_committed(entry)
@@ -9005,7 +9199,7 @@ class Orchestrator:
             # lifecycle-owned before publishing restart recovery authority.
             # A result that wins concurrently remains durable and causes
             # ``_finish_audit_attempt`` to no-op.
-            with self._provider_admission_lock:
+            async with self._provider_admission_async():
                 self._mark_running_auditors_for_lifecycle_retirement_locked(
                     reason="scheduler_pause",
                     error="graceful restart interrupted auditor before verdict",
@@ -9019,7 +9213,8 @@ class Orchestrator:
                 }
                 for issue_id, entry in self._running_items_snapshot()
             ]
-            saved, existing_count, added_count = self._merge_restart_issues(
+            saved, existing_count, added_count = await asyncio.to_thread(
+                self._merge_restart_issues,
                 restart_issues,
                 paused=was_user_paused,
             )
@@ -9043,14 +9238,19 @@ class Orchestrator:
                     "graceful restart recovery authority was not durably persisted"
                 )
 
-            with self._provider_admission_lock:
+            async with self._provider_admission_async():
                 self._restart_requested = True
                 self._stopping = True
                 self._arm_safe_stop_acknowledgement_locked()
                 self._provider_admission_generation += 1
+                stopping_generation = self._provider_admission_generation
+            self.request_lifecycle_publication(
+                expected_generation=stopping_generation
+            )
             self._post_event(DispatchEvent(event_type=DispatchEventType.SHUTDOWN))
         except BaseException:
-            with self._provider_admission_lock:
+            rollback_persistence: tuple[int, bool] | None = None
+            async with self._provider_admission_async():
                 # Restore only while this exact coroutine still owns the drain.
                 # A replacement restart transaction must never be overwritten.
                 if self._restart_drain_task is current_task:
@@ -9067,6 +9267,9 @@ class Orchestrator:
                     self._restart_drain_task = restart_snapshot["drain_task"]
                     self._restart_drain_owner = restart_snapshot["drain_owner"]
                     if lifecycle_cas_matches:
+                        rollback_source_generation = (
+                            self._provider_admission_generation
+                        )
                         self._paused = restart_snapshot["paused"]
                         self._quiesced = restart_snapshot["quiesced"]
                         self._stopping = restart_snapshot["stopping"]
@@ -9083,9 +9286,12 @@ class Orchestrator:
                         ):
                             self._safe_stop_acknowledged.set_result(None)
                         self._safe_stop_acknowledged = previous_acknowledgement
-                        self._provider_admission_generation = restart_snapshot[
-                            "admission_generation"
-                        ]
+                        # Lifecycle generations are monotonic CAS identities.
+                        # Rolling fields back is itself a new mutation; never
+                        # restore an older generation and permit ABA writes.
+                        self._provider_admission_generation = (
+                            rollback_source_generation + 1
+                        )
                     if restart_staging_failed:
                         # The old process remains authoritative, but it may
                         # have setup-only workers represented by earlier
@@ -9094,8 +9300,23 @@ class Orchestrator:
                         if not self._quiesced:
                             self._quiesced = True
                             self._provider_admission_generation += 1
-            self._save_paused_state()
-            self._notify_observers()
+                    rollback_persistence = (
+                        self._provider_admission_generation,
+                        bool(self._paused),
+                    )
+            if rollback_persistence is not None:
+                rollback_generation, rollback_paused = rollback_persistence
+                # The generation-aware write is authoritative but stays off
+                # the loop. A newer pause either serializes after this write or
+                # makes it a no-op before it can touch disk.
+                await asyncio.to_thread(
+                    self._save_paused_state_if_generation,
+                    rollback_generation,
+                    rollback_paused,
+                )
+                self.request_lifecycle_publication(
+                    expected_generation=rollback_generation
+                )
             raise
 
     @property
@@ -13668,6 +13889,20 @@ class Orchestrator:
         short-lived test or graceful restart must not leave a worker that can
         mutate tracker state after its event loop and fixtures have gone away.
         """
+        # Publication is advisory and may be blocked inside a full snapshot.
+        # Fence it before draining authoritative work; never let an observer
+        # own graceful-stop progress or publish after this orchestrator exits.
+        shutdown_publications = getattr(
+            self,
+            "_shutdown_lifecycle_publications",
+            None,
+        )
+        if callable(shutdown_publications):
+            if shutdown_publications() is False:
+                raise RuntimeError(
+                    "lifecycle publication callbacks did not drain; "
+                    "refusing to close lifecycle stores"
+                )
         await self._drain_scheduled_terminations()
         current_loop = asyncio.get_running_loop()
         restart_recovery = self._restart_recovery_task
@@ -21058,14 +21293,12 @@ class Orchestrator:
                     # before even asking the gate for evidence; the gate's
                     # own callback and the owned adoption transaction provide
                     # the during- and after-command barriers.
-                    issue_id = str(
-                        getattr(authority.issue, "id", "") or authority.task_id
-                    )
-                    with self.issue_transition_lock(issue_id).sync():
-                        gate_authorized = self._standalone_delivery_authorized(
+                    gate_authorized = (
+                        self._standalone_delivery_authorized_at_issue_boundary(
                             authority,
                             tracker,
                         )
+                    )
                     if not gate_authorized:
                         self._record_superseded_standalone_delivery(
                             authority,
@@ -21134,14 +21367,12 @@ class Orchestrator:
                     # accepted submission has already superseded.  Terminal
                     # staging performs the final review/generation CAS after
                     # the exact-head gate returns.
-                    issue_id = str(
-                        getattr(authority.issue, "id", "") or authority.task_id
-                    )
-                    with self.issue_transition_lock(issue_id).sync():
-                        gate_authorized = self._standalone_delivery_authorized(
+                    gate_authorized = (
+                        self._standalone_delivery_authorized_at_issue_boundary(
                             authority,
                             tracker,
                         )
+                    )
                     if not gate_authorized:
                         self._record_superseded_standalone_delivery(
                             authority,
@@ -21493,7 +21724,7 @@ class Orchestrator:
                     result = None
                     create_reason = f"review creation failed: {exc}"
 
-                if create_outcome != "created":
+                if create_outcome not in {"created", "unbound"}:
                     self._release_review_capacity(
                         project_id,
                         reservation_id=reservation.reservation_id,
@@ -21525,6 +21756,20 @@ class Orchestrator:
                         create_reason,
                     )
                     continue
+                if create_outcome == "unbound":
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        create_reason,
+                        authority=authority,
+                    )
+                    logger.error(
+                        "Created a review for standalone Ready task %s but "
+                        "could not durably bind its identity: %s",
+                        task_id,
+                        create_reason,
+                    )
+                    return
                 if create_reason:
                     self._arm_standalone_delivery_alert(
                         project_id,
@@ -21550,16 +21795,9 @@ class Orchestrator:
         authority: StandaloneDeliveryAuthority | None = None,
     ) -> bool:
         """Surface one idempotent actionable alert for a stranded submission."""
-        with self._standalone_delivery_authority_lock:
-            if authority is not None and not self._standalone_delivery_authorized(
-                authority
-            ):
-                self._record_superseded_standalone_delivery(
-                    authority,
-                    "delivery authority was revoked before alerting",
-                )
-                return False
-            source = f"standalone_ready_delivery:{project_id}:{task_id}"
+        source = f"standalone_ready_delivery:{project_id}:{task_id}"
+
+        def publish() -> None:
             self._replace_alert_source(
                 source,
                 {
@@ -21576,7 +21814,12 @@ class Orchestrator:
                     "action_required": True,
                 }
             )
-            return True
+
+        return self._standalone_delivery_side_effect(
+            authority,
+            publish,
+            superseded_reason="delivery authority was revoked before alerting",
+        )
 
     def _arm_standalone_dependency_wait(
         self,
@@ -21588,16 +21831,9 @@ class Orchestrator:
     ) -> bool:
         """Publish one non-actionable, retry-safe dependency wait reason."""
 
-        with self._standalone_delivery_authority_lock:
-            if authority is not None and not self._standalone_delivery_authorized(
-                authority
-            ):
-                self._record_superseded_standalone_delivery(
-                    authority,
-                    "delivery authority was revoked before dependency wait",
-                )
-                return False
-            source = f"standalone_ready_delivery:{project_id}:{task_id}"
+        source = f"standalone_ready_delivery:{project_id}:{task_id}"
+
+        def publish() -> None:
             self._replace_alert_source(
                 source,
                 {
@@ -21609,7 +21845,12 @@ class Orchestrator:
                     ),
                 },
             )
-            return True
+
+        return self._standalone_delivery_side_effect(
+            authority,
+            publish,
+            superseded_reason=("delivery authority was revoked before dependency wait"),
+        )
 
     def _arm_standalone_capacity_wait(
         self,
@@ -21622,16 +21863,9 @@ class Orchestrator:
     ) -> bool:
         """Publish a retry-safe informational wait for project capacity."""
 
-        with self._standalone_delivery_authority_lock:
-            if authority is not None and not self._standalone_delivery_authorized(
-                authority
-            ):
-                self._record_superseded_standalone_delivery(
-                    authority,
-                    "delivery authority was revoked before capacity wait",
-                )
-                return False
-            source = f"standalone_ready_delivery:{project_id}:{task_id}"
+        source = f"standalone_ready_delivery:{project_id}:{task_id}"
+
+        def publish() -> None:
             self._replace_alert_source(
                 source,
                 {
@@ -21644,7 +21878,12 @@ class Orchestrator:
                     ),
                 },
             )
-            return True
+
+        return self._standalone_delivery_side_effect(
+            authority,
+            publish,
+            superseded_reason="delivery authority was revoked before capacity wait",
+        )
 
     def _clear_standalone_delivery_alert(
         self,
@@ -21655,22 +21894,18 @@ class Orchestrator:
     ) -> bool:
         """Clear the stranded-submission alert once a delivery path exists."""
         source = f"standalone_ready_delivery:{project_id}:{task_id}"
-        with self._standalone_delivery_authority_lock:
-            if not any(
-                alert.get("source") == source
-                for alert in self._alerts_snapshot()
-            ):
-                return True
-            if authority is not None and not self._standalone_delivery_authorized(
-                authority
-            ):
-                self._record_superseded_standalone_delivery(
-                    authority,
-                    "delivery authority was revoked before clearing an alert",
-                )
-                return False
-            self._replace_alert_source(source)
-            return True
+
+        def clear() -> None:
+            if any(alert.get("source") == source for alert in self._alerts_snapshot()):
+                self._replace_alert_source(source)
+
+        return self._standalone_delivery_side_effect(
+            authority,
+            clear,
+            superseded_reason=(
+                "delivery authority was revoked before clearing an alert"
+            ),
+        )
 
     @staticmethod
     def _standalone_integration_generation_revision(
@@ -21871,46 +22106,44 @@ class Orchestrator:
     ) -> bool:
         """Preserve historical review evidence as one task-owned transaction."""
 
-        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
-        with self.issue_transition_lock(issue_id).sync():
-            if not self._standalone_delivery_authorized(authority, tracker):
-                return False
-            try:
-                current_review = provider.find_pr_for_branch(repo_slug, work_branch)
-            except Exception:  # noqa: BLE001 - final forge CAS fails closed
-                return False
-            if self._standalone_review_observation(
-                current_review
-            ) != self._standalone_review_observation(expected_review):
-                return False
-            if current_review is None:
-                return False
-            disposition, _head, _current_reason = (
-                self._standalone_review_matches_submission(
-                    project,
-                    authority.issue,
-                    current_review,
-                    authority,
-                )
-            )
-            if disposition != "historical":
-                return False
-            if not self._preserve_superseded_standalone_review(
-                tracker,
-                authority,
+        if not self._standalone_delivery_authorized(authority, tracker):
+            return False
+        try:
+            current_review = provider.find_pr_for_branch(repo_slug, work_branch)
+        except Exception:  # noqa: BLE001 - final forge CAS fails closed
+            return False
+        if not self._standalone_delivery_authorized(authority, tracker):
+            return False
+        if self._standalone_review_observation(
+            current_review
+        ) != self._standalone_review_observation(expected_review):
+            return False
+        if current_review is None:
+            return False
+        disposition, _head, _current_reason = (
+            self._standalone_review_matches_submission(
+                project,
+                authority.issue,
                 current_review,
-                reason,
-            ):
-                return False
-            review_state = str(
-                getattr(current_review, "state", "") or ""
-            ).strip().lower()
-            if review_state in {"closed", "merged"}:
-                self._release_review_capacity(
-                    authority.project_id,
-                    review_id=getattr(current_review, "id", None),
-                )
-            return True
+                authority,
+            )
+        )
+        if disposition != "historical":
+            return False
+        if not self._preserve_superseded_standalone_review(
+            tracker,
+            authority,
+            current_review,
+            reason,
+        ):
+            return False
+        review_state = str(getattr(current_review, "state", "") or "").strip().lower()
+        if review_state in {"closed", "merged"}:
+            self._release_review_capacity(
+                authority.project_id,
+                review_id=getattr(current_review, "id", None),
+            )
+        return True
 
     def _adopt_standalone_open_review_owned(
         self,
@@ -21926,99 +22159,92 @@ class Orchestrator:
     ) -> tuple[bool, str]:
         """Adopt an exact open review and its tracker state under task ownership."""
 
-        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
-        with self.issue_transition_lock(issue_id).sync():
-            if not self._standalone_delivery_authorized(authority, tracker):
-                return False, "delivery authority changed before open-review adoption"
-            observed_review_generation = self._review_generation(
-                authority.project_id
+        if not self._standalone_delivery_authorized(authority, tracker):
+            return False, "delivery authority changed before open-review adoption"
+        observed_review_generation = self._review_generation(authority.project_id)
+        try:
+            current_review = provider.find_pr_for_branch(repo_slug, work_branch)
+        except Exception as exc:  # noqa: BLE001 - final forge CAS fails closed
+            return False, f"final open-review lookup failed: {exc}"
+        if not self._standalone_delivery_authorized(authority, tracker):
+            return False, "delivery authority changed during open-review lookup"
+        if (
+            self._standalone_review_observation(current_review)
+            != self._standalone_review_observation(expected_review)
+            or current_review is None
+        ):
+            return False, "review changed before open-review adoption"
+        review_state = str(getattr(current_review, "state", "") or "").strip().lower()
+        disposition, review_head, mismatch_reason = (
+            self._standalone_review_matches_submission(
+                project,
+                authority.issue,
+                current_review,
+                authority,
             )
-            try:
-                current_review = provider.find_pr_for_branch(repo_slug, work_branch)
-            except Exception as exc:  # noqa: BLE001 - final forge CAS fails closed
-                return False, f"final open-review lookup failed: {exc}"
-            if not self._standalone_delivery_authorized(authority, tracker):
-                return False, "delivery authority changed during open-review lookup"
-            if (
-                self._standalone_review_observation(current_review)
-                != self._standalone_review_observation(expected_review)
-                or current_review is None
-            ):
-                return False, "review changed before open-review adoption"
-            review_state = str(
-                getattr(current_review, "state", "") or ""
-            ).strip().lower()
-            disposition, review_head, mismatch_reason = (
-                self._standalone_review_matches_submission(
-                    project,
-                    authority.issue,
-                    current_review,
-                    authority,
-                )
+        )
+        if review_state != "open" or disposition != "exact":
+            return (
+                False,
+                "review changed before open-review adoption"
+                + (f": {mismatch_reason}" if mismatch_reason else ""),
             )
-            if review_state != "open" or disposition != "exact":
-                return (
-                    False,
-                    "review changed before open-review adoption"
-                    + (f": {mismatch_reason}" if mismatch_reason else ""),
+        review_id = str(getattr(current_review, "id", "") or "").strip()
+        # Capacity adoption performs its own constant-time lifecycle CAS.
+        # Tracker publication then uses exact delivery admission, allowing a
+        # concurrent close/terminal transition to retry instead of waiting on
+        # a lock held across tracker callbacks.
+        if not getattr(current_review, "draft", False) and not (
+            self._adopt_open_review_capacity(
+                project_id=authority.project_id,
+                task_id=authority.task_id,
+                source_branch=work_branch,
+                target_branch=target_branch,
+                review_id=review_id,
+                authority_generation=authority.generation,
+                head_sha=review_head,
+                authoritative=True,
+                observed_generation=observed_review_generation,
+                allow_reopen=True,
             )
-            review_id = str(getattr(current_review, "id", "") or "").strip()
-            # Linearize the final capacity + tracker publication against a
-            # close webhook.  If close won first its fence rejects adoption;
-            # if this live-open observation won first, close runs afterwards
-            # and releases the just-published generation normally.
-            with self._review_lifecycle_lock:
-                if not getattr(current_review, "draft", False) and not (
-                    self._adopt_open_review_capacity(
-                        project_id=authority.project_id,
-                        task_id=authority.task_id,
-                        source_branch=work_branch,
-                        target_branch=target_branch,
-                        review_id=review_id,
-                        authority_generation=authority.generation,
-                        head_sha=review_head,
-                        authoritative=True,
-                        observed_generation=observed_review_generation,
-                        allow_reopen=True,
-                    )
-                ):
-                    return False, "review closed before capacity adoption"
-                if not self._clear_standalone_delivery_alert(
-                    authority.project_id,
-                    authority.task_id,
-                    authority=authority,
-                ):
-                    return False, "delivery authority changed before alert cleanup"
-                if not self._write_review_metadata(
-                    tracker,
-                    authority.task_id,
-                    review_id=review_id or None,
-                    review_url=getattr(current_review, "url", None),
-                    source_branch=work_branch,
-                    target_branch=target_branch,
-                    review_head=review_head,
-                    authority=authority,
-                ):
-                    return (
-                        False,
-                        "delivery authority changed during review metadata write",
-                    )
-                if not self._standalone_delivery_mutation(
-                    authority,
-                    tracker,
-                    lambda: self._transition_identifier_status(
-                        authority.task_id,
-                        IN_REVIEW,
-                        project_id=authority.project_id,
-                        tracker=tracker,
-                        authority=TransitionAuthority.INTEGRATOR,
-                        reason_code="review.standalone_review_adopted",
-                        exact_head=review_head,
-                    ),
-                    next_state=IN_REVIEW,
-                ):
-                    return False, "delivery authority changed before In Review update"
-                return True, ""
+        ):
+            return False, "review closed before capacity adoption"
+        if not self._clear_standalone_delivery_alert(
+            authority.project_id,
+            authority.task_id,
+            authority=authority,
+        ):
+            return False, "delivery authority changed before alert cleanup"
+        if not self._write_review_metadata(
+            tracker,
+            authority.task_id,
+            review_id=review_id or None,
+            review_url=getattr(current_review, "url", None),
+            source_branch=work_branch,
+            target_branch=target_branch,
+            review_head=review_head,
+            authority=authority,
+        ):
+            return (
+                False,
+                "delivery authority changed during review metadata write",
+            )
+        if not self._standalone_delivery_mutation(
+            authority,
+            tracker,
+            lambda: self._transition_identifier_status(
+                authority.task_id,
+                IN_REVIEW,
+                project_id=authority.project_id,
+                tracker=tracker,
+                authority=TransitionAuthority.INTEGRATOR,
+                reason_code="review.standalone_review_adopted",
+                exact_head=review_head,
+            ),
+            next_state=IN_REVIEW,
+        ):
+            return False, "delivery authority changed before In Review update"
+        return True, ""
 
     def _create_standalone_review_owned(
         self,
@@ -22043,9 +22269,15 @@ class Orchestrator:
         and In Review transition with submit and terminal webhook ownership.
         """
 
-        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
-        with self.issue_transition_lock(issue_id).sync():
-            if not self._standalone_delivery_authorized(authority, tracker):
+        # Exact-generation admissions around each forge/tracker effect replace
+        # the old issue lock.  Terminal work can now fail retryably instead of
+        # waiting behind a lock whose callback may hop to another thread.
+        def create_and_publish() -> tuple[str, ReviewRequest | None, str]:
+            if not self._standalone_delivery_authorized(
+                authority,
+                tracker,
+                allow_active_operation=True,
+            ):
                 return (
                     "superseded",
                     None,
@@ -22096,14 +22328,73 @@ class Orchestrator:
                     description=description,
                 ),
             )
-            if not created:
-                return (
-                    "superseded",
-                    None,
-                    "delivery authority was revoked before review creation",
-                )
             if result is None:
                 return "retry", None, "forge provider returned no review"
+
+            created_review_id = str(getattr(result, "id", "") or "").strip()
+            if not created_review_id:
+                try:
+                    recovered_review = provider.find_pr_for_branch(
+                        repo_slug,
+                        work_branch,
+                    )
+                except Exception:  # noqa: BLE001 - handled by unbound outcome
+                    recovered_review = None
+                original_observation = self._standalone_review_observation(result)
+                recovered_observation = self._standalone_review_observation(
+                    recovered_review
+                )
+                if (
+                    recovered_review is not None
+                    and original_observation is not None
+                    and recovered_observation is not None
+                    and original_observation[1:] == recovered_observation[1:]
+                    and str(getattr(recovered_review, "id", "") or "").strip()
+                ):
+                    result = recovered_review
+                    created_review_id = str(recovered_review.id).strip()
+            # A non-None forge response represents a review that now exists,
+            # even when the post-create authority check lost. Bind capacity
+            # before inspecting the response or publishing tracker state so a
+            # late authority change can never make the caller release and
+            # forget that external effect.
+            review_closed_before_publication = False
+            capacity_bound = False
+            if created_review_id:
+                with self._review_lifecycle_lock:
+                    if (
+                        authority.project_id,
+                        created_review_id,
+                    ) in self._closed_review_fences:
+                        review_closed_before_publication = True
+                    else:
+                        capacity_bound = self._commit_review_slot(
+                            reservation,
+                            created_review_id,
+                        )
+            if review_closed_before_publication:
+                self._release_review_capacity(
+                    authority.project_id,
+                    reservation_id=reservation.reservation_id,
+                )
+                return (
+                    "created",
+                    result,
+                    "created review closed before tracker publication",
+                )
+            if not created_review_id or not capacity_bound:
+                return (
+                    "unbound",
+                    result,
+                    "forge review exists but its stable identity could not be "
+                    "persisted; authoritative forge reconciliation is required",
+                )
+            if not created:
+                return (
+                    "created",
+                    result,
+                    "created review but authority changed before tracker publication",
+                )
 
             created_source = str(
                 getattr(result, "source_branch", "") or ""
@@ -22122,7 +22413,7 @@ class Orchestrator:
                 or created_head != expected_head
             ):
                 return (
-                    "retry",
+                    "created",
                     result,
                     "created review did not preserve the exact accepted source, "
                     "target, and head "
@@ -22133,33 +22424,7 @@ class Orchestrator:
                     f"{expected_head})",
                 )
 
-            created_review_id = str(getattr(result, "id", "") or "").strip()
-            if not created_review_id:
-                return (
-                    "retry",
-                    result,
-                    "forge provider returned a review without an identity",
-                )
-
-            # The forge review exists from this point forward.  A close
-            # webhook may already have observed it while ``create_review`` was
-            # in flight.  Commit capacity and publish tracker state in the
-            # same lifecycle generation as that close observation.
-            with self._review_lifecycle_lock:
-                if (
-                    authority.project_id,
-                    created_review_id,
-                ) in self._closed_review_fences:
-                    self._release_review_capacity(
-                        authority.project_id,
-                        reservation_id=reservation.reservation_id,
-                    )
-                    return (
-                        "created",
-                        result,
-                        "created review closed before tracker publication",
-                    )
-                self._commit_review_slot(reservation, created_review_id)
+            def publish_tracker_state() -> tuple[str, ReviewRequest | None, str]:
                 try:
                     if not self._clear_standalone_delivery_alert(
                         authority.project_id,
@@ -22211,7 +22476,22 @@ class Orchestrator:
                         result,
                         f"created review but tracker update failed: {exc}",
                     )
-            return "created", result, ""
+                return "created", result, ""
+
+            return publish_tracker_state()
+
+        admitted, outcome = self._run_standalone_delivery_operation(
+            authority,
+            tracker,
+            create_and_publish,
+        )
+        if not admitted or outcome is None:
+            return (
+                "superseded",
+                None,
+                "delivery authority was revoked before review creation",
+            )
+        return outcome
 
     def _preserve_superseded_standalone_review(
         self,
@@ -22459,10 +22739,18 @@ class Orchestrator:
                 and existing.dependency_revision == dependency_revision
                 and existing.allows_parent == allows_parent
                 and existing.workflow_generation == durable_generation
+                and not existing.revocation_pending
             ):
                 existing.workflow_authority_check = workflow_authority_check
                 return existing
             if existing is not None:
+                if existing.active_operations:
+                    # Do not replace an admitted generation while its tracker
+                    # effect is outside the authority lock.  Retire it when the
+                    # operation finalizes; the next reconciliation can claim
+                    # the new evidence with a fresh generation.
+                    existing.revocation_pending = True
+                    return None
                 existing.revoked = True
                 superseded_generation = existing.generation
                 self._clear_quality_gate_result(project_id, task_id)
@@ -22631,8 +22919,10 @@ class Orchestrator:
     ) -> bool:
         """Bind a claim to the exact remote head used by the delivery."""
 
+        if not self._standalone_delivery_authorized(authority):
+            return False
         with self._standalone_delivery_authority_lock:
-            if not self._standalone_delivery_authorized(authority):
+            if not self._standalone_delivery_authority_current_locked(authority):
                 return False
             if authority.branch != branch or not head_sha:
                 return False
@@ -22663,75 +22953,157 @@ class Orchestrator:
             pass
         return None
 
+    def _standalone_delivery_authority_current_locked(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        *,
+        allow_revocation_pending: bool = False,
+    ) -> bool:
+        """Check one exact in-memory generation while its lock is held."""
+
+        key = (authority.project_id, authority.task_id)
+        return bool(
+            not authority.revoked
+            and (allow_revocation_pending or not authority.revocation_pending)
+            and self._standalone_delivery_authorities.get(key) is authority
+        )
+
+    def _retire_exact_standalone_delivery_authority(
+        self,
+        authority: StandaloneDeliveryAuthority,
+    ) -> bool:
+        """Retire only *authority*, deferring while its operation is admitted."""
+
+        key = (authority.project_id, authority.task_id)
+        with self._standalone_delivery_authority_lock:
+            if self._standalone_delivery_authorities.get(key) is not authority:
+                return False
+            if authority.active_operations:
+                authority.revocation_pending = True
+                return False
+            self._standalone_delivery_authorities.pop(key, None)
+            authority.revoked = True
+            authority.revocation_pending = False
+            self._clear_quality_gate_result(*key)
+        self._cancel_standalone_delivery_gate(authority)
+        source = f"standalone_ready_delivery:{key[0]}:{key[1]}"
+        self._replace_alert_source(source)
+        return True
+
     def _standalone_delivery_authorized(
         self,
         authority: StandaloneDeliveryAuthority,
         tracker: TrackerProtocol | None = None,
         *,
         refresh_dependencies: bool = True,
+        allow_active_operation: bool = False,
     ) -> bool:
         """Compare the current task evidence with a delivery authority claim."""
 
+        # Capture the claim under the in-memory lock, perform tracker/project/
+        # SCM callbacks outside it, then publish the refreshed issue only if
+        # the exact generation is still current.
         with self._standalone_delivery_authority_lock:
-            if not self._standalone_delivery_locally_authorized(authority):
+            allow_revocation_pending = bool(
+                allow_active_operation
+                and authority.active_operations
+                and authority.active_operation_thread_id == threading.get_ident()
+            )
+            if not self._standalone_delivery_authority_current_locked(
+                authority,
+                allow_revocation_pending=allow_revocation_pending,
+            ):
                 return False
-            if tracker is None:
-                try:
-                    tracker = self._tracker_for_project(authority.project_id)
-                except Exception:  # noqa: BLE001 - authority must fail closed
+            generation = authority.generation
+            expected_state = authority.expected_state
+            allows_parent = authority.allows_parent
+            evidence_revision = authority.evidence_revision
+            dependency_revision = authority.dependency_revision
+            dependency_checked_monotonic = authority.dependency_checked_monotonic
+            branch = authority.branch
+            target_branch = authority.target_branch
+            head_sha = authority.head_sha
+            head_resolver = authority.head_resolver
+            workflow_authority_check = authority.workflow_authority_check
+
+        if workflow_authority_check is not None:
+            try:
+                if not workflow_authority_check():
                     return False
-            current = self._fresh_standalone_delivery_issue(authority, tracker)
-            if current is None:
+            except Exception:
                 return False
+        if tracker is None:
+            try:
+                tracker = self._tracker_for_project(authority.project_id)
+            except Exception:  # noqa: BLE001 - authority must fail closed
+                return False
+        current = self._fresh_standalone_delivery_issue(authority, tracker)
+        if current is None:
+            return False
+        if (
+            canonicalize_status(current.state) != expected_state
+            or (str(current.parent_id or "").strip() and not allows_parent)
+            or _is_epic_issue(current)
+            or self._standalone_delivery_evidence_revision(current) != evidence_revision
+        ):
+            return False
+        dependency_checked_at: float | None = None
+        if (
+            refresh_dependencies
+            or time.monotonic() - dependency_checked_monotonic >= 0.5
+        ):
+            dependency_state = self._current_standalone_finish_dependency_state(
+                current,
+                tracker,
+            )
+            dependency_checked_at = time.monotonic()
             if (
-                canonicalize_status(current.state) != authority.expected_state
-                or (
-                    str(current.parent_id or "").strip() and not authority.allows_parent
+                dependency_state is None
+                or dependency_state.revision != dependency_revision
+            ):
+                # Retire this exact object; a replacement may have won while
+                # the dependency corpus was being refreshed.
+                self._retire_exact_standalone_delivery_authority(authority)
+                return False
+        project = self.project_store.get(authority.project_id)
+        if project is None:
+            return False
+        if self._branch_for_issue(current, project) != branch:
+            return False
+        if (
+            str(current.target_branch or project.default_branch or "").strip()
+            != target_branch
+        ):
+            return False
+        if head_sha:
+            try:
+                current_head = head_resolver()
+            except Exception:  # noqa: BLE001 - remote head is authoritative
+                return False
+            if str(current_head or "") != head_sha:
+                return False
+
+        with self._standalone_delivery_authority_lock:
+            if (
+                not self._standalone_delivery_authority_current_locked(
+                    authority,
+                    allow_revocation_pending=allow_revocation_pending,
                 )
-                or _is_epic_issue(current)
-                or self._standalone_delivery_evidence_revision(current)
-                != authority.evidence_revision
+                or authority.generation != generation
+                or authority.expected_state != expected_state
+                or authority.allows_parent != allows_parent
+                or authority.evidence_revision != evidence_revision
+                or authority.dependency_revision != dependency_revision
+                or authority.branch != branch
+                or authority.target_branch != target_branch
+                or authority.head_sha != head_sha
+                or authority.head_resolver is not head_resolver
+                or authority.workflow_authority_check is not workflow_authority_check
             ):
                 return False
-            if (
-                refresh_dependencies
-                or time.monotonic() - authority.dependency_checked_monotonic >= 0.5
-            ):
-                dependency_state = self._current_standalone_finish_dependency_state(
-                    current,
-                    tracker,
-                )
-                authority.dependency_checked_monotonic = time.monotonic()
-                if (
-                    dependency_state is None
-                    or dependency_state.revision != authority.dependency_revision
-                ):
-                    # A dependency status or inherited edge changed while this
-                    # task owned a gate.  Fence its exact generation immediately;
-                    # the next Ready reconciliation will claim the new evidence.
-                    self._revoke_standalone_delivery_authority(
-                        authority.project_id,
-                        authority.task_id,
-                    )
-                    return False
-            project = self.project_store.get(authority.project_id)
-            if project is None:
-                return False
-            if self._branch_for_issue(current, project) != authority.branch:
-                return False
-            if (
-                str(current.target_branch or project.default_branch or "").strip()
-                != authority.target_branch
-            ):
-                return False
-            if authority.head_sha:
-                try:
-                    current_head = authority.head_resolver()
-                except Exception:  # noqa: BLE001 - remote head is authoritative
-                    return False
-                if str(current_head or "") != authority.head_sha:
-                    return False
             authority.issue = current
+            if dependency_checked_at is not None:
+                authority.dependency_checked_monotonic = dependency_checked_at
             return True
 
     def _standalone_delivery_locally_authorized(
@@ -22747,19 +23119,56 @@ class Orchestrator:
         """
 
         with self._standalone_delivery_authority_lock:
-            key = (authority.project_id, authority.task_id)
-            if (
-                authority.revoked
-                or self._standalone_delivery_authorities.get(key) is not authority
-            ):
+            if not self._standalone_delivery_authority_current_locked(authority):
                 return False
-            if authority.workflow_authority_check is not None:
-                try:
-                    if not authority.workflow_authority_check():
-                        return False
-                except Exception:
+            generation = authority.generation
+            workflow_authority_check = authority.workflow_authority_check
+        if workflow_authority_check is not None:
+            try:
+                if not workflow_authority_check():
                     return False
-            return True
+            except Exception:
+                return False
+        with self._standalone_delivery_authority_lock:
+            return bool(
+                self._standalone_delivery_authority_current_locked(authority)
+                and authority.generation == generation
+                and authority.workflow_authority_check is workflow_authority_check
+            )
+
+    def _standalone_delivery_cached_evidence_current_locked(
+        self,
+        authority: StandaloneDeliveryAuthority,
+    ) -> bool:
+        """Check cached tracker evidence with only in-process comparisons."""
+
+        issue = authority.issue
+        return bool(
+            self._standalone_delivery_authority_current_locked(authority)
+            and canonicalize_status(issue.state) == authority.expected_state
+            and (not str(issue.parent_id or "").strip() or authority.allows_parent)
+            and not _is_epic_issue(issue)
+            and self._standalone_delivery_evidence_revision(issue)
+            == authority.evidence_revision
+        )
+
+    def _standalone_delivery_authorized_at_issue_boundary(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+    ) -> bool:
+        """Recheck external evidence, then cross the issue boundary by CAS only."""
+
+        if not self._standalone_delivery_authorized(authority, tracker):
+            return False
+        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
+        with self.issue_transition_lock(issue_id).sync(blocking=False) as acquired:
+            if acquired is None:
+                return False
+            with self._standalone_delivery_authority_lock:
+                return self._standalone_delivery_cached_evidence_current_locked(
+                    authority
+                )
 
     def _refresh_standalone_delivery_authority(
         self,
@@ -22772,35 +23181,132 @@ class Orchestrator:
 
         current = self._fresh_standalone_delivery_issue(authority, tracker)
         if current is None:
-            authority.revoked = True
-            self._standalone_delivery_authorities.pop(
-                (authority.project_id, authority.task_id), None
-            )
-            self._clear_quality_gate_result(
-                authority.project_id,
-                authority.task_id,
-            )
+            self._retire_exact_standalone_delivery_authority(authority)
             return False
         current_generation = self._standalone_integration_generation_revision(current)
-        expected_generation = authority.evidence_revision[-len(current_generation) :]
+        with self._standalone_delivery_authority_lock:
+            allow_revocation_pending = bool(
+                authority.active_operations
+                and authority.active_operation_thread_id == threading.get_ident()
+            )
+            if not self._standalone_delivery_authority_current_locked(
+                authority,
+                allow_revocation_pending=allow_revocation_pending,
+            ):
+                return False
+            generation = authority.generation
+            evidence_revision = authority.evidence_revision
+        expected_generation = evidence_revision[-len(current_generation) :]
         if current_generation != expected_generation:
-            authority.revoked = True
-            self._standalone_delivery_authorities.pop(
-                (authority.project_id, authority.task_id),
-                None,
-            )
-            self._clear_quality_gate_result(
-                authority.project_id,
-                authority.task_id,
-            )
+            self._retire_exact_standalone_delivery_authority(authority)
             return False
-        authority.issue = current
-        authority.evidence_revision = self._standalone_delivery_evidence_revision(
-            current
-        )
-        if next_state is not None:
-            authority.expected_state = canonicalize_status(next_state)
-        return True
+        refreshed_revision = self._standalone_delivery_evidence_revision(current)
+        with self._standalone_delivery_authority_lock:
+            if (
+                not self._standalone_delivery_authority_current_locked(
+                    authority,
+                    allow_revocation_pending=allow_revocation_pending,
+                )
+                or authority.generation != generation
+                or authority.evidence_revision != evidence_revision
+            ):
+                return False
+            authority.issue = current
+            authority.evidence_revision = refreshed_revision
+            if next_state is not None:
+                authority.expected_state = canonicalize_status(next_state)
+            return True
+
+    def _admit_standalone_delivery_operation(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+    ) -> str | None:
+        """Admit one exact operation after lock-free external preflight."""
+
+        thread_id = threading.get_ident()
+        with self._standalone_delivery_authority_lock:
+            if authority.active_operations:
+                if (
+                    authority.active_operation_thread_id == thread_id
+                    and self._standalone_delivery_authority_current_locked(
+                        authority,
+                        allow_revocation_pending=True,
+                    )
+                ):
+                    authority.active_operations += 1
+                    return authority.generation
+                return None
+        if not self._standalone_delivery_authorized(authority, tracker):
+            return None
+        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
+        with self.issue_transition_lock(issue_id).sync(blocking=False) as acquired:
+            if acquired is None:
+                return None
+            with self._standalone_delivery_authority_lock:
+                if (
+                    not self._standalone_delivery_cached_evidence_current_locked(
+                        authority
+                    )
+                    or authority.active_operations
+                ):
+                    return None
+                authority.active_operations = 1
+                authority.active_operation_thread_id = thread_id
+                return authority.generation
+
+    def _finish_standalone_delivery_operation(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        generation: str,
+    ) -> bool:
+        """Release one admission and retire a pending exact generation."""
+
+        key = (authority.project_id, authority.task_id)
+        retire = False
+        with self._standalone_delivery_authority_lock:
+            if authority.active_operations <= 0:
+                raise RuntimeError("standalone delivery operation was not admitted")
+            authority.active_operations -= 1
+            if authority.active_operations == 0:
+                authority.active_operation_thread_id = None
+            current = bool(
+                self._standalone_delivery_authorities.get(key) is authority
+                and authority.generation == generation
+                and not authority.revoked
+            )
+            if (
+                current
+                and authority.revocation_pending
+                and authority.active_operations == 0
+            ):
+                self._standalone_delivery_authorities.pop(key, None)
+                authority.revoked = True
+                authority.revocation_pending = False
+                self._clear_quality_gate_result(*key)
+                retire = True
+                current = False
+        if retire:
+            self._cancel_standalone_delivery_gate(authority)
+            source = f"standalone_ready_delivery:{key[0]}:{key[1]}"
+            self._replace_alert_source(source)
+        return current
+
+    def _run_standalone_delivery_operation(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+        operation: Any,
+    ) -> tuple[bool, Any | None]:
+        """Run a complete irreversible effect and its publication as one unit."""
+
+        generation = self._admit_standalone_delivery_operation(authority, tracker)
+        if generation is None:
+            return False, None
+        try:
+            return True, operation()
+        finally:
+            self._finish_standalone_delivery_operation(authority, generation)
 
     def _standalone_delivery_mutation(
         self,
@@ -22811,35 +23317,63 @@ class Orchestrator:
         next_state: str | None = None,
         refresh_authority: bool = True,
     ) -> bool:
-        """Run one tracker mutation while terminal revocation is excluded."""
+        """Run one generation-bound tracker mutation without spanning locks."""
 
-        with self._standalone_delivery_authority_lock:
-            lock_factory = getattr(self.project_store, "project_write_lock", None)
-            project_lock = (
-                lock_factory(authority.project_id)
-                if callable(lock_factory)
-                else None
+        generation = self._admit_standalone_delivery_operation(authority, tracker)
+        if generation is None:
+            self._record_superseded_standalone_delivery(
+                authority,
+                "delivery authority was revoked before tracker mutation",
             )
-            if project_lock is not None and not project_lock.acquire(blocking=False):
-                return False
-            try:
-                if not self._standalone_delivery_authorized(authority, tracker):
-                    self._record_superseded_standalone_delivery(
-                        authority,
-                        "delivery authority was revoked before tracker mutation",
-                    )
-                    return False
-                mutation()
-                if not refresh_authority:
-                    return True
-                return self._refresh_standalone_delivery_authority(
+            return False
+        refreshed = True
+        try:
+            mutation()
+            if refresh_authority:
+                refreshed = self._refresh_standalone_delivery_authority(
                     authority,
                     tracker,
                     next_state=next_state,
                 )
-            finally:
-                if project_lock is not None:
-                    project_lock.release()
+        finally:
+            current = self._finish_standalone_delivery_operation(
+                authority,
+                generation,
+            )
+        return bool(refreshed and current)
+
+    def _standalone_delivery_side_effect(
+        self,
+        authority: StandaloneDeliveryAuthority | None,
+        effect: Any,
+        *,
+        superseded_reason: str,
+    ) -> bool:
+        """Publish a short side effect under exact delivery admission."""
+
+        if authority is None:
+            effect()
+            return True
+        try:
+            tracker = self._tracker_for_project(authority.project_id)
+        except Exception:  # noqa: BLE001 - an unverified effect must not publish
+            self._record_superseded_standalone_delivery(
+                authority,
+                superseded_reason,
+            )
+            return False
+        if self._standalone_delivery_mutation(
+            authority,
+            tracker,
+            effect,
+            refresh_authority=False,
+        ):
+            return True
+        self._record_superseded_standalone_delivery(
+            authority,
+            superseded_reason,
+        )
+        return False
 
     def _standalone_delivery_action(
         self,
@@ -22847,31 +23381,28 @@ class Orchestrator:
         tracker: TrackerProtocol,
         action: Any,
     ) -> tuple[bool, Any | None]:
-        """Run one forge delivery action only while the claim is current."""
+        """Run one forge action under the same generation-bound admission."""
 
-        with self._standalone_delivery_authority_lock:
-            lock_factory = getattr(self.project_store, "project_write_lock", None)
-            project_lock = (
-                lock_factory(authority.project_id)
-                if callable(lock_factory)
-                else None
+        generation = self._admit_standalone_delivery_operation(authority, tracker)
+        if generation is None:
+            return False, None
+        result: Any | None = None
+        authorized_after = False
+        try:
+            result = action()
+            # Preserve a late forge result for idempotent adoption, but never
+            # let a revoked generation proceed to tracker publication.
+            authorized_after = self._standalone_delivery_authorized(
+                authority,
+                tracker,
+                allow_active_operation=True,
             )
-            if project_lock is not None and not project_lock.acquire(blocking=False):
-                return False, None
-            try:
-                if not self._standalone_delivery_authorized(authority, tracker):
-                    return False, None
-                result = action()
-                # A blocking forge adapter can return after the durable workflow
-                # lease was timed out or superseded.  Preserve the forge result for
-                # later idempotent adoption, but never let this late invocation
-                # proceed to capacity or tracker mutations.
-                if not self._standalone_delivery_authorized(authority, tracker):
-                    return False, result
-                return True, result
-            finally:
-                if project_lock is not None:
-                    project_lock.release()
+        finally:
+            current = self._finish_standalone_delivery_operation(
+                authority,
+                generation,
+            )
+        return bool(authorized_after and current), result
 
     @staticmethod
     def _is_standalone_noop_landing(
@@ -23021,25 +23552,48 @@ class Orchestrator:
         *,
         work_branch: str,
         target_branch: str,
+        expected_integration: IntegrationRecord,
     ) -> bool:
         """Validate terminal authority after the integration evidence write."""
 
         with self._standalone_delivery_authority_lock:
-            key = (authority.project_id, authority.task_id)
-            if (
-                authority.revoked
-                or self._standalone_delivery_authorities.get(key) is not authority
-            ):
+            if not self._standalone_delivery_authority_current_locked(authority):
                 return False
+            authority_snapshot = (
+                authority.generation,
+                authority.expected_state,
+                authority.evidence_revision,
+                authority.dependency_revision,
+                authority.branch,
+                authority.target_branch,
+                authority.allows_parent,
+                authority.head_sha,
+                authority.head_resolver,
+                authority.workflow_authority_check,
+            )
+            (
+                _generation,
+                expected_state,
+                _expected_evidence_revision,
+                expected_dependency_revision,
+                expected_branch,
+                expected_target_branch,
+                allows_parent,
+                expected_head,
+                head_resolver,
+                workflow_authority_check,
+            ) = authority_snapshot
         current = self._fresh_standalone_delivery_issue(authority, tracker)
         if current is None:
             return False
-        if canonicalize_status(current.state) != authority.expected_state:
+        if canonicalize_status(current.state) != expected_state:
             return False
         integration = getattr(current, "integration", None)
         parent_id = str(getattr(current, "parent_id", "") or "").strip()
         if (
-            str(getattr(integration, "mode", "") or "").strip().lower()
+            (parent_id and not allows_parent)
+            or integration != expected_integration
+            or str(getattr(integration, "mode", "") or "").strip().lower()
             != "standalone"
             or str(
                 getattr(integration, "post_landed_parent_id", "") or ""
@@ -23047,9 +23601,9 @@ class Orchestrator:
             != parent_id
         ):
             return False
-        if authority.workflow_authority_check is not None:
+        if workflow_authority_check is not None:
             try:
-                if not authority.workflow_authority_check():
+                if not workflow_authority_check():
                     return False
             except Exception:
                 return False
@@ -23057,7 +23611,9 @@ class Orchestrator:
         if project is None:
             return False
         if (
-            self._branch_for_issue(current, project) != work_branch
+            expected_branch != work_branch
+            or expected_target_branch != target_branch
+            or self._branch_for_issue(current, project) != work_branch
             or str(current.target_branch or project.default_branch or "").strip()
             != target_branch
             or _is_epic_issue(current)
@@ -23067,7 +23623,7 @@ class Orchestrator:
             current,
             work_branch,
             target_branch,
-            authority.head_sha,
+            expected_head,
         ):
             return False
         dependency_state = self._current_standalone_finish_dependency_state(
@@ -23076,19 +23632,44 @@ class Orchestrator:
         )
         if (
             dependency_state is None
-            or dependency_state.revision != authority.dependency_revision
+            or dependency_state.revision != expected_dependency_revision
         ):
             return False
         try:
-            current_head = authority.head_resolver()
+            current_head = head_resolver()
         except Exception:  # noqa: BLE001 - remote head is authoritative
             return False
         if str(current_head or "").strip().lower() != str(
-            authority.head_sha or ""
+            expected_head or ""
         ).strip().lower():
             return False
-        authority.issue = current
-        return True
+        issue_id = str(getattr(current, "id", "") or authority.task_id)
+        with self.issue_transition_lock(issue_id).sync(blocking=False) as acquired:
+            if acquired is None:
+                return False
+            with self._standalone_delivery_authority_lock:
+                final_snapshot = (
+                    authority.generation,
+                    authority.expected_state,
+                    authority.evidence_revision,
+                    authority.dependency_revision,
+                    authority.branch,
+                    authority.target_branch,
+                    authority.allows_parent,
+                    authority.head_sha,
+                    authority.head_resolver,
+                    authority.workflow_authority_check,
+                )
+                if (
+                    not self._standalone_delivery_authority_current_locked(authority)
+                    or final_snapshot != authority_snapshot
+                ):
+                    return False
+                authority.issue = current
+                authority.evidence_revision = (
+                    self._standalone_delivery_evidence_revision(current)
+                )
+                return True
 
     def _standalone_noop_integration_record(
         self,
@@ -23135,10 +23716,9 @@ class Orchestrator:
     ) -> tuple[bool, TransitionResult | None]:
         """Persist zero-diff evidence and stage the normal terminal audit chain."""
 
-        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
-        async with self.issue_transition_lock(issue_id):
+        async def stage() -> tuple[bool, TransitionResult | None]:
             if not await asyncio.to_thread(
-                self._standalone_delivery_authorized,
+                self._standalone_delivery_authorized_at_issue_boundary,
                 authority,
                 tracker,
             ):
@@ -23214,6 +23794,7 @@ class Orchestrator:
                 tracker,
                 work_branch=work_branch,
                 target_branch=target_branch,
+                expected_integration=canonical_record,
             ):
                 return False, None
             final_containment, _final_reason = await asyncio.to_thread(
@@ -23263,6 +23844,8 @@ class Orchestrator:
                 )
                 return True, None
             return True, transition
+
+        return await stage()
 
     async def _request_standalone_contained_with_authority_async(
         self,
@@ -23353,18 +23936,16 @@ class Orchestrator:
         review_url: str | None,
         review_head: str,
     ) -> tuple[bool, TransitionResult | None]:
-        """Stage Merged after a final generation CAS under task ownership.
+        """Stage Merged after a final generation-bound evidence CAS.
 
-        Accepted submissions and terminal API operations use the same per-issue
-        cross-loop lock. Re-read the delivery evidence inside that serialization
-        boundary, then release the delivery authority ``RLock`` before awaiting
-        the coordinator.  The coordinator revokes delivery authority from its
-        project worker thread, so retaining that thread-owned lock across the
-        await would deadlock.
+        Forge and tracker observations run without the per-issue lock.  The
+        final issue-boundary check is a constant-time cached CAS, and the task
+        transition service independently rechecks the exact tracker version.
+        This lets the coordinator revoke delivery authority from its project
+        worker without waiting behind a lock held by this coroutine.
         """
 
-        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
-        async with self.issue_transition_lock(issue_id):
+        async def stage() -> tuple[bool, TransitionResult | None]:
             authorized = await asyncio.to_thread(
                 self._standalone_delivery_authorized,
                 authority,
@@ -23419,7 +24000,7 @@ class Orchestrator:
             # Re-run the full state/generation/head/dependency CAS before the
             # coordinator obtains project authority.
             if not await asyncio.to_thread(
-                self._standalone_delivery_authorized,
+                self._standalone_delivery_authorized_at_issue_boundary,
                 authority,
                 tracker,
             ):
@@ -23458,18 +24039,20 @@ class Orchestrator:
                 return True, None
             return True, transition
 
+        return await stage()
+
     async def _request_standalone_merged_with_authority_async(
         self,
         authority: StandaloneDeliveryAuthority,
         tracker: TrackerProtocol,
         **kwargs: Any,
     ) -> tuple[bool, TransitionResult | None]:
-        """Keep the lock-owning operation alive if its outer bridge is cancelled.
+        """Keep terminal staging alive if its outer bridge is cancelled.
 
         ``asyncio.to_thread`` work is not cancelled with its awaiting task.  The
-        inner task therefore owns the cross-loop mutex, while the bridge awaits it
-        through ``shield``.  A timeout or caller cancellation can stop waiting but
-        cannot release ownership around still-running tracker/coordinator effects.
+        inner task therefore owns the admitted evidence sequence, while the bridge
+        awaits it through ``shield``. A timeout or caller cancellation can stop
+        waiting but cannot cancel already-running tracker/coordinator effects.
         """
 
         operation = asyncio.create_task(
@@ -23548,24 +24131,35 @@ class Orchestrator:
         self,
         project_id: str,
         task_id: str,
-    ) -> None:
+    ) -> bool:
         """Synchronously fence stale standalone work before terminal ownership."""
 
         key = (str(project_id), str(task_id))
         with self._standalone_delivery_authority_lock:
+            authority = self._standalone_delivery_authorities.get(key)
+            if authority is not None and authority.active_operations:
+                # The terminal coordinator owns the project lock at this
+                # boundary.  Waiting here would deadlock a provenance-guarded
+                # helper-thread write.  Mark the exact generation for
+                # retirement and require the terminal mutation to retry after
+                # finalization.
+                authority.revocation_pending = True
+                return False
             authority = self._standalone_delivery_authorities.pop(key, None)
             if authority is not None:
                 authority.revoked = True
-                # Rejection/reopen is a generation change.  Stop only the
-                # gate owned by this claim; a replacement claim may already
-                # be running for the new head.
-                self._cancel_standalone_delivery_gate(authority)
+                authority.revocation_pending = False
             # Publication takes this authority lock before the outcome lock.
             # Therefore either a result is stored first and retired here, or
             # revocation wins first and the late producer refuses to store it.
             self._clear_quality_gate_result(*key)
-            source = f"standalone_ready_delivery:{key[0]}:{key[1]}"
-            self._replace_alert_source(source)
+        if authority is not None:
+            # Rejection/reopen is a generation change.  Stop only the gate
+            # owned by this claim; a replacement claim may already be running.
+            self._cancel_standalone_delivery_gate(authority)
+        source = f"standalone_ready_delivery:{key[0]}:{key[1]}"
+        self._replace_alert_source(source)
+        return True
 
     def _revoke_auditor_authority(
         self,
@@ -29591,25 +30185,75 @@ class Orchestrator:
         self,
         reservation: ReviewCapacityReservation | None,
         review_id: Any,
-    ) -> None:
+    ) -> bool:
         """Bind a pre-create reservation to the created forge review."""
-        if reservation is None:
-            return
+        review_key = str(review_id or "").strip()
+        if reservation is None or not review_key:
+            return False
         try:
-            if not self.review_capacity_store.commit(
+            if self.review_capacity_store.commit(
                 reservation.reservation_id,
-                str(review_id or ""),
+                review_key,
             ):
-                logger.warning(
-                    "Review capacity reservation %s could not be committed",
-                    reservation.reservation_id,
-                )
+                return True
+            logger.warning(
+                "Review capacity reservation %s could not be committed; "
+                "attempting exact adoption",
+                reservation.reservation_id,
+            )
         except Exception as exc:  # noqa: BLE001 - review already exists
             logger.error(
-                "Failed to persist review capacity reservation %s: %s",
+                "Failed to commit review capacity reservation %s; attempting "
+                "exact adoption: %s",
                 reservation.reservation_id,
                 exc,
             )
+        try:
+            active = self.review_capacity_store.active(reservation.project_id)
+            matching = [
+                item
+                for item in active
+                if item.task_id == reservation.task_id
+                and item.source_branch == reservation.source_branch
+                and item.target_branch == reservation.target_branch
+            ]
+            if any(
+                item.review_id and str(item.review_id) != review_key
+                for item in matching
+            ):
+                logger.error(
+                    "Refusing to replace conflicting review capacity identity "
+                    "for %s",
+                    reservation.task_id,
+                )
+                return False
+            adopted = self.review_capacity_store.adopt(
+                project_id=reservation.project_id,
+                task_id=reservation.task_id,
+                source_branch=reservation.source_branch,
+                target_branch=reservation.target_branch,
+                review_id=review_key,
+                reservation_id=reservation.reservation_id,
+                authority_generation=reservation.authority_generation,
+                head_sha=reservation.head_sha,
+            )
+        except Exception as exc:  # noqa: BLE001 - caller must fail closed
+            logger.error(
+                "Failed to durably adopt review capacity for %s review %s: %s",
+                reservation.task_id,
+                review_key,
+                exc,
+            )
+            return False
+        return bool(
+            adopted.project_id == reservation.project_id
+            and adopted.task_id == reservation.task_id
+            and adopted.source_branch == reservation.source_branch
+            and adopted.target_branch == reservation.target_branch
+            and str(adopted.review_id or "") == review_key
+            and str(adopted.head_sha or "").strip().lower()
+            == str(reservation.head_sha or "").strip().lower()
+        )
 
     def _release_review_capacity(
         self,
@@ -33309,14 +33953,39 @@ class Orchestrator:
         target_branch: str,
         observed_status: str,
     ) -> bool:
-        """Publish a result at a tracker/terminal-authority boundary.
+        """Publish a result with external preflight and an in-memory CAS.
 
-        A Ready scan may hold an old issue snapshot while terminal ownership
-        commits under the project write lock.  Revalidate standalone results
-        while holding that same project fence: publication either precedes
-        the terminal operation and is cleared by its revocation, or follows
-        the terminal write and observes that the claim is no longer current.
+        Tracker, dependency, project-configuration, and Git head reads may
+        block.  They must complete before the project and delivery-authority
+        fences are acquired.  Native tracker and project revisions then make
+        the final fenced section a constant-time identity comparison: terminal
+        ownership either revokes first, or the result publishes first and is
+        cleared by the later revocation.
         """
+
+        def integer_revision(source: Any) -> int | None:
+            if not callable(source):
+                return None
+            value = source()
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                return None
+            return value
+
+        def project_workflow_revision() -> int | None:
+            source = getattr(self.project_store, "workflow_authority_revision", None)
+            if not callable(source):
+                return None
+            return integer_revision(lambda: source(str(project_id)))
+
+        def reject_stale_producer() -> bool:
+            if authority is None:
+                stored = self._quality_gate_result_for(project_id, task_id)
+                if (
+                    stored is not None
+                    and self._quality_gate_result_owned_by(stored, producer)
+                ):
+                    self._clear_quality_gate_result(project_id, task_id)
+            return False
 
         try:
             tracker = self._tracker_for_project(str(project_id))
@@ -33327,85 +33996,237 @@ class Orchestrator:
                 exc,
             )
             return False
+
+        tracker_revision_source: Callable[[], Any] | None = None
+        if callable(getattr(type(tracker), "get_publication_revision", None)):
+            tracker_revision_source = getattr(tracker, "get_publication_revision")
+        else:
+            try:
+                instance_source = vars(tracker).get("get_publication_revision")
+            except TypeError:
+                instance_source = None
+            if callable(instance_source):
+                tracker_revision_source = instance_source
+
+        def tracker_publication_revision() -> int | None:
+            return integer_revision(tracker_revision_source)
+
+        authority_snapshot: tuple[Any, ...] | None = None
+        workflow_authority_check: Callable[[], bool] | None = None
+        if authority is not None:
+            authority_lock = getattr(
+                self, "_standalone_delivery_authority_lock", None
+            )
+            if authority_lock is None:
+                return False
+            with authority_lock:
+                if (
+                    not self._standalone_delivery_authority_current_locked(authority)
+                    or authority.active_operations
+                ):
+                    return False
+                authority_snapshot = (
+                    authority.generation,
+                    authority.expected_state,
+                    authority.branch,
+                    authority.target_branch,
+                    authority.evidence_revision,
+                    authority.dependency_revision,
+                    authority.allows_parent,
+                    authority.workflow_generation,
+                    authority.head_sha,
+                    authority.head_resolver,
+                )
+                workflow_authority_check = authority.workflow_authority_check
+
+        tracker_revision_before = tracker_publication_revision()
+        if tracker_revision_source is not None and tracker_revision_before is None:
+            return reject_stale_producer()
+        project_revision_before = project_workflow_revision()
+        current_project = self.project_store.get(str(project_id))
+        if not isinstance(current_project, Project):
+            return reject_stale_producer()
+        current_command = self._quality_gate_command(current_project)
+        project_revision_after = project_workflow_revision()
+        if (
+            project_revision_before is not None
+            and project_revision_after != project_revision_before
+        ):
+            return reject_stale_producer()
+
+        try:
+            current = tracker.fetch_issue_detail(str(task_id))
+        except Exception as exc:  # noqa: BLE001 - fail closed
+            logger.warning(
+                "Could not refresh quality gate task %s: %s",
+                task_id,
+                exc,
+            )
+            return reject_stale_producer()
+        if not isinstance(current, Issue):
+            return reject_stale_producer()
+
+        if authority is not None:
+            assert authority_snapshot is not None
+            (
+                _generation,
+                expected_state,
+                expected_branch,
+                expected_target_branch,
+                expected_evidence_revision,
+                expected_dependency_revision,
+                allows_parent,
+                _workflow_generation,
+                expected_head,
+                head_resolver,
+            ) = authority_snapshot
+            if workflow_authority_check is not None:
+                try:
+                    if not workflow_authority_check():
+                        return False
+                except Exception:
+                    return False
+            if (
+                canonicalize_status(current.state) != expected_state
+                or (str(current.parent_id or "").strip() and not allows_parent)
+                or _is_epic_issue(current)
+                or self._standalone_delivery_evidence_revision(current)
+                != expected_evidence_revision
+                or self._branch_for_issue(current, current_project) != expected_branch
+                or str(
+                    current.target_branch or current_project.default_branch or ""
+                ).strip()
+                != expected_target_branch
+            ):
+                return False
+            dependency_state = self._current_standalone_finish_dependency_state(
+                current,
+                tracker,
+            )
+            if (
+                dependency_state is None
+                or dependency_state.revision != expected_dependency_revision
+            ):
+                # The replacement Ready pass will claim the new dependency
+                # evidence.  Revocation itself remains outside both publication
+                # fences and is generation-scoped.
+                self._revoke_standalone_delivery_authority(
+                    str(project_id), str(task_id)
+                )
+                return False
+            if expected_head:
+                if not callable(head_resolver):
+                    return False
+                try:
+                    current_head = head_resolver()
+                except Exception:  # noqa: BLE001 - remote head is authoritative
+                    return False
+                if str(current_head or "") != str(expected_head):
+                    return False
+        else:
+            if (
+                str(current.identifier or "") != str(task_id)
+                or (
+                    str(current.project_id or "")
+                    and str(current.project_id) != str(project_id)
+                )
+                or canonicalize_status(observed_status)
+                not in _QUALITY_GATE_PUBLICATION_STATUSES
+                or canonicalize_status(current.state)
+                != canonicalize_status(observed_status)
+                or self._standalone_delivery_evidence_revision(current)
+                != self._standalone_delivery_evidence_revision(issue)
+                or self._branch_for_issue(current, current_project) != str(branch)
+                or str(
+                    current.target_branch or current_project.default_branch or ""
+                ).strip()
+                != str(target_branch)
+            ):
+                return reject_stale_producer()
+            if (
+                current_command != result.command
+                or producer.authority_generation
+                != self._quality_gate_publication_generation(
+                    str(project_id),
+                    str(task_id),
+                    str(branch),
+                    str(target_branch),
+                    str(producer.head_sha),
+                    current_command,
+                    observed_status,
+                )
+            ):
+                return reject_stale_producer()
+            producer_head = str(producer.head_sha or "").strip().lower()
+            if not producer_head.startswith("unresolved:"):
+                current_head = str(
+                    self._quality_gate_branch_head(current_project, branch) or ""
+                ).strip().lower()
+                if current_head != producer_head:
+                    return reject_stale_producer()
+
+        tracker_revision_after = tracker_publication_revision()
+        if tracker_revision_source is not None and tracker_revision_after is None:
+            return reject_stale_producer()
+        if (
+            tracker_revision_before is not None
+            and tracker_revision_after != tracker_revision_before
+        ):
+            return reject_stale_producer()
+
         lock_factory = getattr(self.project_store, "project_write_lock", None)
         project_lock = (
             lock_factory(str(project_id)) if callable(lock_factory) else None
         ) or contextlib.nullcontext()
         with project_lock:
-            current_project = self.project_store.get(str(project_id))
-            if not isinstance(current_project, Project):
-                return False
-            current_command = self._quality_gate_command(current_project)
+            final_project = self.project_store.get(str(project_id))
+            if (
+                not isinstance(final_project, Project)
+                or self._quality_gate_command(final_project) != current_command
+                or (
+                    project_revision_after is not None
+                    and project_workflow_revision() != project_revision_after
+                )
+                or (
+                    tracker_revision_after is not None
+                    and tracker_publication_revision() != tracker_revision_after
+                )
+            ):
+                return reject_stale_producer()
             if authority is not None:
-                if (
-                    current_command != result.command
-                    or not self._standalone_delivery_authorized(authority, tracker)
-                ):
-                    return False
-            else:
-                try:
-                    current = tracker.fetch_issue_detail(str(task_id))
-                except Exception as exc:  # noqa: BLE001 - fail closed
-                    logger.warning(
-                        "Could not refresh quality gate task %s: %s",
-                        task_id,
-                        exc,
+                assert authority_snapshot is not None
+                authority_lock = self._standalone_delivery_authority_lock
+                with authority_lock:
+                    final_snapshot = (
+                        authority.generation,
+                        authority.expected_state,
+                        authority.branch,
+                        authority.target_branch,
+                        authority.evidence_revision,
+                        authority.dependency_revision,
+                        authority.allows_parent,
+                        authority.workflow_generation,
+                        authority.head_sha,
+                        authority.head_resolver,
                     )
-                    return False
-
-                def reject_stale_producer() -> bool:
-                    stored = self._quality_gate_result_for(project_id, task_id)
                     if (
-                        stored is not None
-                        and self._quality_gate_result_owned_by(stored, producer)
+                        current_command != result.command
+                        or not self._standalone_delivery_authority_current_locked(
+                            authority
+                        )
+                        or authority.active_operations
+                        or final_snapshot != authority_snapshot
                     ):
-                        self._clear_quality_gate_result(project_id, task_id)
-                    return False
-
-                if (
-                    not isinstance(current, Issue)
-                    or str(current.identifier or "") != str(task_id)
-                    or (
-                        str(current.project_id or "")
-                        and str(current.project_id) != str(project_id)
+                        return False
+                    authority.issue = current
+                    return self._remember_quality_gate_result(
+                        project_id,
+                        task_id,
+                        result,
+                        authority=authority,
+                        producer=producer,
                     )
-                    or canonicalize_status(observed_status)
-                    not in _QUALITY_GATE_PUBLICATION_STATUSES
-                    or canonicalize_status(current.state)
-                    != canonicalize_status(observed_status)
-                    or self._standalone_delivery_evidence_revision(current)
-                    != self._standalone_delivery_evidence_revision(issue)
-                    or self._branch_for_issue(current, current_project) != str(branch)
-                    or str(
-                        current.target_branch
-                        or current_project.default_branch
-                        or ""
-                    ).strip()
-                    != str(target_branch)
-                ):
-                    return reject_stale_producer()
-                if (
-                    current_command != result.command
-                    or producer.authority_generation
-                    != self._quality_gate_publication_generation(
-                        str(project_id),
-                        str(task_id),
-                        str(branch),
-                        str(target_branch),
-                        str(producer.head_sha),
-                        current_command,
-                        observed_status,
-                    )
-                ):
-                    return reject_stale_producer()
-                producer_head = str(producer.head_sha or "").strip().lower()
-                if not producer_head.startswith("unresolved:"):
-                    current_head = str(
-                        self._quality_gate_branch_head(current_project, branch) or ""
-                    ).strip().lower()
-                    if current_head != producer_head:
-                        return reject_stale_producer()
-
+            else:
                 # The project/status/evidence/head/command checks above prove
                 # this exact producer is current. Retire any prior producer,
                 # including an older command at the same immutable head, before
@@ -66092,6 +66913,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 waitables.add(fenced_provider_start_task)
 
             session_stop_task: asyncio.Task | None = None
+            session_stop_acknowledged = True
             cli_session = getattr(self, "_cli_agent_sessions", {}).get(issue_id)
             if cli_session is not None:
                 session_timeout_s = timeout_s if timeout_s > 0 else 5.0
@@ -66134,9 +66956,24 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         entry.identifier,
                     )
                     session_stop_task.cancel()
-                    # Give AgentSession.stop() one scheduling point to turn its
-                    # cancellation into an immediate process-group SIGKILL.
-                    await asyncio.sleep(0)
+                    session_stop_acknowledged = False
+                    hard_timeout_s = min(
+                        max(session_timeout_s, 0.02),
+                        1.0,
+                    )
+                    hard_done, _ = await asyncio.wait(
+                        {session_stop_task},
+                        timeout=hard_timeout_s,
+                    )
+                    if session_stop_task in hard_done:
+                        session_stop_acknowledged = True
+                        done = set(done) | hard_done
+                    else:
+                        logger.error(
+                            "CLI agent hard cleanup did not acknowledge "
+                            "completion issue_identifier=%s",
+                            entry.identifier,
+                        )
                 if acp_stop_task in waitables and acp_stop_task not in done:
                     logger.warning(
                         "ACP agent session did not stop within %dms; forcing "
@@ -66196,6 +67033,15 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     entry.identifier,
                     sorted(survivors),
                     entry.workspace_path,
+                )
+                self._notify_observers()
+                return _termination_result(False)
+            if not session_stop_acknowledged:
+                entry.retirement_pending = True
+                logger.error(
+                    "Refusing to forget worker before CLI hard-cleanup "
+                    "acknowledgement issue_identifier=%s",
+                    entry.identifier,
                 )
                 self._notify_observers()
                 return _termination_result(False)
@@ -67457,6 +68303,219 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         return None
 
+    def _publish_observer_snapshot(
+        self,
+        snapshot: dict[str, Any],
+        *,
+        lifecycle_epoch: int | None = None,
+        expected_generation: int | None = None,
+    ) -> bool:
+        """Publish one already-built full snapshot to every observer.
+
+        Lifecycle publications carry a narrow commit permit.  The permit is
+        consumed here, immediately before the first external sink, rather
+        than in the snapshot-building worker.  Shutdown can consequently
+        revoke a worker paused anywhere before this method without waiting
+        for it, and releasing that worker cannot publish old-orchestrator
+        state.  No lifecycle or provider lock is held while IPC, EventBus, or
+        legacy callbacks execute.
+        """
+
+        publication_permit: LifecyclePublicationPermit | None = None
+        if lifecycle_epoch is not None:
+            if expected_generation is None:
+                return False
+            # Provider -> lifecycle is the common lifecycle lock ordering.
+            # This short critical section is the publication commit point;
+            # every potentially blocking external callback remains below it.
+            with self._provider_admission_lock:
+                with self._lifecycle_publication_lock:
+                    if (
+                        self._lifecycle_publication_closed
+                        or self._lifecycle_publication_closing
+                        or self._lifecycle_publication_epoch != lifecycle_epoch
+                        or self._provider_admission_generation
+                        != expected_generation
+                    ):
+                        return False
+            publication_permit = LifecyclePublicationPermit(
+                source=self._lifecycle_publication_source,
+                epoch=lifecycle_epoch,
+                expected_generation=expected_generation,
+            )
+        source_is_current = (
+            publication_permit.is_current
+            if publication_permit is not None
+            else None
+        )
+
+        # Publish to IPC before notifying local observers so the API process
+        # can serve reads as soon as the tick completes.
+        if self._ipc is not None:
+            try:
+                if source_is_current is None:
+                    self._ipc.publish_state(snapshot)
+                else:
+                    source_id = getattr(
+                        self,
+                        "_ipc_state_publication_source",
+                        None,
+                    )
+                    if isinstance(source_id, str) and source_id.strip():
+                        self._ipc.publish_state(
+                            snapshot,
+                            source_is_current=source_is_current,
+                            source_id=source_id,
+                            source_epoch=publication_permit.epoch,
+                            source_generation=(
+                                publication_permit.expected_generation
+                            ),
+                        )
+                    else:
+                        logger.debug(
+                            "Skipping lifecycle IPC state publication: "
+                            "exact source activation is unavailable"
+                        )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "OrchestratorIPC.publish_state failed (non-fatal): %s", exc
+                )
+        # EventBus (authoritative)
+        if source_is_current is None:
+            self.event_bus.emit(
+                EventType.ORCHESTRATOR_TICK,
+                {"snapshot": snapshot},
+            )
+        else:
+            self.event_bus.emit(
+                EventType.ORCHESTRATOR_TICK,
+                {"snapshot": snapshot},
+                source_is_current=source_is_current,
+                publication_permit=publication_permit,
+            )
+        # Legacy observer lists (backward compat)
+        for observer in self._observers:
+            if source_is_current is not None and not source_is_current():
+                return False
+            admitted_source = None
+            if publication_permit is not None:
+                admitted_source = self._admit_lifecycle_observer(
+                    publication_permit
+                )
+                if admitted_source is None:
+                    return False
+            try:
+                if publication_permit is not None and bool(
+                    getattr(
+                        observer,
+                        "_oompah_accepts_lifecycle_publication_permit",
+                        False,
+                    )
+                ):
+                    observer(
+                        snapshot,
+                        publication_permit=publication_permit,
+                    )
+                else:
+                    observer(snapshot)
+            except Exception:
+                pass
+            finally:
+                if admitted_source is not None:
+                    self._release_lifecycle_observer(admitted_source)
+        return True
+
+    def _advance_lifecycle_observer_authority(
+        self,
+        source: LifecyclePublicationSource,
+        epoch: int,
+        generation: int,
+    ) -> bool:
+        """Advance the exact source accepted by legacy observer callbacks."""
+
+        candidate = (source, int(epoch), int(generation))
+        with self._lifecycle_observer_sink_condition:
+            authority = self._lifecycle_observer_sink_authority
+            if authority is not None:
+                if authority[0] is not source:
+                    return False
+                if authority[1:] > candidate[1:]:
+                    return False
+            self._lifecycle_observer_sink_authority = candidate
+            return True
+
+    def _restore_lifecycle_observer_authority(
+        self,
+        source: LifecyclePublicationSource,
+        epoch: int,
+        generation: int,
+    ) -> None:
+        """Restore an exact authority after a failed replacement drain."""
+
+        with self._lifecycle_observer_sink_condition:
+            self._lifecycle_observer_sink_authority = (
+                source,
+                int(epoch),
+                int(generation),
+            )
+
+    def _admit_lifecycle_observer(
+        self,
+        permit: LifecyclePublicationPermit,
+    ) -> LifecyclePublicationSource | None:
+        """Acquire a sink-local lease before invoking one legacy callback."""
+
+        authority = (
+            permit.source,
+            permit.epoch,
+            permit.expected_generation,
+        )
+        with self._lifecycle_observer_sink_condition:
+            if self._lifecycle_observer_sink_authority != authority:
+                return None
+            self._lifecycle_observer_sink_inflight[permit.source] = (
+                self._lifecycle_observer_sink_inflight.get(permit.source, 0)
+                + 1
+            )
+            return permit.source
+
+    def _release_lifecycle_observer(
+        self,
+        source: LifecyclePublicationSource,
+    ) -> None:
+        """Release one callback lease and wake a waiting replacement."""
+
+        with self._lifecycle_observer_sink_condition:
+            remaining = self._lifecycle_observer_sink_inflight[source] - 1
+            if remaining:
+                self._lifecycle_observer_sink_inflight[source] = remaining
+            else:
+                self._lifecycle_observer_sink_inflight.pop(source, None)
+            self._lifecycle_observer_sink_condition.notify_all()
+
+    def _deactivate_lifecycle_observer_authority(
+        self,
+        source: LifecyclePublicationSource,
+        *,
+        timeout: float,
+    ) -> bool:
+        """Close legacy admission and drain callbacks, rolling back on timeout."""
+
+        deadline = time.monotonic() + max(float(timeout), 0.0)
+        with self._lifecycle_observer_sink_condition:
+            authority = self._lifecycle_observer_sink_authority
+            if authority is not None and authority[0] is source:
+                self._lifecycle_observer_sink_authority = None
+            while self._lifecycle_observer_sink_inflight.get(source, 0):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    if authority is not None and authority[0] is source:
+                        self._lifecycle_observer_sink_authority = authority
+                    return False
+                self._lifecycle_observer_sink_condition.wait(timeout=remaining)
+            self._lifecycle_observer_sink_inflight.pop(source, None)
+            return True
+
     def _notify_observers(self) -> None:
         """Notify any registered observers of state changes (includes issues refresh).
 
@@ -67467,24 +68526,193 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         state snapshot to the shared SQLite database so the API process can
         serve cached reads without blocking on this process's GIL.
         """
-        snapshot = self.get_snapshot()
-        # Publish to IPC before notifying local observers so the API process
-        # can serve reads as soon as the tick completes.
-        if self._ipc is not None:
+
+        self._publish_observer_snapshot(self.get_snapshot())
+
+    def _run_lifecycle_publication(
+        self,
+        epoch: int,
+        expected_generation: int,
+    ) -> None:
+        """Build and conditionally publish coalesced lifecycle snapshots."""
+
+        while True:
             try:
-                self._ipc.publish_state(snapshot)
-            except Exception as exc:  # noqa: BLE001
-                logger.debug(
-                    "OrchestratorIPC.publish_state failed (non-fatal): %s", exc
+                snapshot = self.get_snapshot()
+                self._publish_observer_snapshot(
+                    snapshot,
+                    lifecycle_epoch=epoch,
+                    expected_generation=expected_generation,
                 )
-        # EventBus (authoritative)
-        self.event_bus.emit(EventType.ORCHESTRATOR_TICK, {"snapshot": snapshot})
-        # Legacy observer lists (backward compat)
-        for observer in self._observers:
-            try:
-                observer(snapshot)
             except Exception:
-                pass
+                logger.exception("Lifecycle state publication failed")
+            with self._lifecycle_publication_lock:
+                if (
+                    self._lifecycle_publication_closed
+                    or self._lifecycle_publication_epoch != epoch
+                ):
+                    return
+                pending = self._lifecycle_publication_pending_generation
+                self._lifecycle_publication_pending_generation = None
+                if pending is None or pending == expected_generation:
+                    self._lifecycle_publication_running = False
+                    self._lifecycle_publication_thread = None
+                    return
+                expected_generation = pending
+
+    def request_lifecycle_publication(
+        self,
+        *,
+        expected_generation: int | None = None,
+    ) -> bool:
+        """Queue the latest lifecycle snapshot without blocking its transition."""
+
+        with self._provider_admission_lock:
+            current_generation = self._provider_admission_generation
+            if expected_generation is None:
+                expected_generation = current_generation
+            expected_generation = int(expected_generation)
+            if expected_generation < current_generation:
+                # A delayed request has already been superseded. Preserve the
+                # historical coalescing contract without regressing any sink.
+                return True
+            if expected_generation > current_generation:
+                return False
+            with self._lifecycle_publication_lock:
+                if (
+                    self._lifecycle_publication_closed
+                    or self._lifecycle_publication_closing
+                ):
+                    return False
+                epoch = self._lifecycle_publication_epoch
+                source = self._lifecycle_publication_source
+                source_id = getattr(
+                    self,
+                    "_ipc_state_publication_source",
+                    None,
+                )
+                advance_ipc = getattr(
+                    self._ipc,
+                    "advance_state_source",
+                    None,
+                )
+                if (
+                    source_id is not None
+                    and callable(advance_ipc)
+                    and not advance_ipc(
+                        source_id,
+                        epoch=epoch,
+                        generation=expected_generation,
+                    )
+                ):
+                    return False
+                if not self.event_bus.advance_lifecycle_publication_authority(
+                    source,
+                    epoch,
+                    expected_generation,
+                ):
+                    return False
+                if not self._advance_lifecycle_observer_authority(
+                    source,
+                    epoch,
+                    expected_generation,
+                ):
+                    return False
+                if self._lifecycle_publication_running:
+                    pending = self._lifecycle_publication_pending_generation
+                    if pending is None or expected_generation > pending:
+                        self._lifecycle_publication_pending_generation = (
+                            expected_generation
+                        )
+                    return True
+                self._lifecycle_publication_running = True
+                worker = threading.Thread(
+                    target=self._run_lifecycle_publication,
+                    args=(epoch, expected_generation),
+                    name=f"lifecycle-publication-{id(self):x}",
+                    daemon=True,
+                )
+                self._lifecycle_publication_thread = worker
+                try:
+                    worker.start()
+                except RuntimeError:
+                    self._lifecycle_publication_running = False
+                    self._lifecycle_publication_thread = None
+                    logger.exception("Lifecycle publication worker rejected work")
+                    return False
+                return True
+
+    def _shutdown_lifecycle_publications(self) -> bool:
+        """Fence and drain admitted callbacks before retiring this source."""
+
+        with self._provider_admission_lock:
+            with self._lifecycle_publication_lock:
+                if self._lifecycle_publication_closed:
+                    return True
+                if self._lifecycle_publication_closing:
+                    return False
+                self._lifecycle_publication_closing = True
+                source = self._lifecycle_publication_source
+                epoch = self._lifecycle_publication_epoch
+                generation = self._provider_admission_generation
+
+        timeout = max(float(self._lifecycle_publication_drain_timeout_s), 0.0)
+        deadline = time.monotonic() + timeout
+        if not self.event_bus.deactivate_lifecycle_publication_authority(
+            source,
+            timeout=timeout,
+        ):
+            with self._lifecycle_publication_lock:
+                self._lifecycle_publication_closing = False
+            return False
+
+        remaining = max(0.0, deadline - time.monotonic())
+        if not self._deactivate_lifecycle_observer_authority(
+            source,
+            timeout=remaining,
+        ):
+            self.event_bus.activate_lifecycle_publication_authority(
+                source,
+                epoch,
+                generation,
+            )
+            with self._lifecycle_publication_lock:
+                self._lifecycle_publication_closing = False
+            return False
+
+        source_id = getattr(self, "_ipc_state_publication_source", None)
+        deactivate_ipc = getattr(self._ipc, "deactivate_state_source", None)
+        if (
+            source_id is not None
+            and callable(deactivate_ipc)
+            and not deactivate_ipc(
+                source_id,
+                timeout=max(0.0, deadline - time.monotonic()),
+            )
+        ):
+            self.event_bus.activate_lifecycle_publication_authority(
+                source,
+                epoch,
+                generation,
+            )
+            self._restore_lifecycle_observer_authority(
+                source,
+                epoch,
+                generation,
+            )
+            with self._lifecycle_publication_lock:
+                self._lifecycle_publication_closing = False
+            return False
+
+        with self._lifecycle_publication_lock:
+            self._lifecycle_publication_closed = True
+            self._lifecycle_publication_closing = False
+            self._lifecycle_publication_epoch += 1
+            self._lifecycle_publication_pending_generation = None
+            self._lifecycle_publication_thread = None
+            self._lifecycle_publication_running = False
+        source.deactivate()
+        return True
 
     def _notify_state_only(self) -> None:
         """Notify observers with state only (no issues refresh).

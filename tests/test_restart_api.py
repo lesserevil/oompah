@@ -1,13 +1,82 @@
 """API contracts for coalesced, configurable graceful restarts (OOMPAH-507)."""
 
 import asyncio
+import json
+import subprocess
+import sys
+import threading
+import textwrap
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
 from oompah import server
+from oompah.config import ServiceConfig
+from oompah.events import EventType
+from oompah.ipc import OrchestratorIPC
+from oompah.orchestrator import Orchestrator
 from oompah.server import app
+
+
+_SERVER_STATE_CACHE_FIELDS = (
+    "_state_snapshot",
+    "_state_snapshot_at",
+    "_state_snapshot_epoch",
+    "_state_snapshot_authority",
+    "_state_snapshot_signature",
+    "_state_revision",
+)
+
+
+def _capture_server_state_cache() -> tuple[object, ...]:
+    """Capture the state snapshot and its revision atomically."""
+    with server._state_snapshot_lock, server._ws_protocol_lock:
+        return tuple(getattr(server, field) for field in _SERVER_STATE_CACHE_FIELDS)
+
+
+def _restore_server_state_cache(values: tuple[object, ...]) -> None:
+    """Restore the state snapshot and its revision atomically."""
+    with server._state_snapshot_lock, server._ws_protocol_lock:
+        for field, value in zip(_SERVER_STATE_CACHE_FIELDS, values, strict=True):
+            setattr(server, field, value)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_server_state_cache():
+    """Prevent restart publication tests from leaking snapshots to later tests."""
+    original = _capture_server_state_cache()
+    try:
+        yield
+    finally:
+        _restore_server_state_cache(original)
+
+
+def test_state_cache_restore_preserves_issue_invalidation_generation(monkeypatch):
+    """Restoring state cache cannot rewind a callback's issue generation."""
+    protocol_epoch = server._protocol_epoch
+    issue_snapshot = {
+        "data": {"issues": []},
+        "epoch": protocol_epoch,
+        "data_revision": 17,
+        "invalidated": False,
+    }
+    monkeypatch.setattr(server, "_issue_revision", 17)
+    monkeypatch.setattr(server, "_issues_snapshot", issue_snapshot)
+    monkeypatch.setattr(server, "_ws_clients", set())
+    original_state = _capture_server_state_cache()
+
+    server._on_orchestrator_change({"source": "restart-callback"})
+    _restore_server_state_cache(original_state)
+
+    assert server._issue_revision == 18
+    assert server._protocol_epoch == protocol_epoch
+    assert server._issues_snapshot is issue_snapshot
+    assert issue_snapshot["data_revision"] == 17
+    assert issue_snapshot["invalidated"] is True
 
 
 def _fake_orchestrator(timeout: int = 3600):
@@ -31,6 +100,36 @@ def _fake_orchestrator(timeout: int = 3600):
         _save_paused_state=MagicMock(),
         _notify_observers=MagicMock(),
         graceful_restart=AsyncMock(),
+    )
+
+
+def _real_orchestrator(tmp_path) -> Orchestrator:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    project_store.get.return_value = SimpleNamespace(paused=False)
+    return Orchestrator(
+        config=ServiceConfig(duplicate_preflight_max_agents=0),
+        workflow_path="WORKFLOW.md",
+        project_store=project_store,
+        state_path=str(tmp_path / "state.json"),
+    )
+
+
+def _json_request(body: dict[str, object]) -> Request:
+    encoded = json.dumps(body).encode()
+
+    async def _receive() -> dict[str, object]:
+        return {"type": "http.request", "body": encoded, "more_body": False}
+
+    return Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v1/orchestrator/restart",
+            "headers": [(b"content-type", b"application/json")],
+            "query_string": b"",
+        },
+        _receive,
     )
 
 
@@ -342,4 +441,1169 @@ def test_quiesce_api_preserves_running_workers():
 
     assert response.status_code == 200
     assert response.json()["quiesced"] is True
-    fake.quiesce.assert_called_once_with()
+    fake.quiesce.assert_called_once_with(notify=False)
+
+
+@pytest.mark.asyncio
+async def test_quiesce_lock_contention_is_bounded_without_blocking_health(monkeypatch):
+    """A workflow thread cannot park the HTTP loop while quiesce fences."""
+
+    original = server._orchestrator
+    fake = _fake_orchestrator()
+    fake.quiesce = MagicMock()
+    fake._provider_admission_lock = threading.RLock()
+    lock_owned = threading.Event()
+    release_lock = threading.Event()
+
+    def _hold_publication_fence() -> None:
+        with fake._provider_admission_lock:
+            lock_owned.set()
+            assert release_lock.wait(timeout=2)
+
+    holder = threading.Thread(target=_hold_publication_fence)
+    holder.start()
+    assert lock_owned.wait(timeout=1)
+    monkeypatch.setattr(server, "_LIFECYCLE_ADMISSION_TIMEOUT_SECONDS", 0.05)
+    server._orchestrator = fake
+    try:
+        quiesce = asyncio.create_task(server.api_orchestrator_quiesce())
+        await asyncio.sleep(0.01)
+        started = time.monotonic()
+        health = await asyncio.wait_for(server.healthz(), timeout=0.1)
+        elapsed = time.monotonic() - started
+        response = await asyncio.wait_for(quiesce, timeout=0.2)
+    finally:
+        release_lock.set()
+        holder.join(timeout=1)
+        server._orchestrator = original
+
+    assert json.loads(health.body)["status"] == "ok"
+    assert elapsed < 0.1
+    assert response.status_code == 503
+    assert json.loads(response.body)["retryable"] is True
+    fake.quiesce.assert_not_called()
+    assert fake._restart_in_progress is False
+
+
+@pytest.mark.asyncio
+async def test_restart_claim_contention_is_bounded_without_blocking_health(
+    monkeypatch,
+):
+    """A slow publication fence cannot wedge restart claim or health I/O."""
+
+    original = server._orchestrator
+    fake = _fake_orchestrator()
+    fake._provider_admission_lock = threading.RLock()
+    lock_owned = threading.Event()
+    release_lock = threading.Event()
+
+    def _hold_publication_fence() -> None:
+        with fake._provider_admission_lock:
+            lock_owned.set()
+            assert release_lock.wait(timeout=2)
+
+    async def _receive() -> dict[str, object]:
+        return {"type": "http.request", "body": b"{}", "more_body": False}
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v1/orchestrator/restart",
+            "headers": [(b"content-type", b"application/json")],
+            "query_string": b"",
+        },
+        _receive,
+    )
+    holder = threading.Thread(target=_hold_publication_fence)
+    holder.start()
+    assert lock_owned.wait(timeout=1)
+    monkeypatch.setattr(server, "_LIFECYCLE_ADMISSION_TIMEOUT_SECONDS", 0.05)
+    server._orchestrator = fake
+    try:
+        restart = asyncio.create_task(server.api_orchestrator_restart(request))
+        await asyncio.sleep(0.01)
+        started = time.monotonic()
+        health = await asyncio.wait_for(server.healthz(), timeout=0.1)
+        elapsed = time.monotonic() - started
+        response = await asyncio.wait_for(restart, timeout=0.2)
+    finally:
+        release_lock.set()
+        holder.join(timeout=1)
+        server._orchestrator = original
+
+    assert json.loads(health.body)["status"] == "ok"
+    assert elapsed < 0.1
+    assert response.status_code == 503
+    assert json.loads(response.body)["retryable"] is True
+    assert fake._restart_in_progress is False
+    fake.graceful_restart.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_real_lifecycle_controls_outlive_blocked_observer_snapshot(
+    tmp_path,
+):
+    """Snapshot publication cannot own HTTP or provider admission authority."""
+
+    original = server._orchestrator
+    orch = _real_orchestrator(tmp_path)
+    snapshot_entered = threading.Event()
+    release_snapshot = threading.Event()
+    snapshot_finished = threading.Event()
+
+    def _blocked_project_snapshot() -> list[object]:
+        snapshot_entered.set()
+        try:
+            assert release_snapshot.wait(timeout=3)
+            return []
+        finally:
+            snapshot_finished.set()
+
+    # Exercise the real get_snapshot -> review/project authority path used by
+    # _notify_observers, rather than replacing the snapshot method itself.
+    orch.project_store.list_all.side_effect = _blocked_project_snapshot
+    server._orchestrator = orch
+    try:
+        started = time.monotonic()
+        quiesced = await asyncio.wait_for(
+            server.api_orchestrator_quiesce(),
+            timeout=0.2,
+        )
+        quiesce_elapsed = time.monotonic() - started
+        assert await asyncio.to_thread(snapshot_entered.wait, 1)
+
+        started = time.monotonic()
+        health = await asyncio.wait_for(server.healthz(), timeout=0.1)
+        health_elapsed = time.monotonic() - started
+
+        claim = await asyncio.wait_for(
+            server.api_orchestrator_restart(
+                _json_request(
+                    {
+                        "claim_only": True,
+                        "restart_request_id": "blocked-snapshot-claim",
+                    }
+                )
+            ),
+            timeout=0.2,
+        )
+        cancelled = await asyncio.wait_for(
+            server.api_orchestrator_restart(
+                _json_request(
+                    {
+                        "cancel_claim": True,
+                        "restart_request_id": "blocked-snapshot-claim",
+                    }
+                )
+            ),
+            timeout=0.2,
+        )
+        resumed = await asyncio.wait_for(
+            server.api_orchestrator_resume(),
+            timeout=0.2,
+        )
+
+        assert orch._provider_admission_lock.acquire(blocking=False)
+        orch._provider_admission_lock.release()
+    finally:
+        release_snapshot.set()
+        await asyncio.to_thread(snapshot_finished.wait, 1)
+        server._orchestrator = original
+
+    assert quiesced.status_code == 200
+    assert quiesce_elapsed < 0.2
+    assert json.loads(health.body)["status"] == "ok"
+    assert health_elapsed < 0.1
+    assert claim.status_code == 200
+    assert cancelled.status_code == 200
+    assert resumed.status_code == 200
+    assert orch._quiesced is False
+    assert orch._restart_in_progress is False
+
+
+@pytest.mark.asyncio
+async def test_restart_drain_snapshot_and_journal_work_stay_off_http_loop(
+    tmp_path,
+    monkeypatch,
+):
+    """Graceful drain staging cannot block health or cancellation responses."""
+
+    original = server._orchestrator
+    orch = _real_orchestrator(tmp_path)
+    snapshot_entered = threading.Event()
+    release_snapshot = threading.Event()
+    snapshot_finished = threading.Event()
+    observer_published = threading.Event()
+    journal_entered = threading.Event()
+    release_journal = threading.Event()
+
+    def _blocked_snapshot() -> dict[str, object]:
+        snapshot_entered.set()
+        try:
+            assert release_snapshot.wait(timeout=3)
+            return {}
+        finally:
+            snapshot_finished.set()
+
+    def _blocked_merge(*_args, **_kwargs) -> tuple[bool, int, int]:
+        journal_entered.set()
+        assert release_journal.wait(timeout=3)
+        return True, 0, 0
+
+    monkeypatch.setattr(orch, "get_snapshot", _blocked_snapshot)
+    monkeypatch.setattr(orch, "_merge_restart_issues", _blocked_merge)
+    orch._observers.append(lambda _snapshot: observer_published.set())
+    server._orchestrator = orch
+    drain_task = None
+    try:
+        response = await server.api_orchestrator_restart(
+            _json_request(
+                {
+                    "drain_timeout_s": 0,
+                    "restart_request_id": "slow-drain-staging",
+                }
+            )
+        )
+        drain_task = orch._restart_drain_task
+        assert drain_task is not None
+        assert await asyncio.to_thread(snapshot_entered.wait, 1)
+        # The full snapshot remains blocked permanently from the drain's point
+        # of view, but authoritative journal staging must still start.
+        assert await asyncio.to_thread(journal_entered.wait, 1)
+
+        started = time.monotonic()
+        health_during_snapshot = await asyncio.wait_for(
+            server.healthz(), timeout=0.1
+        )
+        cancel_during_snapshot = await asyncio.wait_for(
+            server.api_orchestrator_restart(
+                _json_request(
+                    {
+                        "cancel_claim": True,
+                        "restart_request_id": "slow-drain-staging",
+                    }
+                )
+            ),
+            timeout=0.2,
+        )
+        snapshot_control_elapsed = time.monotonic() - started
+        started = time.monotonic()
+        health_during_journal = await asyncio.wait_for(
+            server.healthz(), timeout=0.1
+        )
+        journal_health_elapsed = time.monotonic() - started
+        release_journal.set()
+        await asyncio.wait_for(asyncio.shield(drain_task), timeout=1)
+        assert snapshot_finished.is_set() is False
+        with orch._lifecycle_publication_lock:
+            assert orch._lifecycle_publication_running is True
+            assert (
+                orch._lifecycle_publication_pending_generation
+                == orch._provider_admission_generation
+            )
+        # A delayed older request cannot replace the coalesced latest state.
+        assert orch.request_lifecycle_publication(
+            expected_generation=orch._provider_admission_generation - 1
+        )
+        with orch._lifecycle_publication_lock:
+            assert (
+                orch._lifecycle_publication_pending_generation
+                == orch._provider_admission_generation
+            )
+
+        # Teardown fences the running old-generation snapshot and rejects new
+        # work without waiting for the uncooperative snapshot thread.
+        orch._shutdown_lifecycle_publications()
+        assert (
+            orch.request_lifecycle_publication(
+                expected_generation=orch._provider_admission_generation
+            )
+            is False
+        )
+        release_snapshot.set()
+        assert await asyncio.to_thread(snapshot_finished.wait, 1)
+    finally:
+        release_snapshot.set()
+        release_journal.set()
+        if drain_task is not None and not drain_task.done():
+            await asyncio.wait_for(asyncio.shield(drain_task), timeout=1)
+        server._orchestrator = original
+
+    assert response.status_code == 200
+    assert json.loads(health_during_snapshot.body)["status"] == "ok"
+    assert cancel_during_snapshot.status_code == 409
+    assert snapshot_control_elapsed < 0.2
+    assert json.loads(health_during_journal.body)["status"] == "ok"
+    assert journal_health_elapsed < 0.1
+    assert orch._stopping is True
+    assert orch._restart_requested is True
+    assert observer_published.is_set() is False
+
+
+def test_shutdown_revokes_snapshot_blocked_before_external_publication(
+    tmp_path,
+    monkeypatch,
+):
+    """A bounded shutdown fences a worker paused at the sink boundary."""
+
+    orch = _real_orchestrator(tmp_path)
+    sink_entered = threading.Event()
+    release_sink = threading.Event()
+    observer_published = threading.Event()
+    original_publish = orch._publish_observer_snapshot
+
+    def _blocked_publish(snapshot, **authority):
+        sink_entered.set()
+        assert release_sink.wait(timeout=3)
+        return original_publish(snapshot, **authority)
+
+    monkeypatch.setattr(orch, "get_snapshot", lambda: {"paused": True})
+    monkeypatch.setattr(orch, "_publish_observer_snapshot", _blocked_publish)
+    orch._observers.append(lambda _snapshot: observer_published.set())
+
+    assert orch.request_lifecycle_publication(expected_generation=0)
+    assert sink_entered.wait(timeout=1)
+    with orch._lifecycle_publication_lock:
+        worker = orch._lifecycle_publication_thread
+    assert worker is not None
+    assert worker.daemon is True
+
+    started = time.monotonic()
+    orch._shutdown_lifecycle_publications()
+    shutdown_elapsed = time.monotonic() - started
+    assert shutdown_elapsed < 0.1
+    assert orch._provider_admission_lock.acquire(blocking=False)
+    orch._provider_admission_lock.release()
+
+    release_sink.set()
+    worker.join(timeout=1)
+    assert worker.is_alive() is False
+    assert observer_published.is_set() is False
+
+
+@pytest.mark.asyncio
+async def test_background_drain_rejects_undrained_lifecycle_callbacks():
+    """Persistent stores stay open when callback revocation times out."""
+
+    orchestrator = SimpleNamespace(
+        _shutdown_lifecycle_publications=MagicMock(return_value=False),
+        _drain_scheduled_terminations=AsyncMock(),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="lifecycle publication callbacks did not drain",
+    ):
+        await Orchestrator._drain_background_work(orchestrator)
+    orchestrator._drain_scheduled_terminations.assert_not_awaited()
+
+
+def test_replacement_revokes_snapshot_after_permit_before_every_sink(
+    tmp_path,
+    monkeypatch,
+):
+    """Exact SQL authority rejects a cached-true writer after replacement."""
+
+    old = _real_orchestrator(tmp_path / "old")
+    new = _real_orchestrator(tmp_path / "new")
+    ipc_path = str(tmp_path / "state-cache.sqlite")
+    ipc = OrchestratorIPC(ipc_path)
+    new_ipc = OrchestratorIPC(ipc_path)
+    old._ipc = ipc
+    new._ipc = new_ipc
+    assert ipc.activate_state_source(old._service_instance_id)
+    old._ipc_state_publication_source = old._service_instance_id
+    sink_entered = threading.Event()
+    release_sink = threading.Event()
+    old_event = threading.Event()
+    old_legacy = threading.Event()
+    current_legacy = threading.Event()
+    new_event = threading.Event()
+    new_legacy = threading.Event()
+
+    def _assert_callback_locks_are_free() -> None:
+        assert old._provider_admission_lock.acquire(blocking=False)
+        old._provider_admission_lock.release()
+        assert old._lifecycle_publication_lock.acquire(blocking=False)
+        old._lifecycle_publication_lock.release()
+        current_legacy.set()
+
+    old.event_bus.subscribe(
+        EventType.ORCHESTRATOR_TICK,
+        lambda _event, _payload: old_event.set(),
+    )
+    old._observers.extend(
+        (
+            lambda snapshot: server._on_orchestrator_change(
+                snapshot,
+                source=old,
+            ),
+            lambda _snapshot: old_legacy.set(),
+            lambda _snapshot: _assert_callback_locks_are_free(),
+        )
+    )
+    monkeypatch.setattr(server, "_orchestrator", old)
+
+    # A current generation reaches all three sinks, and callbacks run without
+    # provider/lifecycle locks held.
+    current = {"source": "old-current"}
+    assert old._publish_observer_snapshot(
+        current,
+        lifecycle_epoch=old._lifecycle_publication_epoch,
+        expected_generation=old._provider_admission_generation,
+    )
+    assert ipc.read_state()[0] == current
+    assert old_event.is_set()
+    assert old_legacy.is_set()
+    assert current_legacy.is_set()
+    assert server._read_state_snapshot(allow_stale=True) == current
+
+    old_event.clear()
+    old_legacy.clear()
+    current_legacy.clear()
+    original_publish_state = ipc.publish_state
+
+    def _blocked_ipc_publish(snapshot, **kwargs):
+        original_guard = kwargs["source_is_current"]
+
+        def _guard_then_pause_before_sql():
+            # Capture the old source as current, then pause after the Python
+            # predicate but before IPC's atomic source-ID SQL replacement.
+            permitted = original_guard()
+            assert permitted is True
+            assert old._provider_admission_lock.acquire(blocking=False)
+            old._provider_admission_lock.release()
+            assert old._lifecycle_publication_lock.acquire(blocking=False)
+            old._lifecycle_publication_lock.release()
+            # Cooperative source predicates must never run under the IPC
+            # mutex. Replacement needs this mutex to revoke old authority.
+            assert ipc._lock.acquire(blocking=False)
+            ipc._lock.release()
+            sink_entered.set()
+            assert release_sink.wait(timeout=10)
+            return permitted
+
+        kwargs["source_is_current"] = _guard_then_pause_before_sql
+        return original_publish_state(snapshot, **kwargs)
+
+    monkeypatch.setattr(ipc, "publish_state", _blocked_ipc_publish)
+    monkeypatch.setattr(
+        old,
+        "get_snapshot",
+        lambda: {
+            "source": "old-delayed",
+        },
+    )
+    assert old.request_lifecycle_publication(expected_generation=0)
+    assert sink_entered.wait(timeout=10)
+    with old._lifecycle_publication_lock:
+        worker = old._lifecycle_publication_thread
+    assert worker is not None
+
+    with (
+        patch.object(server, "remove_draft_labels_from_epics", return_value=0),
+        patch.object(server, "_migrate_release_picks_on_startup"),
+        patch.object(server, "ErrorWatcher", MagicMock()),
+        patch.object(server, "ProjectLogWatcherManager", MagicMock()),
+    ):
+        server.set_orchestrator(new)
+    replacement = {
+        "source": "replacement",
+    }
+    server._on_orchestrator_change(replacement, source=new)
+
+    release_sink.set()
+    worker.join(timeout=10)
+    assert worker.is_alive() is False
+    assert ipc.read_state()[0] == current
+    assert old_event.is_set() is False
+    assert old_legacy.is_set() is False
+    assert current_legacy.is_set() is False
+
+    assert server._read_state_snapshot(allow_stale=True) == replacement
+
+    # The replacement's current source remains publishable after old-source
+    # rejection and does not inherit the old publisher's revoked epoch.
+    new.event_bus.subscribe(
+        EventType.ORCHESTRATOR_TICK,
+        lambda _event, _payload: new_event.set(),
+    )
+    new._observers.append(lambda _snapshot: new_legacy.set())
+    post_cutover = {
+        "source": "new-current",
+    }
+    assert new._publish_observer_snapshot(
+        post_cutover,
+        lifecycle_epoch=new._lifecycle_publication_epoch,
+        expected_generation=new._provider_admission_generation,
+    )
+    assert new_ipc.read_state()[0] == post_cutover
+    assert new_event.is_set()
+    assert new_legacy.is_set()
+    assert server._read_state_snapshot(allow_stale=True) == post_cutover
+
+    new._shutdown_lifecycle_publications()
+    ipc.close()
+    new_ipc.close()
+
+
+def test_lifecycle_request_advances_ipc_generation_before_delayed_write(
+    tmp_path,
+    monkeypatch,
+):
+    """A cached-true generation-zero writer loses to generation one."""
+
+    orch = _real_orchestrator(tmp_path / "ipc-generation")
+    ipc_path = str(tmp_path / "generation-cache.sqlite")
+    authority_ipc = OrchestratorIPC(ipc_path)
+    delayed_ipc = OrchestratorIPC(ipc_path)
+    source_id = orch._service_instance_id
+    orch._ipc = authority_ipc
+    orch._ipc_state_publication_source = source_id
+    assert authority_ipc.activate_state_source(
+        source_id,
+        epoch=0,
+        generation=0,
+    )
+    assert authority_ipc.publish_state(
+        {"source": "generation-zero-current"},
+        source_id=source_id,
+        source_epoch=0,
+        source_generation=0,
+    )
+
+    guard_checked = threading.Event()
+    release_delayed_write = threading.Event()
+    delayed_result: list[bool] = []
+
+    def _cached_true_guard() -> bool:
+        guard_checked.set()
+        assert release_delayed_write.wait(timeout=3)
+        return True
+
+    def _publish_delayed_generation_zero() -> None:
+        delayed_result.append(
+            delayed_ipc.publish_state(
+                {"source": "generation-zero-delayed"},
+                source_is_current=_cached_true_guard,
+                source_id=source_id,
+                source_epoch=0,
+                source_generation=0,
+            )
+        )
+
+    delayed = threading.Thread(target=_publish_delayed_generation_zero)
+    delayed.start()
+    assert guard_checked.wait(timeout=1)
+
+    with orch._provider_admission_lock:
+        orch._provider_admission_generation = 1
+    generation_one = {"source": "generation-one-current"}
+    monkeypatch.setattr(orch, "get_snapshot", lambda: generation_one)
+    assert orch.request_lifecycle_publication(expected_generation=1)
+    deadline = time.monotonic() + 1
+    while authority_ipc.read_state()[0] != generation_one:
+        assert time.monotonic() < deadline
+        time.sleep(0.01)
+
+    release_delayed_write.set()
+    delayed.join(timeout=1)
+    assert delayed.is_alive() is False
+    assert delayed_result == [False]
+    assert authority_ipc.read_state()[0] == generation_one
+
+    assert orch._shutdown_lifecycle_publications()
+    authority_ipc.close()
+    delayed_ipc.close()
+
+
+def test_failed_ipc_source_activation_cannot_publish_lifecycle_state(
+    tmp_path,
+    monkeypatch,
+):
+    """An unclaimed orchestrator cannot use the legacy IPC write fallback."""
+
+    candidate = _real_orchestrator(tmp_path / "activation-failure")
+    ipc_path = str(tmp_path / "activation-failure.sqlite")
+    replacement_ipc = OrchestratorIPC(ipc_path)
+    candidate_ipc = OrchestratorIPC(ipc_path)
+    candidate._ipc = candidate_ipc
+    assert replacement_ipc.activate_state_source(
+        "replacement-owner",
+        epoch=7,
+        generation=11,
+    )
+    replacement = {"source": "replacement-owned"}
+    assert replacement_ipc.publish_state(
+        replacement,
+        source_id="replacement-owner",
+        source_epoch=7,
+        source_generation=11,
+    )
+
+    monkeypatch.setattr(
+        candidate_ipc,
+        "activate_state_source",
+        lambda *_args, **_kwargs: False,
+    )
+    original_orchestrator = server._orchestrator
+    monkeypatch.setattr(server, "_orchestrator", None)
+    try:
+        with (
+            patch.object(
+                server,
+                "remove_draft_labels_from_epics",
+                return_value=0,
+            ),
+            patch.object(server, "_migrate_release_picks_on_startup"),
+            patch.object(server, "ErrorWatcher", MagicMock()),
+            patch.object(server, "ProjectLogWatcherManager", MagicMock()),
+        ):
+            server.set_orchestrator(candidate)
+        assert candidate._ipc_state_publication_source is None
+
+        assert candidate._publish_observer_snapshot(
+            {"source": "unclaimed-lifecycle"},
+            lifecycle_epoch=candidate._lifecycle_publication_epoch,
+            expected_generation=candidate._provider_admission_generation,
+        )
+        assert replacement_ipc.read_state()[0] == replacement
+
+        # The source-less compatibility call remains intentionally available
+        # only when no lifecycle predicate is supplied.
+        compatibility = {"source": "legacy-compatibility"}
+        assert candidate_ipc.publish_state(compatibility)
+        assert replacement_ipc.read_state()[0] == compatibility
+    finally:
+        candidate._shutdown_lifecycle_publications()
+        server._orchestrator = original_orchestrator
+        replacement_ipc.close()
+        candidate_ipc.close()
+
+
+def test_event_sink_rechecks_source_at_handler_mutation(
+    tmp_path,
+    monkeypatch,
+):
+    """A plain handler admitted before cutover drains before ownership moves."""
+
+    old = _real_orchestrator(tmp_path / "old-event")
+    new = _real_orchestrator(tmp_path / "new-event")
+    old._ipc = None
+    new._ipc = None
+    handler_entered = threading.Event()
+    release_handler = threading.Event()
+    old_mutation = threading.Event()
+    replacement_done = threading.Event()
+    replacement_errors: list[BaseException] = []
+
+    def _delayed_handler(_event, _payload):
+        handler_entered.set()
+        assert release_handler.wait(timeout=3)
+        old_mutation.set()
+
+    old.event_bus.subscribe(EventType.ORCHESTRATOR_TICK, _delayed_handler)
+    monkeypatch.setattr(server, "_orchestrator", old)
+    monkeypatch.setattr(old, "get_snapshot", lambda: {"source": "old-event"})
+    assert old.request_lifecycle_publication(expected_generation=0)
+    assert handler_entered.wait(timeout=1)
+    with old._lifecycle_publication_lock:
+        worker = old._lifecycle_publication_thread
+    assert worker is not None
+
+    def _replace() -> None:
+        try:
+            server.set_orchestrator(new)
+        except BaseException as exc:  # noqa: BLE001 - asserted by the test
+            replacement_errors.append(exc)
+        finally:
+            replacement_done.set()
+
+    with (
+        patch.object(server, "remove_draft_labels_from_epics", return_value=0),
+        patch.object(server, "_migrate_release_picks_on_startup"),
+        patch.object(server, "ErrorWatcher", MagicMock()),
+        patch.object(server, "ProjectLogWatcherManager", MagicMock()),
+    ):
+        replacement = threading.Thread(target=_replace)
+        replacement.start()
+        assert replacement_done.wait(timeout=0.1) is False
+        assert server._orchestrator is old
+
+        release_handler.set()
+        replacement.join(timeout=1)
+    assert replacement.is_alive() is False
+    assert replacement_errors == []
+    assert replacement_done.is_set()
+    assert server._orchestrator is new
+    worker.join(timeout=1)
+    assert worker.is_alive() is False
+    assert old_mutation.is_set()
+    new._shutdown_lifecycle_publications()
+
+
+def test_server_observer_rechecks_source_at_cache_mutation(
+    tmp_path,
+    monkeypatch,
+):
+    """A source-aware legacy callback completes before replacement commits."""
+
+    old = _real_orchestrator(tmp_path / "old-observer")
+    new = _real_orchestrator(tmp_path / "new-observer")
+    old._ipc = None
+    new._ipc = None
+    observer_entered = threading.Event()
+    release_observer = threading.Event()
+    observer_complete = threading.Event()
+    replacement_done = threading.Event()
+    replacement_errors: list[BaseException] = []
+
+    def _delayed_server_observer(
+        snapshot,
+        *,
+        publication_permit=None,
+    ):
+        assert publication_permit is not None
+        # Orchestrator's legacy-source guard already passed. Pause before the
+        # server wrapper's owner+permit cache CAS.
+        assert old._provider_admission_lock.acquire(blocking=False)
+        old._provider_admission_lock.release()
+        assert old._lifecycle_publication_lock.acquire(blocking=False)
+        old._lifecycle_publication_lock.release()
+        observer_entered.set()
+        assert release_observer.wait(timeout=3)
+        server._on_orchestrator_change(
+            snapshot,
+            source=old,
+            publication_permit=publication_permit,
+        )
+        observer_complete.set()
+
+    _delayed_server_observer._oompah_accepts_lifecycle_publication_permit = True
+    old._observers.append(_delayed_server_observer)
+    monkeypatch.setattr(server, "_orchestrator", old)
+    monkeypatch.setattr(old, "get_snapshot", lambda: {"source": "old-observer"})
+    assert old.request_lifecycle_publication(expected_generation=0)
+    assert observer_entered.wait(timeout=1)
+    with old._lifecycle_publication_lock:
+        worker = old._lifecycle_publication_thread
+    assert worker is not None
+
+    def _replace() -> None:
+        try:
+            server.set_orchestrator(new)
+        except BaseException as exc:  # noqa: BLE001 - asserted by the test
+            replacement_errors.append(exc)
+        finally:
+            replacement_done.set()
+
+    with (
+        patch.object(server, "remove_draft_labels_from_epics", return_value=0),
+        patch.object(server, "_migrate_release_picks_on_startup"),
+        patch.object(server, "ErrorWatcher", MagicMock()),
+        patch.object(server, "ProjectLogWatcherManager", MagicMock()),
+    ):
+        replacement_thread = threading.Thread(target=_replace)
+        replacement_thread.start()
+        assert replacement_done.wait(timeout=0.1) is False
+        assert server._orchestrator is old
+        release_observer.set()
+        replacement_thread.join(timeout=1)
+    assert replacement_thread.is_alive() is False
+    assert replacement_errors == []
+    assert observer_complete.is_set()
+    assert server._orchestrator is new
+    replacement = {"source": "new-observer"}
+    server._on_orchestrator_change(replacement, source=new)
+
+    worker.join(timeout=1)
+    assert worker.is_alive() is False
+    assert server._read_state_snapshot(allow_stale=True) == replacement
+    new._shutdown_lifecycle_publications()
+
+
+def test_replacement_timeout_rolls_back_before_concurrent_replacement(
+    tmp_path,
+    monkeypatch,
+):
+    """A failed drain keeps the old owner and cannot ABA a queued cutover."""
+
+    old = _real_orchestrator(tmp_path / "old-timeout")
+    first_new = _real_orchestrator(tmp_path / "first-new")
+    second_new = _real_orchestrator(tmp_path / "second-new")
+    old._ipc = None
+    first_new._ipc = None
+    second_new._ipc = None
+    old._lifecycle_publication_drain_timeout_s = 0.2
+    handler_entered = threading.Event()
+    release_handler = threading.Event()
+    callback_mutated = threading.Event()
+    first_done = threading.Event()
+    second_done = threading.Event()
+    first_errors: list[BaseException] = []
+    second_errors: list[BaseException] = []
+
+    def _blocked_plain_handler(_event, _payload):
+        handler_entered.set()
+        assert release_handler.wait(timeout=3)
+        callback_mutated.set()
+
+    old.event_bus.subscribe(EventType.ORCHESTRATOR_TICK, _blocked_plain_handler)
+    monkeypatch.setattr(server, "_orchestrator", old)
+    monkeypatch.setattr(old, "get_snapshot", lambda: {"source": "old-timeout"})
+    assert old.request_lifecycle_publication(expected_generation=0)
+    assert handler_entered.wait(timeout=1)
+
+    def _replace(target, errors, done):
+        try:
+            server.set_orchestrator(target)
+        except BaseException as exc:  # noqa: BLE001 - asserted by the test
+            errors.append(exc)
+        finally:
+            done.set()
+
+    with (
+        patch.object(server, "remove_draft_labels_from_epics", return_value=0),
+        patch.object(server, "_migrate_release_picks_on_startup"),
+        patch.object(server, "ErrorWatcher", MagicMock()),
+        patch.object(server, "ProjectLogWatcherManager", MagicMock()),
+    ):
+        first = threading.Thread(
+            target=_replace,
+            args=(first_new, first_errors, first_done),
+        )
+        second = threading.Thread(
+            target=_replace,
+            args=(second_new, second_errors, second_done),
+        )
+        first.start()
+        time.sleep(0.05)
+        second.start()
+        assert second_done.wait(timeout=0.05) is False
+        assert first_done.wait(timeout=1)
+        assert len(first_errors) == 1
+        assert isinstance(first_errors[0], RuntimeError)
+        assert server._orchestrator is old
+        assert old._lifecycle_publication_closed is False
+
+        release_handler.set()
+        second.join(timeout=1)
+    first.join(timeout=1)
+    assert first.is_alive() is False
+    assert second.is_alive() is False
+    assert second_errors == []
+    assert callback_mutated.is_set()
+    assert server._orchestrator is second_new
+    assert old._lifecycle_publication_closed is True
+    second_new._shutdown_lifecycle_publications()
+
+
+def test_blocked_lifecycle_publication_worker_does_not_hold_interpreter_open(
+    tmp_path,
+):
+    """A permanently blocked advisory snapshot worker is process-exit safe."""
+
+    script = textwrap.dedent(
+        """
+        import sys
+        import threading
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        store = MagicMock()
+        store.list_all.return_value = []
+        store.get.return_value = None
+        orch = Orchestrator(
+            config=ServiceConfig(duplicate_preflight_max_agents=0),
+            workflow_path="WORKFLOW.md",
+            project_store=store,
+            state_path=sys.argv[1],
+        )
+        entered = threading.Event()
+        blocked = threading.Event()
+
+        def get_snapshot():
+            entered.set()
+            blocked.wait()
+            return {}
+
+        orch.get_snapshot = get_snapshot
+        assert orch.request_lifecycle_publication(expected_generation=0)
+        assert entered.wait(timeout=10)
+        Path(sys.argv[2]).write_text("ready", encoding="utf-8")
+        """
+    )
+    ready_path = tmp_path / "worker-ready"
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(tmp_path / "state.json"),
+            str(ready_path),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        deadline = time.monotonic() + 30
+        while not ready_path.exists() and process.poll() is None:
+            if time.monotonic() >= deadline:
+                process.kill()
+                _stdout, stderr = process.communicate(timeout=2)
+                pytest.fail(f"subprocess did not reach worker barrier: {stderr}")
+            time.sleep(0.01)
+        if not ready_path.exists():
+            _stdout, stderr = process.communicate(timeout=2)
+            pytest.fail(f"subprocess exited before worker barrier: {stderr}")
+        try:
+            returncode = process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            _stdout, stderr = process.communicate(timeout=2)
+            pytest.fail(
+                "daemon lifecycle publication worker held the interpreter "
+                f"open: {stderr}"
+            )
+        _stdout, stderr = process.communicate(timeout=2)
+        assert returncode == 0, stderr
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.communicate(timeout=2)
+
+
+@pytest.mark.asyncio
+async def test_pause_persistence_contention_does_not_block_health(
+    tmp_path,
+    monkeypatch,
+):
+    """Pause waits for lifecycle authority away from the HTTP event loop."""
+
+    original = server._orchestrator
+    orch = _real_orchestrator(tmp_path)
+    save_entered = threading.Event()
+    release_save = threading.Event()
+    save_calls = 0
+    save_calls_lock = threading.Lock()
+
+    def _contended_save(**_updates: object) -> bool:
+        nonlocal save_calls
+        with save_calls_lock:
+            save_calls += 1
+            call_number = save_calls
+        if call_number == 1:
+            save_entered.set()
+            assert release_save.wait(timeout=3)
+        return True
+
+    monkeypatch.setattr(orch, "_save_state", _contended_save)
+    holder = threading.Thread(
+        target=orch._save_paused_state_if_generation,
+        args=(orch._provider_admission_generation, False),
+        name="older-lifecycle-persistence",
+    )
+    holder.start()
+    assert save_entered.wait(timeout=1)
+    release_timer = threading.Timer(0.3, release_save.set)
+    release_timer.start()
+    server._orchestrator = orch
+    try:
+        started = time.monotonic()
+        pause_task = asyncio.create_task(server.api_orchestrator_pause())
+        health_task = asyncio.create_task(server.healthz())
+        health = await asyncio.wait_for(health_task, timeout=0.5)
+        health_elapsed = time.monotonic() - started
+        response = await asyncio.wait_for(pause_task, timeout=1)
+    finally:
+        release_save.set()
+        release_timer.cancel()
+        holder.join(timeout=1)
+        orch._shutdown_lifecycle_publications()
+        server._orchestrator = original
+
+    assert json.loads(health.body)["status"] == "ok"
+    assert health_elapsed < 0.15
+    assert response.status_code == 200
+    assert orch._paused is True
+
+
+@pytest.mark.asyncio
+async def test_restart_failure_does_not_await_permanently_blocked_publication(
+    tmp_path,
+    monkeypatch,
+):
+    """Rollback completion is independent of both success/failure snapshots."""
+
+    orch = _real_orchestrator(tmp_path)
+    snapshot_entered = threading.Event()
+    release_snapshot = threading.Event()
+    snapshot_finished = threading.Event()
+    observer_published = threading.Event()
+
+    def _blocked_snapshot() -> dict[str, object]:
+        snapshot_entered.set()
+        try:
+            assert release_snapshot.wait(timeout=3)
+            return {}
+        finally:
+            snapshot_finished.set()
+
+    def _failed_merge(*_args, **_kwargs) -> tuple[bool, int, int]:
+        raise OSError("injected restart journal failure")
+
+    monkeypatch.setattr(orch, "get_snapshot", _blocked_snapshot)
+    monkeypatch.setattr(orch, "_merge_restart_issues", _failed_merge)
+    orch._observers.append(lambda _snapshot: observer_published.set())
+    restart_task = asyncio.create_task(orch.graceful_restart(drain_timeout_s=0))
+    try:
+        assert await asyncio.to_thread(snapshot_entered.wait, 1)
+        with pytest.raises(OSError, match="restart journal failure"):
+            await asyncio.wait_for(asyncio.shield(restart_task), timeout=0.5)
+        assert snapshot_finished.is_set() is False
+        assert orch._restart_in_progress is False
+        assert orch._stopping is False
+        orch._shutdown_lifecycle_publications()
+        release_snapshot.set()
+        assert await asyncio.to_thread(snapshot_finished.wait, 1)
+    finally:
+        release_snapshot.set()
+        if not restart_task.done():
+            restart_task.cancel()
+            await asyncio.gather(restart_task, return_exceptions=True)
+        orch._shutdown_lifecycle_publications()
+
+    assert observer_published.is_set() is False
+
+
+@pytest.mark.asyncio
+async def test_failed_restart_cleanup_persistence_stays_off_http_loop():
+    """Uncontended drain cleanup cannot synchronously park the API loop."""
+
+    original = server._orchestrator
+    fake = _fake_orchestrator()
+    fake.graceful_restart = AsyncMock(side_effect=RuntimeError("drain failed"))
+    save_entered = threading.Event()
+    release_save = threading.Event()
+    save_finished = threading.Event()
+
+    def _blocked_save() -> None:
+        save_entered.set()
+        try:
+            assert release_save.wait(timeout=3)
+        finally:
+            save_finished.set()
+
+    fake._save_paused_state = _blocked_save
+    server._orchestrator = fake
+    try:
+        response = await server.api_orchestrator_restart(_json_request({}))
+        assert await asyncio.to_thread(save_entered.wait, 1)
+        started = time.monotonic()
+        health = await asyncio.wait_for(server.healthz(), timeout=0.1)
+        claim = await asyncio.wait_for(
+            server.api_orchestrator_restart(
+                _json_request(
+                    {
+                        "claim_only": True,
+                        "restart_request_id": "post-failure-claim",
+                    }
+                )
+            ),
+            timeout=0.2,
+        )
+        cancelled = await asyncio.wait_for(
+            server.api_orchestrator_restart(
+                _json_request(
+                    {
+                        "cancel_claim": True,
+                        "restart_request_id": "post-failure-claim",
+                    }
+                )
+            ),
+            timeout=0.2,
+        )
+        control_elapsed = time.monotonic() - started
+    finally:
+        release_save.set()
+        await asyncio.to_thread(save_finished.wait, 1)
+        server._orchestrator = original
+
+    assert response.status_code == 200
+    assert json.loads(health.body)["status"] == "ok"
+    assert claim.status_code == 200
+    assert cancelled.status_code == 200
+    assert control_elapsed < 0.2
+    assert fake._restart_in_progress is False
+
+
+@pytest.mark.asyncio
+async def test_failed_restart_rollback_cannot_overwrite_newer_durable_pause(
+    tmp_path,
+    monkeypatch,
+):
+    """Pause persistence serializes after an older rollback generation."""
+
+    original_orchestrator = server._orchestrator
+    orch = _real_orchestrator(tmp_path)
+
+    async def _failed_drain(**_kwargs) -> None:
+        raise RuntimeError("injected drain failure before lifecycle mutation")
+
+    false_save_entered = threading.Event()
+    release_false_save = threading.Event()
+    pause_finished = threading.Event()
+    paused_writes: list[bool] = []
+    original_save_state = orch._save_state
+
+    def _ordered_save(**updates: object) -> bool:
+        if "paused" in updates:
+            paused = bool(updates["paused"])
+            if not paused and not false_save_entered.is_set():
+                false_save_entered.set()
+                assert release_false_save.wait(timeout=3)
+            saved = original_save_state(**updates)
+            paused_writes.append(paused)
+            return saved
+        return original_save_state(**updates)
+
+    def _pause() -> None:
+        try:
+            orch.pause()
+        finally:
+            pause_finished.set()
+
+    monkeypatch.setattr(orch, "graceful_restart", _failed_drain)
+    monkeypatch.setattr(orch, "_save_state", _ordered_save)
+    server._orchestrator = orch
+    pause_thread = threading.Thread(target=_pause, name="newer-operator-pause")
+    try:
+        response = await server.api_orchestrator_restart(_json_request({}))
+        assert await asyncio.to_thread(false_save_entered.wait, 1)
+        pause_thread.start()
+        await asyncio.sleep(0.05)
+        # The newer pause cannot slip its durable True write ahead of the
+        # older rollback's already-admitted False write.
+        assert pause_finished.is_set() is False
+        health = await asyncio.wait_for(server.healthz(), timeout=0.1)
+        release_false_save.set()
+        assert await asyncio.to_thread(pause_finished.wait, 1)
+        pause_thread.join(timeout=1)
+    finally:
+        release_false_save.set()
+        if pause_thread.is_alive():
+            pause_thread.join(timeout=1)
+        orch._shutdown_lifecycle_publications()
+        server._orchestrator = original_orchestrator
+
+    durable_state = orch._load_state()
+    assert response.status_code == 200
+    assert json.loads(health.body)["status"] == "ok"
+    assert paused_writes[-2:] == [False, True]
+    assert orch._paused is True
+    assert durable_state["paused"] is True

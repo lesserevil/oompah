@@ -45,6 +45,7 @@ from oompah.statuses import (
     status_key,
 )
 from oompah.tracker import (
+    CreateOnceConflictError,
     StateBranchFetchError,
     StateBranchMissingError,
     TrackerError,
@@ -949,7 +950,7 @@ class OompahMarkdownTracker:
                     str(record["meta"].get("id") or Path(record["path"]).stem)
                     for record in matches
                 )
-                raise TrackerError(
+                raise CreateOnceConflictError(
                     "Atomic create-once key resolves to multiple native tasks: "
                     + ", ".join(identifiers)
                 )
@@ -961,7 +962,7 @@ class OompahMarkdownTracker:
                     or ""
                 )
                 if recorded_fingerprint != request_fingerprint:
-                    raise TrackerError(
+                    raise CreateOnceConflictError(
                         "Atomic create-once key was already used with a different payload"
                     )
                 # The first request may have written the task and then lost
@@ -1423,6 +1424,20 @@ class OompahMarkdownTracker:
             return None
         with self._write_lock:
             return self._state_branch_generation_locked()
+
+    def get_publication_revision(self) -> int:
+        """Return the process-local task authority revision without Git I/O.
+
+        Publication paths use the durable state-branch generation as an
+        external preflight, then compare this revision while holding their
+        project mutation fence.  Every native task mutation advances the
+        shared repository revision before returning, including mutations made
+        through a replacement tracker instance.  The final comparison is
+        therefore a constant-time CAS and never runs ``git`` while unrelated
+        project control work is blocked.
+        """
+
+        return _repo_read_generation(self._repo_lock_key)
 
     def terminal_metadata_changes_between(
         self,

@@ -680,7 +680,7 @@ def graceful_cutover(
         match = re.search(r"revision\s+([0-9a-fA-F]{7,64})\b", current.stdout + current.stderr)
         if match:
             current_cli_revision = match.group(1).lower()
-    
+
     # Recovery: detect launcher/service mismatch and repair automatically
     # by installing the launcher from the running service revision
     if current_cli_revision != old_revision.lower():
@@ -716,6 +716,36 @@ def graceful_cutover(
     restart_claim_id: str | None = None
     staged: StagedCLI | None = None
     activation: Activation | None = None
+
+    def cancel_restart_claim(claim_id: str) -> None:
+        """Converge an exact preclaim across one dropped acceptance response.
+
+        Cancellation is idempotent on the server.  Repeating the same exact
+        identity is therefore the authoritative probe when the first response
+        times out after acceptance; cached state is deliberately not used to
+        infer ownership.
+        """
+
+        failures: list[str] = []
+        for _attempt in range(2):
+            try:
+                cancelled = request(
+                    "POST",
+                    "/api/v1/orchestrator/restart",
+                    {
+                        "cancel_claim": True,
+                        "restart_request_id": claim_id,
+                    },
+                )
+            except Exception as cancel_exc:  # noqa: BLE001 - retry exact identity
+                failures.append(str(cancel_exc) or cancel_exc.__class__.__name__)
+                continue
+            if isinstance(cancelled, dict) and cancelled.get("cancelled") is True:
+                return
+            failures.append("server did not confirm exact claim cancellation")
+        detail = "; ".join(failures) or "cancellation was not confirmed"
+        raise CutoverError(detail)
+
     try:
         # Claim the server-side restart fence before quiescing.  This closes
         # the canonical make-restart gap in which a delayed resume or IPC
@@ -818,16 +848,8 @@ def graceful_cutover(
             # identity is safe; rejection means the drain may have started and
             # the normal identity-resolution/quarantine path remains required.
             try:
-                cancelled = request(
-                    "POST",
-                    "/api/v1/orchestrator/restart",
-                    {
-                        "cancel_claim": True,
-                        "restart_request_id": restart_claim_id,
-                    },
-                )
-                if isinstance(cancelled, dict) and cancelled.get("cancelled") is True:
-                    restart_claim_id = None
+                cancel_restart_claim(restart_claim_id)
+                restart_claim_id = None
             except Exception:
                 pass
 
@@ -933,21 +955,7 @@ def graceful_cutover(
             activation.rollback()
         if restart_claim_id is not None:
             try:
-                cancelled = request(
-                    "POST",
-                    "/api/v1/orchestrator/restart",
-                    {
-                        "cancel_claim": True,
-                        "restart_request_id": restart_claim_id,
-                    },
-                )
-                if not (
-                    isinstance(cancelled, dict)
-                    and cancelled.get("cancelled") is True
-                ):
-                    raise CutoverError(
-                        "the pre-restart admission fence could not be cancelled"
-                    )
+                cancel_restart_claim(restart_claim_id)
                 restart_claim_id = None
             except Exception as cancel_exc:
                 raise CutoverError(

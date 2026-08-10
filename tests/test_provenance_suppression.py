@@ -14,6 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from oompah.projects import ProjectStore
 from oompah.provenance_suppression import (
     MARKER_VERSION,
     PROVENANCE_SUPPRESSION_KEY,
@@ -647,6 +648,28 @@ class TestProvenanceGuardedTracker:
         assert tracker.updates == [
             ("TASK-1", {"title": "Historical record"}),
         ]
+
+    def test_failed_external_mutation_always_retires_publication_admission(
+        self, tmp_path
+    ) -> None:
+        class _FailingTracker:
+            def create_issue(self, *_args, **_kwargs):
+                raise RuntimeError("remote create failed")
+
+        projects = ProjectStore(
+            path=str(tmp_path / "projects.json"),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "worktrees"),
+        )
+        guarded = ProvenanceGuardedTracker(
+            _FailingTracker(), projects, "proj-1"
+        )
+
+        with pytest.raises(RuntimeError, match="remote create failed"):
+            guarded.create_issue("Fail remotely")
+
+        assert projects.tracker_authority_revision("proj-1") == 2
+        assert projects.tracker_publication_revision("proj-1") == 2
 
     def test_owner_revision_release_allows_open_and_survives_restart(self) -> None:
         tracker = _StatusTracker()

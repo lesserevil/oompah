@@ -73,6 +73,8 @@ class _LiveOldServer:
         old_state_instance: object = _MATCHING_STATE_INSTANCE,
         new_state_instance: object = _MATCHING_STATE_INSTANCE,
         resume_error: Exception | None = None,
+        quiesce_drops_after_accept: bool = False,
+        cancel_drops_after_accept: bool = False,
     ):
         self.old_revision = "a" * 40
         self.new_revision = "b" * 40
@@ -89,6 +91,9 @@ class _LiveOldServer:
         self.old_state_instance = old_state_instance
         self.new_state_instance = new_state_instance
         self.resume_error = resume_error
+        self.quiesce_drops_after_accept = quiesce_drops_after_accept
+        self.cancel_drops_after_accept = cancel_drops_after_accept
+        self.cancel_response_dropped = False
         self.committed = False
         self.resumed = False
         self.stopped = False
@@ -151,6 +156,8 @@ class _LiveOldServer:
             return {"ok": True, "paused": True}
         if path == "/api/v1/orchestrator/quiesce":
             self.quiesced = True
+            if self.quiesce_drops_after_accept:
+                raise TimeoutError("quiesce response dropped after acceptance")
             return {"ok": True, "quiesced": True}
         if path == "/api/v1/orchestrator/resume":
             if not self.committed and self.restart_claim_id is not None:
@@ -191,6 +198,14 @@ class _LiveOldServer:
                 ):
                     cancelled_id = self.restart_claim_id
                     self.restart_claim_id = None
+                    if (
+                        self.cancel_drops_after_accept
+                        and not self.cancel_response_dropped
+                    ):
+                        self.cancel_response_dropped = True
+                        raise TimeoutError(
+                            "cancel response dropped after acceptance"
+                        )
                     return {
                         "ok": True,
                         "cancelled": True,
@@ -773,6 +788,33 @@ def test_activation_failure_resumes_old_pair(tmp_path):
         _run_cutover(tmp_path, server, activate=failed_activation)
     assert server.committed is False
     assert server.resumed is True
+
+
+def test_dropped_quiesce_and_cancel_responses_converge_without_restart_fence(
+    tmp_path,
+):
+    """Idempotent cancellation repairs both accepted-but-dropped responses."""
+
+    server = _LiveOldServer(
+        quiesce_drops_after_accept=True,
+        cancel_drops_after_accept=True,
+    )
+
+    with pytest.raises(CutoverError, match="quiesce response dropped"):
+        _run_cutover(tmp_path, server)
+
+    cancel_calls = [
+        body
+        for call, body in zip(server.calls, server.call_bodies, strict=True)
+        if call == ("POST", "/api/v1/orchestrator/restart")
+        and isinstance(body, dict)
+        and body.get("cancel_claim") is True
+    ]
+    assert len(cancel_calls) == 2
+    assert server.restart_claim_id is None
+    assert server.quiesced is False
+    assert server.resumed is True
+    assert server.committed is False
 
 
 def test_restart_refuses_to_activate_without_quarantine_identity(tmp_path):

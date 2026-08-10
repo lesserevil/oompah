@@ -1337,6 +1337,71 @@ async def test_coordinator_adapter_rejects_changed_mutation_precondition():
     assert result.detail == "workflow_precondition_changed: child reopened"
 
 
+@pytest.mark.asyncio
+async def test_coordinator_adapter_reports_delivery_admission_conflict():
+    class Coordinator:
+        async def request_transition(self, **_kwargs):
+            return type(
+                "Result",
+                (),
+                {
+                    "success": False,
+                    "audit_id": None,
+                    "reason": "delivery_mutation_in_progress",
+                },
+            )()
+
+    issue = _issue(state="In Review")
+    intent = _intent(
+        issue,
+        requested_status="Merged",
+        exact_head="a" * 40,
+        evidence_generation=None,
+    )
+
+    result = await CoordinatorTerminalAdapter(Coordinator()).stage(intent, issue)
+
+    assert result.success is False
+    assert result.reason_code == "transition.delivery_mutation_in_progress"
+    assert result.detail == "delivery_mutation_in_progress"
+
+
+@pytest.mark.asyncio
+async def test_delivery_admission_conflict_is_durably_retryable(tmp_path):
+    class BusyTerminalAdapter:
+        async def stage(self, _intent, _issue):
+            return TerminalStageResult(
+                False,
+                reason_code="transition.delivery_mutation_in_progress",
+                detail="delivery_mutation_in_progress",
+            )
+
+    issue = _issue(state="In Review")
+    tracker = FakeTracker(issue)
+    journal = TransitionJournal(str(tmp_path / "transitions.sqlite3"))
+    service = _service(
+        tmp_path,
+        tracker,
+        journal=journal,
+        terminal_adapter=BusyTerminalAdapter(),
+    )
+    intent = _intent(
+        issue,
+        requested_status="Merged",
+        exact_head="a" * 40,
+        evidence_generation=None,
+    )
+
+    outcome = await service.execute(intent)
+
+    assert outcome.disposition is TransitionDisposition.RETRYABLE
+    assert outcome.retryable is True
+    assert outcome.reason_code == "transition.delivery_mutation_in_progress"
+    assert journal.events(outcome.transition_id)[-1].phase is (
+        TransitionPhase.RETRY_SCHEDULED
+    )
+
+
 def test_journal_survives_restart_and_preserves_event_order(tmp_path):
     path = str(tmp_path / "transitions.sqlite3")
     issue = _issue()

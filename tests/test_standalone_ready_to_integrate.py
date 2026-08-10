@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import inspect
 import threading
 import time
 from dataclasses import replace
@@ -19,6 +20,7 @@ from oompah.config import ServiceConfig
 from oompah.integration import IntegrationRecord
 from oompah.models import BlockerRef, Issue, Project
 from oompah.orchestrator import Orchestrator
+from oompah.provenance_suppression import ProvenanceGuardedTracker
 from oompah.quality_gate import BranchQualityGate, QualityGateOwner, QualityGateResult
 from oompah.providers import ProviderStore
 from oompah.scm import ReviewRequest, SCMProvider
@@ -26,6 +28,7 @@ from oompah.statuses import (
     IN_REVIEW,
     IN_VALIDATION,
     MERGED,
+    NEEDS_CI_FIX,
     OPEN,
     READY_TO_INTEGRATE,
 )
@@ -121,6 +124,9 @@ class _MemoryTracker:
     def fetch_issue_detail(self, identifier: str) -> Issue | None:
         assert identifier == self.issue.identifier
         return self.issue
+
+    def fetch_issue_states_by_ids(self, issue_ids: list[str]) -> list[Issue]:
+        return [self.issue] if self.issue.identifier in issue_ids else []
 
     def get_metadata(self, identifier: str) -> dict[str, Any]:
         return copy.deepcopy(self.metadata.get(identifier, {}))
@@ -378,7 +384,16 @@ def test_benign_tracker_timestamp_change_keeps_exact_head_authority(harness):
     )
 
 
-def test_workflow_timeout_fences_late_standalone_review_tracker_writes(harness):
+@pytest.mark.parametrize(
+    "commit_failure",
+    [None, "false", "exception"],
+    ids=["normal-bind", "commit-false-adopts", "commit-error-adopts"],
+)
+def test_workflow_timeout_fences_late_standalone_review_tracker_writes(
+    harness,
+    monkeypatch,
+    commit_failure,
+):
     """A late forge result is adoptable, but the expired job cannot publish it."""
 
     orch, project, tracker, provider, _detect, gate = harness
@@ -405,6 +420,21 @@ def test_workflow_timeout_fences_late_standalone_review_tracker_writes(harness):
         )
 
     provider.create_review.side_effect = create_after_timeout
+    if commit_failure == "false":
+        monkeypatch.setattr(
+            orch.review_capacity_store,
+            "commit",
+            lambda *_args, **_kwargs: False,
+        )
+    elif commit_failure == "exception":
+        def fail_commit(*_args, **_kwargs):
+            raise RuntimeError("capacity commit unavailable")
+
+        monkeypatch.setattr(
+            orch.review_capacity_store,
+            "commit",
+            fail_commit,
+        )
 
     orch._reconcile_one_standalone_ready_to_integrate_task(
         project.id,
@@ -419,9 +449,41 @@ def test_workflow_timeout_fences_late_standalone_review_tracker_writes(harness):
     provider.create_review.assert_called_once()
     tracker.set_metadata_field.assert_not_called()
     tracker.update_issue.assert_not_called()
+    reservations = orch.review_capacity_store.active(project.id)
+    assert len(reservations) == 1
+    assert reservations[0].task_id == task.identifier
+    assert reservations[0].review_id == "720"
+    assert reservations[0].head_sha == accepted_head
     authority = orch._standalone_delivery_authorities[(project.id, task.identifier)]
     assert authority.workflow_generation == "job-1:1:lease-1"
     assert not orch._standalone_delivery_authorized(authority, tracker)
+
+
+def test_review_creation_recovers_missing_identity_before_publication(harness):
+    orch, project, tracker, provider, _detect, _gate = harness
+    accepted_head = "a" * 40
+    task = _issue("TASK-CREATE-ID-RECOVERY", branch="feature/id-recovery")
+    tracker.fetch_issues_by_states.return_value = [task]
+    recovered = _review(
+        task.identifier,
+        review_id="721",
+        source_branch=task.work_branch,
+        target_branch=project.default_branch,
+        head_sha=accepted_head,
+    )
+    provider.find_pr_for_branch.side_effect = [None, None, recovered]
+    provider.create_review.return_value = replace(recovered, id="")
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    assert task.state == IN_REVIEW
+    assert any(
+        call.args[1] == "oompah.review_number" and call.args[2] == "721"
+        for call in tracker.set_metadata_field.call_args_list
+    )
+    reservations = orch.review_capacity_store.active(project.id)
+    assert len(reservations) == 1
+    assert reservations[0].review_id == "721"
 
 
 def test_parent_advance_before_noop_persist_fences_tracker_and_terminal(harness):
@@ -501,6 +563,104 @@ def test_parent_advance_before_noop_persist_fences_tracker_and_terminal(harness)
     )
     assert canonical.mode == "standalone"
     assert canonical.post_landed_parent_id == "E-1"
+
+
+def test_noop_terminal_preflight_rejects_revocation_during_tracker_read(harness):
+    orch, project, tracker, _provider, _detect, _gate = harness
+    accepted_head = "e" * 40
+    task = _issue(
+        "TASK-NOOP-REVOKED",
+        branch="feature/noop-revoked",
+        head_sha=accepted_head,
+    )
+    task.target_branch = project.default_branch
+    tracker.fetch_issues_by_states.return_value = [task]
+    authority = orch._claim_standalone_delivery_authority(project, task)
+    assert authority is not None
+    assert orch._set_standalone_delivery_head(
+        authority,
+        task.work_branch or "",
+        accepted_head,
+        lambda: accepted_head,
+    )
+    # The contained-landing path writes this record without refreshing the
+    # Ready evidence revision, then performs its special terminal preflight.
+    task.integration = IntegrationRecord(
+        state="integrated",
+        mode="standalone",
+        task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        head_sha=accepted_head,
+        integrated_sha=accepted_head,
+    )
+
+    def revoke_during_read(_identifier):
+        assert orch._revoke_standalone_delivery_authority(
+            project.id,
+            task.identifier,
+        )
+        return task
+
+    tracker.fetch_issue_detail.side_effect = revoke_during_read
+
+    assert not orch._standalone_noop_terminal_authorized(
+        authority,
+        tracker,
+        work_branch=task.work_branch or "",
+        target_branch=project.default_branch,
+        expected_integration=task.integration,
+    )
+    assert authority.revoked
+
+
+def test_noop_terminal_preflight_rejects_foreign_transformed_generation(harness):
+    orch, project, tracker, _provider, _detect, _gate = harness
+    accepted_head = "d" * 40
+    task = _issue(
+        "TASK-NOOP-RESUBMITTED",
+        branch="feature/noop-resubmitted",
+        head_sha=accepted_head,
+    )
+    task.target_branch = project.default_branch
+    tracker.fetch_issues_by_states.return_value = [task]
+    authority = orch._claim_standalone_delivery_authority(project, task)
+    assert authority is not None
+    assert orch._set_standalone_delivery_head(
+        authority,
+        task.work_branch or "",
+        accepted_head,
+        lambda: accepted_head,
+    )
+    expected = IntegrationRecord(
+        state="integrated",
+        mode="standalone",
+        task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        head_sha=accepted_head,
+        integrated_sha=accepted_head,
+        submitted_at=task.integration.submitted_at,
+        updated_at="2026-08-10T11:00:00+00:00",
+    )
+
+    def resubmit_during_read(_identifier):
+        task.integration = replace(
+            expected,
+            submitted_at="2026-08-10T11:01:00+00:00",
+        )
+        return task
+
+    tracker.fetch_issue_detail.side_effect = resubmit_during_read
+
+    assert not orch._standalone_noop_terminal_authorized(
+        authority,
+        tracker,
+        work_branch=task.work_branch or "",
+        target_branch=project.default_branch,
+        expected_integration=expected,
+    )
+    assert authority.evidence_revision != (
+        orch._standalone_delivery_evidence_revision(task)
+    )
 
 
 def test_standalone_authority_generation_includes_delivery_mode(harness):
@@ -2882,6 +3042,276 @@ def test_metadata_refresh_never_adopts_concurrent_integration_generation(harness
     assert (project.id, task.identifier) not in orch._standalone_delivery_authorities
 
 
+def test_gate_failure_transition_does_not_span_provenance_project_lock(tmp_path):
+    """The exact production facade can reacquire its lock on a helper thread."""
+
+    project = Project(
+        id="proj-gate-failure",
+        name="Gate failure project",
+        repo_url="https://github.com/org/repo.git",
+        repo_path=str(tmp_path / "repo"),
+        default_branch="trunk",
+    )
+    task = _issue("TASK-GATE-LOCK", branch="feature/gate-lock")
+    task.project_id = project.id
+    raw_tracker = _MemoryTracker(task)
+    orch = _make_orchestrator(
+        tmp_path,
+        project=project,
+        tracker=raw_tracker,
+    )
+    project_lock = orch.project_store.project_write_lock.return_value
+
+    class ObservedProvenanceTracker(ProvenanceGuardedTracker):
+        def __init__(self) -> None:
+            super().__init__(raw_tracker, orch.project_store, project.id)
+            self.status_callbacks_lock_free: list[bool] = []
+
+        def update_issue(self, identifier: str, **fields: str) -> None:
+            if "status" in fields:
+                acquired = project_lock.acquire(blocking=False)
+                self.status_callbacks_lock_free.append(acquired)
+                if acquired:
+                    project_lock.release()
+                if not acquired:
+                    raise AssertionError(
+                        "standalone delivery retained the project lock across "
+                        "the provenance-guarded status callback"
+                    )
+            super().update_issue(identifier, **fields)
+
+    tracker = ObservedProvenanceTracker()
+    orch._project_trackers[project.id] = tracker
+    authority = orch._claim_standalone_delivery_authority(project, task)
+    assert authority is not None
+
+    try:
+        orch._record_quality_gate_failure(
+            task,
+            project.id,
+            authority.branch,
+            authority.target_branch,
+            QualityGateResult(
+                status="failed",
+                head_sha="a" * 40,
+                command="make test",
+                return_code=1,
+            ),
+            post_comment=False,
+        )
+
+        assert raw_tracker.issue.state == NEEDS_CI_FIX
+        assert tracker.status_callbacks_lock_free == [True]
+        assert raw_tracker.update_calls[-1] == (
+            task.identifier,
+            {"add-label": "ci-fix"},
+        )
+    finally:
+        _close_orchestrator(orch)
+
+
+def test_admitted_delivery_defers_revocation_and_replacement(harness):
+    """Revocation never waits, and an in-flight generation cannot be ABA-replaced."""
+
+    orch, project, tracker, _provider, _detect, _gate = harness
+    task = _issue("TASK-ADMISSION-RACE", branch="feature/admission-race")
+    tracker.fetch_issues_by_states.return_value = [task]
+    authority = orch._claim_standalone_delivery_authority(project, task)
+    assert authority is not None
+
+    entered = threading.Event()
+    release = threading.Event()
+    results: list[bool] = []
+    callback_lock_observations: list[tuple[bool, bool]] = []
+    project_lock = orch.project_store.project_write_lock.return_value
+
+    def blocking_effect() -> None:
+        project_acquired = project_lock.acquire(blocking=False)
+        authority_acquired = orch._standalone_delivery_authority_lock.acquire(
+            blocking=False
+        )
+        callback_lock_observations.append((project_acquired, authority_acquired))
+        if authority_acquired:
+            orch._standalone_delivery_authority_lock.release()
+        if project_acquired:
+            project_lock.release()
+        entered.set()
+        assert release.wait(timeout=5)
+
+    worker = threading.Thread(
+        target=lambda: results.append(
+            orch._standalone_delivery_mutation(
+                authority,
+                tracker,
+                blocking_effect,
+                refresh_authority=False,
+            )
+        ),
+        daemon=True,
+    )
+    worker.start()
+    assert entered.wait(timeout=5)
+
+    assert (
+        orch._revoke_standalone_delivery_authority(project.id, task.identifier) is False
+    )
+    assert authority.revocation_pending is True
+    assert authority.revoked is False
+    task.integration = IntegrationRecord(
+        state="ready",
+        mode="standalone",
+        task_branch=task.work_branch,
+        head_sha="b" * 40,
+        submitted_at="2026-08-05T03:20:00+00:00",
+    )
+    assert orch._claim_standalone_delivery_authority(project, task) is None
+    assert (
+        orch._standalone_delivery_authorities[(project.id, task.identifier)]
+        is authority
+    )
+
+    release.set()
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert callback_lock_observations == [(True, True)]
+    assert results == [False]
+    assert authority.revoked is True
+    assert (project.id, task.identifier) not in orch._standalone_delivery_authorities
+
+    replacement = orch._claim_standalone_delivery_authority(project, task)
+    assert replacement is not None
+    assert replacement.generation != authority.generation
+
+
+def test_create_admission_spans_forge_effect_and_tracker_publication(harness):
+    """A terminal retry cannot orphan a PR created by an admitted generation."""
+
+    orch, project, tracker, provider, _detect, _gate = harness
+    task = _issue("TASK-CREATE-ADMITTED", branch="feature/create-admitted")
+    tracker.fetch_issues_by_states.return_value = [task]
+    authority = orch._claim_standalone_delivery_authority(project, task)
+    assert authority is not None
+    assert orch._set_standalone_delivery_head(
+        authority,
+        task.work_branch or "",
+        "a" * 40,
+        lambda: "a" * 40,
+    )
+    reservation = orch.review_capacity_store.acquire(
+        project_id=project.id,
+        task_id=task.identifier,
+        source_branch=authority.branch,
+        target_branch=authority.target_branch,
+        limit=5,
+        open_review_ids=(),
+        reservation_id="reservation-create-admitted",
+        authority_generation=authority.generation,
+        head_sha=authority.head_sha,
+    )
+    assert reservation is not None
+
+    create_entered = threading.Event()
+    release_create = threading.Event()
+    forge_lock_observations: list[tuple[bool, bool, bool]] = []
+    created_review = _review(
+        task.identifier,
+        review_id="811",
+        source_branch=authority.branch,
+        target_branch=authority.target_branch,
+        head_sha="a" * 40,
+    )
+
+    def create_review(*_args, **_kwargs):
+        issue_lock_free = not orch.issue_transition_lock(task.id).locked()
+        authority_lock_free = orch._standalone_delivery_authority_lock.acquire(
+            blocking=False
+        )
+        project_lock = orch.project_store.project_write_lock.return_value
+        project_lock_free = project_lock.acquire(blocking=False)
+        forge_lock_observations.append(
+            (issue_lock_free, authority_lock_free, project_lock_free)
+        )
+        if project_lock_free:
+            project_lock.release()
+        if authority_lock_free:
+            orch._standalone_delivery_authority_lock.release()
+        create_entered.set()
+        assert release_create.wait(timeout=5)
+        return created_review
+
+    provider.find_pr_for_branch.return_value = None
+    provider.create_review.side_effect = create_review
+    outcomes: list[tuple[str, ReviewRequest | None, str]] = []
+    worker = threading.Thread(
+        target=lambda: outcomes.append(
+            orch._create_standalone_review_owned(
+                project,
+                tracker,
+                provider,
+                authority,
+                repo_slug="org/repo",
+                work_branch=authority.branch,
+                target_branch=authority.target_branch,
+                title=task.title,
+                description=task.description or "",
+                reservation=reservation,
+                review_lookup_baseline=None,
+            )
+        ),
+        daemon=True,
+    )
+    worker.start()
+    assert create_entered.wait(timeout=5)
+
+    # This is the terminal coordinator's revocation callback.  It must return
+    # immediately and force a durable retry, while leaving the admitted unit
+    # responsible for publishing the already-created external review.
+    assert (
+        orch._revoke_standalone_delivery_authority(project.id, task.identifier) is False
+    )
+    release_create.set()
+    worker.join(timeout=5)
+
+    assert not worker.is_alive()
+    assert forge_lock_observations == [(True, True, True)]
+    assert outcomes == [("created", created_review, "")]
+    assert task.state == IN_REVIEW
+    assert any(
+        call.args[1] == "oompah.review_number" and call.args[2] == "811"
+        for call in tracker.set_metadata_field.call_args_list
+    )
+    assert authority.revoked is True
+    assert (project.id, task.identifier) not in orch._standalone_delivery_authorities
+    # The terminal journal's retry can now reacquire its revocation fence.
+    assert orch._revoke_standalone_delivery_authority(project.id, task.identifier)
+
+
+def test_standalone_preflight_and_callbacks_have_no_outer_orchestration_lock():
+    """Guard against reintroducing lock-spanning tracker or forge callbacks."""
+
+    authority_preflight_methods = (
+        Orchestrator._arm_standalone_delivery_alert,
+        Orchestrator._arm_standalone_dependency_wait,
+        Orchestrator._arm_standalone_capacity_wait,
+        Orchestrator._clear_standalone_delivery_alert,
+    )
+    for method in authority_preflight_methods:
+        source = inspect.getsource(method)
+        assert "with self._standalone_delivery_authority_lock" not in source
+
+    externally_effectful_methods = (
+        Orchestrator._preserve_superseded_standalone_review_owned,
+        Orchestrator._adopt_standalone_open_review_owned,
+        Orchestrator._create_standalone_review_owned,
+        Orchestrator._standalone_delivery_mutation,
+        Orchestrator._standalone_delivery_action,
+    )
+    for method in externally_effectful_methods:
+        source = inspect.getsource(method)
+        assert "issue_transition_lock" not in source
+        assert "project_write_lock" not in source
+
+
 def test_open_review_metadata_failure_cannot_advance_status(harness):
     """Every authority-owned review field is required before In Review."""
 
@@ -3044,8 +3474,8 @@ def test_stopped_dispatch_loop_bridge_fails_bounded_without_leaking_coroutine(
     assert time.monotonic() - started < 1
 
 
-def test_bridge_timeout_retains_task_ownership_until_inner_operation_exits(harness):
-    """A timed-out bridge cannot orphan coordinator work outside the task lock."""
+def test_bridge_timeout_does_not_retain_issue_lock_during_coordinator(harness):
+    """Detached coordinator work never starves a newer issue-boundary owner."""
 
     orch, project, tracker, provider, _detect, _gate = harness
     accepted_head = "1" * 40
@@ -3074,11 +3504,13 @@ def test_bridge_timeout_retains_task_ownership_until_inner_operation_exits(harne
     )
 
     coordinator_started = threading.Event()
+    coordinator_finished = threading.Event()
     release_coordinator = threading.Event()
 
     async def blocked_coordinator(**_kwargs):
         coordinator_started.set()
         await asyncio.to_thread(release_coordinator.wait)
+        coordinator_finished.set()
         return TransitionResult(success=True)
 
     orch.request_terminal_transition = mock.AsyncMock(side_effect=blocked_coordinator)
@@ -3128,12 +3560,13 @@ def test_bridge_timeout_retains_task_ownership_until_inner_operation_exits(harne
         assert coordinator_started.wait(timeout=2)
 
         submit_worker.start()
-        assert not submit_acquired.wait(timeout=0.1)
-
-        release_coordinator.set()
         assert submit_acquired.wait(timeout=2)
         submit_worker.join(timeout=2)
         assert not submit_worker.is_alive()
+
+        release_coordinator.set()
+        assert coordinator_finished.wait(timeout=2)
+        time.sleep(0.05)
     finally:
         release_coordinator.set()
         if submit_worker.is_alive():
@@ -3146,8 +3579,8 @@ def test_bridge_timeout_retains_task_ownership_until_inner_operation_exits(harne
     orch.request_terminal_transition.assert_awaited_once()
 
 
-def test_cancelled_bridge_keeps_inner_task_ownership_until_coordinator_exits(harness):
-    """Cancelling the outer await cannot expose in-flight terminal side effects."""
+def test_cancelled_bridge_does_not_retain_issue_lock_during_coordinator(harness):
+    """Cancellation leaves work shielded without starving issue ownership."""
 
     orch, project, tracker, provider, _detect, _gate = harness
     accepted_head = "2" * 40
@@ -3174,11 +3607,13 @@ def test_cancelled_bridge_keeps_inner_task_ownership_until_coordinator_exits(har
         lambda: accepted_head,
     )
     coordinator_started = threading.Event()
+    coordinator_finished = threading.Event()
     release_coordinator = threading.Event()
 
     async def blocked_coordinator(**_kwargs):
         coordinator_started.set()
         await asyncio.to_thread(release_coordinator.wait)
+        coordinator_finished.set()
         return TransitionResult(success=True)
 
     orch.request_terminal_transition = mock.AsyncMock(side_effect=blocked_coordinator)
@@ -3209,10 +3644,11 @@ def test_cancelled_bridge_keeps_inner_task_ownership_until_coordinator_exits(har
                 submit_acquired.set()
 
         submit_task = asyncio.create_task(submit())
-        await asyncio.sleep(0.05)
-        assert not submit_acquired.is_set()
-        release_coordinator.set()
         await asyncio.wait_for(submit_task, timeout=2)
+        assert submit_acquired.is_set()
+        release_coordinator.set()
+        assert await asyncio.to_thread(coordinator_finished.wait, 2)
+        await asyncio.sleep(0.05)
 
     try:
         asyncio.run(race())

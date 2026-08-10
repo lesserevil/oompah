@@ -534,6 +534,8 @@ class CoordinatorTerminalAdapter:
                 if result.success
                 else "transition.stale_precondition"
                 if reason and reason.startswith("workflow_precondition_changed:")
+                else "transition.delivery_mutation_in_progress"
+                if reason == "delivery_mutation_in_progress"
                 else "transition.terminal_rejected"
             ),
             detail=reason,
@@ -1912,18 +1914,30 @@ class TaskTransitionService:
                     return outcome
                 latest, _ = await self._try_fetch(intent.task_id)
                 if not staged.success:
+                    delivery_busy = (
+                        staged.reason_code == "transition.delivery_mutation_in_progress"
+                    )
                     outcome = self._outcome(
                         transition_id,
                         intent,
-                        TransitionDisposition.REJECTED,
+                        (
+                            TransitionDisposition.RETRYABLE
+                            if delivery_busy
+                            else TransitionDisposition.REJECTED
+                        ),
                         staged.reason_code,
                         latest or issue,
+                        retryable=delivery_busy,
                         details={"detail": staged.detail},
                     )
                     await asyncio.to_thread(
                         self.journal.append,
                         transition_id,
-                        TransitionPhase.REJECTED,
+                        (
+                            TransitionPhase.RETRY_SCHEDULED
+                            if delivery_busy
+                            else TransitionPhase.REJECTED
+                        ),
                         outcome.reason_code,
                         outcome,
                     )

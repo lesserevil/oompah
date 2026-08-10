@@ -107,6 +107,7 @@ class NativeTracker:
     def __init__(self, issues: list[Issue]):
         self.issues = {issue.identifier: issue for issue in issues}
         self.authority_generation = "test-native:1"
+        self.publication_revision = 1
 
     def fetch_all_issues_enriched(self):
         return list(self.issues.values())
@@ -118,6 +119,9 @@ class NativeTracker:
 
     def get_state_branch_generation(self):
         return self.authority_generation
+
+    def get_publication_revision(self):
+        return self.publication_revision
 
     def fetch_issue_detail(self, identifier):
         return self.issues.get(identifier)
@@ -200,6 +204,11 @@ def make_binding(
         tracker_authority_revision_source=(
             tracker.get_state_branch_generation
             if callable(getattr(tracker, "get_state_branch_generation", None))
+            else None
+        ),
+        tracker_publication_revision_source=(
+            tracker.get_publication_revision
+            if callable(getattr(tracker, "get_publication_revision", None))
             else None
         ),
     )
@@ -575,6 +584,61 @@ def test_native_tracker_generation_race_supersedes_stale_status_publication(
     store.close()
 
 
+def test_state_branch_diff_preflight_keeps_project_controls_responsive(tmp_path):
+    task = make_issue("TASK-DIFF-PREFLIGHT", state="Backlog")
+    store = WorkflowJobStore(str(tmp_path / "jobs-diff-preflight.sqlite3"))
+    tracker = NativeTracker([task])
+    tracker.get_state_branch_generation = lambda: "native-head:2"
+    binding, journal = make_binding(tmp_path, tracker, store)
+    project_lock = threading.RLock()
+    binding.terminal_audit_publication_lock = lambda: project_lock
+    diff_started = threading.Event()
+    release_diff = threading.Event()
+
+    def diff_authority(_expected, _current):
+        diff_started.set()
+        assert release_diff.wait(timeout=5)
+        return frozenset({task.identifier})
+
+    binding.tracker_terminal_authority_changes_source = diff_authority
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=UniversalTotalityLivenessController(store=store),
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    reports = []
+    reconcile = threading.Thread(target=lambda: reports.append(runtime.reconcile()))
+    reconcile.start()
+    assert diff_started.wait(timeout=2)
+
+    # A Git diff may block on the repository or transport.  It must not own
+    # the project mutation fence or the runtime health lock while it waits.
+    assert project_lock.acquire(timeout=0.2)
+    try:
+        tracker.issues["TASK-UNRELATED-CONTROL"] = make_issue(
+            "TASK-UNRELATED-CONTROL", state="Open"
+        )
+        assert runtime.health_snapshot()["mode"] == "enforce"
+    finally:
+        project_lock.release()
+        release_diff.set()
+    reconcile.join(timeout=3)
+
+    assert not reconcile.is_alive()
+    assert reports[0]["projects"]["project-1"] == {
+        "publication_superseded": True,
+        "reason": "tracker authority changed before publication",
+    }
+    runtime.close()
+    store.close()
+
+
 @pytest.mark.parametrize("generation", (None, "unavailable", "unavailable:fetch"))
 def test_enabled_native_tracker_missing_generation_fails_closed(
     tmp_path,
@@ -624,6 +688,8 @@ def test_disabled_native_tracker_uses_one_grouped_publication_refresh(tmp_path):
     tracker.get_state_branch_generation = lambda: None
     store = WorkflowJobStore(str(tmp_path / "native-legacy.sqlite3"))
     binding, journal = make_binding(tmp_path, tracker, store)
+    assert binding.tracker_publication_revision_source is not None
+    assert binding.tracker_publication_revision_source() == 1
     runtime = WorkflowRuntime(
         project_bindings={"project-1": binding},
         store=store,

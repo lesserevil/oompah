@@ -17,7 +17,7 @@ from __future__ import annotations
 import base64
 import contextlib
 from typing import Generator
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -25,6 +25,38 @@ from fastapi.testclient import TestClient
 import oompah.server as server_module
 from oompah.http_auth import HtpasswdCredentials, VerificationError
 from oompah.server import app
+
+
+_SERVER_STATE_CACHE_FIELDS = (
+    "_state_snapshot",
+    "_state_snapshot_at",
+    "_state_snapshot_epoch",
+    "_state_snapshot_authority",
+    "_state_snapshot_signature",
+    "_state_revision",
+)
+
+
+def _swap_server_state_cache(
+    values: tuple[object, ...] | None,
+) -> tuple[object, ...]:
+    """Atomically replace and return the state snapshot/revision tuple."""
+    with server_module._state_snapshot_lock, server_module._ws_protocol_lock:
+        original = tuple(
+            getattr(server_module, field) for field in _SERVER_STATE_CACHE_FIELDS
+        )
+        if values is None:
+            values = (
+                None,
+                0.0,
+                server_module._protocol_epoch,
+                None,
+                None,
+                0,
+            )
+        for field, value in zip(_SERVER_STATE_CACHE_FIELDS, values, strict=True):
+            setattr(server_module, field, value)
+        return original
 
 
 # ---------------------------------------------------------------------------
@@ -101,11 +133,12 @@ def _patch_orchestrator(orch=None):
 
 @contextlib.contextmanager
 def _ws_isolation(orch=None):
-    """Set up orchestrator + isolated _ws_clients for WS tests."""
+    """Set up isolated WebSocket clients and an unavailable state cache."""
     if orch is None:
         orch = _mock_orchestrator()
     orig_ws = server_module._ws_clients
     orig_orch = server_module._orchestrator
+    orig_state_cache = _swap_server_state_cache(None)
     server_module._ws_clients = set()
     server_module._orchestrator = orch
     try:
@@ -113,6 +146,7 @@ def _ws_isolation(orch=None):
     finally:
         server_module._ws_clients = orig_ws
         server_module._orchestrator = orig_orch
+        _swap_server_state_cache(orig_state_cache)
 
 
 @pytest.fixture()
@@ -405,6 +439,91 @@ class TestBackwardCompatibility:
                 # These are from _cached_state_snapshot_or_unavailable
                 assert any(key in data for key in ["paused", "running", "retrying", "counts"]), \
                     "Original snapshot fields must be preserved"
+
+    def test_ws_isolation_rejects_poisoned_partial_cache(self):
+        """A prior test's partial snapshot cannot replace bootstrap defaults."""
+        poisoned = (
+            {"source": "prior-test"},
+            123.5,
+            server_module._protocol_epoch,
+            "poison-authority",
+            "poison-signature",
+            37,
+        )
+        original = _swap_server_state_cache(poisoned)
+        client = TestClient(app, raise_server_exceptions=False)
+        try:
+            with _auth_disabled(), _ws_isolation():
+                with client.websocket_connect("/ws") as ws:
+                    data = ws.receive_json()["data"]
+                    assert data["state_snapshot_unavailable"] is True
+                    assert data["counts"] == {"running": 0, "retrying": 0}
+                    assert data["running"] == []
+                    assert data["retrying"] == []
+        finally:
+            _swap_server_state_cache(original)
+
+    def test_ws_isolation_restores_state_without_rewinding_issues(self, monkeypatch):
+        """State isolation restores exactly without rewinding issue changes."""
+        protocol_epoch = server_module._protocol_epoch
+        sentinel_snapshot = {"source": "sentinel"}
+        sentinel = (
+            sentinel_snapshot,
+            987.25,
+            protocol_epoch,
+            "sentinel-authority",
+            "sentinel-signature",
+            73,
+        )
+        issue_snapshot = {
+            "data": {"issues": []},
+            "epoch": protocol_epoch,
+            "data_revision": 79,
+            "invalidated": False,
+        }
+        monkeypatch.setattr(server_module, "_issue_revision", 79)
+        monkeypatch.setattr(server_module, "_issues_snapshot", issue_snapshot)
+        original = _swap_server_state_cache(sentinel)
+        client = TestClient(app, raise_server_exceptions=False)
+        try:
+            with (
+                _auth_disabled(),
+                _ws_isolation(),
+                patch.object(
+                    server_module,
+                    "_ensure_issues_snapshot_refresh",
+                    new_callable=AsyncMock,
+                ),
+            ):
+                with client.websocket_connect("/ws") as ws:
+                    assert ws.receive_json()["data"]["state_snapshot_unavailable"]
+                    current = _swap_server_state_cache(None)
+                    assert current == (
+                        None,
+                        0.0,
+                        server_module._protocol_epoch,
+                        None,
+                        None,
+                        0,
+                    )
+                    issue_revision_before_invalidation = (
+                        server_module._issue_revision
+                    )
+                    server_module._invalidate_issue_caches(
+                        schedule_broadcast=False
+                    )
+            restored = _swap_server_state_cache(sentinel)
+            assert restored == sentinel
+            assert restored[0] is sentinel_snapshot
+            assert server_module._protocol_epoch == protocol_epoch
+            assert server_module._issue_revision == (
+                issue_revision_before_invalidation + 1
+            )
+            assert server_module._issues_snapshot is issue_snapshot
+            assert issue_snapshot["data_revision"] == 79
+            assert issue_snapshot["invalidated"] is True
+        finally:
+            _swap_server_state_cache(original)
 
 
 if __name__ == "__main__":

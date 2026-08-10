@@ -55,6 +55,10 @@ class TrackerError(Exception):
     """Raised when tracker operations fail."""
 
 
+class CreateOnceConflictError(TrackerError):
+    """One durable creation key was reused for incompatible task data."""
+
+
 class TrackerAuthError(TrackerError):
     """Raised when tracker authentication fails (e.g. HTTP 401 or 403).
 
