@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-957
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Stabilize concurrent validation and review-capacity CI regressions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:10:50.093058Z'
-updated_at: '2026-08-09T16:14:04.830869Z'
+updated_at: '2026-08-10T01:16:08.750901Z'
 work_branch: OOMPAH-957
 target_branch: null
 review_url: null
@@ -63,6 +63,25 @@ oompah.terminal_audit:
     selected_ref: 7d0807c2005cf299bc2a90a97909600d65171573
     selected_sha: 7d0807c2005cf299bc2a90a97909600d65171573
     applied: true
+  - version: 1
+    override_id: override-92d38da388c1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-957
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 395deaefdf523e61a4892a5aa578e0c64e2a260b52c7c3cb2d01f0badc629ddd
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Selected or integrated head 7d0807c is an ancestor of current main and
+      the completed audit evidence is preserved; retire the historical record as Merged.
+    created_at: '2026-08-10T01:16:03.872484+00:00'
+    selected_ref: 7d0807c2005cf299bc2a90a97909600d65171573
+    selected_sha: 7d0807c2005cf299bc2a90a97909600d65171573
+    applied: false
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-957

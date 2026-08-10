@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-09T09:56:00.569098Z'
-updated_at: '2026-08-10T01:15:53.790433Z'
+updated_at: '2026-08-10T01:16:01.427623Z'
 work_branch: OOMPAH-948
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/763
@@ -59,6 +59,16 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-08-09T14:46:28.501604+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-948
+    target_state: Merged
+    evidence_fingerprint: ae924b2ff0910c92420dbb0e86d33c5b17ff5beda230d62c4c7b0cd8d45434b4
+    audit_ids:
+    - audit-99898cc9a80c
+    - audit-1c147ee3beb8
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T01:15:59.282489+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-948
@@ -116,7 +126,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T01:15:44.220402+00:00'
     selected_ref: a557d6de3384308a1ae18dd41fec5d12bfb8328a
     selected_sha: a557d6de3384308a1ae18dd41fec5d12bfb8328a
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -378,5 +388,12 @@ author: oompah
 created: 2026-08-09 16:19
 ---
 Directly resolved the stale Needs Human audit after confirming exact-head hosted CI and merged PR #763.
+---
+author: oompah
+created: 2026-08-10 01:15
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Selected or integrated head a557d6d is an ancestor of current main and the completed audit evidence is preserved; retire the historical record as Merged.
 ---
 <!-- COMMENTS:END -->
