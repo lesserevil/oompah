@@ -374,6 +374,103 @@ def production_handler(controller, tracker, effects):
     )
 
 
+def auto_close_snapshot(
+    epic,
+    *,
+    revision="a" * 40,
+    containment_target="main",
+    landing_target=None,
+    evidence_revision="auto-close-evidence-1",
+    durable=True,
+    duplicate_revision=None,
+):
+    target = landing_target or containment_target
+    landings = [
+        LandingFact(
+            f"epic-{epic.identifier}",
+            target,
+            revision,
+            {"kind": "git_ancestry", "source_sha": revision},
+            "2026-08-10T12:00:00+00:00",
+            "project-1",
+            state=LandingState.LANDED,
+            durable=durable,
+        )
+    ]
+    if duplicate_revision is not None:
+        landings.append(
+            LandingFact(
+                f"epic-{epic.identifier}",
+                target,
+                duplicate_revision,
+                {
+                    "kind": "git_ancestry",
+                    "source_sha": duplicate_revision,
+                },
+                "2026-08-10T12:00:00+00:00",
+                "project-1",
+                state=LandingState.LANDED,
+                durable=True,
+            )
+        )
+    facts = MagicMock()
+    facts.project_id = "project-1"
+    facts.task_id = epic.identifier
+    facts.fact.return_value = SimpleNamespace(
+        state=FactState.KNOWN,
+        value={
+            "epic_branch": f"epic-{epic.identifier}",
+            "target_branch": containment_target,
+            "children": [],
+        },
+    )
+    facts.landings = tuple(landings)
+    decision = SimpleNamespace(
+        durable_jobs=(EpicAction.AUTO_CLOSE.value,),
+        evidence_revision=evidence_revision,
+        reason_code="terminal.immediate_target_landing_proven",
+    )
+    return SimpleNamespace(epic=epic, facts=facts, decision=decision)
+
+
+def auto_close_backend(snapshots):
+    controller = MagicMock()
+    controller.collector.project_id = "project-1"
+    effects = MagicMock()
+    backend = ProductionEpicWorkflowBackend(
+        controller=controller,
+        tracker=MagicMock(),
+        effects=effects,
+    )
+    backend._fresh_snapshot = MagicMock(  # type: ignore[method-assign]
+        side_effect=snapshots
+    )
+    return backend, effects
+
+
+def auto_close_context():
+    return SimpleNamespace(
+        job=SimpleNamespace(
+            action=EpicAction.AUTO_CLOSE.value,
+            payload={},
+            generation="auto-close-generation-1",
+            checkpoint={},
+        ),
+        idempotency_key="auto-close-effect-1",
+    )
+
+
+def checkpoint_revalidation(context, revalidation):
+    context.job.checkpoint = {
+        "revalidation": {
+            "generation": revalidation.generation,
+            "evidence_revision": revalidation.evidence_revision,
+            "head_sha": revalidation.head_sha,
+            "details": dict(revalidation.details),
+        }
+    }
+
+
 @pytest.mark.asyncio
 async def test_production_review_handler_uses_exact_receipt_and_transition(tmp_path):
     make_git_fixture(tmp_path)
@@ -413,6 +510,186 @@ async def test_production_review_handler_uses_exact_receipt_and_transition(tmp_p
     assert completed.checkpoint["verification"]["source_head"] == "a" * 40
     assert store.landing_facts(project_id="project-1", task_id="TOP")
     store.close()
+
+
+@pytest.mark.asyncio
+async def test_headless_root_epic_auto_close_uses_durable_landing_authority(
+    tmp_path,
+):
+    make_git_fixture(tmp_path)
+    git(tmp_path, "checkout", "main")
+    git(tmp_path, "merge", "--ff-only", "epic-TOP")
+    exact_head = git(tmp_path, "rev-parse", "epic-TOP")
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    assert top.work_branch is None
+    assert top.target_branch is None
+    assert top.review_head is None
+    assert top.head_sha is None
+    leaf = issue("LEAF", state=DONE, parent_id="TOP", work_branch="leaf")
+    leaf.head_sha = exact_head
+    tracker = Tracker([top, leaf])
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = EpicWorkflowController(
+        collector=EpicFactCollector(
+            project_id="project-1",
+            tracker=tracker,
+            repo_path=str(tmp_path),
+            sources={FactDomain.TERMINAL_AUDIT: retained_terminal_source()},
+        ),
+        store=store,
+    )
+    # Capture the exact landing while its source exists, then reproduce the
+    # post-landing OOMPAH-940 shape in which only durable evidence survives.
+    first = controller.evaluate([top]).tasks[0].decision
+    assert first.durable_jobs == (EpicAction.AUTO_CLOSE.value,)
+    git(tmp_path, "branch", "-D", "epic-TOP")
+    _batch, scheduled = controller.reconcile([top])
+    assert scheduled.jobs_created == 1
+    job = store.list_jobs()[0]
+    assert job.action == EpicAction.AUTO_CLOSE.value
+    assert job.expected_head_sha is None
+    transitions = RecordingTransitionService()
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers={
+            job.action: production_handler(
+                controller,
+                tracker,
+                RecordingEpicEffects(),
+            )
+        },
+        transition_services={"project-1": transitions},
+        worker_id="epic-worker",
+    )
+
+    result = await worker.run_once()
+
+    assert result.disposition is WorkflowRunDisposition.COMPLETED
+    completed = store.get(job.job_id)
+    authority = completed.checkpoint["revalidation"]["details"]
+    assert authority["auto_close_exact_head"] == exact_head
+    assert authority["auto_close_landing_source"] == "epic-TOP"
+    assert authority["auto_close_landing_target"] == "main"
+    assert completed.checkpoint["effect"]["auto_close_exact_head"] == exact_head
+    assert (
+        completed.checkpoint["verification"]["auto_close_exact_head"]
+        == exact_head
+    )
+    assert len(transitions.intents) == 1
+    assert transitions.intents[0].requested_status == MERGED
+    assert transitions.intents[0].exact_head == exact_head
+    store.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mutation",
+    ("revision", "target", "evidence", "ambiguous"),
+)
+@pytest.mark.parametrize("phase", ("apply", "verify", "build_transition"))
+async def test_auto_close_phase_fence_rejects_changed_landing_authority(
+    mutation,
+    phase,
+):
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    initial = auto_close_snapshot(top)
+    changed_options = {}
+    if mutation == "revision":
+        changed_options["revision"] = "b" * 40
+    elif mutation == "target":
+        changed_options["containment_target"] = "release/current"
+    elif mutation == "evidence":
+        changed_options["evidence_revision"] = "auto-close-evidence-2"
+    else:
+        changed_options["duplicate_revision"] = "b" * 40
+    changed = auto_close_snapshot(top, **changed_options)
+    backend, effects = auto_close_backend([initial, changed])
+    context = auto_close_context()
+    revalidation = await backend.revalidate(context)
+    assert revalidation.current
+    assert revalidation.head_sha == "a" * 40
+    checkpoint_revalidation(context, revalidation)
+    verification = VerificationResult(
+        True,
+        {
+            **dict(revalidation.details),
+            "action": EpicAction.AUTO_CLOSE.value,
+            "task_id": top.identifier,
+            "requested_status": MERGED,
+            "expected_status": IN_PROGRESS,
+            "expected_version": "authority-1",
+            "exact_head": "a" * 40,
+            "reason_code": "terminal.immediate_target_landing_proven",
+            "evidence_revision": revalidation.evidence_revision,
+        },
+    )
+
+    with pytest.raises(WorkflowActionSuperseded):
+        if phase == "apply":
+            await backend.apply(context)
+        elif phase == "verify":
+            await backend.verify(
+                context,
+                EffectResult({"source_head": "a" * 40}),
+            )
+        else:
+            await backend.build_transition(context, verification)
+
+    effects.apply_epic_effect.assert_not_called()
+    effects.verify_epic_effect.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_auto_close_build_transition_rejects_changed_receipt_authority():
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    initial = auto_close_snapshot(top)
+    backend, _effects = auto_close_backend([initial, initial])
+    context = auto_close_context()
+    revalidation = await backend.revalidate(context)
+    checkpoint_revalidation(context, revalidation)
+    verification = VerificationResult(
+        True,
+        {
+            **dict(revalidation.details),
+            "auto_close_landing_target": "release/other",
+            "action": EpicAction.AUTO_CLOSE.value,
+            "task_id": top.identifier,
+            "requested_status": MERGED,
+            "expected_status": IN_PROGRESS,
+            "expected_version": "authority-1",
+            "exact_head": "a" * 40,
+            "reason_code": "terminal.immediate_target_landing_proven",
+            "evidence_revision": revalidation.evidence_revision,
+        },
+    )
+
+    with pytest.raises(
+        WorkflowActionSuperseded,
+        match="landing authority changed before transition",
+    ):
+        await backend.build_transition(context, verification)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalid", ("wrong_target", "mutable", "ambiguous"))
+async def test_auto_close_revalidation_fails_closed_without_canonical_authority(
+    invalid,
+):
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    options = {}
+    if invalid == "wrong_target":
+        options["landing_target"] = "release/other"
+    elif invalid == "mutable":
+        options["durable"] = False
+    else:
+        options["duplicate_revision"] = "b" * 40
+    backend, _effects = auto_close_backend([auto_close_snapshot(top, **options)])
+
+    result = await backend.revalidate(auto_close_context())
+
+    assert not result.current
+    assert result.head_sha is None
+    assert "auto_close_exact_head" not in result.details
 
 
 @pytest.mark.asyncio

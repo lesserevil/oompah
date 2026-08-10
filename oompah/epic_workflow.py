@@ -38,7 +38,11 @@ from oompah.task_transition_service import (
     issue_authority_version,
     issue_exact_head,
 )
-from oompah.work_decision import WorkDecision, evaluate_task
+from oompah.work_decision import (
+    WorkDecision,
+    epic_immediate_target_landings,
+    evaluate_task,
+)
 from oompah.workflow_fact_model import (
     CollectedValue,
     FactDomain,
@@ -969,6 +973,26 @@ class _EpicActionSnapshot:
     decision: WorkDecision
 
 
+@dataclass(frozen=True, slots=True)
+class _AutoCloseLandingAuthority:
+    """Immutable immediate-target landing consumed by one auto-close job."""
+
+    exact_head: str
+    source: str
+    target: str
+    landing_evidence_revision: str
+
+    def receipt(self) -> dict[str, str]:
+        return {
+            "auto_close_exact_head": self.exact_head,
+            "auto_close_landing_source": self.source,
+            "auto_close_landing_target": self.target,
+            "auto_close_landing_evidence_revision": (
+                self.landing_evidence_revision
+            ),
+        }
+
+
 class ProductionEpicWorkflowBackend:
     """Production evidence and intent boundary for all epic actions.
 
@@ -1091,6 +1115,98 @@ class ProductionEpicWorkflowBackend:
         )
 
     @classmethod
+    def _auto_close_landing_authority(
+        cls,
+        snapshot: _EpicActionSnapshot,
+    ) -> _AutoCloseLandingAuthority | None:
+        """Return one canonical durable landing for a headless auto-close.
+
+        The containment fact owns the source and immediate target even after
+        mutable task branch fields have been cleared.  Requiring one exact,
+        durable positive fact makes an ambiguous or stale landing set fail
+        closed without restoring mutable issue-head authority.
+        """
+
+        candidates = tuple(
+            landing
+            for landing in epic_immediate_target_landings(snapshot.facts)
+            if landing.project_id == snapshot.facts.project_id
+            and landing.state is LandingState.LANDED
+            and landing.durable
+            and _exact_head(landing.revision) is not None
+        )
+        if len(candidates) != 1:
+            return None
+        landing = candidates[0]
+        revision = _exact_head(landing.revision)
+        if revision is None:
+            return None
+        proof_source = landing.proof.get("source_sha")
+        if proof_source is not None and _exact_head(proof_source) != revision:
+            return None
+        evidence_revision = str(landing.evidence_revision or "").strip()
+        if not evidence_revision:
+            return None
+        return _AutoCloseLandingAuthority(
+            revision,
+            landing.source,
+            landing.target,
+            evidence_revision,
+        )
+
+    @staticmethod
+    def _revalidation_details(context: WorkflowJobContext) -> Mapping[str, Any]:
+        checkpoint = context.job.checkpoint or {}
+        revalidation = checkpoint.get("revalidation", {})
+        if not isinstance(revalidation, Mapping):
+            return {}
+        details = revalidation.get("details", {})
+        return details if isinstance(details, Mapping) else {}
+
+    @staticmethod
+    def _revalidated_evidence_revision(context: WorkflowJobContext) -> str:
+        checkpoint = context.job.checkpoint or {}
+        revalidation = checkpoint.get("revalidation", {})
+        if not isinstance(revalidation, Mapping):
+            return ""
+        return str(revalidation.get("evidence_revision") or "").strip()
+
+    @staticmethod
+    def _serialized_auto_close_authority(
+        raw: Mapping[str, Any],
+    ) -> _AutoCloseLandingAuthority | None:
+        exact_head = _exact_head(raw.get("auto_close_exact_head"))
+        source = str(raw.get("auto_close_landing_source") or "").strip()
+        target = str(raw.get("auto_close_landing_target") or "").strip()
+        evidence_revision = str(
+            raw.get("auto_close_landing_evidence_revision") or ""
+        ).strip()
+        if not all((exact_head, source, target, evidence_revision)):
+            return None
+        return _AutoCloseLandingAuthority(
+            exact_head,
+            source,
+            target,
+            evidence_revision,
+        )
+
+    @classmethod
+    def _checkpoint_auto_close_authority(
+        cls,
+        context: WorkflowJobContext,
+    ) -> _AutoCloseLandingAuthority | None:
+        return cls._serialized_auto_close_authority(
+            cls._revalidation_details(context)
+        )
+
+    @classmethod
+    def _receipt_auto_close_authority(
+        cls,
+        receipt: Mapping[str, Any],
+    ) -> _AutoCloseLandingAuthority | None:
+        return cls._serialized_auto_close_authority(receipt)
+
+    @classmethod
     def _cleanup_head(cls, snapshot: _EpicActionSnapshot) -> str | None:
         """Return the exact source generation observed for cleanup."""
 
@@ -1117,14 +1233,11 @@ class ProductionEpicWorkflowBackend:
         payload: Mapping[str, Any],
     ) -> bool:
         if action is EpicAction.AUTO_CLOSE:
-            own = cls._own_landing(snapshot)
-            revision = _exact_head(getattr(own, "revision", None))
             return bool(
                 action.value in snapshot.decision.durable_jobs
-                and own is not None
-                and own.state is LandingState.LANDED
-                and revision
-                and revision == _exact_head(issue_exact_head(snapshot.epic))
+                and snapshot.decision.reason_code
+                == "terminal.immediate_target_landing_proven"
+                and cls._auto_close_landing_authority(snapshot) is not None
             )
         if action is EpicAction.CLEANUP:
             own = cls._own_landing(snapshot)
@@ -1202,6 +1315,14 @@ class ProductionEpicWorkflowBackend:
         """Fence every effect phase with a fresh authorization snapshot."""
 
         current = cls._is_action_current(action, snapshot, payload)
+        if action is EpicAction.AUTO_CLOSE:
+            current = bool(
+                current
+                and cls._auto_close_landing_authority(snapshot)
+                == cls._checkpoint_auto_close_authority(context)
+                and snapshot.decision.evidence_revision
+                == cls._revalidated_evidence_revision(context)
+            )
         if action is EpicAction.CLEANUP:
             current = current and cls._cleanup_generation_is_current(
                 context, snapshot
@@ -1221,13 +1342,18 @@ class ProductionEpicWorkflowBackend:
     ) -> dict[str, Any]:
         containment = cls._containment(snapshot)
         own = cls._own_landing(snapshot)
-        return {
+        details = {
             "action": action.value,
             "reason_code": snapshot.decision.reason_code,
             "epic_branch": containment.get("epic_branch"),
             "target_branch": containment.get("target_branch"),
             "own_landing_state": own.state.value if own is not None else None,
         }
+        if action is EpicAction.AUTO_CLOSE:
+            authority = cls._auto_close_landing_authority(snapshot)
+            if authority is not None:
+                details.update(authority.receipt())
+        return details
 
     async def revalidate(self, context: WorkflowJobContext) -> RevalidationResult:
         action = EpicAction(context.job.action)
@@ -1284,13 +1410,22 @@ class ProductionEpicWorkflowBackend:
                                 payload,
                             )
                         )
+        auto_close_authority = (
+            self._auto_close_landing_authority(snapshot)
+            if action is EpicAction.AUTO_CLOSE
+            else None
+        )
         return RevalidationResult(
             context.job.generation,
             evidence_revision=snapshot.decision.evidence_revision,
             head_sha=(
                 self._cleanup_head(snapshot)
                 if action is EpicAction.CLEANUP
-                else issue_exact_head(snapshot.epic)
+                else (
+                    auto_close_authority.exact_head
+                    if auto_close_authority is not None
+                    else issue_exact_head(snapshot.epic)
+                )
             ),
             current=current,
             details=self._snapshot_details(action, snapshot),
@@ -1340,14 +1475,15 @@ class ProductionEpicWorkflowBackend:
         receipt = dict(extra or {})
         effect_head = _exact_head(receipt.get("source_head"))
         if action is EpicAction.AUTO_CLOSE:
-            own = cls._own_landing(snapshot)
-            effect_head = _exact_head(getattr(own, "revision", None))
-            if effect_head is None:
+            authority = cls._auto_close_landing_authority(snapshot)
+            if authority is None:
                 raise WorkflowActionError(
                     "epic auto-close has no exact immediate-target landing revision",
                     category=WorkflowFailureCategory.TRANSIENT,
                     retryable=True,
                 )
+            effect_head = authority.exact_head
+            receipt.update(authority.receipt())
         receipt.update(
             {
                 "action": action.value,
@@ -1406,6 +1542,7 @@ class ProductionEpicWorkflowBackend:
                 )
             return EffectObservation(True, receipt)
         if action is EpicAction.AUTO_CLOSE:
+            self._require_action_current(context, action, snapshot, payload)
             target = self._transition_target(action, snapshot)
             if target is None:
                 return EffectObservation(True, {"action": action.value, "noop": True})
@@ -1609,6 +1746,24 @@ class ProductionEpicWorkflowBackend:
         verification: VerificationResult,
     ) -> TransitionIntent | None:
         receipt = verification.receipt
+        action = EpicAction(context.job.action)
+        if action is EpicAction.AUTO_CLOSE:
+            snapshot = await self._load_snapshot(context)
+            self._require_action_current(
+                context,
+                action,
+                snapshot,
+                self._payload(context),
+            )
+            current_authority = self._auto_close_landing_authority(snapshot)
+            receipt_authority = self._receipt_auto_close_authority(receipt)
+            if current_authority is None or current_authority != receipt_authority:
+                raise WorkflowActionSuperseded(
+                    "epic auto-close landing authority changed before transition",
+                    replacement_generation=(
+                        f"reassess:{snapshot.decision.evidence_revision}"
+                    ),
+                )
         requested = str(receipt.get("requested_status") or "").strip()
         if not requested:
             return None
