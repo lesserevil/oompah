@@ -543,6 +543,9 @@ def test_native_tracker_generation_race_supersedes_stale_status_publication(
     binding.tracker_authority_revision_source = (
         tracker.get_state_branch_generation
     )
+    binding.tracker_terminal_authority_changes_source = (
+        lambda _expected, _current: frozenset({task.identifier})
+    )
     binding.terminal_audit_publication_lock = lambda: threading.RLock()
     controller = UniversalTotalityLivenessController(store=store)
     runtime = WorkflowRuntime(
@@ -1086,6 +1089,155 @@ def test_real_terminal_revision_cas_fences_absent_to_retained_provenance(
     retry = runtime.reconcile()
     assert retry["projects"]["project-1"]["snapshot"]["published"] is True
     assert runtime.projections()[0]["reason_code"] == "terminal.provenance_retained"
+    runtime.close()
+    store.close()
+
+
+def test_scoped_active_audit_churn_does_not_starve_unrelated_review(tmp_path):
+    audit_task = make_issue("TASK-AUDIT-CHURN", state="In Validation")
+    review_task = make_issue("TASK-REVIEW-GREEN", state="In Review")
+    store = WorkflowJobStore(str(tmp_path / "scoped-audit-churn.sqlite3"))
+    settled_tasks = [
+        make_issue(f"TASK-SETTLED-{index:03d}", state="Merged")
+        for index in range(198)
+    ]
+    tracker = NativeTracker([audit_task, review_task, *settled_tasks])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    workflow = binding.terminal_audit_workflow
+    assert workflow is not None
+    record = TerminalAuditRecord(
+        audit_id="audit-churn",
+        project_id="project-1",
+        task_id=audit_task.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=EvidenceFingerprint("a" * 64),
+        request_state=RequestState.IN_PROGRESS,
+        source_generation=1,
+    )
+    workflow.ensure(record)
+    observed = {
+        "phase": "active",
+        "workflow_phase": "running",
+        "audit_job_present": True,
+        "audit_id": record.audit_id,
+        "request_state": record.request_state.value,
+        "target_state": record.target_state.value,
+        "evidence_fingerprint": record.evidence_fingerprint.digest,
+        "source_generation": record.source_generation,
+        "audit_generation": workflow.generation(record),
+        "actively_working": True,
+    }
+    binding.collector.sources[FactDomain.TERMINAL_AUDIT] = (
+        lambda issue: observed
+        if issue.identifier == audit_task.identifier
+        else {"phase": "none"}
+    )
+    binding.collector.sources[FactDomain.REVIEW_CI] = (
+        lambda issue: {"state": "open", "ci": "passed"}
+        if issue.identifier == review_task.identifier
+        else {"state": "open", "ci": "pending"}
+    )
+    revision = [0]
+    binding.terminal_authority_revision_source = lambda: revision[0]
+    binding.terminal_authority_changes_source = lambda expected: (
+        revision[0],
+        frozenset({audit_task.identifier}) if expected < revision[0] else frozenset(),
+    )
+    binding.tracker_terminal_authority_changes_source = (
+        lambda expected, current: frozenset({audit_task.identifier})
+        if expected != current
+        else frozenset()
+    )
+    proof_calls = []
+
+    def prove_lane(decision, value, action):
+        proof_calls.append((decision.task_id, action))
+        return (
+            decision.task_id == audit_task.identifier
+            and value["audit_id"] == record.audit_id
+            and store.terminal_audit_lane_materialized(
+                project_id="project-1",
+                task_id=audit_task.identifier,
+                audit_id=record.audit_id,
+                target_state=record.target_state.value,
+                evidence_fingerprint=record.evidence_fingerprint.digest,
+                audit_generation=workflow.generation(record),
+                source_generation=record.source_generation,
+                obligation_action=action or "terminal_audit",
+            )
+        )
+
+    binding.terminal_audit_lane_proof_source = prove_lane
+    controller = UniversalTotalityLivenessController(store=store)
+    published_cuts = []
+
+    def publish_projection(decisions, generation, **kwargs):
+        published_cuts.append((tuple(decisions), generation, kwargs))
+        return SimpleNamespace(
+            accepted=True,
+            rejection=None,
+            commit_memory=lambda: None,
+            rollback=lambda: None,
+        )
+
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        projection_publisher=publish_projection,
+        projection_epoch_source=lambda: 1,
+    )
+    original_publish = store.publish_snapshot_generation
+    asyncio.run(runtime.start())
+    stable = runtime.reconcile()
+
+    assert stable["projects"]["project-1"]["snapshot"]["published"] is True
+    assert {decision["task_id"] for decision in runtime.projections()} == {
+        audit_task.identifier,
+        review_task.identifier,
+    }
+
+    def churn_before_publication(generation, publisher, **kwargs):
+        revision[0] += 1
+        tracker.authority_generation = f"test-native:{revision[0] + 1}"
+        return original_publish(generation, publisher, **kwargs)
+
+    store.publish_snapshot_generation = churn_before_publication
+    report = runtime.reconcile()
+    retry = runtime.reconcile()
+
+    assert report["projects"]["project-1"]["snapshot"]["published"] is True
+    assert retry["projects"]["project-1"]["snapshot"]["published"] is True
+    assert report["projects"]["project-1"]["issues"] == 200
+    assert "requires_reconcile" not in report
+    assert "requires_reconcile" not in retry
+    assert proof_calls == [
+        (audit_task.identifier, None),
+        (audit_task.identifier, None),
+        (audit_task.identifier, None),
+    ]
+    assert [
+        job.action
+        for job in store.list_jobs(
+            project_id="project-1", task_id=review_task.identifier
+        )
+        if job.state in {WorkflowJobState.QUEUED, WorkflowJobState.RUNNING}
+    ] == ["review_merge"]
+    assert {
+        (decision["task_id"], decision["reason_code"])
+        for decision in runtime.projections()
+    } == {(review_task.identifier, "review.ready_to_merge")}
+    for decisions, _generation, kwargs in published_cuts[-2:]:
+        assert {decision.task_id for decision in decisions} == {
+            review_task.identifier
+        }
+        assert kwargs["incomplete_keys"] == {
+            ("project-1", audit_task.identifier)
+        }
+        assert kwargs["scan_complete"] is False
     runtime.close()
     store.close()
 

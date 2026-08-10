@@ -238,8 +238,14 @@ class WorkflowProjectBinding:
     ] | None = None
     terminal_audit_publication_lock: Callable[[], Any] | None = None
     terminal_authority_revision_source: Callable[[], int] | None = None
+    terminal_authority_changes_source: Callable[
+        [int], tuple[int, frozenset[str] | None]
+    ] | None = None
     workflow_authority_revision_source: Callable[[], int] | None = None
     tracker_authority_revision_source: Callable[[], str | None] | None = None
+    tracker_terminal_authority_changes_source: Callable[
+        [str, str], frozenset[str] | None
+    ] | None = None
 
     @property
     def enabled(self) -> bool:
@@ -1331,6 +1337,17 @@ class WorkflowRuntime:
                     getattr(project_store, "terminal_authority_revision", None)
                 )
                 else None,
+                terminal_authority_changes_source=(
+                    lambda revision, _project_id=project_id: (
+                        project_store.terminal_authority_changes_since(
+                            _project_id, revision
+                        )
+                    )
+                )
+                if callable(
+                    getattr(project_store, "terminal_authority_changes_since", None)
+                )
+                else None,
                 workflow_authority_revision_source=(
                     lambda _project_id=project_id: int(
                         project_store.workflow_authority_revision(_project_id)
@@ -1345,6 +1362,15 @@ class WorkflowRuntime:
                 )
                 if callable(
                     getattr(tracker, "get_state_branch_generation", None)
+                )
+                else None,
+                tracker_terminal_authority_changes_source=(
+                    lambda expected, current, _tracker=tracker: (
+                        _tracker.terminal_metadata_changes_between(expected, current)
+                    )
+                )
+                if callable(
+                    getattr(tracker, "terminal_metadata_changes_between", None)
                 )
                 else None,
                 dispatch_enabled=dispatch_enabled,
@@ -1943,9 +1969,12 @@ class WorkflowRuntime:
         self,
         project_id: str,
         batches: Sequence[Any],
+        *,
+        exclude_identities: set[tuple[str, str]] | None = None,
     ) -> dict[tuple[str, str], Any]:
         """Atomically publish one project's complete in-memory decision cut."""
 
+        excluded_keys = exclude_identities or set()
         with self._lock:
             previous = {
                 key: decision
@@ -1960,7 +1989,9 @@ class WorkflowRuntime:
             for batch in batches:
                 for item in getattr(batch, "tasks", ()):
                     decision = item.decision
-                    retained[(decision.project_id, decision.task_id)] = decision
+                    identity = (decision.project_id, decision.task_id)
+                    if identity not in excluded_keys:
+                        retained[identity] = decision
             self._latest_decisions = retained
             return previous
 
@@ -1969,10 +2000,12 @@ class WorkflowRuntime:
         decisions: Sequence[WorkDecision],
         *,
         authoritative_project_ids: Sequence[str],
+        exclude_identities: set[tuple[str, str]] | None = None,
     ) -> None:
         """Replace successful projects with one domain-owned projection cut."""
 
         projects = set(authoritative_project_ids)
+        excluded_keys = exclude_identities or set()
         with self._lock:
             retained = {
                 key: decision
@@ -1984,6 +2017,7 @@ class WorkflowRuntime:
                     (decision.project_id, decision.task_id): decision
                     for decision in decisions
                     if decision.project_id in projects
+                    and (decision.project_id, decision.task_id) not in excluded_keys
                 }
             )
             self._latest_decisions = retained
@@ -3002,6 +3036,7 @@ class WorkflowRuntime:
 
             with self._lock:
                 runtime_checkpoint = dict(self._latest_decisions)
+            publication_excluded_identities: set[tuple[str, str]] = set()
 
             def restore_caches() -> None:
                 with self._lock:
@@ -3061,11 +3096,13 @@ class WorkflowRuntime:
                                 item["integration_batch"],
                                 item["epic_batch"],
                             ),
+                            exclude_identities=publication_excluded_identities,
                         )
                     if publication_observation is not None:
                         self._publish_runtime_projection(
                             projection_decisions,
                             authoritative_project_ids=authoritative_projects,
+                            exclude_identities=publication_excluded_identities,
                         )
                         if self._projection_publisher is not None:
                             if projection_epoch is None:  # pragma: no cover
@@ -3359,7 +3396,13 @@ class WorkflowRuntime:
 
                         def publish_after_terminal_proof(
                         ) -> WorkflowSnapshotPublication:
+                            nonlocal liveness_reconciliation
+                            nonlocal projection_decisions
+                            nonlocal publication_observation
                             nonlocal superseded
+                            tracker_terminal_changes: dict[
+                                str, frozenset[str]
+                            ] = {}
                             for project_id, binding in sorted(
                                 publication_bindings.items()
                             ):
@@ -3400,9 +3443,28 @@ class WorkflowRuntime:
                                         ):
                                             current_tracker_revision = None
                                     if current_tracker_revision != expected_tracker_revision:
-                                        superseded = True
-                                        raise WorkflowPublicationSuperseded(
-                                            "tracker authority changed before publication"
+                                        changes_source = (
+                                            binding.tracker_terminal_authority_changes_source
+                                        )
+                                        scoped_tracker_changes = (
+                                            changes_source(
+                                                str(expected_tracker_revision),
+                                                str(current_tracker_revision),
+                                            )
+                                            if callable(changes_source)
+                                            and tracker_authority_mode
+                                            != "legacy_digest"
+                                            and current_tracker_revision is not None
+                                            else None
+                                        )
+                                        if scoped_tracker_changes is None:
+                                            superseded = True
+                                            raise WorkflowPublicationSuperseded(
+                                                "tracker authority changed before "
+                                                "publication"
+                                            )
+                                        tracker_terminal_changes[project_id] = (
+                                            scoped_tracker_changes
                                         )
                                 revision_source = (
                                     binding.terminal_authority_revision_source
@@ -3411,16 +3473,64 @@ class WorkflowRuntime:
                                     expected_revision = prepared_by_project[
                                         project_id
                                     ].get("terminal_authority_revision")
-                                    if (
-                                        expected_revision is None
-                                        or int(revision_source())
-                                        != int(expected_revision)
-                                    ):
+                                    current_revision = int(revision_source())
+                                    if expected_revision is None:
                                         superseded = True
                                         raise WorkflowPublicationSuperseded(
                                             "terminal-audit disposition changed "
                                             "before publication"
                                         )
+                                    if current_revision != int(expected_revision):
+                                        changes_source = (
+                                            binding.terminal_authority_changes_source
+                                        )
+                                        scoped_changes = (
+                                            changes_source(int(expected_revision))
+                                            if callable(changes_source)
+                                            else (current_revision, None)
+                                        )
+                                        changed_revision, changed_tasks = scoped_changes
+                                        active_audit_tasks = {
+                                            decision.task_id
+                                            for (
+                                                proof_binding,
+                                                decision,
+                                                observed,
+                                            ) in terminal_snapshot_proofs
+                                            if proof_binding is binding
+                                            and str(observed.get("request_state") or "")
+                                            in {"pending", "in_progress"}
+                                        }
+                                        if (
+                                            int(changed_revision) != current_revision
+                                            or not changed_tasks
+                                            or not changed_tasks <= active_audit_tasks
+                                            or (
+                                                project_id
+                                                in tracker_terminal_changes
+                                                and tracker_terminal_changes[project_id]
+                                                != changed_tasks
+                                            )
+                                        ):
+                                            superseded = True
+                                            raise WorkflowPublicationSuperseded(
+                                                "terminal-audit disposition changed "
+                                                "before publication"
+                                            )
+                                        publication_excluded_identities.update(
+                                            (project_id, task_id)
+                                            for task_id in changed_tasks
+                                        )
+                                    elif tracker_terminal_changes.get(project_id):
+                                        superseded = True
+                                        raise WorkflowPublicationSuperseded(
+                                            "tracker authority changed before publication"
+                                        )
+                                elif tracker_terminal_changes.get(project_id):
+                                    superseded = True
+                                    raise WorkflowPublicationSuperseded(
+                                        "tracker authority changed before publication"
+                                    )
                                 workflow_revision_source = (
                                     binding.workflow_authority_revision_source
                                 )
@@ -3490,6 +3600,54 @@ class WorkflowRuntime:
                                         "terminal-audit authority changed before "
                                         "publication"
                                     )
+                            if (
+                                publication_excluded_identities
+                                and publication_observation is not None
+                            ):
+                                projection_decisions = tuple(
+                                    decision
+                                    for decision in projection_decisions
+                                    if (decision.project_id, decision.task_id)
+                                    not in publication_excluded_identities
+                                )
+                                filtered_facts = {
+                                    identity: facts
+                                    for identity, facts in (
+                                        publication_observation.decision_facts.items()
+                                    )
+                                    if identity not in publication_excluded_identities
+                                }
+                                publication_observation = replace(
+                                    publication_observation,
+                                    decisions=tuple(
+                                        decision
+                                        for decision in publication_observation.decisions
+                                        if (decision.project_id, decision.task_id)
+                                        not in publication_excluded_identities
+                                    ),
+                                    decision_facts=filtered_facts,
+                                    escalations=tuple(
+                                        escalation
+                                        for escalation in (
+                                            publication_observation.escalations
+                                        )
+                                        if (
+                                            escalation.project_id,
+                                            escalation.task_id,
+                                        )
+                                        not in publication_excluded_identities
+                                    ),
+                                )
+                                liveness_reconciliation = (
+                                    self._liveness_reconciliation(
+                                        publication_observation,
+                                        snapshot_generation=generation,
+                                        domain_results=tuple(
+                                            item[4] for item in reconciled
+                                        ),
+                                        proven_actions=proven_actions,
+                                    )
+                                )
                             return publish()
 
                         published, publication_result = (

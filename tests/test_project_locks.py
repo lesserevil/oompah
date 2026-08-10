@@ -136,15 +136,38 @@ class TestProjectWriteLockApi:
         store = _make_store(tmp_path)
 
         assert store.terminal_authority_revision("proj-a") == 0
+        assert store.terminal_authority_changes_since("proj-a", 0) == (
+            0,
+            frozenset(),
+        )
         assert store.workflow_authority_revision("proj-a") == 0
-        assert store.advance_terminal_authority_revision("proj-a") == 1
-        assert store.advance_terminal_authority_revision("proj-a") == 2
+        assert store.advance_terminal_authority_revision("proj-a", "TASK-1") == 1
+        assert store.advance_terminal_authority_revision("proj-a", "TASK-2") == 2
         assert store.advance_workflow_authority_revision("proj-a") == 1
 
         assert store.terminal_authority_revision("proj-a") == 2
+        assert store.terminal_authority_changes_since("proj-a", 0) == (
+            2,
+            frozenset({"TASK-1", "TASK-2"}),
+        )
+        assert store.terminal_authority_changes_since("proj-a", 1) == (
+            2,
+            frozenset({"TASK-2"}),
+        )
         assert store.workflow_authority_revision("proj-a") == 1
         assert store.terminal_authority_revision("proj-b") == 0
         assert store.workflow_authority_revision("proj-b") == 0
+
+    def test_unscoped_terminal_authority_change_fails_closed(self, tmp_path):
+        store = _make_store(tmp_path)
+
+        assert store.advance_terminal_authority_revision("proj-a", "TASK-1") == 1
+        assert store.advance_terminal_authority_revision("proj-a") == 2
+        assert store.terminal_authority_changes_since("proj-a", 0) == (2, None)
+        assert store.terminal_authority_changes_since("proj-a", 2) == (
+            2,
+            frozenset(),
+        )
 
     def test_project_update_advances_workflow_authority_under_project_lock(
         self, tmp_path

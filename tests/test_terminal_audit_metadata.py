@@ -73,7 +73,9 @@ class _LockStore:
         with self._guard:
             return self._locks.setdefault(project_id, threading.RLock())
 
-    def advance_terminal_authority_revision(self, project_id: str) -> int:
+    def advance_terminal_authority_revision(
+        self, project_id: str, _task_id: str | None = None
+    ) -> int:
         with self.project_write_lock(project_id):
             revision = self._revisions.get(project_id, 0) + 1
             self._revisions[project_id] = revision

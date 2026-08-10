@@ -88,6 +88,9 @@ _repo_write_locks_guard = threading.Lock()
 # generation alongside the shared lock so that such a write invalidates every
 # instance's cache before the next read.
 _repo_read_generations: dict[str, int] = {}
+_repo_read_changes: dict[str, list[tuple[int, str | None, str | None]]] = {}
+_repo_read_change_floors: dict[str, int] = {}
+_REPO_READ_CHANGE_HISTORY_LIMIT = 4096
 
 
 def _repo_write_lock(repo_path: str) -> threading.RLock:
@@ -102,6 +105,7 @@ def _repo_write_lock(repo_path: str) -> threading.RLock:
         if repo_path not in _repo_write_locks:
             _repo_write_locks[repo_path] = threading.RLock()
         _repo_read_generations.setdefault(repo_path, 0)
+        _repo_read_changes.setdefault(repo_path, [])
         return _repo_write_locks[repo_path]
 
 
@@ -111,12 +115,31 @@ def _repo_read_generation(repo_path: str) -> int:
         return _repo_read_generations.setdefault(repo_path, 0)
 
 
-def _advance_repo_read_generation(repo_path: str) -> int:
+def _advance_repo_read_generation(
+    repo_path: str,
+    *,
+    task_id: str | None = None,
+    authority_kind: str | None = None,
+) -> int:
     """Invalidate read caches held by all tracker instances for *repo_path*."""
     with _repo_write_locks_guard:
         generation = _repo_read_generations.setdefault(repo_path, 0) + 1
         _repo_read_generations[repo_path] = generation
+        changes = _repo_read_changes.setdefault(repo_path, [])
+        changes.append(
+            (
+                generation,
+                str(task_id or "").strip() or None,
+                str(authority_kind or "").strip() or None,
+            )
+        )
+        excess = len(changes) - _REPO_READ_CHANGE_HISTORY_LIMIT
+        if excess > 0:
+            _repo_read_change_floors[repo_path] = changes[excess - 1][0]
+            del changes[:excess]
         return generation
+
+
 TASKS_DIR = ".oompah/tasks"
 DEFAULT_TASK_PREFIX = "TASK"
 _IMPORT_INDEX_FILE = "external-imports.yml"
@@ -1259,7 +1282,12 @@ class OompahMarkdownTracker:
                 meta[compat_key] = value
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, str(rec["body"]))
-            self.invalidate_read_cache()
+            self.invalidate_read_cache(
+                task_id=identifier,
+                authority_kind=(
+                    "terminal_audit" if key == "oompah.terminal_audit" else None
+                ),
+            )
             self._commit_and_push(f"Update metadata for oompah task {meta['id']}")
 
     def is_archived(self, issue: Issue) -> bool:
@@ -1351,21 +1379,36 @@ class OompahMarkdownTracker:
                 stderr = last_push.stderr.strip() or last_push.stdout.strip()
                 raise TrackerError(f"git push origin HEAD:{branch} failed: {stderr}")
 
-    def invalidate_read_cache(self) -> None:
+    def invalidate_read_cache(
+        self,
+        *,
+        task_id: str | None = None,
+        authority_kind: str | None = None,
+    ) -> int:
         # A task mutation may have been performed by another tracker instance
         # for the same repository.  Advancing a shared generation prevents this
         # instance from returning a record whose cached path was just moved to
         # another status directory.
-        _advance_repo_read_generation(self._repo_lock_key)
+        generation = _advance_repo_read_generation(
+            self._repo_lock_key,
+            task_id=task_id,
+            authority_kind=authority_kind,
+        )
+        self._clear_read_cache_local()
+        # Invalidation occurs after the mutation has been written to the
+        # authoritative worktree and before the mutation is returned to the
+        # caller, so server-side snapshots are invalidated synchronously.
+        self._notify_read_change()
+        return generation
+
+    def _clear_read_cache_local(self) -> None:
+        """Discard this instance's caches without asserting an authority change."""
+
         with self._read_cache_guard:
             self._read_cache = None
             self._read_cache_by_id = None
             self._read_cache_generation = None
             self._corrupt_stubs = None
-        # Invalidation occurs after the mutation has been written to the
-        # authoritative worktree and before the mutation is returned to the
-        # caller, so server-side snapshots are invalidated synchronously.
-        self._notify_read_change()
 
     def get_state_branch_generation(self) -> str | None:
         """Return the exact local state-branch read generation.
@@ -1380,6 +1423,84 @@ class OompahMarkdownTracker:
             return None
         with self._write_lock:
             return self._state_branch_generation_locked()
+
+    def terminal_metadata_changes_between(
+        self,
+        expected_generation: str,
+        current_generation: str,
+    ) -> frozenset[str] | None:
+        """Prove that a generation delta contains only terminal metadata writes.
+
+        The shared read epoch identifies every local tracker mutation, while
+        the Git diff proves that a concurrent sync did not bring unrelated
+        task changes into the same commit range.  ``None`` is the fail-closed
+        result for an incomplete journal, an unscoped mutation, or any changed
+        path outside the exact terminal-audit task set.
+        """
+
+        def split_generation(value: str) -> tuple[str, int] | None:
+            commit, separator, raw_epoch = str(value or "").rpartition(":")
+            if (
+                not separator
+                or len(commit) != 40
+                or any(character not in "0123456789abcdef" for character in commit)
+                or not raw_epoch.isdigit()
+            ):
+                return None
+            return commit, int(raw_epoch)
+
+        expected = split_generation(expected_generation)
+        current = split_generation(current_generation)
+        if expected is None or current is None:
+            return None
+        expected_commit, expected_epoch = expected
+        _current_commit, current_epoch = current
+        if current_epoch < expected_epoch:
+            return None
+        with self._write_lock:
+            if self._state_branch_generation_locked() != current_generation:
+                return None
+            with _repo_write_locks_guard:
+                floor = _repo_read_change_floors.get(self._repo_lock_key, 0)
+                if expected_epoch < floor:
+                    return None
+                changes = tuple(
+                    (task_id, authority_kind)
+                    for epoch, task_id, authority_kind in _repo_read_changes.get(
+                        self._repo_lock_key, []
+                    )
+                    if expected_epoch < epoch <= current_epoch
+                )
+            if len(changes) != current_epoch - expected_epoch:
+                return None
+            if any(
+                task_id is None or authority_kind != "terminal_audit"
+                for task_id, authority_kind in changes
+            ):
+                return None
+            changed_tasks = frozenset(
+                task_id for task_id, _authority_kind in changes if task_id is not None
+            )
+            result = self._git(
+                ["diff", "--name-only", expected_commit, "--"],
+                check=False,
+                cwd=self._get_state_root(),
+            )
+            if result.returncode != 0:
+                return None
+            diff_tasks: set[str] = set()
+            task_prefix = f"{TASKS_DIR}/"
+            for raw_path in result.stdout.splitlines():
+                path = raw_path.strip()
+                if (
+                    not path.startswith(task_prefix)
+                    or not path.endswith(".md")
+                ):
+                    return None
+                diff_tasks.add(Path(path).stem)
+            if frozenset(diff_tasks) != changed_tasks:
+                return None
+            return changed_tasks
 
     def _state_branch_generation_locked(self) -> str | None:
         """Return the local source generation while the mutation lock is held."""
@@ -1768,7 +1889,11 @@ class OompahMarkdownTracker:
         return None
 
     def _read_record_uncached(self, identifier: str) -> dict[str, Any] | None:
-        self.invalidate_read_cache()
+        # Writers already hold the repository mutation lock. They need a
+        # fresh local read before applying a change, but this read-side cache
+        # clear is not tracker authority and must not advance the shared
+        # generation or emit a phantom unscoped mutation.
+        self._clear_read_cache_local()
         return self._read_record(identifier)
 
     def _lookup_id(self, identifier: str) -> str:
