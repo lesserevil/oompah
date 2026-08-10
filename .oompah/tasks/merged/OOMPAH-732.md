@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-10T01:14:57.911447Z'
+updated_at: '2026-08-10T01:15:13.398698Z'
 work_branch: OOMPAH-732
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/688
@@ -189,6 +189,19 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-08-03T19:33:05.331769+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-732
+    target_state: Merged
+    evidence_fingerprint: f5969ba60f6c3e053fe89bbe102d8621e2f6ff4f2d89399d8902dedf930515b5
+    audit_ids:
+    - audit-f3ea82b6a3e0
+    - audit-99053d9cd785
+    - audit-0477ab3d24ad
+    - audit-7a33c8d7246a
+    - audit-dffd49eb66a8
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T01:15:05.344028+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-732
@@ -240,7 +253,31 @@ oompah.terminal_audit:
     created_at: '2026-08-10T01:14:50.428646+00:00'
     selected_ref: 9aadb07d1e9551c3527dec414a426c6eb9b1b857
     selected_sha: 9aadb07d1e9551c3527dec414a426c6eb9b1b857
-    applied: false
+    applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Historical audited Done work is complete and its selected head is on main,
+      but current parent-landing evidence cannot be reconstructed safely enough for
+      Merged; retain immutable terminal provenance and retire reassessment.
+    marked_at: '2026-08-10T01:15:11.175518+00:00'
+    updated_at: '2026-08-10T01:15:11.175518+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Historical audited Done work is complete and its selected head is on
+        main, but current parent-landing evidence cannot be reconstructed safely enough
+        for Merged; retain immutable terminal provenance and retire reassessment.
+      recorded_at: '2026-08-10T01:15:11.175518+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
@@ -333,7 +370,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-732
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -348,12 +385,13 @@ oompah.terminal_audit:
     selected_ref: 9aadb07d1e9551c3527dec414a426c6eb9b1b857
     selected_sha: 9aadb07d1e9551c3527dec414a426c6eb9b1b857
     source_generation: 1
+    updated_at: '2026-08-10T01:15:05.343983+00:00'
   - version: 1
     audit_id: audit-dffd49eb66a8
     project_id: proj-14849f1b
     task_id: OOMPAH-732
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -368,6 +406,7 @@ oompah.terminal_audit:
     selected_ref: 9aadb07d1e9551c3527dec414a426c6eb9b1b857
     selected_sha: 9aadb07d1e9551c3527dec414a426c6eb9b1b857
     source_generation: 1
+    updated_at: '2026-08-10T01:15:05.344012+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6011975b42a6
@@ -619,5 +658,12 @@ author: oompah
 created: 2026-08-03 19:35
 ---
 Applied the auditor's accepted PASS so the completed standalone-delivery starvation fix can leave In Validation; OOMPAH-734 tracks the finalization bug.
+---
+author: oompah
+created: 2026-08-10 01:15
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Selected or integrated head 9aadb07 is an ancestor of current main and the completed audit evidence is preserved; retire the historical record as Merged.
 ---
 <!-- COMMENTS:END -->
