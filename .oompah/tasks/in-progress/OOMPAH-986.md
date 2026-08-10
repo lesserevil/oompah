@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T04:41:10.778919Z'
-updated_at: '2026-08-10T04:52:47.134895Z'
+updated_at: '2026-08-10T05:04:45.596338Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,5 +37,10 @@ author: oompah
 created: 2026-08-10 04:52
 ---
 Direct-owner implementation is committed and pushed at exact head 54c318df1856316862ae8e398f98bbfa3611848a on branch OOMPAH-986 in /home/shedwards/src/oompah-986. The runtime now journals terminal-authority mutations by exact task. If a racing change is scoped only to active audit tasks and each existing durable audit lane still proves under the publication lock, those stale task projections are preserved as explicitly incomplete while unrelated review/integration decisions publish. Unscoped changes, tracker generation changes, provenance changes, failed same-task lane proofs, workflow owner changes, and pause changes retain fail-closed supersession. A deterministic 200-task regression performs two consecutive audit-revision races and proves the unrelated green review materializes exactly one review_merge job with no stale audit projection. Verification: 325 focused workflow runtime/controller/job-store/project-lock/terminal-metadata tests passed; make check-secrets and git diff --check passed. Branch is clean and up to date; task is intentionally not submitted pending independent review/full exact gate.
+---
+author: oompah
+created: 2026-08-10 05:04
+---
+Supersedes prior head 54c318df1/c1e82283f after independent review exposed two production-shape blockers. Corrected exact head 4c1b1fb3f52345048207f11bc2389db54f9da96b is pushed. First, excluded active-audit identities are removed from runtime projections and omitted/masked incomplete in the canonical cut rather than retaining prior stale decisions. Second, paired NativeTracker state-branch generation changes are now proved through a bounded shared mutation journal plus exact Git task-file diff; only post-write oompah.terminal_audit mutations carry task scope. Pre-write uncached reads clear only local cache and no-op metadata writes no longer create phantom tracker authority. Runtime requires the tracker changed-task set to exactly match the ProjectStore terminal changed-task set and an active durable lane proof. Unrelated/unscoped tracker writes, provenance changes, failed lane proofs, and owner/pause changes remain fail-closed. Verification: 497 focused workflow runtime/controller/job-store/native tracker/state-branch/project-lock/terminal-metadata tests passed; make check-secrets and git diff --check passed. Branch/worktree are clean and up to date; not submitted pending final independent review/full exact gate.
 ---
 <!-- COMMENTS:END -->
