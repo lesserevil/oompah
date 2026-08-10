@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-03T20:05:48.523942Z'
+updated_at: '2026-08-10T00:28:05.923403Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -283,6 +283,17 @@ oompah.terminal_audit:
     done_audit_ids:
     - audit-086a1d6e8251
     created_at: '2026-08-03T20:05:46.009076+00:00'
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-ea34842795ed
+    project_id: proj-14849f1b
+    task_id: OOMPAH-695
+    digest: 84cdfa826dca38d343bb68080c1aff8b5d88fa0efe4754d2aec3337b1eaf7f97
+  - version: 1
+    audit_id: audit-533f51226090
+    project_id: proj-14849f1b
+    task_id: OOMPAH-695
+    digest: 84cdfa826dca38d343bb68080c1aff8b5d88fa0efe4754d2aec3337b1eaf7f97
   version: 1
   pending_chain:
   - version: 1
@@ -320,6 +331,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-08-02T05:26:32.059637+00:00'
     updated_at: '2026-08-02T06:03:07.211768+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-f57bcbb9815d
     project_id: proj-14849f1b
@@ -355,12 +367,13 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-08-02T06:19:17.215268+00:00'
     updated_at: '2026-08-02T06:23:58.313878+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-086a1d6e8251
     project_id: proj-14849f1b
     task_id: OOMPAH-695
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -389,6 +402,7 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-08-02T06:49:41.239977+00:00'
     updated_at: '2026-08-02T06:54:34.138790+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-43b99015d343
     project_id: proj-14849f1b
@@ -423,6 +437,47 @@ oompah.terminal_audit:
     previous_state: Done
     created_at: '2026-08-02T07:26:41.299111+00:00'
     updated_at: '2026-08-03T20:05:46.009076+00:00'
+    source_generation: 1
+  - version: 1
+    audit_id: audit-ea34842795ed
+    project_id: proj-14849f1b
+    task_id: OOMPAH-695
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 84cdfa826dca38d343bb68080c1aff8b5d88fa0efe4754d2aec3337b1eaf7f97
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-workflow-rollup
+      source: integrator
+    previous_state: Done
+    created_at: '2026-08-10T00:28:03.102988+00:00'
+    selected_ref: 1edd55f7c62f43448dd1d485e069cf3b61efd25b
+    selected_sha: 1edd55f7c62f43448dd1d485e069cf3b61efd25b
+  - version: 1
+    audit_id: audit-533f51226090
+    project_id: proj-14849f1b
+    task_id: OOMPAH-695
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 84cdfa826dca38d343bb68080c1aff8b5d88fa0efe4754d2aec3337b1eaf7f97
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-workflow-rollup
+      source: integrator
+    previous_state: Done
+    created_at: '2026-08-10T00:28:03.102988+00:00'
+    selected_ref: 1edd55f7c62f43448dd1d485e069cf3b61efd25b
+    selected_sha: 1edd55f7c62f43448dd1d485e069cf3b61efd25b
   attempt_history:
   - version: 1
     attempt_id: attempt-f7901f6eb210
