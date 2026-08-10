@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T10:30:40.633471Z'
-updated_at: '2026-08-10T15:38:45.528417Z'
+updated_at: '2026-08-10T15:38:53.495022Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,17 @@ oompah.terminal_audit:
     created_at: '2026-08-10T15:38:41.196063+00:00'
     selected_ref: origin/main
     selected_sha: 2ab880be5c25d7b5c70000845698d39d5d53d3c8
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-991
+    target_state: Merged
+    evidence_fingerprint: 918102097907d59840d1fc02f563c4428013d578966a16fd4bf2eb674faac141
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-10T15:38:51.508876+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -71,5 +81,12 @@ author: oompah
 created: 2026-08-10 10:57
 ---
 Cross-version CI confirmation: PR #798 at exact head c4ad83e47b1492e7526098dcf5816b3dfd3eb50b passed the complete GitHub test matrix on Python 3.11, 3.12, and 3.13. This independently confirms the state-scoped WebSocket bootstrap isolation repair is no longer worker-order or interpreter-version dependent. The task remains In Progress until the shared integration PR lands.
+---
+author: oompah
+created: 2026-08-10 15:38
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #798 merged as 2ab880be5; exact OOMPAH-991 commit c4ad83e47 is contained in main and protected CI passed.
 ---
 <!-- COMMENTS:END -->
