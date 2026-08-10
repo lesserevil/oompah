@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T12:43:02.225351Z'
-updated_at: '2026-08-10T13:47:12.542519Z'
+updated_at: '2026-08-10T14:31:34.403942Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-10 13:47
 ---
 Implementation and two independent adversarial reviews are complete on the shared OOMPAH-989 integration branch at exact local head 88bff3ad5a6d96b454a584a8a9078544f72c8e4e. Python 3.11/3.12 lifecycle and adjacent orchestrator termination suites pass; the replacement remains unpushed pending the exact full Makefile gate.
+---
+author: oompah
+created: 2026-08-10 14:31
+---
+Residual stop-race repair is committed locally at exact integration head bb81282585fa91b1a88ae4409aaa58b99133482a. Root cause was an incomplete empty live-process snapshot being mistaken for proof of retirement, which skipped SIGKILL. The fix preserves snapshot completeness, escalates on uncertainty, partitions refresh/signal/observation deadlines, and adds deterministic incomplete-snapshot plus leak-safe fork coverage. Independent safety review approved. Focused evidence: Python 3.11 27 passed; Python 3.12 27 passed; original adversarial test 100/100 fresh-process runs; adjacent orchestrator 14 passed; process-global sentinel gate passed. Starting the exact full Makefile gate; head remains unpushed until it passes.
 ---
 <!-- COMMENTS:END -->
