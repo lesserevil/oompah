@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-989
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Keep graceful restart responsive while quiesce drains workflow work
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T06:19:44.763738Z'
-updated_at: '2026-08-10T15:35:49.487285Z'
+updated_at: '2026-08-10T15:37:49.437249Z'
 work_branch: OOMPAH-989
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/798
@@ -49,6 +49,7 @@ oompah.terminal_audit:
     digest: 7d9ff7a0d41517e1b658cab6c487fcc8dc251d5210dbb4737c3a46f5abeb785d
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-989","audit-d381c946060e","attempt-22be73620625"]': '2026-08-10T15:26:42.278963+00:00'
+    '["proj-14849f1b","OOMPAH-989","audit-9bd39662036b","attempt-7e3697170d2a"]': '2026-08-10T15:37:44.626454+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-989
@@ -59,6 +60,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-10T15:26:42.278979+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-989
+    target_state: Merged
+    evidence_fingerprint: 7d9ff7a0d41517e1b658cab6c487fcc8dc251d5210dbb4737c3a46f5abeb785d
+    audit_ids:
+    - audit-9bd39662036b
+    kind: result
+    applied: true
+    retired_at: '2026-08-10T15:37:44.626475+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-989
@@ -73,6 +83,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-10T15:26:42.278990+00:00'
     applied_at: '2026-08-10T15:26:50.126339+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-989
+    audit_id: audit-9bd39662036b
+    attempt_id: attempt-7e3697170d2a
+    target_state: Merged
+    evidence_fingerprint: 7d9ff7a0d41517e1b658cab6c487fcc8dc251d5210dbb4737c3a46f5abeb785d
+    status: Merged
+    audit_ids:
+    - audit-9bd39662036b
+    kind: result
+    applied: false
+    created_at: '2026-08-10T15:37:44.626488+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -119,7 +141,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-989
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -128,7 +150,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7e3697170d2a
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -140,6 +162,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-989
       selected_ref: bb81282585fa91b1a88ae4409aaa58b99133482a
       selected_sha: bb81282585fa91b1a88ae4409aaa58b99133482a
+      verdict: pass
+      completed_at: '2026-08-10T15:37:44.626295+00:00'
+      ended_at: '2026-08-10T15:37:44.626295+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -149,7 +174,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T15:02:13.626824+00:00'
     selected_ref: bb81282585fa91b1a88ae4409aaa58b99133482a
     selected_sha: bb81282585fa91b1a88ae4409aaa58b99133482a
-    updated_at: '2026-08-10T15:35:41.039292+00:00'
+    updated_at: '2026-08-10T15:37:44.626295+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-22be73620625
