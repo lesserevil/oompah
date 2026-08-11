@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1096
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Prevent unrelated tracker churn from starving exact Ready-work publication
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T17:33:22.243112Z'
-updated_at: '2026-08-11T17:34:45.599360Z'
+updated_at: '2026-08-11T17:35:03.020365Z'
 work_branch: null
 target_branch: null
 review_url: null
