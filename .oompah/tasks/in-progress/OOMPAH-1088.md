@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:17:03.737871Z'
-updated_at: '2026-08-11T14:18:04.244267Z'
+updated_at: '2026-08-11T14:34:16.569984Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-08-11 14:18
 ---
 Direct-owner recovery claimed. Reproduced from the live OOMPAH-1084 incident: a pre-provider scheduler runtime retained submission authority after retirement, quarantined the owner-claim job, and held graceful shutdown open at running=0. Implementation is starting from deployed main 6a0f7210 with focused concurrent claim/submit, provider-start failure, lock release, and restart-drain regressions.
+---
+author: oompah
+created: 2026-08-11 14:34
+---
+Implemented the exact pre-provider ghost/deadlock repair on the claimed branch. CrossLoopTaskLock now supports bounded acquisition; exact submission returns structured retryable submission_authority_busy instead of retaining an HTTP connection; durable direct-owner claims retry cleanly instead of quarantining; and canceled/slow pre-provider contributor evidence releases task authority within a bounded grace period without provider/workspace contact, with structured retirement evidence and budget rollback. Focused evidence currently green: 224 authority/owner/provider tests, 340 submission/handoff tests, 51 workflow-boundary/event-loop tests, compileall, and terminal mutation scan (21/21 allowlisted). Final diff/secret checks and push are in progress; not submitted or merged.
 ---
 <!-- COMMENTS:END -->
