@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1113
 type: bug
-status: Backlog
+status: Archived
 priority: 2
 title: '[backend:terminal_transition_coordinator] Failed to apply audit-result status
   ''Done'' for TRICKLE-128'
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T21:07:45.520946Z'
-updated_at: '2026-08-11T22:45:46.222186Z'
+updated_at: '2026-08-11T22:45:50.677938Z'
 work_branch: null
 target_branch: null
 review_url: null
