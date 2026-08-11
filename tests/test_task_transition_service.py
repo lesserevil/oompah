@@ -677,6 +677,72 @@ async def test_illegal_lifecycle_edge_is_rejected(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_backlog_direct_claim_requires_project_owner_authority(tmp_path):
+    issue = _issue(state="Backlog", assignment_id=None)
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+
+    rejected = await service.execute(
+        _intent(
+            issue,
+            actor="oompah",
+            authority=TransitionAuthority.ORCHESTRATOR,
+            reason_code="implementation.direct_owner_claim",
+            evidence_generation="claim-1",
+        )
+    )
+
+    assert rejected.disposition is TransitionDisposition.REJECTED
+    assert rejected.reason_code == "transition.project_owner_authority_required"
+    assert tracker.updates == []
+
+
+@pytest.mark.asyncio
+async def test_existing_api_backlog_promotion_policy_is_unchanged(tmp_path):
+    issue = _issue(state="Backlog", assignment_id=None)
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+
+    applied = await service.execute(
+        _intent(
+            issue,
+            requested_status="Open",
+            actor="alice",
+            authority=TransitionAuthority.API,
+            reason_code="api.status_updated",
+            evidence_generation=None,
+        )
+    )
+
+    assert applied.disposition is TransitionDisposition.APPLIED
+    assert tracker.updates == [("TASK-1", "Open")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("initial_status", ["Backlog", "Open"])
+async def test_project_owner_can_atomically_claim_eligible_work(
+    tmp_path,
+    initial_status,
+):
+    issue = _issue(state=initial_status, assignment_id=None)
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+
+    applied = await service.execute(
+        _intent(
+            issue,
+            actor="alice",
+            authority=TransitionAuthority.PROJECT_OWNER,
+            reason_code="implementation.direct_owner_claim",
+            evidence_generation="claim-1",
+        )
+    )
+
+    assert applied.disposition is TransitionDisposition.APPLIED
+    assert tracker.updates == [("TASK-1", "In Progress")]
+
+
+@pytest.mark.asyncio
 async def test_direct_maintenance_can_request_terminal_audit_from_open(tmp_path):
     maintenance = _issue(
         title="Rebase epic-EPIC-1 onto main",

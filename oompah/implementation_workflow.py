@@ -1129,6 +1129,23 @@ class ImplementationWorkflowHandler:
                     )
         return await _resolve(self.backend.build_transition(context, verification))
 
+    async def compensate_transition_failure(
+        self,
+        context: WorkflowJobContext,
+        failure: TransitionOutcome | WorkflowActionError,
+    ) -> Mapping[str, Any] | None:
+        compensate = getattr(self.backend, "compensate_transition_failure", None)
+        if not callable(compensate):
+            return None
+        result = await _resolve(compensate(context, failure))
+        if result is not None and not isinstance(result, Mapping):
+            raise WorkflowActionError(
+                "implementation backend returned invalid transition compensation",
+                category=WorkflowFailureCategory.PERMANENT,
+                retryable=False,
+            )
+        return result
+
     async def finalize_transition(
         self,
         context: WorkflowJobContext,

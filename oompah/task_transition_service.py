@@ -36,6 +36,7 @@ from oompah.integration import direct_epic_maintenance_handoff_ready
 from oompah.models import Issue
 from oompah.statuses import (
     ARCHIVED,
+    BACKLOG,
     DONE,
     IN_PROGRESS,
     IN_VALIDATION,
@@ -1815,6 +1816,26 @@ class TaskTransitionService:
                 if rule is not None
                 for requirement in rule.requirements
             )
+            if (
+                observed_status == BACKLOG
+                and intent.requested_status == IN_PROGRESS
+                and intent.authority is not TransitionAuthority.PROJECT_OWNER
+            ):
+                outcome = self._outcome(
+                    transition_id,
+                    intent,
+                    TransitionDisposition.REJECTED,
+                    "transition.project_owner_authority_required",
+                    issue,
+                )
+                await asyncio.to_thread(
+                    self.journal.append,
+                    transition_id,
+                    TransitionPhase.REJECTED,
+                    outcome.reason_code,
+                    outcome,
+                )
+                return outcome
             if (
                 TransitionRequirement.IMPLEMENTATION_GENERATION in requirements
                 and not intent.evidence_generation

@@ -162,6 +162,15 @@ def test_decomposition_and_owner_duplicate_resolution_are_legal_edges():
     assert is_valid_transition(NEEDS_HUMAN, DUPLICATE_CANDIDATE)
 
 
+def test_backlog_direct_owner_claim_is_an_owner_only_atomic_transition():
+    direct_claim = TRANSITION_RULES[(BACKLOG, IN_PROGRESS)].requirements
+
+    assert TransitionRequirement.PROJECT_OWNER_AUTHORITY in direct_claim
+    assert TransitionRequirement.ACTIONABLE_DESCRIPTION in direct_claim
+    assert TransitionRequirement.VALID_OWNER_LEASE in direct_claim
+    assert TransitionRequirement.IMPLEMENTATION_GENERATION in direct_claim
+
+
 def test_gate_routing_and_watchdog_recovery_are_version_fenced_edges():
     """Internal gates may override Open; repaired stalled work may reopen."""
 

@@ -34,6 +34,7 @@ from oompah.models import Issue, OwnerClaim
 from oompah.oompah_md_tracker import OompahMarkdownTracker
 from oompah.orchestrator import Orchestrator
 from oompah.statuses import (
+    BACKLOG,
     DUPLICATE_CANDIDATE,
     IN_PROGRESS,
     NEEDS_HUMAN,
@@ -41,6 +42,7 @@ from oompah.statuses import (
     READY_TO_INTEGRATE,
 )
 from oompah.task_transition_service import (
+    TransitionAuthority,
     TransitionDisposition,
     TransitionJournal,
     TransitionOutcome,
@@ -339,6 +341,93 @@ async def test_start_dispatches_exact_generation_without_direct_status_write(tmp
     assert tracker.status_writes == []
     assert transition.requested_status == IN_PROGRESS
     effects.receipts.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("install_replacement", [False, True])
+async def test_direct_owner_transition_rejection_compensates_exact_claim(
+    tmp_path,
+    install_replacement,
+):
+    issue = make_issue(status=BACKLOG)
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    jobs, _context = make_context(
+        tmp_path,
+        generation="owner-claim-generation",
+        action=ImplementationAction.DIRECT_OWNER_CLAIM,
+        evidence=issue_authority_version(issue),
+        payload={
+            "owner_id": "project-owner",
+            "claim_id": "claim-rejected-transition",
+            "expected_status": BACKLOG,
+        },
+    )
+    orch.workflow_job_store.close()
+    orch.workflow_job_store = jobs
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    captured = []
+
+    class RejectingTransitionService:
+        async def execute(self, intent):
+            captured.append(intent)
+            if install_replacement:
+                orch.grant_owner_claim(
+                    issue_id=issue.id,
+                    project_id="project-a",
+                    owner_login="replacement-owner",
+                    claim_id="replacement-claim",
+                )
+            return TransitionOutcome(
+                transition_id="rejected-owner-transition",
+                project_id="project-a",
+                task_id=issue.identifier,
+                disposition=TransitionDisposition.REJECTED,
+                reason_code="transition.test_permanent_rejection",
+                observed_status=issue.state,
+                observed_version=issue_authority_version(issue),
+                requested_status=IN_PROGRESS,
+            )
+
+    worker = DurableWorkflowWorker(
+        store=jobs,
+        handlers={
+            ImplementationAction.DIRECT_OWNER_CLAIM.value: (
+                ImplementationWorkflowHandler(
+                    ProductionImplementationWorkflowBackend(effects)
+                )
+            )
+        },
+        transition_services={"project-a": RejectingTransitionService()},
+        worker_id="owner-claim-compensation-worker",
+    )
+
+    result = await worker.run_once()
+
+    assert result.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    assert captured[0].actor == "project-owner"
+    assert captured[0].authority is TransitionAuthority.PROJECT_OWNER
+    current = orch._owner_claim_for_issue(issue.id, "project-a")
+    if install_replacement:
+        assert current is not None
+        assert current.claim_id == "replacement-claim"
+        assert current.owner_login == "replacement-owner"
+    else:
+        assert current is None
+    durable = jobs.get(result.job_id)
+    assert durable.state is WorkflowJobState.EXHAUSTED
+    compensation = durable.checkpoint["transition_compensation"]
+    assert compensation["claim_id"] == "claim-rejected-transition"
+    assert compensation["replacement_claim_id"] == (
+        "replacement-claim" if install_replacement else None
+    )
+    compensated = ImplementationDisposition.from_dict(
+        durable.checkpoint["verification"]["disposition"]
+    )
+    assert compensated.state is ImplementationState.REVOKED
+    assert compensated.owner_id == "project-owner"
+    effects.receipts.close()
+    jobs.close()
 
 
 @pytest.mark.asyncio

@@ -549,7 +549,7 @@ VALID_TRANSITIONS: Mapping[str, frozenset[str]] = MappingProxyType(
         PROPOSED: frozenset(
             {BACKLOG, OPEN, DECOMPOSED, DUPLICATE_CANDIDATE, ARCHIVED}
         ),
-        BACKLOG: frozenset({OPEN, DUPLICATE_CANDIDATE, ARCHIVED}),
+        BACKLOG: frozenset({OPEN, IN_PROGRESS, DUPLICATE_CANDIDATE, ARCHIVED}),
         OPEN: frozenset(
             {
                 IN_PROGRESS,
@@ -679,6 +679,13 @@ def _requirements_for(
                 TransitionRequirement.IMPLEMENTATION_GENERATION,
             }
         )
+        if from_status == BACKLOG:
+            requirements.update(
+                {
+                    TransitionRequirement.PROJECT_OWNER_AUTHORITY,
+                    TransitionRequirement.ACTIONABLE_DESCRIPTION,
+                }
+            )
     if to_status == READY_TO_INTEGRATE:
         requirements.add(TransitionRequirement.ACCEPTED_SUBMISSION)
     if to_status == IN_VALIDATION:

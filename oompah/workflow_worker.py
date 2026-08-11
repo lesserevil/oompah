@@ -594,6 +594,42 @@ class DurableWorkflowWorker:
         )
         await self._notify(phase, context.job)
 
+    async def _compensate_transition_failure(
+        self,
+        handler: WorkflowActionHandler,
+        context: WorkflowJobContext,
+        failure: TransitionOutcome | WorkflowActionError,
+        *,
+        checkpoint: Mapping[str, Any],
+    ) -> None:
+        compensate = getattr(handler, "compensate_transition_failure", None)
+        if not callable(compensate):
+            return
+        result = await self._bounded(
+            "compensate_transition_failure",
+            compensate(context, failure),
+        )
+        if result is None:
+            return
+        if not isinstance(result, Mapping):
+            raise WorkflowActionError(
+                "handler returned invalid transition compensation",
+                category=WorkflowFailureCategory.PERMANENT,
+                retryable=False,
+            )
+        durable_checkpoint = dict(checkpoint)
+        durable_checkpoint["transition_compensation"] = dict(result)
+        raw_disposition = result.get("disposition")
+        if isinstance(raw_disposition, Mapping):
+            verification = dict(durable_checkpoint.get("verification") or {})
+            verification["disposition"] = dict(raw_disposition)
+            durable_checkpoint["verification"] = verification
+        await self._checkpoint(
+            context,
+            phase="transition_compensated",
+            checkpoint=durable_checkpoint,
+        )
+
     async def _heartbeat(
         self,
         context: WorkflowJobContext,
@@ -932,31 +968,85 @@ class DurableWorkflowWorker:
                             handler.build_transition(context, verification),
                         )
                     )
+                except WorkflowActionError as exc:
+                    if not exc.retryable:
+                        await self._compensate_transition_failure(
+                            handler,
+                            context,
+                            exc,
+                            checkpoint={
+                                "revalidation": self._revalidation_checkpoint(
+                                    revalidation
+                                ),
+                                "effect": dict(effect.receipt),
+                                "verification": dict(verification.receipt),
+                            },
+                        )
+                    raise
                 except (TypeError, ValueError) as exc:
-                    raise WorkflowActionError(
+                    failure = WorkflowActionError(
                         "workflow checkpoint contains an invalid transition intent",
                         category=WorkflowFailureCategory.PERMANENT,
                         retryable=False,
-                    ) from exc
+                    )
+                    await self._compensate_transition_failure(
+                        handler,
+                        context,
+                        failure,
+                        checkpoint={
+                            "revalidation": self._revalidation_checkpoint(
+                                revalidation
+                            ),
+                            "effect": dict(effect.receipt),
+                            "verification": dict(verification.receipt),
+                        },
+                    )
+                    raise failure from exc
                 context.check_interrupted()
             else:
                 intent = None
             if intent is not None:
                 if not isinstance(intent, TransitionIntent):
-                    raise WorkflowActionError(
+                    failure = WorkflowActionError(
                         "handler returned an invalid transition intent",
                         category=WorkflowFailureCategory.PERMANENT,
                         retryable=False,
                     )
+                    await self._compensate_transition_failure(
+                        handler,
+                        context,
+                        failure,
+                        checkpoint={
+                            "revalidation": self._revalidation_checkpoint(
+                                revalidation
+                            ),
+                            "effect": dict(effect.receipt),
+                            "verification": dict(verification.receipt),
+                        },
+                    )
+                    raise failure
                 if (
                     intent.project_id != context.job.project_id
                     or intent.task_id != context.job.task_id
                 ):
-                    raise WorkflowActionError(
+                    failure = WorkflowActionError(
                         "handler transition intent escaped the job scope",
                         category=WorkflowFailureCategory.POLICY,
                         retryable=False,
                     )
+                    await self._compensate_transition_failure(
+                        handler,
+                        context,
+                        failure,
+                        checkpoint={
+                            "revalidation": self._revalidation_checkpoint(
+                                revalidation
+                            ),
+                            "effect": dict(effect.receipt),
+                            "verification": dict(verification.receipt),
+                        },
+                    )
+                    raise failure
                 if not isinstance(saved_transition_intent, Mapping):
                     # Persist the exact immutable intent before entering the
                     # transition service.  If the process dies after the
@@ -978,11 +1068,25 @@ class DurableWorkflowWorker:
                     )
                 service = self.transition_services.get(context.job.project_id)
                 if service is None:
-                    raise WorkflowActionError(
+                    failure = WorkflowActionError(
                         "no transition service registered for the job project",
                         category=WorkflowFailureCategory.POLICY,
                         retryable=False,
                     )
+                    await self._compensate_transition_failure(
+                        handler,
+                        context,
+                        failure,
+                        checkpoint={
+                            "revalidation": self._revalidation_checkpoint(
+                                revalidation
+                            ),
+                            "effect": dict(effect.receipt),
+                            "verification": dict(verification.receipt),
+                            "transition_intent": intent.to_dict(),
+                        },
+                    )
+                    raise failure
                 transition = await self._bounded("transition", service.execute(intent))
                 await self._notify("transition_returned", context.job)
                 context.check_interrupted()
@@ -994,6 +1098,20 @@ class DurableWorkflowWorker:
                         f"transition deferred: {transition.reason_code}",
                         category=WorkflowFailureCategory.TRANSIENT,
                         retryable=True,
+                    )
+                if transition.disposition is TransitionDisposition.REJECTED:
+                    await self._compensate_transition_failure(
+                        handler,
+                        context,
+                        transition,
+                        checkpoint={
+                            "revalidation": self._revalidation_checkpoint(
+                                revalidation
+                            ),
+                            "effect": dict(effect.receipt),
+                            "verification": dict(verification.receipt),
+                            "transition_intent": intent.to_dict(),
+                        },
                     )
                 if (
                     transition.disposition is TransitionDisposition.REJECTED
