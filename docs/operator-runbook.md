@@ -672,7 +672,7 @@ progressing, oompah emits a `stuck_epic` alert visible in
 - **PR never opened:** Check that the SCM integration is working (`gh auth
   status`); an agent may be running on the epic to create the PR.
 
-### 6.7 Concurrent git write errors after graceful reload
+### 6.7 Concurrent Git write errors
 
 **Symptoms in logs:**
 
@@ -688,20 +688,20 @@ git add .oompah/tasks failed: fatal: Unable to create '.git/index.lock': File ex
 
 **Cause:**
 
-During a graceful reload (`make graceful` or `POST /api/v1/orchestrator/restart`),
-the orchestrator clears its tracker instance cache
-(`_project_trackers.clear()`). Any write that was already in flight holds a
-reference to the old tracker instance; the next write creates a new tracker
-instance. For a brief window, two tracker instances for the same git repository
-can both try to commit simultaneously. Each has its own in-process lock, so
-they don't block each other, and the two `git commit` subprocesses race.
+Current tracker instances in one server process share a per-repository lock,
+including across a graceful configuration reload. These errors instead indicate
+that a separate process or mixed-version direct writer accessed the same state
+worktree while the server was staging or committing. A short old/new process
+overlap during a restart is a common boundary.
 
 **Immediate fix (if the service is otherwise healthy):**
 
-This error is transient. The losing write raises an error that is logged and
-reported back to the caller; the winning write succeeds. No data is lost —
-re-issuing the failed operation (e.g., re-posting the comment via the API)
-will succeed once the graceful reload completes.
+Current versions retry canonical `index.lock` and transient ref-lock races with
+bounded backoff. The retry repeats the complete stage/diff/commit transaction,
+so it can recognize when the lock owner already committed the shared index.
+Oompah never removes a Git-owned lock file. If the retry budget is exhausted,
+the write fails closed and is reported to the caller; re-issue it only after
+confirming that the competing process has stopped.
 
 **If errors persist after reload is complete:**
 
@@ -719,11 +719,9 @@ kill <stale-pid>
 make force-restart
 ```
 
-**Permanent fix:**
-
-See `plans/concurrent-git-tracker-writes.md` for the root cause analysis and
-the recommended implementation (module-level per-repo lock in
-`oompah/oompah_md_tracker.py`). This is tracked as OOMPAH-267.
+Do not manually delete `index.lock` or ref lock files while any Git or oompah
+process may still own them. Persistent contention is an operator-visible error,
+not a condition the tracker bypasses.
 
 ### 6.7 Managed repo checkout in a bad state
 

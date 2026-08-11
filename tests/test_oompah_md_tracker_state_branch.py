@@ -20,6 +20,7 @@ Coverage areas:
 
 from __future__ import annotations
 
+import multiprocessing
 import subprocess
 import threading
 import time
@@ -32,7 +33,10 @@ import pytest
 import yaml
 
 from oompah import server as server_module
-from oompah.oompah_md_tracker import OompahMarkdownTracker
+from oompah.oompah_md_tracker import (
+    OompahMarkdownTracker,
+    _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS,
+)
 from oompah.statuses import BACKLOG, DONE, IN_PROGRESS, IN_REVIEW, OPEN
 from oompah.tracker import TrackerError, TrackerStateBranchFetchError, TrackerStateBranchMissingError
 
@@ -65,6 +69,72 @@ def _make_completed_process(returncode: int, stdout: str = "", stderr: str = "")
     proc.stdout = stdout
     proc.stderr = stderr
     return proc
+
+
+def _ordered_state_commit_loser(
+    repo: str,
+    staged,
+    competing_commit_done,
+    results,
+) -> None:
+    """Stage first, then let another process consume the shared task index."""
+    root = Path(repo)
+    tracker = OompahMarkdownTracker(
+        active_states=[OPEN],
+        terminal_states=[DONE],
+        cwd=repo,
+        default_branch="main",
+        git_sync=False,
+    )
+    real_git = tracker._git
+    commit_intercepted = False
+
+    def _ordered_git(args: list[str], *, check: bool, **kwargs):
+        nonlocal commit_intercepted
+        if args and args[0] == "commit" and not commit_intercepted:
+            commit_intercepted = True
+            staged.set()
+            if not competing_commit_done.wait(timeout=10):
+                raise RuntimeError("timed out waiting for competing Git commit")
+        return real_git(args, check=check, **kwargs)
+
+    tracker._git = _ordered_git  # type: ignore[method-assign]
+    try:
+        committed = tracker._stage_and_commit_state_branch(root, "losing writer")
+        results.put(("loser", committed, ""))
+    except BaseException as exc:  # noqa: BLE001 - child reports to parent
+        results.put(("loser-error", type(exc).__name__, str(exc)))
+
+
+def _ordered_state_competing_committer(
+    repo: str,
+    staged,
+    competing_commit_done,
+    results,
+) -> None:
+    """Commit the first process's real shared index at the ordered boundary."""
+    try:
+        if not staged.wait(timeout=10):
+            results.put(("winner-error", "Timeout", "staging was not observed"))
+            return
+        committed = subprocess.run(
+            ["git", "commit", "-m", "competing writer"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        results.put(
+            (
+                "winner",
+                committed.returncode,
+                committed.stderr.strip() or committed.stdout.strip(),
+            )
+        )
+    except BaseException as exc:  # noqa: BLE001 - child reports to parent
+        results.put(("winner-error", type(exc).__name__, str(exc)))
+    finally:
+        competing_commit_done.set()
 
 
 def _init_git_repo(root: Path, *, branch: str = "main") -> Path:
@@ -886,6 +956,401 @@ class TestStateBranchTrackerFailures:
         handle it correctly (backward compatibility).
         """
         assert issubclass(TrackerStateBranchMissingError, TrackerError)
+
+    def test_transient_index_lock_retries_complete_stage_commit_transaction(
+        self, tmp_path: Path
+    ) -> None:
+        """A legitimate competing ``git add`` is retried without lock deletion."""
+        tracker = _make_tracker(
+            tmp_path,
+            state_branch_enabled=True,
+            state_branch_name="oompah/state/proj-index-lock",
+        )
+        calls: list[str] = []
+
+        def _fake_git(args: list[str], *, check: bool, **kwargs) -> MagicMock:
+            calls.append(args[0])
+            if args[0] == "add" and calls.count("add") == 1:
+                return _make_completed_process(
+                    128,
+                    stderr=(
+                        "fatal: Unable to create '/repo/.git/worktrees/state/"
+                        "index.lock': File exists."
+                    ),
+                )
+            if args[0] == "diff":
+                return _make_completed_process(1)
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+        with patch("oompah.oompah_md_tracker.time.sleep") as sleep:
+            committed = tracker._stage_and_commit_state_branch(tmp_path, "message")
+
+        assert committed is True
+        assert calls == ["add", "add", "diff", "commit"]
+        sleep.assert_called_once_with(0.05)
+
+    def test_transient_ref_lock_rechecks_staged_diff_after_competing_commit(
+        self, tmp_path: Path
+    ) -> None:
+        """A ref-lock loser recognizes when the lock owner committed its index."""
+        tracker = _make_tracker(
+            tmp_path,
+            state_branch_enabled=True,
+            state_branch_name="oompah/state/proj-ref-lock",
+        )
+        calls: list[str] = []
+        diff_count = 0
+
+        def _fake_git(args: list[str], *, check: bool, **kwargs) -> MagicMock:
+            nonlocal diff_count
+            calls.append(args[0])
+            if args[0] == "diff":
+                diff_count += 1
+                # The competing process commits the shared index while this
+                # process waits, so the repeated transaction has no staged diff.
+                return _make_completed_process(1 if diff_count == 1 else 0)
+            if args[0] == "commit":
+                return _make_completed_process(
+                    128,
+                    stderr=(
+                        "fatal: cannot lock ref 'HEAD': is at abc123 "
+                        "but expected def456"
+                    ),
+                )
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+        with patch("oompah.oompah_md_tracker.time.sleep") as sleep:
+            committed = tracker._stage_and_commit_state_branch(tmp_path, "message")
+
+        assert committed is False
+        assert calls == ["add", "diff", "commit", "diff", "add", "diff"]
+        sleep.assert_called_once_with(0.05)
+
+    def test_transient_commit_index_lock_retries_retained_staged_diff(
+        self, tmp_path: Path
+    ) -> None:
+        """A commit-phase index lock retries when the task diff remains staged."""
+        tracker = _make_tracker(
+            tmp_path,
+            state_branch_enabled=True,
+            state_branch_name="oompah/state/proj-commit-index-lock",
+        )
+        calls: list[str] = []
+        commit_count = 0
+
+        def _fake_git(args: list[str], *, check: bool, **kwargs) -> MagicMock:
+            nonlocal commit_count
+            calls.append(args[0])
+            if args[0] == "diff":
+                return _make_completed_process(1)
+            if args[0] == "commit":
+                commit_count += 1
+                if commit_count == 1:
+                    return _make_completed_process(
+                        128,
+                        stderr=(
+                            "fatal: Unable to create '/repo/.git/index.lock': "
+                            "File exists."
+                        ),
+                    )
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+        with patch("oompah.oompah_md_tracker.time.sleep") as sleep:
+            committed = tracker._stage_and_commit_state_branch(tmp_path, "message")
+
+        assert committed is True
+        assert calls == [
+            "add",
+            "diff",
+            "commit",
+            "diff",
+            "add",
+            "diff",
+            "commit",
+        ]
+        sleep.assert_called_once_with(0.05)
+
+    def test_real_git_commit_index_lock_clears_during_bounded_backoff(
+        self, tmp_path: Path
+    ) -> None:
+        """Real Git retries a commit-only index lock after add/diff succeeded."""
+        repo = tmp_path / "commit-index-lock"
+        _init_git_repo(repo)
+        task = repo / ".oompah" / "tasks" / "open" / "OOMPAH-LOCK.md"
+        task.parent.mkdir(parents=True)
+        task.write_text(
+            "---\nid: OOMPAH-LOCK\nstatus: Open\n---\n",
+            encoding="utf-8",
+        )
+        tracker = _make_tracker(repo)
+        real_git = tracker._git
+        index_lock = repo / ".git" / "index.lock"
+        calls: list[str] = []
+        lock_installed = False
+
+        def _lock_first_commit(
+            args: list[str], *, check: bool, **kwargs
+        ) -> subprocess.CompletedProcess:
+            nonlocal lock_installed
+            calls.append(args[0])
+            if args[0] == "commit" and not lock_installed:
+                lock_installed = True
+                index_lock.write_text("competing owner\n", encoding="utf-8")
+            return real_git(args, check=check, **kwargs)
+
+        def _release_lock_after_backoff(delay: float) -> None:
+            assert delay == 0.05
+            assert index_lock.exists()
+            index_lock.unlink()
+
+        tracker._git = _lock_first_commit  # type: ignore[method-assign]
+        with patch(
+            "oompah.oompah_md_tracker.time.sleep",
+            side_effect=_release_lock_after_backoff,
+        ) as sleep:
+            committed = tracker._stage_and_commit_state_branch(repo, "message")
+
+        assert committed is True
+        assert calls == [
+            "add",
+            "diff",
+            "commit",
+            "diff",
+            "add",
+            "diff",
+            "commit",
+        ]
+        sleep.assert_called_once_with(0.05)
+        assert not index_lock.exists()
+        assert _git(repo, "diff", "--cached", "--quiet").returncode == 0
+        committed_paths = _git(
+            repo,
+            "show",
+            "--name-only",
+            "--pretty=format:",
+            "HEAD",
+        ).stdout.splitlines()
+        assert committed_paths == [".oompah/tasks/open/OOMPAH-LOCK.md"]
+
+    def test_failed_commit_with_consumed_task_diff_repeats_transaction(
+        self, tmp_path: Path
+    ) -> None:
+        """Index state, not commit prose, identifies a competing writer."""
+        tracker = _make_tracker(
+            tmp_path,
+            state_branch_enabled=True,
+            state_branch_name="oompah/state/proj-consumed-diff",
+        )
+        calls: list[str] = []
+        diff_count = 0
+
+        def _fake_git(args: list[str], *, check: bool, **kwargs) -> MagicMock:
+            nonlocal diff_count
+            calls.append(args[0])
+            if args[0] == "diff":
+                diff_count += 1
+                # Initial transaction sees staged work, the post-failure probe
+                # proves it was consumed, then the repeated transaction is clean.
+                return _make_completed_process(1 if diff_count == 1 else 0)
+            if args[0] == "commit":
+                return _make_completed_process(
+                    73,
+                    stdout="localized or hook-specific commit diagnostic",
+                )
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+        with patch("oompah.oompah_md_tracker.time.sleep") as sleep:
+            committed = tracker._stage_and_commit_state_branch(tmp_path, "message")
+
+        assert committed is False
+        assert calls == ["add", "diff", "commit", "diff", "add", "diff"]
+        sleep.assert_not_called()
+
+    def test_failed_commit_with_staged_task_diff_preserves_original_failure(
+        self, tmp_path: Path
+    ) -> None:
+        """A still-staged task diff makes even no-op-looking prose fatal."""
+        tracker = _make_tracker(
+            tmp_path,
+            state_branch_enabled=True,
+            state_branch_name="oompah/state/proj-staged-diff",
+        )
+        calls: list[str] = []
+        diff_count = 0
+
+        def _fake_git(args: list[str], *, check: bool, **kwargs) -> MagicMock:
+            nonlocal diff_count
+            calls.append(args[0])
+            if args[0] == "diff":
+                diff_count += 1
+                return _make_completed_process(1)
+            if args[0] == "commit":
+                return _make_completed_process(
+                    128,
+                    stderr=(
+                        "fatal: hook rejected update; "
+                        "nothing to commit, working tree clean"
+                    ),
+                )
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+        with patch("oompah.oompah_md_tracker.time.sleep") as sleep:
+            with pytest.raises(TrackerError, match="hook rejected update"):
+                tracker._stage_and_commit_state_branch(tmp_path, "message")
+
+        assert diff_count == 2
+        assert calls == ["add", "diff", "commit", "diff"]
+        sleep.assert_not_called()
+
+    def test_failed_commit_with_indeterminate_task_probe_fails_actionably(
+        self, tmp_path: Path
+    ) -> None:
+        """An invalid probe result reports it alongside the commit failure."""
+        tracker = _make_tracker(
+            tmp_path,
+            state_branch_enabled=True,
+            state_branch_name="oompah/state/proj-probe-error",
+        )
+        calls: list[str] = []
+        diff_count = 0
+
+        def _fake_git(args: list[str], *, check: bool, **kwargs) -> MagicMock:
+            nonlocal diff_count
+            calls.append(args[0])
+            if args[0] == "diff":
+                diff_count += 1
+                if diff_count == 1:
+                    return _make_completed_process(1)
+                return _make_completed_process(
+                    128,
+                    stderr="fatal: unable to read shared index",
+                )
+            if args[0] == "commit":
+                return _make_completed_process(
+                    74,
+                    stderr="fatal: original commit failure",
+                )
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+        with patch("oompah.oompah_md_tracker.time.sleep") as sleep:
+            with pytest.raises(TrackerError) as exc_info:
+                tracker._stage_and_commit_state_branch(tmp_path, "message")
+
+        message = str(exc_info.value)
+        assert "unable to read shared index" in message
+        assert "original commit failure" in message
+        assert "exit" in message
+        assert calls == ["add", "diff", "commit", "diff"]
+        sleep.assert_not_called()
+
+    def test_real_two_process_commit_race_uses_task_index_not_output(
+        self, tmp_path: Path
+    ) -> None:
+        """A real competing commit consumes only the ordered staged task diff."""
+        repo = tmp_path / "ordered-race"
+        _init_git_repo(repo)
+        task = repo / ".oompah" / "tasks" / "open" / "OOMPAH-1.md"
+        task.parent.mkdir(parents=True)
+        task.write_text("---\nid: OOMPAH-1\nstatus: Open\n---\n", encoding="utf-8")
+        unrelated = repo / "operator-notes.txt"
+        unrelated.write_text("must remain untracked\n", encoding="utf-8")
+
+        context = multiprocessing.get_context("spawn")
+        staged = context.Event()
+        competing_commit_done = context.Event()
+        results = context.Queue()
+        loser = context.Process(
+            target=_ordered_state_commit_loser,
+            args=(str(repo), staged, competing_commit_done, results),
+        )
+        winner = context.Process(
+            target=_ordered_state_competing_committer,
+            args=(str(repo), staged, competing_commit_done, results),
+        )
+
+        loser.start()
+        winner.start()
+        loser.join(timeout=15)
+        winner.join(timeout=15)
+
+        assert not loser.is_alive()
+        assert not winner.is_alive()
+        assert loser.exitcode == 0
+        assert winner.exitcode == 0
+        outcomes = [results.get(timeout=5), results.get(timeout=5)]
+        by_role = {item[0]: item for item in outcomes}
+        assert set(by_role) == {"loser", "winner"}, outcomes
+        assert by_role["loser"] == ("loser", False, "")
+        assert by_role["winner"][1] == 0, by_role["winner"]
+
+        committed_paths = _git(
+            repo,
+            "show",
+            "--name-only",
+            "--pretty=format:",
+            "HEAD",
+        ).stdout.splitlines()
+        assert ".oompah/tasks/open/OOMPAH-1.md" in committed_paths
+        assert "operator-notes.txt" not in committed_paths
+        assert _git(repo, "status", "--porcelain").stdout.splitlines() == [
+            "?? operator-notes.txt"
+        ]
+
+    def test_non_lock_git_failure_is_not_retried(self, tmp_path: Path) -> None:
+        """Authentication, permissions, and repository errors stay fail-closed."""
+        tracker = _make_tracker(
+            tmp_path,
+            state_branch_enabled=True,
+            state_branch_name="oompah/state/proj-non-lock-error",
+        )
+        git_call_count = 0
+
+        def _fake_git(args: list[str], *, check: bool, **kwargs) -> MagicMock:
+            nonlocal git_call_count
+            git_call_count += 1
+            return _make_completed_process(
+                128,
+                stderr="fatal: not a git repository (or any parent directory): .git",
+            )
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+        with patch("oompah.oompah_md_tracker.time.sleep") as sleep:
+            with pytest.raises(TrackerError, match="not a git repository"):
+                tracker._stage_and_commit_state_branch(tmp_path, "message")
+
+        assert git_call_count == 1
+        sleep.assert_not_called()
+
+    def test_persistent_index_lock_exhausts_retry_budget(self, tmp_path: Path) -> None:
+        """Persistent lock ownership raises without deleting or bypassing the lock."""
+        tracker = _make_tracker(
+            tmp_path,
+            state_branch_enabled=True,
+            state_branch_name="oompah/state/proj-persistent-lock",
+        )
+        git_call_count = 0
+
+        def _fake_git(args: list[str], *, check: bool, **kwargs) -> MagicMock:
+            nonlocal git_call_count
+            git_call_count += 1
+            return _make_completed_process(
+                128,
+                stderr="fatal: Unable to create '/repo/.git/index.lock': File exists.",
+            )
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+        with patch("oompah.oompah_md_tracker.time.sleep") as sleep:
+            with pytest.raises(TrackerError, match="index.lock"):
+                tracker._stage_and_commit_state_branch(tmp_path, "message")
+
+        assert git_call_count == _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS
+        assert sleep.call_count == _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS - 1
 
     def test_task_data_not_corrupted_when_push_fails_with_auth_error(
         self, tmp_path: Path

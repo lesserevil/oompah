@@ -172,6 +172,33 @@ _SUMMARY_UNSAFE_HEADING_RE = re.compile(r"^(#{1,2})\s+(.+)$", re.MULTILINE)
 # this dramatically reduces the probability of all attempts failing (OOMPAH-265).
 _PUSH_MAX_RETRIES = 3
 
+# A module-level RLock serializes tracker instances inside one server process,
+# but it cannot coordinate a brief old/new process overlap during a restart or
+# a mixed-version writer that still accesses the same state worktree directly.
+# Git's index and ref locks make those overlaps fail safely.  Wait briefly for
+# the legitimate lock owner and retry the complete stage/commit transaction;
+# never remove Git-owned lock files (OOMPAH-1071).
+_STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS = 4
+_STATE_BRANCH_GIT_LOCK_BACKOFF_SECONDS = 0.05
+
+
+def _is_transient_state_branch_git_lock_error(output: str) -> bool:
+    """Return whether Git reports short-lived index or ref contention.
+
+    Deliberately recognize only Git's canonical lock-race diagnostics.  Other
+    ``cannot lock ref`` failures, such as a permanent nested-ref namespace
+    collision, remain immediately fatal instead of being pointlessly retried.
+    """
+    detail = str(output or "").lower()
+    if "index.lock" in detail and "file exists" in detail:
+        return True
+    if "cannot lock ref" not in detail:
+        return False
+    return (
+        (".lock" in detail and "file exists" in detail)
+        or (" is at " in detail and " expected " in detail)
+    )
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -2266,21 +2293,13 @@ class OompahMarkdownTracker:
         branch_name = self.state_branch_name
         assert branch_name
 
-        self._git(["add", TASKS_DIR], check=True, cwd=state_root)
-        diff = self._git(
-            ["diff", "--cached", "--quiet", "--", TASKS_DIR],
-            check=False,
-            cwd=state_root,
-        )
-        if diff.returncode == 0:
-            return  # Nothing to commit.
-
         message = (
             f"{subject}\n\n"
             "🤖 Generated with https://github.com/lesserevil/oompah\n\n"
             "Co-authored-by: oompah <lesserevil@users.noreply.github.com>\n"
         )
-        self._git(["commit", "-m", message], check=True, cwd=state_root)
+        if not self._stage_and_commit_state_branch(state_root, message):
+            return
 
         if not self._has_remote("origin"):
             return
@@ -2320,6 +2339,111 @@ class OompahMarkdownTracker:
             check=True,
             cwd=state_root,
         )
+
+    def _stage_and_commit_state_branch(self, state_root: Path, message: str) -> bool:
+        """Stage and commit state with bounded transient Git-lock recovery.
+
+        Git's own lock files remain authoritative.  A losing writer waits for
+        the lock owner and repeats the *complete* transaction, allowing the
+        staged-diff check to recognize that the other writer may already have
+        committed the same shared index.  Persistent contention and every
+        unrelated Git failure remain fail-closed.
+
+        Returns ``True`` when this call created a commit and ``False`` when the
+        state worktree had nothing left to commit.
+        """
+        for attempt in range(_STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS):
+            add_args = ["add", TASKS_DIR]
+            add = self._git(add_args, check=False, cwd=state_root)
+            if add.returncode != 0:
+                detail = add.stderr.strip() or add.stdout.strip()
+                error = TrackerError(f"git {' '.join(add_args)} failed: {detail}")
+                if not _is_transient_state_branch_git_lock_error(detail):
+                    raise error
+                if attempt >= _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS - 1:
+                    raise error
+
+                backoff_s = _STATE_BRANCH_GIT_LOCK_BACKOFF_SECONDS * (2**attempt)
+                logger.info(
+                    "State-branch Git lock contention; retrying stage/commit "
+                    "(attempt %d/%d in %.3fs): %s",
+                    attempt + 1,
+                    _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS,
+                    backoff_s,
+                    detail,
+                )
+                time.sleep(backoff_s)
+                continue
+
+            diff_args = ["diff", "--cached", "--quiet", "--", TASKS_DIR]
+            diff = self._git(diff_args, check=False, cwd=state_root)
+            if diff.returncode == 0:
+                return False
+            if diff.returncode != 1:
+                detail = diff.stderr.strip() or diff.stdout.strip()
+                raise TrackerError(f"git {' '.join(diff_args)} failed: {detail}")
+
+            commit_args = ["commit", "-m", message]
+            commit = self._git(commit_args, check=False, cwd=state_root)
+            if commit.returncode == 0:
+                return True
+
+            commit_detail = commit.stderr.strip() or commit.stdout.strip()
+            commit_error = TrackerError(
+                f"git {' '.join(commit_args)} failed: {commit_detail}"
+            )
+            transient_lock = _is_transient_state_branch_git_lock_error(
+                commit_detail
+            )
+            # A concurrent process can commit the shared index after this
+            # transaction proves a staged task diff but before its commit
+            # acquires the ref.  Git's human-facing failure output varies with
+            # version, locale, hooks, and unrelated untracked files.  Re-read
+            # the exact task path in the real index instead of parsing prose.
+            probe = self._git(diff_args, check=False, cwd=state_root)
+            if probe.returncode not in {0, 1}:
+                probe_detail = probe.stderr.strip() or probe.stdout.strip()
+                raise TrackerError(
+                    "Cannot determine task-index ownership after failed "
+                    "state-branch commit: "
+                    f"git {' '.join(diff_args)} exited "
+                    f"{probe.returncode}: "
+                    f"{probe_detail or 'no diagnostic output'}. "
+                    "Original commit failure: "
+                    f"{commit_detail or 'no diagnostic output'}"
+                )
+            if probe.returncode == 1:
+                # The intended task mutation is still staged.  Preserve every
+                # non-lock failure immediately so a hook, repository,
+                # identity, or storage error cannot be hidden.  A canonical
+                # transient Git lock is the one exception: no competing commit
+                # consumed the work, so retry the complete transaction after
+                # the existing bounded backoff.
+                if not transient_lock:
+                    raise commit_error
+
+            # Exit 0 proves that the staged task diff was consumed.  Exit 1 is
+            # reachable here only for a canonical transient lock.  In either
+            # recoverable case repeat the complete add/diff/commit transaction
+            # within the existing bounded retry budget.
+            if attempt >= _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS - 1:
+                raise commit_error
+            backoff_s = (
+                _STATE_BRANCH_GIT_LOCK_BACKOFF_SECONDS * (2**attempt)
+                if transient_lock
+                else 0.0
+            )
+            logger.info(
+                "State-branch commit lost transient authority; "
+                "rechecking stage/commit (attempt %d/%d%s)",
+                attempt + 1,
+                _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS,
+                f" in {backoff_s:.3f}s" if transient_lock else "",
+            )
+            if transient_lock:
+                time.sleep(backoff_s)
+
+        raise AssertionError("state-branch Git lock retry loop did not terminate")
 
     def _shadow_write_to_default_branch(self, subject: str) -> None:
         """Copy task files from the state-branch worktree to the default branch.
