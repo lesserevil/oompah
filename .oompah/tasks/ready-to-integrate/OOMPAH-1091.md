@@ -12,12 +12,12 @@ labels:
 - workflow-liveness
 assignee: null
 created_at: '2026-08-11T15:35:51.682286Z'
-updated_at: '2026-08-11T16:58:18.873120Z'
+updated_at: '2026-08-11T16:58:32.899352Z'
 work_branch: OOMPAH-1091
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/830
 review_number: '830'
-review_head: null
+review_head: 66f40f54566a64b55957ce0a29846289992e2f3f
 merged_at: null
 oompah.create_once:
   version: 1
@@ -37,6 +37,8 @@ oompah.integration:
 oompah.work_branch: OOMPAH-1091
 oompah.review_url: https://github.com/lesserevil/oompah/pull/830
 oompah.review_number: '830'
+oompah.target_branch: main
+oompah.review_head: 66f40f54566a64b55957ce0a29846289992e2f3f
 ---
 ## Summary
 
