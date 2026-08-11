@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import copy
 import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -45,6 +47,8 @@ from oompah.terminal_transition_coordinator import (
 )
 from oompah.workflow_jobs import WorkflowJobState, WorkflowJobStore
 from oompah.workflow_jobs import WorkflowFailureCategory
+from oompah.workflow_controller import UniversalTotalityLivenessController
+from oompah.workflow_runtime import WorkflowRuntime
 
 
 PROJECT_ID = "proj-durable"
@@ -3524,3 +3528,302 @@ def test_finalization_replay_precedes_pause_and_capacity_gates() -> None:
     orchestrator._replay_terminal_audit_finalizations.assert_awaited_once()
     assert orchestrator._audit_metrics["finalizations_replayed"] == 1
     assert orchestrator._audit_metrics["restart_publication_deferred_count"] == 0
+
+
+def test_restart_world_publication_precedes_real_audit_launch_across_two_ticks(
+    tmp_path,
+) -> None:
+    """Restart recovery publishes one stable world before provider admission."""
+
+    from tests.test_workflow_runtime import (
+        accepted_projection_wiring,
+        complete_handlers,
+        make_binding,
+        wait_for_runtime_effects,
+    )
+
+    class GenerationTracker(_Tracker):
+        supports_generation_bound_reads = True
+        state_branch_enabled = True
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.authority_generation = "native:1"
+            self.publication_revision = 1
+            self.inject_external_write = False
+            self._external_write_armed = False
+            self.external_write_count = 0
+
+        def _advance_authority(self) -> None:
+            self.publication_revision += 1
+            self.authority_generation = f"native:{self.publication_revision}"
+
+        def set_metadata_field(self, identifier: str, key: str, value) -> None:
+            super().set_metadata_field(identifier, key, value)
+            self._advance_authority()
+
+        def update_issue(self, identifier: str, **changes) -> None:
+            previous = self.status
+            super().update_issue(identifier, **changes)
+            if self.status != previous:
+                self._advance_authority()
+
+        def fetch_all_issues(self) -> list[Issue]:
+            return [self.fetch_issue_detail(TASK_ID)]
+
+        fetch_all_issues_enriched = fetch_all_issues
+
+        def fetch_all_issues_with_generation(self):
+            generation = self.authority_generation
+            if self.inject_external_write:
+                self.inject_external_write = False
+                self._external_write_armed = True
+            return self.fetch_all_issues(), generation
+
+        def get_state_branch_generation(self):
+            if self._external_write_armed:
+                self._external_write_armed = False
+                self.external_write_count += 1
+                self.set_metadata_field(
+                    TASK_ID,
+                    "external-writer-probe",
+                    {"write": self.external_write_count},
+                )
+            return self.authority_generation
+
+        def get_publication_revision(self):
+            return self.publication_revision
+
+        def fetch_children(self, _identifier: str) -> list[Issue]:
+            return []
+
+    tracker = GenerationTracker()
+    locks = _ProjectLocks()
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=locks,
+        post_comments=False,
+    )
+    fingerprint = compute_issue_evidence_fingerprint(
+        tracker.fetch_issue_detail(TASK_ID),
+        PROJECT_ID,
+    )
+    staged = asyncio.run(
+        coordinator.request_transition(
+            tracker.fetch_issue_detail(TASK_ID),
+            TargetState.DONE,
+            ContributorIdentity("review-webhook", "oompah"),
+            PROJECT_ID,
+            fingerprint,
+            workflow_revision="workflow-revision-1",
+        )
+    )
+    assert staged.success
+    metadata = TerminalAuditMetadataStore(tracker, locks, PROJECT_ID)
+    record = next(
+        candidate
+        for candidate in metadata.read(TASK_ID).pending_chain
+        if candidate.audit_id == staged.audit_id
+    )
+
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    workflow = TerminalAuditWorkflow(store)
+    orchestrator = _orchestrator(tracker, coordinator, store, workflow)
+    orchestrator.project_store = locks
+    orchestrator.state = SimpleNamespace(claimed=set(), claimed_issues={})
+    orchestrator._audit_branch_claims = {}
+    orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
+    orchestrator._is_rate_limited = MagicMock(return_value=False)
+    orchestrator._available_slots = MagicMock(return_value=1)
+    orchestrator._fetch_audit_candidates = lambda: _AuditCandidateScan(
+        (tracker.fetch_issue_detail(TASK_ID),)
+    )
+    selector = SimpleNamespace(
+        select_candidates=lambda _contributors, *, exclude: (
+            (
+                [Candidate("provider-a", "model-a")]
+                if ("provider-a", "model-a") not in (exclude or set())
+                else []
+            ),
+            None,
+        )
+    )
+    orchestrator._audit_selector = MagicMock(return_value=selector)
+    orchestrator._prepare_audit_selector = AsyncMock(
+        return_value=(selector, None)
+    )
+    orchestrator._audit_branch_busy = MagicMock(return_value=False)
+    orchestrator._refresh_terminal_audit_health = MagicMock()
+    orchestrator.config = SimpleNamespace(
+        full_sync_interval_ms=30_000,
+        audit_priority=100,
+        audit_lane_scan_limit=100,
+        audit_lane_operation_limit=8,
+        audit_lane_dispatch_limit=2,
+        audit_lane_max_runtime_seconds=15.0,
+        audit_max_attempts=3,
+        audit_attempt_ttl=3600,
+    )
+
+    binding, journal = make_binding(tmp_path, tracker, store, PROJECT_ID)
+    binding.terminal_audit_workflow = workflow
+    binding.terminal_audit_publication_lock = (
+        lambda: locks.project_write_lock(PROJECT_ID)
+    )
+    terminal_source = orchestrator._workflow_shadow_sources(
+        tracker.fetch_issue_detail(TASK_ID)
+    )["terminal_audit"]
+    binding.collector.sources["terminal_audit"] = terminal_source
+
+    def terminal_snapshot_proof(decision, observed) -> bool:
+        with locks.project_write_lock(PROJECT_ID):
+            fresh = terminal_source(tracker.fetch_issue_detail(decision.task_id))
+            return isinstance(fresh, dict) and fresh == dict(observed)
+
+    def terminal_job_proof(decision, observed, action) -> bool:
+        with locks.project_write_lock(PROJECT_ID):
+            current = AuditorDispatchLane.pending_record(
+                metadata.read(decision.task_id).pending_chain,
+                project_id=PROJECT_ID,
+                task_id=decision.task_id,
+            )
+            if current is None:
+                return False
+            expected = {
+                "audit_id": current.audit_id,
+                "request_state": current.request_state.value,
+                "target_state": current.target_state.value,
+                "evidence_fingerprint": current.evidence_fingerprint.digest,
+                "source_generation": current.source_generation,
+                "audit_generation": workflow.generation(current),
+            }
+            return all(observed.get(key) == value for key, value in expected.items()) and (
+                store.terminal_audit_lane_materialized(
+                    project_id=PROJECT_ID,
+                    task_id=decision.task_id,
+                    audit_id=current.audit_id,
+                    target_state=current.target_state.value,
+                    evidence_fingerprint=current.evidence_fingerprint.digest,
+                    audit_generation=workflow.generation(current),
+                    source_generation=current.source_generation,
+                    obligation_action=action,
+                )
+            )
+
+    binding.terminal_audit_snapshot_proof_source = terminal_snapshot_proof
+    binding.terminal_audit_proof_source = terminal_job_proof
+    controller = UniversalTotalityLivenessController(store=store)
+    controller.restore_liveness_state(None)
+    runtime = WorkflowRuntime(
+        project_bindings={PROJECT_ID: binding},
+        store=store,
+        journals={PROJECT_ID: journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        persist_liveness_state=lambda _state: None,
+        **accepted_projection_wiring(),
+    )
+    orchestrator.workflow_runtime = runtime
+    orchestrator._terminal_audit_started = False
+    orchestrator._terminal_audit_last_scan = 0.0
+    orchestrator._monotonic_clock = time.monotonic
+    orchestrator._request_workflow_batch_continuation = MagicMock(
+        return_value=False
+    )
+    orchestrator._maintenance_future = None
+    orchestrator._run_non_lifecycle_housekeeping = MagicMock()
+    orchestrator._notify_observers = MagicMock()
+    orchestrator._handle_auto_update = AsyncMock()
+    orchestrator._provider_admission_lock = threading.RLock()
+    orchestrator._stopping = False
+    orchestrator._quiesced = False
+    orchestrator._paused = False
+    orchestrator._set_refresh_requested = MagicMock()
+    orchestrator._post_event = MagicMock()
+    orchestrator._tick_pool = ThreadPoolExecutor(max_workers=2)
+
+    order: list[str] = []
+    real_audit_lane = orchestrator._dispatch_audit_lane
+    real_reconcile = runtime.reconcile_async
+    real_admission = runtime.continue_admission_async
+
+    async def traced_audit_lane(**kwargs):
+        order.append(
+            "audit_launch_phase"
+            if kwargs.get("allow_new_launches", True)
+            else "audit_recovery_phase"
+        )
+        return await real_audit_lane(**kwargs)
+
+    async def traced_reconcile(**kwargs):
+        order.append("world_reconcile")
+        return await real_reconcile(**kwargs)
+
+    async def traced_admission():
+        order.append("workflow_admission")
+        return await real_admission()
+
+    async def provider_dispatch(*_args, **_kwargs):
+        order.append("provider_launch")
+        return True
+
+    orchestrator._dispatch_audit_lane = traced_audit_lane
+    orchestrator._dispatch = AsyncMock(side_effect=provider_dispatch)
+    runtime.reconcile_async = traced_reconcile
+    runtime.continue_admission_async = traced_admission
+
+    async def scenario():
+        await runtime.start()
+        assert runtime.restart_reconstruction_pending
+        tracker.inject_external_write = True
+        await orchestrator._run_durable_workflow_tick(
+            started_at=time.monotonic()
+        )
+        first_report = copy.deepcopy(orchestrator._last_tick_metrics)
+        first_health = controller.liveness_snapshot()
+        await orchestrator._run_durable_workflow_tick(
+            started_at=time.monotonic()
+        )
+        await wait_for_runtime_effects(runtime)
+        return first_report, first_health
+
+    try:
+        with patch(
+            "oompah.orchestrator.validate_dispatch_config", return_value=[]
+        ):
+            first_report, first_health = asyncio.run(scenario())
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True)
+
+    current = next(
+        candidate
+        for candidate in metadata.read(TASK_ID).pending_chain
+        if candidate.audit_id == record.audit_id
+    )
+    assert first_report["workflow_runtime"]["requires_reconcile"] is True
+    assert first_health.restart_reconstruction_pending
+    assert tracker.external_write_count == 1
+    assert orchestrator._dispatch.await_count == 1
+    assert current.request_state is RequestState.IN_PROGRESS
+    assert workflow.ensure(current).state is WorkflowJobState.RUNNING
+    converged_health = controller.liveness_snapshot()
+    assert converged_health.scan_complete
+    assert converged_health.global_coverage_complete
+    assert isinstance(converged_health.snapshot_generation, int)
+    assert converged_health.snapshot_generation > 0
+    assert not converged_health.restored
+    assert not converged_health.restart_reconstruction_pending
+    assert not runtime.restart_reconstruction_pending
+    assert order == [
+        "audit_recovery_phase",
+        "world_reconcile",
+        "audit_recovery_phase",
+        "world_reconcile",
+        "audit_launch_phase",
+        "provider_launch",
+        "workflow_admission",
+    ]
+    assert 1 <= orchestrator._post_event.call_count <= 2
+    runtime.close()
+    store.close()

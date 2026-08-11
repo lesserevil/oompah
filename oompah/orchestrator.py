@@ -15596,6 +15596,39 @@ class Orchestrator:
             allow_new_launches=allow_new_launches
         )
 
+    async def _run_restart_reconstruction_tick(
+        self,
+        runtime: Any,
+    ) -> tuple[dict[str, Any], dict[str, float], bool]:
+        """Publish restart liveness between audit recovery and fresh launches."""
+
+        audit_metrics = await self._run_terminal_audit_tick_phase(
+            allow_new_launches=False
+        )
+        report = await runtime.reconcile_async(admit_workers=False)
+        continuation_requested = self._request_runtime_report_continuation(
+            report
+        )
+        publication_pending = bool(
+            getattr(runtime, "restart_reconstruction_pending", False)
+        )
+        if publication_pending or report.get("requires_reconcile") is True:
+            return report, audit_metrics, continuation_requested
+
+        audit_metrics = await self._run_terminal_audit_tick_phase(
+            allow_new_launches=True
+        )
+        admission = await runtime.continue_admission_async()
+        report["post_restart_admission"] = admission
+        worker_report = admission.get("worker")
+        if isinstance(worker_report, Mapping):
+            report["worker"] = worker_report
+        continuation_requested = bool(
+            self._request_runtime_report_continuation(admission)
+            or continuation_requested
+        )
+        return report, audit_metrics, continuation_requested
+
     async def _run_durable_workflow_tick(self, *, started_at: float) -> None:
         """Run the sole production lifecycle path.
 
@@ -15622,23 +15655,20 @@ class Orchestrator:
         reconstruction_pending = bool(
             getattr(runtime, "restart_reconstruction_pending", False)
         )
-        audit_metrics: dict[str, float] | None = None
-        if not reconstruction_pending:
+        if reconstruction_pending:
+            (
+                report,
+                audit_metrics,
+                reconcile_continuation_requested,
+            ) = await self._run_restart_reconstruction_tick(runtime)
+        else:
             audit_metrics = await self._run_terminal_audit_tick_phase(
                 allow_new_launches=True
             )
-        report = await runtime.reconcile_async()
-
-        reconcile_continuation_requested = (
-            self._request_runtime_report_continuation(report)
-        )
-        if reconstruction_pending:
-            audit_metrics = await self._run_terminal_audit_tick_phase(
-                allow_new_launches=not bool(
-                    getattr(runtime, "restart_reconstruction_pending", False)
-                )
+            report = await runtime.reconcile_async()
+            reconcile_continuation_requested = (
+                self._request_runtime_report_continuation(report)
             )
-        assert audit_metrics is not None
 
         worker_report = report.get("worker")
         batch_saturated = bool(

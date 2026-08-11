@@ -4309,14 +4309,18 @@ class WorkflowRuntime:
             self._last_reconcile = report
         return report
 
-    async def reconcile_async(self) -> dict[str, Any]:
+    async def reconcile_async(
+        self,
+        *,
+        admit_workers: bool = True,
+    ) -> dict[str, Any]:
         """Async form used by the orchestrator's event-driven scheduler."""
 
         if not self._admit_reconcile():
             return {"mode": self.mode, "skipped": True}
         try:
             operation = asyncio.create_task(
-                self._run_owned_reconcile_async(),
+                self._run_owned_reconcile_async(admit_workers=admit_workers),
                 name="workflow-runtime-reconcile",
             )
         except BaseException:
@@ -4343,10 +4347,14 @@ class WorkflowRuntime:
             # cannot cover that pre-start state.
             self._release_reconcile()
 
-    async def _run_owned_reconcile_async(self) -> dict[str, Any]:
+    async def _run_owned_reconcile_async(
+        self,
+        *,
+        admit_workers: bool,
+    ) -> dict[str, Any]:
         """Retain reconcile authority until the actual operation finishes."""
 
-        return await self._reconcile_async_once()
+        return await self._reconcile_async_once(admit_workers=admit_workers)
 
     async def _run_sync_reconcile_async(self) -> dict[str, Any]:
         """Keep a cancelled event-loop task fenced until its thread exits."""
@@ -4586,7 +4594,11 @@ class WorkflowRuntime:
         finally:
             self._release_reconcile()
 
-    async def _reconcile_async_once(self) -> dict[str, Any]:
+    async def _reconcile_async_once(
+        self,
+        *,
+        admit_workers: bool = True,
+    ) -> dict[str, Any]:
         """Run one admitted reconciliation without nested ownership."""
 
         if self.mode != "off" and self._topology_source is not None:
@@ -4674,14 +4686,25 @@ class WorkflowRuntime:
                 admission_cut = self._refresh_admission_cut(
                     report, runnable_projects
                 )
-                report["worker"] = await self._run_due(
-                    runnable_projects,
-                    required_snapshot_generation=(
-                        admission_cut.snapshot_generation
-                        if admission_cut is not None
-                        else None
-                    ),
-                )
+                if admit_workers:
+                    report["worker"] = await self._run_due(
+                        runnable_projects,
+                        required_snapshot_generation=(
+                            admission_cut.snapshot_generation
+                            if admission_cut is not None
+                            else None
+                        ),
+                    )
+                else:
+                    report["worker"] = {
+                        "skipped": True,
+                        "reason": (
+                            "workflow worker admission deferred until the "
+                            "restart audit-priority boundary"
+                        ),
+                        "projects": runnable_projects,
+                        "batch_saturated": False,
+                    }
                 if failed_projects:
                     report["worker"]["failed_projects"] = failed_projects
             with self._lock:
