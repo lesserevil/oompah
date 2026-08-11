@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1086
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Make transition-journal teardown deterministic after concurrent API use
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:54:01.877028Z'
-updated_at: '2026-08-11T14:22:48.914506Z'
+updated_at: '2026-08-11T14:38:33.342121Z'
 work_branch: OOMPAH-1086
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/823
@@ -38,6 +38,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/823
 oompah.review_number: '823'
 oompah.target_branch: main
 oompah.review_head: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-38105e77a9ca
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1086
+    digest: 588a16591a0399be10c987aa0f882b7068dba2fce6b8a5d7a87e034d93924fa8
+  - version: 1
+    audit_id: audit-90733bffbafa
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1086
+    digest: 588a16591a0399be10c987aa0f882b7068dba2fce6b8a5d7a87e034d93924fa8
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-38105e77a9ca
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1086
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 588a16591a0399be10c987aa0f882b7068dba2fce6b8a5d7a87e034d93924fa8
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T14:38:26.100049+00:00'
+    eligible_at: '2026-08-11T14:38:26.100049+00:00'
+    selected_ref: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
+    selected_sha: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
+  - version: 1
+    audit_id: audit-90733bffbafa
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1086
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 588a16591a0399be10c987aa0f882b7068dba2fce6b8a5d7a87e034d93924fa8
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T14:38:26.100049+00:00'
+    prerequisite_audit_id: audit-38105e77a9ca
+    selected_ref: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
+    selected_sha: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
+  attempt_history: []
 ---
 ## Summary
 
@@ -80,5 +138,10 @@ author: oompah
 created: 2026-08-11 14:01
 ---
 Fresh independent exact-head review ACCEPTED 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f. Reviewer verified lifecycle fencing and active-use accounting, live saga lease propagation through asyncio.to_thread, stale ContextVar rejection, close fence/drain/idempotency without holding the SQLite lock, admission of every public reader/writer, complete ordinary and authorized saga coverage across tracker-I/O gaps, cancellation safety, production pool retirement, and the narrowed causal claim. Evidence: 185 focused/adjacent transition/restart/event tests, ad-hoc exact stale-context concurrent-close probe, terminal mutation scan 21/21, paranoid secret scan, clean exact pushed branch and canonical trailer. Protected CI on PR #823 remains the next boundary.
+---
+author: oompah
+created: 2026-08-11 14:38
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
