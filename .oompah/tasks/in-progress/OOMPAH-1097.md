@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T17:34:07.685347Z'
-updated_at: '2026-08-11T17:35:09.690035Z'
+updated_at: '2026-08-11T17:55:44.925598Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Bug observed repeatedly on 2026-08-11, including 17:10:02-17:17:31 UTC: auto-upd
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 17:55
+---
+Implementation complete and pushed at exact head 172544459fd704612cefebe23d79e6aa8bdb0680 on branch OOMPAH-1097, rebased onto current origin/main. Added one idempotent listener-cutover coordinator shared by Uvicorn and Granian: restart now fences workflow/provider admission and unsafe HTTP mutations; keeps health, state, WebSocket, read-only HTTP, and forge ingress served while retained workflow/standalone authority drains fail-closed; stops webhook transports before closing the listener; then triggers Uvicorn should_exit or the Granian supervisor signal. Deterministic active-gate tests prove no early listener close, exact webhook/GitLab ordering, Uvicorn/Granian parity, read/mutation behavior, abnormal-exit behavior, and idempotent cleanup. Post-rebase evidence: 181 restart/webhook tests passed; 147 lifecycle/auto-update tests passed; 622 auth/webhook/WebSocket tests passed; 137 process/e2e tests passed; terminal status scan 21/21; py_compile and git show --check passed. Full gate deliberately not run per handoff. Awaiting independent exact-head review; task intentionally remains In Progress and is not submitted.
+---
+<!-- COMMENTS:END -->
