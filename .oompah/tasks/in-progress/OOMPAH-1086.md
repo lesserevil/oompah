@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:54:01.877028Z'
-updated_at: '2026-08-11T13:38:29.520805Z'
+updated_at: '2026-08-11T13:50:57.418141Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,15 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 7470f266-982d-42ab-830d-00e3b43b90d1
   request_fingerprint: 935f01c6fb5e78687100a3c8eefdc8a1b01e4dd8c5fd44805ff631612bc2b475
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1086
+  head_sha: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
+  submitted_at: '2026-08-11T13:50:53.226522+00:00'
+  updated_at: '2026-08-11T13:50:53.226522+00:00'
 ---
 ## Summary
 
@@ -46,5 +55,10 @@ author: oompah
 created: 2026-08-11 13:38
 ---
 Diagnosis and scope update: the original PR 820 Python 3.12 teardown timeout cannot be causally attributed to a transition-journal ownership race. That run was uniformly slow (1349s vs ~435s baseline), timed out inside sqlite3.Connection.close after orchestrator pools were drained, and its exact failed job rerun passed; the journal RLock also prevents an in-flight SQLite call from executing concurrently inside close. Diagnosis did expose a separate deterministic lifecycle defect: closing while execute() was between its durable begin and outcome append (blocked in tracker I/O) made the later append fail with 'Cannot operate on a closed database.' Direct production readers also bypass TaskTransitionService. The narrow fix now gives each complete execute/recover saga one lifetime lease, gives every public journal reader/writer an operation lease, fences late callers once close starts, and drains already-admitted work before one idempotent close. No timeout was raised. Evidence on rebased fe06a0ff: new saga/direct-use/orchestrator-close regressions 10/10 fresh-process runs (30 executions); full transition-service file 112 passed; focused production direct-reader paths 5 passed; terminal mutation scan 21/21. Final complete gate is intentionally waiting for the sibling definitive gate to release host capacity.
+---
+author: oompah
+created: 2026-08-11 13:50
+---
+Implementation pushed at exact head 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f. Final boundary covers complete ordinary/authorized transition sagas plus every direct public journal reader/writer; ContextVar leases propagate safely into asyncio.to_thread and are checked against live saga ownership so cancellation cannot revive a stale lease. Close is idempotent, fences late work, drains admitted work, and cannot split the durable saga. No global timeout changed. Green evidence: transition service 112 passed; shared registry/production drain/historical events 9 passed; exact production direct-reader tests 5 passed; three race regressions passed across 10 fresh processes (30 executions); adjacent transition/restart/event surface previously 264 passed after rebase; mutation scan 21/21; secret/commit hooks passed. Definitive local make test was operator-stopped at 22% to yield to the server's authoritative validation lease, after 4,505 passed and 0 failed. Original CI close timeout remains diagnosed as uniform 3.12 runner slowdown, not claimed as caused by the independently reproduced ownership defect.
 ---
 <!-- COMMENTS:END -->
