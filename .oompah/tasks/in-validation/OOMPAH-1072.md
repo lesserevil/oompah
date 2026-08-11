@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T08:11:28.178710Z'
-updated_at: '2026-08-11T10:21:28.606047Z'
+updated_at: '2026-08-11T10:43:13.083872Z'
 work_branch: OOMPAH-1072
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/809
@@ -42,6 +42,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1072
     digest: 43f2ef7389581c89fbf3b0d8956fe3787efa5637914147b2245dc54cc1b5aa8c
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1072","audit-00d5d7755c13","attempt-c5d09f31dc08"]': '2026-08-11T10:43:03.960523+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1072
+    target_state: Done
+    evidence_fingerprint: 43f2ef7389581c89fbf3b0d8956fe3787efa5637914147b2245dc54cc1b5aa8c
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1072
+    selected_sha: 4da80c799a785da5112eec35773025224e6f1d3c
+    landing_revision: null
+    audit_ids:
+    - audit-00d5d7755c13
+    kind: result
+    applied: true
+    retired_at: '2026-08-11T10:43:03.960539+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1072
+    audit_id: audit-00d5d7755c13
+    attempt_id: attempt-c5d09f31dc08
+    target_state: Done
+    evidence_fingerprint: 43f2ef7389581c89fbf3b0d8956fe3787efa5637914147b2245dc54cc1b5aa8c
+    status: In Validation
+    audit_ids:
+    - audit-00d5d7755c13
+    kind: result
+    applied: true
+    created_at: '2026-08-11T10:43:03.960549+00:00'
+    applied_at: '2026-08-11T10:43:11.331644+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -49,7 +79,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1072
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -58,7 +88,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c5d09f31dc08
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -70,6 +100,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1072
       selected_ref: origin/OOMPAH-1072
       selected_sha: 4da80c799a785da5112eec35773025224e6f1d3c
+      verdict: pass
+      completed_at: '2026-08-11T10:43:03.960368+00:00'
+      ended_at: '2026-08-11T10:43:03.960368+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -79,7 +112,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T08:56:12.618014+00:00'
     selected_ref: origin/OOMPAH-1072
     selected_sha: 4da80c799a785da5112eec35773025224e6f1d3c
-    updated_at: '2026-08-11T10:21:19.770199+00:00'
+    updated_at: '2026-08-11T10:43:03.960368+00:00'
   - version: 1
     audit_id: audit-078f5a8faba5
     project_id: proj-14849f1b
@@ -156,5 +189,29 @@ author: oompah
 created: 2026-08-11 10:21
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 10:43
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- quality_gate: passed at exact head SHA 4da80c799a785da5112eec35773025224e6f1d3c; make test 171.3s
+- files_modified[0]: oompah/terminal_audit_enforcement.py
+- files_modified[1]: tests/test_error_watcher.py
+- files_modified[2]: tests/test_terminal_audit_enforcement.py
+- implementation: diagnostic_name = code.partition(':')[0]; logger.error(..., extra={'error_class': 'terminal_audit_enforcement.<diagnostic_name>'})
+- diagnostic_extraction: PASS
+- namespaced_logging: PASS
+- code_preservation: PASS - self.errors and log text
+- exception_detail: PASS - type(exc).__name__ included
+- same_prefix_aggregation: PASS - test_structured_errors verifies identical error_class
+- distinct_prefixes: PASS - different prefixes remain distinct
+- startup_burst: PASS - 56 errors create 2 tasks
+- restart_durability: PASS - fresh ErrorWatcher suppresses both classes
+- free_form_distinct: PASS - unrelated errors separate
+- no_errorwatcher_changes: PASS - only terminal_audit_enforcement modified
 ---
 <!-- COMMENTS:END -->
