@@ -200,6 +200,12 @@ def _is_transient_state_branch_git_lock_error(output: str) -> bool:
     )
 
 
+def _is_commit_noop_after_staged_diff(stdout: str, stderr: str) -> bool:
+    """Recognize Git's exact no-op after another writer commits the index."""
+    output = f"{stdout or ''}\n{stderr or ''}".lower()
+    return "nothing to commit, working tree clean" in output
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -2353,6 +2359,7 @@ class OompahMarkdownTracker:
         state worktree had nothing left to commit.
         """
         for attempt in range(_STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS):
+            commit_noop = False
             failed_args = ["add", TASKS_DIR]
             failed = self._git(failed_args, check=False, cwd=state_root)
 
@@ -2371,9 +2378,23 @@ class OompahMarkdownTracker:
                 failed = self._git(failed_args, check=False, cwd=state_root)
                 if failed.returncode == 0:
                     return True
+                commit_noop = _is_commit_noop_after_staged_diff(
+                    failed.stdout,
+                    failed.stderr,
+                )
 
             detail = failed.stderr.strip() or failed.stdout.strip()
             error = TrackerError(f"git {' '.join(failed_args)} failed: {detail}")
+            if commit_noop:
+                if attempt >= _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS - 1:
+                    raise error
+                logger.info(
+                    "State-branch index was committed by a competing writer; "
+                    "rechecking stage/commit (attempt %d/%d)",
+                    attempt + 1,
+                    _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS,
+                )
+                continue
             if not _is_transient_state_branch_git_lock_error(detail):
                 raise error
             if attempt >= _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS - 1:

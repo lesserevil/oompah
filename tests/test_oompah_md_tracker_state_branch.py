@@ -961,6 +961,67 @@ class TestStateBranchTrackerFailures:
         assert calls == ["add", "diff", "commit", "add", "diff"]
         sleep.assert_called_once_with(0.05)
 
+    def test_commit_noop_rechecks_diff_after_competing_commit(
+        self, tmp_path: Path
+    ) -> None:
+        """A writer that loses after staged diff observes the committed index."""
+        tracker = _make_tracker(
+            tmp_path,
+            state_branch_enabled=True,
+            state_branch_name="oompah/state/proj-commit-noop",
+        )
+        calls: list[str] = []
+        diff_count = 0
+
+        def _fake_git(args: list[str], *, check: bool, **kwargs) -> MagicMock:
+            nonlocal diff_count
+            calls.append(args[0])
+            if args[0] == "diff":
+                diff_count += 1
+                return _make_completed_process(1 if diff_count == 1 else 0)
+            if args[0] == "commit":
+                return _make_completed_process(
+                    1,
+                    stdout="On branch state\nnothing to commit, working tree clean\n",
+                )
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+        with patch("oompah.oompah_md_tracker.time.sleep") as sleep:
+            committed = tracker._stage_and_commit_state_branch(tmp_path, "message")
+
+        assert committed is False
+        assert calls == ["add", "diff", "commit", "add", "diff"]
+        sleep.assert_not_called()
+
+    def test_unrelated_commit_failure_is_not_retried(self, tmp_path: Path) -> None:
+        """Only the canonical competing-writer commit no-op is recoverable."""
+        tracker = _make_tracker(
+            tmp_path,
+            state_branch_enabled=True,
+            state_branch_name="oompah/state/proj-commit-error",
+        )
+        calls: list[str] = []
+
+        def _fake_git(args: list[str], *, check: bool, **kwargs) -> MagicMock:
+            calls.append(args[0])
+            if args[0] == "diff":
+                return _make_completed_process(1)
+            if args[0] == "commit":
+                return _make_completed_process(
+                    128,
+                    stderr="fatal: unable to write new index file",
+                )
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+        with patch("oompah.oompah_md_tracker.time.sleep") as sleep:
+            with pytest.raises(TrackerError, match="unable to write new index file"):
+                tracker._stage_and_commit_state_branch(tmp_path, "message")
+
+        assert calls == ["add", "diff", "commit"]
+        sleep.assert_not_called()
+
     def test_non_lock_git_failure_is_not_retried(self, tmp_path: Path) -> None:
         """Authentication, permissions, and repository errors stay fail-closed."""
         tracker = _make_tracker(
