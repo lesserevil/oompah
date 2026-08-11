@@ -1,0 +1,37 @@
+---
+id: OOMPAH-1084
+type: task
+status: Backlog
+priority: null
+title: Propagate synchronized open-review heads into exact gate and merge authority
+parent: null
+children: []
+blocked_by: []
+start_blocked_by: []
+labels: []
+assignee: null
+created_at: '2026-08-11T12:18:01.834270Z'
+updated_at: '2026-08-11T12:18:01.834270Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+review_head: null
+merged_at: null
+oompah.create_once:
+  version: 1
+  project_id: proj-14849f1b
+  operation_kind: api_task_create
+  creation_marker: cf39693e-0c40-4a0f-b906-d1d9f0f32091
+  request_fingerprint: 0c291c7dc884f23ab6ff6da8a48bacb3bb0abc28b37aa4ba995855e97b708aa2
+---
+## Summary
+
+Triggered by live PR 819 / OOMPAH-1082 on 2026-08-11. The task had adopted/local-gated review head a2d82..., then the draft PR and branch synchronized to 4af426... with fresh protected CI. GitHubProvider.list_open_reviews constructed ReviewRequest without head_sha even though the GitHub list payload contained it. Consequently work_decision could not emit review.head_changed, the durable task integration/review heads and gate PASS remained a2d82, periodic reassessment could not heal them, and undrafting could permit 4af426 to merge under stale a2d82 local authority. Scope: propagate exact open-review head SHA (and any required source/base identity) from provider projections through work-decision/review monitoring; on synchronized draft or ready PR head change, revoke stale review/gate/merge authority, return/requeue the task through exact Ready-to-Integrate delivery gating, persist/adopt only the new head, and fail closed until branch gate and review authority match. Preserve fork/source/base validation, PR identity, task/project scope, idempotent repeated webhooks/polls, concurrent synchronize/undraft ordering, restart recovery, and protected-workflow import behavior. Relevant code: oompah/scm.py list_open_reviews, ReviewRequest, work_decision.py review.head_changed, review monitor/delivery transitions, integration/review/gate stores, GitHub webhook/poll tests. Required tests: adopted head A + draft PR synchronize to B must expose observed head B, revoke A, gate/adopt B, and never mark ready/merge using A; same race with undraft/check completion fails closed; repeated polls/webhooks coalesce; wrong fork/base/source/PR and advanced C cannot reuse B; restart between revocation and B gate converges once; GitHub API degradation remains fail closed. Acceptance: task integration head, review head, branch gate PASS, PR head, and eventual merge head must be the same exact SHA before merge eligibility; focused tests, terminal mutation scan, and protected CI pass.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
