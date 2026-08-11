@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1013
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: null
 title: Prevent cross-priority starvation in bounded terminal-audit health scans
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T03:11:11.351608Z'
-updated_at: '2026-08-11T03:25:11.795444Z'
+updated_at: '2026-08-11T03:28:25.657697Z'
 work_branch: OOMPAH-1013
 target_branch: null
 review_url: null
