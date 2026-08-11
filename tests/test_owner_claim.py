@@ -1824,6 +1824,113 @@ def test_enforce_owner_claim_release_after_intent_cannot_commit_backlog(
     effects.receipts.close()
 
 
+def test_enforce_owner_claim_delete_after_intent_cannot_commit_backlog(
+    tmp_path,
+):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.state = "Backlog"
+    issue.labels = []
+    tracker.fetch_issue_detail.return_value = issue
+    orch.workflow_runtime = SimpleNamespace(
+        enforce=True,
+        health_snapshot=lambda: {},
+        projections=lambda: (),
+        liveness_controller=orch.workflow_controller,
+    )
+
+    def schedule_owner_workflow(**kwargs):
+        if kwargs["action"] is ImplementationAction.AUTHORITY_REVOCATION:
+            return SimpleNamespace(
+                job_id="delete-retirement-job",
+                generation="delete-retirement-generation",
+            )
+        payload = dict(kwargs["payload"])
+        return orch.workflow_job_store.enqueue(
+            WorkflowJobSpec(
+                project_id=kwargs["project_id"],
+                task_id=kwargs["identifier"],
+                generation=f"direct-owner:{payload['claim_id']}",
+                action=kwargs["action"].value,
+                idempotency_key=f"owner-claim:{payload['claim_id']}",
+                payload=payload,
+                expected_evidence_revision=kwargs["expected_evidence_revision"],
+                expected_head_sha=kwargs["expected_head_sha"],
+                priority=kwargs["priority"],
+            )
+        )
+
+    orch._schedule_implementation_workflow_event = MagicMock(
+        side_effect=schedule_owner_workflow
+    )
+    client = TestClient(app, raise_server_exceptions=False)
+    endpoint = "/api/v1/projects/proj-1/tasks/OOMPAH-1/owner-claim"
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new=AsyncMock()),
+    ):
+        accepted = client.post(endpoint, json={"actor_login": "alice"})
+
+    assert accepted.status_code == 202, accepted.text
+    job = orch.workflow_job_store.get(accepted.json()["job_id"])
+    claim_id = job.payload["claim_id"]
+    effects = OrchestratorImplementationEffects(
+        orch,
+        project_id=str(issue.project_id),
+        tracker=tracker,
+    )
+
+    async def delete_after_intent(phase, _job):
+        if phase != "transition_intent":
+            return
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            response = await asyncio.to_thread(
+                client.request,
+                "DELETE",
+                endpoint,
+                json={"actor_login": "alice"},
+            )
+        assert response.status_code == 202, response.text
+        retiring = orch._owner_claim_for_issue(issue.id, issue.project_id)
+        assert retiring is not None
+        assert retiring.claim_id == claim_id
+        assert retiring.retirement_pending is True
+
+    worker = DurableWorkflowWorker(
+        store=orch.workflow_job_store,
+        handlers={
+            ImplementationAction.DIRECT_OWNER_CLAIM.value: (
+                ImplementationWorkflowHandler(
+                    ProductionImplementationWorkflowBackend(effects)
+                )
+            )
+        },
+        transition_services={
+            str(issue.project_id): orch._task_transition_service(
+                issue.project_id,
+                tracker,
+            )
+        },
+        worker_id="retiring-owner-claim-worker",
+        phase_observer=delete_after_intent,
+    )
+
+    result = asyncio.run(worker.run_once())
+
+    assert result.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    assert issue.state == "Backlog"
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is None
+    tracker.update_issue.assert_not_called()
+    durable = orch.workflow_job_store.get(job.job_id)
+    assert durable.state.value == "exhausted"
+    compensation = durable.checkpoint["transition_compensation"]
+    assert compensation["claim_id"] == claim_id
+    assert compensation["reason_code"] == "transition.owner_claim_retiring"
+    revocation = orch._schedule_implementation_workflow_event.call_args_list[-1]
+    assert revocation.kwargs["action"] is ImplementationAction.AUTHORITY_REVOCATION
+    assert revocation.kwargs["payload"]["claim_id"] == claim_id
+    effects.receipts.close()
+
+
 def test_enforce_backlog_owner_claim_still_rejects_non_owner(tmp_path):
     orch, tracker, issue = _orchestrator(tmp_path)
     issue.state = "Backlog"

@@ -5549,6 +5549,8 @@ class Orchestrator:
         )
         if claim is None:
             return "transition.owner_claim_missing"
+        if claim.retirement_pending:
+            return "transition.owner_claim_retiring"
         if str(claim.claim_id or "") != str(intent.evidence_generation or ""):
             return "transition.owner_claim_generation_mismatch"
         if str(claim.owner_login or "") != intent.actor:
