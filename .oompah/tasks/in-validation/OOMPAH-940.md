@@ -33,7 +33,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-11T08:49:37.918021Z'
+updated_at: '2026-08-11T08:49:50.415897Z'
 work_branch: epic-OOMPAH-940
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/757
@@ -551,13 +551,13 @@ oompah.terminal_audit:
     selected_sha: 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17
     landing_revision: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
 oompah.task_costs:
-  total_input_tokens: 418
-  total_output_tokens: 12460
+  total_input_tokens: 484
+  total_output_tokens: 16131
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 418
-      output_tokens: 12460
+      input_tokens: 484
+      output_tokens: 16131
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -584,6 +584,12 @@ oompah.task_costs:
     output_tokens: 10
     cost_usd: 0.0
     recorded_at: '2026-08-11T03:04:52.994658+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 66
+    output_tokens: 3671
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T08:49:47.109185+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/757
 oompah.review_number: '757'
 oompah.work_branch: epic-OOMPAH-940
@@ -798,5 +804,15 @@ Safe evidence:
 - authorized_head: 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17
 - test_gate_decision: full_gate_required
 - test_gate_status: passed
+---
+author: oompah
+created: 2026-08-11 08:49
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 24, Tool calls: 8
+- Tokens: 66 in / 3.7K out [3.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 24m 31s
+- Log: OOMPAH-940__20260811T082529Z.jsonl
 ---
 <!-- COMMENTS:END -->
