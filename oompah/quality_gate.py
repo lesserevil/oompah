@@ -34,6 +34,11 @@ from oompah.validation_resource_lease import (
     ValidationLeaseOwner,
     ValidationResourceLease,
 )
+from oompah.venv_safety import (
+    VenvSafetyError,
+    ensure_worktree_venv,
+    worktree_venv_lock,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -418,6 +423,56 @@ def _validate_trusted_runtime_source(
             "before rerunning the branch gate."
         )
     return actual
+
+
+def _repair_trusted_runtime_source(runtime_prefix: Path) -> bool:
+    """Repair a poisoned canonical service runtime when it is provably safe.
+
+    A linked task worktree is never repair authority.  Only the primary Git
+    checkout may repoint its own conventional ``.venv``, and the currently
+    loaded quality-gate implementation must itself come from that checkout.
+    The setup helper takes the same cross-worktree flock used by Make.
+    """
+
+    runtime = runtime_prefix.resolve(strict=False)
+    service_checkout = runtime.parent.resolve(strict=False)
+    loaded_checkout = Path(__file__).resolve().parent.parent
+    if (
+        runtime.name != ".venv"
+        or not (service_checkout / ".git").is_dir()
+        or loaded_checkout != service_checkout
+    ):
+        return False
+    uv = shutil.which("uv")
+    if not uv:
+        return False
+    try:
+        ensure_worktree_venv(
+            checkout=service_checkout,
+            requested_venv=runtime,
+            uv=uv,
+            extra="dev",
+        )
+    except (OSError, VenvSafetyError) as exc:
+        logger.warning("Automatic trusted-runtime repair failed: %s", exc)
+        return False
+    return True
+
+
+def _validate_or_repair_trusted_runtime_source(
+    runtime_prefix: Path,
+    candidate_snapshot: Path,
+) -> Path | None:
+    """Observe one coherent mapping, repairing canonical corruption once."""
+
+    try:
+        with worktree_venv_lock(runtime_prefix.parent, exclusive=False):
+            return _validate_trusted_runtime_source(runtime_prefix, candidate_snapshot)
+    except _TrustedRuntimeCorruption:
+        if not _repair_trusted_runtime_source(runtime_prefix):
+            raise
+    with worktree_venv_lock(runtime_prefix.parent, exclusive=False):
+        return _validate_trusted_runtime_source(runtime_prefix, candidate_snapshot)
 
 
 @dataclass(frozen=True)
@@ -4079,8 +4134,13 @@ class BranchQualityGate:
                 f"{runtime_python}; replace the operator test runtime before "
                 "rerunning the branch gate."
             )
-        declared_editable_source = _validate_trusted_runtime_source(
-            runtime_prefix, repo
+        # Make owns the corresponding lock exclusively while inspecting or
+        # repairing editable metadata. A gate waits for that bounded repair,
+        # and a canonical service checkout can safely repair a stale mapping
+        # once before candidate authority is consumed.
+        declared_editable_source = _validate_or_repair_trusted_runtime_source(
+            runtime_prefix,
+            repo,
         )
         if runtime_python.exists():
             add_destination(repo / ".venv")

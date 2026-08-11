@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import shlex
+import shutil
 import subprocess
 import venv
 
@@ -17,9 +18,14 @@ def _makefile_text() -> str:
     return MAKEFILE.read_text(encoding="utf-8")
 
 
-def _editable_test_venv(tmp_path: Path, editable_checkout: Path) -> tuple[Path, Path]:
+def _editable_test_venv(
+    tmp_path: Path,
+    editable_checkout: Path,
+    *,
+    runtime_name: str = ".venv",
+) -> tuple[Path, Path]:
     """Create a small real venv whose oompah import comes from one checkout."""
-    runtime = tmp_path / ".venv"
+    runtime = tmp_path / runtime_name
     venv.EnvBuilder(with_pip=False).create(runtime)
     result = subprocess.run(
         [
@@ -48,13 +54,68 @@ def _non_gate_environment(fake_bin: Path) -> dict[str, str]:
     return environment
 
 
+def _copy_setup_surface(checkout: Path) -> None:
+    """Create the minimal source surface exercised by the Make setup guard."""
+    checkout.mkdir(parents=True, exist_ok=True)
+    (checkout / "Makefile").write_text(_makefile_text(), encoding="utf-8")
+    (checkout / "pyproject.toml").write_text(
+        "[project]\nname = 'oompah'\nversion = '0'\n",
+        encoding="utf-8",
+    )
+    package = checkout / "oompah"
+    package.mkdir(exist_ok=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    shutil.copyfile(ROOT / "oompah" / "venv_safety.py", package / "venv_safety.py")
+
+
+def _linked_setup_checkouts(tmp_path: Path, *task_names: str) -> tuple[Path, ...]:
+    """Build a minimal primary checkout plus linked-worktree metadata."""
+    service = tmp_path / "service"
+    _copy_setup_surface(service)
+    common = service / ".git"
+    common.mkdir()
+    checkouts = [service]
+    for name in task_names:
+        task = tmp_path / name
+        _copy_setup_surface(task)
+        worktree_git = common / "worktrees" / name
+        worktree_git.mkdir(parents=True)
+        (worktree_git / "commondir").write_text("../..\n", encoding="utf-8")
+        (task / ".git").write_text(
+            f"gitdir: {worktree_git}\n",
+            encoding="utf-8",
+        )
+        checkouts.append(task)
+    return tuple(checkouts)
+
+
+def _make_setup(
+    checkout: Path,
+    *,
+    environment: dict[str, str],
+    task_venv_argument: str | None = None,
+    target: str = "setup",
+) -> subprocess.CompletedProcess[str]:
+    command = ["/usr/bin/make", "--no-print-directory"]
+    if task_venv_argument is not None:
+        command.append(f"OOMPAH_TASK_VENV={task_venv_argument}")
+    command.append(target)
+    return subprocess.run(
+        command,
+        cwd=checkout,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+
+
 def test_setup_installs_server_dependencies_only():
     """make setup installs Python dependencies without tracker-specific setup."""
     text = _makefile_text()
 
-    assert "setup: $(VENV)/.uv-setup" in text
-    assert "$(VENV)/.uv-setup: pyproject.toml" in text
-    assert "uv pip install --python \"$(PYTHON)\" -e '.[server]'" in text
+    assert "python3 -m oompah.venv_safety ensure" in text
+    assert '--checkout "$(CURDIR)" --venv "$(VENV)"' in text
+    assert '--uv "$(UV)" --extra server' in text
     assert "start: setup" in text
     assert "ensure-" not in text
 
@@ -63,16 +124,11 @@ def test_test_targets_install_complete_dev_dependencies():
     """Fresh test worktrees must install every dependency exercised by tests."""
     text = _makefile_text()
 
-    assert "test-setup: $(VENV)/.uv-test-setup" in text
-    assert (
-        "$(VENV)/.uv-test-setup: pyproject.toml $(VENV)/.uv-setup"
-        in text
-    )
-    assert "uv pip install --python \"$(PYTHON)\" -e '.[dev]'" in text
+    assert "test-setup: setup" in text
+    assert '--uv "$(UV)" --extra dev' in text
     assert ".PHONY: help setup test-setup" in text
     assert "test: test-setup" in text
     assert "test-serial: test-setup" in text
-    assert "@touch $@" in text
 
 
 def test_quality_gate_uses_trusted_runtime_without_uv(tmp_path):
@@ -216,8 +272,232 @@ def test_non_gate_test_setup_still_installs_declared_dependencies():
         check=True,
     )
 
-    assert "uv pip install --python \".venv/bin/python\" -e '.[server]'" in result.stdout
-    assert "uv pip install --python \".venv/bin/python\" -e '.[dev]'" in result.stdout
+    assert "oompah.venv_safety ensure" in result.stdout
+    assert '--venv ".venv"' in result.stdout
+    assert "--extra server" in result.stdout
+    assert "--extra dev" in result.stdout
+
+
+def test_task_worktree_rejects_explicit_absolute_service_venv(tmp_path):
+    """A command-line task override cannot retarget the live service runtime."""
+    service, task = _linked_setup_checkouts(tmp_path, "task")
+    service_venv, editable_path = _editable_test_venv(service, service)
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    uv_called = tmp_path / "uv-called"
+    (fake_bin / "uv").write_text(
+        f"#!/bin/sh\ntouch {shlex.quote(str(uv_called))}\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "uv").chmod(0o755)
+
+    result = _make_setup(
+        task,
+        environment=_non_gate_environment(fake_bin),
+        task_venv_argument=str(service_venv),
+    )
+
+    assert result.returncode != 0
+    assert "resolves to the live service virtualenv" in result.stderr
+    assert not uv_called.exists()
+    assert editable_path.read_text(encoding="utf-8").strip() == str(service)
+
+
+def test_task_worktree_rejects_inherited_service_venv(tmp_path):
+    """A worker cannot inherit the service runtime as its task selector."""
+    service, task = _linked_setup_checkouts(tmp_path, "task")
+    service_venv, editable_path = _editable_test_venv(service, service)
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    uv_called = tmp_path / "uv-called"
+    (fake_bin / "uv").write_text(
+        f"#!/bin/sh\ntouch {shlex.quote(str(uv_called))}\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "uv").chmod(0o755)
+    environment = _non_gate_environment(fake_bin)
+    environment["OOMPAH_TASK_VENV"] = str(service_venv)
+
+    result = _make_setup(task, environment=environment)
+
+    assert result.returncode != 0
+    assert "resolves to the live service virtualenv" in result.stderr
+    assert not uv_called.exists()
+    assert editable_path.read_text(encoding="utf-8").strip() == str(service)
+
+
+def test_service_runtime_marker_protects_across_repository_boundaries(tmp_path):
+    """Worker-provided service identity protects the runtime in another repo."""
+    service = tmp_path / "service"
+    task = tmp_path / "unrelated-task"
+    _copy_setup_surface(service)
+    _copy_setup_surface(task)
+    (service / ".git").mkdir()
+    (task / ".git").mkdir()
+    service_venv, editable_path = _editable_test_venv(service, service)
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    uv_called = tmp_path / "uv-called"
+    (fake_bin / "uv").write_text(
+        f"#!/bin/sh\ntouch {shlex.quote(str(uv_called))}\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "uv").chmod(0o755)
+    environment = _non_gate_environment(fake_bin)
+    environment.update(
+        {
+            "OOMPAH_TASK_VENV": str(service_venv),
+            "OOMPAH_SERVICE_CHECKOUT": str(service),
+            "OOMPAH_SERVICE_VENV": str(service_venv),
+        }
+    )
+
+    result = _make_setup(task, environment=environment)
+
+    assert result.returncode != 0
+    assert "resolves to the live service virtualenv" in result.stderr
+    assert not uv_called.exists()
+    assert editable_path.read_text(encoding="utf-8").strip() == str(service)
+
+
+def test_task_worktree_rejects_relative_and_symlink_service_venv_aliases(tmp_path):
+    """Lexical aliases are compared by resolution and filesystem identity."""
+    service, task = _linked_setup_checkouts(tmp_path, "task")
+    service_venv, editable_path = _editable_test_venv(service, service)
+    alias = tmp_path / "service-venv-alias"
+    alias.symlink_to(service_venv, target_is_directory=True)
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    uv_called = tmp_path / "uv-called"
+    (fake_bin / "uv").write_text(
+        f"#!/bin/sh\ntouch {shlex.quote(str(uv_called))}\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "uv").chmod(0o755)
+    environment = _non_gate_environment(fake_bin)
+
+    relative = os.path.relpath(service_venv, task)
+    relative_result = _make_setup(
+        task,
+        environment=environment,
+        task_venv_argument=relative,
+    )
+    alias_result = _make_setup(
+        task,
+        environment=environment,
+        task_venv_argument=str(alias),
+    )
+
+    assert relative_result.returncode != 0
+    assert alias_result.returncode != 0
+    assert "live service virtualenv" in relative_result.stderr
+    assert "live service virtualenv" in alias_result.stderr
+    assert not uv_called.exists()
+    assert editable_path.read_text(encoding="utf-8").strip() == str(service)
+
+
+def test_concurrent_task_worktrees_cannot_race_service_editable_mapping(tmp_path):
+    """The shared Git lock and alias guard protect one trusted mapping."""
+    service, task_a, task_b = _linked_setup_checkouts(
+        tmp_path,
+        "task-a",
+        "task-b",
+    )
+    service_venv, editable_path = _editable_test_venv(service, service)
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    uv_called = tmp_path / "uv-called"
+    (fake_bin / "uv").write_text(
+        f"#!/bin/sh\ntouch {shlex.quote(str(uv_called))}\nsleep 1\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "uv").chmod(0o755)
+    environment = _non_gate_environment(fake_bin)
+    command = [
+        "/usr/bin/make",
+        "--no-print-directory",
+        f"OOMPAH_TASK_VENV={service_venv}",
+        "setup",
+    ]
+
+    first = subprocess.Popen(
+        command,
+        cwd=task_a,
+        env=environment,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    second = subprocess.Popen(
+        command,
+        cwd=task_b,
+        env=environment,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    first_output = first.communicate(timeout=5)
+    second_output = second.communicate(timeout=5)
+
+    assert first.returncode != 0, first_output
+    assert second.returncode != 0, second_output
+    assert not uv_called.exists()
+    assert editable_path.read_text(encoding="utf-8").strip() == str(service)
+
+
+def test_canonical_service_setup_repairs_its_own_editable_mapping(tmp_path):
+    """The primary checkout retains authority to repair its live runtime."""
+    service, task = _linked_setup_checkouts(tmp_path, "task")
+    service_venv, editable_path = _editable_test_venv(service, task)
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    uv_called = tmp_path / "uv-called"
+    (fake_bin / "uv").write_text(
+        "#!/bin/sh\n"
+        f"touch {shlex.quote(str(uv_called))}\n"
+        f"printf '%s\\n' {shlex.quote(str(service))} > "
+        f"{shlex.quote(str(editable_path))}\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "uv").chmod(0o755)
+
+    result = _make_setup(
+        service,
+        environment=_non_gate_environment(fake_bin),
+        task_venv_argument=str(service_venv),
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert uv_called.exists()
+    assert editable_path.read_text(encoding="utf-8").strip() == str(service)
+
+
+def test_task_private_venv_remains_a_valid_test_setup_target(tmp_path):
+    """A managed worktree can validate through its isolated runtime."""
+    _service, task = _linked_setup_checkouts(tmp_path, "task")
+    private_root = task / ".oompah"
+    private_root.mkdir()
+    private_venv, _editable_path = _editable_test_venv(
+        private_root,
+        task,
+        runtime_name="task-venv",
+    )
+    (private_venv / ".uv-test-setup").touch()
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    uv_called = tmp_path / "uv-called"
+    (fake_bin / "uv").write_text(
+        f"#!/bin/sh\ntouch {shlex.quote(str(uv_called))}\nexit 91\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "uv").chmod(0o755)
+    environment = _non_gate_environment(fake_bin)
+    environment["OOMPAH_TASK_VENV"] = str(private_venv)
+
+    result = _make_setup(task, environment=environment, target="test-setup")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not uv_called.exists()
 
 
 def test_setup_refreshes_a_fresh_stamp_with_a_stale_editable_checkout(tmp_path):

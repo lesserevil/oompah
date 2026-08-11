@@ -130,47 +130,11 @@ ifneq ($(_PYTEST_GATE),)
 setup:
 	@:
 else
-define validate_task_private_venv
-test ! -L "$(VENV)" && test -f "$(VENV)/pyvenv.cfg" || { \
-	echo "ERROR: $(VENV) is not a real task-private virtualenv; refusing to run uv against a wrapper or alias." >&2; \
-	exit 1; \
-}; \
-expected_prefix=$$(cd "$(VENV)" && pwd -P); \
-actual_prefix=$$($(PYTHON) -c 'import sys; print(sys.prefix)' 2>/dev/null || true); \
-if [ "$$actual_prefix" != "$$expected_prefix" ]; then \
-	echo "ERROR: $(VENV) interpreter resolves to $$actual_prefix, not the task-private runtime $$expected_prefix; refusing to run uv." >&2; \
-	exit 1; \
-fi
-endef
-
-setup: $(VENV)/.uv-setup
-	@$(validate_task_private_venv)
-	@expected_checkout=$$(pwd -P); \
-	actual_checkout=$$(cd "$(VENV)" && "$(abspath $(PYTHON))" -I -c \
-		'import importlib.util, pathlib; spec = importlib.util.find_spec("oompah"); print(pathlib.Path(spec.origin).resolve().parent.parent if spec and spec.origin else "")' \
-		2>/dev/null || true); \
-	if [ "$$actual_checkout" != "$$expected_checkout" ]; then \
-		echo "Refreshing editable oompah install for $$expected_checkout (was $${actual_checkout:-unavailable})."; \
-		if ! uv pip install --python "$(PYTHON)" -e '.[server]'; then \
-			echo "ERROR: failed to refresh editable oompah install for $$expected_checkout." >&2; \
-			exit 1; \
-		fi; \
-		touch "$(VENV)/.uv-setup"; \
-		actual_checkout=$$(cd "$(VENV)" && "$(abspath $(PYTHON))" -I -c \
-			'import importlib.util, pathlib; spec = importlib.util.find_spec("oompah"); print(pathlib.Path(spec.origin).resolve().parent.parent if spec and spec.origin else "")' \
-			2>/dev/null || true); \
-	fi; \
-	if [ "$$actual_checkout" != "$$expected_checkout" ]; then \
-		echo "ERROR: editable oompah install resolves to $${actual_checkout:-unavailable}, not the invoking checkout $$expected_checkout." >&2; \
-		exit 1; \
-	fi
-
-$(VENV)/.uv-setup: pyproject.toml
-	@test -d $(VENV) || uv venv $(VENV)
-	@$(validate_task_private_venv)
-	uv pip install --python "$(PYTHON)" -e '.[server]'
-	@touch $@
-	@echo "Setup complete. Run 'make start' to launch oompah."
+setup:
+	@command -p python3 -m oompah.venv_safety ensure \
+		--checkout "$(CURDIR)" --venv "$(VENV)" --uv "$(UV)" --extra server \
+		--service-checkout "$(OOMPAH_SERVICE_CHECKOUT)" \
+		--service-venv "$(OOMPAH_SERVICE_VENV)"
 endif
 
 sync-cli: setup
@@ -184,12 +148,11 @@ sync-cli: setup
 install-cli: sync-cli
 
 ifeq ($(_PYTEST_GATE),)
-test-setup: $(VENV)/.uv-test-setup
-
-$(VENV)/.uv-test-setup: pyproject.toml $(VENV)/.uv-setup
-	uv pip install --python "$(PYTHON)" -e '.[dev]'
-	@touch $@
-	@echo "Test dependencies installed."
+test-setup: setup
+	@command -p python3 -m oompah.venv_safety ensure \
+		--checkout "$(CURDIR)" --venv "$(VENV)" --uv "$(UV)" --extra dev \
+		--service-checkout "$(OOMPAH_SERVICE_CHECKOUT)" \
+		--service-venv "$(OOMPAH_SERVICE_VENV)"
 else
 # The OS-enforced branch gate mounts the service-owned, fully provisioned test
 # virtualenv read-only.  Candidate archive timestamps must not trigger a
