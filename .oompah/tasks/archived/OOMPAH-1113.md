@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T21:07:45.520946Z'
-updated_at: '2026-08-11T22:45:50.677938Z'
+updated_at: '2026-08-11T22:45:56.560924Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,21 @@ oompah.terminal_audit:
       canonical defect OOMPAH-1127 after recovering and publishing the affected Trickle
       state history.
     created_at: '2026-08-11T22:45:44.622542+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1113
+    target_state: Archived
+    evidence_fingerprint: 4ad45575615ae0758a911fce560f487d1b785b4c6c85a1b95e99761eb9ce407d
+    workflow_revision: null
+    selected_ref: null
+    selected_sha: null
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T22:45:54.868339+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -82,3 +96,13 @@ The operation in `backend:terminal_transition_coordinator` should complete succe
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 22:45
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Operator consolidation of a downstream terminal-transition artifact into canonical defect OOMPAH-1127 after recovering and publishing the affected Trickle state history.
+---
+<!-- COMMENTS:END -->
