@@ -2606,6 +2606,11 @@ class Orchestrator:
         self._audit_health_cycle_observations: dict[
             str, AuditHealthObservation
         ] = {}
+        # Exact chained stages whose prerequisite PASS committed before the
+        # next provider could be admitted.  The tracker metadata is durable;
+        # this map is only the bounded in-process wake index and is rebuilt
+        # from ``eligible_at`` during restart synchronization.
+        self._eligible_audit_stage_wakes: dict[tuple[str, str], str] = {}
         # Maintenance lane scheduling state (TASK-466.4).
         # Maps job name → MaintenanceJobState for in-flight coalescing,
         # skip counters, throttle timestamps, and observability.
@@ -11827,6 +11832,33 @@ class Orchestrator:
             )
         return True
 
+    def _request_next_audit_stage(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        audit_id: str,
+    ) -> bool:
+        """Wake one exact successor without bypassing normal audit policy.
+
+        The hint only ensures that the successor is present in the next
+        bounded scan.  Priority, capacity, pause, branch ownership, candidate
+        independence, and workflow-job claim fences are still enforced by the
+        ordinary audit lane.
+        """
+
+        project = str(project_id or "legacy").strip() or "legacy"
+        task = str(task_id or "").strip()
+        audit = str(audit_id or "").strip()
+        if not task or not audit:
+            return False
+        wakes = getattr(self, "_eligible_audit_stage_wakes", None)
+        if not isinstance(wakes, dict):
+            wakes = {}
+            self._eligible_audit_stage_wakes = wakes
+        wakes[(project, task)] = audit
+        return self._request_audit_lane_continuation()
+
     def _integration_executor(self) -> ThreadPoolExecutor:
         """Return the isolated integration executor once the service is live."""
 
@@ -17588,6 +17620,27 @@ class Orchestrator:
                     self.project_store,
                     record.project_id,
                 ).read(record.task_id)
+                authoritative = AuditorDispatchLane.pending_record(
+                    document.pending_chain,
+                    project_id=record.project_id,
+                    task_id=record.task_id,
+                )
+                if (
+                    record.request_state is RequestState.PENDING
+                    and record.prerequisite_audit_id is not None
+                    and record.eligible_at is not None
+                    and not record.attempts
+                    and authoritative is not None
+                    and authoritative.audit_id == record.audit_id
+                ):
+                    # Reconstruct only a wake whose exact predecessor still
+                    # proves a completed PASS.  ``pending_record`` validates
+                    # the durable prerequisite edge and completion authority.
+                    wakes = getattr(self, "_eligible_audit_stage_wakes", None)
+                    if not isinstance(wakes, dict):
+                        wakes = {}
+                        self._eligible_audit_stage_wakes = wakes
+                    wakes[(record.project_id, record.task_id)] = record.audit_id
                 self._activate_status_departure_audit(document, record)
                 before = self.terminal_audit_workflow.decision(record)
                 after = self.terminal_audit_workflow.recover(
@@ -17889,6 +17942,36 @@ class Orchestrator:
             )
             return False
 
+    def _finish_and_wake_terminal_audit_workflow(
+        self,
+        issue: Issue,
+        result: Any,
+        outcome: Any,
+        finalizing_job: Any,
+    ) -> bool:
+        """Close current ownership before publishing a successor wake."""
+
+        closed = self._finish_terminal_audit_workflow(
+            issue,
+            result,
+            outcome,
+            finalizing_job,
+        )
+        if not closed:
+            return False
+        self._record_audit_outcome_ownership(issue.id, outcome)
+        if (
+            getattr(outcome, "success", False)
+            and getattr(outcome, "advanced_target", None) is not None
+            and getattr(outcome, "advanced_audit_id", None)
+        ):
+            self._request_next_audit_stage(
+                project_id=str(issue.project_id or "legacy"),
+                task_id=issue.identifier,
+                audit_id=outcome.advanced_audit_id,
+            )
+        return True
+
     @staticmethod
     def _audit_record_from_finalizing_job(job: Any) -> Any:
         """Rebuild only the trusted record identity stored by the job."""
@@ -18044,14 +18127,13 @@ class Orchestrator:
                     result,
                     job.project_id,
                 )
-                closed = self._finish_terminal_audit_workflow(
+                closed = self._finish_and_wake_terminal_audit_workflow(
                     issue, result, outcome, job
                 )
                 if not closed:
                     raise RuntimeError(
                         "terminal-audit finalization acknowledgement failed"
                     )
-                self._record_audit_outcome_ownership(issue.id, outcome)
                 replayed += 1
             except (AuditWorkflowIdentityError, TypeError, ValueError) as exc:
                 try:
@@ -18776,6 +18858,27 @@ class Orchestrator:
             )
             if cursor_index is not None:
                 ordered = ordered[cursor_index + 1 :] + ordered[: cursor_index + 1]
+        # A prerequisite PASS is a real scheduling edge, not merely another
+        # periodic backlog observation.  Put exact successor hints at the
+        # front of this bounded read window so the next pass can reconsider
+        # them immediately.  Launch eligibility below still refuses a hinted
+        # task while any higher-priority candidate is outside the window.
+        wakes = getattr(self, "_eligible_audit_stage_wakes", {})
+        if wakes:
+            hinted = [
+                issue
+                for issue in ordered
+                if (
+                    str(issue.project_id or "legacy"),
+                    issue.identifier,
+                )
+                in wakes
+            ]
+            if hinted:
+                hinted_ids = {id(issue) for issue in hinted}
+                ordered = hinted + [
+                    issue for issue in ordered if id(issue) not in hinted_ids
+                ]
         limit = self.config.audit_lane_scan_limit
         truncated = limit > 0 and len(ordered) > limit
         if not truncated:
@@ -19045,6 +19148,26 @@ class Orchestrator:
                     project_id=str(issue.project_id or "legacy"),
                     task_id=issue.identifier,
                 )
+                wake_key = (
+                    str(issue.project_id or "legacy"),
+                    issue.identifier,
+                )
+                expected_wake = getattr(
+                    self,
+                    "_eligible_audit_stage_wakes",
+                    {},
+                ).get(wake_key)
+                if expected_wake is not None and (
+                    record is None
+                    or record.audit_id != expected_wake
+                    or record.eligible_at is None
+                ):
+                    # The exact stage was retired, replaced, or is no longer
+                    # eligible.  Never let an obsolete continuation distort
+                    # later bounded windows.
+                    getattr(
+                        self, "_eligible_audit_stage_wakes", {}
+                    ).pop(wake_key, None)
                 finalization_failure_count = (
                     self._uncommitted_terminal_result_intents(
                         document,
@@ -19693,6 +19816,7 @@ class Orchestrator:
                         no_candidate.detail if no_candidate else "no candidate",
                         action_job=action_job,
                     )
+                    self._eligible_audit_stage_wakes.pop(wake_key, None)
                     continue
 
                 if not allow_new_launches:
@@ -19791,6 +19915,9 @@ class Orchestrator:
                         )
                     raise
                 dispatched += 1
+                getattr(self, "_eligible_audit_stage_wakes", {}).pop(
+                    wake_key, None
+                )
                 metrics["dispatch_count"] += 1
                 if plan.rotation_count:
                     metrics["rotation_count"] += 1
@@ -59569,10 +59696,9 @@ class Orchestrator:
                         # A coordinator transport failure leaves the durable
                         # finalizing boundary recoverable by the next worker.
                         raise
-                    self._finish_terminal_audit_workflow(
+                    self._finish_and_wake_terminal_audit_workflow(
                         _issue, result, outcome, finalizing_job
                     )
-                    self._record_audit_outcome_ownership(_issue.id, outcome)
                     # Clear alerts for any sibling audits that were cancelled due to duplicate
                     # fingerprint detection (duplicate audit race condition prevention)
                     for cancelled_audit_id in getattr(
@@ -60485,10 +60611,9 @@ class Orchestrator:
                         outcome = future.result(timeout=60)
                     except Exception:
                         raise
-                    self._finish_terminal_audit_workflow(
+                    self._finish_and_wake_terminal_audit_workflow(
                         _issue, result, outcome, finalizing_job
                     )
-                    self._record_audit_outcome_ownership(_issue.id, outcome)
                     # Clear alerts for any sibling audits that were cancelled due to duplicate
                     # fingerprint detection (duplicate audit race condition prevention)
                     for cancelled_audit_id in getattr(

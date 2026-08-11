@@ -155,6 +155,23 @@ class TestSerialization:
             is None
         )
 
+    def test_chained_stage_eligibility_round_trips_and_legacy_is_immediate(
+        self,
+    ) -> None:
+        original = replace(
+            _record(),
+            eligible_at="2026-07-28T00:02:00Z",
+            prerequisite_audit_id="audit-prerequisite",
+        )
+
+        assert TerminalAuditRecord.from_dict(original.to_dict()) == original
+        legacy = _record().to_dict()
+        assert TerminalAuditRecord.from_dict(legacy).eligible_at is None
+        assert (
+            TerminalAuditRecord.from_dict(legacy).prerequisite_audit_id
+            is None
+        )
+
     def test_completion_authority_must_be_nonempty_when_present(self) -> None:
         with pytest.raises(ValueError, match="workflow_revision"):
             replace(_record(), workflow_revision="  ")

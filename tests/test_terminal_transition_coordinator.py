@@ -1624,6 +1624,11 @@ class TestMergedChain:
         assert doc.pending_chain[1].target_state == TargetState.MERGED
         for record in doc.pending_chain:
             assert record.request_state == RequestState.PENDING
+        done, merged = doc.pending_chain
+        assert done.eligible_at == done.created_at
+        assert done.prerequisite_audit_id is None
+        assert merged.eligible_at is None
+        assert merged.prerequisite_audit_id == done.audit_id
 
     def test_direct_merged_cannot_skip_completion_auditing(self) -> None:
         """Even a direct Merged request must produce a Done audit first."""
@@ -4065,6 +4070,257 @@ class TestRetryFailedAudit:
             status_label_authorized_logins=["project-owner"],
         )
 
+    @staticmethod
+    def _failed_done_chain() -> tuple[TerminalAuditRecord, TerminalAuditRecord]:
+        template = _exhausted_no_auditor_record()
+        exhausted = replace(
+            template,
+            audit_id="audit-done-exhausted",
+            target_state=TargetState.DONE,
+            previous_state="In Progress",
+            attempts=[
+                replace(attempt, target_state=TargetState.DONE)
+                for attempt in template.attempts
+            ],
+        )
+        merged = replace(
+            _pending_record(
+                audit_id="audit-merged-successor",
+                target=TargetState.MERGED,
+                fingerprint=exhausted.evidence_fingerprint,
+            ),
+            prerequisite_audit_id=exhausted.audit_id,
+            eligible_at=None,
+            source_generation=exhausted.source_generation,
+        )
+        return exhausted, merged
+
+    @pytest.mark.parametrize("legacy_prerequisite", [False, True])
+    def test_done_rearm_rebinds_exact_merged_successor_and_converges(
+        self,
+        legacy_prerequisite: bool,
+    ) -> None:
+        tracker = _MemoryTracker()
+        exhausted, merged = self._failed_done_chain()
+        if legacy_prerequisite:
+            merged = replace(merged, prerequisite_audit_id=None)
+        _seed_metadata(tracker, [exhausted, merged])
+        owner = ContributorIdentity("project-owner", "api")
+        reason = "Independent auditor capacity was restored."
+        coordinator = _coordinator(tracker, post_comments=False)
+
+        first = _run(
+            coordinator.retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.DONE,
+                owner,
+                PROJECT_ID,
+                reason,
+                self._owner_project(),
+                evidence_fingerprint=exhausted.evidence_fingerprint,
+            )
+        )
+        restarted = _coordinator(tracker, post_comments=False)
+        repeated = _run(
+            restarted.retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.DONE,
+                owner,
+                PROJECT_ID,
+                reason,
+                self._owner_project(),
+                evidence_fingerprint=exhausted.evidence_fingerprint,
+            )
+        )
+
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        rearmed = next(
+            record
+            for record in store.read(TASK_ID).pending_chain
+            if record.audit_id == first.audit_id
+        )
+        rebound = next(
+            record
+            for record in store.read(TASK_ID).pending_chain
+            if record.audit_id == merged.audit_id
+        )
+        assert first.success is True
+        assert repeated.success is True and repeated.coalesced is True
+        assert repeated.audit_id == rearmed.audit_id
+        assert rebound.audit_id == merged.audit_id
+        assert rebound.prerequisite_audit_id == rearmed.audit_id
+        assert rebound.eligible_at is None
+        assert AuditorDispatchLane.pending_record(
+            store.read(TASK_ID).pending_chain,
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+        ) == rearmed
+
+        outcome = _apply(
+            restarted,
+            _issue(IN_VALIDATION),
+            _pass_result(rearmed),
+        )
+        converged = store.read(TASK_ID)
+        eligible = next(
+            record
+            for record in converged.pending_chain
+            if record.audit_id == merged.audit_id
+        )
+        assert outcome.success is True
+        assert outcome.advanced_target is TargetState.MERGED
+        assert outcome.advanced_audit_id == merged.audit_id
+        assert outcome.applied_status == IN_VALIDATION
+        assert eligible.prerequisite_audit_id == rearmed.audit_id
+        assert eligible.eligible_at is not None
+        assert AuditorDispatchLane.pending_record(
+            converged.pending_chain,
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+        ) == eligible
+
+    @pytest.mark.parametrize(
+        "successor_case",
+        [
+            "ambiguous",
+            "missing",
+            "replaced",
+            "stale",
+            "started",
+            "cross_authority",
+        ],
+    )
+    def test_done_rearm_rejects_non_exact_successor(
+        self,
+        successor_case: str,
+    ) -> None:
+        tracker = _MemoryTracker()
+        exhausted, merged = self._failed_done_chain()
+        chain = [exhausted, merged]
+        if successor_case == "ambiguous":
+            chain.append(replace(merged, audit_id="audit-merged-duplicate"))
+        elif successor_case == "missing":
+            chain[1] = replace(
+                merged,
+                prerequisite_audit_id="audit-done-missing",
+            )
+        elif successor_case == "replaced":
+            chain[1] = replace(
+                merged,
+                source_generation=merged.source_generation + 1,
+            )
+        elif successor_case == "stale":
+            stale = replace(
+                exhausted,
+                audit_id="audit-done-stale",
+                request_state=RequestState.SUPERSEDED,
+            )
+            chain = [
+                stale,
+                exhausted,
+                replace(
+                    merged,
+                    prerequisite_audit_id=stale.audit_id,
+                ),
+            ]
+        elif successor_case == "started":
+            chain[1] = replace(
+                merged,
+                request_state=RequestState.IN_PROGRESS,
+                attempts=[
+                    AuditAttempt(
+                        attempt_id="attempt-merged-started",
+                        target_state=TargetState.MERGED,
+                        evidence_fingerprint=merged.evidence_fingerprint,
+                        request_state=RequestState.IN_PROGRESS,
+                    )
+                ],
+            )
+        else:
+            chain[1] = replace(
+                merged,
+                workflow_revision="other-completion-authority",
+            )
+        _seed_metadata(tracker, chain)
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.DONE,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Retry the failed prerequisite.",
+                self._owner_project(),
+                evidence_fingerprint=exhausted.evidence_fingerprint,
+            )
+        )
+
+        assert result.success is False
+        assert result.reason == "audit_not_retryable"
+        assert TerminalAuditMetadataStore(
+            tracker,
+            _LockStore(),
+            PROJECT_ID,
+        ).read(TASK_ID).pending_chain == chain
+        assert tracker.update_calls == []
+
+    def test_restarted_rearm_rejects_tampered_successor_without_duplicate(self) -> None:
+        tracker = _MemoryTracker()
+        exhausted, merged = self._failed_done_chain()
+        _seed_metadata(tracker, [exhausted, merged])
+        owner = ContributorIdentity("project-owner", "api")
+        reason = "Independent auditor capacity was restored."
+        first = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.DONE,
+                owner,
+                PROJECT_ID,
+                reason,
+                self._owner_project(),
+                evidence_fingerprint=exhausted.evidence_fingerprint,
+            )
+        )
+        assert first.success is True
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        store.update(
+            TASK_ID,
+            lambda document: replace(
+                document,
+                pending_chain=[
+                    replace(
+                        record,
+                        prerequisite_audit_id="audit-done-replaced",
+                    )
+                    if record.audit_id == merged.audit_id
+                    else record
+                    for record in document.pending_chain
+                ],
+            ),
+        )
+        before = store.read(TASK_ID)
+
+        repeated = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.DONE,
+                owner,
+                PROJECT_ID,
+                reason,
+                self._owner_project(),
+                evidence_fingerprint=exhausted.evidence_fingerprint,
+            )
+        )
+
+        assert repeated.success is False
+        assert repeated.reason == "audit_not_retryable"
+        assert store.read(TASK_ID) == before
+        assert sum(
+            record.request_state in (RequestState.PENDING, RequestState.IN_PROGRESS)
+            and record.target_state is TargetState.DONE
+            for record in before.pending_chain
+        ) == 1
+
     def test_recovery_action_matches_record_classification(self) -> None:
         assert (
             accepted_audit_recovery_action(_exhausted_no_auditor_record())
@@ -5933,8 +6189,118 @@ class TestApplyPassChainedTargets:
 
         assert outcome.success is True
         assert outcome.advanced_target == TargetState.MERGED
+        assert outcome.advanced_audit_id == chain[1].audit_id
         assert outcome.applied_status == IN_VALIDATION
         assert tracker.current_status(TASK_ID) == IN_VALIDATION
+        stored = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        successor = next(
+            record
+            for record in stored.pending_chain
+            if record.audit_id == chain[1].audit_id
+        )
+        assert successor.prerequisite_audit_id == chain[0].audit_id
+        assert successor.eligible_at is not None
+
+    def test_pass_on_done_wakes_its_exact_merged_successor(self) -> None:
+        tracker = _MemoryTracker()
+        chain = self._done_merged_chain()
+        chain[1] = replace(
+            chain[1],
+            prerequisite_audit_id=chain[0].audit_id,
+            eligible_at=None,
+        )
+        issue = _seed_and_validation(tracker, chain)
+
+        outcome = _apply(_coordinator(tracker), issue, _pass_result(chain[0]))
+
+        stored = TerminalAuditMetadataStore(
+            tracker,
+            _LockStore(),
+            PROJECT_ID,
+        ).read(TASK_ID)
+        successor = next(
+            record
+            for record in stored.pending_chain
+            if record.audit_id == chain[1].audit_id
+        )
+        assert outcome.success is True
+        assert outcome.advanced_audit_id == successor.audit_id
+        assert outcome.applied_status == IN_VALIDATION
+        assert successor.prerequisite_audit_id == chain[0].audit_id
+        assert successor.eligible_at is not None
+
+    @pytest.mark.parametrize(
+        "prerequisite_case",
+        ["missing", "stale", "failed"],
+    )
+    def test_pass_on_done_does_not_wake_mismatched_merged_successor(
+        self,
+        prerequisite_case: str,
+    ) -> None:
+        tracker = _MemoryTracker()
+        chain = self._done_merged_chain()
+        prerequisite_audit_id = f"audit-done-{prerequisite_case}"
+        if prerequisite_case != "missing":
+            chain.insert(
+                1,
+                replace(
+                    _pending_record(
+                        audit_id=prerequisite_audit_id,
+                        target=TargetState.DONE,
+                        state=(
+                            RequestState.SUPERSEDED
+                            if prerequisite_case == "stale"
+                            else RequestState.COMPLETED
+                        ),
+                    ),
+                    attempts=[
+                        AuditAttempt(
+                            attempt_id=f"attempt-{prerequisite_case}",
+                            target_state=TargetState.DONE,
+                            evidence_fingerprint=_fingerprint(),
+                            request_state=RequestState.COMPLETED,
+                            verdict=(
+                                Verdict.PASS
+                                if prerequisite_case == "stale"
+                                else Verdict.FAIL
+                            ),
+                        )
+                    ],
+                ),
+            )
+        successor_id = "audit-merged"
+        successor_index = next(
+            index
+            for index, candidate in enumerate(chain)
+            if candidate.audit_id == successor_id
+        )
+        chain[successor_index] = replace(
+            chain[successor_index],
+            prerequisite_audit_id=prerequisite_audit_id,
+            eligible_at=None,
+        )
+        issue = _seed_and_validation(tracker, chain)
+
+        outcome = _apply(_coordinator(tracker), issue, _pass_result(chain[0]))
+
+        stored = TerminalAuditMetadataStore(
+            tracker,
+            _LockStore(),
+            PROJECT_ID,
+        ).read(TASK_ID)
+        successor = next(
+            record
+            for record in stored.pending_chain
+            if record.audit_id == successor_id
+        )
+        assert outcome.success is True
+        assert outcome.advanced_target is None
+        assert outcome.advanced_audit_id is None
+        assert outcome.applied_status == DONE
+        assert successor.prerequisite_audit_id == prerequisite_audit_id
+        assert successor.eligible_at is None
 
     def test_pass_on_final_chain_item_reaches_terminal_state(self) -> None:
         tracker = _MemoryTracker()
@@ -5953,6 +6319,11 @@ class TestApplyPassChainedTargets:
                 )
             ],
         )
+        chain[1] = replace(
+            chain[1],
+            prerequisite_audit_id=chain[0].audit_id,
+            eligible_at="2026-08-11T12:00:00+00:00",
+        )
         issue = _seed_and_validation(tracker, chain)
         coord = _coordinator(tracker)
 
@@ -5961,6 +6332,39 @@ class TestApplyPassChainedTargets:
         assert outcome.applied_status == MERGED
         assert outcome.advanced_target is None
         assert tracker.current_status(TASK_ID) == MERGED
+
+    def test_merged_pass_rejects_other_same_authority_done_pass(self) -> None:
+        tracker = _MemoryTracker()
+        chain = self._done_merged_chain()
+        chain[0] = replace(
+            chain[0],
+            request_state=RequestState.COMPLETED,
+            attempts=[
+                AuditAttempt(
+                    attempt_id="attempt-done",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=chain[0].evidence_fingerprint,
+                    request_state=RequestState.COMPLETED,
+                    verdict=Verdict.PASS,
+                )
+            ],
+        )
+        chain[1] = replace(
+            chain[1],
+            prerequisite_audit_id="audit-done-missing",
+            eligible_at="2026-08-11T12:00:00+00:00",
+        )
+        issue = _seed_and_validation(tracker, chain)
+
+        outcome = _apply(
+            _coordinator(tracker),
+            issue,
+            _pass_result(chain[1]),
+        )
+
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.PREREQUISITE_NOT_COMPLETED
+        assert tracker.current_status(TASK_ID) is None
 
     def test_merged_pass_requires_completed_done_at_exact_binding(self) -> None:
         tracker = _MemoryTracker()
