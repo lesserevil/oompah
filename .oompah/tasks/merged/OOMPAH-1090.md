@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:26:47.067526Z'
-updated_at: '2026-08-11T17:29:39.210722Z'
+updated_at: '2026-08-11T17:31:15.545365Z'
 work_branch: OOMPAH-1090
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/825
@@ -225,13 +225,13 @@ oompah.terminal_audit:
     selected_ref: 6703b97115b0b7aff922deab2ead89119bc1d486
     selected_sha: 6703b97115b0b7aff922deab2ead89119bc1d486
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 292
+  total_input_tokens: 20
+  total_output_tokens: 540
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 10
-      output_tokens: 292
+      input_tokens: 20
+      output_tokens: 540
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -240,6 +240,12 @@ oompah.task_costs:
     output_tokens: 292
     cost_usd: 0.0
     recorded_at: '2026-08-11T16:11:37.136733+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 10
+    output_tokens: 248
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T17:31:08.794794+00:00'
 ---
 ## Summary
 
@@ -410,5 +416,15 @@ Safe evidence:
 - acceptance_criteria[4]: terminal_mutation_scan_pass
 - acceptance_criteria[5]: protected_ci_green
 - review_status: independent review ACCEPTED on fc1220a; patch-equivalent rebased to current main
+---
+author: oompah
+created: 2026-08-11 17:31
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 65, Tool calls: 25
+- Tokens: 10 in / 248 out [258 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 4s
+- Log: OOMPAH-1090__20260811T172203Z.jsonl
 ---
 <!-- COMMENTS:END -->
