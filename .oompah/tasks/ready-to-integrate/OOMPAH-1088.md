@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1088
 type: bug
-status: In Review
+status: Ready to Integrate
 priority: 1
 title: Bound dispatch and submission authority waits and retire pre-provider ghost
   runtimes
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:17:03.737871Z'
-updated_at: '2026-08-11T15:39:54.879838Z'
+updated_at: '2026-08-11T15:40:12.637844Z'
 work_branch: OOMPAH-1088
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/826
