@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1094
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Reject task-worktree attempts to reuse the live service virtualenv
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:34:25.712698Z'
-updated_at: '2026-08-11T17:30:11.294951Z'
+updated_at: '2026-08-11T18:12:06.103182Z'
 work_branch: OOMPAH-1094
 target_branch: null
 review_url: null
@@ -34,6 +34,64 @@ oompah.integration:
   submitted_at: '2026-08-11T17:28:46.561202+00:00'
   updated_at: '2026-08-11T17:28:46.561202+00:00'
 oompah.work_branch: OOMPAH-1094
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-5e5eb5ce8ed4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1094
+    digest: b4d488eccd7e511bfb4f2b0e87a29921436881f652f34db27e642edab61408bc
+  - version: 1
+    audit_id: audit-4934ddf3f119
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1094
+    digest: b4d488eccd7e511bfb4f2b0e87a29921436881f652f34db27e642edab61408bc
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-5e5eb5ce8ed4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1094
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b4d488eccd7e511bfb4f2b0e87a29921436881f652f34db27e642edab61408bc
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T18:11:59.912879+00:00'
+    eligible_at: '2026-08-11T18:11:59.912879+00:00'
+    selected_ref: a8e0c10db484680bc584d272a9903d229bd9576f
+    selected_sha: a8e0c10db484680bc584d272a9903d229bd9576f
+  - version: 1
+    audit_id: audit-4934ddf3f119
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1094
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b4d488eccd7e511bfb4f2b0e87a29921436881f652f34db27e642edab61408bc
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T18:11:59.912879+00:00'
+    prerequisite_audit_id: audit-5e5eb5ce8ed4
+    selected_ref: a8e0c10db484680bc584d272a9903d229bd9576f
+    selected_sha: a8e0c10db484680bc584d272a9903d229bd9576f
+  attempt_history: []
 ---
 ## Summary
 
@@ -66,5 +124,10 @@ author: oompah
 created: 2026-08-11 17:28
 ---
 Protect the live service virtualenv from linked-worktree and cross-repository task setup, including forged marker combinations; independently accepted at a8e0c10db484680bc584d272a9903d229bd9576f.
+---
+author: oompah
+created: 2026-08-11 18:12
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
