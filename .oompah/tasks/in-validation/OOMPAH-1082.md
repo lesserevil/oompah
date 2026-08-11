@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1082
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Wake and age chained terminal-audit stages only after prerequisites become
   eligible
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:08:16.081490Z'
-updated_at: '2026-08-11T12:23:33.444126Z'
+updated_at: '2026-08-11T12:30:44.994015Z'
 work_branch: OOMPAH-1082
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/819
@@ -41,6 +41,62 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/819
 oompah.review_number: '819'
 oompah.target_branch: main
 oompah.review_head: 4af4260085204071f14689771609658fb52329e1
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-9193cb8ddfd6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1082
+    digest: 9b2b997b620044ccd53da6072f11e1fdd456545a48d5d643f416f256730dc3dc
+  - version: 1
+    audit_id: audit-a54c56f04b36
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1082
+    digest: 9b2b997b620044ccd53da6072f11e1fdd456545a48d5d643f416f256730dc3dc
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-9193cb8ddfd6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1082
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9b2b997b620044ccd53da6072f11e1fdd456545a48d5d643f416f256730dc3dc
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T12:30:38.817712+00:00'
+    selected_ref: 4af4260085204071f14689771609658fb52329e1
+    selected_sha: 4af4260085204071f14689771609658fb52329e1
+  - version: 1
+    audit_id: audit-a54c56f04b36
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1082
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9b2b997b620044ccd53da6072f11e1fdd456545a48d5d643f416f256730dc3dc
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T12:30:38.817712+00:00'
+    selected_ref: 4af4260085204071f14689771609658fb52329e1
+    selected_sha: 4af4260085204071f14689771609658fb52329e1
+  attempt_history: []
 ---
 ## Summary
 
@@ -93,5 +149,10 @@ author: oompah
 created: 2026-08-11 12:22
 ---
 Branch quality gate passed for `4af4260085204071f14689771609658fb52329e1` using `make test` in 179.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 12:30
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
