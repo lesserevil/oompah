@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1073
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Make Backlog direct-owner claims lifecycle-atomic in enforce mode
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T08:21:18.898748Z'
-updated_at: '2026-08-11T09:33:55.259493Z'
+updated_at: '2026-08-11T09:49:40.788123Z'
 work_branch: OOMPAH-1073
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/813
@@ -29,6 +29,62 @@ oompah.review_number: '813'
 oompah.work_branch: OOMPAH-1073
 oompah.target_branch: main
 oompah.review_head: 1732c3e65a53ffaac96c5670e02f1ec075004382
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-0aafbaf7b460
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1073
+    digest: d9e2c176899a3d4da242ae064ceaa6f886c7a067e8e5afe7c7a5b58a4b2e8858
+  - version: 1
+    audit_id: audit-c4ca32be87a5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1073
+    digest: d9e2c176899a3d4da242ae064ceaa6f886c7a067e8e5afe7c7a5b58a4b2e8858
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-0aafbaf7b460
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1073
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d9e2c176899a3d4da242ae064ceaa6f886c7a067e8e5afe7c7a5b58a4b2e8858
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T09:49:33.834197+00:00'
+    selected_ref: origin/OOMPAH-1073
+    selected_sha: 8b699dbc73bb10aaf0cf45bff2d81b2d58e0a197
+  - version: 1
+    audit_id: audit-c4ca32be87a5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1073
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d9e2c176899a3d4da242ae064ceaa6f886c7a067e8e5afe7c7a5b58a4b2e8858
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T09:49:33.834197+00:00'
+    selected_ref: origin/OOMPAH-1073
+    selected_sha: 8b699dbc73bb10aaf0cf45bff2d81b2d58e0a197
+  attempt_history: []
 ---
 ## Summary
 
@@ -54,5 +110,10 @@ author: oompah
 created: 2026-08-11 09:33
 ---
 Branch quality gate passed for `1732c3e65a53ffaac96c5670e02f1ec075004382` using `make test` in 169.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 09:49
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
