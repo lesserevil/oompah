@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T02:15:28.085531Z'
-updated_at: '2026-08-11T02:17:05.340136Z'
+updated_at: '2026-08-11T02:26:53.228675Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,5 +51,10 @@ author: oompah
 created: 2026-08-11 02:16
 ---
 Claimed for direct-owner implementation in the current systemic workflow recovery program. Work will be isolated on this task branch, covered by focused regression tests, independently reviewed, fully gated, pushed, and submitted through the protected delivery path.
+---
+author: oompah
+created: 2026-08-11 02:26
+---
+Implementation is committed and pushed at exact head a28cac7f6b315fb4cf2a05f14e78cf3b16261288. Fast admission now treats accepted+published authority as executable during a merely allocated scan, explicitly binds managed candidates to the published membership generation, and still fences immediately when a replacement generation is accepted. The production-shaped real-store/runtime regression proves a superseded same-task retained event wakes and completes its managed successor while a newer source scan is blocked after allocation; a concurrent tracker publication mutation still supersedes that scan. Validation: 418 focused workflow/job/runtime/worker/orchestrator tests passed, the exact five-test race/fence set passed 100/100 across 20 xdist runs, terminal mutation scan 21/21, and secret/diff/compile checks passed. Branch is clean and up to date with origin.
 ---
 <!-- COMMENTS:END -->
