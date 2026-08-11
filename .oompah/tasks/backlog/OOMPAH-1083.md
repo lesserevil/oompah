@@ -1,0 +1,37 @@
+---
+id: OOMPAH-1083
+type: task
+status: Backlog
+priority: null
+title: Publish quality-gate lifecycle state before stale PID alerts escape
+parent: null
+children: []
+blocked_by: []
+start_blocked_by: []
+labels: []
+assignee: null
+created_at: '2026-08-11T11:41:11.895675Z'
+updated_at: '2026-08-11T11:41:11.895675Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+review_head: null
+merged_at: null
+oompah.create_once:
+  version: 1
+  project_id: proj-14849f1b
+  operation_kind: api_task_create
+  creation_marker: 5df42b13-d647-40d8-bf16-ea593024a893
+  request_fingerprint: 875facd4bb649c5339eb1993dd3053f79d20a2988f2f3839d2fd52d61ce85c19
+---
+## Summary
+
+Triggered by live OOMPAH-1080/OOMPAH-1082 integration evidence on 2026-08-11. The exact BranchQualityGate owner registry remained correct, but /api/v1/state served a cached snapshot for more than two minutes after gate A exited and gate B started; state_snapshot_stale=true while the UI continued asserting gate A's dead PID/task as actively running. Scope: emit a non-blocking, coalesced state-only/lifecycle publication on exact quality-gate process registration and final removal across pass, failure, timeout, cancellation, and exception paths, outside the BranchQualityGate process lock; callback/publication failure must never alter gate outcomes. Add defense-in-depth so stale snapshots do not present PID-backed quality-gate alerts as current (label them stale or suppress task-specific running assertions) without recomputing heavy orchestrator state in the API. Relevant code: oompah/quality_gate.py, orchestrator state publication, server cached-state/alert projection, HTTP and WebSocket snapshot publication tests. Required tests: block the scheduler tick while gate A exits and gate B starts and prove cached HTTP plus WS state advances to exact gate B; all terminal gate paths remove dead PIDs and publish; concurrent gates retain other owners; callback executes outside the process lock without deadlock; callback failure is isolated; API-only/IPC parity, snapshot sequence advancement, and no duplicate task-specific alerts. Acceptance: within one bounded publication interval after gate lifecycle change, the UI cannot continue showing a dead gate PID/task as actively running even when the full scheduler reconciliation is blocked; focused tests and protected CI pass.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
