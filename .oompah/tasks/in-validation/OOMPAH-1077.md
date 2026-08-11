@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1077
 type: task
-status: In Progress
+status: In Validation
 priority: null
 title: Make workflow-worker heartbeat lease proof deterministic under loaded CI
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:45:59.661224Z'
-updated_at: '2026-08-11T09:54:35.547880Z'
+updated_at: '2026-08-11T10:05:21.909154Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,10 @@ author: oompah
 created: 2026-08-11 09:54
 ---
 The deterministic heartbeat-test fix was rebased with OOMPAH-1075 onto deployed main and is now published at exact combined head d912a999d13d4fc739f4c14580b1facd94056382 in PR #812. The focused heartbeat test passed 50 consecutive runs before rebase; after rebase the combined affected suite passed 481 tests. Independent exact-head review and protected matrix are running.
+---
+author: oompah
+created: 2026-08-11 10:05
+---
+Merged as commit d912a999d within protected PR #812 / merge 4be80277a; exact-head independent review and Python 3.11/3.12/3.13 gates passed.
 ---
 <!-- COMMENTS:END -->
