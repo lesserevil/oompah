@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T13:38:34.915522Z'
-updated_at: '2026-08-11T15:15:38.920300Z'
+updated_at: '2026-08-11T15:15:46.128309Z'
 work_branch: OOMPAH-1087
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/822
@@ -107,8 +107,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-08766b832596
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-11T15:15:34.602100+00:00'
+    applied_at: '2026-08-11T15:15:44.524460+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -349,5 +350,28 @@ author: oompah
 created: 2026-08-11 15:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 15:15
+---
+Audit PASS — Merged
+
+Completion audit PASS for OOMPAH-1087: WebSocket keepalive ownership fix verified. Uvicorn protocol pings disabled via shared _uvicorn_config_kwargs(ws_ping_interval=None) in both Granian and default startup paths. Application-level heartbeat, reconnect recovery, and backfill preserved. Test coverage confirms configuration consistency and fault injection validates disconnect/reconnect. Quality gate (make test, 185.8s) passed for exact head 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061.
+
+Safe evidence:
+- fix_location: oompah/__main__.py - _uvicorn_config_kwargs(port) function
+- key_change: ws_ping_interval=None in uvicorn Config
+- startup_paths[0]: Granian fallback path: _uvicorn.Config(app, **_uvicorn_config_kwargs(port))
+- startup_paths[1]: Default Uvicorn path: uvicorn.Config(app, **_uvicorn_config_kwargs(port))
+- test_coverage[0]: test_uvicorn_protocol_keepalive_is_disabled_for_application_heartbeat
+- test_coverage[1]: test_both_embedded_uvicorn_paths_share_one_keepalive_configuration
+- test_coverage[2]: test_dashboard_websocket_liveness (16+ tests for heartbeat/reconnect/backfill)
+- test_coverage[3]: test_disconnect_reconnect_recovery (fault injection)
+- preserved_features[0]: Application ping/pong heartbeat
+- preserved_features[1]: Stale socket closure (30s timeout)
+- preserved_features[2]: Reconnect with bounded backoff
+- preserved_features[3]: Full-sync backfill on epoch/sequence changes
+- preserved_features[4]: Client isolation and graceful shutdown
+- quality_gate: make test PASSED in 185.8s for 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
 ---
 <!-- COMMENTS:END -->
