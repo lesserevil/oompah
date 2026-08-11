@@ -33,7 +33,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-11T08:55:08.693360Z'
+updated_at: '2026-08-11T08:55:14.922064Z'
 work_branch: epic-OOMPAH-940
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/757
@@ -206,8 +206,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-8ab8cc9b3928
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-11T08:55:04.239200+00:00'
+    applied_at: '2026-08-11T08:55:13.097272+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -886,5 +887,33 @@ author: oompah
 created: 2026-08-11 08:51
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 08:55
+---
+Audit PASS — Merged
+
+Epic OOMPAH-940 converge-legacy-done-backlog is approved for Merged transition. All 18 children marked Done; full test gate (make test) passed with 19,846 tests; all blockers (OOMPAH-939, 974, 975, 1002) merged; HEAD at authorized 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 with clean working tree and integrated main. Terminal audit enforcement and transition coordination changes properly implement durable evidence and authority decision paths per epic scope.
+
+Safe evidence:
+- test_results: 19846 passed, 7 skipped, 2 xfailed
+- exit_code: 0
+- duration_seconds: 1286
+- repo_state.head_sha: 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17
+- repo_state.origin_main_sha: 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17
+- repo_state.working_tree: clean
+- repo_state.uncommitted_changes: 0
+- blockers_status.OOMPAH-939: Merged
+- blockers_status.OOMPAH-974: Merged
+- blockers_status.OOMPAH-975: Merged
+- blockers_status.OOMPAH-1002: Merged
+- children_status: All 18 children marked Done
+- gate_command: make test
+- gate_status: passed
+- head_integrated_to_main: true
+- contract_verification.audit_id: audit-8ab8cc9b3928
+- contract_verification.evidence_fingerprint_match: true
+- contract_verification.target_state: Merged
+- contract_verification.authorized_head_match: true
 ---
 <!-- COMMENTS:END -->
