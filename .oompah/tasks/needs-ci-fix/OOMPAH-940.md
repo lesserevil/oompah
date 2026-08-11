@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-940
 type: epic
-status: In Validation
+status: Needs CI Fix
 priority: 1
 title: Converge the legacy Done backlog from authoritative delivery evidence
 parent: null
@@ -33,7 +33,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-11T03:03:28.731516Z'
+updated_at: '2026-08-11T03:04:41.168402Z'
 work_branch: epic-OOMPAH-940
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/757
