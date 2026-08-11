@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1094
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Reject task-worktree attempts to reuse the live service virtualenv
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:34:25.712698Z'
-updated_at: '2026-08-11T18:12:06.103182Z'
+updated_at: '2026-08-11T18:12:18.333180Z'
 work_branch: OOMPAH-1094
 target_branch: null
 review_url: null
@@ -47,6 +47,29 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1094
     digest: b4d488eccd7e511bfb4f2b0e87a29921436881f652f34db27e642edab61408bc
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6e38f75b327c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1094
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b4d488eccd7e511bfb4f2b0e87a29921436881f652f34db27e642edab61408bc
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Operator-directed manual completion while all Oompah schedulers are paused:
+      independent exact-head audit ACCEPT at a8e0c10db484680bc584d272a9903d229bd9576f;
+      focused security/concurrency tests and terminal-audit scan passed; protected
+      GitHub CI succeeded on Python 3.11, 3.12, and 3.13; PR #832 merged as b7ad6d1c2ebd2dc2c5200459161866f4bcc23f46;
+      exact head is contained in origin/main.'
+    created_at: '2026-08-11T18:12:13.761440+00:00'
+    selected_ref: a8e0c10db484680bc584d272a9903d229bd9576f
+    selected_sha: a8e0c10db484680bc584d272a9903d229bd9576f
+    applied: false
   version: 1
   pending_chain:
   - version: 1
