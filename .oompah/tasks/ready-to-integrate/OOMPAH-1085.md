@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T13:35:37.410321Z'
+updated_at: '2026-08-11T13:41:03.042285Z'
 work_branch: OOMPAH-1085
 target_branch: null
 review_url: null
@@ -66,5 +66,79 @@ author: oompah
 created: 2026-08-11 13:35
 ---
 Implemented and pushed a dedicated coalesced single-flight terminal-audit continuation lane at 7bd90702b. Exact successor wakes now bypass unrelated full-world reconciliation while preserving shared audit ownership, workflow CAS authority, branch/capacity/pause/restart fences, and emitting claim/dispatch latency telemetry. Added production blocked-reconcile and race/lifecycle regression coverage; focused and adjacent verification is green. Ready for the server-owned exact-head branch gate and independent terminal audits.
+---
+author: oompah
+created: 2026-08-11 13:41
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-1085`
+Target: `main`
+Head: `7bd90702b13bfa876f49e5b4e5e27483997945b6`
+Command: `make test`
+Result: `failed`
+Process: exited with return code 2
+Termination source: `process_exit`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+ion_delegates_are_thin(
+        method: object, max_lines: int
+    ) -> None:
+        lines, branches = _method_metrics(method)
+    
+>       assert lines <= max_lines
+E       assert 11 <= 8
+
+tests/test_workflow_module_boundaries.py:177: AssertionError
+=============================== warnings summary ===============================
+tests/test_auditor_quiesce_fence.py::test_worker_task_creation_cancelled_error_rolls_back_before_reraising
+  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/unittest/mock.py:2217: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    def __init__(self, name, parent):
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_http_auth.py::TestVerifyPassword::test_invalid_hash_format
+tests/test_http_auth.py::TestVerifyPassword::test_valid_bcrypt_password
+tests/test_http_auth.py::TestVerifyPassword::test_wrong_bcrypt_password
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-rns9hxyc/run/workspace/.venv/lib/python3.12/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+tests/test_http_auth.py: 21 warnings
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-rns9hxyc/run/workspace/tests/test_http_auth.py:37: DeprecationWarning: the method passlib.context.CryptContext.encrypt() is deprecated as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash() instead.
+    return ctx.encrypt("password")
+
+tests/test_http_auth.py::TestVerifyPassword::test_valid_apr1_password
+tests/test_http_auth.py::TestVerifyPassword::test_wrong_apr1_password
+tests/test_http_auth.py::TestLoadHtpasswdFile::test_valid_multiple_entries
+tests/test_http_auth.py::TestVerifierCallable::test_multiple_users
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-rns9hxyc/run/workspace/tests/test_http_auth.py:49: DeprecationWarning: the method passlib.context.CryptContext.encrypt() is deprecated as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash() instead.
+    return ctx.encrypt("password")
+
+tests/test_mcp_gateway.py::test_mcp_client_can_initialize_list_allowed_tools_and_call_state
+tests/test_mcp_gateway.py::test_authenticated_mcp_client_can_initialize_list_and_call_protected_api
+  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/contextlib.py:105: DeprecationWarning: Use `streamable_http_client` instead.
+    self.gen = func(*args, **kwds)
+
+tests/test_sdk_install_guards.py::TestClaudeSessionMcpServerGuard::test_no_tool_catalog_skips_mcp_server_path
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-rns9hxyc/run/workspace/oompah/acp_backends/claude.py:532: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    async for msg in client.receive_response():
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json
+tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-rns9hxyc/run/workspace/.venv/lib/python3.12/site-packages/httpx/_models.py:408: DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.
+    headers, stream = encode_request(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_workflow_module_boundaries.py::test_orchestrator_composition_delegates_are_thin[_post_event-8]
+= 1 failed, 19962 passed, 22 skipped, 2 xfailed, 34 warnings in 161.59s (0:02:41) =
+
+make: *** [Makefile:458: test] Error 1
+```
 ---
 <!-- COMMENTS:END -->
