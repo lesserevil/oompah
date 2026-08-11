@@ -2580,6 +2580,7 @@ class Orchestrator:
         # without concurrent scans or an unbounded task fan-out.
         self._terminal_audit_continuation_future: asyncio.Future[None] | None = None
         self._terminal_audit_continuation_recheck_requested = False
+        self._terminal_audit_continuation_external_recheck_requested = False
         self._terminal_audit_continuation_wake_pending = False
         self._terminal_audit_lane_lock = asyncio.Lock()
         # The ordinary dispatcher publishes whether its exact candidate cut
@@ -2659,7 +2660,10 @@ class Orchestrator:
             "continuation_requested": False,
             "continuation_scheduled_count": 0,
             "continuation_started_count": 0,
+            "continuation_scan_count": 0,
             "continuation_recheck_count": 0,
+            "continuation_external_recheck_count": 0,
+            "continuation_suppressed_recheck_count": 0,
             "continuation_pending_exact_count": 0,
             "continuation_last_wake_at": None,
             "continuation_last_started_at": None,
@@ -12106,8 +12110,14 @@ class Orchestrator:
         )
         return True
 
-    def _request_audit_lane_continuation(self) -> bool:
-        """Queue one dedicated follow-up for a budget-sliced audit scan."""
+    def _request_audit_lane_continuation(self, *, external: bool = False) -> bool:
+        """Queue one dedicated follow-up for an audit scheduling edge.
+
+        Budget and priority continuations are internal hints and may consume at
+        most one recheck in the current owner.  Exact-stage and capacity-release
+        edges are external authority and retain the done-callback handoff when
+        they arrive after that bounded recheck has already been consumed.
+        """
 
         runtime = self.workflow_runtime
         with self._provider_admission_lock:
@@ -12123,7 +12133,7 @@ class Orchestrator:
                         "lifecycle_fence"
                     )
                 return False
-        self._wake_terminal_audit_continuation_lane()
+        self._wake_terminal_audit_continuation_lane(external=external)
         return True
 
     def _terminal_audit_continuation_blocked_reason(self) -> str | None:
@@ -12201,7 +12211,11 @@ class Orchestrator:
         # are re-published by WORKER_EXIT rather than spinning here.
         self._ensure_terminal_audit_continuation_lane()
 
-    def _wake_terminal_audit_continuation_lane_on_loop(self) -> None:
+    def _wake_terminal_audit_continuation_lane_on_loop(
+        self,
+        *,
+        external: bool = True,
+    ) -> None:
         """Coalesce one exact terminal-audit wake on the scheduler loop."""
 
         blocked_reason = self._terminal_audit_continuation_blocked_reason()
@@ -12211,21 +12225,34 @@ class Orchestrator:
             if isinstance(metrics, dict):
                 metrics["continuation_last_deferred_reason"] = blocked_reason
             return
-        # Publish intent before observing the owner. Its done callback owns
-        # the narrow race after the run loop's final recheck observation.
-        self._terminal_audit_continuation_wake_pending = True
+        # External authority publishes intent before observing the owner. Its
+        # done callback owns the narrow race after the run loop's final bounded
+        # recheck. Internal scan continuations are consumed only by that owner;
+        # they must never schedule an unbounded successor chain.
+        if external:
+            self._terminal_audit_continuation_wake_pending = True
         owner = getattr(self, "_terminal_audit_continuation_future", None)
         if owner is not None and not owner.done():
             self._terminal_audit_continuation_recheck_requested = True
+            if external:
+                self._terminal_audit_continuation_external_recheck_requested = True
             metrics = getattr(self, "_audit_metrics", None)
             if isinstance(metrics, dict):
                 metrics["continuation_recheck_count"] = int(
                     metrics.get("continuation_recheck_count", 0) or 0
                 ) + 1
+                if external:
+                    metrics["continuation_external_recheck_count"] = int(
+                        metrics.get("continuation_external_recheck_count", 0) or 0
+                    ) + 1
             return
         self._ensure_terminal_audit_continuation_lane()
 
-    def _wake_terminal_audit_continuation_lane(self) -> None:
+    def _wake_terminal_audit_continuation_lane(
+        self,
+        *,
+        external: bool = True,
+    ) -> None:
         """Promptly wake the bounded audit lane from any worker thread."""
 
         loop = getattr(self, "_dispatch_loop", None)
@@ -12235,7 +12262,10 @@ class Orchestrator:
         if self._running_loop() is not loop:
             try:
                 loop.call_soon_threadsafe(
-                    self._wake_terminal_audit_continuation_lane_on_loop
+                    partial(
+                        self._wake_terminal_audit_continuation_lane_on_loop,
+                        external=external,
+                    )
                 )
             except (RuntimeError, ValueError):
                 # The scheduler loop closed after the liveness observation.
@@ -12243,28 +12273,45 @@ class Orchestrator:
                 # one in-process edge for any still-live replacement loop.
                 self._terminal_audit_continuation_wake_pending = True
             return
-        self._wake_terminal_audit_continuation_lane_on_loop()
+        self._wake_terminal_audit_continuation_lane_on_loop(external=external)
+
+    def _terminal_audit_continuation_available_slots(self) -> int:
+        """Return capacity the dedicated owner can actually spend on audits."""
+
+        metrics = getattr(self, "_audit_metrics", None)
+        reserved = (
+            int(metrics.get("reserved_non_audit_slots", 0) or 0)
+            if isinstance(metrics, dict)
+            else 0
+        )
+        return max(self._available_slots() - reserved, 0)
 
     async def _run_terminal_audit_continuation_lane(self) -> None:
-        """Run one audit owner with a one-bit handoff for concurrent wakes."""
+        """Run one audit owner with one bounded in-owner recheck."""
 
+        rechecks_remaining = 1
+        metrics = getattr(self, "_audit_metrics", None)
+        if isinstance(metrics, dict):
+            metrics["continuation_started_count"] = int(
+                metrics.get("continuation_started_count", 0) or 0
+            ) + 1
+            metrics["continuation_last_started_at"] = datetime.now(
+                timezone.utc
+            ).isoformat()
+            metrics["continuation_last_deferred_reason"] = None
+            metrics["continuation_last_error"] = None
+        logger.info(
+            "Terminal-audit continuation lane started exact_wakes=%d",
+            len(self._terminal_audit_stage_wakes_snapshot()),
+        )
         while not self._stopping:
             self._terminal_audit_continuation_recheck_requested = False
+            self._terminal_audit_continuation_external_recheck_requested = False
             self._terminal_audit_continuation_wake_pending = False
-            metrics = getattr(self, "_audit_metrics", None)
             if isinstance(metrics, dict):
-                metrics["continuation_started_count"] = int(
-                    metrics.get("continuation_started_count", 0) or 0
+                metrics["continuation_scan_count"] = int(
+                    metrics.get("continuation_scan_count", 0) or 0
                 ) + 1
-                metrics["continuation_last_started_at"] = datetime.now(
-                    timezone.utc
-                ).isoformat()
-                metrics["continuation_last_deferred_reason"] = None
-                metrics["continuation_last_error"] = None
-            logger.info(
-                "Terminal-audit continuation lane started exact_wakes=%d",
-                len(self._terminal_audit_stage_wakes_snapshot()),
-            )
             try:
                 await self._dispatch_audit_lane(
                     # Recompute only after acquiring the shared audit lock.
@@ -12292,22 +12339,50 @@ class Orchestrator:
                     metrics["continuation_pending_exact_count"] = len(
                         self._terminal_audit_stage_wakes_snapshot()
                     )
-            if (
-                self._terminal_audit_continuation_recheck_requested
-                and self._terminal_audit_stage_wakes_snapshot()
-                and self._available_slots() <= 0
+            remaining = self._terminal_audit_stage_wakes_snapshot()
+            blocked_reason = self._terminal_audit_continuation_blocked_reason()
+            if self._terminal_audit_continuation_recheck_requested and remaining and (
+                blocked_reason is not None
+                or self._terminal_audit_continuation_available_slots() <= 0
             ):
                 # A budget continuation requested from this scan must not
-                # busy-loop while the current auditor still owns the only
-                # slot. WORKER_EXIT is the durable capacity-release edge.
+                # busy-loop while lifecycle or the audit-specific reservation
+                # still blocks the lane. WORKER_EXIT/unpause is the durable
+                # external edge that re-publishes exact work.
                 self._terminal_audit_continuation_recheck_requested = False
                 self._terminal_audit_continuation_wake_pending = False
+            if self._terminal_audit_continuation_recheck_requested:
+                if rechecks_remaining > 0:
+                    rechecks_remaining -= 1
+                    continue
+                if not getattr(
+                    self,
+                    "_terminal_audit_continuation_external_recheck_requested",
+                    False,
+                ):
+                    # A second internal request proves this scan made no bounded
+                    # scheduling progress. Retain durable exact metadata, but do
+                    # not turn a policy/eligibility deferral into another owner.
+                    self._terminal_audit_continuation_recheck_requested = False
+                    self._terminal_audit_continuation_wake_pending = False
+                    if isinstance(metrics, dict):
+                        metrics["continuation_suppressed_recheck_count"] = int(
+                            metrics.get(
+                                "continuation_suppressed_recheck_count", 0
+                            )
+                            or 0
+                        ) + 1
+                else:
+                    # The bounded recheck was already spent when a new external
+                    # edge arrived. Leave its pending bit for the done callback,
+                    # which transfers it to one successor owner exactly once.
+                    return
             if not self._terminal_audit_continuation_recheck_requested:
                 remaining = self._terminal_audit_stage_wakes_snapshot()
                 if remaining and isinstance(metrics, dict):
                     if self._terminal_audit_continuation_blocked_reason():
                         reason = "lifecycle_fence"
-                    elif self._available_slots() <= 0:
+                    elif self._terminal_audit_continuation_available_slots() <= 0:
                         reason = "capacity"
                     else:
                         reason = str(
@@ -12350,7 +12425,7 @@ class Orchestrator:
                 task_id=task,
                 audit_id=audit,
             )
-            return self._request_audit_lane_continuation()
+            return self._request_audit_lane_continuation(external=True)
 
         loop = getattr(self, "_dispatch_loop", None)
         if (
@@ -19500,6 +19575,8 @@ class Orchestrator:
     def _audit_health_candidate_window(
         self,
         candidates: Sequence[Issue],
+        *,
+        candidate_suspension: Mapping[str, bool] | None = None,
     ) -> tuple[list[Issue], bool]:
         """Return a globally rotating window for bounded health observation."""
 
@@ -19519,12 +19596,31 @@ class Orchestrator:
             if cursor_index is not None:
                 ordered = ordered[cursor_index + 1 :] + ordered[: cursor_index + 1]
         # A prerequisite PASS is a real scheduling edge, not merely another
-        # periodic backlog observation.  Put exact successor hints at the
-        # front of this bounded read window so the next pass can reconsider
-        # them immediately.  Launch eligibility below still refuses a hinted
-        # task while any higher-priority candidate is outside the window.
+        # periodic backlog observation. Put exact successor hints at the front
+        # of their active priority group, while retaining every active higher-
+        # priority candidate ahead of them. Suspended observations cannot block
+        # that active prefix. This order is important: putting a lower-priority
+        # hint ahead of an already-running higher-priority audit makes the
+        # sequential eligibility check defer the hint before it can observe
+        # that the higher-priority row needs no additional slot, and repeating
+        # the same promotion recreates that false blocker forever.
         wakes = self._terminal_audit_stage_wakes_snapshot()
         if wakes:
+            hinted_keys = {
+                (
+                    str(issue.project_id or "legacy"),
+                    issue.identifier,
+                )
+                for issue in ordered
+                if (
+                    str(issue.project_id or "legacy"),
+                    issue.identifier,
+                )
+                in wakes
+                and not (
+                    candidate_suspension or {}
+                ).get(self._audit_candidate_cursor_key(issue), False)
+            }
             hinted = [
                 issue
                 for issue in ordered
@@ -19532,12 +19628,46 @@ class Orchestrator:
                     str(issue.project_id or "legacy"),
                     issue.identifier,
                 )
-                in wakes
+                in hinted_keys
             ]
             if hinted:
                 hinted_ids = {id(issue) for issue in hinted}
-                ordered = hinted + [
-                    issue for issue in ordered if id(issue) not in hinted_ids
+                lowest_hint_priority = min(
+                    self._audit_candidate_priority(issue) for issue in hinted
+                )
+                active_prefix: list[Issue] = []
+                prefix_ids: set[int] = set()
+                priorities = sorted(
+                    {
+                        self._audit_candidate_priority(issue)
+                        for issue in ordered
+                        if self._audit_candidate_priority(issue)
+                        >= lowest_hint_priority
+                    },
+                    reverse=True,
+                )
+                for priority in priorities:
+                    group = [
+                        issue
+                        for issue in ordered
+                        if self._audit_candidate_priority(issue) == priority
+                        and not (candidate_suspension or {}).get(
+                            self._audit_candidate_cursor_key(issue), False
+                        )
+                    ]
+                    group_hints = [
+                        issue
+                        for issue in group
+                        if id(issue) in hinted_ids
+                    ]
+                    group_ordinary = [
+                        issue for issue in group if id(issue) not in hinted_ids
+                    ]
+                    for issue in (*group_hints, *group_ordinary):
+                        active_prefix.append(issue)
+                        prefix_ids.add(id(issue))
+                ordered = active_prefix + [
+                    issue for issue in ordered if id(issue) not in prefix_ids
                 ]
         limit = self.config.audit_lane_scan_limit
         truncated = limit > 0 and len(ordered) > limit
@@ -19951,7 +20081,8 @@ class Orchestrator:
             candidate_scan.candidates
         )
         health_candidates, truncated = self._audit_health_candidate_window(
-            candidate_scan.candidates
+            candidate_scan.candidates,
+            candidate_suspension=candidate_suspension,
         )
         # ``scan_limit=0`` historically delegated the hard bound to the
         # operation limit.  Retain that safety property while allowing a
