@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1096
 type: task
-status: In Progress
+status: In Validation
 priority: null
 title: Prevent unrelated tracker churn from starving exact Ready-work publication
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T17:33:22.243112Z'
-updated_at: '2026-08-11T17:48:59.269244Z'
+updated_at: '2026-08-11T18:38:34.798833Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,64 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 9bd7eafe-8b80-4e48-830b-3a29b5bfa538
   request_fingerprint: 99c02ef95efb85612c63db568b0bc0b8a0c40ff0fd752d3bcd2746f9bc53f74d
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-52efdfa0ca1f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1096
+    digest: 9f7059edfc9d272bdfce47d9d094189c5a92a3deb668d215f38856b11b00ad0e
+  - version: 1
+    audit_id: audit-66ad28f540eb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1096
+    digest: 9f7059edfc9d272bdfce47d9d094189c5a92a3deb668d215f38856b11b00ad0e
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-52efdfa0ca1f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1096
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9f7059edfc9d272bdfce47d9d094189c5a92a3deb668d215f38856b11b00ad0e
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-11T18:38:28.371944+00:00'
+    eligible_at: '2026-08-11T18:38:28.371944+00:00'
+    selected_ref: origin/OOMPAH-1096
+    selected_sha: 1cade67f25011c1e94df187f737957d5e8bad67b
+  - version: 1
+    audit_id: audit-66ad28f540eb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1096
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9f7059edfc9d272bdfce47d9d094189c5a92a3deb668d215f38856b11b00ad0e
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-11T18:38:28.371944+00:00'
+    prerequisite_audit_id: audit-52efdfa0ca1f
+    selected_ref: origin/OOMPAH-1096
+    selected_sha: 1cade67f25011c1e94df187f737957d5e8bad67b
+  attempt_history: []
 ---
 ## Summary
 
@@ -41,5 +99,10 @@ author: oompah
 created: 2026-08-11 17:48
 ---
 Implementation is committed and pushed at exact head 1cade67f25011c1e94df187f737957d5e8bad67b on branch OOMPAH-1096, rebased patch-equivalently onto current origin/main b948150a8. The workflow snapshot publisher now consumes the existing managed per-task publication journal: a final revision advance is accepted only when the journal is complete, the delta is nonempty and exactly matches the observed counter, at least one exact durable action is staged, and every changed task is disjoint from staged effect identities and dependency targets. Journal-proven unrelated tasks are excluded from the projection and mark the liveness cut intentionally incomplete; exact task drift, dependency drift, ambiguous membership, missing history, and unknown scope still supersede and retry the whole generation. Observability records tracker_scoped_publication_advances/exclusions separately from scoped_publication_retries. Deterministic regressions cover a 64-write continuous unrelated burst publishing review_merge on the first cut, relevant exact-task drift forcing a fresh generation, durable-store restart reusing one exact job, and health projection remaining non-overdue. Verification after rebase: 446 focused workflow job/controller/runtime/cache/tracker-lock tests passed; make workflow-soak-ci completed 120 tasks with 380 projection checks, 0 mismatches, 1 expected actionable alert, and no unexplained tasks; make terminal-audit-scan passed 21/21; py_compile, diff check, secret hooks, and range-diff clean. No full 20k gate was run per handoff. Not submitted; awaiting independent exact-head review.
+---
+author: oompah
+created: 2026-08-11 18:38
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
