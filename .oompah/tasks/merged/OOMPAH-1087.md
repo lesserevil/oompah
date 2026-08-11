@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1087
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Prevent redundant WebSocket keepalive races during dashboard reconnects
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T13:38:34.915522Z'
-updated_at: '2026-08-11T15:12:30.396486Z'
+updated_at: '2026-08-11T15:15:38.920300Z'
 work_branch: OOMPAH-1087
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/822
@@ -55,6 +55,7 @@ oompah.terminal_audit:
     digest: 65d3490e8857ef5aee77ccd04ee5c566d4c2ad143af3efedc0517229668b8801
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1087","audit-a15f97a02624","attempt-94a80f55ed5d"]': '2026-08-11T15:07:59.999370+00:00'
+    '["proj-14849f1b","OOMPAH-1087","audit-08766b832596","attempt-cf685fd726e1"]': '2026-08-11T15:15:34.602069+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1087
@@ -69,6 +70,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-11T15:07:59.999386+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1087
+    target_state: Merged
+    evidence_fingerprint: 65d3490e8857ef5aee77ccd04ee5c566d4c2ad143af3efedc0517229668b8801
+    workflow_revision: null
+    selected_ref: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
+    selected_sha: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
+    landing_revision: null
+    audit_ids:
+    - audit-08766b832596
+    kind: result
+    applied: true
+    retired_at: '2026-08-11T15:15:34.602088+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1087
@@ -83,6 +97,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-11T15:07:59.999397+00:00'
     applied_at: '2026-08-11T15:08:08.436395+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1087
+    audit_id: audit-08766b832596
+    attempt_id: attempt-cf685fd726e1
+    target_state: Merged
+    evidence_fingerprint: 65d3490e8857ef5aee77ccd04ee5c566d4c2ad143af3efedc0517229668b8801
+    status: Merged
+    audit_ids:
+    - audit-08766b832596
+    kind: result
+    applied: false
+    created_at: '2026-08-11T15:15:34.602100+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -130,7 +156,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1087
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -139,7 +165,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-cf685fd726e1
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -151,6 +177,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1087
       selected_ref: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
       selected_sha: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
+      verdict: pass
+      completed_at: '2026-08-11T15:15:34.601890+00:00'
+      ended_at: '2026-08-11T15:15:34.601890+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -161,7 +190,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-a15f97a02624
     selected_ref: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
     selected_sha: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
-    updated_at: '2026-08-11T15:12:19.616835+00:00'
+    updated_at: '2026-08-11T15:15:34.601890+00:00'
     eligible_at: '2026-08-11T15:07:59.999188+00:00'
   attempt_history:
   - version: 1
