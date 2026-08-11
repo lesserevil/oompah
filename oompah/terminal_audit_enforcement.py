@@ -155,7 +155,21 @@ def _valid_result_intent_row(raw: Any) -> bool:
 def _valid_override_row(raw: Any) -> bool:
     """Validate an override ledger row before it can coexist with dispatch."""
 
-    if not isinstance(raw, Mapping) or not isinstance(raw.get("applied"), bool):
+    if not isinstance(raw, Mapping):
+        return False
+    # Overrides written before durable override replay was introduced did not
+    # carry an ``applied`` marker.  Every historical reader treats that exact
+    # absence as already applied (``raw.get("applied", True)``), so preserve
+    # the legacy meaning while rejecting every explicit non-boolean value.
+    if "applied" in raw and not isinstance(raw.get("applied"), bool):
+        return False
+    # Lifecycle reconciliation is another replay-authority marker layered on
+    # top of the original OverrideRecord schema.  Its absence is legacy-safe,
+    # but an explicit value must be an actual boolean rather than relying on
+    # Python truthiness while deciding whether historical authority may replay.
+    if "lifecycle_reconciled" in raw and not isinstance(
+        raw.get("lifecycle_reconciled"), bool
+    ):
         return False
     try:
         OverrideRecord.from_dict(raw)

@@ -821,6 +821,146 @@ def test_malformed_repair_status_result_intents_fail_recovery_closed(tmp_path):
     ).pending_chain[0].request_state is RequestState.PENDING
 
 
+def _legacy_override_without_applied(
+    issue: Issue,
+    project_id: str = "project-a",
+) -> dict[str, object]:
+    raw = OverrideRecord(
+        override_id=f"override-legacy-{issue.identifier}",
+        project_id=project_id,
+        task_id=issue.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=compute_issue_evidence_fingerprint(issue, project_id),
+        authorized_by=ContributorIdentity("owner", "api"),
+        reason="valid override written before durable replay markers",
+    ).to_dict()
+    assert "applied" not in raw
+    return raw
+
+
+def test_legacy_override_without_applied_is_valid_historical_metadata(tmp_path):
+    issue = _issue("TASK-1", "Done", "evidence-a", "project-a")
+    legacy = _legacy_override_without_applied(issue)
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            unknown_fields={TERMINAL_OVERRIDE_RECORDS_KEY: [legacy]},
+        ).to_dict()
+    }
+
+    result = _enforcer(tmp_path).initialize([("project-a", tracker)])
+
+    assert result["scan_complete"] is True
+    assert not any("override_records_malformed" in error for error in result["errors"])
+    assert tracker.status_updates == []
+    stored = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    assert stored.unknown_fields[TERMINAL_OVERRIDE_RECORDS_KEY] == [legacy]
+
+
+def test_legacy_override_does_not_become_unapplied_recovery_authority(tmp_path):
+    issue = _issue("TASK-1", "In Validation", "evidence-a", "project-a")
+    record = _pending_record("project-a", issue.identifier, "audit-current")
+    legacy = _legacy_override_without_applied(issue)
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={TERMINAL_OVERRIDE_RECORDS_KEY: [legacy]},
+        ).to_dict()
+    }
+
+    enforcer = _enforcer(tmp_path)
+    result = enforcer.initialize([("project-a", tracker)])
+
+    assert result["scan_complete"] is True
+    assert [pending.audit_id for pending in enforcer.pending_audits] == [record.audit_id]
+    assert tracker.status_updates == []
+    stored = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    assert stored.unknown_fields[TERMINAL_OVERRIDE_RECORDS_KEY] == [legacy]
+
+
+@pytest.mark.parametrize("applied", [None, 0, 1, "true", [], {}])
+def test_explicit_non_boolean_override_applied_fails_closed(tmp_path, applied):
+    issue = _issue("TASK-1", "In Validation", "evidence-a", "project-a")
+    record = _pending_record("project-a", issue.identifier, "audit-current")
+    malformed = _legacy_override_without_applied(issue)
+    malformed["applied"] = applied
+    tracker = _Tracker([issue])
+    original = TerminalAuditMetadata(
+        pending_chain=[record],
+        unknown_fields={TERMINAL_OVERRIDE_RECORDS_KEY: [malformed]},
+    ).to_dict()
+    tracker.metadata[issue.identifier] = {METADATA_KEY: deepcopy(original)}
+
+    result = _enforcer(tmp_path).initialize([("project-a", tracker)])
+
+    assert result["scan_complete"] is False
+    assert result["pending_audits"] == 0
+    assert any(
+        "pre_recovery_finalization_metadata_malformed" in error
+        for error in result["errors"]
+    )
+    assert tracker.status_updates == []
+    assert tracker.metadata[issue.identifier][METADATA_KEY] == original
+
+
+@pytest.mark.parametrize("reconciled", [None, 0, 1, "true", [], {}])
+def test_explicit_non_boolean_override_lifecycle_reconciled_fails_closed(
+    tmp_path,
+    reconciled,
+):
+    issue = _issue("TASK-1", "In Validation", "evidence-a", "project-a")
+    record = _pending_record("project-a", issue.identifier, "audit-current")
+    malformed = _legacy_override_without_applied(issue)
+    malformed["lifecycle_reconciled"] = reconciled
+    tracker = _Tracker([issue])
+    original = TerminalAuditMetadata(
+        pending_chain=[record],
+        unknown_fields={TERMINAL_OVERRIDE_RECORDS_KEY: [malformed]},
+    ).to_dict()
+    tracker.metadata[issue.identifier] = {METADATA_KEY: deepcopy(original)}
+
+    result = _enforcer(tmp_path).initialize([("project-a", tracker)])
+
+    assert result["scan_complete"] is False
+    assert result["pending_audits"] == 0
+    assert any(
+        "pre_recovery_finalization_metadata_malformed" in error
+        for error in result["errors"]
+    )
+    assert tracker.status_updates == []
+    assert tracker.metadata[issue.identifier][METADATA_KEY] == original
+
+
+@pytest.mark.parametrize("malformed_sibling", [42, {}], ids=("scalar", "mapping"))
+def test_legacy_valid_override_cannot_mask_malformed_sibling(
+    tmp_path,
+    malformed_sibling,
+):
+    issue = _issue("TASK-1", "In Validation", "evidence-a", "project-a")
+    record = _pending_record("project-a", issue.identifier, "audit-current")
+    legacy = _legacy_override_without_applied(issue)
+    tracker = _Tracker([issue])
+    original = TerminalAuditMetadata(
+        pending_chain=[record],
+        unknown_fields={
+            TERMINAL_OVERRIDE_RECORDS_KEY: [legacy, malformed_sibling],
+        },
+    ).to_dict()
+    tracker.metadata[issue.identifier] = {METADATA_KEY: deepcopy(original)}
+
+    result = _enforcer(tmp_path).initialize([("project-a", tracker)])
+
+    assert result["scan_complete"] is False
+    assert result["pending_audits"] == 0
+    assert tracker.status_updates == []
+    assert tracker.metadata[issue.identifier][METADATA_KEY] == original
+
+
 @pytest.mark.parametrize(
     ("metadata_key", "error_key"),
     [
