@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1080
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Import trusted protected ordinary-PR exact-head gates before terminal-audit
   dispatch
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:00:26.321021Z'
-updated_at: '2026-08-11T11:39:17.202787Z'
+updated_at: '2026-08-11T11:40:21.905458Z'
 work_branch: OOMPAH-1080
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/818
@@ -39,6 +39,62 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/818
 oompah.review_number: '818'
 oompah.target_branch: main
 oompah.review_head: eabbcdaceabad696070014a6fa166c8d1334f46a
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-f40993597ee1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1080
+    digest: 517b6cec65ddd2782a17fce0fc2e6091100b1c7a149088226f7d0f90cd4fca17
+  - version: 1
+    audit_id: audit-a2ff6b47d77f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1080
+    digest: 517b6cec65ddd2782a17fce0fc2e6091100b1c7a149088226f7d0f90cd4fca17
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f40993597ee1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1080
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 517b6cec65ddd2782a17fce0fc2e6091100b1c7a149088226f7d0f90cd4fca17
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T11:40:14.620111+00:00'
+    selected_ref: eabbcdaceabad696070014a6fa166c8d1334f46a
+    selected_sha: eabbcdaceabad696070014a6fa166c8d1334f46a
+  - version: 1
+    audit_id: audit-a2ff6b47d77f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1080
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 517b6cec65ddd2782a17fce0fc2e6091100b1c7a149088226f7d0f90cd4fca17
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T11:40:14.620111+00:00'
+    selected_ref: eabbcdaceabad696070014a6fa166c8d1334f46a
+    selected_sha: eabbcdaceabad696070014a6fa166c8d1334f46a
+  attempt_history: []
 ---
 ## Summary
 
@@ -66,5 +122,10 @@ author: oompah
 created: 2026-08-11 11:38
 ---
 Branch quality gate passed for `eabbcdaceabad696070014a6fa166c8d1334f46a` using `make test` in 196.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 11:40
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
