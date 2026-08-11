@@ -273,6 +273,7 @@ class DurableWorkflowWorker:
             "transition.head_missing",
             "transition.head_mismatch",
             "transition.stale_precondition",
+            "transition.owner_retirement_generation_mismatch",
         }
     )
 

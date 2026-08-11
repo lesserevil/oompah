@@ -869,10 +869,10 @@ class WorkflowRuntime:
         bindings: dict[str, WorkflowProjectBinding] = {}
         journals = {project_id: journal for project_id, _, _ in project_rows}
 
-        # The source callbacks close over the binding being built.  This lets
-        # implementation authority come from the durable implementation
-        # controller instead of the legacy in-memory running map as soon as
-        # that adapter is present.
+        # The source callbacks close over the binding being built.  Durable
+        # implementation dispositions normally supersede the legacy running
+        # map, but an exact direct-owner retirement marker is a prerequisite
+        # fence: it must remain visible until its revocation effect completes.
         for project_id, tracker, project in project_rows:
             holder: dict[str, WorkflowProjectBinding] = {}
 
@@ -896,6 +896,23 @@ class WorkflowRuntime:
                 )
 
             def source(issue: Any, domain: FactDomain, *, _holder=holder) -> Any:
+                legacy_value: Any = None
+                legacy_sources = getattr(
+                    orchestrator, "_workflow_shadow_sources", None
+                )
+                if callable(legacy_sources):
+                    legacy_source = legacy_sources(issue).get(domain)
+                    legacy_value = (
+                        legacy_source(issue)
+                        if callable(legacy_source)
+                        else legacy_source
+                    )
+                    if (
+                        domain is FactDomain.IMPLEMENTATION_AUTHORITY
+                        and isinstance(legacy_value, Mapping)
+                        and legacy_value.get("ownership_source") == "direct_owner"
+                    ):
+                        return legacy_value
                 binding = _holder.get("binding")
                 if (
                     domain is FactDomain.IMPLEMENTATION_AUTHORITY
@@ -917,15 +934,7 @@ class WorkflowRuntime:
                             )
                         except Exception:  # evidence boundary: preserve a fact error
                             raise
-                legacy_sources = getattr(orchestrator, "_workflow_shadow_sources", None)
-                if callable(legacy_sources):
-                    legacy_source = legacy_sources(issue).get(domain)
-                    return (
-                        legacy_source(issue)
-                        if callable(legacy_source)
-                        else legacy_source
-                    )
-                return None
+                return legacy_value
 
             sources = {
                 domain: (
@@ -1328,6 +1337,11 @@ class WorkflowRuntime:
                 direct_owner_claim_guard=getattr(
                     orchestrator,
                     "_direct_owner_claim_transition_conflict",
+                    None,
+                ),
+                direct_owner_retirement_guard=getattr(
+                    orchestrator,
+                    "_direct_owner_submission_transition_conflict",
                     None,
                 ),
             )

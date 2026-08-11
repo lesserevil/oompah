@@ -746,6 +746,8 @@ def _accepted_validation_commit_fixture(tmp_path):
     orch.project_store.remote_branch_head.side_effect = (
         lambda _project_id, _branch: remote["head"]
     )
+    orch._persist_owner_claims_locked = MagicMock(return_value=True)
+    orch._advance_owner_claim_authority = MagicMock()
     claim = _install_owner_claim(orch, issue)
     store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
     orch.workflow_job_store = store
@@ -790,6 +792,9 @@ def _accepted_validation_commit_fixture(tmp_path):
         journal=journal,
         mutation_write_lock=lambda: project_lock,
         mutation_guard=orch._validation_submission_transition_conflict,
+        direct_owner_retirement_guard=(
+            orch._direct_owner_submission_transition_conflict
+        ),
     )
     return orch, tracker, store, journal, service, intent, remote, claim
 
@@ -812,14 +817,14 @@ def test_materialized_validation_fails_closed_when_remote_advances_before_commit
     tmp_path,
 ):
     (
-        _orch_instance,
+        orch,
         tracker,
         store,
         journal,
         service,
         intent,
         remote,
-        _claim,
+        claim,
     ) = _accepted_validation_commit_fixture(tmp_path)
 
     async def race():
@@ -837,6 +842,9 @@ def test_materialized_validation_fails_closed_when_remote_advances_before_commit
     assert outcome.details["detail"] == "validation submission remote head changed"
     assert tracker.fetch_issue_detail(intent.task_id).state == "In Progress"
     assert tracker.status_updates == []
+    current_claim = orch._owner_claim_for_issue(claim.issue_id, claim.project_id)
+    assert current_claim is not None
+    assert current_claim.retirement_pending is False
 
     # Replaying the stale intent after restart remains rejected, while a new
     # exact-head submission can converge through its own immutable identity.
@@ -848,6 +856,7 @@ def test_materialized_validation_fails_closed_when_remote_advances_before_commit
         journal=reopened,
         mutation_write_lock=service._mutation_write_lock,
         mutation_guard=service._mutation_guard,
+        direct_owner_retirement_guard=service._direct_owner_retirement_guard,
     )
     replay = asyncio.run(replay_service.execute(intent))
     assert replay.disposition is TransitionDisposition.REJECTED
@@ -884,8 +893,12 @@ def test_materialized_validation_fails_closed_when_remote_advances_before_commit
         exact_head=current_head,
     )
     converged = asyncio.run(replay_service.execute(resubmit_intent))
-    assert converged.disposition is TransitionDisposition.APPLIED
+    assert converged.disposition is TransitionDisposition.APPLIED, converged
     assert tracker.fetch_issue_detail(intent.task_id).state == READY_TO_INTEGRATE
+    retiring_claim = orch._owner_claim_for_issue(claim.issue_id, claim.project_id)
+    assert retiring_claim is not None
+    assert retiring_claim.claim_id == claim.claim_id
+    assert retiring_claim.retirement_pending is True
     store.close()
     reopened.close()
 
@@ -928,6 +941,10 @@ def test_materialized_validation_fails_closed_on_owner_claim_aba_before_commit(
     assert outcome.details["detail"] == "validation submission owner claim changed"
     assert tracker.fetch_issue_detail(intent.task_id).state == "In Progress"
     assert tracker.status_updates == []
+    replacement = orch._owner_claim_for_issue(claim.issue_id, claim.project_id)
+    assert replacement is not None
+    assert replacement.claim_id == "replacement-owner-generation"
+    assert replacement.retirement_pending is False
     store.close()
     journal.close()
 

@@ -400,6 +400,55 @@ def test_runtime_authority_source_refreshes_live_durable_lease(tmp_path):
     store.close()
 
 
+def test_runtime_authority_source_preserves_direct_owner_retirement_fence(tmp_path):
+    class ProjectStore:
+        def list_all(self):
+            return []
+
+    class Config:
+        workflow_engine_mode = "shadow"
+        workflow_runtime_decision_limit = 17
+        workflow_runtime_batch_size = 9
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    task = make_issue("TASK-RETIRING", state="Ready to Integrate", project_id="legacy")
+    tracker = NativeTracker([task])
+    retirement = {
+        "owner_id": "operator",
+        "generation": "claim-retiring",
+        "ownership_source": "direct_owner",
+        "lease_expires_at": None,
+        "retirement_pending": True,
+        "state": "retirement_pending",
+    }
+    orchestrator = type(
+        "OrchestratorDouble",
+        (),
+        {
+            "project_store": ProjectStore(),
+            "tracker": tracker,
+            "config": Config(),
+            "workflow_job_store": store,
+            "_state_path": str(tmp_path / "service-state.json"),
+            "_workflow_shadow_sources": lambda _self, _issue: {
+                FactDomain.IMPLEMENTATION_AUTHORITY: lambda _current: retirement,
+            },
+        },
+    )()
+    runtime = WorkflowRuntime.from_orchestrator(orchestrator)
+    binding = runtime.project_bindings["legacy"]
+    binding.implementation_controller.implementation_authority = lambda _issue: {
+        "lease_expires_at": None,
+        "state": "submitted",
+    }
+
+    facts = binding.collector.collect(task.identifier)
+
+    assert facts.fact(FactDomain.IMPLEMENTATION_AUTHORITY).value == retirement
+    runtime.close()
+    store.close()
+
+
 def test_runtime_factory_invokes_legacy_fact_callbacks_before_hashing(tmp_path):
     class ProjectStore:
         def list_all(self):
@@ -467,7 +516,7 @@ def test_runtime_factory_invokes_legacy_fact_callbacks_before_hashing(tmp_path):
     assert (
         FactDomain.IMPLEMENTATION_AUTHORITY.value,
         task.identifier,
-    ) not in requested
+    ) in requested
     runtime.close()
     store.close()
 

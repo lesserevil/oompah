@@ -551,7 +551,14 @@ def test_durable_validation_transition_retires_exact_captured_claim(tmp_path):
     authority_source = orch._workflow_shadow_sources(issue)[
         FactDomain.IMPLEMENTATION_AUTHORITY
     ]
-    assert authority_source(issue) == {"lease_expires_at": None}
+    assert authority_source(issue) == {
+        "owner_id": "alice",
+        "generation": claim.claim_id,
+        "ownership_source": "direct_owner",
+        "lease_expires_at": None,
+        "retirement_pending": True,
+        "state": "retirement_pending",
+    }
 
 
 def test_production_validation_job_hands_standalone_owner_to_ready_workflow(
@@ -617,11 +624,35 @@ def test_production_validation_job_hands_standalone_owner_to_ready_workflow(
         retry_delay_seconds=0.01,
     )
 
+    ready_commit_observations = []
+
+    def commit_ready_with_retirement_barrier(_identifier, **fields):
+        pending = orch._owner_claim_for_issue(issue.id, issue.project_id)
+        assert pending is not None
+        assert pending.claim_id == claim.claim_id
+        # The marker and its workflow-authority revision must be durable before
+        # Ready becomes observable to a concurrent reconciliation cut.
+        assert pending.retirement_pending is True
+        issue.state = fields["status"]
+        ready_commit_observations.append(fields["status"])
+        assert not orch.workflow_job_store.list_jobs(
+            project_id=str(issue.project_id),
+            task_id=issue.identifier,
+            actions=("standalone_delivery",),
+        )
+
+    tracker.update_issue.side_effect = commit_ready_with_retirement_barrier
+
     result = asyncio.run(worker.run_once())
 
     assert result.disposition is WorkflowRunDisposition.COMPLETED
+    orch.project_store.remote_branch_head.assert_called_once_with(
+        str(issue.project_id),
+        issue.identifier,
+    )
     assert orch.workflow_job_store.get(submission.job_id).state.value == "completed"
     assert issue.state == "Ready to Integrate"
+    assert ready_commit_observations == ["Ready to Integrate"]
     pending = orch._owner_claim_for_issue(issue.id, issue.project_id)
     assert pending is not None
     assert pending.claim_id == claim.claim_id
@@ -629,10 +660,111 @@ def test_production_validation_job_hands_standalone_owner_to_ready_workflow(
     authority_source = orch._workflow_shadow_sources(issue)[
         FactDomain.IMPLEMENTATION_AUTHORITY
     ]
-    assert authority_source(issue) == {"lease_expires_at": None}
+    assert authority_source(issue) == {
+        "owner_id": "alice",
+        "generation": claim.claim_id,
+        "ownership_source": "direct_owner",
+        "lease_expires_at": None,
+        "retirement_pending": True,
+        "state": "retirement_pending",
+    }
     scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
     assert scheduled["action"] is ImplementationAction.AUTHORITY_REVOCATION
     assert scheduled["payload"]["claim_id"] == claim.claim_id
+    effects.receipts.close()
+
+
+def test_validation_ready_commit_fails_closed_on_owner_claim_aba(tmp_path):
+    """A replacement claim between intent checkpoint and commit survives."""
+
+    orch, tracker, issue = _orchestrator(tmp_path)
+    head = "e" * 40
+    issue.integration = IntegrationRecord(
+        state="ready",
+        mode="standalone",
+        task_branch=issue.identifier,
+        head_sha=head,
+    )
+    tracker.fetch_issue_detail.return_value = issue
+    captured = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-before-ready-aba",
+    )
+    orch.config.parallel_epic_children_enabled = False
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch._schedule_implementation_workflow_event = MagicMock()
+    submission = orch.workflow_job_store.enqueue(
+        WorkflowJobSpec(
+            project_id=str(issue.project_id),
+            task_id=issue.identifier,
+            generation="validation-ready-aba",
+            action=ImplementationAction.VALIDATION_SUBMISSION.value,
+            idempotency_key="validation-ready-aba",
+            payload={
+                "expected_status": issue.state,
+                "owner_claim_id": captured.claim_id,
+                "owner_login": captured.owner_login,
+                "head_sha": head,
+                "work_branch": issue.identifier,
+            },
+            expected_evidence_revision=issue_authority_version(issue),
+            expected_head_sha=head,
+        )
+    )
+    effects = OrchestratorImplementationEffects(
+        orch,
+        project_id=str(issue.project_id),
+        tracker=tracker,
+    )
+
+    def replace_claim_after_intent(phase, _job):
+        if phase != "transition_intent":
+            return
+        assert orch.release_owner_claim(
+            issue_id=issue.id,
+            project_id=issue.project_id,
+            expected_claim_id=captured.claim_id,
+        )
+        orch.grant_owner_claim(
+            issue_id=issue.id,
+            project_id=issue.project_id,
+            owner_login="bob",
+            claim_id="claim-after-ready-aba",
+        )
+
+    worker = DurableWorkflowWorker(
+        store=orch.workflow_job_store,
+        handlers={
+            ImplementationAction.VALIDATION_SUBMISSION.value: (
+                ImplementationWorkflowHandler(
+                    ProductionImplementationWorkflowBackend(effects)
+                )
+            )
+        },
+        transition_services={
+            str(issue.project_id): orch._task_transition_service(
+                issue.project_id,
+                tracker,
+            )
+        },
+        worker_id="validation-ready-aba-worker",
+        phase_observer=replace_claim_after_intent,
+    )
+
+    result = asyncio.run(worker.run_once())
+
+    assert result.disposition is WorkflowRunDisposition.SUPERSEDED
+    assert orch.workflow_job_store.get(submission.job_id).state.value == "superseded"
+    assert issue.state == "In Progress"
+    replacement = orch._owner_claim_for_issue(issue.id, issue.project_id)
+    assert replacement is not None
+    assert replacement.claim_id == "claim-after-ready-aba"
+    assert replacement.owner_login == "bob"
+    assert replacement.retirement_pending is False
+    tracker.update_issue.assert_not_called()
+    orch._schedule_implementation_workflow_event.assert_not_called()
     effects.receipts.close()
 
 
@@ -720,7 +852,7 @@ def test_validation_restart_replays_precommit_intent_and_retires_exact_claim(
     current = orch._owner_claim_for_issue(issue.id, issue.project_id)
     assert current is not None
     assert current.claim_id == claim.claim_id
-    assert current.retirement_pending is False
+    assert current.retirement_pending is True
 
     orch._close_owned_persistent_stores()
     restarted_store, project = _project_store(tmp_path)
@@ -1341,6 +1473,44 @@ def test_expired_owner_claim_is_pruned_during_restore(tmp_path):
     assert restarted.state.owner_claims == {}
     state = json.loads((tmp_path / "service_state.json").read_text())
     assert state["owner_claims"] == {}
+
+
+def test_expired_retirement_marker_survives_restart_until_exact_revocation(tmp_path):
+    orch, _tracker, issue = _orchestrator(tmp_path)
+    retiring = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        ttl_hours=-1,
+        claim_id="retirement-fence-after-expiry",
+    )
+    assert orch.mark_owner_claim_retirement_pending(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        expected_claim_id=retiring.claim_id,
+    )
+
+    restarted_store, _project = _project_store(tmp_path)
+    restarted = Orchestrator(
+        config=ServiceConfig(
+            owner_claim_ttl_hours=48,
+            duplicate_preflight_max_agents=0,
+        ),
+        workflow_path="WORKFLOW.md",
+        project_store=restarted_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+
+    restored = restarted._owner_claim_for_issue(issue.id, issue.project_id)
+    assert restored is not None
+    assert restored.claim_id == retiring.claim_id
+    assert restored.retirement_pending is True
+    authority = restarted._workflow_shadow_sources(issue)[
+        FactDomain.IMPLEMENTATION_AUTHORITY
+    ](issue)
+    assert authority["generation"] == retiring.claim_id
+    assert authority["state"] == "retirement_pending"
+    assert restarted._has_live_owner_claim(issue.id, issue.project_id)
 
 
 def test_snapshot_prunes_expired_owner_claim_from_memory_and_disk(tmp_path):

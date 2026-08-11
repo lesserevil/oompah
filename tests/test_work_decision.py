@@ -1414,6 +1414,69 @@ def test_incident_standalone_delivery_ignores_benign_metadata_churn():
     assert decision.durable_jobs == ("standalone_delivery",)
 
 
+@pytest.mark.parametrize("retirement_pending", [False, True])
+def test_ready_direct_owner_must_retire_before_standalone_delivery(
+    retirement_pending,
+):
+    """OOMPAH-1085/1093: Ready cannot race exact owner revocation."""
+
+    issue = _issue(READY_TO_INTEGRATE)
+    facts = _facts(
+        issue,
+        overrides={
+            FactDomain.IMPLEMENTATION_AUTHORITY: _known(
+                FactDomain.IMPLEMENTATION_AUTHORITY,
+                {
+                    "owner_id": "alice",
+                    "generation": "claim-submitted",
+                    "ownership_source": "direct_owner",
+                    "lease_expires_at": None,
+                    "retirement_pending": retirement_pending,
+                    "state": (
+                        "retirement_pending" if retirement_pending else "active"
+                    ),
+                },
+            ),
+            FactDomain.INTEGRATION: _known(
+                FactDomain.INTEGRATION,
+                {"state": "ready", "mode": "standalone", "head_sha": "a" * 40},
+            ),
+        },
+    )
+
+    decision = evaluate_task(issue, facts)
+
+    assert decision.reason_code == "integration.owner_retirement_pending"
+    assert decision.disposition is TaskDisposition.OWNED
+    assert decision.responsible_owner is WorkflowOwner.DIRECT_OWNER
+    assert decision.durable_jobs == ()
+
+
+def test_ready_integration_fails_closed_when_owner_authority_read_fails():
+    issue = _issue(READY_TO_INTEGRATE)
+    facts = _facts(
+        issue,
+        overrides={
+            FactDomain.IMPLEMENTATION_AUTHORITY: FactObservation.error(
+                FactDomain.IMPLEMENTATION_AUTHORITY,
+                observed_at=NOW_ISO,
+                source="owner_claim_store",
+                error_code="owner_claim_store_unavailable",
+            ),
+            FactDomain.INTEGRATION: _known(
+                FactDomain.INTEGRATION,
+                {"state": "ready", "mode": "standalone", "head_sha": "a" * 40},
+            ),
+        },
+    )
+
+    decision = evaluate_task(issue, facts)
+
+    assert decision.reason_code == "evidence.implementation_authority_error"
+    assert decision.disposition is TaskDisposition.RETRY_SCHEDULED
+    assert decision.durable_jobs == ()
+
+
 def test_parented_standalone_delivery_requires_exact_persisted_target_route():
     issue = _issue(
         READY_TO_INTEGRATE,

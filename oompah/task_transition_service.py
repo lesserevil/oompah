@@ -536,6 +536,11 @@ class TransitionMutationGuard(Protocol):
         """Return detail when live workflow authority no longer permits commit."""
 
 
+class DirectOwnerRetirementGuard(Protocol):
+    def __call__(self, intent: TransitionIntent, issue: Issue) -> str | None:
+        """Persist exact owner-retirement authority before a Ready commit."""
+
+
 class CoordinatorTerminalAdapter:
     """Adapt ``TerminalTransitionCoordinator`` to the service boundary."""
 
@@ -1485,6 +1490,7 @@ class TaskTransitionService:
         direct_owner_write_lock: Callable[[], Any] | None = None,
         direct_owner_claim_guard: DirectOwnerClaimGuard | None = None,
         mutation_guard: TransitionMutationGuard | None = None,
+        direct_owner_retirement_guard: DirectOwnerRetirementGuard | None = None,
         claim_ttl_seconds: float = DEFAULT_TRANSITION_CLAIM_TTL_SECONDS,
     ) -> None:
         self.project_id = _required_text(project_id, "project_id")
@@ -1496,6 +1502,7 @@ class TaskTransitionService:
         self._direct_owner_write_lock = direct_owner_write_lock or write_lock
         self._direct_owner_claim_guard = direct_owner_claim_guard
         self._mutation_guard = mutation_guard
+        self._direct_owner_retirement_guard = direct_owner_retirement_guard
         if claim_ttl_seconds <= 0:
             raise ValueError("claim_ttl_seconds must be positive")
         self.claim_ttl_seconds = claim_ttl_seconds
@@ -1587,6 +1594,14 @@ class TaskTransitionService:
         return bool(
             intent.expected_status == BACKLOG
             and intent.requested_status == IN_PROGRESS
+        )
+
+    @staticmethod
+    def _is_validation_submission_intent(intent: TransitionIntent) -> bool:
+        return bool(
+            intent.expected_status == IN_PROGRESS
+            and intent.requested_status == READY_TO_INTEGRATE
+            and intent.reason_code == "implementation.validation_submission"
         )
 
     def _direct_owner_commit_conflict(
@@ -1713,28 +1728,42 @@ class TaskTransitionService:
                     None,
                 )
         guard = self._mutation_guard
-        if guard is None:
+        if guard is not None:
+            try:
+                detail = str(guard(intent, issue) or "").strip()
+            except Exception:  # noqa: BLE001 - workflow authority must fail closed
+                return "transition.mutation_guard_failed", True, None
+            if detail:
+                return "transition.stale_precondition", False, detail
+
+        retirement_guard = self._direct_owner_retirement_guard
+        if retirement_guard is None:
             return None, False, None
         try:
-            detail = str(guard(intent, issue) or "").strip()
-        except Exception:  # noqa: BLE001 - workflow authority must fail closed
-            return "transition.mutation_guard_failed", True, None
-        if detail:
-            return "transition.stale_precondition", False, detail
-        return None, False, None
+            retirement_conflict = str(
+                retirement_guard(intent, issue) or ""
+            ).strip()
+        except Exception:  # noqa: BLE001 - durable retirement must fail closed
+            return "transition.owner_retirement_persistence_failed", True, None
+        return (retirement_conflict or None), False, None
 
     async def _commit_guarded_update(
         self,
         intent: TransitionIntent,
     ) -> tuple[Issue | None, str | None, bool, str | None]:
-        """Validate live workflow authority and update under one project lock."""
+        """Validate workflow authority, retire its owner, and update atomically."""
 
         fetch = self.tracker.fetch_issue_detail
         update = self.tracker.update_issue
         if inspect.iscoroutinefunction(fetch) or inspect.iscoroutinefunction(update):
+            write_lock = (
+                self._mutation_write_lock
+                if self._mutation_guard is not None
+                else self._direct_owner_write_lock
+            )
             context = (
-                self._mutation_write_lock()
-                if self._mutation_write_lock is not None
+                write_lock()
+                if write_lock is not None
                 else contextlib.nullcontext()
             )
             with context:
@@ -1758,9 +1787,14 @@ class TaskTransitionService:
                 return issue, None, False, None
 
         def commit() -> tuple[Issue | None, str | None, bool, str | None]:
+            write_lock = (
+                self._mutation_write_lock
+                if self._mutation_guard is not None
+                else self._direct_owner_write_lock
+            )
             context = (
-                self._mutation_write_lock()
-                if self._mutation_write_lock is not None
+                write_lock()
+                if write_lock is not None
                 else contextlib.nullcontext()
             )
             with context:
@@ -2479,9 +2513,11 @@ class TaskTransitionService:
                         )
                         return outcome
                 elif (
-                    self._mutation_guard is not None
-                    and intent.reason_code
-                    == "implementation.validation_submission"
+                    self._is_validation_submission_intent(intent)
+                    and (
+                        self._mutation_guard is not None
+                        or self._direct_owner_retirement_guard is not None
+                    )
                 ):
                     (
                         guarded_issue,

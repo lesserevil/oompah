@@ -4096,7 +4096,7 @@ def issue(identifier, *, dependencies=(), state="ready", head=None):
     )
 
 
-def collector(tracker, landing_collector=None):
+def collector(tracker, landing_collector=None, implementation_authority=None):
     return WorkflowFactCollector(
         project_id="project-1",
         tracker=tracker,
@@ -4104,11 +4104,63 @@ def collector(tracker, landing_collector=None):
         sources={
             FactDomain.TERMINAL_AUDIT: lambda _: {"phase": "queued"},
             FactDomain.REVIEW_CI: lambda _: {"state": "open"},
-            FactDomain.IMPLEMENTATION_AUTHORITY: lambda _: {},
+            FactDomain.IMPLEMENTATION_AUTHORITY: (
+                implementation_authority or (lambda _: {})
+            ),
             FactDomain.RETRY_BUDGET: lambda _: {"remaining": 3},
             FactDomain.CONFIG: lambda _: {"version": 1},
         },
     )
+
+
+def test_exact_owner_revocation_wakes_one_standalone_delivery(tmp_path):
+    """OOMPAH-1085/1093: no gate exists until exact retirement completes."""
+
+    task = issue("TASK-OWNER-HANDOFF")
+    task.parent_id = None
+    task.integration = replace(task.integration, mode="standalone")
+    tracker = Tracker([task])
+    authority = {
+        "owner_id": "alice",
+        "generation": "claim-owner-handoff",
+        "ownership_source": "direct_owner",
+        "lease_expires_at": None,
+        "retirement_pending": True,
+        "state": "retirement_pending",
+    }
+    fact_collector = collector(
+        tracker,
+        implementation_authority=lambda _task: dict(authority),
+    )
+    store = WorkflowJobStore(str(tmp_path / "owner-handoff-jobs.sqlite3"))
+    controller = IntegrationWorkflowController(
+        collector=fact_collector,
+        store=store,
+    )
+
+    blocked, blocked_result = controller.reconcile([task])
+
+    assert blocked.decisions[0].reason_code == "integration.owner_retirement_pending"
+    assert blocked_result.jobs_created == 0
+    assert store.list_jobs(task_id=task.identifier) == ()
+
+    # Exact authority_revocation completion removes the captured claim and its
+    # state-only notification requests this authoritative follow-up cut.
+    authority.clear()
+    released, released_result = controller.reconcile([task])
+    duplicate, duplicate_result = controller.reconcile([task])
+
+    assert released.decisions[0].durable_jobs == ("standalone_delivery",)
+    assert released_result.jobs_created == 1
+    assert duplicate.decisions[0].durable_jobs == ("standalone_delivery",)
+    assert duplicate_result.jobs_created == 0
+    deliveries = store.list_jobs(
+        task_id=task.identifier,
+        actions=("standalone_delivery",),
+    )
+    assert len(deliveries) == 1
+    assert deliveries[0].state is WorkflowJobState.QUEUED
+    store.close()
 
 
 class UnavailableLandingCollector:
