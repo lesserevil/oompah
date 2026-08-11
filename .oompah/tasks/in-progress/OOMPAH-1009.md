@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T01:46:41.855802Z'
-updated_at: '2026-08-11T03:05:33.265676Z'
+updated_at: '2026-08-11T08:07:58.916153Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,33 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: oompah-1007-restart-publication-audit-livelock
   request_fingerprint: 56211e72ee6c928596d6a0a03326c7af1effd81070a90595f4617bc17cc3e15b
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-40c6e8c7e7bd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1009
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c32b364c9c2e965f166fa3c9e123b91a6af302c8176834f071925ce77359e1d7
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Protected PR #806 and hosted Python 3.11/3.12/3.13 gates are green; deployed
+      build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 contains merge 62c3cda3ea602b614a3a3dfc92c66468b5c34a4b;
+      independent audit verified that every exact reviewed branch change is patch-equivalent
+      to or composition-equivalent with the protected merge and no unique branch changes
+      remain.'
+    created_at: '2026-08-11T08:07:57.292309+00:00'
+    selected_ref: origin/OOMPAH-1009
+    selected_sha: 8fac2946c122c04b04cd0b76c8f2d77814ddb380
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
