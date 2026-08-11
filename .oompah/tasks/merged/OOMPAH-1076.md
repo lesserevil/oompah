@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:41:07.342509Z'
-updated_at: '2026-08-11T10:51:34.972764Z'
+updated_at: '2026-08-11T10:51:51.346613Z'
 work_branch: OOMPAH-1076
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/814
@@ -65,7 +65,23 @@ oompah.terminal_audit:
     created_at: '2026-08-11T10:51:30.414958+00:00'
     selected_ref: origin/OOMPAH-1076
     selected_sha: 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1076
+    target_state: Merged
+    evidence_fingerprint: 4fd9146b1adbf6f8266e43f47ed727692028607cb9faa9ec688515281b35d70b
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1076
+    selected_sha: 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
+    landing_revision: null
+    audit_ids:
+    - audit-7fe3fcb0020d
+    - audit-a27fa4e3d94b
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T10:51:39.426618+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -73,7 +89,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1076
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -103,13 +119,13 @@ oompah.terminal_audit:
     created_at: '2026-08-11T10:28:32.737789+00:00'
     selected_ref: origin/OOMPAH-1076
     selected_sha: 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
-    updated_at: '2026-08-11T10:47:18.920819+00:00'
+    updated_at: '2026-08-11T10:51:39.426571+00:00'
   - version: 1
     audit_id: audit-a27fa4e3d94b
     project_id: proj-14849f1b
     task_id: OOMPAH-1076
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -124,6 +140,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T10:28:32.737789+00:00'
     selected_ref: origin/OOMPAH-1076
     selected_sha: 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
+    updated_at: '2026-08-11T10:51:39.426602+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9ad1d8c664f3
@@ -140,6 +157,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1076
     selected_ref: origin/OOMPAH-1076
     selected_sha: 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
+oompah.task_costs:
+  total_input_tokens: 814
+  total_output_tokens: 211
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 814
+      output_tokens: 211
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 814
+    output_tokens: 211
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T10:51:45.702107+00:00'
 ---
 ## Summary
 
@@ -182,5 +215,22 @@ author: oompah
 created: 2026-08-11 10:50
 ---
 Live acceptance failed on deployed db20b747: the 1,882-issue cold reconstruction published after about 130.1s of reconciliation phases (141.1s tick), exceeding the 120s SLO. Phase telemetry isolates integration at 100.37s and epic at 27.25s; implementation/liveness/indexing are sub-second. Returning this task to active implementation and cancelling terminalization while the native-Git integration/epic cold path is optimized and re-canary-tested.
+---
+author: oompah
+created: 2026-08-11 10:51
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Project-owner revision boundary: revision 1 exact head 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35 passed the 170.2s branch gate, independent review, protected Python 3.11/3.12/3.13 CI, and merged through PR 814 as db20b747bbd61f27bafd61a4ea71ebe2d74918b3. The deployed live canary subsequently exposed a remaining integration/epic cold-path SLO failure; terminalize only revision 1 so a new auditable revision can immediately continue the same task.
+---
+author: oompah
+created: 2026-08-11 10:51
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 50
+- Tokens: 814 in / 211 out [1.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 24s
+- Log: OOMPAH-1076__20260811T104733Z.jsonl
 ---
 <!-- COMMENTS:END -->
