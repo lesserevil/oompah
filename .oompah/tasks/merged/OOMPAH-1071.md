@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T07:46:51.655974Z'
-updated_at: '2026-08-11T10:40:14.942189Z'
+updated_at: '2026-08-11T10:40:30.407626Z'
 work_branch: OOMPAH-1071
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/810
@@ -146,6 +146,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1071
     selected_ref: origin/OOMPAH-1071
     selected_sha: 238736b06a9f3a915906dcb2444e70fd5edcc73a
+oompah.task_costs:
+  total_input_tokens: 230
+  total_output_tokens: 43
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 230
+      output_tokens: 43
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 230
+    output_tokens: 43
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T10:40:24.506784+00:00'
 ---
 ## Summary
 
@@ -214,5 +230,15 @@ created: 2026-08-11 10:40
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: [REDACTED]
+---
+author: oompah
+created: 2026-08-11 10:40
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 12
+- Tokens: 230 in / 43 out [273 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 21m 47s
+- Log: OOMPAH-1071__20260811T101851Z.jsonl
 ---
 <!-- COMMENTS:END -->
