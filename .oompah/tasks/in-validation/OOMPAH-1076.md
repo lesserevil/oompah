@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:41:07.342509Z'
-updated_at: '2026-08-11T10:28:39.079335Z'
+updated_at: '2026-08-11T10:47:27.325159Z'
 work_branch: OOMPAH-1076
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/814
@@ -49,12 +49,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1076
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 4fd9146b1adbf6f8266e43f47ed727692028607cb9faa9ec688515281b35d70b
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-9ad1d8c664f3
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 4fd9146b1adbf6f8266e43f47ed727692028607cb9faa9ec688515281b35d70b
+      created_at: '2026-08-11T10:47:18.920819+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-11T10:47:18.920819+00:00'
+      branch_key: OOMPAH-1076
+      selected_ref: origin/OOMPAH-1076
+      selected_sha: 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
     source_generation: 1
     requested_by:
       version: 1
@@ -64,6 +79,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T10:28:32.737789+00:00'
     selected_ref: origin/OOMPAH-1076
     selected_sha: 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
+    updated_at: '2026-08-11T10:47:18.920819+00:00'
   - version: 1
     audit_id: audit-a27fa4e3d94b
     project_id: proj-14849f1b
@@ -84,7 +100,22 @@ oompah.terminal_audit:
     created_at: '2026-08-11T10:28:32.737789+00:00'
     selected_ref: origin/OOMPAH-1076
     selected_sha: 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-9ad1d8c664f3
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4fd9146b1adbf6f8266e43f47ed727692028607cb9faa9ec688515281b35d70b
+    created_at: '2026-08-11T10:47:18.920819+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-11T10:47:18.920819+00:00'
+    branch_key: OOMPAH-1076
+    selected_ref: origin/OOMPAH-1076
+    selected_sha: 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
 ---
 ## Summary
 
@@ -112,5 +143,15 @@ author: oompah
 created: 2026-08-11 10:28
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-11 10:47
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-11 10:47
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
