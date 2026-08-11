@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1093
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 2
 title: '[backend:orchestrator] Orchestrator shutdown attempt failed; retaining process
   and retrying'
@@ -12,13 +12,23 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:04:30.156611Z'
-updated_at: '2026-08-11T16:33:32.122145Z'
-work_branch: null
+updated_at: '2026-08-11T16:43:06.218066Z'
+work_branch: OOMPAH-1093
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1093
+  head_sha: 4c6de3f056fcec98fa1e0118e7fe683c76b71ceb
+  submitted_at: '2026-08-11T16:42:50.783268+00:00'
+  updated_at: '2026-08-11T16:42:50.783268+00:00'
+oompah.work_branch: OOMPAH-1093
 ---
 ## Summary
 
@@ -80,5 +90,10 @@ author: oompah
 created: 2026-08-11 16:33
 ---
 Fresh independent review ACCEPTED exact head 4c6de3f056fcec98fa1e0118e7fe683c76b71ceb. Reviewer verified only LifecyclePublicationDrainPending is normalized to a bounded stop retry; lifecycle callback/snapshot authority prevents store teardown; direct drain and unrelated exceptions remain fail-closed; no observer recursion or false backend-error alert occurs; and the retry converges after authority exits. Independent evidence: 33 restart API tests, 111 supporting lifecycle/event/IPC tests and negative-path probes, clean diff. Holding submission only until the current OOMPAH-1085 canonical gate has the sole validation slot; not merged.
+---
+author: oompah
+created: 2026-08-11 16:43
+---
+Treat retained lifecycle-publication drain authority as a bounded graceful-stop retry while keeping stores open and unrelated failures fail-closed.
 ---
 <!-- COMMENTS:END -->
