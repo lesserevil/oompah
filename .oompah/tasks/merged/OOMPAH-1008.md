@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T01:18:23.370723Z'
-updated_at: '2026-08-11T08:07:40.842553Z'
+updated_at: '2026-08-11T08:07:52.896733Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,7 +47,21 @@ oompah.terminal_audit:
     created_at: '2026-08-11T08:07:36.389334+00:00'
     selected_ref: origin/OOMPAH-1008
     selected_sha: 6590e3558f5ff82fe9f60bfe7cc6669dfbc4192d
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1008
+    target_state: Merged
+    evidence_fingerprint: 31abd0543f7ce9c4b1a5cf8e86a613e9f246eca38e9bc9bd682ce5a87b6ff012
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1008
+    selected_sha: 6590e3558f5ff82fe9f60bfe7cc6669dfbc4192d
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T08:07:45.117211+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -80,5 +94,17 @@ author: oompah
 created: 2026-08-11 03:05
 ---
 Independent review accepted the implementation. The review follow-up is committed and pushed at exact head 6590e3558; configuration and worker construction now reject NaN and positive/negative infinity so no non-finite persistence deadline can bypass the bounded quarantine contract. Focused config/worker validation passed 218 tests, and the combined four-fix branch passed 827 changed-path tests.
+---
+author: oompah
+created: 2026-08-11 08:07
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Protected PR #806 and hosted Python 3.11/3.12/3.13 gates are green; deployed build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 contains merge 62c3cda3ea602b614a3a3dfc92c66468b5c34a4b; independent audit verified that every exact reviewed branch change is patch-equivalent to or composition-equivalent with the protected merge and no unique branch changes remain.
+---
+author: oompah
+created: 2026-08-11 08:07
+---
+Delivered through protected PR #806 and verified on healthy deployed build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17.
 ---
 <!-- COMMENTS:END -->
