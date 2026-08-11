@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1014
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Retire orphaned terminal-audit authority before workflow publication
 parent: null
@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T04:35:54.427125Z'
-updated_at: '2026-08-11T05:51:34.718687Z'
-work_branch: null
+updated_at: '2026-08-11T06:20:13.851268Z'
+work_branch: OOMPAH-1014
 target_branch: null
 review_url: null
 review_number: null
@@ -24,6 +24,16 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: o940-orphaned-audit-publication-deadlock-20260811
   request_fingerprint: a5344a93d25cc8ff40b2d235f76cc7c28c86a6f51b7c1633ee029b93841ffd28
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1014
+  head_sha: b7c5ab03f09d0bf994dfcbb04526f96f91d58979
+  submitted_at: '2026-08-11T06:20:01.281832+00:00'
+  updated_at: '2026-08-11T06:20:01.281832+00:00'
+oompah.work_branch: OOMPAH-1014
 ---
 ## Summary
 
@@ -43,5 +53,10 @@ author: oompah
 created: 2026-08-11 05:51
 ---
 Implementation is active on branch OOMPAH-1014. The repair-status orphan authority, workflow publication proof, exact auditor runtime/job lease, ABA departure transaction, malformed-ledger fail-closed handling, maintenance writer bypass, and retryable detached-worktree cleanup are implemented with direct/integrated regressions. Latest stable relevant gate: 613 passed; terminal mutation scan 21/21 and secret scan passed. Independent race/correctness re-review is still in progress before the complete Makefile gate.
+---
+author: oompah
+created: 2026-08-11 06:20
+---
+Fixed orphaned terminal-audit authority across status departures, restart publication, workflow/job identity, auditor runtime reconciliation, and retryable workspace cleanup. Added fail-closed ledger validation, durable fresh-generation rearm, operator documentation, and comprehensive race/restart regressions. Validation: make test (19,823 passed, 7 skipped, 2 xfailed); affected suite 614 passed; race soak 410 passed; workflow soak passed; terminal mutation scan 21/21; secret scan passed; three independent reviews clear. Exact pushed head b7c5ab03f09d0bf994dfcbb04526f96f91d58979.
 ---
 <!-- COMMENTS:END -->
