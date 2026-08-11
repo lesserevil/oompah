@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1076
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Bound large-corpus workflow reconciliation within restart SLO
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:41:07.342509Z'
-updated_at: '2026-08-11T11:13:27.014424Z'
+updated_at: '2026-08-11T11:16:04.914540Z'
 work_branch: OOMPAH-1076
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/816
@@ -42,6 +42,16 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1076
     digest: 4fd9146b1adbf6f8266e43f47ed727692028607cb9faa9ec688515281b35d70b
+  - version: 1
+    audit_id: audit-c6162cd59b1b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1076
+    digest: 7574461067baf533926f254889367a94889aa398d6d5a4bb1a3e1f2ee6dcaf1f
+  - version: 1
+    audit_id: audit-04c6472af4df
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1076
+    digest: 7574461067baf533926f254889367a94889aa398d6d5a4bb1a3e1f2ee6dcaf1f
   oompah.terminal_override_records:
   - version: 1
     override_id: override-e63e8b1f7e78
@@ -173,6 +183,46 @@ oompah.terminal_audit:
     selected_ref: origin/OOMPAH-1076
     selected_sha: 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
     updated_at: '2026-08-11T10:51:39.426602+00:00'
+  - version: 1
+    audit_id: audit-c6162cd59b1b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1076
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7574461067baf533926f254889367a94889aa398d6d5a4bb1a3e1f2ee6dcaf1f
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T11:16:00.389728+00:00'
+    selected_ref: a9bdbfdeedca4c5181851d01312cfbfc1159567d
+    selected_sha: a9bdbfdeedca4c5181851d01312cfbfc1159567d
+  - version: 1
+    audit_id: audit-04c6472af4df
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1076
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7574461067baf533926f254889367a94889aa398d6d5a4bb1a3e1f2ee6dcaf1f
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T11:16:00.389728+00:00'
+    selected_ref: a9bdbfdeedca4c5181851d01312cfbfc1159567d
+    selected_sha: a9bdbfdeedca4c5181851d01312cfbfc1159567d
   attempt_history:
   - version: 1
     attempt_id: attempt-9ad1d8c664f3
