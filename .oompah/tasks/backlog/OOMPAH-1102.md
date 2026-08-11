@@ -11,13 +11,36 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T20:53:59.261829Z'
-updated_at: '2026-08-11T20:53:59.261829Z'
+updated_at: '2026-08-11T22:41:36.073742Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-3cdd6f748aed
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1102
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 39a740f4c25be7d9f8de288c0a5822673563917e23a4a47bd8ebad03487ff8d9
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Operator consolidation of an auto-filed retry artifact into canonical
+      defects OOMPAH-1127 and OOMPAH-1128 after recovering and publishing the affected
+      Trickle state history.
+    created_at: '2026-08-11T22:41:34.165212+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
