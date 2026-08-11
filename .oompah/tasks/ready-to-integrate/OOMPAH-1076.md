@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1076
 type: task
-status: In Review
+status: Ready to Integrate
 priority: null
 title: Bound large-corpus workflow reconciliation within restart SLO
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:41:07.342509Z'
-updated_at: '2026-08-11T11:09:50.264654Z'
+updated_at: '2026-08-11T11:13:27.014424Z'
 work_branch: OOMPAH-1076
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/816
@@ -205,6 +205,17 @@ oompah.task_costs:
     output_tokens: 211
     cost_usd: 0.0
     recorded_at: '2026-08-11T10:51:45.702107+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1076
+  base_branch: main
+  base_sha: 9ae083d39357d537bb91ce82b171ee85a82ac6a6
+  head_sha: a9bdbfdeedca4c5181851d01312cfbfc1159567d
+  submitted_at: '2026-08-11T11:13:15.785699+00:00'
+  updated_at: '2026-08-11T11:13:15.785699+00:00'
 ---
 ## Summary
 
@@ -269,5 +280,10 @@ author: oompah
 created: 2026-08-11 11:09
 ---
 Branch quality gate passed for `a9bdbfdeedca4c5181851d01312cfbfc1159567d` using `make test` in 168.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 11:13
+---
+Revision 2 optimizes reconciliation-scoped target refresh and indexed integration/epic evidence at exact head a9bdbfdeedca4c5181851d01312cfbfc1159567d; 459 affected tests pass. Independent exact-head review and protected CI are in progress.
 ---
 <!-- COMMENTS:END -->
