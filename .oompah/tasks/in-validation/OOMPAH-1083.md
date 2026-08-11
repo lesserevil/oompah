@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1083
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Publish quality-gate lifecycle state before stale PID alerts escape
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:41:11.895675Z'
-updated_at: '2026-08-11T12:58:25.971414Z'
+updated_at: '2026-08-11T13:06:10.802311Z'
 work_branch: OOMPAH-1083
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/820
@@ -40,6 +40,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/820
 oompah.review_number: '820'
 oompah.target_branch: main
 oompah.review_head: be48003555fed724a752512d73fd70d5c72b2795
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-70da08ae8588
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1083
+    digest: d45dbe7ec74b541ada3f91bb32e0540ea540db011e45564e57d3ddee219dfe57
+  - version: 1
+    audit_id: audit-c104759340b1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1083
+    digest: d45dbe7ec74b541ada3f91bb32e0540ea540db011e45564e57d3ddee219dfe57
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-70da08ae8588
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1083
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d45dbe7ec74b541ada3f91bb32e0540ea540db011e45564e57d3ddee219dfe57
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T13:06:04.676643+00:00'
+    eligible_at: '2026-08-11T13:06:04.676643+00:00'
+    selected_ref: be48003555fed724a752512d73fd70d5c72b2795
+    selected_sha: be48003555fed724a752512d73fd70d5c72b2795
+  - version: 1
+    audit_id: audit-c104759340b1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1083
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d45dbe7ec74b541ada3f91bb32e0540ea540db011e45564e57d3ddee219dfe57
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T13:06:04.676643+00:00'
+    prerequisite_audit_id: audit-70da08ae8588
+    selected_ref: be48003555fed724a752512d73fd70d5c72b2795
+    selected_sha: be48003555fed724a752512d73fd70d5c72b2795
+  attempt_history: []
 ---
 ## Summary
 
@@ -87,5 +145,10 @@ author: oompah
 created: 2026-08-11 12:58
 ---
 Independent exact-head adversarial review ACCEPTED be48003555fed724a752512d73fd70d5c72b2795 after the prior bf823 authority was revoked. Reviewer verified the focused lifecycle/PID-reuse cases (17), alert/IPC slice (56), and all 21 terminal-mutation scan entries. Current main composition was also verified clean with 29 combined tests; merge remains gated only on the protected Python 3.12 rerun.
+---
+author: oompah
+created: 2026-08-11 13:06
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
