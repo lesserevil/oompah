@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:41:07.342509Z'
-updated_at: '2026-08-11T10:51:51.346613Z'
+updated_at: '2026-08-11T10:52:29.323100Z'
 work_branch: OOMPAH-1076
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/814
@@ -82,6 +82,28 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-11T10:51:39.426618+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Retain merged revision 1 as provenance while authorizing the live-canary
+      follow-up revision on the same task.
+    marked_at: '2026-08-11T10:52:27.705720+00:00'
+    updated_at: '2026-08-11T10:52:27.705720+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Retain merged revision 1 as provenance while authorizing the live-canary
+        follow-up revision on the same task.
+      recorded_at: '2026-08-11T10:52:27.705720+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
