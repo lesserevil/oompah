@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T12:18:19.822184Z'
+updated_at: '2026-08-11T12:41:11.871935Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Triggered by live PR 819 / OOMPAH-1082 on 2026-08-11. The task had adopted/local
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 12:41
+---
+Implemented exact review generation reconciliation on branch OOMPAH-1084 after rebasing onto main d9e1c7ae6. GitHub/GitLab observations now propagate head/base/repository identity; synchronized head changes replace standalone integration authority and requeue through Ready to Integrate; review merges re-observe and use forge expected-head CAS. Focused review/provider/standalone suite: 478 passed; terminal task-status scan passed. Preparing final commit and submission.
+---
+<!-- COMMENTS:END -->
