@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1097
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Keep HTTP available while auto-update drains retained workflow authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T17:34:07.685347Z'
-updated_at: '2026-08-11T17:34:07.685347Z'
+updated_at: '2026-08-11T17:34:49.425117Z'
 work_branch: null
 target_branch: null
 review_url: null
