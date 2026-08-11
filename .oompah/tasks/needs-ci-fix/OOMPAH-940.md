@@ -33,7 +33,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-11T03:06:23.190697Z'
+updated_at: '2026-08-11T07:37:00.962958Z'
 work_branch: epic-OOMPAH-940
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/757
@@ -314,7 +314,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-940
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -345,13 +345,13 @@ oompah.terminal_audit:
     selected_ref: origin/epic-OOMPAH-940
     selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
     workflow_revision: 55fd4ca92210e5d9eca98869fafd2addadbabd5c292588dcf440d92e8594feef
-    updated_at: '2026-08-11T03:03:20.337453+00:00'
+    updated_at: '2026-08-11T07:36:59.383494+00:00'
   - version: 1
     audit_id: audit-a3c06f37679e
     project_id: proj-14849f1b
     task_id: OOMPAH-940
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -367,6 +367,7 @@ oompah.terminal_audit:
     selected_ref: origin/epic-OOMPAH-940
     selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
     workflow_revision: 55fd4ca92210e5d9eca98869fafd2addadbabd5c292588dcf440d92e8594feef
+    updated_at: '2026-08-11T07:36:59.383494+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-55037e98b910
