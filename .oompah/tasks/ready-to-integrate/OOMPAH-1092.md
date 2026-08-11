@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1092
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Do not let suspended terminal audits starve active dispatch
 parent: null
@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:02:12.775197Z'
-updated_at: '2026-08-11T16:40:44.376053Z'
-work_branch: null
+updated_at: '2026-08-11T16:42:39.359066Z'
+work_branch: OOMPAH-1092
 target_branch: null
 review_url: null
 review_number: null
@@ -24,6 +24,16 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: terminal-audit-suspended-candidate-starvation-20260811
   request_fingerprint: 68772903779a44f84bd9b470b5fc1ed7cbe623f05a4cd03711601f9ccf5375f4
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1092
+  head_sha: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
+  submitted_at: '2026-08-11T16:42:26.075292+00:00'
+  updated_at: '2026-08-11T16:42:26.075292+00:00'
+oompah.work_branch: OOMPAH-1092
 ---
 ## Summary
 
@@ -54,5 +64,10 @@ author: oompah
 created: 2026-08-11 16:40
 ---
 Fresh independent review ACCEPTED exact head a355a5ddd3dd006f1bdd2187cfe83b9333b9468a. Reviewer independently reproduced one-cut dispatch for the live 9-suspended plus 1-active shape (1 dispatch, 1/8 active operations, 10 scanned, 9 suspended) and zero duplicate dispatch on the next cut; verified once-per-project suspension snapshots, fail-closed read errors, strict active priority/cursor/continuation semantics, and truthful bounded health metrics. Independent evidence: 545 terminal-audit tests, 252 observability/config tests, 172 scheduler/health tests, terminal mutation scan 21/21, clean diff. Holding submission only while OOMPAH-1085 owns the sole canonical validation slot; not merged.
+---
+author: oompah
+created: 2026-08-11 16:42
+---
+Keep suspended terminal-audit observations from consuming active operation capacity; snapshot pause authority once per project and dispatch active work within one bounded lane cut.
 ---
 <!-- COMMENTS:END -->
