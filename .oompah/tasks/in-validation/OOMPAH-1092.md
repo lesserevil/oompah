@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:02:12.775197Z'
-updated_at: '2026-08-11T17:09:31.904912Z'
+updated_at: '2026-08-11T17:28:11.496565Z'
 work_branch: OOMPAH-1092
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/828
@@ -60,12 +60,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1092
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 17602685e9446493caf47e87af8fdc62bd483b6d13205ae49dc654ca5e88d59a
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-c657832cd0a5
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 17602685e9446493caf47e87af8fdc62bd483b6d13205ae49dc654ca5e88d59a
+      created_at: '2026-08-11T17:28:09.416497+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-11T17:28:09.416497+00:00'
+      branch_key: OOMPAH-1092
+      selected_ref: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
+      selected_sha: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
     source_generation: 1
     requested_by:
       version: 1
@@ -76,6 +91,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-11T17:09:25.284230+00:00'
     selected_ref: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
     selected_sha: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
+    updated_at: '2026-08-11T17:28:09.416497+00:00'
   - version: 1
     audit_id: audit-592cc86088a4
     project_id: proj-14849f1b
@@ -97,7 +113,22 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-e2e2f80707ad
     selected_ref: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
     selected_sha: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-c657832cd0a5
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 17602685e9446493caf47e87af8fdc62bd483b6d13205ae49dc654ca5e88d59a
+    created_at: '2026-08-11T17:28:09.416497+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-11T17:28:09.416497+00:00'
+    branch_key: OOMPAH-1092
+    selected_ref: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
+    selected_sha: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
 ---
 ## Summary
 
