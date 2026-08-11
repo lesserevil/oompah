@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T13:33:20.930373Z'
+updated_at: '2026-08-11T13:45:58.824266Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
@@ -80,5 +80,10 @@ author: oompah
 created: 2026-08-11 13:33
 ---
 Replacement exact head 575e6c358573ec1f103ea782e9168a57587da735 is pushed on origin/OOMPAH-1084, rebased directly on deployed main fe06a0ff1e0e2a2430a1190121df790595040998. It closes all three fresh-review blockers: durable base-generation synchronization forces a new gate even for the same head; active review adoption requires positive exact source and target repository identity; and Ready-to-Integrate recovery checkpoints a PR/MR that advances after verification but before tracker transition, then re-gates and adopts only the latest exact head/base. The replacement path is restricted to a valid marker for the same tracked review, so a newer independent accepted submission cannot be overwritten by stale review history. Deterministic B-to-C late-race, restart, base-only, missing-ID, fork, unmarked-submission, and cache-bypass regressions are included. Post-head evidence: standalone Ready suite 99 passed; review workflow adapter 28 passed; review/work-decision adjacent suites 215 passed; SCM/GitLab/integration suites 410 passed; provider/server GitLab suites 103 passed; full quality-gate suite 309 passed; terminal task-status mutation scan passed. Pre-commit secret and safety hooks passed. This exact head requires another independent review; no self-approval or merge was performed.
+---
+author: oompah
+created: 2026-08-11 13:45
+---
+Repaired the remaining independent-review blocker and pushed replacement exact head cf3578ff00f5564a06ea31650553dca337280427 on origin/OOMPAH-1084. Ready-to-Integrate reconciliation now checkpoints an unmarked ordinary accepted submission only when the tracked open review retains the same exact submitted head and only its base generation advanced; differing-head replacement remains restricted to a valid prior review-requeue marker, so stale review history cannot overwrite newer submitted work. The durable checkpoint forces a fresh gate, survives restart, clears once on exact adoption, and base-only rejection diagnostics no longer claim equal heads differ. Evidence: 6 targeted race/restart tests passed; 788 focused integration/review/standalone/SCM/quality-gate tests passed; 561 adjacent workflow/transition/GitLab/merge-queue tests passed; terminal mutation scan passed 21/21; diff check clean. Commit and remote branch are exact cf3578ff0; PR #821 updated automatically and remains draft with protected CI running. This replacement head requires fresh independent review; no self-approval or merge performed.
 ---
 <!-- COMMENTS:END -->
