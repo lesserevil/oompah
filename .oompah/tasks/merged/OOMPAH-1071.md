@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T07:46:51.655974Z'
-updated_at: '2026-08-11T10:40:09.037892Z'
+updated_at: '2026-08-11T10:40:14.942189Z'
 work_branch: OOMPAH-1071
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/810
@@ -54,7 +54,23 @@ oompah.terminal_audit:
     created_at: '2026-08-11T10:40:04.393414+00:00'
     selected_ref: origin/OOMPAH-1071
     selected_sha: 238736b06a9f3a915906dcb2444e70fd5edcc73a
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1071
+    target_state: Merged
+    evidence_fingerprint: b3794fef82fb6cf818092ed82ba5df16a5bcedef9c8a4934786f1f236ddcabea
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1071
+    selected_sha: 238736b06a9f3a915906dcb2444e70fd5edcc73a
+    landing_revision: null
+    audit_ids:
+    - audit-1dd0597bfcb9
+    - audit-56358e513498
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T10:40:13.232640+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -62,7 +78,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1071
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -92,13 +108,13 @@ oompah.terminal_audit:
     created_at: '2026-08-11T09:22:32.679778+00:00'
     selected_ref: origin/OOMPAH-1071
     selected_sha: 238736b06a9f3a915906dcb2444e70fd5edcc73a
-    updated_at: '2026-08-11T10:18:34.379396+00:00'
+    updated_at: '2026-08-11T10:40:13.232593+00:00'
   - version: 1
     audit_id: audit-56358e513498
     project_id: proj-14849f1b
     task_id: OOMPAH-1071
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -113,6 +129,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T09:22:32.679778+00:00'
     selected_ref: origin/OOMPAH-1071
     selected_sha: 238736b06a9f3a915906dcb2444e70fd5edcc73a
+    updated_at: '2026-08-11T10:40:13.232623+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3394c726afeb
@@ -190,5 +207,12 @@ author: oompah
 created: 2026-08-11 10:18
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 10:40
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: [REDACTED]
 ---
 <!-- COMMENTS:END -->
