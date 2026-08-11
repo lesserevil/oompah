@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1082
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Wake and age chained terminal-audit stages only after prerequisites become
   eligible
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:08:16.081490Z'
-updated_at: '2026-08-11T12:23:24.755846Z'
+updated_at: '2026-08-11T12:23:33.444126Z'
 work_branch: OOMPAH-1082
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/819
