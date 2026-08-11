@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:45:59.661224Z'
-updated_at: '2026-08-11T09:46:15.526218Z'
+updated_at: '2026-08-11T09:53:14.109545Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Protected PR #812 Python 3.11 failed after 19,876 passing tests in tests/test_wo
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 09:53
+---
+Implemented deterministic workflow-worker lease proof on bundled PR #812 branch OOMPAH-1075 at exact head 9158bb02df2505b232fbbe49d40eacc72ca23183. The test now holds apply behind an explicit barrier, waits for two observed heartbeat renewals of the exact lease token, advances the injected store clock past the original lease expiry to prove renewal kept authority live, verifies the external effect is still unapplied before release, and then asserts one apply plus completion. No production semantics or timers were changed. Validation: focused test passed 50/50 consecutive runs; tests/test_workflow_worker.py passed 50/50; git diff --check passed. Commit pushed; branch intentionally not rebased so the coordinator can rebase it once onto newly deployed main.
+---
+<!-- COMMENTS:END -->
