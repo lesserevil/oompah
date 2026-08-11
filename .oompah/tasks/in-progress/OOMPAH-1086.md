@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:54:01.877028Z'
-updated_at: '2026-08-11T13:02:02.000453Z'
+updated_at: '2026-08-11T13:38:29.520805Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-08-11 13:02
 ---
 Deterministic reproduction confirmed a real ownership race independent of CI slowdown: TaskTransitionService.execute can durably begin, block on tracker I/O between journal calls, and concurrent TransitionJournal.close() closes the connection; when the admitted transition resumes its next append raises sqlite3.ProgrammingError ('Cannot operate on a closed database'). Fixing the journal/service admission boundary so close rejects new transition sagas and drains already-admitted sagas before SQLite close; regression will prove effect completion, durable final event, idempotent close, and rejection after retirement.
+---
+author: oompah
+created: 2026-08-11 13:38
+---
+Diagnosis and scope update: the original PR 820 Python 3.12 teardown timeout cannot be causally attributed to a transition-journal ownership race. That run was uniformly slow (1349s vs ~435s baseline), timed out inside sqlite3.Connection.close after orchestrator pools were drained, and its exact failed job rerun passed; the journal RLock also prevents an in-flight SQLite call from executing concurrently inside close. Diagnosis did expose a separate deterministic lifecycle defect: closing while execute() was between its durable begin and outcome append (blocked in tracker I/O) made the later append fail with 'Cannot operate on a closed database.' Direct production readers also bypass TaskTransitionService. The narrow fix now gives each complete execute/recover saga one lifetime lease, gives every public journal reader/writer an operation lease, fences late callers once close starts, and drains already-admitted work before one idempotent close. No timeout was raised. Evidence on rebased fe06a0ff: new saga/direct-use/orchestrator-close regressions 10/10 fresh-process runs (30 executions); full transition-service file 112 passed; focused production direct-reader paths 5 passed; terminal mutation scan 21/21. Final complete gate is intentionally waiting for the sibling definitive gate to release host capacity.
 ---
 <!-- COMMENTS:END -->
