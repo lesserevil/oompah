@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1097
 type: task
-status: In Progress
+status: In Validation
 priority: null
 title: Keep HTTP available while auto-update drains retained workflow authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T17:34:07.685347Z'
-updated_at: '2026-08-11T18:58:23.689755Z'
+updated_at: '2026-08-11T19:06:01.163351Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,64 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 4b9b6ab4-7131-48c9-a1c0-97786475acff
   request_fingerprint: e0fd820824effc6879a1df6aeb0cedfec32714788765cc2af9af0df8e34a4e99
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-b9e2d1384ba7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1097
+    digest: a3be6b61e8376294b0add4e04ee72e14efcd146d2273e2a70f1582e45d6b59c8
+  - version: 1
+    audit_id: audit-be8a2d2f1f59
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1097
+    digest: a3be6b61e8376294b0add4e04ee72e14efcd146d2273e2a70f1582e45d6b59c8
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-b9e2d1384ba7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1097
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a3be6b61e8376294b0add4e04ee72e14efcd146d2273e2a70f1582e45d6b59c8
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-11T19:05:54.468440+00:00'
+    eligible_at: '2026-08-11T19:05:54.468440+00:00'
+    selected_ref: origin/OOMPAH-1097
+    selected_sha: 4012ea5fc39751478cb64ba517199dc490e37ea4
+  - version: 1
+    audit_id: audit-be8a2d2f1f59
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1097
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a3be6b61e8376294b0add4e04ee72e14efcd146d2273e2a70f1582e45d6b59c8
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-11T19:05:54.468440+00:00'
+    prerequisite_audit_id: audit-b9e2d1384ba7
+    selected_ref: origin/OOMPAH-1097
+    selected_sha: 4012ea5fc39751478cb64ba517199dc490e37ea4
+  attempt_history: []
 ---
 ## Summary
 
@@ -61,5 +119,10 @@ author: oompah
 created: 2026-08-11 18:58
 ---
 ACCEPT exact rebased head 4012ea5fc39751478cb64ba517199dc490e37ea4 against current main 28ce5b1b2dd461c2d6a2ba579b3adfc65e41cbbe. Fresh independent re-review confirms the prior console provider-launch rejection is fully closed for the auto-update retained-drain boundary. The WebSocket path uses a strict read-only action allowlist for ping, refresh, and full_sync; console_input and unknown mutation messages receive retryable restart_draining responses without closing the socket. Console handling rechecks after project/session lookup, ConsoleSession revalidates queued turns at dequeue and again before ACP construction, and the captured exact-orchestrator callback acquires the same provider-admission RLock and rejects owner replacement or restart/stopping at every production ACP backend true SDK/network/Popen contact edge. The checks fail closed on callback/factory errors. Lock review found no inversion: the callback only holds provider admission for the synchronous authority read, manager construction does not hold it, and listener cutover awaits safe-stop without holding server/console locks. Cutover prepare remains serialized/idempotent and both Uvicorn and Granian stop transports only after fail-closed safe-stop. OOMPAH-1085 composition is sound: its terminal-audit continuation future is included in orchestrator background-work draining, its continuation admission sees the same quiesced/stopping fence, and O1097 closes listeners only after that exact owner drains; the rebased commits are patch-equivalent to the reviewed correction. Exact-head evidence: 208 combined restart/console/terminal-continuation/quiesce/auto-update tests passed; seven real ACP transport/auto-update tests passed; the seven critical WS/lookup/queue/transport races passed 10 consecutive exact-head runs; terminal mutation scan passed 21/21; py_compile and diff-check clean. Branch untouched, clean, and HEAD equals origin/OOMPAH-1097.
+---
+author: oompah
+created: 2026-08-11 19:06
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
