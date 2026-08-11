@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1076
 type: task
-status: In Progress
+status: In Review
 priority: null
 title: Bound large-corpus workflow reconciliation within restart SLO
 parent: null
@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:41:07.342509Z'
-updated_at: '2026-08-11T10:22:27.063420Z'
-work_branch: null
-target_branch: null
+updated_at: '2026-08-11T10:22:45.607629Z'
+work_branch: OOMPAH-1076
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/814
-review_number: null
-review_head: null
+review_number: '814'
+review_head: 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
 merged_at: null
 oompah.create_once:
   version: 1
@@ -25,6 +25,10 @@ oompah.create_once:
   creation_marker: 0bd548a4-8b7b-45c6-b787-41efab3e0d67
   request_fingerprint: 5ea2f35f9115133371ebbc0341e287e822a967ee1c6968758bc9be0582b7a261
 oompah.review_url: https://github.com/lesserevil/oompah/pull/814
+oompah.review_number: '814'
+oompah.work_branch: OOMPAH-1076
+oompah.target_branch: main
+oompah.review_head: 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
 ---
 ## Summary
 
