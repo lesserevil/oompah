@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1010
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Do not stage shared-epic children for invalid Merged audits
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T01:48:19.145541Z'
-updated_at: '2026-08-11T01:48:19.145541Z'
+updated_at: '2026-08-11T02:15:45.413779Z'
 work_branch: null
 target_branch: null
 review_url: null

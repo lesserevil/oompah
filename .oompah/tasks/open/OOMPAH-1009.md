@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1009
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Prevent terminal-audit churn from starving restart workflow publication
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T01:46:41.855802Z'
-updated_at: '2026-08-11T01:46:41.855802Z'
+updated_at: '2026-08-11T02:15:39.010248Z'
 work_branch: null
 target_branch: null
 review_url: null

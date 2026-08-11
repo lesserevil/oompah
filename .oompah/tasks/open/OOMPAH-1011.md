@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1011
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Do not fence published workflow admission on an unaccepted scan allocation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T02:15:28.085531Z'
-updated_at: '2026-08-11T02:15:28.085531Z'
+updated_at: '2026-08-11T02:15:42.447828Z'
 work_branch: null
 target_branch: null
 review_url: null
