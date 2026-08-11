@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-940
 type: epic
-status: In Progress
+status: In Validation
 priority: 1
 title: Converge the legacy Done backlog from authoritative delivery evidence
 parent: null
@@ -33,7 +33,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-11T02:43:10.764685Z'
+updated_at: '2026-08-11T03:00:58.474606Z'
 work_branch: epic-OOMPAH-940
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/757
@@ -65,6 +65,16 @@ oompah.terminal_audit:
     digest: 94a960ba65598196a55806687fd80d6be305ef6a22620a73c47c6ab4dcf3ef0a
   - version: 1
     audit_id: audit-819dae95b4f7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-940
+    digest: 94a960ba65598196a55806687fd80d6be305ef6a22620a73c47c6ab4dcf3ef0a
+  - version: 1
+    audit_id: audit-ae12c1070eaf
+    project_id: proj-14849f1b
+    task_id: OOMPAH-940
+    digest: 94a960ba65598196a55806687fd80d6be305ef6a22620a73c47c6ab4dcf3ef0a
+  - version: 1
+    audit_id: audit-a3c06f37679e
     project_id: proj-14849f1b
     task_id: OOMPAH-940
     digest: 94a960ba65598196a55806687fd80d6be305ef6a22620a73c47c6ab4dcf3ef0a
@@ -242,7 +252,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-940
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -283,7 +293,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-940
     target_state: Merged
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -299,6 +309,48 @@ oompah.terminal_audit:
     selected_ref: origin/epic-OOMPAH-940
     selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
     workflow_revision: a546ab1dc76434c66032c526140661166450cbffdea54a4b756844094030f917
+  - version: 1
+    audit_id: audit-ae12c1070eaf
+    project_id: proj-14849f1b
+    task_id: OOMPAH-940
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 94a960ba65598196a55806687fd80d6be305ef6a22620a73c47c6ab4dcf3ef0a
+    attempts: []
+    source_generation: 4
+    requested_by:
+      version: 1
+      identity: oompah
+      source: orchestrator
+    previous_state: In Progress
+    created_at: '2026-08-11T03:00:54.306147+00:00'
+    selected_ref: origin/epic-OOMPAH-940
+    selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
+    workflow_revision: 55fd4ca92210e5d9eca98869fafd2addadbabd5c292588dcf440d92e8594feef
+  - version: 1
+    audit_id: audit-a3c06f37679e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-940
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 94a960ba65598196a55806687fd80d6be305ef6a22620a73c47c6ab4dcf3ef0a
+    attempts: []
+    source_generation: 4
+    requested_by:
+      version: 1
+      identity: oompah
+      source: orchestrator
+    previous_state: In Progress
+    created_at: '2026-08-11T03:00:54.306147+00:00'
+    selected_ref: origin/epic-OOMPAH-940
+    selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
+    workflow_revision: 55fd4ca92210e5d9eca98869fafd2addadbabd5c292588dcf440d92e8594feef
   attempt_history:
   - version: 1
     attempt_id: attempt-55037e98b910
