@@ -1152,6 +1152,16 @@ class RuntimeTerminationPublicationTimeout(RuntimeError):
     ordinary exception type and error-level observability.
     """
 
+
+class LifecyclePublicationDrainPending(RuntimeError):
+    """A revoked lifecycle snapshot still holds persistent-store authority.
+
+    This is a normal bounded graceful-shutdown retry condition.  The exact
+    publication source has already been fenced, so the process must retain
+    its stores until the retired snapshot worker exits, then retry the drain.
+    """
+
+
 class ProviderStartupError(Exception):
     """A provider-level startup failure that may be retried with the next dispatch candidate.
 
@@ -14162,7 +14172,14 @@ class Orchestrator:
         # soon as the main coroutine returns.
         await self._drain_scheduler_startup()
         await self._drain_active_tick()
-        await self._drain_background_work()
+        try:
+            await self._drain_background_work()
+        except LifecyclePublicationDrainPending:
+            logger.info(
+                "Orchestrator shutdown is safely waiting for a retired "
+                "lifecycle publication to release persistent stores"
+            )
+            return False
         logger.info("Orchestrator stopped")
         with self._provider_admission_lock:
             if not self._safe_stop_acknowledged.done():
@@ -14253,7 +14270,7 @@ class Orchestrator:
         )
         if callable(shutdown_publications):
             if shutdown_publications() is False:
-                raise RuntimeError(
+                raise LifecyclePublicationDrainPending(
                     "lifecycle publication callbacks did not drain; "
                     "refusing to close lifecycle stores"
                 )
@@ -14264,7 +14281,7 @@ class Orchestrator:
         )
         if callable(drain_publication_worker):
             if await drain_publication_worker() is False:
-                raise RuntimeError(
+                raise LifecyclePublicationDrainPending(
                     "lifecycle publication snapshot did not drain; "
                     "refusing to close lifecycle stores"
                 )

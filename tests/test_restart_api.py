@@ -917,6 +917,68 @@ async def test_background_drain_waits_for_snapshot_before_closing_stores(
 
 
 @pytest.mark.asyncio
+async def test_safe_stop_retries_retired_snapshot_without_backend_error(
+    tmp_path,
+    monkeypatch,
+    caplog,
+):
+    """A slow fenced snapshot is retained authority, not a shutdown failure."""
+
+    orch = _real_orchestrator(tmp_path)
+    snapshot_started = threading.Event()
+    release_snapshot = threading.Event()
+    stores_closed = threading.Event()
+    original_close = orch._close_owned_persistent_stores
+
+    def _blocked_snapshot() -> dict[str, bool]:
+        snapshot_started.set()
+        assert release_snapshot.wait(timeout=3)
+        return {"paused": True}
+
+    def _tracked_close() -> None:
+        stores_closed.set()
+        original_close()
+
+    monkeypatch.setattr(orch, "get_snapshot", _blocked_snapshot)
+    monkeypatch.setattr(orch, "_close_owned_persistent_stores", _tracked_close)
+    orch._lifecycle_publication_drain_timeout_s = 0.01
+    caplog.set_level("INFO", logger="oompah.orchestrator")
+
+    assert orch.request_lifecycle_publication(expected_generation=0)
+    assert snapshot_started.wait(timeout=1)
+    stop_task = asyncio.create_task(orch.stop_until_safe())
+    try:
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline:
+            if any(
+                "safely waiting for a retired lifecycle publication"
+                in record.getMessage()
+                for record in caplog.records
+            ):
+                break
+            await asyncio.sleep(0.01)
+        else:
+            raise AssertionError("safe-stop retry was not observed")
+
+        assert stop_task.done() is False
+        assert stores_closed.is_set() is False
+        assert not any(
+            "Orchestrator shutdown attempt failed" in record.getMessage()
+            for record in caplog.records
+        )
+
+        release_snapshot.set()
+        await asyncio.wait_for(asyncio.shield(stop_task), timeout=2)
+    finally:
+        release_snapshot.set()
+        if not stop_task.done():
+            await asyncio.wait_for(asyncio.shield(stop_task), timeout=2)
+
+    assert stores_closed.is_set() is True
+    assert orch.workflow_job_store._authority_lock_fd == -1
+
+
+@pytest.mark.asyncio
 async def test_background_drain_waits_for_admitted_transition_saga(
     tmp_path,
     monkeypatch,
