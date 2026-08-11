@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T01:46:41.855802Z'
-updated_at: '2026-08-11T08:08:02.956600Z'
+updated_at: '2026-08-11T08:08:09.827756Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,7 +47,21 @@ oompah.terminal_audit:
     created_at: '2026-08-11T08:07:57.292309+00:00'
     selected_ref: origin/OOMPAH-1009
     selected_sha: 8fac2946c122c04b04cd0b76c8f2d77814ddb380
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1009
+    target_state: Merged
+    evidence_fingerprint: c32b364c9c2e965f166fa3c9e123b91a6af302c8176834f071925ce77359e1d7
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1009
+    selected_sha: 8fac2946c122c04b04cd0b76c8f2d77814ddb380
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T08:08:08.240182+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -80,5 +94,12 @@ author: oompah
 created: 2026-08-11 03:05
 ---
 Independent re-review accepted exact head 43a0d794ae1ac5dde5fb0005a7455878caef9d46 with no findings. Recovery/finalization now precede potentially failing reconciliation, restart reconciliation suppresses ordinary worker admission, fresh audit launch remains ahead of continuation admission, and a real two-tick authority-CAS regression proves supersession then convergence with exactly one provider launch. The combined four-fix branch passed 827 changed-path tests.
+---
+author: oompah
+created: 2026-08-11 08:08
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Protected PR #806 and hosted Python 3.11/3.12/3.13 gates are green; deployed build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 contains merge 62c3cda3ea602b614a3a3dfc92c66468b5c34a4b; independent audit verified that every exact reviewed branch change is patch-equivalent to or composition-equivalent with the protected merge and no unique branch changes remain.
 ---
 <!-- COMMENTS:END -->
