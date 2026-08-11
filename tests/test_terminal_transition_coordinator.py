@@ -977,6 +977,80 @@ def test_completed_canonical_epic_rebinds_when_branch_advances() -> None:
     assert project_store.resolve_calls == [branch]
 
 
+def test_advanced_completion_authority_replaces_same_head_epic_audits() -> None:
+    """A newer protected completion decision cannot reuse an old failure."""
+
+    sha = "b" * 40
+    issue = Issue(
+        id="OOMPAH-940",
+        identifier="OOMPAH-940",
+        title="Systemic workflow epic",
+        description="Complete the workflow program.",
+        state="In Progress",
+        issue_type="epic",
+        project_id=PROJECT_ID,
+    )
+    tracker = _RefreshingTracker(issue)
+    project_store = _RevisionLockStore({sha: sha})
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=project_store,
+        post_comments=False,
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, PROJECT_ID)
+    old_records = [
+        TerminalAuditRecord(
+            audit_id=f"audit-old-{target.value.lower()}",
+            project_id=PROJECT_ID,
+            task_id=issue.identifier,
+            target_state=target,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.COMPLETED,
+            selected_ref=sha,
+            selected_sha=sha,
+            workflow_revision="completion-authority-v1",
+            created_at="2026-08-09T00:00:00+00:00",
+        )
+        for target in (TargetState.DONE, TargetState.MERGED)
+    ]
+    _seed_metadata(tracker, old_records, task_id=issue.identifier)
+
+    result = _run(
+        coordinator.request_transition(
+            issue,
+            TargetState.MERGED,
+            ContributorIdentity("oompah", "orchestrator"),
+            PROJECT_ID,
+            fingerprint,
+            mutation_guard=lambda: None,
+            revision_binding=AuditRevisionBinding(sha, sha),
+            workflow_revision="completion-authority-v2",
+        )
+    )
+    records = TerminalAuditMetadataStore(
+        tracker,
+        project_store,
+        PROJECT_ID,
+    ).read(issue.identifier).pending_chain
+
+    assert result.success and not result.coalesced
+    assert result.queued_targets == [TargetState.DONE, TargetState.MERGED]
+    assert all(
+        record.request_state is RequestState.SUPERSEDED
+        for record in records[:2]
+    )
+    fresh = records[2:]
+    assert [record.target_state for record in fresh] == [
+        TargetState.DONE,
+        TargetState.MERGED,
+    ]
+    assert all(
+        record.workflow_revision == "completion-authority-v2"
+        for record in fresh
+    )
+    assert all(record.selected_sha == sha for record in fresh)
+
+
 def test_completed_immutable_revision_idempotency_skips_repo_resolution() -> None:
     """Current immutable evidence can acknowledge its exact completed audit."""
 
@@ -2619,8 +2693,19 @@ class TestOwnerOverrides:
         tracker = _MemoryTracker()
         metrics = _MetricsRecorder()
         fingerprint = _fingerprint()
-        first = _pending_record(audit_id="audit-override-1", fingerprint=fingerprint)
-        second = _pending_record(audit_id="audit-override-2", fingerprint=fingerprint)
+        sha = "a" * 40
+        first = replace(
+            _pending_record(audit_id="audit-override-1", fingerprint=fingerprint),
+            selected_ref=sha,
+            selected_sha=sha,
+            workflow_revision="workflow-revision-v1",
+        )
+        second = replace(
+            _pending_record(audit_id="audit-override-2", fingerprint=fingerprint),
+            selected_ref=sha,
+            selected_sha=sha,
+            workflow_revision="workflow-revision-v1",
+        )
         _seed_metadata(tracker, [first, second])
         coordinator = _coordinator(tracker, post_comments=False, metrics=metrics)
         owner = ContributorIdentity("project-owner", "github")
@@ -2652,8 +2737,12 @@ class TestOwnerOverrides:
         ]
         raw_override = stored.unknown_fields["oompah.terminal_override_records"][0]
         assert raw_override["applied"] is True
+        assert raw_override["workflow_revision"] == "workflow-revision-v1"
+        assert raw_override["selected_sha"] == sha
         retirement = stored.unknown_fields["oompah.terminal_audit_retirements"][0]
         assert retirement["evidence_fingerprint"] == fingerprint.digest
+        assert retirement["workflow_revision"] == "workflow-revision-v1"
+        assert retirement["selected_sha"] == sha
         assert set(retirement["audit_ids"]) == {first.audit_id, second.audit_id}
 
         replay = _run(
@@ -2671,6 +2760,66 @@ class TestOwnerOverrides:
         assert replay.idempotent is True
         assert replay.override_id == result.override_id
         assert len(tracker.update_calls) == 1
+
+    def test_old_override_does_not_mask_live_new_workflow_revision(self) -> None:
+        tracker = _MemoryTracker()
+        fingerprint = _fingerprint()
+        live = replace(
+            _pending_record(audit_id="audit-live-v2", fingerprint=fingerprint),
+            workflow_revision="workflow-revision-v2",
+        )
+        old_override = {
+            "version": 1,
+            "override_id": "override-v1",
+            "project_id": PROJECT_ID,
+            "task_id": TASK_ID,
+            "target_state": TargetState.DONE.value,
+            "evidence_fingerprint": fingerprint.to_dict(),
+            "authorized_by": ContributorIdentity(
+                "project-owner", "github"
+            ).to_dict(),
+            "reason": "Earlier owner decision.",
+            "workflow_revision": "workflow-revision-v1",
+            "applied": True,
+        }
+        document = TerminalAuditMetadata(
+            pending_chain=[live],
+            unknown_fields={
+                "oompah.terminal_override_records": [old_override],
+            },
+        )
+        tracker.set_metadata_field(TASK_ID, METADATA_KEY, document.to_dict())
+        coordinator = _coordinator(tracker, post_comments=False)
+        owner = ContributorIdentity("project-owner", "github")
+        project = SimpleNamespace(
+            tracker_owner="project-owner",
+            status_actor_login=None,
+            status_label_authorized_logins=["project-owner"],
+        )
+
+        result = _run(
+            coordinator.override_transition(
+                _issue(IN_VALIDATION),
+                TargetState.DONE,
+                owner,
+                PROJECT_ID,
+                fingerprint,
+                "Owner approved the new workflow generation.",
+                project,
+            )
+        )
+
+        assert result.success and not result.idempotent
+        assert result.override_id != "override-v1"
+        stored = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        overrides = stored.unknown_fields[
+            "oompah.terminal_override_records"
+        ]
+        assert len(overrides) == 2
+        assert overrides[-1]["workflow_revision"] == "workflow-revision-v2"
+        assert stored.pending_chain[0].request_state is RequestState.CANCELLED
 
     def test_idempotent_override_repairs_regressed_tracker_status(self) -> None:
         """A stale restart writer cannot make an applied override lie."""
@@ -2780,6 +2929,58 @@ class TestStaleRejection:
         # Chain should not have grown
         assert len(doc.pending_chain) == 1
         assert doc.pending_chain[0].audit_id == "audit-done-complete"
+
+    def test_stale_completed_binding_does_not_cancel_live_rebind(self) -> None:
+        fingerprint = _fingerprint()
+        workflow_revision = "workflow-revision-1"
+        completed = replace(
+            _pending_record(
+                audit_id="audit-completed-a0",
+                fingerprint=fingerprint,
+                state=RequestState.COMPLETED,
+            ),
+            workflow_revision=workflow_revision,
+            selected_ref="origin/old",
+            selected_sha="a" * 40,
+        )
+        live = replace(
+            _pending_record(
+                audit_id="audit-live-a1",
+                fingerprint=fingerprint,
+            ),
+            workflow_revision=workflow_revision,
+            selected_ref="origin/new",
+            selected_sha="b" * 40,
+            source_generation=2,
+        )
+        tracker = _MemoryTracker()
+        project_store = _RevisionLockStore(
+            {"origin/old": "a" * 40, "origin/new": "b" * 40}
+        )
+        _seed_metadata(tracker, [completed, live])
+
+        store = TerminalAuditMetadataStore(tracker, project_store, PROJECT_ID)
+        result = TerminalTransitionCoordinator(
+            tracker=tracker,
+            project_store=project_store,
+            post_comments=False,
+        )._transition_locked(
+            store,
+            tracker,
+            _issue(),
+            TargetState.DONE,
+            _trigger(),
+            PROJECT_ID,
+            fingerprint,
+            revision_binding=AuditRevisionBinding("origin/old", "a" * 40),
+            workflow_revision=workflow_revision,
+        )
+
+        assert not result.success
+        assert result.reason == "already completed"
+        assert result.cancelled_audit_ids == []
+        stored = store.read(TASK_ID)
+        assert stored.pending_chain == [completed, live]
 
     def test_changed_completed_evidence_queues_fresh_audit(self) -> None:
         """A repaired head may retry after an earlier completed audit failed."""
@@ -4728,6 +4929,70 @@ class TestApplyPassSingleTarget:
             current, PROJECT_ID
         )
 
+    def test_evidence_drift_replacement_preserves_workflow_authority(self) -> None:
+        class DetailTracker(_MemoryTracker):
+            def __init__(self, current: Issue) -> None:
+                super().__init__()
+                self.current = current
+
+            def fetch_issue_detail(self, identifier: str) -> Issue | None:
+                if identifier != self.current.identifier:
+                    return None
+                return copy.copy(self.current)
+
+            def update_issue(self, identifier: str, **kwargs: Any) -> None:
+                super().update_issue(identifier, **kwargs)
+                if "status" in kwargs:
+                    self.current.state = kwargs["status"]
+
+        current = Issue(
+            id=TASK_ID,
+            identifier=TASK_ID,
+            title="Workflow-bound task",
+            description="audited requirements",
+            state="In Progress",
+            project_id=PROJECT_ID,
+        )
+        tracker = DetailTracker(current)
+        fingerprint = compute_issue_evidence_fingerprint(current, PROJECT_ID)
+        coordinator = _coordinator(tracker)
+        staged = _run(
+            coordinator.request_transition(
+                copy.copy(current),
+                TargetState.DONE,
+                _trigger(),
+                PROJECT_ID,
+                fingerprint,
+            )
+        )
+        assert staged.success
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        document = store.read(TASK_ID)
+        bound = replace(
+            document.pending_chain[0],
+            workflow_revision="workflow-revision-2",
+            selected_ref="refs/heads/main",
+            selected_sha="b" * 40,
+        )
+        tracker.set_metadata_field(
+            TASK_ID,
+            METADATA_KEY,
+            replace(document, pending_chain=[bound]).to_dict(),
+        )
+        current.description = "requirements changed after audit"
+
+        outcome = _apply(coordinator, copy.copy(current), _pass_result(bound))
+
+        assert not outcome.success
+        assert outcome.reason is ResultRejection.CURRENT_EVIDENCE_MISMATCH
+        records = store.read(TASK_ID).pending_chain
+        assert records[0].request_state is RequestState.SUPERSEDED
+        replacement = records[-1]
+        assert replacement.request_state is RequestState.PENDING
+        assert replacement.workflow_revision == bound.workflow_revision
+        assert replacement.selected_ref == bound.selected_ref
+        assert replacement.selected_sha == bound.selected_sha
+
     def test_richer_fingerprint_uses_durable_tracker_projection_after_restart(
         self,
     ) -> None:
@@ -5301,6 +5566,44 @@ class TestApplyPassChainedTargets:
 
         assert outcome.success is False
         assert outcome.reason == ResultRejection.REVISION_BINDING_MISMATCH
+        assert tracker.current_status(TASK_ID) is None
+
+    def test_merged_pass_rejects_done_from_older_workflow_revision(self) -> None:
+        tracker = _MemoryTracker()
+        done = replace(
+            _pending_record(
+                audit_id="audit-done-old-workflow",
+                target=TargetState.DONE,
+                state=RequestState.COMPLETED,
+            ),
+            workflow_revision="workflow-revision-a0",
+            attempts=[
+                AuditAttempt(
+                    attempt_id="attempt-done-old-workflow",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=_fingerprint(),
+                    request_state=RequestState.COMPLETED,
+                    verdict=Verdict.PASS,
+                )
+            ],
+        )
+        merged = replace(
+            _pending_record(
+                audit_id="audit-merged-new-workflow",
+                target=TargetState.MERGED,
+            ),
+            workflow_revision="workflow-revision-a1",
+        )
+        issue = _seed_and_validation(tracker, [done, merged])
+
+        outcome = _apply(
+            _coordinator(tracker),
+            issue,
+            _pass_result(merged),
+        )
+
+        assert not outcome.success
+        assert outcome.reason is ResultRejection.PREREQUISITE_NOT_COMPLETED
         assert tracker.current_status(TASK_ID) is None
 
     def test_pass_only_marks_audited_record_completed(self) -> None:

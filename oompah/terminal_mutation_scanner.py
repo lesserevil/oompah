@@ -101,6 +101,14 @@ ALLOWLISTED_CALLS: dict[AllowlistKey, str] = {
     ): "Low-level adapter that restores a previously authorized audit result.",
     (
         "oompah/terminal_transition_coordinator.py",
+        "TerminalTransitionCoordinator.reconcile_missing_workflow_revision_sync._operation",
+        "update_issue",
+    ): (
+        "Low-level terminal-audit migration adapter that restores the persisted "
+        "pre-audit lifecycle state after retiring pre-cutover authority."
+    ),
+    (
+        "oompah/terminal_transition_coordinator.py",
         "TerminalTransitionCoordinator.retry_failed_audit._operation",
         "update_issue",
     ): "Low-level terminal-audit adapter that stages a persisted retry.",

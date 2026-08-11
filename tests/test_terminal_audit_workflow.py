@@ -51,6 +51,7 @@ def record(
     project_id: str = "project-a",
     target: TargetState = TargetState.DONE,
     source_generation: int = 1,
+    workflow_revision: str | None = None,
 ):
     return TerminalAuditRecord(
         audit_id=audit_id,
@@ -61,6 +62,7 @@ def record(
             hashlib.sha256(evidence.encode()).hexdigest()
         ),
         request_state=RequestState.PENDING,
+        workflow_revision=workflow_revision,
         source_generation=source_generation,
     )
 
@@ -111,6 +113,130 @@ def test_exact_target_evidence_generation_is_idempotently_queued(durable):
     assert replay.job_id == first.job_id
     assert len(store.list_jobs()) == 1
     assert workflow.decision(current).phase is AuditWorkflowPhase.QUEUED
+
+
+def test_advanced_completion_authority_queues_a_fresh_audit_generation(durable):
+    workflow, store, _clock = durable
+    prior = record(
+        audit_id="audit-prior",
+        workflow_revision="completion-authority-v1",
+    )
+    advanced = record(
+        audit_id="audit-advanced",
+        workflow_revision="completion-authority-v2",
+        source_generation=2,
+    )
+
+    prior_job = workflow.ensure(prior)
+    running = workflow.start(
+        prior,
+        attempt_id="attempt-prior",
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert running is not None
+    store.complete(running.job_id, running.lease_token)
+
+    advanced_job = workflow.ensure(advanced)
+
+    assert advanced_job.job_id != prior_job.job_id
+    assert advanced_job.state is WorkflowJobState.QUEUED
+    assert advanced_job.generation != prior_job.generation
+    assert advanced_job.payload == {
+        "workflow_revision": "completion-authority-v2"
+    }
+    assert store.get(prior_job.job_id).state is WorkflowJobState.COMPLETED
+    assert workflow.ensure(advanced).job_id == advanced_job.job_id
+
+
+def test_advanced_revision_binding_cannot_reuse_completed_audit(durable):
+    workflow, store, _clock = durable
+    prior = replace(
+        record(
+            audit_id="audit-prior",
+            workflow_revision="completion-authority-v1",
+        ),
+        selected_ref="refs/heads/main",
+        selected_sha="a" * 40,
+    )
+    advanced = replace(
+        prior,
+        audit_id="audit-advanced",
+        selected_sha="b" * 40,
+        source_generation=2,
+    )
+
+    prior_job = workflow.ensure(prior)
+    running = workflow.start(
+        prior,
+        attempt_id="attempt-prior",
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert running is not None
+    store.complete(running.job_id, running.lease_token)
+
+    advanced_job = workflow.ensure(advanced)
+
+    assert advanced_job.job_id != prior_job.job_id
+    assert advanced_job.generation != prior_job.generation
+    assert advanced_job.idempotency_key != prior_job.idempotency_key
+    assert advanced_job.state is WorkflowJobState.QUEUED
+    assert advanced_job.payload == {
+        "workflow_revision": "completion-authority-v1",
+        "selected_ref": "refs/heads/main",
+        "selected_sha": "b" * 40,
+    }
+    assert store.get(prior_job.job_id).state is WorkflowJobState.COMPLETED
+
+
+def test_restart_cannot_reuse_completed_job_after_revision_rebind(tmp_path):
+    path = str(tmp_path / "workflow.sqlite3")
+    prior_store = WorkflowJobStore(path)
+    prior_workflow = TerminalAuditWorkflow(prior_store)
+    prior = replace(
+        record(
+            audit_id="audit-prior-restart",
+            workflow_revision="workflow-revision-1",
+        ),
+        selected_ref="refs/heads/main",
+        selected_sha="a" * 40,
+    )
+    prior_job = prior_workflow.start(
+        prior,
+        attempt_id="attempt-prior-restart",
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert prior_job is not None
+    prior_store.complete(prior_job.job_id, prior_job.lease_token)
+    prior_store.close()
+
+    reopened_store = WorkflowJobStore(path)
+    reopened_workflow = TerminalAuditWorkflow(reopened_store)
+    rebound = replace(
+        prior,
+        audit_id="audit-rebound-restart",
+        selected_sha="b" * 40,
+        source_generation=2,
+    )
+
+    rebound_job = reopened_workflow.ensure(rebound)
+
+    assert rebound_job.state is WorkflowJobState.QUEUED
+    assert rebound_job.job_id != prior_job.job_id
+    assert rebound_job.generation != prior_job.generation
+    assert reopened_store.get(prior_job.job_id).state is WorkflowJobState.COMPLETED
+    reopened_store.close()
+
+
+def test_unbound_workflow_identity_remains_pre_upgrade_compatible(durable):
+    workflow, _store, _clock = durable
+    current = record()
+
+    assert workflow.generation(current) == workflow._legacy_generation(current)
+    assert workflow.idempotency_key(current) == (
+        "terminal-audit:project-a:TASK-1:Done:"
+        f"{current.evidence_fingerprint.digest}"
+    )
+    assert workflow.spec(current).payload is None
 
 
 def test_observe_is_read_only_and_selects_latest_nonretired_activation(durable):
@@ -408,6 +534,194 @@ def test_authorized_fresh_audit_identity_rearms_same_semantic_job(durable):
         ],
     ) == 0
     assert store.get(rearmed.job_id).state is WorkflowJobState.QUEUED
+
+
+def test_rearm_proof_versions_preserve_legacy_and_bind_workflow_revision(durable):
+    workflow, _store, _clock = durable
+    current = replace(
+        record(
+            audit_id="audit-bound-old",
+            workflow_revision="workflow-revision-1",
+        ),
+        selected_ref="refs/heads/main",
+        selected_sha="a" * 40,
+    )
+    running = workflow.start(
+        current,
+        attempt_id="attempt-bound-old",
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert running is not None
+    exhausted = workflow.action_required(
+        running,
+        record=current,
+        action_code="no_independent_auditor",
+        reason="candidate set exhausted",
+    )
+    assert exhausted.state is WorkflowJobState.EXHAUSTED
+    fresh = replace(
+        current,
+        audit_id="audit-bound-new",
+        source_generation=2,
+    )
+    common = {
+        "audit_id": fresh.audit_id,
+        "superseded_audit_id": current.audit_id,
+        "project_id": fresh.project_id,
+        "task_id": fresh.task_id,
+        "target_state": fresh.target_state.value,
+        "evidence_fingerprint": fresh.evidence_fingerprint.digest,
+        "source_generation": fresh.source_generation,
+        "actor": {"identity": "project-owner", "source": "api"},
+        "reason": "retry bound workflow",
+        "authorized_at": "2026-08-05T12:00:00+00:00",
+        "mode": "infrastructure_recovery",
+    }
+
+    with pytest.raises(
+        AuditWorkflowIdentityError,
+        match="legacy.*cannot authorize workflow-revision-bound work",
+    ):
+        workflow.rearm(fresh, authorization={"version": 1, **common})
+
+    rearmed = workflow.rearm(
+        fresh,
+        authorization={
+            "version": 2,
+            **common,
+            "workflow_revision": fresh.workflow_revision,
+            "selected_ref": fresh.selected_ref,
+            "selected_sha": fresh.selected_sha,
+        },
+    )
+    assert rearmed.state is WorkflowJobState.QUEUED
+
+
+def test_resolved_bound_metadata_retires_pre_upgrade_active_generation(durable):
+    workflow, store, _clock = durable
+    legacy = record(
+        audit_id="audit-pre-upgrade",
+        workflow_revision="workflow-revision-1",
+    )
+    running = workflow.start(
+        legacy,
+        attempt_id="attempt-pre-upgrade",
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert running is not None
+    bound_terminal = replace(
+        legacy,
+        request_state=RequestState.COMPLETED,
+        selected_ref="refs/heads/main",
+        selected_sha="a" * 40,
+    )
+
+    assert workflow.retire_resolved(
+        project_id=legacy.project_id,
+        task_id=legacy.task_id,
+        records=[bound_terminal],
+    ) == 1
+    assert store.get(running.job_id).state is WorkflowJobState.CANCELLED
+
+
+def test_live_bound_metadata_preserves_pre_upgrade_active_generation(durable):
+    workflow, store, _clock = durable
+    legacy = record(
+        audit_id="audit-pre-upgrade",
+        workflow_revision="workflow-revision-1",
+    )
+    running = workflow.start(
+        legacy,
+        attempt_id="attempt-pre-upgrade",
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert running is not None
+    live_bound = replace(
+        legacy,
+        selected_ref="refs/heads/main",
+        selected_sha="a" * 40,
+    )
+
+    assert workflow.retire_resolved(
+        project_id=legacy.project_id,
+        task_id=legacy.task_id,
+        records=[live_bound],
+    ) == 0
+    assert store.get(running.job_id).state is WorkflowJobState.RUNNING
+
+
+def test_live_bound_metadata_atomically_replaces_pre_upgrade_job(durable):
+    workflow, store, _clock = durable
+    legacy = record(
+        audit_id="audit-pre-upgrade",
+        workflow_revision="workflow-revision-1",
+    )
+    legacy_job = workflow.ensure(legacy)
+    live_bound = replace(
+        legacy,
+        selected_ref="refs/heads/main",
+        selected_sha="a" * 40,
+    )
+
+    bound_job = workflow.ensure(live_bound)
+
+    assert bound_job.job_id != legacy_job.job_id
+    assert bound_job.generation == workflow.generation(live_bound)
+    assert bound_job.payload == {
+        "workflow_revision": "workflow-revision-1",
+        "selected_ref": "refs/heads/main",
+        "selected_sha": "a" * 40,
+    }
+    assert bound_job.state is WorkflowJobState.QUEUED
+    assert store.get(legacy_job.job_id).state is WorkflowJobState.SUPERSEDED
+    claimed = store.claim_next(lease_owner="bound-worker", lease_seconds=30)
+    assert claimed is not None
+    assert claimed.job_id == bound_job.job_id
+
+
+def test_binding_upgrade_never_reuses_completed_pre_upgrade_job(durable):
+    workflow, store, _clock = durable
+    legacy = record(
+        audit_id="audit-pre-upgrade-complete",
+        workflow_revision="workflow-revision-1",
+    )
+    legacy_job = workflow.ensure(legacy)
+    running = store.claim_next(lease_owner="legacy-worker", lease_seconds=30)
+    assert running is not None
+    store.complete(running.job_id, running.lease_token)
+    live_bound = replace(
+        legacy,
+        selected_ref="refs/heads/main",
+        selected_sha="a" * 40,
+    )
+
+    bound_job = workflow.ensure(live_bound)
+
+    assert bound_job.job_id != legacy_job.job_id
+    assert bound_job.state is WorkflowJobState.QUEUED
+    assert store.get(legacy_job.job_id).state is WorkflowJobState.COMPLETED
+
+
+def test_same_generation_binding_upgrade_requires_matching_legacy_payload(durable):
+    workflow, store, _clock = durable
+    legacy = record(
+        audit_id="audit-pre-upgrade-conflict",
+        workflow_revision="workflow-revision-other",
+    )
+    workflow.ensure(legacy)
+    bound = replace(
+        legacy,
+        workflow_revision="workflow-revision-1",
+        selected_ref="refs/heads/main",
+        selected_sha="a" * 40,
+    )
+
+    with pytest.raises(WorkflowJobStoreError, match="conflicting evidence"):
+        store.enqueue_replacing_lane(
+            workflow.spec(bound),
+            source_generation=bound.source_generation,
+            terminal_audit_binding_upgrade_from=workflow._legacy_generation(legacy),
+        )
 
 
 def test_invalid_rearm_proof_cannot_revive_exhausted_work(durable):
@@ -871,6 +1185,25 @@ def test_checkpoint_excludes_oversized_or_untrusted_output(durable):
     assert len(checkpoint["result"]["result_digest"]) == 64
 
 
+def test_oversized_start_checkpoint_does_not_claim_workflow_lease(durable):
+    workflow, store, _clock = durable
+    current = record()
+    queued = workflow.ensure(current)
+
+    with pytest.raises(ValueError, match="checkpoint exceeds"):
+        workflow.start(
+            current,
+            attempt_id="attempt-oversized",
+            candidate=Candidate("😀" * 512, "model-a"),
+        )
+
+    persisted = store.get(queued.job_id)
+    assert persisted.state is WorkflowJobState.QUEUED
+    assert persisted.attempts == 0
+    assert persisted.lease_token is None
+    assert persisted.checkpoint is None
+
+
 def test_running_job_cannot_be_inherited_by_a_new_attempt(durable):
     workflow, store, _clock = durable
     current = record()
@@ -920,7 +1253,11 @@ def test_restart_recovers_only_the_abandoned_exact_job(durable):
 
 def test_finalizing_result_survives_restart_and_reclaims_exact_lease(durable):
     workflow, store, _clock = durable
-    current = record()
+    current = replace(
+        record(workflow_revision="workflow-revision-1"),
+        selected_ref="refs/heads/main",
+        selected_sha="a" * 40,
+    )
     running = workflow.start(
         current,
         attempt_id="attempt-1",
@@ -947,6 +1284,14 @@ def test_finalizing_result_survives_restart_and_reclaims_exact_lease(durable):
     assert reclaimed is not None
     assert reclaimed.lease_token != finalizing.lease_token
     assert reclaimed.attempts == finalizing.attempts
+    assert reclaimed.payload == {
+        "workflow_revision": "workflow-revision-1",
+        "selected_ref": "refs/heads/main",
+        "selected_sha": "a" * 40,
+    }
+    assert reclaimed.checkpoint["workflow_revision"] == "workflow-revision-1"
+    assert reclaimed.checkpoint["selected_ref"] == "refs/heads/main"
+    assert reclaimed.checkpoint["selected_sha"] == "a" * 40
     payload = workflow.finalizing_result_payload(reclaimed)
     assert payload["audit_id"] == "audit-1"
     assert payload["attempt_id"] == "attempt-1"

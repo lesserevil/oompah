@@ -3206,9 +3206,28 @@ class TerminalAuditEnforcement:
                         ),
                         None,
                     )
+                    history_version = (
+                        history_row.get("version")
+                        if history_row is not None
+                        else None
+                    )
+                    legacy_identity = bool(
+                        history_version == 1
+                        and record.workflow_revision is None
+                    )
+                    bound_identity = bool(
+                        history_version == 2
+                        and history_row is not None
+                        and history_row.get("workflow_revision")
+                        == record.workflow_revision
+                        and history_row.get("selected_ref")
+                        == record.selected_ref
+                        and history_row.get("selected_sha")
+                        == record.selected_sha
+                    )
                     if (
                         history_row is None
-                        or history_row.get("version") != 1
+                        or not (legacy_identity or bound_identity)
                         or expected_action is None
                         or rearm_actor is None
                         or not isinstance(history_reason, str)

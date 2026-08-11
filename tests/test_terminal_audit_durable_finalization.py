@@ -15,7 +15,14 @@ from oompah.auditor_dispatch import AuditorDispatchLane
 from oompah.models import Issue
 from oompah.orchestrator import Orchestrator, _AuditCandidateScan
 from oompah.roles import Candidate
-from oompah.statuses import DONE, IN_VALIDATION, MERGED, NEEDS_HUMAN, OPEN
+from oompah.statuses import (
+    DONE,
+    IN_REVIEW,
+    IN_VALIDATION,
+    MERGED,
+    NEEDS_HUMAN,
+    OPEN,
+)
 from oompah.terminal_audit import (
     AuditAttempt,
     AuditAttemptOrigin,
@@ -632,6 +639,214 @@ def test_natural_completed_e1_e2_e1_reuses_exact_superseded_pass(
     assert completed_job.state is WorkflowJobState.COMPLETED
     assert completed_job.result_transition["audit_id"] == first_record.audit_id
     store.close()
+
+
+def test_legacy_workflow_recurrence_without_revision_fails_closed() -> None:
+    tracker = _Tracker()
+    tracker.status = IN_VALIDATION
+    locks = _ProjectLocks()
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=locks,
+        post_comments=False,
+    )
+    fingerprint = compute_issue_evidence_fingerprint(
+        tracker.fetch_issue_detail(TASK_ID),
+        PROJECT_ID,
+    )
+    recurrence = TerminalAuditRecord(
+        audit_id="audit-legacy-workflow-recurrence",
+        project_id=PROJECT_ID,
+        task_id=TASK_ID,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.PENDING,
+        requested_by=ContributorIdentity("oompah", "orchestrator"),
+    )
+
+    outcome = coordinator.reconcile_completed_recurrence_sync(
+        tracker.fetch_issue_detail(TASK_ID),
+        recurrence,
+        PROJECT_ID,
+        applied_status=DONE,
+    )
+
+    assert not outcome.success
+    assert outcome.reason == "workflow_revision_missing"
+    assert tracker.status == IN_VALIDATION
+
+
+def test_restart_recovers_pre_upgrade_rearm_proof_only_for_legacy_record() -> None:
+    record = TerminalAuditRecord(
+        audit_id="audit-legacy-rearm",
+        project_id=PROJECT_ID,
+        task_id=TASK_ID,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=EvidenceFingerprint("a" * 64),
+        request_state=RequestState.PENDING,
+        selected_ref=SELECTED_REF,
+        selected_sha=SELECTED_SHA,
+        source_generation=3,
+    )
+    authorization = {
+        "version": 1,
+        "audit_id": record.audit_id,
+        "superseded_audit_id": "audit-legacy-exhausted",
+        "project_id": record.project_id,
+        "task_id": record.task_id,
+        "target_state": record.target_state.value,
+        "evidence_fingerprint": record.evidence_fingerprint.digest,
+        "source_generation": record.source_generation,
+        "actor": {"identity": "project-owner", "source": "api"},
+        "reason": "retry after restart",
+        "authorized_at": "2026-08-10T00:00:00+00:00",
+        "mode": "infrastructure_recovery",
+    }
+    document = SimpleNamespace(
+        unknown_fields={
+            "oompah.terminal_audit_rearm_history": [authorization],
+        }
+    )
+
+    assert (
+        Orchestrator._terminal_audit_rearm_authorization(document, record)
+        is authorization
+    )
+    assert (
+        Orchestrator._terminal_audit_rearm_authorization(
+            document,
+            replace(record, workflow_revision="workflow-revision-2"),
+        )
+        is None
+    )
+
+
+def test_pre_cutover_workflow_record_without_revision_is_recovered_and_restaged(
+    tmp_path,
+) -> None:
+    tracker = _Tracker()
+    tracker.status = IN_VALIDATION
+    locks = _ProjectLocks()
+    fingerprint = compute_issue_evidence_fingerprint(
+        tracker.fetch_issue_detail(TASK_ID),
+        PROJECT_ID,
+    )
+    record = TerminalAuditRecord(
+        audit_id="audit-pre-cutover-pending",
+        project_id=PROJECT_ID,
+        task_id=TASK_ID,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.PENDING,
+        requested_by=ContributorIdentity("oompah", "orchestrator"),
+        previous_state=IN_REVIEW,
+    )
+    metadata = TerminalAuditMetadataStore(tracker, locks, PROJECT_ID)
+    metadata.update(
+        TASK_ID,
+        lambda document: replace(document, pending_chain=[record]),
+    )
+    workflow_path = str(tmp_path / "workflow.sqlite3")
+    store = WorkflowJobStore(workflow_path)
+    workflow = TerminalAuditWorkflow(store)
+    running = workflow.start(
+        record,
+        attempt_id="attempt-pre-cutover",
+        candidate=Candidate("provider-old", "model-old"),
+    )
+    assert running is not None
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=locks,
+        post_comments=False,
+    )
+    orchestrator = _orchestrator(tracker, coordinator, store, workflow)
+    orchestrator._audit_metrics = _test_audit_metrics()
+    orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
+    orchestrator._is_rate_limited = MagicMock(return_value=False)
+    orchestrator._available_slots = MagicMock(return_value=1)
+    orchestrator._fetch_audit_candidates = lambda: _AuditCandidateScan(
+        (tracker.fetch_issue_detail(TASK_ID),)
+    )
+    orchestrator._refresh_terminal_audit_health = MagicMock()
+    orchestrator._dispatch = AsyncMock()
+    orchestrator.config = SimpleNamespace(
+        audit_priority=100,
+        audit_lane_scan_limit=100,
+        audit_max_attempts=3,
+        audit_attempt_ttl=3600,
+    )
+
+    # Crash-window simulation: metadata retirement wins, but the first
+    # attempt to restore the natural tracker state fails.
+    tracker.fail_status_updates = True
+    asyncio.run(orchestrator._dispatch_audit_lane())
+
+    orchestrator._dispatch.assert_not_awaited()
+    assert tracker.status == IN_VALIDATION
+    migrated = metadata.read(TASK_ID)
+    assert migrated.pending_chain[0].request_state is RequestState.SUPERSEDED
+    assert store.get(running.job_id).state is WorkflowJobState.CANCELLED
+    store.close()
+
+    # A fresh process sees the durable migration intent even though there is
+    # no longer a pending audit record, and completes the status hand-off.
+    tracker.fail_status_updates = False
+    reopened_store = WorkflowJobStore(workflow_path)
+    reopened_workflow = TerminalAuditWorkflow(reopened_store)
+    restarted = _orchestrator(
+        tracker,
+        coordinator,
+        reopened_store,
+        reopened_workflow,
+    )
+    restarted._audit_metrics = _test_audit_metrics()
+    restarted._dispatch_is_blocked = MagicMock(return_value=False)
+    restarted._is_rate_limited = MagicMock(return_value=False)
+    restarted._available_slots = MagicMock(return_value=1)
+    restarted._fetch_audit_candidates = lambda: _AuditCandidateScan(
+        (tracker.fetch_issue_detail(TASK_ID),)
+    )
+    restarted._refresh_terminal_audit_health = MagicMock()
+    restarted._dispatch = AsyncMock()
+    restarted.config = SimpleNamespace(
+        audit_priority=100,
+        audit_lane_scan_limit=100,
+        audit_max_attempts=3,
+        audit_attempt_ttl=3600,
+    )
+
+    asyncio.run(restarted._dispatch_audit_lane())
+
+    assert tracker.status == IN_REVIEW
+    recovered = metadata.read(TASK_ID)
+    migration_intents = recovered.unknown_fields[
+        "oompah.terminal_audit_result_intents"
+    ]
+    assert migration_intents[-1]["kind"] == "workflow_revision_migration"
+    assert migration_intents[-1]["applied"] is True
+
+    # The normal workflow can now stage a fresh request carrying the current
+    # completion authority; the retired pre-cutover identity is not reused.
+    refreshed = tracker.fetch_issue_detail(TASK_ID)
+    fresh_fingerprint = compute_issue_evidence_fingerprint(refreshed, PROJECT_ID)
+    staged = asyncio.run(
+        coordinator.request_transition(
+            refreshed,
+            TargetState.DONE,
+            ContributorIdentity("oompah", "orchestrator"),
+            PROJECT_ID,
+            fresh_fingerprint,
+            workflow_revision="workflow-revision-fresh",
+        )
+    )
+    assert staged.success
+    assert tracker.status == IN_VALIDATION
+    fresh = metadata.read(TASK_ID).pending_chain[-1]
+    assert fresh.request_state is RequestState.PENDING
+    assert fresh.workflow_revision == "workflow-revision-fresh"
+    assert fresh.audit_id != record.audit_id
+    reopened_store.close()
 
 
 def test_natural_completed_failure_recurrence_replays_fail_closed_disposition(
@@ -2191,6 +2406,140 @@ def test_evidence_recurrence_dispatches_from_fresh_activation(tmp_path) -> None:
     store.close()
 
 
+def test_advanced_workflow_revision_does_not_replay_completed_failure(
+    tmp_path,
+) -> None:
+    """Same task evidence at a newer completion decision launches a new audit."""
+
+    tracker = _Tracker()
+    tracker.status = IN_VALIDATION
+    locks = _ProjectLocks()
+    fingerprint = compute_issue_evidence_fingerprint(
+        tracker.fetch_issue_detail(TASK_ID),
+        PROJECT_ID,
+    )
+    prior_pending = TerminalAuditRecord(
+        audit_id="audit-prior-failure",
+        project_id=PROJECT_ID,
+        task_id=TASK_ID,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.PENDING,
+        workflow_revision="workflow-revision-a",
+        source_generation=1,
+    )
+    fresh = replace(
+        prior_pending,
+        audit_id="audit-fresh-authority",
+        workflow_revision="workflow-revision-b",
+        source_generation=2,
+    )
+
+    path = str(tmp_path / "workflow.sqlite3")
+    store = WorkflowJobStore(path)
+    workflow = TerminalAuditWorkflow(store)
+    prior_running = workflow.start(
+        prior_pending,
+        attempt_id="attempt-prior-failure",
+        candidate=Candidate("provider-old", "model-old"),
+    )
+    assert prior_running is not None
+    prior_job_id = prior_running.job_id
+    workflow.complete(
+        prior_running,
+        result={
+            "accepted": True,
+            "audit_id": prior_pending.audit_id,
+            "applied_status": "Needs CI Fix",
+        },
+    )
+    prior = replace(
+        prior_pending,
+        request_state=RequestState.SUPERSEDED,
+        attempts=[
+            AuditAttempt(
+                attempt_id="attempt-prior-failure",
+                target_state=TargetState.DONE,
+                evidence_fingerprint=fingerprint,
+                request_state=RequestState.COMPLETED,
+                verdict=Verdict.FAIL,
+                failure_classification=FailureClassification.CI_FAILURE,
+            )
+        ],
+    )
+    metadata = TerminalAuditMetadataStore(tracker, locks, PROJECT_ID)
+    metadata.update(
+        TASK_ID,
+        lambda document: replace(
+            document,
+            pending_chain=[prior, fresh],
+        ),
+    )
+    store.close()
+
+    reopened_store = WorkflowJobStore(path)
+    reopened_workflow = TerminalAuditWorkflow(reopened_store)
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=locks,
+        post_comments=False,
+    )
+    orchestrator = _orchestrator(
+        tracker,
+        coordinator,
+        reopened_store,
+        reopened_workflow,
+    )
+    orchestrator._audit_metrics = _test_audit_metrics()
+    orchestrator._audit_branch_claims = {}
+    orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
+    orchestrator._is_rate_limited = MagicMock(return_value=False)
+    orchestrator._available_slots = MagicMock(return_value=1)
+    orchestrator._fetch_audit_candidates = lambda: _AuditCandidateScan(
+        (tracker.fetch_issue_detail(TASK_ID),)
+    )
+    orchestrator._audit_selector = MagicMock(
+        return_value=SimpleNamespace(
+            select_candidates=lambda _contributors, *, exclude: (
+                [Candidate("provider-new", "model-new")],
+                None,
+            )
+        )
+    )
+    orchestrator._audit_branch_busy = MagicMock(return_value=False)
+    orchestrator._refresh_terminal_audit_health = MagicMock()
+    orchestrator._dispatch = AsyncMock()
+    orchestrator.config = SimpleNamespace(
+        audit_priority=100,
+        audit_lane_scan_limit=100,
+        audit_max_attempts=3,
+        audit_attempt_ttl=3600,
+    )
+
+    asyncio.run(orchestrator._dispatch_audit_lane())
+
+    orchestrator._dispatch.assert_awaited_once()
+    orchestrator._record_audit_outcome_ownership.assert_not_called()
+    assert tracker.status == IN_VALIDATION
+    current = next(
+        record
+        for record in metadata.read(TASK_ID).pending_chain
+        if record.audit_id == fresh.audit_id
+    )
+    assert current.request_state is RequestState.IN_PROGRESS
+    assert current.workflow_revision == "workflow-revision-b"
+    active = reopened_workflow.ensure(current)
+    assert active.state is WorkflowJobState.RUNNING
+    assert active.job_id != prior_job_id
+    assert active.checkpoint["audit_id"] == fresh.audit_id
+    assert (
+        active.checkpoint["workflow_revision"]
+        == "workflow-revision-b"
+    )
+    assert reopened_store.get(prior_job_id).state is WorkflowJobState.COMPLETED
+    reopened_store.close()
+
+
 def test_terminal_workflow_claim_precedes_in_progress_metadata_write(
     tmp_path,
 ) -> None:
@@ -2368,6 +2717,73 @@ def test_done_to_merged_survives_pre_apply_crash_and_one_provider_retry(
     reopened_store.close()
 
 
+def test_pre_cutover_workflow_finalization_without_revision_is_cancelled(
+    tmp_path,
+) -> None:
+    """Restart replay cannot apply an unbound workflow-authored PASS."""
+
+    tracker = _Tracker()
+    tracker.status = IN_VALIDATION
+    locks = _ProjectLocks()
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=locks,
+        post_comments=False,
+    )
+    issue = tracker.fetch_issue_detail(TASK_ID)
+    fingerprint = compute_issue_evidence_fingerprint(issue, PROJECT_ID)
+    record = TerminalAuditRecord(
+        audit_id="audit-pre-cutover-workflow",
+        project_id=PROJECT_ID,
+        task_id=TASK_ID,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.PENDING,
+        requested_by=ContributorIdentity("oompah", "orchestrator"),
+    )
+    metadata = TerminalAuditMetadataStore(tracker, locks, PROJECT_ID)
+    metadata.update(
+        TASK_ID,
+        lambda document: replace(document, pending_chain=[record]),
+    )
+    path = str(tmp_path / "workflow.sqlite3")
+    store = WorkflowJobStore(path)
+    workflow = TerminalAuditWorkflow(store)
+    running = workflow.start(
+        record,
+        attempt_id="attempt-pre-cutover",
+        candidate=Candidate("provider-old", "model-old"),
+    )
+    assert running is not None
+    finalizing = workflow.mark_finalizing(
+        running,
+        record,
+        result=_result(record, "attempt-pre-cutover"),
+        attempt_id="attempt-pre-cutover",
+        lease_token=running.lease_token,
+    )
+    store.close()
+
+    reopened_store = WorkflowJobStore(path)
+    reopened_workflow = TerminalAuditWorkflow(reopened_store)
+    orchestrator = _orchestrator(
+        tracker,
+        coordinator,
+        reopened_store,
+        reopened_workflow,
+    )
+
+    assert asyncio.run(orchestrator._replay_terminal_audit_finalizations()) == 1
+    assert tracker.status == IN_VALIDATION
+    assert (
+        reopened_store.get(finalizing.job_id).state
+        is WorkflowJobState.CANCELLED
+    )
+    persisted = metadata.read(TASK_ID).pending_chain[0]
+    assert persisted.request_state is RequestState.PENDING
+    reopened_store.close()
+
+
 def test_duplicate_merged_generation_replays_persisted_pass_before_dispatch(
     tmp_path,
 ) -> None:
@@ -2444,10 +2860,19 @@ def test_duplicate_merged_generation_replays_persisted_pass_before_dispatch(
         candidate=Candidate("provider-opus", "model-opus"),
     )
     assert running_job is not None
+    callback_result = _result(running_merged, live_attempt.attempt_id)
+    callback_record = Orchestrator._audit_record_for_result(
+        tracker.fetch_issue_detail(TASK_ID),
+        callback_result,
+        running_job,
+    )
+    assert callback_record.workflow_revision == running_merged.workflow_revision
+    assert callback_record.selected_ref == running_merged.selected_ref
+    assert callback_record.selected_sha == running_merged.selected_sha
     finalizing = workflow.mark_finalizing(
         running_job,
-        running_merged,
-        result=_result(running_merged, live_attempt.attempt_id),
+        callback_record,
+        result=callback_result,
         attempt_id=live_attempt.attempt_id,
         lease_token=running_job.lease_token,
     )
@@ -2479,6 +2904,12 @@ def test_duplicate_merged_generation_replays_persisted_pass_before_dispatch(
         reopened_store,
         reopened_workflow,
     )
+    replay_record = Orchestrator._audit_record_from_finalizing_job(
+        reopened_store.get(finalizing.job_id)
+    )
+    assert replay_record.workflow_revision == running_merged.workflow_revision
+    assert replay_record.selected_ref == running_merged.selected_ref
+    assert replay_record.selected_sha == running_merged.selected_sha
     orchestrator._audit_metrics = _test_audit_metrics()
     orchestrator._dispatch_is_blocked = MagicMock(return_value=False)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
@@ -2857,6 +3288,85 @@ def test_callback_requires_exact_running_entry_and_lease_identity(tmp_path) -> N
     )
     assert finalizing is not None
     assert finalizing.phase == "finalizing"
+    store.close()
+
+
+def test_replaced_workflow_revision_rejects_old_running_callback(tmp_path) -> None:
+    tracker = _Tracker()
+    tracker.status = IN_VALIDATION
+    locks = _ProjectLocks()
+    issue = tracker.fetch_issue_detail(TASK_ID)
+    fingerprint = compute_issue_evidence_fingerprint(issue, PROJECT_ID)
+    old = TerminalAuditRecord(
+        audit_id="audit-running-a0",
+        project_id=PROJECT_ID,
+        task_id=TASK_ID,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.PENDING,
+        workflow_revision="workflow-revision-a0",
+        source_generation=1,
+    )
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    workflow = TerminalAuditWorkflow(store)
+    running = workflow.start(
+        old,
+        attempt_id="attempt-running-a0",
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert running is not None
+    fresh = replace(
+        old,
+        audit_id="audit-pending-a1",
+        workflow_revision="workflow-revision-a1",
+        source_generation=2,
+    )
+    metadata = TerminalAuditMetadataStore(tracker, locks, PROJECT_ID)
+    metadata.update(
+        TASK_ID,
+        lambda document: replace(
+            document,
+            pending_chain=[
+                replace(old, request_state=RequestState.SUPERSEDED),
+                fresh,
+            ],
+        ),
+    )
+    entry = SimpleNamespace(
+        is_auditor=True,
+        issue=issue,
+        identifier=TASK_ID,
+        audit_id=old.audit_id,
+        audit_attempt_id="attempt-running-a0",
+        audit_workflow_job_id=running.job_id,
+        audit_workflow_lease_token=running.lease_token,
+    )
+    orchestrator = Orchestrator.__new__(Orchestrator)
+    orchestrator.workflow_job_store = store
+    orchestrator.terminal_audit_workflow = workflow
+    orchestrator._current_running_entry = lambda _issue_id: entry
+    result = _result(old, "attempt-running-a0")
+
+    finalizing = orchestrator._begin_terminal_audit_finalization(issue, result)
+    assert finalizing is not None
+    outcome = asyncio.run(
+        TerminalTransitionCoordinator(
+            tracker=tracker,
+            project_store=locks,
+            post_comments=False,
+        ).apply_audit_result(issue, result, PROJECT_ID)
+    )
+
+    assert not outcome.success
+    assert outcome.reason is ResultRejection.STATE_MISMATCH
+    assert orchestrator._finish_terminal_audit_workflow(
+        issue,
+        result,
+        outcome,
+        finalizing,
+    )
+    assert store.get(running.job_id).state is WorkflowJobState.CANCELLED
+    assert metadata.read(TASK_ID).pending_chain[-1] == fresh
     store.close()
 
 

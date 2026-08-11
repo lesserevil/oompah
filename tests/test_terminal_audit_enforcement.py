@@ -3977,6 +3977,47 @@ def test_dispatch_cas_updates_only_exact_project_task_audit_identity(tmp_path):
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
+def test_dispatch_cas_rejects_changed_workflow_revision(tmp_path):
+    tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a", "project-a")])
+    current = replace(
+        _pending_record("project-a", "TASK-1", "audit-workflow"),
+        workflow_revision="workflow-revision-v2",
+    )
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[current]).to_dict()
+    }
+    orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    try:
+        store = TerminalAuditMetadataStore(
+            tracker,
+            orchestrator.project_store,
+            "project-a",
+        )
+        stale = replace(
+            current,
+            request_state=RequestState.IN_PROGRESS,
+            workflow_revision="workflow-revision-v1",
+        )
+
+        assert orchestrator._audit_update_record(
+            store,
+            tracker.issues[0],
+            stale,
+        ) is False
+        persisted = TerminalAuditMetadata.from_dict(
+            tracker.metadata["TASK-1"][METADATA_KEY]
+        ).pending_chain[0]
+        assert persisted.request_state is RequestState.PENDING
+        assert persisted.workflow_revision == "workflow-revision-v2"
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
 def test_orchestrator_runs_enforcement_before_dispatch_startup(tmp_path):
     tracker = _Tracker([_issue("TASK-1", "Done", "evidence-a")])
     orchestrator = Orchestrator(
@@ -4187,7 +4228,7 @@ class TestAuditBacklogRecovery:
         fingerprint_b = compute_evidence_fingerprint(
             requirements_text="requirements v2", project_id="project-a", task_id="TASK-1"
         )
-        
+
         # Create two pending records in the chain (different fingerprints)
         attempt_1 = AuditAttempt(
             attempt_id="attempt-1",
@@ -4201,7 +4242,7 @@ class TestAuditBacklogRecovery:
             evidence_fingerprint=fingerprint_b,
             request_state=RequestState.PENDING,
         )
-        
+
         record_1 = TerminalAuditRecord(
             audit_id="audit-1",
             project_id="project-a",
@@ -4220,16 +4261,16 @@ class TestAuditBacklogRecovery:
             request_state=RequestState.PENDING,
             attempts=[attempt_2],
         )
-        
+
         tracker.metadata["TASK-1"] = {
             METADATA_KEY: TerminalAuditMetadata(pending_chain=[record_1, record_2]).to_dict()
         }
 
         enforcer = _enforcer(tmp_path)
         enforcer.initialize([("project-a", tracker)])
-        
+
         assert [item.audit_id for item in enforcer.pending_audits] == ["audit-2"]
-        
+
         # Recovery is idempotent: repeated pass doesn't duplicate
         restarted = _enforcer(tmp_path)
         restarted.initialize([("project-a", tracker)])
@@ -4245,7 +4286,7 @@ class TestAuditBacklogRecovery:
         fingerprint_b = compute_evidence_fingerprint(
             requirements_text="requirements updated", project_id="project-a", task_id="TASK-1"
         )
-        
+
         # First record is superseded (old evidence)
         record_old = TerminalAuditRecord(
             audit_id="audit-old",
@@ -4256,7 +4297,7 @@ class TestAuditBacklogRecovery:
             request_state=RequestState.SUPERSEDED,
             attempts=[],
         )
-        
+
         # Second record is pending with new evidence
         attempt_new = AuditAttempt(
             attempt_id="attempt-new",
@@ -4273,14 +4314,14 @@ class TestAuditBacklogRecovery:
             request_state=RequestState.PENDING,
             attempts=[attempt_new],
         )
-        
+
         tracker.metadata["TASK-1"] = {
             METADATA_KEY: TerminalAuditMetadata(pending_chain=[record_old, record_new]).to_dict()
         }
 
         enforcer = _enforcer(tmp_path)
         enforcer.initialize([("project-a", tracker)])
-        
+
         # Only the new audit should be recovered
         assert len(enforcer.pending_audits) == 1
         assert enforcer.pending_audits[0].audit_id == "audit-new"
@@ -4291,7 +4332,7 @@ class TestAuditBacklogRecovery:
         fingerprint_a = compute_evidence_fingerprint(
             requirements_text="requirements", project_id="project-a", task_id="TASK-1"
         )
-        
+
         # Record is already completed
         attempt_completed = AuditAttempt(
             attempt_id="attempt-done",
@@ -4309,14 +4350,14 @@ class TestAuditBacklogRecovery:
             request_state=RequestState.COMPLETED,
             attempts=[attempt_completed],
         )
-        
+
         tracker.metadata["TASK-1"] = {
             METADATA_KEY: TerminalAuditMetadata(pending_chain=[record_done]).to_dict()
         }
 
         enforcer = _enforcer(tmp_path)
         enforcer.initialize([("project-a", tracker)])
-        
+
         # Completed audits are not recovered as pending
         assert len(enforcer.pending_audits) == 0
 
@@ -4326,7 +4367,7 @@ class TestAuditBacklogRecovery:
         fingerprint = compute_evidence_fingerprint(
             requirements_text="requirements", project_id="project-a", task_id="TASK-1"
         )
-        
+
         # Simulate a failed attempt that will be retried
         attempt_1 = AuditAttempt(
             attempt_id="attempt-1",
@@ -4343,7 +4384,7 @@ class TestAuditBacklogRecovery:
             request_state=RequestState.PENDING,
             attempts=[attempt_1],
         )
-        
+
         tracker.metadata["TASK-1"] = {
             METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
         }
@@ -4386,7 +4427,7 @@ class TestAuditBacklogRecovery:
         fingerprint = compute_evidence_fingerprint(
             requirements_text="requirements", project_id="project-a", task_id="TASK-1"
         )
-        
+
         attempt = AuditAttempt(
             attempt_id="attempt-1",
             target_state=TargetState.DONE,
@@ -4402,7 +4443,7 @@ class TestAuditBacklogRecovery:
             request_state=RequestState.PENDING,
             attempts=[attempt],
         )
-        
+
         tracker.metadata["TASK-1"] = {
             METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
         }

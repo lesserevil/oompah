@@ -630,9 +630,35 @@ class ProductionReviewWorkflowBackend:
                 "review_terminal_stage": "landed",
             }[action]
             current = self._condition(action, snapshot)
+            receipt = dict(effect.receipt)
+            if action == "review_terminal_stage" and current == expected:
+                decision = snapshot.decision
+                evidence_revision = _text(
+                    decision.evidence_revision if decision is not None else None
+                )
+                if (
+                    not evidence_revision
+                    or decision is None
+                    or action not in decision.durable_jobs
+                ):
+                    return VerificationResult(
+                        False,
+                        receipt,
+                        "fresh review landing evidence revision is unavailable",
+                    )
+                expected_revision = _text(
+                    context.job.expected_evidence_revision
+                )
+                if expected_revision and evidence_revision != expected_revision:
+                    raise WorkflowActionError(
+                        "review landing evidence changed before terminal transition",
+                        category=WorkflowFailureCategory.STALE_EVIDENCE,
+                        retryable=False,
+                    )
+                receipt["evidence_revision"] = evidence_revision
             return VerificationResult(
                 current == expected,
-                dict(effect.receipt),
+                receipt,
                 None if current == expected else "review evidence changed before transition",
             )
         if action == "review_merge":
@@ -696,6 +722,17 @@ class ProductionReviewWorkflowBackend:
                 retryable=False,
             )
         exact_head = _text(issue_exact_head(issue)).lower()
+        precondition_revision = None
+        if context.job.action == "review_terminal_stage":
+            precondition_revision = _text(
+                verification.receipt.get("evidence_revision")
+            ) or None
+            if precondition_revision is None:
+                raise WorkflowActionError(
+                    "review terminal transition lacks a freshly verified evidence revision",
+                    category=WorkflowFailureCategory.PERMANENT,
+                    retryable=False,
+                )
         return TransitionIntent(
             project_id=self.project_id,
             task_id=context.job.task_id,
@@ -709,6 +746,7 @@ class ProductionReviewWorkflowBackend:
             originating_job=context.job.job_id,
             evidence_generation=context.job.generation,
             exact_head=exact_head if _HEAD_RE.fullmatch(exact_head) else None,
+            precondition_revision=precondition_revision,
         )
 
 

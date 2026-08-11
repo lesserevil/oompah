@@ -149,6 +149,40 @@ def _now() -> float:
     return datetime.now(timezone.utc).timestamp()
 
 
+def _workflow_revision(record: object) -> str | None:
+    """Read the optional v2 authority while preserving legacy test embedders."""
+
+    return str(
+        getattr(record, "workflow_revision", None) or ""
+    ).strip() or None
+
+
+def _revision_binding(record: object) -> tuple[str | None, str | None]:
+    """Read one optional immutable ref/SHA pair from a terminal-audit record."""
+
+    selected_ref = str(getattr(record, "selected_ref", None) or "").strip() or None
+    selected_sha = str(getattr(record, "selected_sha", None) or "").strip() or None
+    if (selected_ref is None) != (selected_sha is None):
+        raise AuditWorkflowIdentityError(
+            "terminal-audit revision binding is incomplete"
+        )
+    return selected_ref, selected_sha
+
+
+def _authority_payload(record: object) -> dict[str, str]:
+    """Return the complete optional authority stored in a workflow job."""
+
+    payload: dict[str, str] = {}
+    authority_revision = _workflow_revision(record)
+    if authority_revision is not None:
+        payload["workflow_revision"] = authority_revision
+    selected_ref, selected_sha = _revision_binding(record)
+    if selected_ref is not None and selected_sha is not None:
+        payload["selected_ref"] = selected_ref
+        payload["selected_sha"] = selected_sha
+    return payload
+
+
 class TerminalAuditWorkflow:
     """Bridge terminal-audit records to leased durable workflow jobs."""
 
@@ -194,11 +228,43 @@ class TerminalAuditWorkflow:
             "target_state": record.target_state.value,
             "evidence_fingerprint": record.evidence_fingerprint.digest,
         }
+        payload.update(_authority_payload(record))
+        return "audit:" + hashlib.sha256(_canonical(payload).encode()).hexdigest()
+
+    @staticmethod
+    def _legacy_generation(record: TerminalAuditRecord) -> str:
+        """Return the pre-binding generation for safe migration retirement.
+
+        Bound workflow identity was added after workflow-revision identity.  A
+        pre-upgrade active row can therefore omit ref/SHA while tracker metadata
+        already contains them.  This identity is used only to retire obsolete
+        active rows; completed legacy rows must never authorize bound work.
+        """
+
+        payload = {
+            "version": TERMINAL_AUDIT_WORKFLOW_VERSION,
+            "project_id": record.project_id,
+            "task_id": record.task_id,
+            "target_state": record.target_state.value,
+            "evidence_fingerprint": record.evidence_fingerprint.digest,
+        }
+        authority_revision = _workflow_revision(record)
+        if authority_revision is not None:
+            payload["workflow_revision"] = authority_revision
         return "audit:" + hashlib.sha256(_canonical(payload).encode()).hexdigest()
 
     @classmethod
+    def _retirement_generations(cls, record: TerminalAuditRecord) -> set[str]:
+        """Return current plus pre-binding identities for retirement only."""
+
+        generations = {cls.generation(record)}
+        if _revision_binding(record)[0] is not None:
+            generations.add(cls._legacy_generation(record))
+        return generations
+
+    @classmethod
     def idempotency_key(cls, record: TerminalAuditRecord) -> str:
-        return "terminal-audit:" + ":".join(
+        key = "terminal-audit:" + ":".join(
             (
                 record.project_id,
                 record.task_id,
@@ -206,6 +272,24 @@ class TerminalAuditWorkflow:
                 record.evidence_fingerprint.digest,
             )
         )
+        authority_revision = _workflow_revision(record)
+        if authority_revision is not None:
+            authority_digest = hashlib.sha256(
+                authority_revision.encode()
+            ).hexdigest()
+            key += f":completion-authority:{authority_digest}"
+        selected_ref, selected_sha = _revision_binding(record)
+        if selected_ref is not None and selected_sha is not None:
+            binding_digest = hashlib.sha256(
+                _canonical(
+                    {
+                        "selected_ref": selected_ref,
+                        "selected_sha": selected_sha,
+                    }
+                ).encode()
+            ).hexdigest()
+            key += f":revision-binding:{binding_digest}"
+        return key
 
     @staticmethod
     def scheduling_lane(record: TerminalAuditRecord) -> str:
@@ -234,6 +318,7 @@ class TerminalAuditWorkflow:
             phase=AuditWorkflowPhase.QUEUED.value,
             scheduling_lane=cls.scheduling_lane(record),
             expected_evidence_revision=record.evidence_fingerprint.digest,
+            payload=_authority_payload(record) or None,
             max_attempts=max_attempts,
         )
 
@@ -305,6 +390,11 @@ class TerminalAuditWorkflow:
             source_generation=record.source_generation,
             require_source_advance=needs_fresh_activation,
             retire_managed_exhaustion=True,
+            terminal_audit_binding_upgrade_from=(
+                self._legacy_generation(record)
+                if _revision_binding(record)[0] is not None
+                else None
+            ),
             reason="superseded by a newer terminal-audit evidence generation",
             now=self.clock(),
         )
@@ -326,8 +416,17 @@ class TerminalAuditWorkflow:
             raise AuditWorkflowIdentityError(
                 "terminal-audit rearm authorization is missing"
             )
+        version = authorization.get("version")
+        if version not in {1, 2}:
+            raise AuditWorkflowIdentityError(
+                "terminal-audit rearm authorization version is invalid"
+            )
+        if version == 1 and _workflow_revision(record) is not None:
+            raise AuditWorkflowIdentityError(
+                "legacy terminal-audit rearm authorization cannot authorize "
+                "workflow-revision-bound work"
+            )
         expected: dict[str, object] = {
-            "version": 1,
             "audit_id": record.audit_id,
             "superseded_audit_id": prior_audit_id,
             "project_id": record.project_id,
@@ -336,6 +435,14 @@ class TerminalAuditWorkflow:
             "evidence_fingerprint": record.evidence_fingerprint.digest,
             "source_generation": record.source_generation,
         }
+        if version == 2:
+            expected.update(
+                {
+                    "workflow_revision": _workflow_revision(record),
+                    "selected_ref": getattr(record, "selected_ref", None),
+                    "selected_sha": getattr(record, "selected_sha", None),
+                }
+            )
         for key, value in expected.items():
             if authorization.get(key) != value:
                 raise AuditWorkflowIdentityError(
@@ -439,11 +546,8 @@ class TerminalAuditWorkflow:
         owned by result replay and are never retired here.
         """
 
-        live_by_identity = {
-            (
-                record.target_state.value,
-                record.evidence_fingerprint.digest,
-            )
+        live_generations = {
+            generation
             for record in records
             if record.project_id == project_id
             and record.task_id == task_id
@@ -452,12 +556,10 @@ class TerminalAuditWorkflow:
                 RequestState.PENDING,
                 RequestState.IN_PROGRESS,
             }
+            for generation in self._retirement_generations(record)
         }
-        terminal_by_identity = {
-            (
-                record.target_state.value,
-                record.evidence_fingerprint.digest,
-            )
+        terminal_generations = {
+            generation
             for record in records
             if record.project_id == project_id
             and record.task_id == task_id
@@ -467,7 +569,8 @@ class TerminalAuditWorkflow:
                 RequestState.SUPERSEDED,
                 RequestState.CANCELLED,
             }
-        } - live_by_identity
+            for generation in self._retirement_generations(record)
+        } - live_generations
         retired = 0
         for job in self.store.list_jobs(
             project_id=project_id,
@@ -481,11 +584,7 @@ class TerminalAuditWorkflow:
                 or job.phase == AuditWorkflowPhase.FINALIZING.value
             ):
                 continue
-            target = job.scheduling_lane.removeprefix("terminal-audit:")
-            if (
-                target,
-                str(job.expected_evidence_revision or ""),
-            ) not in terminal_by_identity:
+            if job.generation not in terminal_generations:
                 continue
             self.store.cancel(
                 job.job_id,
@@ -506,12 +605,32 @@ class TerminalAuditWorkflow:
         """
 
         retired = 0
-        for job in self._matching_jobs(record):
+        jobs = list(self._matching_jobs(record))
+        legacy_generation = self._legacy_generation(record)
+        if legacy_generation != self.generation(record):
+            known_ids = {job.job_id for job in jobs}
+            jobs.extend(
+                job
+                for job in self.store.list_jobs(
+                    project_id=record.project_id,
+                    task_id=record.task_id,
+                    generation=legacy_generation,
+                    states=tuple(ACTIVE_JOB_STATES),
+                    actions=(TERMINAL_AUDIT_JOB_ACTION,),
+                    scheduling_lanes=(self.scheduling_lane(record),),
+                    expected_evidence_revisions=(
+                        record.evidence_fingerprint.digest,
+                    ),
+                    limit=1000,
+                )
+                if job.job_id not in known_ids
+            )
+        for job in jobs:
             if job.state not in ACTIVE_JOB_STATES:
                 continue
             self.store.cancel(
                 job.job_id,
-                generation=self.generation(record),
+                generation=job.generation,
                 reason=_safe_text(reason, "reason"),
                 now=self.clock(),
             )
@@ -633,6 +752,7 @@ class TerminalAuditWorkflow:
             "target_state": record.target_state.value,
             "evidence_fingerprint": record.evidence_fingerprint.digest,
         }
+        payload.update(_authority_payload(record))
         if attempt_id:
             payload["attempt_id"] = _safe_text(attempt_id, "attempt_id")
         if workflow_job_id:
@@ -755,6 +875,7 @@ class TerminalAuditWorkflow:
             "evidence_fingerprint": record.evidence_fingerprint.digest,
             "attempt_id": attempt_id,
         }
+        expected.update(_authority_payload(record))
         if job.state is not WorkflowJobState.RUNNING:
             raise AuditWorkflowIdentityError("terminal-audit job is not running")
         if job.action != TERMINAL_AUDIT_JOB_ACTION:
@@ -763,6 +884,22 @@ class TerminalAuditWorkflow:
             raise AuditWorkflowIdentityError("terminal-audit generation changed")
         if job.expected_evidence_revision != record.evidence_fingerprint.digest:
             raise AuditWorkflowIdentityError("terminal-audit evidence revision changed")
+        job_authority_revision = str(
+            (job.payload or {}).get("workflow_revision") or ""
+        ).strip()
+        if job_authority_revision != str(
+            _workflow_revision(record) or ""
+        ):
+            raise AuditWorkflowIdentityError(
+                "terminal-audit completion authority changed"
+            )
+        record_ref, record_sha = _revision_binding(record)
+        job_ref = str((job.payload or {}).get("selected_ref") or "").strip() or None
+        job_sha = str((job.payload or {}).get("selected_sha") or "").strip() or None
+        if (job_ref, job_sha) != (record_ref, record_sha):
+            raise AuditWorkflowIdentityError(
+                "terminal-audit revision binding changed"
+            )
         if job.phase not in {phase.value for phase in allowed_phases}:
             raise AuditWorkflowIdentityError(
                 "terminal-audit phase no longer accepts results"
@@ -798,6 +935,18 @@ class TerminalAuditWorkflow:
             # Returning that token to a later plan would let a new attempt
             # inherit arbitrary in-flight ownership.
             return None
+        # Build and size-check the exact expected checkpoint before acquiring
+        # the workflow lease.  The store-generated job ID is already known from
+        # ``ensure`` and a successful claim increments its attempt count once.
+        # This keeps malformed or unexpectedly expansive identity text from
+        # leaving a RUNNING row without its ownership checkpoint.
+        checkpoint = self._checkpoint_payload(
+            record,
+            attempt_id=attempt_id,
+            candidate=candidate,
+            workflow_job_id=existing.job_id,
+            job_attempt=existing.attempts + 1,
+        )
         claimed = self.store.claim_next(
             lease_owner=self.lease_owner,
             lease_seconds=self.lease_seconds,
@@ -809,17 +958,25 @@ class TerminalAuditWorkflow:
         )
         if claimed is None:
             return None
+        if (
+            claimed.job_id != existing.job_id
+            or claimed.attempts != existing.attempts + 1
+        ):
+            # A recovered duplicate activation won the filtered claim. Release
+            # that exact lease rather than attaching a checkpoint prepared for
+            # another immutable job identity.
+            self.store.cancel_owned(
+                claimed.job_id,
+                claimed.lease_token,
+                reason="terminal-audit claimed an unexpected activation",
+                now=self.clock(),
+            )
+            return None
         return self.store.checkpoint(
             claimed.job_id,
             claimed.lease_token,
             phase=AuditWorkflowPhase.RUNNING.value,
-            checkpoint=self._checkpoint_payload(
-                record,
-                attempt_id=attempt_id,
-                candidate=candidate,
-                workflow_job_id=claimed.job_id,
-                job_attempt=claimed.attempts,
-            ),
+            checkpoint=checkpoint,
             now=self.clock(),
         )
 
@@ -1171,6 +1328,7 @@ class TerminalAuditWorkflow:
                 "target_state": record.target_state.value,
                 "evidence_fingerprint": record.evidence_fingerprint.digest,
             }
+            record_data.update(_authority_payload(record))
         fallback_target = job.scheduling_lane.removeprefix("terminal-audit:")
         checkpoint = {
             "version": TERMINAL_AUDIT_WORKFLOW_VERSION,
@@ -1189,6 +1347,23 @@ class TerminalAuditWorkflow:
             ),
             "action_code": _safe_text(action_code, "action_code"),
         }
+        workflow_revision = str(
+            record_data.get("workflow_revision")
+            or (job.payload or {}).get("workflow_revision")
+            or ""
+        ).strip()
+        if workflow_revision:
+            checkpoint["workflow_revision"] = _safe_text(
+                workflow_revision,
+                "workflow_revision",
+            )
+        for key in ("selected_ref", "selected_sha"):
+            value = (
+                record_data.get(key)
+                or (job.payload or {}).get(key)
+            )
+            if value:
+                checkpoint[key] = _safe_text(value, key)
         # An exhausted/corrupt finalizer still has to project one exact
         # retryable attempt into tracker metadata.  Preserve the bounded owner
         # identity when it is available so ACTION_REQUIRED recovery can finish

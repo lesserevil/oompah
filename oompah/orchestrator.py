@@ -228,6 +228,7 @@ from oompah.terminal_audit import (
     archive_default_branch_fallback_authorized,
     build_revision_candidate_list,
     compute_issue_evidence_fingerprint,
+    requires_workflow_revision,
 )
 from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadataStore
 from oompah.provenance_suppression import (
@@ -317,6 +318,9 @@ from oompah.tracker import TrackerError as _TransitionTrackerError
 
 _TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
 _UNADMITTED_AUDIT_ROLLBACKS_STATE_KEY = "terminal_audit_unadmitted_rollbacks"
+_AUDIT_START_CHECKPOINT_FAILURE_PREFIX = (
+    "terminal audit start checkpoint failed before launch"
+)
 _RETRY_ATTEMPTS_VERSION_STATE_KEY = "retry_attempts_version"
 _NESTED_DISPATCH_REPAIR_ACTION = "nested_dispatch_topology_repair"
 _NESTED_DISPATCH_REPAIR_LANE = "nested-dispatch-topology"
@@ -3923,6 +3927,28 @@ class Orchestrator:
             and raw.get("applied", True) is False
             and raw.get("project_id") == str(project_id or "")
             and raw.get("task_id") == str(task_id)
+        )
+
+    @staticmethod
+    def _pending_workflow_revision_migration(
+        document: Any,
+        project_id: str | None,
+        task_id: str,
+    ) -> bool:
+        """Return whether an exact pre-cutover recovery still needs replay."""
+
+        unknown = getattr(document, "unknown_fields", {})
+        raw_intents = unknown.get(_TERMINAL_RESULT_INTENTS_KEY, [])
+        return bool(
+            isinstance(raw_intents, list)
+            and any(
+                isinstance(raw, Mapping)
+                and raw.get("applied", True) is False
+                and raw.get("kind") == "workflow_revision_migration"
+                and raw.get("project_id") == str(project_id or "")
+                and raw.get("task_id") == str(task_id)
+                for raw in raw_intents
+            )
         )
 
     def _refresh_terminal_audit_health(
@@ -16198,6 +16224,7 @@ class Orchestrator:
         record,
         *,
         append_attempt: AuditAttempt | None = None,
+        promote_binding_only: bool = False,
     ) -> bool:
         """CAS-update one still-live audit record.
 
@@ -16213,6 +16240,10 @@ class Orchestrator:
             or record.task_id != issue.identifier
         ):
             return False
+        if promote_binding_only and append_attempt is not None:
+            raise ValueError(
+                "a revision-binding promotion cannot append an audit attempt"
+            )
         updated = False
 
         def _updater(document):
@@ -16234,16 +16265,63 @@ class Orchestrator:
                 RequestState.IN_PROGRESS,
             ):
                 return document
+            if promote_binding_only:
+                if record.selected_ref is None or record.selected_sha is None:
+                    return document
+                # Binding resolution runs outside the tracker write lock.  Its
+                # caller therefore owns only the one-way acquisition of this
+                # immutable pair, not the stale record snapshot used to resolve
+                # it.  Require every non-binding field to remain byte-for-byte
+                # current, then merge the pair into the freshly read record.
+                # If another dispatcher already launched/recovered an attempt,
+                # reject this delayed binder rather than rewinding request state
+                # or erasing its attempt history.
+                existing_without_binding = replace(
+                    existing,
+                    selected_ref=None,
+                    selected_sha=None,
+                )
+                requested_without_binding = replace(
+                    record,
+                    selected_ref=None,
+                    selected_sha=None,
+                )
+                if existing_without_binding != requested_without_binding:
+                    return document
+                if existing.selected_ref is None and existing.selected_sha is None:
+                    promoted = replace(
+                        existing,
+                        selected_ref=record.selected_ref,
+                        selected_sha=record.selected_sha,
+                    )
+                elif (
+                    existing.selected_ref == record.selected_ref
+                    and existing.selected_sha == record.selected_sha
+                ):
+                    promoted = existing
+                else:
+                    return document
+                chain = [
+                    promoted
+                    if candidate.audit_id == record.audit_id
+                    and candidate.project_id == record.project_id
+                    and candidate.task_id == record.task_id
+                    else candidate
+                    for candidate in document.pending_chain
+                ]
+                updated = True
+                return replace(document, pending_chain=chain)
+            binding_matches = (
+                existing.selected_ref == record.selected_ref
+                and existing.selected_sha == record.selected_sha
+            )
             if (
                 existing.project_id != record.project_id
                 or existing.task_id != record.task_id
                 or existing.target_state != record.target_state
                 or existing.evidence_fingerprint != record.evidence_fingerprint
-            ):
-                return document
-            if existing.selected_sha is not None and (
-                existing.selected_ref != record.selected_ref
-                or existing.selected_sha != record.selected_sha
+                or existing.workflow_revision != record.workflow_revision
+                or not binding_matches
             ):
                 return document
             chain = [
@@ -16411,6 +16489,9 @@ class Orchestrator:
                     and override.target_state == target.target_state
                     and override.evidence_fingerprint
                     == target.evidence_fingerprint
+                    and override.workflow_revision == target.workflow_revision
+                    and override.selected_ref == target.selected_ref
+                    and override.selected_sha == target.selected_sha
                 ):
                     outcome = UnadmittedAuditRollbackOutcome.SUPERSEDED
                     return document
@@ -16899,13 +16980,85 @@ class Orchestrator:
         own.  If the tracker CAS loses after the workflow claim, release that
         exact lease as retryable so an authoritative duplicate can inherit the
         semantic job; resolved metadata will retire it during reconciliation.
+        A checkpoint which fails bounded identity validation before that lease
+        is durably recorded as a redacted prelaunch infrastructure attempt.
         """
 
-        workflow_job = self.terminal_audit_workflow.start(
-            record,
-            attempt_id=plan.attempt_id,
-            candidate=plan.candidate,
-        )
+        try:
+            workflow_job = self.terminal_audit_workflow.start(
+                record,
+                attempt_id=plan.attempt_id,
+                candidate=plan.candidate,
+            )
+        except ValueError as exc:
+            # ``TerminalAuditWorkflow.start`` builds and size-checks its exact
+            # checkpoint before claiming a lease.  Candidate or authority
+            # identity which cannot fit that bounded checkpoint is therefore
+            # a prelaunch infrastructure attempt, not an ownerless RUNNING
+            # workflow.  Persist a redacted attempt without the rejected
+            # provider/model text so subsequent scans consume the ordinary
+            # bounded audit budget and eventually become actionable.
+            if (
+                not record.attempts
+                or record.attempts[-1].attempt_id != attempt.attempt_id
+                or attempt.attempt_id != plan.attempt_id
+            ):
+                logger.warning(
+                    "Could not record terminal-audit start preflight failure "
+                    "for %s because the planned attempt identity changed",
+                    issue.identifier,
+                )
+                return None
+            failed_at = datetime.now(timezone.utc)
+            retry_after = timestamp(
+                failed_at
+                + timedelta(
+                    milliseconds=self._backoff_delay(len(record.attempts))
+                )
+            )
+            failure_reason = (
+                f"{_AUDIT_START_CHECKPOINT_FAILURE_PREFIX}: "
+                f"{type(exc).__name__}"
+            )
+            failed_attempt = replace(
+                attempt,
+                request_state=RequestState.PENDING,
+                verdict=None,
+                failure_classification=(
+                    FailureClassification.INFRASTRUCTURE_ERROR
+                ),
+                provider_id=None,
+                model=None,
+                started_at=None,
+                ended_at=timestamp(failed_at),
+                failure_reason=failure_reason,
+                branch_key=None,
+                session_id=None,
+                next_retry_at=retry_after,
+            )
+            failed_record = replace(
+                record,
+                request_state=RequestState.PENDING,
+                attempts=[*record.attempts[:-1], failed_attempt],
+                updated_at=timestamp(failed_at),
+            )
+            failure_persisted = await asyncio.get_running_loop().run_in_executor(
+                self._tick_pool,
+                lambda: self._audit_update_record(
+                    store,
+                    issue,
+                    failed_record,
+                    append_attempt=failed_attempt,
+                ),
+            )
+            if failure_persisted:
+                logger.warning(
+                    "Terminal-audit start checkpoint preflight failed for %s; "
+                    "durable infrastructure attempt %s recorded",
+                    issue.identifier,
+                    failed_attempt.attempt_id,
+                )
+            return None
         if workflow_job is None:
             return None
         persisted = await asyncio.get_running_loop().run_in_executor(
@@ -17024,6 +17177,16 @@ class Orchestrator:
         for raw in reversed(history if isinstance(history, list) else []):
             if not isinstance(raw, Mapping):
                 continue
+            version = raw.get("version")
+            identity_bound = bool(
+                version == 2
+                and raw.get("workflow_revision") == record.workflow_revision
+                and raw.get("selected_ref") == record.selected_ref
+                and raw.get("selected_sha") == record.selected_sha
+            )
+            legacy_identity = bool(
+                version == 1 and record.workflow_revision is None
+            )
             if (
                 not raw.get("consumed_at")
                 and not raw.get("consumed_workflow_job_id")
@@ -17034,6 +17197,7 @@ class Orchestrator:
                 and raw.get("evidence_fingerprint")
                 == record.evidence_fingerprint.digest
                 and raw.get("source_generation") == record.source_generation
+                and (identity_bound or legacy_identity)
             ):
                 return raw
         return None
@@ -17078,6 +17242,9 @@ class Orchestrator:
                         "task_id",
                         "target_state",
                         "evidence_fingerprint",
+                        "workflow_revision",
+                        "selected_ref",
+                        "selected_sha",
                         "source_generation",
                         "authorized_at",
                     )
@@ -17100,7 +17267,7 @@ class Orchestrator:
         return consumed
 
     @staticmethod
-    def _audit_record_for_result(issue: Issue, result: Any) -> Any:
+    def _audit_record_for_result(issue: Issue, result: Any, job: Any) -> Any:
         """Build the minimal trusted record needed for job finalization."""
 
         from oompah.terminal_audit import TerminalAuditRecord
@@ -17112,6 +17279,29 @@ class Orchestrator:
             target_state=result.target_state,
             evidence_fingerprint=result.evidence_fingerprint,
             request_state=RequestState.IN_PROGRESS,
+            workflow_revision=(
+                str(
+                    (getattr(job, "payload", None) or {}).get(
+                        "workflow_revision"
+                    )
+                    or ""
+                ).strip()
+                or None
+            ),
+            selected_ref=(
+                str(
+                    (getattr(job, "payload", None) or {}).get("selected_ref")
+                    or ""
+                ).strip()
+                or None
+            ),
+            selected_sha=(
+                str(
+                    (getattr(job, "payload", None) or {}).get("selected_sha")
+                    or ""
+                ).strip()
+                or None
+            ),
         )
 
     def _begin_terminal_audit_finalization(self, issue: Issue, result: Any) -> Any:
@@ -17138,7 +17328,7 @@ class Orchestrator:
             return None
         try:
             job = self.workflow_job_store.get(entry.audit_workflow_job_id)
-            record = self._audit_record_for_result(issue, result)
+            record = self._audit_record_for_result(issue, result, job)
             return self.terminal_audit_workflow.mark_finalizing(
                 job,
                 record,
@@ -17203,6 +17393,7 @@ class Orchestrator:
                 ResultRejection.STATE_MISMATCH,
                 ResultRejection.ISSUE_NOT_IN_VALIDATION,
                 ResultRejection.CURRENT_EVIDENCE_MISMATCH,
+                ResultRejection.WORKFLOW_REVISION_MISSING,
             }:
                 self.terminal_audit_workflow.cancel(
                     finalizing_job,
@@ -17257,6 +17448,29 @@ class Orchestrator:
                 str(payload["evidence_fingerprint"])
             ),
             request_state=RequestState.IN_PROGRESS,
+            workflow_revision=(
+                str(
+                    (getattr(job, "payload", None) or {}).get(
+                        "workflow_revision"
+                    )
+                    or ""
+                ).strip()
+                or None
+            ),
+            selected_ref=(
+                str(
+                    (getattr(job, "payload", None) or {}).get("selected_ref")
+                    or ""
+                ).strip()
+                or None
+            ),
+            selected_sha=(
+                str(
+                    (getattr(job, "payload", None) or {}).get("selected_sha")
+                    or ""
+                ).strip()
+                or None
+            ),
         )
 
     @staticmethod
@@ -18354,6 +18568,87 @@ class Orchestrator:
                             suspended=True,
                         )
                     continue
+                missing_workflow_revision = bool(
+                    record is not None
+                    and requires_workflow_revision(record)
+                    and record.workflow_revision is None
+                )
+                migration_pending = self._pending_workflow_revision_migration(
+                    document,
+                    issue.project_id,
+                    issue.identifier,
+                )
+                if missing_workflow_revision or migration_pending:
+                    legacy_record = record if missing_workflow_revision else None
+                    remaining = deadline - monotonic()
+                    if remaining <= 0:
+                        budget_exhausted = True
+                        budget_reason = "migration_timeout"
+                        break
+                    try:
+                        migration = await asyncio.wait_for(
+                            asyncio.get_running_loop().run_in_executor(
+                                self._tick_pool,
+                                lambda: (
+                                    self.terminal_transition_coordinator
+                                    .reconcile_missing_workflow_revision_sync(
+                                        issue,
+                                        legacy_record,
+                                        str(issue.project_id or "legacy"),
+                                    )
+                                ),
+                            ),
+                            timeout=remaining,
+                        )
+                    except asyncio.TimeoutError:
+                        budget_exhausted = True
+                        budget_reason = "migration_timeout"
+                        break
+                    except Exception as exc:  # noqa: BLE001 - retry next scan
+                        logger.warning(
+                            "Could not reconcile pre-cutover terminal audit "
+                            "for %s: %s",
+                            issue.identifier,
+                            type(exc).__name__,
+                        )
+                        continue
+                    if legacy_record is not None and (
+                        legacy_record.audit_id in migration.cancelled_audit_ids
+                    ):
+                        try:
+                            self.terminal_audit_workflow.retire(
+                                legacy_record,
+                                reason=(
+                                    "pre-cutover workflow audit lacked its "
+                                    "completion decision revision"
+                                ),
+                            )
+                        except Exception as exc:  # noqa: BLE001 - startup retires it
+                            logger.warning(
+                                "Could not retire migrated terminal-audit job "
+                                "for %s: %s",
+                                issue.identifier,
+                                type(exc).__name__,
+                            )
+                    if legacy_record is not None:
+                        observations[observation_index] = replace(
+                            observations[observation_index],
+                            record=None,
+                            finalization_failure_count=(
+                                0 if migration.success else 1
+                            ),
+                        )
+                    if not migration.success:
+                        logger.warning(
+                            "Pre-cutover terminal-audit migration remains "
+                            "pending for %s: %s",
+                            issue.identifier,
+                            migration.reason,
+                        )
+                    # Metadata and status were both reconsidered under the
+                    # project fence.  Never dispatch from this stale scan;
+                    # normal staging or the next audit tick owns fresh work.
+                    continue
                 if record is None:
                     continue
                 if validation_configuration_error:
@@ -18670,11 +18965,61 @@ class Orchestrator:
                             "terminal audit revision binding failed before launch"
                         )
                     )
+                    start_checkpoint_exhausted = bool(
+                        latest_attempt is not None
+                        and latest_attempt.provider_id is None
+                        and latest_attempt.model is None
+                        and latest_attempt.failure_classification
+                        == FailureClassification.INFRASTRUCTURE_ERROR
+                        and str(latest_attempt.failure_reason or "").startswith(
+                            _AUDIT_START_CHECKPOINT_FAILURE_PREFIX
+                        )
+                    )
+                    action_job = None
+                    if start_checkpoint_exhausted:
+                        try:
+                            action_job = self.terminal_audit_workflow.require_action(
+                                record,
+                                action_code="audit_start_checkpoint_invalid",
+                                reason=(
+                                    "terminal-audit start checkpoint exceeded its "
+                                    "bounded retry budget"
+                                ),
+                            )
+                            if action_job.state is not WorkflowJobState.EXHAUSTED:
+                                # A live exact attempt won before the bounded
+                                # disposition. This scan cannot retire it.
+                                continue
+                        except ValueError as exc:
+                            # The same oversized authority may also exceed the
+                            # ACTION_REQUIRED checkpoint. The tracker result is
+                            # still a bounded typed projection, so continue to
+                            # Needs Human instead of preserving a QUEUED loop.
+                            logger.warning(
+                                "Terminal-audit action checkpoint preflight "
+                                "failed for %s: %s",
+                                issue.identifier,
+                                type(exc).__name__,
+                            )
+                            action_job = None
+                        except Exception as exc:  # noqa: BLE001 - durable action failed
+                            logger.warning(
+                                "Could not persist terminal-audit start "
+                                "checkpoint exhaustion for %s: %s",
+                                issue.identifier,
+                                type(exc).__name__,
+                            )
+                            continue
                     await self._route_no_auditor(
                         issue,
                         record,
                         f"Audit reached the maximum of {lane.max_attempts} attempts.",
-                        infrastructure_exhausted=True if binding_exhausted else None,
+                        infrastructure_exhausted=(
+                            True
+                            if binding_exhausted or start_checkpoint_exhausted
+                            else None
+                        ),
+                        action_job=action_job,
                     )
                     continue
                 try:
@@ -18747,6 +19092,7 @@ class Orchestrator:
                             store,
                             issue,
                             r,
+                            promote_binding_only=True,
                         ),
                     )
                     if not binding_persisted:

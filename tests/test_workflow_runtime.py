@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -6929,6 +6929,19 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(
         issue_type="task",
         parent_id="TOP",
     )
+    review_task = Issue(
+        id="LANDED-REVIEW",
+        identifier="LANDED-REVIEW",
+        title="LANDED-REVIEW",
+        description="review-owned terminal guard fixture",
+        state="In Review",
+        project_id="project-1",
+        issue_type="task",
+        work_branch="epic-TOP",
+        target_branch="main",
+        review_number="804",
+        review_head=epic_head,
+    )
     class FreshBlankProjectTracker(NativeTracker):
         blank_project_reads = False
 
@@ -6938,7 +6951,9 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(
                 return current
             return replace(current, project_id=None)
 
-    tracker = FreshBlankProjectTracker([issue, child, landed_task, composed_task])
+    tracker = FreshBlankProjectTracker(
+        [issue, child, landed_task, composed_task, review_task]
+    )
     store = WorkflowJobStore(str(tmp_path / "remote-jobs.sqlite3"))
     composed_landing = LandingFact(
         composed_task.identifier,
@@ -6981,14 +6996,67 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(
             action: CompleteHandler() for action in RUNTIME_ACTIONS
         },
     )
+    async def stage_terminal_transition(**kwargs):
+        kwargs["current_issue"].state = "In Validation"
+        return SimpleNamespace(
+            success=True,
+            audit_id="audit-review-terminal",
+            reason=None,
+        )
+
+    terminal_coordinator = SimpleNamespace(
+        request_transition=AsyncMock(side_effect=stage_terminal_transition)
+    )
     runtime = WorkflowRuntime.from_orchestrator(
         orchestrator,
         state_dir=tmp_path,
-        terminal_transition_coordinator=MagicMock(),
+        terminal_transition_coordinator=terminal_coordinator,
     )
     orchestrator.workflow_runtime = runtime
 
     binding = runtime.project_bindings["project-1"]
+    review_fact_version = {"value": 1}
+    binding.review_controller.collector.sources[FactDomain.REVIEW_CI] = (
+        lambda _issue: {
+            "state": "merged",
+            "present": True,
+            "review_id": "804",
+            "source_branch": "epic-TOP",
+            "target_branch": "main",
+            "head_sha": epic_head,
+            "ci": "passed",
+            "mergeable": True,
+            "provider": "test",
+            "fact_version": review_fact_version["value"],
+        }
+    )
+
+    class LandedReviewCollector:
+        project_id = "project-1"
+
+        @staticmethod
+        def collect_many(requests):
+            return tuple(
+                LandingFact(
+                    request.source,
+                    request.target,
+                    request.revision,
+                    {
+                        "kind": "git_ancestry",
+                        "source_sha": request.revision,
+                        "target_sha": merged,
+                    },
+                    "2026-08-11T00:00:00+00:00",
+                    "project-1",
+                    state=LandingState.LANDED,
+                    durable=True,
+                )
+                for request in requests
+            )
+
+    binding.review_controller.collector.landing_collector = (
+        LandedReviewCollector()
+    )
     facts = binding.epic_collector.collect("TOP")
     own = next(
         landing
@@ -7178,6 +7246,64 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(
     )
     assert guard(mismatched_composed_intent) == "task composed landing head changed"
     tracker.blank_project_reads = False
+
+    # Review-owned terminalization uses a different fact projection than the
+    # integration parent-rollup lane, despite sharing the public reason code.
+    # The production guard must resolve the immutable originating action and
+    # compare the review revision with fresh review facts.
+    review_decision = binding.review_controller.evaluate(
+        (review_task,)
+    ).tasks[0].decision
+    assert review_decision.durable_jobs == ("review_terminal_stage",)
+    review_job = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id=review_task.identifier,
+            generation="review-terminal-generation",
+            action="review_terminal_stage",
+            idempotency_key="review-terminal-runtime-guard",
+            expected_evidence_revision=review_decision.evidence_revision,
+        )
+    )
+    review_intent = TransitionIntent(
+        project_id="project-1",
+        task_id=review_task.identifier,
+        expected_status="In Review",
+        expected_version=issue_authority_version(review_task),
+        requested_status="Merged",
+        actor="oompah",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="terminal.immediate_target_landing_proven",
+        idempotency_key="review-terminal-runtime-transition",
+        originating_job=review_job.job_id,
+        evidence_generation=review_job.generation,
+        exact_head=epic_head,
+        precondition_revision=review_decision.evidence_revision,
+    )
+
+    assert guard(review_intent) is None
+    review_fact_version["value"] = 2
+    assert guard(review_intent) == "review landing evidence changed"
+    review_fact_version["value"] = 1
+    wrong_review_generation = TransitionIntent(
+        **{
+            **review_intent.to_dict(),
+            "evidence_generation": "wrong-review-generation",
+        }
+    )
+    assert (
+        guard(wrong_review_generation)
+        == "review terminal workflow authority changed"
+    )
+    review_outcome = asyncio.run(
+        binding.transition_service.execute(review_intent)
+    )
+    assert review_outcome.reason_code == "transition.terminal_staged"
+    terminal_coordinator.request_transition.assert_awaited_once()
+    terminal_request = terminal_coordinator.request_transition.await_args.kwargs
+    assert terminal_request["workflow_revision"] == (
+        review_decision.evidence_revision
+    )
 
     ordinary_intent = TransitionIntent(
         project_id="project-1",

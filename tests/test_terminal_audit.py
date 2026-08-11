@@ -11,6 +11,7 @@ from oompah.terminal_audit import (
     ContributorIdentity,
     EvidenceFingerprint,
     FailureClassification,
+    OverrideRecord,
     RequestState,
     TargetState,
     TerminalAuditRecord,
@@ -136,6 +137,86 @@ class TestSerialization:
         assert TerminalAuditRecord.from_dict(original.to_dict()) == original
         legacy = _record().to_dict()
         assert TerminalAuditRecord.from_dict(legacy).selected_sha is None
+
+    def test_completion_authority_round_trips_and_legacy_record_is_unbound(
+        self,
+    ) -> None:
+        original = replace(
+            _record(),
+            workflow_revision="workflow-completion-v2",
+        )
+
+        assert TerminalAuditRecord.from_dict(original.to_dict()) == original
+        legacy = _record().to_dict()
+        assert (
+            TerminalAuditRecord.from_dict(
+                legacy
+            ).workflow_revision
+            is None
+        )
+
+    def test_completion_authority_must_be_nonempty_when_present(self) -> None:
+        with pytest.raises(ValueError, match="workflow_revision"):
+            replace(_record(), workflow_revision="  ")
+
+    def test_completion_authority_is_bounded_before_serialization(self) -> None:
+        at_limit = "r" * 512
+
+        record = replace(_record(), workflow_revision=at_limit)
+
+        assert record.to_dict()["workflow_revision"] == at_limit
+        with pytest.raises(ValueError, match="exceeds maximum encoded size"):
+            replace(_record(), workflow_revision="r" * 513)
+
+        with pytest.raises(ValueError, match="exceeds maximum encoded size"):
+            replace(_record(), workflow_revision="😀" * 512)
+
+    @pytest.mark.parametrize(
+        "workflow_revision",
+        [
+            "ghp_" + "A" * 20,
+            "sk-" + "A" * 20,
+            "Authorization: Bearer live-workflow-token",
+            "token=live-workflow-token",
+            "abcdefghij.abcdefghij.abcdefghij",
+            "-" * 5 + "BEGIN PRIVATE " + "KEY" + "-" * 5,
+        ],
+    )
+    def test_completion_authority_rejects_secret_shaped_values_without_echo(
+        self,
+        workflow_revision: str,
+    ) -> None:
+        with pytest.raises(ValueError) as raised:
+            replace(_record(), workflow_revision=workflow_revision)
+
+        assert "credential-shaped" in str(raised.value)
+        assert workflow_revision not in str(raised.value)
+
+    @pytest.mark.parametrize(
+        "workflow_revision",
+        ["revision-a\nrevision-b", "\nrevision-a", "revision-a\r\n"],
+    )
+    def test_completion_authority_rejects_multiline_metadata(
+        self,
+        workflow_revision: str,
+    ) -> None:
+        with pytest.raises(ValueError, match="single-line"):
+            replace(_record(), workflow_revision=workflow_revision)
+
+    def test_override_completion_authority_uses_same_safety_boundary(self) -> None:
+        legacy = OverrideRecord(
+            override_id="override-1",
+            project_id="proj-1",
+            task_id="TASK-1",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=_fingerprint(),
+            authorized_by=ContributorIdentity("owner", "project-owner"),
+            reason="Owner-authorized terminal transition",
+        )
+
+        assert legacy.workflow_revision is None
+        with pytest.raises(ValueError, match="credential-shaped"):
+            replace(legacy, workflow_revision="glpat-" + "A" * 20)
 
     def test_revision_binding_is_all_or_nothing_and_immutable_ref_matches_sha(
         self,
@@ -292,9 +373,9 @@ class TestEpicBranchResolution:
             work_branch="epic-custom-name",
             issue_type="epic",
         )
-        
+
         fp = compute_issue_evidence_fingerprint(issue, "proj-1")
-        
+
         # Fingerprint should reflect the explicit work_branch
         fp2 = compute_evidence_fingerprint(
             requirements_text="Epic description",
@@ -314,9 +395,9 @@ class TestEpicBranchResolution:
             work_branch=None,
             issue_type="epic",
         )
-        
+
         fp = compute_issue_evidence_fingerprint(issue, "proj-1")
-        
+
         # Should use the resolved epic-EPIC-42 branch name
         fp_expected = compute_evidence_fingerprint(
             requirements_text="Epic description",
@@ -337,9 +418,9 @@ class TestEpicBranchResolution:
             work_branch=None,
             issue_type="epic",
         )
-        
+
         fp = compute_issue_evidence_fingerprint(issue, "proj-1")
-        
+
         # Should use the parent's epic branch (first candidate)
         fp_expected = compute_evidence_fingerprint(
             requirements_text="Child epic description",
@@ -359,7 +440,7 @@ class TestEpicBranchResolution:
             work_branch=None,
             issue_type="epic",
         )
-        
+
         # Add integration record with explicit task_branch
         issue.integration = Mock(
             task_branch="epic-EPIC-42",
@@ -369,9 +450,9 @@ class TestEpicBranchResolution:
             state="integrated",
             integrated_sha="ghi789",
         )
-        
+
         fp = compute_issue_evidence_fingerprint(issue, "proj-1")
-        
+
         # For integrated state, should use integrated_sha/branch
         fp_expected = compute_evidence_fingerprint(
             requirements_text="Description",
@@ -432,9 +513,9 @@ class TestEpicBranchResolution:
             work_branch="custom-epic-branch",
             issue_type="epic",
         )
-        
+
         fp = compute_issue_evidence_fingerprint(issue, "proj-1")
-        
+
         # Should use explicit work_branch, not epic branch
         fp_expected = compute_evidence_fingerprint(
             requirements_text="Description",
@@ -481,11 +562,11 @@ class TestEpicBranchResolution:
             title="Task",
             description="Description",
         )
-        
+
         # Only issue_type and identifier set, should not trigger epic resolution
         # for non-epic tasks
         fp = compute_issue_evidence_fingerprint(issue, "proj-1")
-        
+
         fp_expected = compute_evidence_fingerprint(
             requirements_text="Description",
             project_id="proj-1",
