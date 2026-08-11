@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1128
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Deduplicate auto-filed retry failures using stable incident identities
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T22:38:40.818634Z'
-updated_at: '2026-08-11T22:38:40.818634Z'
+updated_at: '2026-08-11T23:17:55.923731Z'
 work_branch: null
 target_branch: null
 review_url: null
