@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T14:00:15.474455Z'
+updated_at: '2026-08-11T14:03:41.581289Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
@@ -144,6 +144,7 @@ oompah.task_costs:
     output_tokens: 34
     cost_usd: 0.0
     recorded_at: '2026-08-11T13:58:46.920435+00:00'
+oompah.agent_run_id: 1890867f-29b7-4af4-a249-b39102b15c33
 ---
 ## Summary
 
@@ -226,5 +227,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 45s
 - Log: OOMPAH-1084__20260811T135512Z.jsonl
+---
+author: oompah
+created: 2026-08-11 14:03
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
