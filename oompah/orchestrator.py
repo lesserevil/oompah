@@ -18642,6 +18642,7 @@ class Orchestrator:
         _audit_scan_error_count: int = 0
         processed_candidate_count = 0
         processed_candidate_keys: set[str] = set()
+        priority_order_deferred_keys: list[str] = []
         last_processed_cursor: str | None = None
         budget_exhausted = operation_truncated
         budget_reason: str | None = (
@@ -18743,17 +18744,18 @@ class Orchestrator:
                 # corpus, but launch work remains strict-priority.  A lower
                 # priority candidate is health-only while any higher-priority
                 # candidate is outside this operation-bounded slice.
-                if (
-                    self._audit_candidate_priority(issue)
-                    not in launch_eligible_priorities
-                    or any(
-                        self._audit_candidate_cursor_key(candidate)
-                        not in processed_candidate_keys
-                        for candidate in candidate_scan.candidates
-                        if self._audit_candidate_priority(candidate)
-                        > self._audit_candidate_priority(issue)
-                    )
-                ):
+                priority = self._audit_candidate_priority(issue)
+                if priority not in launch_eligible_priorities:
+                    continue
+                higher_priority_pending_in_slice = any(
+                    self._audit_candidate_cursor_key(candidate)
+                    not in processed_candidate_keys
+                    for candidate in candidate_scan.candidates
+                    if self._audit_candidate_priority(candidate) > priority
+                )
+                if higher_priority_pending_in_slice:
+                    if record is not None and not validation_configuration_error:
+                        priority_order_deferred_keys.append(cursor)
                     continue
                 missing_workflow_revision = bool(
                     record is not None
@@ -19449,9 +19451,6 @@ class Orchestrator:
             last_processed_cursor = cursor
         if last_processed_cursor is not None:
             metrics["cursor"] = last_processed_cursor
-        if last_processed_cursor is not None:
-            self._set_maintenance_cursor("audit_lane", last_processed_cursor)
-
         metrics["in_progress_count"] = sum(
             1 for entry in self._running_values_snapshot() if entry.is_auditor
         )
@@ -19506,6 +19505,26 @@ class Orchestrator:
                 and not transaction_incomplete
             ),
         )
+        priority_revisit = bool(
+            scan_complete
+            and candidate_scan.scan_complete
+            and scan_error_count == 0
+            and priority_order_deferred_keys
+            and len(processed_candidate_keys) == len(health_window_keys)
+            and _audit_slots_available() > 0
+            and dispatched < dispatch_limit
+        )
+        if priority_revisit:
+            strict_order = self._audit_candidates_in_priority_order(
+                candidate_scan.candidates
+            )
+            if strict_order:
+                last_processed_cursor = self._audit_candidate_cursor_key(
+                    strict_order[-1]
+                )
+                metrics["cursor"] = last_processed_cursor
+        if last_processed_cursor is not None:
+            self._set_maintenance_cursor("audit_lane", last_processed_cursor)
         budget_deferred = bool(
             not scan_complete
             and scan_error_count == 0
@@ -19516,7 +19535,8 @@ class Orchestrator:
             )
         )
         continuation_requested = bool(
-            budget_deferred and self._request_audit_lane_continuation()
+            (budget_deferred or priority_revisit)
+            and self._request_audit_lane_continuation()
         )
         metrics["scanned_candidate_count"] = processed_candidate_count
         metrics["candidate_scan_complete"] = scan_complete
@@ -19525,6 +19545,7 @@ class Orchestrator:
         metrics["budget_exhausted"] = budget_exhausted
         metrics["budget_reason"] = budget_reason
         metrics["budget_deferred"] = budget_deferred
+        metrics["priority_revisit"] = priority_revisit
         metrics["continuation_requested"] = continuation_requested
         metrics["restart_publication_deferred_count"] = (
             restart_publication_deferred_count

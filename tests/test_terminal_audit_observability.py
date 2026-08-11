@@ -1588,6 +1588,7 @@ async def test_audit_health_rotation_reaches_lower_priority_past_operation_cap(
         assert orchestrator._audit_health.scan_complete is True
         assert orchestrator._audit_health.scan_error_count == 0
         assert orchestrator._audit_metrics["candidate_scan_complete"] is True
+        assert orchestrator._audit_metrics["priority_revisit"] is False
         continuation.assert_called_once_with()
         assert not any(
             str(alert.get("source", "")).endswith("action_required")
@@ -1831,6 +1832,141 @@ async def test_runtime_partial_mixed_priority_health_progress_preserves_dispatch
         assert dispatch_order == ["TASK-HIGH", "TASK-LOW"]
         assert orchestrator._audit_metrics["last_dispatched_count"] == 2
         assert orchestrator._audit_health.scan_complete is True
+        continuation.assert_called_once_with()
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+@pytest.mark.asyncio
+async def test_completed_health_slice_revisits_deferred_lower_priority_launch(
+    tmp_path: Path,
+) -> None:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    project_store.get.side_effect = lambda project_id: SimpleNamespace(
+        id=project_id,
+        paused=False,
+    )
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            audit_lane_scan_limit=2,
+            audit_lane_operation_limit=2,
+            audit_lane_dispatch_limit=2,
+            audit_lane_max_runtime_seconds=30,
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    created_at = datetime(2026, 8, 4, tzinfo=timezone.utc)
+    high = Issue(
+        id="high-no-record",
+        identifier="TASK-HIGH-NO-RECORD",
+        title="Higher-priority task without an active audit",
+        state="In Validation",
+        project_id="project-high",
+        priority=100,
+        branch_name="task-high-no-record",
+        created_at=created_at,
+    )
+    low = Issue(
+        id="low-pending",
+        identifier="TASK-LOW-PENDING",
+        title="Lower-priority pending audit",
+        state="In Validation",
+        project_id="project-low",
+        priority=0,
+        branch_name="task-low-pending",
+        created_at=created_at + timedelta(seconds=1),
+    )
+    low_record = TerminalAuditRecord(
+        audit_id="audit-low-pending",
+        project_id=str(low.project_id),
+        task_id=low.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=EvidenceFingerprint("c" * 64),
+        request_state=RequestState.PENDING,
+        created_at=created_at.isoformat(),
+    )
+    store = MagicMock()
+    store.read.side_effect = lambda identifier: SimpleNamespace(
+        pending_chain=[low_record] if identifier == low.identifier else [],
+        is_quarantined=False,
+        unknown_fields={},
+    )
+    selector = MagicMock()
+    selector.select_candidates.return_value = (
+        [Candidate(provider_id="provider-a", model="model-a")],
+        None,
+    )
+    tracker = MagicMock()
+    tracker.get_metadata.return_value = {}
+    dispatch_order: list[str] = []
+
+    async def _dispatch(issue: Issue, **_kwargs) -> bool:
+        dispatch_order.append(issue.identifier)
+        return True
+
+    orchestrator._set_maintenance_cursor(
+        "audit_lane",
+        orchestrator._audit_candidate_cursor_key(high),
+    )
+    try:
+        with (
+            patch.object(orchestrator, "_available_slots", return_value=2),
+            patch.object(orchestrator, "_dispatch_is_blocked", return_value=False),
+            patch.object(orchestrator, "_is_project_paused", return_value=False),
+            patch.object(
+                orchestrator,
+                "_fetch_audit_candidates",
+                return_value=_AuditCandidateScan((high, low)),
+            ),
+            patch.object(orchestrator, "_audit_store", return_value=store),
+            patch.object(
+                orchestrator,
+                "_bind_audit_record_revision",
+                return_value=low_record,
+            ),
+            patch.object(
+                orchestrator,
+                "_prepare_audit_selector",
+                new=AsyncMock(return_value=(selector, None)),
+            ),
+            patch.object(
+                orchestrator,
+                "_terminal_audit_validation_configuration_error",
+                return_value=None,
+            ),
+            patch.object(orchestrator, "_audit_branch_busy", return_value=False),
+            patch.object(orchestrator, "_tracker_for_issue", return_value=tracker),
+            patch.object(orchestrator, "_audit_update_record", return_value=True),
+            patch.object(
+                orchestrator,
+                "_dispatch",
+                new=AsyncMock(side_effect=_dispatch),
+            ),
+            patch.object(
+                orchestrator,
+                "_request_audit_lane_continuation",
+                return_value=True,
+            ) as continuation,
+        ):
+            await orchestrator._dispatch_audit_lane()
+            assert dispatch_order == []
+            assert orchestrator._audit_health.scan_complete is True
+            assert orchestrator._audit_metrics["priority_revisit"] is True
+            assert orchestrator._audit_metrics["cursor"].endswith(
+                "TASK-LOW-PENDING"
+            )
+
+            await orchestrator._dispatch_audit_lane()
+
+        assert dispatch_order == ["TASK-LOW-PENDING"]
+        assert orchestrator._audit_metrics["last_dispatched_count"] == 1
+        assert orchestrator._audit_metrics["priority_revisit"] is False
         continuation.assert_called_once_with()
     finally:
         orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
