@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T01:18:23.370723Z'
-updated_at: '2026-08-11T02:20:13.304931Z'
+updated_at: '2026-08-11T02:29:22.354265Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,5 +43,10 @@ author: oompah
 created: 2026-08-11 02:20
 ---
 Claimed for direct-owner implementation in the current systemic workflow recovery program. The repair will isolate quarantine bookkeeping from the effect timeout without weakening lease fencing, add deterministic regression coverage, pass focused and complete gates, and use protected delivery.
+---
+author: oompah
+created: 2026-08-11 02:29
+---
+Implementation is committed and pushed at exact head 2401de12283a0810f5c27bacdb65b1666deea859. Quarantine persistence now has an independent environment-configured bounded deadline instead of inheriting a short adapter operation timeout; deterministic barrier coverage holds the store operation beyond the original 10ms budget while proving exact receipt checkpointing and no duplicate apply, and a separate regression preserves true lease-loss classification. Focused suites passed 213/213 serial and 213/213 xdist; the late-effect regression passed 20/20 repetitions; mutation scan 21/21, secret hooks, compile, and diff checks are green. Independent exact-head review is pending before protected integration.
 ---
 <!-- COMMENTS:END -->
