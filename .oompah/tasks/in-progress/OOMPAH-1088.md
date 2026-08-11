@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:17:03.737871Z'
-updated_at: '2026-08-11T14:17:38.354485Z'
+updated_at: '2026-08-11T14:18:04.244267Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,3 +38,11 @@ Incident: during OOMPAH-1084 recovery on 2026-08-11, the scheduler published a R
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 14:18
+---
+Direct-owner recovery claimed. Reproduced from the live OOMPAH-1084 incident: a pre-provider scheduler runtime retained submission authority after retirement, quarantined the owner-claim job, and held graceful shutdown open at running=0. Implementation is starting from deployed main 6a0f7210 with focused concurrent claim/submit, provider-start failure, lock release, and restart-drain regressions.
+---
+<!-- COMMENTS:END -->
