@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1073
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Make Backlog direct-owner claims lifecycle-atomic in enforce mode
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T08:21:18.898748Z'
-updated_at: '2026-08-11T10:40:35.636225Z'
+updated_at: '2026-08-11T10:40:40.078398Z'
 work_branch: OOMPAH-1073
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/813
