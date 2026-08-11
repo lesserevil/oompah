@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:17:03.737871Z'
-updated_at: '2026-08-11T14:57:34.391738Z'
+updated_at: '2026-08-11T15:13:35.731123Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,5 +59,10 @@ author: oompah
 created: 2026-08-11 14:57
 ---
 Independent-review blockers repaired and replacement exact head pushed: 9df3e881490b5a7c5eb5bbf304e07a0695c72fd3 on origin/OOMPAH-1088, rebased onto origin/main fe9599111d478b8221a2949c878fecb61d558760. The durable workflow worker-exit path now removes the exact RunningEntry and scheduler claims after publishing its successor disposition, eliminating the provider_started=false ghost. Contributor provenance read/merge/write now has a metadata-only per-task serialization lane independent of lifecycle authority; a late timed-out write retains that lane until it settles, and successor generations retire before provider contact instead of racing a stale whole-document write. New deterministic regressions cover timeout -> real worker exit -> running/claims absent -> implementation retry plus direct-owner/submission lane availability, and late provider A vs successor provider B evidence preservation/contact fencing. Exact final evidence: 502 authority/owner/provider/provenance/submission/workflow-boundary tests passed; full task-handoff suite 123 passed; compileall and git diff --check passed; terminal mutation scan passed 21/21; paranoid secret scan and commit hooks passed. Branch is clean and matches origin. Task remains In Progress and is not submitted or merged pending independent exact-head re-review.
+---
+author: oompah
+created: 2026-08-11 15:13
+---
+Independent-review blockers are repaired and replacement exact head 59619d68f092fd5e6078599f2a6efcce555f52f9 is pushed on origin/OOMPAH-1088, rebased onto origin/main 6449341d762d9c7645271b8479dfa406e648be54. Synchronous legacy task-authority locks are now polled only through non-blocking acquisition, never block the event loop through a bare acquire call, and are released exactly when owned; bounded async acquisition is preserved. Deterministic unlocked and contended regressions cover both the submission and direct-owner lanes. Terminal-provenance retain and new-revision operations now return structured retryable control_busy 503 evidence on task-authority contention and prove no metadata/status mutation. The prior exact ghost-runtime retirement and late-contributor serialization fixes remain intact. Fresh evidence: 471 broad authority/provider/provenance/submission/handoff/event-loop/restart/transition tests passed; terminal mutation scan passed 21/21; compileall, git diff check, focused ruff, paranoid secret scan, and commit hooks passed. Branch is clean and matches origin. Task remains In Progress and is not submitted or merged pending fresh independent exact-head review.
 ---
 <!-- COMMENTS:END -->
