@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:41:07.342509Z'
-updated_at: '2026-08-11T11:21:02.521552Z'
+updated_at: '2026-08-11T11:21:16.265687Z'
 work_branch: OOMPAH-1076
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/816
@@ -302,13 +302,13 @@ oompah.terminal_audit:
     selected_ref: a9bdbfdeedca4c5181851d01312cfbfc1159567d
     selected_sha: a9bdbfdeedca4c5181851d01312cfbfc1159567d
 oompah.task_costs:
-  total_input_tokens: 814
-  total_output_tokens: 211
+  total_input_tokens: 1120
+  total_output_tokens: 11336
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 814
-      output_tokens: 211
+      input_tokens: 1120
+      output_tokens: 11336
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -317,6 +317,12 @@ oompah.task_costs:
     output_tokens: 211
     cost_usd: 0.0
     recorded_at: '2026-08-11T10:51:45.702107+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 306
+    output_tokens: 11125
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T11:21:12.883414+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -422,5 +428,15 @@ Safe evidence:
 - test_control_responsiveness: Event loop remains responsive under repeated concurrent mutations
 - quality_gate: make test passed in 168.73 seconds
 - properties_preserved: Fail-closed authority, atomic publication, pause quiesce, admission fencing, terminal audit exactness, OOMPAH-969 isolation, OOMPAH-974 control, OOMPAH-986 proofs
+---
+author: oompah
+created: 2026-08-11 11:21
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 80, Tool calls: 37
+- Tokens: 306 in / 11.1K out [11.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 0s
+- Log: OOMPAH-1076__20260811T111722Z.jsonl
 ---
 <!-- COMMENTS:END -->
