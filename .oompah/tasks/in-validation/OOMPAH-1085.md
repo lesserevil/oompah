@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T17:47:10.986946Z'
+updated_at: '2026-08-11T17:48:42.119167Z'
 work_branch: OOMPAH-1085
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/827
@@ -442,5 +442,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/h
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 29s
 - Log: OOMPAH-1085__20260811T174046Z.jsonl
+---
+author: oompah
+created: 2026-08-11 17:48
+---
+Direct-owner live validation REJECTED the merged implementation on build b948150a808d80c331769fba8ae2a39e9a102a47. With exact successor wakes for OOMPAH-1092/1093 and an available project audit slot, the continuation lane logged 95 starts in one minute, repeatedly deferred reason=eligibility_or_policy, consumed ~55% server CPU, and did not dispatch either exact successor. Global/project scheduling is now paused by operator. Reopening OOMPAH-1085 for rework; acceptance must cover the live project-capacity/eligibility shape and prove one bounded owner/no rearm storm plus actual exact dispatch.
 ---
 <!-- COMMENTS:END -->
