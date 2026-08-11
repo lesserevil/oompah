@@ -149,6 +149,28 @@ def _same_completion_authority(
     )
 
 
+def _is_completed_done_pass(
+    record: TerminalAuditRecord,
+    authority: TerminalAuditRecord,
+) -> bool:
+    """Return whether ``record`` proves Done for one exact chain authority."""
+
+    return (
+        record.target_state is TargetState.DONE
+        and record.project_id == authority.project_id
+        and record.task_id == authority.task_id
+        and _same_completion_authority(record, authority)
+        and record.request_state is RequestState.COMPLETED
+        and any(
+            attempt.target_state is TargetState.DONE
+            and attempt.evidence_fingerprint == authority.evidence_fingerprint
+            and attempt.request_state is RequestState.COMPLETED
+            and attempt.verdict is Verdict.PASS
+            for attempt in record.attempts
+        )
+    )
+
+
 def audit_branch_key(issue: Any) -> str:
     """Return the branch identity shared by auditors and implementation work."""
 
@@ -303,49 +325,74 @@ class AuditorDispatchLane:
             # would then dispatch Merged first.  Prefer the exact live Done
             # prerequisite wherever it sits, and refuse Merged entirely until
             # immutable attempt history proves an exact PASS.
-            prerequisite_live = [
-                record
-                for record in active
-                if record.target_state is TargetState.DONE
-                and record.project_id == newest_source.project_id
-                and record.task_id == newest_source.task_id
-                and _same_completion_authority(record, newest_source)
-            ]
-            if prerequisite_live:
-                newest_prerequisite = max(
-                    prerequisite_live,
-                    key=lambda record: (
-                        record.source_generation,
-                        _record_execution_authority_key(record),
+            prerequisite_audit_id = newest_source.prerequisite_audit_id
+            if prerequisite_audit_id is not None:
+                exact_prerequisite = next(
+                    (
+                        record
+                        for record in records
+                        if record.audit_id == prerequisite_audit_id
+                        and record.project_id == newest_source.project_id
+                        and record.task_id == newest_source.task_id
                     ),
+                    None,
                 )
-                current_prerequisites = [
+                # New-format chains persist an exact edge.  A missing, stale,
+                # cross-authority, or non-Done reference stays blocked even
+                # when another same-authority Done audit passed.
+                if (
+                    exact_prerequisite is None
+                    or exact_prerequisite.target_state is not TargetState.DONE
+                    or not _same_completion_authority(
+                        exact_prerequisite,
+                        newest_source,
+                    )
+                ):
+                    return None
+                if exact_prerequisite.request_state in (
+                    RequestState.PENDING,
+                    RequestState.IN_PROGRESS,
+                ):
+                    return exact_prerequisite
+                if not _is_completed_done_pass(
+                    exact_prerequisite,
+                    newest_source,
+                ):
+                    return None
+            else:
+                # Legacy chains did not encode prerequisite identity.  Keep
+                # their same-authority migration path; coordinator result
+                # application stamps the exact ID before waking the stage.
+                prerequisite_live = [
                     record
-                    for record in prerequisite_live
-                    if _same_completion_authority(record, newest_prerequisite)
+                    for record in active
+                    if record.target_state is TargetState.DONE
+                    and record.project_id == newest_source.project_id
+                    and record.task_id == newest_source.task_id
+                    and _same_completion_authority(record, newest_source)
                 ]
-                return max(
-                    current_prerequisites,
-                    key=_record_execution_authority_key,
-                )
-            prerequisite_passed = any(
-                record.target_state is TargetState.DONE
-                and record.project_id == newest_source.project_id
-                and record.task_id == newest_source.task_id
-                and _same_completion_authority(record, newest_source)
-                and record.request_state is RequestState.COMPLETED
-                and any(
-                    attempt.target_state is TargetState.DONE
-                    and attempt.evidence_fingerprint
-                    == newest_source.evidence_fingerprint
-                    and attempt.request_state is RequestState.COMPLETED
-                    and attempt.verdict is Verdict.PASS
-                    for attempt in record.attempts
-                )
-                for record in records
-            )
-            if not prerequisite_passed:
-                return None
+                if prerequisite_live:
+                    newest_prerequisite = max(
+                        prerequisite_live,
+                        key=lambda record: (
+                            record.source_generation,
+                            _record_execution_authority_key(record),
+                        ),
+                    )
+                    current_prerequisites = [
+                        record
+                        for record in prerequisite_live
+                        if _same_completion_authority(record, newest_prerequisite)
+                    ]
+                    return max(
+                        current_prerequisites,
+                        key=_record_execution_authority_key,
+                    )
+                if not any(
+                    _is_completed_done_pass(record, newest_source)
+                    for record in records
+                ):
+                    return None
         current = [
             record
             for record in lane

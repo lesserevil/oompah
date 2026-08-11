@@ -17613,17 +17613,6 @@ class Orchestrator:
             record = pending.record
             if record is None:
                 continue
-            if (
-                record.request_state is RequestState.PENDING
-                and record.prerequisite_audit_id is not None
-                and record.eligible_at is not None
-                and not record.attempts
-            ):
-                wakes = getattr(self, "_eligible_audit_stage_wakes", None)
-                if not isinstance(wakes, dict):
-                    wakes = {}
-                    self._eligible_audit_stage_wakes = wakes
-                wakes[(record.project_id, record.task_id)] = record.audit_id
             try:
                 tracker = self._tracker_for_project(record.project_id)
                 document = TerminalAuditMetadataStore(
@@ -17631,6 +17620,27 @@ class Orchestrator:
                     self.project_store,
                     record.project_id,
                 ).read(record.task_id)
+                authoritative = AuditorDispatchLane.pending_record(
+                    document.pending_chain,
+                    project_id=record.project_id,
+                    task_id=record.task_id,
+                )
+                if (
+                    record.request_state is RequestState.PENDING
+                    and record.prerequisite_audit_id is not None
+                    and record.eligible_at is not None
+                    and not record.attempts
+                    and authoritative is not None
+                    and authoritative.audit_id == record.audit_id
+                ):
+                    # Reconstruct only a wake whose exact predecessor still
+                    # proves a completed PASS.  ``pending_record`` validates
+                    # the durable prerequisite edge and completion authority.
+                    wakes = getattr(self, "_eligible_audit_stage_wakes", None)
+                    if not isinstance(wakes, dict):
+                        wakes = {}
+                        self._eligible_audit_stage_wakes = wakes
+                    wakes[(record.project_id, record.task_id)] = record.audit_id
                 self._activate_status_departure_audit(document, record)
                 before = self.terminal_audit_workflow.decision(record)
                 after = self.terminal_audit_workflow.recover(

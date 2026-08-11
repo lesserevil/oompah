@@ -2700,6 +2700,91 @@ class TerminalTransitionCoordinator:
                         ),
                     }
 
+                def _same_successor_authority(
+                    successor: TerminalAuditRecord,
+                    prerequisite: TerminalAuditRecord,
+                ) -> bool:
+                    return (
+                        successor.evidence_fingerprint
+                        == prerequisite.evidence_fingerprint
+                        and successor.workflow_revision
+                        == prerequisite.workflow_revision
+                        and successor.selected_ref == prerequisite.selected_ref
+                        and successor.selected_sha == prerequisite.selected_sha
+                        and successor.landing_revision
+                        == prerequisite.landing_revision
+                    )
+
+                def _rearm_successor(
+                    prerequisite: TerminalAuditRecord,
+                    *,
+                    allowed_prerequisite_ids: set[str | None],
+                ) -> tuple[TerminalAuditRecord | None, bool]:
+                    """Select one pristine same-chain Merged edge or fail closed."""
+
+                    if requested_target is not TargetState.DONE:
+                        return None, True
+                    named_ids = {
+                        audit_id
+                        for audit_id in allowed_prerequisite_ids
+                        if audit_id is not None
+                    }
+                    candidates = [
+                        record
+                        for record in chain
+                        if record.project_id == project_id
+                        and record.task_id == current_issue.identifier
+                        and record.target_state is TargetState.MERGED
+                        and record.request_state
+                        in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                        and (
+                            _same_successor_authority(record, prerequisite)
+                            or record.prerequisite_audit_id in named_ids
+                        )
+                    ]
+                    if not candidates:
+                        return None, True
+                    if len(candidates) != 1:
+                        return None, False
+                    successor = candidates[0]
+                    valid = (
+                        _same_successor_authority(successor, prerequisite)
+                        and successor.source_generation
+                        == prerequisite.source_generation
+                        and successor.request_state is RequestState.PENDING
+                        and not successor.attempts
+                        and successor.eligible_at is None
+                        and successor.prerequisite_audit_id
+                        in allowed_prerequisite_ids
+                    )
+                    return (successor if valid else None), valid
+
+                def _bind_successor(
+                    source_chain: list[TerminalAuditRecord],
+                    successor: TerminalAuditRecord | None,
+                    prerequisite: TerminalAuditRecord,
+                    now: str,
+                ) -> list[TerminalAuditRecord]:
+                    if (
+                        successor is None
+                        or successor.prerequisite_audit_id
+                        == prerequisite.audit_id
+                    ):
+                        return source_chain
+                    return [
+                        replace(
+                            record,
+                            prerequisite_audit_id=prerequisite.audit_id,
+                            eligible_at=None,
+                            updated_at=now,
+                        )
+                        if record.audit_id == successor.audit_id
+                        and record.project_id == project_id
+                        and record.task_id == current_issue.identifier
+                        else record
+                        for record in source_chain
+                    ]
+
                 authority = matching[-1] if matching else None
                 if authority is None or authority.evidence_fingerprint != locked_fingerprint:
                     return doc
@@ -2779,6 +2864,22 @@ class TerminalTransitionCoordinator:
                         )
                         if exhausted_source is not None:
                             now = _now_iso8601()
+                            successor, successor_valid = _rearm_successor(
+                                authority,
+                                allowed_prerequisite_ids={
+                                    authority.audit_id,
+                                    exhausted_source.audit_id,
+                                    None,
+                                },
+                            )
+                            if not successor_valid:
+                                return doc
+                            chain = _bind_successor(
+                                chain,
+                                successor,
+                                authority,
+                                now,
+                            )
                             updated_history = list(history)
                             updated_history.append(
                                 _authorization(
@@ -2814,6 +2915,7 @@ class TerminalTransitionCoordinator:
                             )
                             return replace(
                                 doc,
+                                pending_chain=chain,
                                 unknown_fields=unknown_fields,
                             )
                     if history_row is None:
@@ -2913,6 +3015,22 @@ class TerminalTransitionCoordinator:
                     )
                     if exhausted is None:
                         return doc
+                    successor, successor_valid = _rearm_successor(
+                        exhausted,
+                        allowed_prerequisite_ids={
+                            authority.audit_id,
+                            exhausted.audit_id,
+                            None,
+                        },
+                    )
+                    if not successor_valid:
+                        return doc
+                    chain = _bind_successor(
+                        chain,
+                        successor,
+                        authority,
+                        _now_iso8601(),
+                    )
                     decision = TransitionResult(
                         success=True,
                         audit_id=authority.audit_id,
@@ -2934,7 +3052,11 @@ class TerminalTransitionCoordinator:
                         audit_ids=[authority.audit_id],
                         kind="audit_rearm",
                     )
-                    return replace(doc, unknown_fields=unknown_fields)
+                    return replace(
+                        doc,
+                        pending_chain=chain,
+                        unknown_fields=unknown_fields,
+                    )
 
                 if (
                     authority.request_state != RequestState.COMPLETED
@@ -2942,6 +3064,12 @@ class TerminalTransitionCoordinator:
                 ):
                     return doc
                 exhausted = authority
+                successor, successor_valid = _rearm_successor(
+                    exhausted,
+                    allowed_prerequisite_ids={exhausted.audit_id, None},
+                )
+                if not successor_valid:
+                    return doc
 
                 now = _now_iso8601()
                 retired_audit_id = exhausted.audit_id
@@ -2996,6 +3124,7 @@ class TerminalTransitionCoordinator:
                     )
                     + 1,
                 )
+                chain = _bind_successor(chain, successor, fresh, now)
                 chain.append(fresh)
                 rearm_history = list(
                     doc.unknown_fields.get(_TERMINAL_REARM_HISTORY_KEY, [])
@@ -4548,6 +4677,14 @@ class TerminalTransitionCoordinator:
                         candidate.project_id == project_id
                         and candidate.task_id in issue_ids
                         and candidate.target_state is TargetState.DONE
+                        # Legacy Merged rows did not name a predecessor.  New
+                        # rows do, and only that exact Done audit can satisfy
+                        # their result-application gate.
+                        and (
+                            record.prerequisite_audit_id is None
+                            or candidate.audit_id
+                            == record.prerequisite_audit_id
+                        )
                         and candidate.request_state is RequestState.COMPLETED
                         and candidate.evidence_fingerprint
                         == record.evidence_fingerprint
@@ -4756,37 +4893,55 @@ class TerminalTransitionCoordinator:
             # Detect the next pending target so we can report it to the
             # caller and — for a passing Done in a Done→Merged chain — keep
             # the task in In Validation while the auditor drives Merged.
+            successor_candidates = [
+                candidate
+                for candidate in chain
+                if target_record.target_state is TargetState.DONE
+                and candidate.target_state is TargetState.MERGED
+                and candidate.project_id == project_id
+                and candidate.task_id == identifier
+                and candidate.evidence_fingerprint
+                == target_record.evidence_fingerprint
+                and candidate.workflow_revision
+                == target_record.workflow_revision
+                and candidate.selected_ref == target_record.selected_ref
+                and candidate.selected_sha == target_record.selected_sha
+                and candidate.landing_revision == target_record.landing_revision
+                and candidate.request_state
+                in (RequestState.PENDING, RequestState.IN_PROGRESS)
+            ]
+            # New-format chains name their exact predecessor.  A wrong or
+            # stale ID must remain blocked even when another same-authority
+            # Done audit passes.  Legacy rows have no ID; migrate only that
+            # explicit format by binding it to the PASS being committed.
             next_pending = next(
                 (
-                    r for r in chain
-                    if r.project_id == project_id
-                    and r.task_id == identifier
-                    and r.evidence_fingerprint
-                    == target_record.evidence_fingerprint
-                    and r.workflow_revision
-                    == target_record.workflow_revision
-                    and r.selected_ref == target_record.selected_ref
-                    and r.selected_sha == target_record.selected_sha
-                    and r.landing_revision == target_record.landing_revision
-                    and r.request_state
-                    in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                    candidate
+                    for candidate in successor_candidates
+                    if candidate.prerequisite_audit_id
+                    == target_record.audit_id
                 ),
                 None,
             )
+            if next_pending is None:
+                next_pending = next(
+                    (
+                        candidate
+                        for candidate in successor_candidates
+                        if candidate.prerequisite_audit_id is None
+                    ),
+                    None,
+                )
             if action.kind == "pass" and next_pending is not None:
                 # Eligibility is committed in the same metadata CAS as the
                 # prerequisite PASS.  A process may die before the scheduler
                 # wake, but restart recovery can now distinguish the newly
                 # eligible stage from time it spent durably blocked.
                 next_index = chain.index(next_pending)
-                prerequisite_audit_id = (
-                    next_pending.prerequisite_audit_id
-                    or target_record.audit_id
-                )
                 next_pending = replace(
                     next_pending,
-                    eligible_at=next_pending.eligible_at or now,
-                    prerequisite_audit_id=prerequisite_audit_id,
+                    eligible_at=now,
+                    prerequisite_audit_id=target_record.audit_id,
                     updated_at=now,
                 )
                 chain[next_index] = next_pending

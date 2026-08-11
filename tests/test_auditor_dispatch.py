@@ -194,7 +194,7 @@ def test_rearmed_done_appended_after_merged_still_owns_chain_order() -> None:
     )
 
 
-def test_merged_dispatch_requires_exact_completed_done_pass() -> None:
+def test_legacy_merged_dispatch_migrates_from_same_authority_done_pass() -> None:
     done = _record()
     passed_done = replace(
         done,
@@ -218,6 +218,102 @@ def test_merged_dispatch_requires_exact_completed_done_pass() -> None:
     assert AuditorDispatchLane.pending_record(
         [passed_done, merged], project_id="project-1", task_id="TASK-1"
     ) == merged
+
+
+def test_merged_dispatch_requires_its_named_done_pass() -> None:
+    done = _record()
+    passed_done = replace(
+        done,
+        request_state=RequestState.COMPLETED,
+        attempts=[
+            AuditAttempt(
+                attempt_id="attempt-passed-done",
+                target_state=TargetState.DONE,
+                evidence_fingerprint=done.evidence_fingerprint,
+                request_state=RequestState.COMPLETED,
+                verdict=Verdict.PASS,
+            )
+        ],
+    )
+    merged = replace(
+        _record(),
+        audit_id="audit-merged",
+        target_state=TargetState.MERGED,
+        prerequisite_audit_id=passed_done.audit_id,
+        eligible_at="2026-08-11T12:00:00+00:00",
+    )
+
+    assert AuditorDispatchLane.pending_record(
+        [passed_done, merged], project_id="project-1", task_id="TASK-1"
+    ) == merged
+
+
+@pytest.mark.parametrize(
+    "prerequisite_case",
+    ["missing", "stale", "failed"],
+)
+def test_merged_dispatch_rejects_invalid_named_done_pass(
+    prerequisite_case: str,
+) -> None:
+    done = _record()
+    passed_done = replace(
+        done,
+        request_state=RequestState.COMPLETED,
+        attempts=[
+            AuditAttempt(
+                attempt_id="attempt-passed-done",
+                target_state=TargetState.DONE,
+                evidence_fingerprint=done.evidence_fingerprint,
+                request_state=RequestState.COMPLETED,
+                verdict=Verdict.PASS,
+            )
+        ],
+    )
+    prerequisite_audit_id = f"audit-done-{prerequisite_case}"
+    referenced_records: list[TerminalAuditRecord] = []
+    if prerequisite_case != "missing":
+        referenced_records.append(
+            replace(
+                done,
+                audit_id=prerequisite_audit_id,
+                request_state=(
+                    RequestState.SUPERSEDED
+                    if prerequisite_case == "stale"
+                    else RequestState.COMPLETED
+                ),
+                attempts=[
+                    AuditAttempt(
+                        attempt_id=f"attempt-{prerequisite_case}",
+                        target_state=TargetState.DONE,
+                        evidence_fingerprint=done.evidence_fingerprint,
+                        request_state=RequestState.COMPLETED,
+                        verdict=(
+                            Verdict.PASS
+                            if prerequisite_case == "stale"
+                            else Verdict.FAIL
+                        ),
+                    )
+                ],
+            )
+        )
+    merged = replace(
+        _record(),
+        audit_id="audit-merged",
+        target_state=TargetState.MERGED,
+        prerequisite_audit_id=prerequisite_audit_id,
+        # Reproduce a prematurely stamped row: eligibility alone must not
+        # allow a different same-authority Done PASS to satisfy the edge.
+        eligible_at="2026-08-11T12:00:00+00:00",
+    )
+
+    assert (
+        AuditorDispatchLane.pending_record(
+            [passed_done, *referenced_records, merged],
+            project_id="project-1",
+            task_id="TASK-1",
+        )
+        is None
+    )
 
 
 def test_explicitly_blocked_merged_stage_is_not_dispatchable() -> None:

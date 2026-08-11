@@ -379,6 +379,44 @@ def test_done_pass_successor_converges_after_crash_before_wake(tmp_path) -> None
     assert restarted._eligible_audit_stage_wakes == {
         (PROJECT_ID, TASK_ID): eligible_merged.audit_id
     }
+
+    # A persisted eligibility timestamp is not authority by itself.  A crash
+    # recovery pass must reject a replacement/stale prerequisite ID instead
+    # of reconstructing the exact-stage wake from a different Done PASS.
+    metadata.update(
+        TASK_ID,
+        lambda document: replace(
+            document,
+            pending_chain=[
+                replace(record, prerequisite_audit_id="audit-done-stale")
+                if record.audit_id == eligible_merged.audit_id
+                else record
+                for record in document.pending_chain
+            ],
+        ),
+    )
+    enforcement.recover_pending_audits([(PROJECT_ID, tracker)])
+    restarted._eligible_audit_stage_wakes = {}
+    restarted._sync_terminal_audit_workflow_jobs()
+    assert restarted._eligible_audit_stage_wakes == {}
+
+    metadata.update(
+        TASK_ID,
+        lambda document: replace(
+            document,
+            pending_chain=[
+                eligible_merged
+                if record.audit_id == eligible_merged.audit_id
+                else record
+                for record in document.pending_chain
+            ],
+        ),
+    )
+    enforcement.recover_pending_audits([(PROJECT_ID, tracker)])
+    restarted._sync_terminal_audit_workflow_jobs()
+    assert restarted._eligible_audit_stage_wakes == {
+        (PROJECT_ID, TASK_ID): eligible_merged.audit_id
+    }
     next_job = reopened_workflow.start(
         eligible_merged,
         attempt_id="attempt-merged",
