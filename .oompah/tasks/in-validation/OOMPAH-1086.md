@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:54:01.877028Z'
-updated_at: '2026-08-11T14:45:07.650111Z'
+updated_at: '2026-08-11T14:45:23.140320Z'
 work_branch: OOMPAH-1086
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/823
@@ -162,6 +162,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1086
     selected_ref: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
     selected_sha: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
+oompah.task_costs:
+  total_input_tokens: 330
+  total_output_tokens: 11004
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 330
+      output_tokens: 11004
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 330
+    output_tokens: 11004
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T14:45:19.610534+00:00'
 ---
 ## Summary
 
@@ -244,5 +260,15 @@ Safe evidence:
 - key_mechanisms[5]: ContextVar: Propagates lease to asyncio.to_thread contexts
 - review_evidence: Fresh independent review ACCEPTED. Reviewer verified lifecycle fencing, active-use accounting, saga lease propagation, stale ContextVar rejection, close fence/drain/idempotency, comprehensive saga/direct-reader coverage, and cancellation safety.
 - mutation_scan: 21/21 passed
+---
+author: oompah
+created: 2026-08-11 14:45
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 84, Tool calls: 40
+- Tokens: 330 in / 11.0K out [11.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 20s
+- Log: OOMPAH-1086__20260811T144024Z.jsonl
 ---
 <!-- COMMENTS:END -->
