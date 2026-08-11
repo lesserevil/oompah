@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1076
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Bound large-corpus workflow reconciliation within restart SLO
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:41:07.342509Z'
-updated_at: '2026-08-11T11:23:48.269581Z'
+updated_at: '2026-08-11T11:24:46.855886Z'
 work_branch: OOMPAH-1076
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/816
@@ -76,6 +76,29 @@ oompah.terminal_audit:
     selected_ref: origin/OOMPAH-1076
     selected_sha: 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
     applied: true
+  - version: 1
+    override_id: override-8ba2f66ad2b4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1076
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7574461067baf533926f254889367a94889aa398d6d5a4bb1a3e1f2ee6dcaf1f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Revision 2 exact head a9bdbfdeedca4c5181851d01312cfbfc1159567d passed
+      459 author tests, independent exact-head ACCEPT with the same 459 tests, protected
+      Python 3.11/3.12/3.13 CI, and merged through PR 816 as 84cad614cf99db3ed4ae98ad87d163712f9cf688.
+      Deployed live 1,882-task cold canary completed reconciliation phases in 38.78s
+      (integration 27.91s, epic 8.28s), full tick 66.18s, cleared restart reconstruction
+      inside the 120s SLO, and published healthy with zero alerts.
+    created_at: '2026-08-11T11:24:42.459083+00:00'
+    selected_ref: a9bdbfdeedca4c5181851d01312cfbfc1159567d
+    selected_sha: a9bdbfdeedca4c5181851d01312cfbfc1159567d
+    applied: false
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1076
