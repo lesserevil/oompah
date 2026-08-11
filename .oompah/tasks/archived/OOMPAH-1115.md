@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1115
 type: bug
-status: Backlog
+status: Archived
 priority: 2
 title: '[backend:checkpoint_queue] Checkpoint flush FAILED (reason=terminal_status:Merged);
   push_failures=16'
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T21:08:34.294390Z'
-updated_at: '2026-08-11T22:46:36.087818Z'
+updated_at: '2026-08-11T22:46:40.602768Z'
 work_branch: null
 target_branch: null
 review_url: null
