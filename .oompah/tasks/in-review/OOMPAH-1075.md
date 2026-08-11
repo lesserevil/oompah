@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:03:11.276660Z'
-updated_at: '2026-08-11T09:28:55.906289Z'
+updated_at: '2026-08-11T09:54:32.617274Z'
 work_branch: OOMPAH-1075
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/812
@@ -53,5 +53,10 @@ author: oompah
 created: 2026-08-11 09:28
 ---
 Branch quality gate passed for `00c1df8fa52f409d7249b870204cebb51b350039` using `make test` in 170.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 09:54
+---
+Final combined candidate is rebased onto deployed main 8496297f9 and pushed at exact head d912a999d13d4fc739f4c14580b1facd94056382. It includes the independently tracked OOMPAH-1077 deterministic heartbeat-test correction. Post-rebase focused validation: 481 workflow-worker/runtime/native-tracker/standalone tests passed; git diff check and worktree are clean. Independent exact-head review and protected matrix are running.
 ---
 <!-- COMMENTS:END -->

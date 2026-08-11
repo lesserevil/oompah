@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:45:59.661224Z'
-updated_at: '2026-08-11T09:53:14.109545Z'
+updated_at: '2026-08-11T09:54:35.547880Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-08-11 09:53
 ---
 Implemented deterministic workflow-worker lease proof on bundled PR #812 branch OOMPAH-1075 at exact head 9158bb02df2505b232fbbe49d40eacc72ca23183. The test now holds apply behind an explicit barrier, waits for two observed heartbeat renewals of the exact lease token, advances the injected store clock past the original lease expiry to prove renewal kept authority live, verifies the external effect is still unapplied before release, and then asserts one apply plus completion. No production semantics or timers were changed. Validation: focused test passed 50/50 consecutive runs; tests/test_workflow_worker.py passed 50/50; git diff --check passed. Commit pushed; branch intentionally not rebased so the coordinator can rebase it once onto newly deployed main.
+---
+author: oompah
+created: 2026-08-11 09:54
+---
+The deterministic heartbeat-test fix was rebased with OOMPAH-1075 onto deployed main and is now published at exact combined head d912a999d13d4fc739f4c14580b1facd94056382 in PR #812. The focused heartbeat test passed 50 consecutive runs before rebase; after rebase the combined affected suite passed 481 tests. Independent exact-head review and protected matrix are running.
 ---
 <!-- COMMENTS:END -->
