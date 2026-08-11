@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1088
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Bound dispatch and submission authority waits and retire pre-provider ghost
   runtimes
@@ -12,8 +12,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:17:03.737871Z'
-updated_at: '2026-08-11T15:21:02.550827Z'
-work_branch: null
+updated_at: '2026-08-11T15:21:22.879891Z'
+work_branch: OOMPAH-1088
 target_branch: null
 review_url: null
 review_number: null
@@ -25,6 +25,16 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: oompah-1084-ghost-runtime-authority-wait-20260811
   request_fingerprint: c98e8d47cff8518ba6b61b5b4d7732332ff6772202a465bb517416cd137201f1
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1088
+  head_sha: 59619d68f092fd5e6078599f2a6efcce555f52f9
+  submitted_at: '2026-08-11T15:21:04.895192+00:00'
+  updated_at: '2026-08-11T15:21:04.895192+00:00'
+oompah.work_branch: OOMPAH-1088
 ---
 ## Summary
 
@@ -69,5 +79,10 @@ author: oompah
 created: 2026-08-11 15:21
 ---
 Fresh independent exact-head review ACCEPTED 59619d68f092fd5e6078599f2a6efcce555f52f9 on current main 6449341d762d9c7645271b8479dfa406e648be54. Reviewer verified exact pre-provider ghost RunningEntry/claim retirement; late contributor-writer serialization and pre-contact fencing; bounded nonblocking sync legacy-lock handling with exact finally release; bounded async/CrossLoop behavior; structured retryable submission/control-busy responses for submit, owner, and both terminal-provenance paths; and preserved final provider authority fences. Evidence: 358 independent focused tests, terminal mutation scan 21/21, compileall, diff check; branch clean and remote exact. Ready for canonical gate and integration.
+---
+author: oompah
+created: 2026-08-11 15:21
+---
+Bound authority waits, retire pre-provider ghost runtimes, serialize contributor evidence, and return structured retryable contention without blocking the event loop.
 ---
 <!-- COMMENTS:END -->
