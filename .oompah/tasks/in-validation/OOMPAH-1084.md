@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1084
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Propagate synchronized open-review heads into exact gate and merge authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T14:28:30.608535Z'
+updated_at: '2026-08-11T14:28:37.182011Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
