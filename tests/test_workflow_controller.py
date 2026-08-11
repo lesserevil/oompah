@@ -9,7 +9,9 @@ from threading import Event
 
 import pytest
 
+from oompah.integration import IntegrationRecord
 from oompah.models import BlockerRef, Issue
+from oompah.statuses import IN_REVIEW
 from oompah.work_decision import PermittedAction
 from oompah.workflow_controller import (
     UniversalTotalityLivenessController,
@@ -522,6 +524,245 @@ def test_current_exhaustion_survives_revision_drift_and_restart_until_replaced(
     )
     assert reopened_store.health_snapshot()["current_states"]["exhausted"] == 0
     reopened_store.close()
+
+
+def _review_generation_facts(
+    task: Issue,
+    *,
+    repositories: bool,
+    review_overrides: dict | None = None,
+    integration_overrides: dict | None = None,
+    exhausted: bool = False,
+) -> WorkflowFacts:
+    review = {
+        "state": "open",
+        "present": True,
+        "review_id": "17",
+        "source_branch": "TASK-REVIEW-GENERATION",
+        "target_branch": "main",
+        "head_sha": "a" * 40,
+        "base_sha": "b" * 40,
+        "ci": "passed",
+        "mergeable": True,
+        "conflict": False,
+        "needs_rebase": False,
+    }
+    if repositories:
+        review.update(
+            {
+                "source_repository": "owner/repo",
+                "target_repository": "owner/repo",
+            }
+        )
+    review.update(review_overrides or {})
+    integration = {
+        "state": "ready",
+        "mode": "standalone",
+        "task_branch": "TASK-REVIEW-GENERATION",
+        "base_branch": "main",
+        "base_sha": "b" * 40,
+        "head_sha": "a" * 40,
+    }
+    integration.update(integration_overrides or {})
+    return facts_for(
+        task,
+        overrides={
+            FactDomain.TASK: known(
+                FactDomain.TASK,
+                {
+                    "identifier": task.identifier,
+                    "project_id": task.project_id,
+                    "status": task.state,
+                    "work_branch": task.work_branch,
+                    "target_branch": task.target_branch,
+                    "review_number": task.review_number,
+                    "review_head": task.review_head,
+                    "head_sha": task.head_sha,
+                },
+            ),
+            FactDomain.INTEGRATION: known(FactDomain.INTEGRATION, integration),
+            FactDomain.REVIEW_CI: known(FactDomain.REVIEW_CI, review),
+            FactDomain.RETRY_BUDGET: known(
+                FactDomain.RETRY_BUDGET,
+                (
+                    {"attempts": 5, "max_attempts": 5, "exhausted": True}
+                    if exhausted
+                    else {"remaining": 5}
+                ),
+            ),
+        },
+    )
+
+
+def test_exact_review_identity_enrichment_rearms_stale_generation_after_restart(
+    tmp_path,
+):
+    database = tmp_path / "review-generation-restart.sqlite3"
+    task = issue(
+        IN_REVIEW,
+        identifier="TASK-REVIEW-GENERATION",
+        work_branch="TASK-REVIEW-GENERATION",
+        target_branch="main",
+        review_number="17",
+        review_head="a" * 40,
+        head_sha="a" * 40,
+        integration=IntegrationRecord(
+            state="ready",
+            mode="standalone",
+            task_branch="TASK-REVIEW-GENERATION",
+            base_branch="main",
+            base_sha="b" * 40,
+            head_sha="a" * 40,
+        ),
+    )
+    initial = _review_generation_facts(task, repositories=False)
+    store = WorkflowJobStore(str(database))
+    controller = UniversalTotalityLivenessController(
+        store=store, decision_limit=100, clock=lambda: NOW
+    )
+    first = controller.full_sync(
+        (task,), facts={task.identifier: initial}, now=NOW
+    )
+    assert first.decisions[0].durable_jobs == ("review_merge",)
+    running = store.claim_next(lease_owner="old-review-worker", lease_seconds=30)
+    assert running is not None
+    exhausted_job = store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.STALE_EVIDENCE,
+        error="review identity was incomplete",
+        retryable=False,
+    )
+    store.close()
+
+    current = _review_generation_facts(
+        task,
+        repositories=True,
+    )
+    reopened = WorkflowJobStore(str(database))
+    restarted = UniversalTotalityLivenessController(
+        store=reopened, decision_limit=100, clock=lambda: NOW
+    )
+    try:
+        read_only = restarted.evaluate(
+            (task,), facts={task.identifier: current}, now=NOW
+        )[0]
+        assert read_only.reason_code == "retry.exhausted"
+
+        regenerated = restarted.full_sync(
+            (task,), facts={task.identifier: current}, now=NOW
+        )
+        repeated = restarted.full_sync(
+            (task,), facts={task.identifier: current}, now=NOW
+        )
+
+        assert regenerated.decisions[0].reason_code == "review.ready_to_merge"
+        assert repeated.decisions[0].reason_code == "review.ready_to_merge"
+        active = [job for job in reopened.list_jobs() if job.is_active]
+        assert [job.action for job in active] == ["review_merge"]
+        assert active[0].expected_evidence_revision == current.facts_version
+        assert reopened.get(exhausted_job.job_id).state is WorkflowJobState.EXHAUSTED
+        assert not reopened.current_exhausted_jobs(
+            project_id="project-a", task_id=task.identifier
+        )
+        assert reopened.health_snapshot()["current_states"]["exhausted"] == 0
+    finally:
+        reopened.close()
+
+
+@pytest.mark.parametrize(
+    ("review_overrides", "integration_overrides"),
+    [
+        (
+            {
+                "source_repository": "fork/repo",
+                "target_repository": "owner/repo",
+            },
+            {},
+        ),
+        ({"source_branch": "OTHER-BRANCH"}, {}),
+        ({}, {"base_branch": "release"}),
+        ({"conflict": True}, {}),
+        ({"state": "missing", "present": False}, {}),
+        ({"provider_error": True}, {}),
+    ],
+    ids=[
+        "forked",
+        "wrong-source",
+        "wrong-base",
+        "conflict",
+        "missing",
+        "provider-error",
+    ],
+)
+def test_invalid_review_evidence_cannot_rearm_stale_exhaustion(
+    tmp_path,
+    review_overrides,
+    integration_overrides,
+):
+    task = issue(
+        IN_REVIEW,
+        identifier="TASK-REVIEW-GENERATION",
+        work_branch="TASK-REVIEW-GENERATION",
+        target_branch="main",
+        review_number="17",
+        review_head="a" * 40,
+        head_sha="a" * 40,
+    )
+    store = WorkflowJobStore(str(tmp_path / "invalid-review-generation.sqlite3"))
+    controller = UniversalTotalityLivenessController(
+        store=store, decision_limit=100, clock=lambda: NOW
+    )
+    initial = _review_generation_facts(task, repositories=False)
+    controller.full_sync((task,), facts={task.identifier: initial}, now=NOW)
+    running = store.claim_next(lease_owner="old-review-worker", lease_seconds=30)
+    assert running is not None
+    exhausted_job = store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.STALE_EVIDENCE,
+        error="review identity was incomplete",
+        retryable=False,
+    )
+    provider_error = review_overrides.get("provider_error") is True
+    review_values = {
+        key: value
+        for key, value in review_overrides.items()
+        if key != "provider_error"
+    }
+    invalid = _review_generation_facts(
+        task,
+        repositories=True,
+        review_overrides=review_values,
+        integration_overrides=integration_overrides,
+        exhausted=True,
+    )
+    if provider_error:
+        observations = dict(invalid.observations)
+        observations[FactDomain.REVIEW_CI] = FactObservation.error(
+            FactDomain.REVIEW_CI,
+            observed_at=NOW_ISO,
+            source="forge",
+            error_code="provider_unavailable",
+        )
+        invalid = WorkflowFacts(
+            invalid.project_id,
+            invalid.task_id,
+            invalid.collected_at,
+            observations,
+        )
+    try:
+        result = controller.full_sync(
+            (task,), facts={task.identifier: invalid}, now=NOW
+        )
+
+        assert result.decisions[0].reason_code == "retry.exhausted"
+        assert controller.store.current_exhausted_jobs(
+            project_id="project-a", task_id=task.identifier
+        ) == (exhausted_job,)
+        assert not [job for job in store.list_jobs() if job.is_active]
+    finally:
+        store.close()
 
 
 def test_full_sync_updates_authoritative_liveness_projection(controller):

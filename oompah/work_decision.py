@@ -17,6 +17,7 @@ from enum import Enum
 from typing import Any
 
 from oompah.integration import (
+    ACCEPTED_SUBMISSION_STATES,
     REVIEW_GENERATION_REQUEUE_WAIT_REASON,
     direct_epic_maintenance_handoff_ready,
     review_generation_requeue_marker,
@@ -832,6 +833,11 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
     expected_target = str(
         task.target_branch or task_fact.get("target_branch") or ""
     ).strip()
+    expected_source = str(
+        task_fact.get("work_branch")
+        or task_fact.get("branch_name")
+        or task.task_id
+    ).strip()
     observed_target = str(value.get("target_branch") or "").strip()
     if observed_target and expected_target and observed_target != expected_target:
         return _decision(
@@ -862,6 +868,9 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
         else None
     ) or {}
     recorded_base = str(integration_value.get("base_sha") or "").strip().lower()
+    recorded_base_branch = str(
+        integration_value.get("base_branch") or ""
+    ).strip()
     observed_base = str(value.get("base_sha") or "").strip().lower()
     expected_head = recorded_head or current_head
     changed_head = ""
@@ -877,6 +886,42 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
         observed_head,
         observed_base,
     )
+    recorded_review = str(task_fact.get("review_number") or "").strip()
+    observed_review = str(value.get("review_id") or "").strip()
+    integration_head = str(
+        integration_value.get("head_sha") or ""
+    ).strip().lower()
+    integration_source = str(
+        integration_value.get("task_branch") or ""
+    ).strip()
+    source_repository = str(
+        value.get("source_repository") or ""
+    ).strip().casefold()
+    target_repository = str(
+        value.get("target_repository") or ""
+    ).strip().casefold()
+    observed_source = str(value.get("source_branch") or "").strip()
+    missing_base_identity = bool(
+        str(integration_value.get("state") or "").strip().lower()
+        in ACCEPTED_SUBMISSION_STATES
+        and str(integration_value.get("mode") or "standalone").strip().lower()
+        == "standalone"
+        and observed_generation_marker is not None
+        and expected_head
+        and integration_head == expected_head
+        and observed_head == expected_head
+        and recorded_review
+        and observed_review == recorded_review
+        and expected_source
+        and observed_source == expected_source
+        and integration_source == expected_source
+        and expected_target
+        and observed_target == expected_target
+        and recorded_base_branch in {"", expected_target}
+        and source_repository
+        and source_repository == target_repository
+        and (not recorded_base or not recorded_base_branch)
+    )
     pending_generation = bool(
         integration_value.get("wait_reason")
         == REVIEW_GENERATION_REQUEUE_WAIT_REASON
@@ -884,7 +929,7 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
         and integration_value.get("wait_generation")
         == observed_generation_marker
     )
-    if changed_head or changed_base or pending_generation:
+    if changed_head or changed_base or missing_base_identity or pending_generation:
         current_generation = changed_head or observed_head or expected_head
         return _decision(
             task,
@@ -904,12 +949,6 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             durable_jobs=("review_head_reconciliation",),
             recommended_status=READY_TO_INTEGRATE,
         )
-
-    expected_source = str(
-        task_fact.get("work_branch")
-        or task_fact.get("branch_name")
-        or task.task_id
-    ).strip()
 
     def exact_landings() -> tuple[Any, ...]:
         return tuple(
