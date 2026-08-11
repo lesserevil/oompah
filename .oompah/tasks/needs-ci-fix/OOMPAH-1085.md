@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T13:42:14.958729Z'
+updated_at: '2026-08-11T13:42:27.053333Z'
 work_branch: OOMPAH-1085
 target_branch: null
 review_url: null
@@ -36,6 +36,16 @@ oompah.integration:
   updated_at: '2026-08-11T13:35:21.687037+00:00'
 oompah.work_branch: OOMPAH-1085
 oompah.agent_run_id: 8edf6d56-a309-470c-aea6-203826fef15a
+oompah.work_contributors:
+  runs:
+  - run_id: 677e8b1ddbc445509377e5599ada2af7--contributor-57ff1a86c984
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
+    focus: ci_fix
+    source_branch: OOMPAH-1085
+    source_sha: null
+    completed_at: ''
 ---
 ## Summary
 
@@ -147,5 +157,10 @@ author: oompah
 created: 2026-08-11 13:42
 ---
 Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-11 13:42
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
