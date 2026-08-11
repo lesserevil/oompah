@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T17:34:07.685347Z'
-updated_at: '2026-08-11T18:56:14.274146Z'
+updated_at: '2026-08-11T18:58:23.689755Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-08-11 18:56
 ---
 Rebased review head onto accepted OOMPAH-1085 main. Exact head: 4012ea5fc39751478cb64ba517199dc490e37ea4; exact base: 28ce5b1b2dd461c2d6a2ba579b3adfc65e41cbbe. OOMPAH-1085 terminal-audit continuation scheduling composes cleanly with OOMPAH-1097 restart admission/listener cutover; no rebase conflict. Verification after rebase: 370 console + 115 WebSocket/full-sync + 679 restart/auth/webhook + 335 OOMPAH-1085 terminal-audit/auto-update/lifecycle tests passed (1,499 focused total); seven critical provider-admission/WebSocket races repeated 10x (70/70); terminal-audit-scan 21/21; py_compile and git whitespace checks clean. Branch force-with-lease updated and synchronized with origin. No submit, merge, service restart, or scheduling resume performed. Ready for fresh review of exact head 4012ea5fc39751478cb64ba517199dc490e37ea4.
+---
+author: oompah
+created: 2026-08-11 18:58
+---
+ACCEPT exact rebased head 4012ea5fc39751478cb64ba517199dc490e37ea4 against current main 28ce5b1b2dd461c2d6a2ba579b3adfc65e41cbbe. Fresh independent re-review confirms the prior console provider-launch rejection is fully closed for the auto-update retained-drain boundary. The WebSocket path uses a strict read-only action allowlist for ping, refresh, and full_sync; console_input and unknown mutation messages receive retryable restart_draining responses without closing the socket. Console handling rechecks after project/session lookup, ConsoleSession revalidates queued turns at dequeue and again before ACP construction, and the captured exact-orchestrator callback acquires the same provider-admission RLock and rejects owner replacement or restart/stopping at every production ACP backend true SDK/network/Popen contact edge. The checks fail closed on callback/factory errors. Lock review found no inversion: the callback only holds provider admission for the synchronous authority read, manager construction does not hold it, and listener cutover awaits safe-stop without holding server/console locks. Cutover prepare remains serialized/idempotent and both Uvicorn and Granian stop transports only after fail-closed safe-stop. OOMPAH-1085 composition is sound: its terminal-audit continuation future is included in orchestrator background-work draining, its continuation admission sees the same quiesced/stopping fence, and O1097 closes listeners only after that exact owner drains; the rebased commits are patch-equivalent to the reviewed correction. Exact-head evidence: 208 combined restart/console/terminal-continuation/quiesce/auto-update tests passed; seven real ACP transport/auto-update tests passed; the seven critical WS/lookup/queue/transport races passed 10 consecutive exact-head runs; terminal mutation scan passed 21/21; py_compile and diff-check clean. Branch untouched, clean, and HEAD equals origin/OOMPAH-1097.
 ---
 <!-- COMMENTS:END -->
