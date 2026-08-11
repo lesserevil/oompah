@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:34:25.712698Z'
-updated_at: '2026-08-11T17:03:09.181296Z'
+updated_at: '2026-08-11T17:23:25.706629Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-08-11 17:03
 ---
 Implementation pushed at exact head 1b36938b7a9d64534049af27963cba92b605a38d on branch OOMPAH-1094. Added a standard-library Make/setup mutation guard that resolves the invoking and primary service checkouts, compares resolved path plus device/inode aliases, carries exact service checkout/venv markers into worker environments, rejects task attempts to target the live service venv before uv, and serializes linked-worktree setup/repair with a shared Git flock. Canonical main setup remains repair authority; quality-gate preflight shares the lock and safely repairs proven canonical editable corruption before candidate execution. Verification: tests/test_makefile_setup.py + tests/test_client_auth.py 111 passed; tests/test_quality_gate.py 314 passed; terminal mutation scan 21/21. The live service direct_url mapping remained file:///home/shedwards/src/oompah before and after guarded task Make execution; task runtime remained file:///home/shedwards/src/oompah-1094. A redundant full make test reached 28% of 20,070 tests with no failures, then was operator-cancelled because four workers were blocked on jbd2 fsync and starving the critical release gate; all worker processes were confirmed gone. Per instruction, task is not submitted or merged and awaits independent review/canonical gate.
+---
+author: oompah
+created: 2026-08-11 17:23
+---
+Second rejection repair pushed at exact head a8e0c10db484680bc584d272a9903d229bd9576f. The setup guard now treats the explicit service runtime, the explicit service checkout's conventional .venv, and any Git-derived primary .venv as additive protected targets, so a falsified cross-repository OOMPAH_SERVICE_VENV cannot erase the service checkout runtime boundary. Added a real unrelated-repository Make regression proving uv is not invoked and the service editable mapping remains unchanged. A different explicit service checkout cannot be rejected solely because it differs from the task repo's Git primary: that difference is required for legitimate cross-repo workers, so additive independent targets are the safest available proof. Verification: 115 focused setup/client-auth/quality-gate tests passed; terminal mutation scan passed 21/21; diff check clean. Branch is clean and pushed; exact head matches origin.
 ---
 <!-- COMMENTS:END -->
