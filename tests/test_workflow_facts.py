@@ -538,6 +538,87 @@ def test_authoritative_target_refresh_failure_does_not_reuse_stale_prior(tmp_pat
     assert fact.error_code == "target_refresh_timeouterror"
 
 
+def test_reconciliation_scope_reuses_target_refresh_and_resets_next_scan(tmp_path):
+    repo, _base, task = _git_repo(tmp_path)
+    _git(repo, "merge", "--no-ff", "task", "-m", "merge")
+    target_head = _git(repo, "rev-parse", "main")
+    refreshes: list[str] = []
+
+    def refresh(target):
+        refreshes.append(target)
+        return target_head
+
+    collector = GitLandingCollector(
+        repo,
+        project_id="project-1",
+        clock=lambda: NOW,
+        target_refresher=refresh,
+    )
+    request = LandingRequest(
+        "task",
+        "main",
+        task,
+        authoritative_target=True,
+    )
+
+    with collector.observation_scope():
+        first = collector.collect(request)
+        second = collector.collect(request)
+    with collector.observation_scope():
+        third = collector.collect(request)
+
+    assert refreshes == ["main", "main"]
+    assert first.evidence_revision == second.evidence_revision
+    assert third.state is LandingState.LANDED
+
+    failures = 0
+
+    def fail(_target):
+        nonlocal failures
+        failures += 1
+        raise TimeoutError("remote unavailable")
+
+    unavailable = GitLandingCollector(
+        repo,
+        project_id="project-1",
+        clock=lambda: NOW,
+        target_refresher=fail,
+    )
+    with unavailable.observation_scope():
+        failed = (unavailable.collect(request), unavailable.collect(request))
+
+    assert failures == 1
+    assert {fact.state for fact in failed} == {LandingState.UNKNOWN}
+    assert {fact.error_code for fact in failed} == {
+        "target_refresh_timeouterror"
+    }
+
+
+def test_exact_immutable_source_skips_discarded_live_ref_resolution(
+    tmp_path, monkeypatch
+):
+    repo, _base, task = _git_repo(tmp_path)
+    _git(repo, "merge", "--no-ff", "task", "-m", "merge")
+    collector = GitLandingCollector(
+        repo, project_id="project-1", clock=lambda: NOW
+    )
+    original_resolve = collector._resolve
+    resolved: list[str] = []
+
+    def resolve(ref):
+        resolved.append(ref)
+        if ref == "task":
+            raise AssertionError("immutable source ref must not be resolved")
+        return original_resolve(ref)
+
+    monkeypatch.setattr(collector, "_resolve", resolve)
+
+    fact = collector.collect(LandingRequest("task", "main", task))
+
+    assert resolved == ["main"]
+    assert fact.state is LandingState.LANDED
+
+
 def test_deleted_source_branch_remains_provable_from_exact_revision(tmp_path):
     repo, _, task = _git_repo(tmp_path)
     _git(repo, "merge", "--no-ff", "task", "-m", "merge")

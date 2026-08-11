@@ -5564,10 +5564,65 @@ def test_large_corpus_restart_publishes_complete_snapshot_with_phase_telemetry(
 ):
     task_count = 1_878
     store = WorkflowJobStore(str(tmp_path / "large-restart.sqlite3"))
-    tracker = NativeTracker(
-        [make_issue(f"TASK-LARGE-{index:04d}", state="Backlog") for index in range(task_count)]
+
+    class NoFanoutTracker(NativeTracker):
+        def fetch_issue_detail(self, _identifier):
+            raise AssertionError("runtime must reuse its authoritative issue index")
+
+        def fetch_children(self, _identifier):
+            raise AssertionError("runtime must reuse its authoritative child index")
+
+    tasks = [
+        make_issue(
+            f"TASK-LARGE-{index:04d}",
+            state="Backlog",
+            parent_id="EPIC-LARGE" if index < 128 else None,
+        )
+        for index in range(task_count - 1)
+    ]
+    tasks.append(
+        make_issue("EPIC-LARGE", state="Backlog", issue_type="epic")
     )
+    tracker = NoFanoutTracker(tasks)
     binding, journal = make_binding(tmp_path, tracker, store)
+
+    class ScopedLandingCollector:
+        project_id = "project-1"
+
+        def __init__(self):
+            self.active = False
+            self.entered = 0
+            self.exited = 0
+
+        @contextlib.contextmanager
+        def observation_scope(self):
+            self.entered += 1
+            self.active = True
+            try:
+                yield
+            finally:
+                self.active = False
+                self.exited += 1
+
+        def collect_many(self, requests):
+            assert self.active
+            return tuple(
+                LandingFact(
+                    request.source,
+                    request.target,
+                    request.revision,
+                    {"kind": "source_unavailable"},
+                    datetime.now(timezone.utc).isoformat(),
+                    self.project_id,
+                    state=LandingState.UNKNOWN,
+                    error_code="test_unavailable",
+                )
+                for request in requests
+            )
+
+    landing = ScopedLandingCollector()
+    binding.collector.landing_collector = landing
+    binding.epic_collector.landing_collector = landing
     controller = UniversalTotalityLivenessController(
         store=store,
         liveness_max_task_records=2_000,
@@ -5600,6 +5655,8 @@ def test_large_corpus_restart_publishes_complete_snapshot_with_phase_telemetry(
         "snapshot_publication",
     }
     assert phases["projects"]["project-1"]["liveness_facts"] > 0
+    assert phases["projects"]["project-1"]["epic"] > 0
+    assert (landing.entered, landing.exited, landing.active) == (1, 1, False)
     runtime.close()
     store.close()
 
@@ -8467,7 +8524,7 @@ def test_epics_have_one_domain_owner_and_new_facts_supersede_old_job(tmp_path):
     store.close()
 
 
-def test_epic_task_fact_race_does_not_reject_the_project_snapshot(tmp_path):
+def test_epic_facts_use_the_generation_bound_project_cut_without_refetch(tmp_path):
     stale = make_issue("EPIC-RACE", state="In Progress", issue_type="epic")
     current = make_issue("EPIC-RACE", state="Done", issue_type="epic")
 
@@ -8477,9 +8534,8 @@ def test_epic_task_fact_race_does_not_reject_the_project_snapshot(tmp_path):
 
         fetch_all_issues = fetch_all_issues_enriched
 
-        def fetch_issue_detail(self, identifier):
-            assert identifier == current.identifier
-            return current
+        def fetch_issue_detail(self, _identifier):
+            raise AssertionError("generation-bound epic cut must not be refetched")
 
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     tracker = RacingTracker([current])
@@ -8499,9 +8555,11 @@ def test_epic_task_fact_race_does_not_reject_the_project_snapshot(tmp_path):
     assert "error" not in project
     assert project["snapshot"]["published"] is True
     assert project["epic"]["decisions_seen"] == 1
-    assert project["epic"]["jobs_required"] == 0
-    assert binding.epic_controller.projections()[0].durable_jobs == ()
-    assert store.list_jobs(task_id=current.identifier) == ()
+    assert project["epic"]["jobs_required"] == 1
+    assert binding.epic_controller.projections()[0].durable_jobs == (
+        "rollup_reconciliation",
+    )
+    assert len(store.list_jobs(task_id=current.identifier)) == 1
     runtime.close()
     store.close()
 

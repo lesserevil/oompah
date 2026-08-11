@@ -2694,6 +2694,27 @@ class WorkflowRuntime:
             if self._draining:
                 raise _WorkflowReconciliationInterrupted
 
+    def _enter_landing_observation_scopes(self, stack: ExitStack) -> None:
+        """Bind landing target caches to one complete world attempt."""
+
+        seen: set[int] = set()
+        for binding in self.project_bindings.values():
+            collectors = (
+                binding.collector,
+                getattr(binding.review_controller, "collector", None),
+                getattr(binding.integration_controller, "collector", None),
+                binding.epic_collector,
+            )
+            for collector in collectors:
+                landing = getattr(collector, "landing_collector", None)
+                identity = id(landing)
+                if landing is None or identity in seen:
+                    continue
+                seen.add(identity)
+                scope = getattr(landing, "observation_scope", None)
+                if callable(scope):
+                    stack.enter_context(scope())
+
     def _reconcile_once(self) -> dict[str, Any]:
         """Run one admitted pass with cooperative lifecycle interruption."""
 
@@ -2746,7 +2767,9 @@ class WorkflowRuntime:
         try:
             while True:
                 self._reconciliation_checkpoint()
-                report = self._reconcile_world_once()
+                with ExitStack() as observation_scopes:
+                    self._enter_landing_observation_scopes(observation_scopes)
+                    report = self._reconcile_world_once()
                 current_seconds = report.get("reconciliation_phases", {}).get(
                     "seconds", {}
                 )
@@ -2929,6 +2952,8 @@ class WorkflowRuntime:
                                     epic_issues,
                                     persist_evidence=False,
                                     liveness_slo_seconds=liveness_slo_seconds,
+                                    authoritative_issues=authoritative_issues,
+                                    authoritative_children=authoritative_children,
                                 ),
                             )
                         )
@@ -3336,6 +3361,8 @@ class WorkflowRuntime:
                         epic_issues,
                         persist_evidence=False,
                         liveness_slo_seconds=liveness_slo_seconds,
+                        authoritative_issues=authoritative_issues,
+                        authoritative_children=authoritative_children,
                     )
                     evaluated_epic_landings = dict(
                         binding.epic_controller._landings

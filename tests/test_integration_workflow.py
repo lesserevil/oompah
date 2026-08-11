@@ -4628,6 +4628,46 @@ def test_parent_scoped_child_landing_requires_current_direct_containment(tmp_pat
     store.close()
 
 
+def test_landing_resolver_uses_authoritative_parent_indexes_without_fanout(
+    tmp_path,
+):
+    task, parent, _fact = _parent_scoped_child_fixture()
+
+    class NoFanoutTracker(Tracker):
+        def fetch_issue_detail(self, _identifier):
+            raise AssertionError("authoritative parent must not be refetched")
+
+        def fetch_children(self, _identifier):
+            raise AssertionError("authoritative children must not be rescanned")
+
+    store = WorkflowJobStore(str(tmp_path / "indexed-parent.sqlite3"))
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=NoFanoutTracker([task, parent]),
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        workflow_store=store,
+    )
+    authoritative_issues = {
+        item.identifier.casefold(): item for item in (task, parent)
+    }
+    authoritative_children = {parent.identifier.casefold(): (task,)}
+
+    request = resolver(
+        task,
+        include_ready=True,
+        authoritative_issues=authoritative_issues,
+        authoritative_children=authoritative_children,
+    )[0]
+
+    assert (request.source, request.target) == (
+        task.work_branch,
+        parent.work_branch,
+    )
+    store.close()
+
+
 def test_parent_scoped_child_landing_is_not_hidden_by_large_epic(tmp_path):
     task, parent, _fact = _parent_scoped_child_fixture()
     task.identifier = task.id = "TASK-Z"
