@@ -30,6 +30,7 @@ from oompah.agent_instructions import (
     ensure_github_issues_agent_instructions,
     ensure_oompah_task_agent_instructions,
 )
+from oompah.authority_lock import acquire_bounded_task_lock
 from oompah.build_info import build_identity
 from oompah.events import EventType
 from oompah.scm import (
@@ -6076,11 +6077,54 @@ async def _submission_authority_lock(orch, issue_id: str):
     lock = lock_factory(issue_id) if callable(lock_factory) else None
     # Test doubles and legacy orchestrator adapters may not expose the native
     # cross-loop lock. They already serialize their mocked writes themselves.
-    if lock is not None and hasattr(lock, "__aenter__"):
-        async with lock:
-            yield
-    else:
+    if lock is None or not callable(getattr(lock, "acquire", None)):
         yield
+        return
+    control_timeout = max(
+        float(
+            getattr(
+                getattr(orch, "config", None),
+                "terminal_control_lock_timeout_seconds",
+                5.0,
+            )
+        ),
+        0.1,
+    )
+    # Pre-provider retirement gives its synchronous evidence write at most one
+    # control interval.  Waiting for two intervals lets that retirement release
+    # the lane and still leaves a deterministic retryable API deadline.
+    timeout_seconds = control_timeout * 2.0
+    acquired = await acquire_bounded_task_lock(
+        lock,
+        timeout_seconds=timeout_seconds,
+    )
+    if acquired is None:
+        # Loose legacy adapters expose MagicMock-like attribute surfaces but
+        # do not provide a real async lock.  Preserve their historical
+        # self-serialization without invoking a blocking acquisition.
+        yield
+        return
+    if not acquired:
+        raise SubmissionAuthorityBusyError(
+            issue_id=issue_id,
+            timeout_seconds=timeout_seconds,
+        )
+    try:
+        yield
+    finally:
+        lock.release()
+
+
+class SubmissionAuthorityBusyError(RuntimeError):
+    """A task mutex did not become available before the API deadline."""
+
+    def __init__(self, *, issue_id: str, timeout_seconds: float) -> None:
+        self.issue_id = str(issue_id)
+        self.timeout_seconds = float(timeout_seconds)
+        super().__init__(
+            "task submission authority is busy; retry the exact request "
+            f"(issue_id={self.issue_id}, waited={self.timeout_seconds:g}s)"
+        )
 
 
 async def _clear_submission_assignment(tracker, issue) -> bool:
@@ -6571,6 +6615,19 @@ async def api_submit_issue(identifier: str, request: Request):
             project_id,
             body,
             initial_issue=issue,
+        )
+    except SubmissionAuthorityBusyError as exc:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "submission_authority_busy",
+                    "message": str(exc),
+                    "retryable": True,
+                    "issue_id": exc.issue_id,
+                    "timeout_seconds": exc.timeout_seconds,
+                }
+            },
+            status_code=503,
         )
     except ValueError as exc:
         return JSONResponse(
@@ -7277,6 +7334,19 @@ async def api_task_handoff(request: Request):
                     )
 
                 accepted = await run_mutation(persist_submission)
+            except SubmissionAuthorityBusyError as exc:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "submission_authority_busy",
+                            "message": str(exc),
+                            "retryable": True,
+                            "issue_id": exc.issue_id,
+                            "timeout_seconds": exc.timeout_seconds,
+                        }
+                    },
+                    status_code=503,
+                )
             except ValueError as exc:
                 record_task_handoff_failure(
                     token, "task handoff submission validation failed"
@@ -14560,6 +14630,19 @@ async def api_terminal_provenance_action(
                     status_transition=orch._recover_terminal_audit_status,
                 )
                 status = OPEN
+    except SubmissionAuthorityBusyError as exc:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "control_busy",
+                    "message": str(exc),
+                    "retryable": True,
+                    "issue_id": exc.issue_id,
+                    "timeout_seconds": exc.timeout_seconds,
+                }
+            },
+            status_code=503,
+        )
     except ProvenanceControlBusyError:
         return JSONResponse(
             {

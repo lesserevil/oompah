@@ -25,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
 
+from oompah.authority_lock import acquire_bounded_task_lock
 from oompah.duplicate_screening import (
     DETECTOR_VERSION as DUPLICATE_DETECTOR_VERSION,
     ScreeningState,
@@ -489,11 +490,41 @@ class OrchestratorImplementationEffects:
 
         lock_factory = getattr(self.orchestrator, "issue_transition_lock", None)
         lock = lock_factory(issue.id) if callable(lock_factory) else None
-        if lock is None or not hasattr(lock, "__aenter__"):
+        if lock is None or not callable(getattr(lock, "acquire", None)):
             yield
             return
-        async with lock:
+        control_timeout = max(
+            float(
+                getattr(
+                    getattr(self.orchestrator, "config", None),
+                    "terminal_control_lock_timeout_seconds",
+                    5.0,
+                )
+            ),
+            0.1,
+        )
+        # The pre-provider evidence fence releases within one control interval;
+        # a second interval lets this durable retry win naturally after that
+        # retirement without approaching the workflow call's outer deadline.
+        timeout_seconds = control_timeout * 2.0
+        acquired = await acquire_bounded_task_lock(
+            lock,
+            timeout_seconds=timeout_seconds,
+        )
+        if acquired is None:
             yield
+            return
+        if not acquired:
+            raise WorkflowActionError(
+                "direct-owner claim is waiting for bounded task authority "
+                f"(issue_id={issue.id}, waited={timeout_seconds:g}s)",
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            )
+        try:
+            yield
+        finally:
+            lock.release()
 
     async def _admit_dispatch(
         self,

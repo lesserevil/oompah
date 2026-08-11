@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import contextlib
 import os
 import signal
 import subprocess
 import threading
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -17,9 +19,12 @@ from oompah.agent import ProcessIdentity
 from oompah.api_agent import _execute_tool
 from oompah.authority_boundary import auditor_policy
 from oompah.config import ServiceConfig
-from oompah.models import Issue, RunningEntry
+from oompah.implementation_workflow_adapter import OrchestratorImplementationEffects
+from oompah.models import AgentProfile, Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
+from oompah.server import _submission_authority_lock
 from oompah.statuses import IN_PROGRESS, IN_VALIDATION
+from oompah.work_contributors import load_contributors
 
 
 def _orchestrator(tmp_path) -> Orchestrator:
@@ -342,6 +347,290 @@ def test_lifecycle_gate_prevents_launch_and_persists_exactly_one_recovery(
             "project_id": entry.issue.project_id,
         }
     ]
+
+
+def test_pre_provider_evidence_timeout_releases_task_authority(tmp_path) -> None:
+    async def scenario() -> None:
+        orch = _orchestrator(tmp_path)
+        orch.config.terminal_control_lock_timeout_seconds = 0.1
+        entry = _entry()
+        orch.state.running[entry.issue.id] = entry
+        orch.provider_store.get = MagicMock(return_value=None)
+        orch._reserve_auditor_for_contributor = AsyncMock(return_value=([], None))
+        orch._release_audit_budget_reservation = MagicMock(return_value=True)
+        persistence_started = threading.Event()
+        release_persistence = threading.Event()
+
+        def blocked_persistence(*_args, **_kwargs) -> None:
+            persistence_started.set()
+            release_persistence.wait(timeout=2)
+
+        orch._persist_work_contributor = blocked_persistence
+        staging = asyncio.create_task(
+            orch._stage_work_contributor_launch(
+                entry.issue,
+                run_id=entry.run_id,
+                provider_id="acp",
+                provider_name="acp",
+                model="sdk-managed",
+            )
+        )
+        assert await asyncio.to_thread(persistence_started.wait, 0.5)
+        submission_lane = asyncio.create_task(
+            orch.issue_transition_lock(entry.issue.id).acquire(
+                timeout_seconds=0.2
+            )
+        )
+        error = await staging
+        assert "bounded task-authority deadline" in str(error)
+        assert await submission_lane
+        orch.issue_transition_lock(entry.issue.id).release()
+        assert entry.provider_started is False
+        assert entry.session is None
+        orch._release_audit_budget_reservation.assert_called_once()
+        release_persistence.set()
+        await asyncio.sleep(0)
+
+    asyncio.run(scenario())
+
+
+def test_pre_provider_timeout_exits_without_ghost_and_authority_lanes_continue(
+    tmp_path,
+) -> None:
+    """The complete worker path retires its row before publishing a retry."""
+
+    async def scenario() -> None:
+        orch = _orchestrator(tmp_path)
+        orch.config.terminal_control_lock_timeout_seconds = 0.1
+        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        entry = _entry()
+        orch.state.running[entry.issue.id] = entry
+        orch.state.claimed.add(entry.issue.id)
+        orch.state.claimed_issues[entry.issue.id] = entry.issue
+        orch.provider_store.get = MagicMock(return_value=None)
+        orch._resolve_dispatch_targets = MagicMock(return_value=[])
+        orch._apply_project_provider_whitelist = MagicMock(
+            side_effect=lambda targets, _issue: (targets, False)
+        )
+        orch._reserve_auditor_for_contributor = AsyncMock(return_value=([], None))
+        orch._release_audit_budget_reservation = MagicMock(return_value=True)
+        orch._run_acp_worker = AsyncMock()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = entry.issue
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._schedule_implementation_workflow_event = MagicMock(
+            return_value=SimpleNamespace(job_id="retry-job")
+        )
+        orch._notify_observers = MagicMock()
+        persistence_started = threading.Event()
+        release_persistence = threading.Event()
+
+        def blocked_persistence(*_args, **_kwargs) -> None:
+            persistence_started.set()
+            assert release_persistence.wait(timeout=2)
+
+        orch._persist_work_contributor = blocked_persistence
+        profile = AgentProfile(
+            name="acp-test",
+            command="",
+            mode="acp",
+            model="sdk-managed",
+        )
+
+        with (
+            patch.object(orch, "_fire_task_cost_record"),
+            patch.object(orch, "_fire_telemetry_comment"),
+        ):
+            worker = asyncio.create_task(
+                orch._run_worker(
+                    entry.issue,
+                    attempt=0,
+                    profile=profile,
+                    run_id=entry.run_id,
+                )
+            )
+            assert await asyncio.to_thread(persistence_started.wait, 0.5)
+            await asyncio.wait_for(worker, timeout=0.5)
+
+        assert entry.issue.id not in orch.state.running
+        assert entry.issue.id not in orch.state.claimed
+        assert entry.issue.id not in orch.state.claimed_issues
+        orch._run_acp_worker.assert_not_awaited()
+        retry_calls = [
+            call.kwargs
+            for call in orch._schedule_implementation_workflow_event.call_args_list
+            if call.kwargs.get("action") == "implementation_retry"
+        ]
+        assert len(retry_calls) == 1
+
+        effects = object.__new__(OrchestratorImplementationEffects)
+        effects.orchestrator = orch
+        async with effects._issue_authority_lane(entry.issue):
+            pass
+        async with _submission_authority_lock(orch, entry.issue.id):
+            pass
+
+        release_persistence.set()
+        await asyncio.sleep(0)
+
+    asyncio.run(scenario())
+
+
+def test_late_pre_provider_write_settles_before_successor_provider_contact(
+    tmp_path,
+) -> None:
+    """Late A cannot overwrite B's contributor identity after A retires."""
+
+    async def scenario() -> None:
+        orch = _orchestrator(tmp_path)
+        orch.config.terminal_control_lock_timeout_seconds = 0.1
+        issue = _entry().issue
+        entry_a = _entry()
+        entry_a.run_id = "run-a"
+        orch.state.running[issue.id] = entry_a
+        orch.provider_store.get = MagicMock(
+            side_effect=lambda provider_id: SimpleNamespace(
+                id=provider_id,
+                name=provider_id,
+                mode="api",
+            )
+        )
+        orch._apply_project_provider_whitelist = MagicMock(
+            side_effect=lambda targets, _issue: (targets, False)
+        )
+        orch._reserve_auditor_for_contributor = AsyncMock(
+            side_effect=lambda _issue, targets, **_kwargs: (targets, None)
+        )
+        orch._release_audit_budget_reservation = MagicMock(return_value=True)
+
+        store: dict[str, dict] = {}
+        store_lock = threading.Lock()
+        late_a_write_started = threading.Event()
+        release_late_a = threading.Event()
+        late_a_write_finished = threading.Event()
+        tracker = MagicMock()
+
+        def get_metadata(identifier: str) -> dict:
+            with store_lock:
+                return copy.deepcopy(store.get(identifier, {}))
+
+        def set_metadata_field(identifier: str, key: str, value: object) -> None:
+            provider_ids = {
+                row.get("provider_id")
+                for row in value.get("runs", [])
+                if isinstance(row, dict)
+            }
+            if provider_ids == {"provider-a"}:
+                late_a_write_started.set()
+                assert release_late_a.wait(timeout=2)
+            with store_lock:
+                store.setdefault(identifier, {})[key] = copy.deepcopy(value)
+            if provider_ids == {"provider-a"}:
+                late_a_write_finished.set()
+
+        tracker.get_metadata.side_effect = get_metadata
+        tracker.set_metadata_field.side_effect = set_metadata_field
+        orch._project_trackers[issue.project_id] = tracker
+
+        stage_a = asyncio.create_task(
+            orch._stage_work_contributor_launch(
+                issue,
+                run_id="run-a",
+                provider_id="provider-a",
+                provider_name="Provider A",
+                model="model-a",
+            )
+        )
+        assert await asyncio.to_thread(late_a_write_started.wait, 0.5)
+        error_a = await stage_a
+        assert "bounded task-authority deadline" in str(error_a)
+
+        entry_b = _entry()
+        entry_b.run_id = "run-b"
+        orch.state.running[issue.id] = entry_b
+        error_b_while_a_is_late = await orch._stage_work_contributor_launch(
+            issue,
+            run_id="run-b",
+            provider_id="provider-b",
+            provider_name="Provider B",
+            model="model-b",
+        )
+        assert "Prior contributor evidence is still settling" in str(
+            error_b_while_a_is_late
+        )
+        assert tracker.set_metadata_field.call_count == 1
+
+        release_late_a.set()
+        assert await asyncio.to_thread(late_a_write_finished.wait, 0.5)
+        for _ in range(50):
+            if not orch._work_contributor_lock(issue.id).locked():
+                break
+            await asyncio.sleep(0.01)
+
+        error_b = await orch._stage_work_contributor_launch(
+            issue,
+            run_id="run-b",
+            provider_id="provider-b",
+            provider_name="Provider B",
+            model="model-b",
+        )
+        assert error_b is None
+        contributors = load_contributors(store[issue.identifier])
+        assert {contributor.provider_id for contributor in contributors} == {
+            "provider-a",
+            "provider-b",
+        }
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("late_tracker_failure", [False, True])
+def test_cancelled_pre_provider_evidence_releases_task_authority(
+    tmp_path,
+    late_tracker_failure,
+) -> None:
+    async def scenario() -> None:
+        orch = _orchestrator(tmp_path)
+        orch.config.terminal_control_lock_timeout_seconds = 0.1
+        entry = _entry()
+        orch.state.running[entry.issue.id] = entry
+        orch.provider_store.get = MagicMock(return_value=None)
+        orch._reserve_auditor_for_contributor = AsyncMock(return_value=([], None))
+        persistence_started = threading.Event()
+        release_persistence = threading.Event()
+
+        def blocked_persistence(*_args, **_kwargs) -> None:
+            persistence_started.set()
+            release_persistence.wait(timeout=2)
+            if late_tracker_failure:
+                raise RuntimeError("late tracker failure")
+
+        orch._persist_work_contributor = blocked_persistence
+        staging = asyncio.create_task(
+            orch._stage_work_contributor_launch(
+                entry.issue,
+                run_id=entry.run_id,
+                provider_id="acp",
+                provider_name="acp",
+                model="sdk-managed",
+            )
+        )
+        assert await asyncio.to_thread(persistence_started.wait, 0.5)
+        staging.cancel()
+        if late_tracker_failure:
+            release_persistence.set()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(staging, timeout=0.3)
+
+        lock = orch.issue_transition_lock(entry.issue.id)
+        assert await lock.acquire(timeout_seconds=0.1)
+        lock.release()
+        assert entry.provider_started is False
+        assert entry.session is None
+        release_persistence.set()
+        await asyncio.sleep(0)
+
+    asyncio.run(scenario())
 
 
 def test_restart_journal_failure_installs_durable_retry_and_fails_closed(

@@ -174,6 +174,34 @@ def test_provenance_control_busy_is_structured_and_never_mutates(tmp_path):
     broadcast.assert_not_awaited()
 
 
+def test_retain_task_authority_busy_is_structured_and_never_mutates(tmp_path):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    orch.config.terminal_control_lock_timeout_seconds = 0.05
+    broadcast = AsyncMock()
+    client = TestClient(app, raise_server_exceptions=False)
+
+    with (
+        orch.issue_transition_lock(issue.id).sync(),
+        _server_auth(),
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new=broadcast),
+    ):
+        response = _request(client, "retain")
+
+    assert response.status_code == 503
+    assert response.json()["error"] == {
+        "code": "control_busy",
+        "message": response.json()["error"]["message"],
+        "retryable": True,
+        "issue_id": issue.id,
+        "timeout_seconds": 0.2,
+    }
+    assert "retry the exact request" in response.json()["error"]["message"]
+    assert tracker.metadata == {}
+    assert tracker.update_calls == []
+    broadcast.assert_not_awaited()
+
+
 def test_new_revision_control_busy_preserves_retained_marker_and_status(tmp_path):
     orch, tracker, issue = _orchestrator(tmp_path)
     guarded = orch._project_trackers["proj-1"]
@@ -205,6 +233,44 @@ def test_new_revision_control_busy_preserves_retained_marker_and_status(tmp_path
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "control_busy"
     assert response.json()["error"]["retryable"] is True
+    assert tracker.metadata == retained_metadata
+    assert tracker.update_calls == []
+    assert issue.state == "Merged"
+    broadcast.assert_not_awaited()
+
+
+def test_new_revision_task_authority_busy_preserves_marker_and_status(tmp_path):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    orch.config.terminal_control_lock_timeout_seconds = 0.05
+    client = TestClient(app, raise_server_exceptions=False)
+    with (
+        _server_auth(),
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new=AsyncMock()),
+    ):
+        retained = _request(client, "retain")
+    assert retained.status_code == 200
+    retained_metadata = copy.deepcopy(tracker.metadata)
+    tracker.update_calls.clear()
+    broadcast = AsyncMock()
+
+    with (
+        orch.issue_transition_lock(issue.id).sync(),
+        _server_auth(),
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new=broadcast),
+    ):
+        response = _request(client, "new-revision")
+
+    assert response.status_code == 503
+    assert response.json()["error"] == {
+        "code": "control_busy",
+        "message": response.json()["error"]["message"],
+        "retryable": True,
+        "issue_id": issue.id,
+        "timeout_seconds": 0.2,
+    }
+    assert "retry the exact request" in response.json()["error"]["message"]
     assert tracker.metadata == retained_metadata
     assert tracker.update_calls == []
     assert issue.state == "Merged"

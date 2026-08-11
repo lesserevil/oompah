@@ -2,6 +2,8 @@
 
 import asyncio
 import subprocess
+import threading
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
@@ -12,8 +14,13 @@ from oompah import task_cli
 from oompah.integration import IntegrationRecord
 from oompah.integration_queue import IntegrationQueueStore
 from oompah.models import Issue, Project
+from oompah.orchestrator import CrossLoopTaskLock
 from oompah.projects import ProjectError, ProjectStore
-from oompah.server import app
+from oompah.server import (
+    SubmissionAuthorityBusyError,
+    _submission_authority_lock,
+    app,
+)
 
 
 def _issue() -> Issue:
@@ -55,6 +62,86 @@ def test_submit_cli_sends_git_evidence_and_summary():
     )
     assert request.call_args.kwargs["data"]["head_sha"] == "a" * 40
     assert request.call_args.kwargs["data"]["summary"] == "Implemented and tested"
+
+
+def test_submit_endpoint_returns_retryable_busy_when_task_authority_is_stuck():
+    issue = _issue()
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    authority_lock = CrossLoopTaskLock()
+    orch = MagicMock()
+    orch._tracker_for_project.return_value = tracker
+    orch.issue_transition_lock.return_value = authority_lock
+    orch.config.terminal_control_lock_timeout_seconds = 0.05
+
+    with (
+        authority_lock.sync(),
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        TestClient(app, raise_server_exceptions=False) as client,
+    ):
+        response = client.post(
+            "/api/v1/issues/TASK-2/submit",
+            json={
+                "project_id": "proj-1",
+                "task_branch": "oompah/task/TASK-2",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+                "summary": "Exact retry",
+            },
+        )
+
+    assert response.status_code == 503
+    assert response.json()["error"] == {
+        "code": "submission_authority_busy",
+        "message": (
+            "task submission authority is busy; retry the exact request "
+            "(issue_id=TASK-2, waited=0.2s)"
+        ),
+        "retryable": True,
+        "issue_id": "TASK-2",
+        "timeout_seconds": 0.2,
+    }
+    tracker.update_issue.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_submission_authority_lane_releases_synchronous_legacy_lock():
+    authority_lock = threading.Lock()
+    orch = SimpleNamespace(
+        config=SimpleNamespace(terminal_control_lock_timeout_seconds=0.05),
+        issue_transition_lock=lambda _issue_id: authority_lock,
+    )
+
+    async with _submission_authority_lock(orch, "TASK-2"):
+        assert authority_lock.locked()
+
+    assert not authority_lock.locked()
+
+
+@pytest.mark.asyncio
+async def test_submission_authority_lane_bounds_contended_synchronous_lock():
+    authority_lock = threading.Lock()
+    authority_lock.acquire()
+    delayed_release = threading.Timer(0.5, authority_lock.release)
+    delayed_release.start()
+    orch = SimpleNamespace(
+        config=SimpleNamespace(terminal_control_lock_timeout_seconds=0.05),
+        issue_transition_lock=lambda _issue_id: authority_lock,
+    )
+
+    try:
+        started = asyncio.get_running_loop().time()
+        with pytest.raises(SubmissionAuthorityBusyError):
+            async with _submission_authority_lock(orch, "TASK-2"):
+                raise AssertionError("contended synchronous lock was admitted")
+        assert asyncio.get_running_loop().time() - started < 0.4
+        assert authority_lock.locked()
+    finally:
+        if authority_lock.locked():
+            authority_lock.release()
+        delayed_release.cancel()
+        delayed_release.join()
 
 
 def test_submit_endpoint_accepts_the_assigned_task_worktree_and_enqueues_it(

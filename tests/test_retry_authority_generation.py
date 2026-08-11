@@ -16,8 +16,16 @@ from oompah.config import ServiceConfig
 from oompah.focus import BUILTIN_FOCI, select_focus
 from oompah.integration import IntegrationRecord
 from oompah.models import Issue, RetryEntry, RunningEntry
-from oompah.orchestrator import DispatchAuthorityRevoked, Orchestrator
-from oompah.server import _cancel_retry_for_authority_change
+from oompah.orchestrator import (
+    CrossLoopTaskLock,
+    DispatchAuthorityRevoked,
+    Orchestrator,
+)
+from oompah.server import (
+    SubmissionAuthorityBusyError,
+    _cancel_retry_for_authority_change,
+    _submission_authority_lock,
+)
 from oompah.tracker import TrackerError
 
 
@@ -659,6 +667,48 @@ def test_dispatch_setup_cancelled_before_status_write(tmp_path):
         orch._run_worker.assert_not_awaited()
         assert issue.id not in orch.state.claimed
         assert issue.id not in orch.state.claimed_issues
+
+    asyncio.run(scenario())
+
+
+def test_cross_loop_task_lock_has_a_bounded_retryable_acquisition() -> None:
+    async def scenario() -> None:
+        lock = CrossLoopTaskLock()
+        assert await lock.acquire()
+        try:
+            assert not await lock.acquire(timeout_seconds=0.02)
+        finally:
+            lock.release()
+
+        assert await lock.acquire(timeout_seconds=0.02)
+        lock.release()
+
+    asyncio.run(scenario())
+
+
+def test_submission_authority_wait_is_bounded_and_releases_for_retry() -> None:
+    async def scenario() -> None:
+        lock = CrossLoopTaskLock()
+        orch = SimpleNamespace(
+            config=SimpleNamespace(
+                terminal_control_lock_timeout_seconds=0.05,
+                worker_termination_timeout_ms=50,
+            ),
+            issue_transition_lock=lambda _issue_id: lock,
+        )
+        assert await lock.acquire()
+        try:
+            with pytest.raises(SubmissionAuthorityBusyError) as raised:
+                async with _submission_authority_lock(orch, "task-1"):
+                    raise AssertionError("bounded acquisition unexpectedly won")
+            assert raised.value.issue_id == "task-1"
+            assert raised.value.timeout_seconds == pytest.approx(0.2)
+        finally:
+            lock.release()
+
+        async with _submission_authority_lock(orch, "task-1"):
+            assert lock.locked()
+        assert not lock.locked()
 
     asyncio.run(scenario())
 

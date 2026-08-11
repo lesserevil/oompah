@@ -1541,9 +1541,32 @@ class CrossLoopTaskLock:
     def __init__(self) -> None:
         self._lock = threading.Lock()
 
-    async def acquire(self) -> bool:
+    async def acquire(self, *, timeout_seconds: float | None = None) -> bool:
+        """Acquire the mutex without blocking an event-loop thread.
+
+        Task authority is also used by API and durable-workflow control paths.
+        Those callers must be able to fail retryably instead of retaining an
+        HTTP connection forever when an older synchronous mutation is wedged.
+        Ordinary lifecycle callers keep the historical unbounded behaviour by
+        omitting ``timeout_seconds``.
+        """
+
+        if timeout_seconds is not None and timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+        loop = asyncio.get_running_loop()
+        deadline = (
+            None
+            if timeout_seconds is None
+            else loop.time() + float(timeout_seconds)
+        )
         while not self._lock.acquire(blocking=False):
-            await asyncio.sleep(0.01)
+            if deadline is not None:
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    return False
+                await asyncio.sleep(min(0.01, remaining))
+            else:
+                await asyncio.sleep(0.01)
         return True
 
     def release(self) -> None:
@@ -2184,6 +2207,13 @@ class Orchestrator:
         # while tracker writes and runtime ownership themselves cannot cross.
         self._issue_transition_locks: dict[str, CrossLoopTaskLock] = {}
         self._issue_transition_locks_guard = threading.Lock()
+        # Contributor metadata is a read/merge/write document.  Keep its
+        # serialization independent from task lifecycle authority: a tracker
+        # adapter can outlive the bounded pre-provider wait, but that late
+        # write must neither retain ``issue_transition_lock`` nor overwrite a
+        # successor generation's contributor evidence.
+        self._work_contributor_locks: dict[str, threading.Lock] = {}
+        self._work_contributor_locks_guard = threading.Lock()
         # Per-project branch-to-issue index: maps work_branch → identifier.
         # Built lazily the first time _resolve_task_for_branch needs it for
         # a project and cleared with tracker read caches each tick so the
@@ -10080,6 +10110,13 @@ class Orchestrator:
                 key,
                 CrossLoopTaskLock(),
             )
+
+    def _work_contributor_lock(self, issue_id: str) -> threading.Lock:
+        """Return the isolated read/merge/write lock for contributor evidence."""
+
+        key = str(issue_id)
+        with self._work_contributor_locks_guard:
+            return self._work_contributor_locks.setdefault(key, threading.Lock())
 
     async def request_terminal_transition_owned(
         self,
@@ -54992,44 +55029,62 @@ class Orchestrator:
         self,
         issue: Issue,
         contributor: WorkContributor,
+        *,
+        _lock_held: bool = False,
     ) -> None:
-        """Upsert and verify one contributor while the issue lock is held.
+        """Serialize, upsert, and verify one contributor record.
 
-        Pre-launch and completion writers deliberately share this path.  Its
-        caller owns :meth:`issue_transition_lock`, so two read/merge/write
-        cycles cannot discard each other's tracker metadata.
+        Pre-launch and completion writers deliberately share a metadata-only
+        lock.  It is separate from :meth:`issue_transition_lock` so a slow
+        tracker adapter cannot retain task lifecycle authority, while two
+        read/merge/write cycles still cannot discard each other's evidence.
+        ``_lock_held`` is reserved for the pre-provider thread whose caller
+        acquired the lock before scheduling it and releases it in ``finally``.
         """
 
-        with AUDITOR_POLICY_AUTHORITY.mutation():
-            tracker = self._tracker_for_issue(issue)
-            metadata = dict(tracker.get_metadata(issue.identifier) or {})
-            existing = metadata.get(_WORK_CONTRIBUTORS_KEY)
-            merged = _merge_work_contributors(
-                existing if isinstance(existing, dict) else None,
-                contributor,
-            )
-            tracker.set_metadata_field(issue.identifier, _WORK_CONTRIBUTORS_KEY, merged)
+        contributor_lock = self._work_contributor_lock(issue.id)
 
-            observed = dict(tracker.get_metadata(issue.identifier) or {})
-            persisted = next(
-                (
-                    value
-                    for value in _load_work_contributors(observed)
-                    if value.run_id == contributor.run_id
-                ),
-                None,
-            )
-            if (
-                persisted is None
-                or persisted.provider_id != contributor.provider_id
-                or normalize_contributor_model(persisted.model_id)
-                != contributor.model_id
-                or persisted.source_sha != contributor.source_sha
-                or persisted.completed_at != contributor.completed_at
-            ):
-                raise RuntimeError(
-                    "tracker did not confirm the exact contributor evidence upsert"
+        def _write() -> None:
+            with AUDITOR_POLICY_AUTHORITY.mutation():
+                tracker = self._tracker_for_issue(issue)
+                metadata = dict(tracker.get_metadata(issue.identifier) or {})
+                existing = metadata.get(_WORK_CONTRIBUTORS_KEY)
+                merged = _merge_work_contributors(
+                    existing if isinstance(existing, dict) else None,
+                    contributor,
                 )
+                tracker.set_metadata_field(
+                    issue.identifier,
+                    _WORK_CONTRIBUTORS_KEY,
+                    merged,
+                )
+
+                observed = dict(tracker.get_metadata(issue.identifier) or {})
+                persisted = next(
+                    (
+                        value
+                        for value in _load_work_contributors(observed)
+                        if value.run_id == contributor.run_id
+                    ),
+                    None,
+                )
+                if (
+                    persisted is None
+                    or persisted.provider_id != contributor.provider_id
+                    or normalize_contributor_model(persisted.model_id)
+                    != contributor.model_id
+                    or persisted.source_sha != contributor.source_sha
+                    or persisted.completed_at != contributor.completed_at
+                ):
+                    raise RuntimeError(
+                        "tracker did not confirm the exact contributor evidence upsert"
+                    )
+
+        if _lock_held:
+            _write()
+            return
+        with contributor_lock:
+            _write()
 
     def _persist_work_contributor_launch(
         self,
@@ -55041,7 +55096,7 @@ class Orchestrator:
         model: str | None,
         focus: str | None = None,
     ) -> None:
-        """Compatibility wrapper for callers that already own the issue lock."""
+        """Compatibility wrapper for synchronous pre-launch evidence callers."""
 
         source_branch = (
             getattr(issue, "work_branch", None)
@@ -55169,21 +55224,176 @@ class Orchestrator:
                 source_sha=None,
                 completed_at="",
             )
-            try:
-                persistence_task = asyncio.create_task(
-                    asyncio.to_thread(
-                        self._persist_work_contributor,
+            contributor_lock = self._work_contributor_lock(issue.id)
+            if not contributor_lock.acquire(blocking=False):
+                release_note = ""
+                if (
+                    not had_budget_reservation
+                    and not self._release_audit_budget_reservation(reservation_key)
+                ):
+                    release_note = (
+                        " The projected audit budget remains reserved because "
+                        "its durable release failed; repair service-state "
+                        "persistence."
+                    )
+                logger.warning(
+                    "Pre-provider contributor evidence is still settling from "
+                    "a retired generation issue_id=%s identifier=%s run_id=%s",
+                    issue.id,
+                    issue.identifier,
+                    run_id,
+                    extra={
+                        "pre_provider_retirement": {
+                            "reason": "prior_contributor_evidence_pending",
+                            "issue_id": issue.id,
+                            "identifier": issue.identifier,
+                            "run_id": run_id,
+                        }
+                    },
+                )
+                return (
+                    "Prior contributor evidence is still settling from a retired "
+                    "pre-provider generation. The successor runtime was retired "
+                    "for retry before provider contact."
+                    f"{release_note}"
+                )
+
+            def _persist_reserved_contributor() -> None:
+                try:
+                    self._persist_work_contributor(
                         issue,
                         contributor,
+                        _lock_held=True,
                     )
-                )
+                finally:
+                    contributor_lock.release()
+
+            def _consume_detached_persistence(
+                completed: asyncio.Task[None],
+            ) -> None:
+                with contextlib.suppress(BaseException):
+                    completed.result()
+
+            persistence_coroutine = asyncio.to_thread(
+                _persist_reserved_contributor,
+            )
+            try:
                 try:
-                    await asyncio.shield(persistence_task)
+                    persistence_task = asyncio.create_task(persistence_coroutine)
+                except BaseException:
+                    persistence_coroutine.close()
+                    contributor_lock.release()
+                    raise
+                persistence_task.add_done_callback(_consume_detached_persistence)
+                control_timeout = max(
+                    float(
+                        getattr(
+                            self.config,
+                            "terminal_control_lock_timeout_seconds",
+                            5.0,
+                        )
+                    ),
+                    0.1,
+                )
+                termination_timeout = max(
+                    float(
+                        getattr(
+                            self.config,
+                            "worker_termination_timeout_ms",
+                            10_000,
+                        )
+                    )
+                    / 1000.0,
+                    0.1,
+                )
+                persistence_timeout = max(
+                    min(control_timeout, termination_timeout / 2.0),
+                    0.05,
+                )
+
+                try:
+                    await asyncio.wait_for(
+                        asyncio.shield(persistence_task),
+                        timeout=persistence_timeout,
+                    )
+                except TimeoutError:
+                    # A synchronous tracker adapter cannot be cancelled after
+                    # its thread starts.  Stop retaining the process-wide task
+                    # authority mutex, though: owner claim, exact submit, and
+                    # shutdown must remain live while that isolated metadata
+                    # write finishes or fails.  The final provider authority
+                    # fence below is never reached on this path.
+                    release_note = ""
+                    if (
+                        not had_budget_reservation
+                        and not self._release_audit_budget_reservation(
+                            reservation_key
+                        )
+                    ):
+                        release_note = (
+                            " The projected audit budget remains reserved because "
+                            "its durable release failed; repair service-state "
+                            "persistence."
+                        )
+                    logger.error(
+                        "Pre-provider contributor evidence exceeded its bounded "
+                        "task-authority deadline issue_id=%s identifier=%s "
+                        "run_id=%s timeout_seconds=%s",
+                        issue.id,
+                        issue.identifier,
+                        run_id,
+                        persistence_timeout,
+                        extra={
+                            "pre_provider_retirement": {
+                                "reason": "contributor_evidence_timeout",
+                                "issue_id": issue.id,
+                                "identifier": issue.identifier,
+                                "run_id": run_id,
+                                "timeout_seconds": persistence_timeout,
+                            }
+                        },
+                    )
+                    return (
+                        "Cannot durably record exact contributor provider/model "
+                        "evidence before the bounded task-authority deadline. "
+                        "The pre-provider runtime was retired for retry; no "
+                        "provider or workspace was started."
+                        f"{release_note}"
+                    )
                 except asyncio.CancelledError:
-                    # The thread cannot be cancelled. Keep the issue mutex
-                    # until its read/merge/write/readback transaction ends.
-                    with contextlib.suppress(Exception):
-                        await persistence_task
+                    # Retirement may cancel this worker while the synchronous
+                    # adapter thread is still unwinding.  Give that exact write
+                    # one bounded grace period, then release task authority so
+                    # takeover/submission and zero-work shutdown can converge.
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.shield(persistence_task),
+                            timeout=persistence_timeout,
+                        )
+                    except TimeoutError:
+                        logger.warning(
+                            "Cancelled pre-provider contributor evidence did not "
+                            "finish before task-authority release issue_id=%s "
+                            "identifier=%s run_id=%s timeout_seconds=%s",
+                            issue.id,
+                            issue.identifier,
+                            run_id,
+                            persistence_timeout,
+                            extra={
+                                "pre_provider_retirement": {
+                                    "reason": "cancelled_contributor_evidence_timeout",
+                                    "issue_id": issue.id,
+                                    "identifier": issue.identifier,
+                                    "run_id": run_id,
+                                    "timeout_seconds": persistence_timeout,
+                                }
+                            },
+                        )
+                    except Exception:
+                        # The canceled worker still owns cancellation
+                        # semantics; a late tracker failure is consumed by the
+                        # ordinary pre-provider exit/retry path.
+                        pass
                     raise
             except Exception as exc:  # noqa: BLE001 - dispatch must fail closed
                 release_note = ""
@@ -55288,10 +55498,8 @@ class Orchestrator:
             if contributor is None:
                 return
 
-            issue = entry.issue
             try:
-                with self.issue_transition_lock(issue.id).sync():
-                    self._persist_work_contributor(issue, contributor)
+                self._persist_work_contributor(entry.issue, contributor)
                 logger.info(
                     "work_contributor: wrote %s run_id=%s provider=%s model=%s",
                     entry.identifier,
@@ -64753,9 +64961,9 @@ class Orchestrator:
                     context_entry=entry,
                     authority_issue=current,
                 )
-            self.state.claimed.discard(issue_id)
-            self.state.claimed_issues.pop(issue_id, None)
-            self.state.stall_counts.pop(issue_id, None)
+            retired = self._remove_running_entry_and_claims(issue_id, entry)
+            if retired:
+                self.state.stall_counts.pop(issue_id, None)
             self.event_bus.emit(
                 EventType.AGENT_COMPLETED
                 if reason == "normal"

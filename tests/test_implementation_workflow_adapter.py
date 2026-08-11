@@ -1403,6 +1403,75 @@ async def test_owner_claim_mutation_rechecks_job_after_submission_authority_lane
 
 
 @pytest.mark.asyncio
+async def test_owner_claim_authority_wait_is_bounded_and_retryable(tmp_path):
+    issue = make_issue(status=IN_PROGRESS)
+    orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
+    authority_lock = asyncio.Lock()
+    orch.issue_transition_lock = lambda _issue_id: authority_lock
+    orch.config.terminal_control_lock_timeout_seconds = 0.05
+    orch.config.worker_termination_timeout_ms = 50
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    await authority_lock.acquire()
+    try:
+        with pytest.raises(WorkflowActionError) as raised:
+            async with effects._issue_authority_lane(issue):
+                raise AssertionError("bounded owner lane unexpectedly won")
+        assert raised.value.retryable is True
+        assert "bounded task authority" in str(raised.value)
+    finally:
+        authority_lock.release()
+
+    async with effects._issue_authority_lane(issue):
+        assert authority_lock.locked()
+    assert not authority_lock.locked()
+
+
+@pytest.mark.asyncio
+async def test_owner_claim_authority_lane_releases_synchronous_legacy_lock():
+    authority_lock = threading.Lock()
+    effects = object.__new__(OrchestratorImplementationEffects)
+    effects.orchestrator = SimpleNamespace(
+        config=SimpleNamespace(terminal_control_lock_timeout_seconds=0.05),
+        issue_transition_lock=lambda _issue_id: authority_lock,
+    )
+    issue = SimpleNamespace(id="task-1")
+
+    async with effects._issue_authority_lane(issue):
+        assert authority_lock.locked()
+
+    assert not authority_lock.locked()
+
+
+@pytest.mark.asyncio
+async def test_owner_claim_authority_lane_bounds_contended_synchronous_lock():
+    authority_lock = threading.Lock()
+    authority_lock.acquire()
+    delayed_release = threading.Timer(0.5, authority_lock.release)
+    delayed_release.start()
+    effects = object.__new__(OrchestratorImplementationEffects)
+    effects.orchestrator = SimpleNamespace(
+        config=SimpleNamespace(terminal_control_lock_timeout_seconds=0.05),
+        issue_transition_lock=lambda _issue_id: authority_lock,
+    )
+    issue = SimpleNamespace(id="task-1")
+
+    try:
+        started = asyncio.get_running_loop().time()
+        with pytest.raises(WorkflowActionError) as raised:
+            async with effects._issue_authority_lane(issue):
+                raise AssertionError("contended synchronous lock was admitted")
+        assert raised.value.retryable is True
+        assert asyncio.get_running_loop().time() - started < 0.4
+        assert authority_lock.locked()
+    finally:
+        if authority_lock.locked():
+            authority_lock.release()
+        delayed_release.cancel()
+        delayed_release.join()
+
+
+@pytest.mark.asyncio
 async def test_direct_owner_revocation_publishes_state_after_exact_release(tmp_path):
     issue = make_issue()
     orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
