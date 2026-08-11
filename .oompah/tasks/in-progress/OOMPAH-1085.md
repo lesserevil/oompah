@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T14:57:41.042082Z'
+updated_at: '2026-08-11T15:23:21.897174Z'
 work_branch: OOMPAH-1085
 target_branch: null
 review_url: null
@@ -192,5 +192,10 @@ author: oompah
 created: 2026-08-11 14:57
 ---
 Rebased the repaired dedicated audit-successor implementation onto current origin/main fe9599111d478b8221a2949c878fecb61d558760 and pushed replacement exact head 7ca1e67353d25254370466b870728463dbf6f681. The repair atomically retires completed/absent exact running entries while retaining incomplete or contradictory evidence, marshals provider-thread callbacks onto the scheduler loop, snapshots shared maps safely, makes repeated worker-exit events idempotent, and keeps the event-post helper thin. Post-rebase verification: 178 focused event-loop/terminal-audit observability tests passed; terminal mutation scan 21/21; git diff check clean. Earlier pre-rebase adjacent evidence was 1,140 tests plus 261 focused and an independent repair review ACCEPT. Awaiting a fresh independent exact-head review before submission.
+---
+author: oompah
+created: 2026-08-11 15:23
+---
+Fresh fairness repair is pushed at exact head dcb52a5110f91cab5b6b732f5378ba13fb6a4d27, rebased on origin/main 6449341d762d9c7645271b8479dfa406e648be54. The dedicated terminal-audit owner now recomputes non-audit capacity reservation only after acquiring the shared audit lane lock, so runnable implementation proof published while the continuation waits cannot be missed. It preserves both the ordinary dispatcher's exact ready hint and runtime-published WorkDecision provider readiness, while excluding non-provider implementation control jobs. Deterministic races prove max_agents=1 keeps the implementation turn and max_agents=4 with a configured two-slot reserve launches only into the two unreserved slots. Verification: 246 focused audit/event/architecture tests passed; 912 adjacent terminal coordinator/enforcement/workflow/runtime/decision tests passed; terminal mutation scan 21/21; compileall and git diff checks clean. Branch is pushed and clean; awaiting fresh independent exact-head review. Do not submit or merge yet.
 ---
 <!-- COMMENTS:END -->
