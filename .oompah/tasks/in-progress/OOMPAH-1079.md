@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1079
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Lifecycle state publication failed'
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T10:43:32.317191Z'
-updated_at: '2026-08-11T10:59:48.405734Z'
+updated_at: '2026-08-11T11:00:04.336116Z'
 work_branch: null
 target_branch: null
 review_url: null
