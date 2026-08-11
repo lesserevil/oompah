@@ -12,7 +12,7 @@ labels:
 - workflow-liveness
 assignee: null
 created_at: '2026-08-11T15:35:51.682286Z'
-updated_at: '2026-08-11T15:52:18.754304Z'
+updated_at: '2026-08-11T16:21:17.226935Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-08-11 15:52
 ---
 Implementation is committed and pushed at exact head 423161adc09e447d172409e785f098323e5f45b5. Diagnosis: In Progress crash recovery treated retained accepted-submission metadata as current without revalidating the mutable remote task branch, so OOMPAH-1085 repeatedly rematerialized old-head validation jobs (7bd90702...) whose workflow generation could not match the live direct-owner assignment. Fix: stable remote branch/head revalidation parks unavailable, advanced, or racing accepted evidence; parked recovery suppresses lower-priority handoff/duplicate actions; exact recovered direct-owner validation carries the captured claim ID through TaskTransitionService; only an explicit verified current-head submit can materialize replacement validation. Regression coverage proves repeated reconcile retires the old lane at 0 required/0 materialized, restart does not resurrect it, exact resubmit creates one current 1/1 obligation, claim ABA/unavailable observations fail closed, and the exact claim transition commits once. Checks: 303 focused workflow/adapter/runtime tests passed; 90 owner-claim/submission tests passed; terminal status scan 21/21; diff and secret checks passed. Ready for independent exact-head review; not submitted or merged.
+---
+author: oompah
+created: 2026-08-11 16:21
+---
+Independent-review follow-up is committed and pushed at replacement head 5e86477733b7f30bf41e333a8d2c483cc12be0a2. The commit-time TOCTOU is closed: ordinary workflow mutations now support a final project-scoped mutation guard; validation submission re-reads the durable originating job, stable live remote task-branch head, and exact current direct-owner claim inside the same project publication lock as the final tracker read/write. A late remote advance, missing/unavailable authority, or owner-claim ABA rejects with transition.stale_precondition and cannot reach Ready to Integrate. Deterministic precommit-barrier regressions cover remote advance and a durably persisted owner-claim replacement after job/fact materialization; restart replay stays rejected and an explicit new exact-head submission converges once. Evidence: 428 runtime/transition/incident tests passed; 7 focused direct-owner validation tests passed; 43 submission-fencing/worker-submission tests passed; terminal mutation scan 21/21; staged and repository secret scans plus commit hooks passed. Branch remains In Progress for independent review; not submitted or merged.
 ---
 <!-- COMMENTS:END -->
