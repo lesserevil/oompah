@@ -1588,6 +1588,7 @@ def test_owner_claim_api_enforce_routes_claim_and_release_through_workflow(tmp_p
         ].kwargs
         assert claim_call["action"] is ImplementationAction.DIRECT_OWNER_CLAIM
         assert claim_call["payload"]["owner_id"] == "alice"
+        assert claim_call["payload"]["issue_id"] == issue.id
         tracker.update_issue.assert_not_called()
 
         external_claim = orch.grant_owner_claim(

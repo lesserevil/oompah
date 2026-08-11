@@ -42,6 +42,7 @@ from oompah.statuses import (
     READY_TO_INTEGRATE,
 )
 from oompah.task_transition_service import (
+    TaskTransitionService,
     TransitionAuthority,
     TransitionDisposition,
     TransitionJournal,
@@ -429,6 +430,93 @@ async def test_direct_owner_transition_rejection_compensates_exact_claim(
     assert compensated.state is ImplementationState.REVOKED
     assert compensated.owner_id == "project-owner"
     effects.receipts.close()
+    jobs.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("install_replacement", [False, True])
+async def test_missing_task_transition_compensates_durable_owner_identity(
+    tmp_path,
+    install_replacement,
+):
+    issue = make_issue(status=BACKLOG)
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    claim_id = "claim-before-task-disappears"
+    jobs, _context = make_context(
+        tmp_path,
+        generation="owner-missing-task",
+        action=ImplementationAction.DIRECT_OWNER_CLAIM,
+        evidence=issue_authority_version(issue),
+        payload={
+            "owner_id": "project-owner",
+            "issue_id": issue.id,
+            "claim_id": claim_id,
+            "expected_status": BACKLOG,
+        },
+    )
+    orch.workflow_job_store.close()
+    orch.workflow_job_store = jobs
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    journal = TransitionJournal(str(tmp_path / "missing-task-transitions.sqlite3"))
+    transition_service = TaskTransitionService(
+        project_id="project-a",
+        tracker=tracker,
+        journal=journal,
+    )
+
+    def remove_task_after_effect(phase, _job):
+        if phase != "transition_intent":
+            return
+        assert tracker.issues.pop(issue.identifier) is issue
+        if install_replacement:
+            orch.grant_owner_claim(
+                issue_id=issue.id,
+                project_id="project-a",
+                owner_login="replacement-owner",
+                claim_id="replacement-after-task-disappears",
+            )
+
+    worker = DurableWorkflowWorker(
+        store=jobs,
+        handlers={
+            ImplementationAction.DIRECT_OWNER_CLAIM.value: (
+                ImplementationWorkflowHandler(
+                    ProductionImplementationWorkflowBackend(effects)
+                )
+            )
+        },
+        transition_services={"project-a": transition_service},
+        worker_id="missing-owner-task-compensation-worker",
+        phase_observer=remove_task_after_effect,
+    )
+
+    result = await worker.run_once()
+
+    assert result.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    current = orch._owner_claim_for_issue(issue.id, "project-a")
+    if install_replacement:
+        assert current is not None
+        assert current.claim_id == "replacement-after-task-disappears"
+        assert current.owner_login == "replacement-owner"
+    else:
+        assert current is None
+    durable = jobs.get(result.job_id)
+    assert durable.state is WorkflowJobState.EXHAUSTED
+    compensation = durable.checkpoint["transition_compensation"]
+    assert compensation["claim_id"] == claim_id
+    assert compensation["reason_code"] == "transition.task_missing"
+    assert compensation["released"] is (not install_replacement)
+    assert compensation["replacement_claim_id"] == (
+        "replacement-after-task-disappears" if install_replacement else None
+    )
+    revoked = ImplementationDisposition.from_dict(
+        durable.checkpoint["verification"]["disposition"]
+    )
+    assert revoked.state is ImplementationState.REVOKED
+    assert tracker.status_writes == []
+    effects.receipts.close()
+    journal.close()
     jobs.close()
 
 
@@ -1640,6 +1728,7 @@ def test_enforce_bootstrap_preserves_preclaims_and_revokes_inactive_claims(tmp_p
         call.kwargs["task_id"]: call.kwargs for call in schedule_event.call_args_list
     }
     assert scheduled["OPEN-1"]["action"] is ImplementationAction.DIRECT_OWNER_CLAIM
+    assert scheduled["OPEN-1"]["payload"]["issue_id"] == "project-a:OPEN-1"
     assert (
         scheduled["ACTIVE-1"]["action"]
         is ImplementationAction.DIRECT_OWNER_CLAIM

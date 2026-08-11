@@ -22,6 +22,7 @@ from collections.abc import Mapping
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Any
 
 from oompah.duplicate_screening import (
@@ -858,6 +859,13 @@ class OrchestratorImplementationEffects:
                     category=WorkflowFailureCategory.POLICY,
                     retryable=False,
                 )
+            durable_issue_id = _text(payload.get("issue_id"))
+            if durable_issue_id and durable_issue_id != _text(issue.id):
+                raise WorkflowActionError(
+                    "direct-owner claim task identity changed",
+                    category=WorkflowFailureCategory.STALE_EVIDENCE,
+                    retryable=False,
+                )
             self.orchestrator._cancel_retry_for_issue(
                 issue_id=issue.id,
                 identifier=issue.identifier,
@@ -1470,17 +1478,30 @@ class ProductionImplementationWorkflowBackend:
                 category=WorkflowFailureCategory.POLICY,
                 retryable=False,
             )
-        issue = await asyncio.to_thread(self.effects._issue, context.job.task_id)
+        issue = None
+        issue_id = _text(payload.get("issue_id"))
+        if not issue_id:
+            issue = await asyncio.to_thread(
+                self.effects._issue,
+                context.job.task_id,
+            )
+            issue_id = _text(issue.id)
+        if not issue_id:
+            raise WorkflowActionError(
+                "direct-owner compensation is missing durable task identity",
+                category=WorkflowFailureCategory.POLICY,
+                retryable=False,
+            )
         try:
             released = await asyncio.to_thread(
                 self.effects.orchestrator.release_owner_claim,
-                issue_id=issue.id,
+                issue_id=issue_id,
                 project_id=self.effects.project_id,
                 expected_claim_id=claim_id,
             )
             current = await asyncio.to_thread(
                 self.effects.orchestrator._owner_claim_for_issue,
-                issue.id,
+                issue_id,
                 self.effects.project_id,
             )
         except Exception as exc:
@@ -1497,6 +1518,20 @@ class ProductionImplementationWorkflowBackend:
             )
         receipt = await asyncio.to_thread(self.effects.receipts.get, context)
         if receipt is None:
+            if issue is None:
+                try:
+                    issue = await asyncio.to_thread(
+                        self.effects._issue,
+                        context.job.task_id,
+                    )
+                except Exception:  # tracker object may be permanently absent
+                    issue = SimpleNamespace(
+                        work_branch=None,
+                        branch_name=None,
+                        head_sha=None,
+                        review_head=None,
+                        integration=None,
+                    )
             receipt = self.effects._disposition(
                 context,
                 issue=issue,
@@ -1616,6 +1651,7 @@ def build_implementation_workflow_handlers(
             )
             payload = {
                 "owner_id": claim.owner_login,
+                "issue_id": issue.id,
                 "claim_id": claim.claim_id,
                 "expected_status": issue.state,
                 "work_branch": _text(issue.work_branch or issue.branch_name),
