@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1090
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Keep standalone delivery authority alive across long gates and terminal staging
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:26:47.067526Z'
-updated_at: '2026-08-11T15:57:29.249119Z'
+updated_at: '2026-08-11T15:58:20.115684Z'
 work_branch: OOMPAH-1090
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/825
@@ -35,8 +35,6 @@ oompah.integration:
   head_sha: 6703b97115b0b7aff922deab2ead89119bc1d486
   submitted_at: '2026-08-11T15:14:35.883839+00:00'
   updated_at: '2026-08-11T15:39:50.437327+00:00'
-  wait_reason: review_generation_requeue
-  wait_generation: review:b0eaa335e2e64cf9e4307c8eaa0f3d27e7f4f5608c4594dce8841a08dcaafde6
 oompah.work_branch: OOMPAH-1090
 oompah.review_url: https://github.com/lesserevil/oompah/pull/825
 oompah.review_number: '825'
