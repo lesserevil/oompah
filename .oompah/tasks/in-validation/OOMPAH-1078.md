@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T10:13:51.547647Z'
-updated_at: '2026-08-11T10:59:12.834271Z'
+updated_at: '2026-08-11T11:02:38.121291Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,6 +67,30 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-11T10:54:43.968558+00:00'
     applied_at: '2026-08-11T10:54:51.496604+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f0b9659034dd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1078
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fb7fe1d32d9e1c5ac12f5a590f2393ba9621958bcf9103d1c5f4b625aee929d0
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Exact head 9c78b999f9b8eeddda14e2c783ea01a688543325 passed 530 author
+      tests, 441 independent replacement-review tests with ACCEPT, protected Python
+      3.11/3.12/3.13 CI, and merged through PR 815 as 9ae083d39357d537bb91ce82b171ee85a82ac6a6.
+      Deployed live canary returned the actionable coordinator-owned 409 for direct
+      In Validation, preserved OOMPAH-1076 In Progress, and preserved its exact direct-owner
+      claim.
+    created_at: '2026-08-11T11:02:35.311460+00:00'
+    selected_ref: origin/OOMPAH-1078
+    selected_sha: 9c78b999f9b8eeddda14e2c783ea01a688543325
+    applied: false
   version: 1
   pending_chain:
   - version: 1

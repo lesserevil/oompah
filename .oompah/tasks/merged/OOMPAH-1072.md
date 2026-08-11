@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T08:11:28.178710Z'
-updated_at: '2026-08-11T11:02:24.186021Z'
+updated_at: '2026-08-11T11:02:31.262951Z'
 work_branch: OOMPAH-1072
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/809
@@ -58,6 +58,20 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-11T10:43:03.960539+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1072
+    target_state: Merged
+    evidence_fingerprint: 43f2ef7389581c89fbf3b0d8956fe3787efa5637914147b2245dc54cc1b5aa8c
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1072
+    selected_sha: 4da80c799a785da5112eec35773025224e6f1d3c
+    landing_revision: null
+    audit_ids:
+    - audit-00d5d7755c13
+    - audit-078f5a8faba5
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T11:02:29.645867+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1072
@@ -72,6 +86,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-11T10:43:03.960549+00:00'
     applied_at: '2026-08-11T10:43:11.331644+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-6748b960edb0
@@ -95,7 +110,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T11:02:19.636591+00:00'
     selected_ref: origin/OOMPAH-1072
     selected_sha: 4da80c799a785da5112eec35773025224e6f1d3c
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -142,7 +157,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1072
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -157,6 +172,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T08:56:12.618014+00:00'
     selected_ref: origin/OOMPAH-1072
     selected_sha: 4da80c799a785da5112eec35773025224e6f1d3c
+    updated_at: '2026-08-11T11:02:29.645831+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-c5d09f31dc08
@@ -263,5 +279,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 21m 58s
 - Log: OOMPAH-1072__20260811T102136Z.jsonl
+---
+author: oompah
+created: 2026-08-11 11:02
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: In-flight finalization workaround. Audit audit-00d5d7755c13 returned PASS at exact head 4da80c799a785da5112eec35773025224e6f1d3c with the recorded 171.3s make test gate and complete safe evidence, but submitted target_state Done against the task requested terminal state Merged; the API accepted it with applied_status In Validation and failed to finalize across restart. Apply the original requested Merged state while the target-mismatch bug is filed.
 ---
 <!-- COMMENTS:END -->
