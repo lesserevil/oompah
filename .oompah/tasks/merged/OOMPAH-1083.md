@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1083
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Publish quality-gate lifecycle state before stale PID alerts escape
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:41:11.895675Z'
-updated_at: '2026-08-11T13:13:50.490612Z'
+updated_at: '2026-08-11T13:18:16.999220Z'
 work_branch: OOMPAH-1083
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/820
@@ -55,6 +55,7 @@ oompah.terminal_audit:
     digest: d45dbe7ec74b541ada3f91bb32e0540ea540db011e45564e57d3ddee219dfe57
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1083","audit-70da08ae8588","attempt-5f050ef39385"]': '2026-08-11T13:12:21.540557+00:00'
+    '["proj-14849f1b","OOMPAH-1083","audit-c104759340b1","attempt-74714f6fe0ed"]': '2026-08-11T13:18:12.437629+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1083
@@ -69,6 +70,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-11T13:12:21.540573+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1083
+    target_state: Merged
+    evidence_fingerprint: d45dbe7ec74b541ada3f91bb32e0540ea540db011e45564e57d3ddee219dfe57
+    workflow_revision: null
+    selected_ref: be48003555fed724a752512d73fd70d5c72b2795
+    selected_sha: be48003555fed724a752512d73fd70d5c72b2795
+    landing_revision: null
+    audit_ids:
+    - audit-c104759340b1
+    kind: result
+    applied: true
+    retired_at: '2026-08-11T13:18:12.437649+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1083
@@ -83,6 +97,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-11T13:12:21.540584+00:00'
     applied_at: '2026-08-11T13:12:28.772065+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1083
+    audit_id: audit-c104759340b1
+    attempt_id: attempt-74714f6fe0ed
+    target_state: Merged
+    evidence_fingerprint: d45dbe7ec74b541ada3f91bb32e0540ea540db011e45564e57d3ddee219dfe57
+    status: Merged
+    audit_ids:
+    - audit-c104759340b1
+    kind: result
+    applied: false
+    created_at: '2026-08-11T13:18:12.437664+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -130,7 +156,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1083
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -139,7 +165,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-74714f6fe0ed
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -151,6 +177,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1083
       selected_ref: be48003555fed724a752512d73fd70d5c72b2795
       selected_sha: be48003555fed724a752512d73fd70d5c72b2795
+      verdict: pass
+      completed_at: '2026-08-11T13:18:12.437480+00:00'
+      ended_at: '2026-08-11T13:18:12.437480+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -161,7 +190,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-70da08ae8588
     selected_ref: be48003555fed724a752512d73fd70d5c72b2795
     selected_sha: be48003555fed724a752512d73fd70d5c72b2795
-    updated_at: '2026-08-11T13:13:41.809554+00:00'
+    updated_at: '2026-08-11T13:18:12.437480+00:00'
     eligible_at: '2026-08-11T13:12:21.540406+00:00'
   attempt_history:
   - version: 1
