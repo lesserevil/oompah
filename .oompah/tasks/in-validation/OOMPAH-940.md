@@ -33,7 +33,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-11T08:19:45.766562Z'
+updated_at: '2026-08-11T08:25:20.896507Z'
 work_branch: epic-OOMPAH-940
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/757
@@ -383,12 +383,28 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-940
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 94a960ba65598196a55806687fd80d6be305ef6a22620a73c47c6ab4dcf3ef0a
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-66c7f09c13f8
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 94a960ba65598196a55806687fd80d6be305ef6a22620a73c47c6ab4dcf3ef0a
+      created_at: '2026-08-11T08:25:12.365250+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-11T08:25:12.365250+00:00'
+      branch_key: epic-OOMPAH-940
+      selected_ref: origin/main
+      selected_sha: 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17
+      landing_revision: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
     source_generation: 5
     requested_by:
       version: 1
@@ -400,6 +416,7 @@ oompah.terminal_audit:
     selected_sha: 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17
     landing_revision: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
     workflow_revision: cba36735b9b330f43ffd5dad0fd1a80364fb518e6f0841756f67f889b02b09f0
+    updated_at: '2026-08-11T08:25:12.365250+00:00'
   - version: 1
     audit_id: audit-8ab8cc9b3928
     project_id: proj-14849f1b
@@ -487,6 +504,22 @@ oompah.terminal_audit:
     branch_key: epic-OOMPAH-940
     selected_ref: origin/epic-OOMPAH-940
     selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
+  - version: 1
+    attempt_id: attempt-66c7f09c13f8
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 94a960ba65598196a55806687fd80d6be305ef6a22620a73c47c6ab4dcf3ef0a
+    created_at: '2026-08-11T08:25:12.365250+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-11T08:25:12.365250+00:00'
+    branch_key: epic-OOMPAH-940
+    selected_ref: origin/main
+    selected_sha: 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17
+    landing_revision: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
 oompah.task_costs:
   total_input_tokens: 418
   total_output_tokens: 12460
@@ -702,5 +735,15 @@ author: oompah
 created: 2026-08-11 03:06
 ---
 The deployed pre-OOMPAH-1012 workflow re-staged another audit on stale landing head 2dd74be2 at 03:03 UTC. The supported Needs CI Fix transition revoked that audit and the server terminated its provider/full-gate process; no direct database or task-file edit was used. OOMPAH-940 is intentionally fenced from another stale audit until OOMPAH-1012 is protected, deployed, and can re-stage validation on the current authoritative target head.
+---
+author: oompah
+created: 2026-08-11 08:25
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-11 08:25
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
