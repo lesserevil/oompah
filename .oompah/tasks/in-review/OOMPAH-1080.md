@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1080
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Import trusted protected ordinary-PR exact-head gates before terminal-audit
   dispatch
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:00:26.321021Z'
-updated_at: '2026-08-11T11:39:09.131176Z'
+updated_at: '2026-08-11T11:39:17.202787Z'
 work_branch: OOMPAH-1080
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/818
