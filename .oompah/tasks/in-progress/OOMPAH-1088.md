@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:17:03.737871Z'
-updated_at: '2026-08-11T15:13:35.731123Z'
+updated_at: '2026-08-11T15:21:02.550827Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -64,5 +64,10 @@ author: oompah
 created: 2026-08-11 15:13
 ---
 Independent-review blockers are repaired and replacement exact head 59619d68f092fd5e6078599f2a6efcce555f52f9 is pushed on origin/OOMPAH-1088, rebased onto origin/main 6449341d762d9c7645271b8479dfa406e648be54. Synchronous legacy task-authority locks are now polled only through non-blocking acquisition, never block the event loop through a bare acquire call, and are released exactly when owned; bounded async acquisition is preserved. Deterministic unlocked and contended regressions cover both the submission and direct-owner lanes. Terminal-provenance retain and new-revision operations now return structured retryable control_busy 503 evidence on task-authority contention and prove no metadata/status mutation. The prior exact ghost-runtime retirement and late-contributor serialization fixes remain intact. Fresh evidence: 471 broad authority/provider/provenance/submission/handoff/event-loop/restart/transition tests passed; terminal mutation scan passed 21/21; compileall, git diff check, focused ruff, paranoid secret scan, and commit hooks passed. Branch is clean and matches origin. Task remains In Progress and is not submitted or merged pending fresh independent exact-head review.
+---
+author: oompah
+created: 2026-08-11 15:21
+---
+Fresh independent exact-head review ACCEPTED 59619d68f092fd5e6078599f2a6efcce555f52f9 on current main 6449341d762d9c7645271b8479dfa406e648be54. Reviewer verified exact pre-provider ghost RunningEntry/claim retirement; late contributor-writer serialization and pre-contact fencing; bounded nonblocking sync legacy-lock handling with exact finally release; bounded async/CrossLoop behavior; structured retryable submission/control-busy responses for submit, owner, and both terminal-provenance paths; and preserved final provider authority fences. Evidence: 358 independent focused tests, terminal mutation scan 21/21, compileall, diff check; branch clean and remote exact. Ready for canonical gate and integration.
 ---
 <!-- COMMENTS:END -->
