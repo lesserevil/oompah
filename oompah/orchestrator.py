@@ -10048,6 +10048,9 @@ class Orchestrator:
         events replace an already-visible terminal state with In Validation.
         """
 
+        resolve_landed_review_target = bool(
+            kwargs.pop("resolve_landed_review_target", False)
+        )
         current_issue = kwargs.get("current_issue")
         issue_id = str(
             getattr(current_issue, "id", "")
@@ -10108,6 +10111,35 @@ class Orchestrator:
                         "terminal staging"
                     ),
                 )
+            if resolve_landed_review_target:
+                try:
+                    requested_target = self.resolve_landed_review_terminal_target(
+                        fresh_issue,
+                        effective_project_id,
+                    )
+                except Exception as exc:  # noqa: BLE001 - topology fails closed
+                    logger.warning(
+                        "Rejected landed-review terminal request for %s: current "
+                        "task topology could not be resolved: %s",
+                        identifier,
+                        exc,
+                    )
+                    return TransitionResult(
+                        success=False,
+                        reason="current task topology could not be resolved",
+                    )
+                observed_target = TargetState.from_raw(
+                    kwargs.get("requested_target")
+                )
+                if requested_target is not observed_target:
+                    logger.info(
+                        "Refreshed landed-review terminal target for %s under "
+                        "ownership: %s -> %s",
+                        identifier,
+                        observed_target.value,
+                        requested_target.value,
+                    )
+                kwargs["requested_target"] = requested_target
             refreshed_request = replace(
                 fresh_issue,
                 state=getattr(current_issue, "state", fresh_issue.state),

@@ -22568,13 +22568,23 @@ def _request_webhook_terminal_transition(
     if canonicalize_status(getattr(issue, "state", None)) in TERMINAL_STATUSES:
         issue.state = IN_REVIEW
     identity = str(actor or "forge-webhook").strip() or "forge-webhook"
+    requester = _terminal_transition_requester(orch)
+    request_kwargs = {
+        "current_issue": issue,
+        "requested_target": target,
+        "trigger_identity": ContributorIdentity(identity, "forge"),
+        "project_id": project.id,
+    }
+    if _implemented_orchestrator_method(
+        orch,
+        "request_terminal_transition_owned",
+    ) is not None:
+        # The branch lookup and initial topology resolution happen before task
+        # ownership.  Production must treat that target only as an observation:
+        # the owned path re-resolves it from the locked, freshly fetched task.
+        request_kwargs["resolve_landed_review_target"] = True
     return asyncio.run(
-        _terminal_transition_requester(orch)(
-            current_issue=issue,
-            requested_target=target,
-            trigger_identity=ContributorIdentity(identity, "forge"),
-            project_id=project.id,
-        )
+        requester(**request_kwargs)
     )
 
 

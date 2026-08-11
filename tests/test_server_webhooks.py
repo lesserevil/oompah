@@ -27,7 +27,8 @@ from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
 from oompah.events import EventBus, EventType
-from oompah.models import Project
+from oompah.models import Issue, Project
+from oompah.orchestrator import Orchestrator
 from oompah.terminal_audit import TargetState
 from oompah.terminal_transition_coordinator import TransitionResult
 
@@ -2016,6 +2017,174 @@ class TestWebhookMergedReconciliation:
         orch._resolve_task_for_branch = MagicMock(return_value=mock_issue)
 
         return orch, mock_tracker
+
+    def _make_owned_orch_with_topology_race(
+        self,
+        *,
+        source_branch: str,
+        fresh_parent_id: str | None,
+        fresh_issue_type: str,
+        fail_fresh_parent_resolution: bool = False,
+    ):
+        """Build a production-owned request path with stale outer topology."""
+
+        parent_id = "EPIC-1"
+        observed = Issue(
+            id=f"id-{source_branch}",
+            identifier=source_branch,
+            title="Observed shared child",
+            state="In Review",
+            parent_id=parent_id,
+            issue_type="task",
+            work_branch=source_branch,
+        )
+        fresh = Issue(
+            id=observed.id,
+            identifier=observed.identifier,
+            title=observed.title,
+            state=observed.state,
+            parent_id=fresh_parent_id,
+            issue_type=fresh_issue_type,
+            work_branch=source_branch,
+        )
+        parent = Issue(
+            id="id-EPIC-1",
+            identifier=parent_id,
+            title="Parent epic",
+            state="In Review",
+            issue_type="epic",
+        )
+        tracker = MagicMock()
+        parent_reads = 0
+
+        def fetch_issue_detail(identifier):
+            nonlocal parent_reads
+            if identifier == source_branch:
+                return fresh
+            if identifier == parent_id:
+                parent_reads += 1
+                if fail_fresh_parent_resolution and parent_reads > 1:
+                    raise RuntimeError("current parent topology unavailable")
+                return parent
+            return None
+
+        tracker.fetch_issue_detail.side_effect = fetch_issue_detail
+        tracker.invalidate_read_cache = MagicMock()
+
+        # A minimal real Orchestrator keeps the production ownership and
+        # topology methods while avoiding unrelated service construction.
+        orch = object.__new__(Orchestrator)
+        orch._issue_transition_locks = {}
+        orch._issue_transition_locks_guard = threading.Lock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._resolve_task_for_branch = MagicMock(return_value=observed)
+        orch.request_terminal_transition = AsyncMock(
+            return_value=TransitionResult(
+                success=True,
+                audit_id="audit-current-topology",
+                queued_targets=[TargetState.MERGED],
+            )
+        )
+        resolver = orch.resolve_landed_review_terminal_target
+        orch.resolve_landed_review_terminal_target = MagicMock(wraps=resolver)
+        return orch, tracker, observed, fresh
+
+    def test_pr_merge_re_resolves_detached_child_target_under_ownership(self):
+        """A stale shared-child Done cannot survive a concurrent detach."""
+        from oompah.server import _label_task_merged_from_pr
+
+        project = Project(
+            id="proj-gh1",
+            name="github-proj",
+            repo_url="https://github.com/org/repo.git",
+            repo_path="/var/empty/repo",
+        )
+        orch, _tracker, observed, fresh = self._make_owned_orch_with_topology_race(
+            source_branch="child-detached",
+            fresh_parent_id=None,
+            fresh_issue_type="task",
+        )
+        event = SimpleNamespace(
+            source_branch="child-detached",
+            author="forge",
+            review_id="41",
+        )
+
+        _label_task_merged_from_pr(orch, event, project)
+
+        assert orch.resolve_landed_review_terminal_target.call_count == 2
+        target_calls = orch.resolve_landed_review_terminal_target.call_args_list
+        assert target_calls[0].args[0] is observed
+        assert target_calls[1].args[0] is fresh
+        orch.request_terminal_transition.assert_awaited_once()
+        assert (
+            orch.request_terminal_transition.await_args.kwargs["requested_target"]
+            is TargetState.MERGED
+        )
+
+    def test_merge_group_re_resolves_nested_epic_target_under_ownership(self):
+        """A child retyped as a nested epic owns its current Merged landing."""
+        from oompah.server import _label_task_merged_from_merge_group
+
+        project = Project(
+            id="proj-gh1",
+            name="github-proj",
+            repo_url="https://github.com/org/repo.git",
+            repo_path="/var/empty/repo",
+        )
+        orch, _tracker, observed, fresh = self._make_owned_orch_with_topology_race(
+            source_branch="child-retyped",
+            fresh_parent_id="EPIC-1",
+            fresh_issue_type="epic",
+        )
+        event = SimpleNamespace(
+            source_branch=(
+                "gh-readonly-queue/main/pr-42-child-retyped"
+            ),
+            author="merge-queue",
+        )
+
+        _label_task_merged_from_merge_group(orch, event, project)
+
+        assert orch.resolve_landed_review_terminal_target.call_count == 2
+        target_calls = orch.resolve_landed_review_terminal_target.call_args_list
+        assert target_calls[0].args[0] is observed
+        assert target_calls[1].args[0] is fresh
+        orch.request_terminal_transition.assert_awaited_once()
+        assert (
+            orch.request_terminal_transition.await_args.kwargs["requested_target"]
+            is TargetState.MERGED
+        )
+
+    def test_merge_group_retyped_epic_fails_closed_on_fresh_parent_error(self):
+        """Current unreadable nested topology cannot stage the stale Done."""
+        from oompah.server import _label_task_merged_from_merge_group
+
+        project = Project(
+            id="proj-gh1",
+            name="github-proj",
+            repo_url="https://github.com/org/repo.git",
+            repo_path="/var/empty/repo",
+        )
+        orch, _tracker, _observed, _fresh = (
+            self._make_owned_orch_with_topology_race(
+                source_branch="child-retyped-unreadable",
+                fresh_parent_id="EPIC-1",
+                fresh_issue_type="epic",
+                fail_fresh_parent_resolution=True,
+            )
+        )
+        event = SimpleNamespace(
+            source_branch=(
+                "gh-readonly-queue/main/pr-42-child-retyped-unreadable"
+            ),
+            author="merge-queue",
+        )
+
+        _label_task_merged_from_merge_group(orch, event, project)
+
+        assert orch.resolve_landed_review_terminal_target.call_count == 2
+        orch.request_terminal_transition.assert_not_awaited()
 
     def test_pr_merged_stages_task_merged(self, webhook_threads):
         """Merged staging completes before assertions without blocking POST."""
