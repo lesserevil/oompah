@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1074
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Retire delayed epic auto-close jobs when terminal validation takes ownership
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T08:29:52.903666Z'
-updated_at: '2026-08-11T08:29:52.903666Z'
+updated_at: '2026-08-11T08:30:10.969310Z'
 work_branch: null
 target_branch: null
 review_url: null
