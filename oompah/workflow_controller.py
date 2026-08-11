@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import re
 import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -23,9 +24,11 @@ from datetime import datetime, timezone
 from typing import Any, Protocol
 
 from oompah.models import Issue
+from oompah.integration import ACCEPTED_SUBMISSION_STATES
 from oompah.statuses import canonicalize_status
 from oompah.work_decision import (
     PermittedAction,
+    REVIEW_ACTION_JOBS,
     UnmetPrerequisite,
     WorkDecision,
     evaluate_task,
@@ -43,6 +46,8 @@ from oompah.workflow_fact_model import (
     WorkflowFacts,
 )
 from oompah.workflow_jobs import (
+    WorkflowFailureCategory,
+    WorkflowJob,
     WorkflowJobStore,
     WorkflowSnapshotPublication,
 )
@@ -407,10 +412,11 @@ def _graph_problem(facts: WorkflowFacts) -> tuple[str, ...] | None:
 
 
 def _stored_retry_exhausted(
-    scheduler: WorkflowJobScheduler,
     decision: WorkDecision,
+    exhausted: Sequence[WorkflowJob],
     *,
     prospective_authority_cut: bool,
+    successor_generation_proven: bool = False,
 ) -> bool:
     """Check exhaustion without letting an unpublished cursor retire it.
 
@@ -421,16 +427,104 @@ def _stored_retry_exhausted(
     action, stays fail closed.
     """
 
-    exhausted = scheduler.store.current_exhausted_jobs(
-        project_id=decision.project_id,
-        task_id=decision.task_id,
-    )
     if not exhausted:
         return False
     if not prospective_authority_cut:
         return True
+    if successor_generation_proven:
+        return False
     required = set(decision.durable_jobs)
     return bool(required and any(job.action in required for job in exhausted))
+
+
+_EXACT_HEAD_RE = re.compile(r"^[0-9a-f]{40,64}$")
+
+
+def _review_successor_generation_proven(
+    decision: WorkDecision,
+    facts: WorkflowFacts,
+    exhausted: Sequence[WorkflowJob],
+) -> bool:
+    """Prove a current exact review generation may replace stale exhaustion.
+
+    Retry exhaustion remains fail closed by default.  The sole automatic
+    rearm is a stale review generation whose freshly observed, same-repository
+    identity is complete and whose scheduling evidence or action changed.
+    This keeps malformed, forked, conflicting, and provider-error evidence on
+    the actionable path while allowing ordinary synchronize/base races to
+    obtain a fresh generation-scoped budget.
+    """
+
+    if (
+        len(decision.durable_jobs) != 1
+        or decision.durable_jobs[0] not in REVIEW_ACTION_JOBS
+    ):
+        return False
+    if not exhausted or any(
+        job.action not in REVIEW_ACTION_JOBS
+        or job.failure_category is not WorkflowFailureCategory.STALE_EVIDENCE
+        or (
+            job.action == decision.durable_jobs[0]
+            and job.expected_evidence_revision == decision.evidence_revision
+        )
+        for job in exhausted
+    ):
+        return False
+    review = _fact_mapping(facts, FactDomain.REVIEW_CI)
+    task = _fact_mapping(facts, FactDomain.TASK)
+    integration = _fact_mapping(facts, FactDomain.INTEGRATION)
+    if review is None or task is None or integration is None:
+        return False
+    state = str(review.get("state") or "").strip().lower()
+    mergeable_state = str(review.get("mergeable_state") or "").strip().lower()
+    if (
+        state != "open"
+        or bool(review.get("source_deleted"))
+        or bool(review.get("conflict"))
+        or bool(review.get("needs_rebase"))
+        or review.get("mergeable") is False
+        or mergeable_state in {"dirty", "behind"}
+    ):
+        return False
+    expected_review = str(task.get("review_number") or "").strip()
+    expected_head = str(task.get("review_head") or "").strip().lower()
+    expected_source = str(
+        task.get("work_branch") or task.get("branch_name") or decision.task_id
+    ).strip()
+    expected_target = str(task.get("target_branch") or "").strip()
+    observed_head = str(review.get("head_sha") or "").strip().lower()
+    observed_base = str(review.get("base_sha") or "").strip().lower()
+    integration_head = str(integration.get("head_sha") or "").strip().lower()
+    integration_base = str(integration.get("base_sha") or "").strip().lower()
+    integration_target = str(integration.get("base_branch") or "").strip()
+    source_repository = str(
+        review.get("source_repository") or ""
+    ).strip().casefold()
+    target_repository = str(
+        review.get("target_repository") or ""
+    ).strip().casefold()
+    return bool(
+        str(integration.get("state") or "").strip().lower()
+        in ACCEPTED_SUBMISSION_STATES
+        and str(integration.get("mode") or "standalone").strip().lower()
+        == "standalone"
+        and expected_review
+        and expected_review == str(review.get("review_id") or "").strip()
+        and expected_source
+        and expected_source == str(review.get("source_branch") or "").strip()
+        and expected_source
+        == str(integration.get("task_branch") or "").strip()
+        and expected_target
+        and expected_target == str(review.get("target_branch") or "").strip()
+        and integration_target in {"", expected_target}
+        and source_repository
+        and source_repository == target_repository
+        and _EXACT_HEAD_RE.fullmatch(expected_head)
+        and expected_head == integration_head
+        and _EXACT_HEAD_RE.fullmatch(observed_head)
+        and _EXACT_HEAD_RE.fullmatch(observed_base)
+        and (not integration_base or _EXACT_HEAD_RE.fullmatch(integration_base))
+    )
 
 
 def _replace(
@@ -645,13 +739,32 @@ class UniversalTotalityLivenessController:
                 alert=AlertSeverity.CRITICAL,
             )
 
+        # Bind both successor eligibility and ordinary exhaustion handling to
+        # one immutable authority read.  A worker may exhaust a replacement
+        # generation while this snapshot is being evaluated; independently
+        # re-reading here would let proof about the prior rows suppress that
+        # replacement's bounded failure.
+        current_exhaustion = self.scheduler.store.current_exhausted_jobs(
+            project_id=decision.project_id,
+            task_id=decision.task_id,
+        )
+        successor_generation_proven = bool(
+            prospective_authority_cut
+            and _review_successor_generation_proven(
+                decision,
+                facts,
+                current_exhaustion,
+            )
+        )
         if _stored_retry_exhausted(
-            self.scheduler,
             decision,
+            current_exhaustion,
             prospective_authority_cut=prospective_authority_cut,
+            successor_generation_proven=successor_generation_proven,
         ) or (
             decision.durable_jobs
             and _retry_exhausted(facts, self.max_attempts)
+            and not successor_generation_proven
         ):
             return _replace(
                 decision,

@@ -67,6 +67,7 @@ from oompah.workflow_worker import (
     RevalidationResult,
     VerificationResult,
     WorkflowActionError,
+    WorkflowActionSuperseded,
     WorkflowJobContext,
 )
 from oompah.work_decision import REVIEW_ACTION_JOBS, WorkDecision
@@ -442,6 +443,16 @@ class ProductionReviewWorkflowBackend:
             or issue.identifier
         )
         expected_target = _text(issue.target_branch)
+        integration_base_branch = _text(
+            integration.base_branch
+            if isinstance(integration, IntegrationRecord)
+            else None
+        )
+        old_base_is_enrichable = bool(
+            isinstance(integration, IntegrationRecord)
+            and not old_base
+            and integration_base_branch in {"", expected_target}
+        )
         valid = bool(
             observation is not None
             and provider_context is not None
@@ -455,17 +466,18 @@ class ProductionReviewWorkflowBackend:
             and expected_source == _text(integration.task_branch)
             and expected_target
             and expected_target == observation.target_branch
-            and expected_target == _text(integration.base_branch)
+            and integration_base_branch in {"", expected_target}
             and expected_repo
             and expected_repo == _text(observation.target_repository).casefold()
             and expected_repo == _text(observation.source_repository).casefold()
             and _HEAD_RE.fullmatch(old_head)
             and _HEAD_RE.fullmatch(new_head)
-            and _HEAD_RE.fullmatch(old_base)
+            and (_HEAD_RE.fullmatch(old_base) or old_base_is_enrichable)
             and _HEAD_RE.fullmatch(new_base)
             and (
                 new_head != old_head
                 or new_base != old_base
+                or not integration_base_branch
                 or (
                     integration.wait_reason
                     == REVIEW_GENERATION_REQUEUE_WAIT_REASON
@@ -492,6 +504,105 @@ class ProductionReviewWorkflowBackend:
             )
         return integration, old_head, new_head, new_base
 
+    def _successor_generation(
+        self,
+        context: WorkflowJobContext,
+        snapshot: ReviewActionSnapshot,
+    ) -> str | None:
+        """Return fresh valid review authority that supersedes this effect.
+
+        Review actions observe twice around the external-effect boundary.  A
+        synchronize, target-base advance, or post-deployment identity
+        enrichment between those reads is a new optimistic-concurrency
+        generation, not a failure of the old generation.  Only a complete,
+        same-repository review identity may rearm authority here; malformed,
+        forked, conflicting, or policy-invalid observations stay on the
+        bounded failure path.
+        """
+
+        issue = snapshot.issue
+        observation = snapshot.observation
+        provider_context = snapshot.provider_context
+        integration = issue.integration
+        decision = snapshot.decision
+        if (
+            canonicalize_status(issue.state) != IN_REVIEW
+            or observation is None
+            or provider_context is None
+            or not isinstance(integration, IntegrationRecord)
+            or integration.state not in ACCEPTED_SUBMISSION_STATES
+            or _text(integration.mode).lower() not in {"", "standalone"}
+            or decision is None
+            or len(decision.durable_jobs) != 1
+            or decision.durable_jobs[0] not in REVIEW_ACTION_JOBS
+            or observation.state != "open"
+            or observation.source_deleted
+            or observation.conflict
+            or observation.needs_rebase
+            or observation.mergeable is False
+            or observation.mergeable_state in {"dirty", "behind"}
+        ):
+            return None
+        expected_review = _text(issue.review_number)
+        expected_head = _text(issue.review_head).lower()
+        expected_source = _text(
+            assigned_work_branch(issue)
+            or issue.work_branch
+            or issue.branch_name
+            or issue.identifier
+        )
+        expected_target = _text(issue.target_branch)
+        expected_repo = _text(provider_context.repo).casefold()
+        observed_head = _text(observation.head_sha).lower()
+        observed_base = _text(observation.base_sha).lower()
+        integration_head = _text(integration.head_sha).lower()
+        integration_base = _text(integration.base_sha).lower()
+        integration_target = _text(integration.base_branch)
+        exact_identity = bool(
+            expected_review
+            and expected_review == _text(observation.review_id)
+            and expected_source
+            and expected_source == _text(observation.source_branch)
+            and expected_source == _text(integration.task_branch)
+            and expected_target
+            and expected_target == _text(observation.target_branch)
+            and integration_target in {"", expected_target}
+            and expected_repo
+            and expected_repo
+            == _text(observation.target_repository).casefold()
+            and expected_repo
+            == _text(observation.source_repository).casefold()
+            and _HEAD_RE.fullmatch(expected_head)
+            and _HEAD_RE.fullmatch(integration_head)
+            and expected_head == integration_head
+            and _HEAD_RE.fullmatch(observed_head)
+            and _HEAD_RE.fullmatch(observed_base)
+            and (not integration_base or _HEAD_RE.fullmatch(integration_base))
+        )
+        if not exact_identity:
+            return None
+        current_action = decision.durable_jobs[0]
+        evidence_changed = bool(
+            current_action != context.job.action
+            or decision.evidence_revision
+            != context.job.expected_evidence_revision
+        )
+        if not evidence_changed:
+            return None
+        return self.controller.scheduler.decision_revision(decision)
+
+    def _raise_for_successor(
+        self,
+        context: WorkflowJobContext,
+        snapshot: ReviewActionSnapshot,
+    ) -> None:
+        replacement = self._successor_generation(context, snapshot)
+        if replacement is not None:
+            raise WorkflowActionSuperseded(
+                "review effect authority was superseded by a fresh exact generation",
+                replacement_generation=replacement,
+            )
+
     def _persist_reconciled_head(
         self,
         context: WorkflowJobContext,
@@ -516,6 +627,8 @@ class ProductionReviewWorkflowBackend:
                 and current_integration.state == "ready"
                 and _text(current_integration.head_sha).lower() == new_head
                 and _text(current_integration.base_sha).lower() == new_base
+                and _text(current_integration.base_branch)
+                == _text(snapshot.issue.target_branch)
                 and current_integration.wait_reason
                 == REVIEW_GENERATION_REQUEUE_WAIT_REASON
                 and current_integration.wait_generation
@@ -535,7 +648,13 @@ class ProductionReviewWorkflowBackend:
                     retryable=False,
                 )
             replacement = requeue_standalone_review_generation(
-                integration,
+                replace(
+                    integration,
+                    base_branch=(
+                        integration.base_branch
+                        or _text(snapshot.issue.target_branch)
+                    ),
+                ),
                 review_id=snapshot.observation.review_id,
                 head_sha=new_head,
                 base_sha=new_base,
@@ -553,6 +672,8 @@ class ProductionReviewWorkflowBackend:
                 or persisted.state != "ready"
                 or _text(persisted.head_sha).lower() != new_head
                 or _text(persisted.base_sha).lower() != new_base
+                or _text(persisted.base_branch)
+                != _text(snapshot.issue.target_branch)
                 or persisted.wait_reason != REVIEW_GENERATION_REQUEUE_WAIT_REASON
                 or persisted.wait_generation != replacement.wait_generation
             ):
@@ -737,9 +858,14 @@ class ProductionReviewWorkflowBackend:
                 and checkpoint is not None
                 and integration.wait_generation == checkpoint
             )
+            decision_requires_reconciliation = bool(
+                snapshot.decision is not None
+                and action in snapshot.decision.durable_jobs
+            )
             return (
                 "head_changed"
-                if pending
+                if decision_requires_reconciliation
+                or pending
                 or (issue_head and observed_head != issue_head)
                 or (
                     integration_base
@@ -825,12 +951,17 @@ class ProductionReviewWorkflowBackend:
                 or action not in decision.durable_jobs
                 or self._condition(action, snapshot) != "ready_to_merge"
             ):
+                self._raise_for_successor(context, snapshot)
                 raise WorkflowActionError(
                     "review is no longer authorized for merge",
                     category=WorkflowFailureCategory.STALE_EVIDENCE,
                     retryable=False,
                 )
-            review_id, head = self._exact_identity(snapshot)
+            try:
+                review_id, head = self._exact_identity(snapshot)
+            except WorkflowActionError:
+                self._raise_for_successor(context, snapshot)
+                raise
             if not review_id or not _HEAD_RE.fullmatch(head):
                 raise WorkflowActionError(
                     "review merge requires an immutable review and exact head",
@@ -847,6 +978,8 @@ class ProductionReviewWorkflowBackend:
             )
             context.check_interrupted()
             if not ok:
+                current = await self._snapshot(context)
+                self._raise_for_successor(context, current)
                 return ReviewExecutionResult(
                     "transport_error",
                     _text(message) or "review merge was not accepted",
@@ -916,6 +1049,8 @@ class ProductionReviewWorkflowBackend:
                     or current_integration.state != "ready"
                     or _text(current_integration.head_sha).lower() != new_head
                     or _text(current_integration.base_sha).lower() != new_base
+                    or _text(current_integration.base_branch)
+                    != _text(snapshot.issue.target_branch)
                 ):
                     return VerificationResult(
                         False,

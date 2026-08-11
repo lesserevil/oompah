@@ -890,6 +890,62 @@ async def test_base_only_change_requeues_exact_generation_for_regating(
 
 
 @pytest.mark.asyncio
+async def test_legacy_review_identity_is_enriched_before_merge(
+    tmp_path, monkeypatch
+):
+    provider = Provider([review(ci=CIStatus.PASSED)])
+    orchestrator, binding, store, capacity = composition(
+        tmp_path, monkeypatch, provider
+    )
+    binding.tracker.task = replace(
+        binding.tracker.task,
+        integration=replace(
+            binding.tracker.task.integration,
+            base_branch=None,
+            base_sha=None,
+        ),
+    )
+    decision = binding.review_controller.evaluate((binding.tracker.task,)).tasks[
+        0
+    ].decision
+    assert decision.reason_code == "review.head_changed"
+    assert decision.durable_jobs == ("review_head_reconciliation",)
+    store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation="legacy-identity-enrichment",
+            action="review_head_reconciliation",
+            idempotency_key="legacy-identity-enrichment",
+            expected_evidence_revision=decision.evidence_revision,
+        )
+    )
+    journal = TransitionJournal(str(tmp_path / "identity-transitions.sqlite3"))
+    service = TaskTransitionService(
+        project_id="project-1", tracker=binding.tracker, journal=journal
+    )
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers=build_review_workflow_handlers(orchestrator, binding),
+        transition_services={"project-1": service},
+        worker_id="identity-review-worker",
+    )
+    try:
+        result = await worker.run_once()
+
+        assert result.disposition is WorkflowRunDisposition.COMPLETED
+        assert binding.tracker.task.state == READY_TO_INTEGRATE
+        assert binding.tracker.task.integration.base_branch == "main"
+        assert binding.tracker.task.integration.base_sha == BASE
+        assert binding.tracker.task.integration.head_sha == HEAD
+        assert provider.merge_calls == 0
+    finally:
+        journal.close()
+        capacity.close()
+        store.close()
+
+
+@pytest.mark.asyncio
 async def test_base_only_reconciliation_resumes_after_metadata_checkpoint(
     tmp_path, monkeypatch
 ):
@@ -1013,7 +1069,7 @@ async def test_synchronize_between_merge_revalidation_and_effect_blocks_merge(
     decision = binding.review_controller.evaluate((binding.tracker.task,)).tasks[
         0
     ].decision
-    store.enqueue(
+    queued = store.enqueue(
         WorkflowJobSpec(
             project_id="project-1",
             task_id="TASK-1",
@@ -1031,10 +1087,195 @@ async def test_synchronize_between_merge_revalidation_and_effect_blocks_merge(
     )
     try:
         result = await worker.run_once()
-        assert result.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+        assert result.disposition is WorkflowRunDisposition.SUPERSEDED
+        assert store.get(queued.job_id).state.value == "superseded"
+        _batch, reconciliation = binding.review_controller.reconcile(
+            (binding.tracker.task,)
+        )
+        assert reconciliation.jobs_created == 1
+        active = [job for job in store.list_jobs() if job.is_active]
+        assert [job.action for job in active] == ["review_head_reconciliation"]
         assert provider.merge_calls == 0
         assert binding.tracker.task.state == IN_REVIEW
         assert binding.tracker.task.integration.head_sha == HEAD
+    finally:
+        capacity.close()
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_review_successor_regeneration_survives_restart_and_coalesces(
+    tmp_path, monkeypatch
+):
+    new_base = "e" * 40
+
+    class RacingProvider(Provider):
+        def list_open_reviews(self, repo):
+            observed = super().list_open_reviews(repo)
+            if self.list_calls >= 3:
+                self.reviews[0].base_sha = new_base
+            return observed
+
+    provider = RacingProvider([review(ci=CIStatus.PASSED)])
+    orchestrator, binding, store, capacity = composition(
+        tmp_path, monkeypatch, provider
+    )
+    decision = binding.review_controller.evaluate((binding.tracker.task,)).tasks[
+        0
+    ].decision
+    queued = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation="merge-before-base-advance",
+            action="review_merge",
+            idempotency_key="merge-before-base-advance",
+            expected_evidence_revision=decision.evidence_revision,
+        )
+    )
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers=build_review_workflow_handlers(orchestrator, binding),
+        transition_services={},
+        worker_id="review-worker",
+    )
+    database = store.path
+    store_closed = False
+    reopened = None
+    try:
+        result = await worker.run_once()
+        assert result.disposition is WorkflowRunDisposition.SUPERSEDED
+        assert store.get(queued.job_id).state.value == "superseded"
+        store.close()
+        store_closed = True
+
+        reopened = WorkflowJobStore(database)
+        binding.review_controller = ReviewWorkflowController(
+            collector=binding.review_controller.collector,
+            store=reopened,
+        )
+        created = []
+        for _ in range(3):
+            _batch, reconciliation = binding.review_controller.reconcile(
+                (binding.tracker.task,)
+            )
+            created.append(reconciliation.jobs_created)
+
+        assert created == [1, 0, 0]
+        active = [job for job in reopened.list_jobs() if job.is_active]
+        assert [job.action for job in active] == ["review_head_reconciliation"]
+        assert reopened.get(queued.job_id).state.value == "superseded"
+    finally:
+        capacity.close()
+        if not store_closed:
+            store.close()
+        if reopened is not None:
+            reopened.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "drift",
+    ["fork", "source", "target", "conflict", "missing"],
+)
+async def test_invalid_merge_races_exhaust_without_forge_write(
+    tmp_path, monkeypatch, drift
+):
+    class InvalidatingProvider(Provider):
+        def list_open_reviews(self, repo):
+            assert repo.endswith("/repo")
+            self.list_calls += 1
+            if self.list_calls >= 3:
+                if drift == "fork":
+                    self.reviews[0].source_repository = "fork/repo"
+                elif drift == "source":
+                    self.reviews[0].source_branch = "OTHER-BRANCH"
+                elif drift == "target":
+                    self.reviews[0].target_branch = "release"
+                elif drift == "conflict":
+                    self.reviews[0].has_conflicts = True
+                elif drift == "missing":
+                    self.reviews[0].state = "closed"
+            return [item for item in self.reviews if item.state == "open"]
+
+    provider = InvalidatingProvider([review(ci=CIStatus.PASSED)])
+    orchestrator, binding, store, capacity = composition(
+        tmp_path, monkeypatch, provider
+    )
+    decision = binding.review_controller.evaluate((binding.tracker.task,)).tasks[
+        0
+    ].decision
+    queued = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation=f"invalid-merge-race-{drift}",
+            action="review_merge",
+            idempotency_key=f"invalid-merge-race-{drift}",
+            expected_evidence_revision=decision.evidence_revision,
+        )
+    )
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers=build_review_workflow_handlers(orchestrator, binding),
+        transition_services={},
+        worker_id="review-worker",
+    )
+    try:
+        result = await worker.run_once()
+
+        assert result.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+        exhausted = store.get(queued.job_id)
+        assert exhausted.state.value == "exhausted"
+        assert exhausted.failure_category is WorkflowFailureCategory.STALE_EVIDENCE
+        assert provider.merge_calls == 0
+        assert binding.tracker.task.state == IN_REVIEW
+    finally:
+        capacity.close()
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_persistent_review_provider_error_exhausts_bounded_attempts(
+    tmp_path, monkeypatch
+):
+    provider = Provider([review(ci=CIStatus.PASSED)])
+    provider.last_open_reviews_fetch_ok = False
+    orchestrator, binding, store, capacity = composition(
+        tmp_path, monkeypatch, provider
+    )
+    decision = binding.review_controller.evaluate((binding.tracker.task,)).tasks[
+        0
+    ].decision
+    assert decision.durable_jobs == ("review_refresh",)
+    queued = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation="persistent-provider-error",
+            action="review_refresh",
+            idempotency_key="persistent-provider-error",
+            expected_evidence_revision=decision.evidence_revision,
+            max_attempts=2,
+        )
+    )
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers=build_review_workflow_handlers(orchestrator, binding),
+        transition_services={},
+        worker_id="review-worker",
+        retry_delay_seconds=0,
+    )
+    try:
+        first = await worker.run_once()
+        second = await worker.run_once()
+
+        assert first.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+        assert second.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+        exhausted = store.get(queued.job_id)
+        assert exhausted.state.value == "exhausted"
+        assert exhausted.attempts == exhausted.max_attempts == 2
+        assert provider.merge_calls == 0
     finally:
         capacity.close()
         store.close()
@@ -1056,7 +1297,7 @@ async def test_atomic_merge_precondition_rejects_advance_after_fresh_observation
     decision = binding.review_controller.evaluate((binding.tracker.task,)).tasks[
         0
     ].decision
-    store.enqueue(
+    queued = store.enqueue(
         WorkflowJobSpec(
             project_id="project-1",
             task_id="TASK-1",
@@ -1075,7 +1316,14 @@ async def test_atomic_merge_precondition_rejects_advance_after_fresh_observation
     )
     try:
         result = await worker.run_once()
-        assert result.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+        assert result.disposition is WorkflowRunDisposition.SUPERSEDED
+        assert store.get(queued.job_id).state.value == "superseded"
+        _batch, reconciliation = binding.review_controller.reconcile(
+            (binding.tracker.task,)
+        )
+        assert reconciliation.jobs_created == 1
+        active = [job for job in store.list_jobs() if job.is_active]
+        assert [job.action for job in active] == ["review_head_reconciliation"]
         assert provider.merge_calls == 0
         assert provider.reviews[0].state == "open"
         assert binding.tracker.task.state == IN_REVIEW
