@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T14:33:45.688459Z'
+updated_at: '2026-08-11T14:34:00.461761Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
@@ -249,13 +249,13 @@ oompah.terminal_audit:
     selected_ref: cf3578ff00f5564a06ea31650553dca337280427
     selected_sha: cf3578ff00f5564a06ea31650553dca337280427
 oompah.task_costs:
-  total_input_tokens: 174
-  total_output_tokens: 34
+  total_input_tokens: 496
+  total_output_tokens: 10247
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 174
-      output_tokens: 34
+      input_tokens: 496
+      output_tokens: 10247
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -264,6 +264,12 @@ oompah.task_costs:
     output_tokens: 34
     cost_usd: 0.0
     recorded_at: '2026-08-11T13:58:46.920435+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 322
+    output_tokens: 10213
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T14:33:56.038929+00:00'
 oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
@@ -407,5 +413,15 @@ Safe evidence:
 - requirements_met[9]: GitHub/GitLab fork/source/base validation preserved
 - quality_gate: Authoritative make test passed for exact head cf3578ff (176.67s, result=passed, status=passed)
 - prior_attempts: 15a2ee7c9b→1260f6ee3→575e6c35→cf3578ff progression with independent review accepted, PR#821 merged to main (6a0f7210)
+---
+author: oompah
+created: 2026-08-11 14:34
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 83, Tool calls: 39
+- Tokens: 322 in / 10.2K out [10.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 0s
+- Log: OOMPAH-1084__20260811T143006Z.jsonl
 ---
 <!-- COMMENTS:END -->
