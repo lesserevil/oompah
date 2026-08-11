@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1093
 type: bug
-status: In Validation
+status: Merged
 priority: 2
 title: '[backend:orchestrator] Orchestrator shutdown attempt failed; retaining process
   and retrying'
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:04:30.156611Z'
-updated_at: '2026-08-11T17:51:28.516719Z'
+updated_at: '2026-08-11T17:51:34.428730Z'
 work_branch: OOMPAH-1093
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/829
