@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1086
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make transition-journal teardown deterministic after concurrent API use
 parent: null
@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:54:01.877028Z'
-updated_at: '2026-08-11T13:50:57.418141Z'
-work_branch: null
+updated_at: '2026-08-11T13:51:09.014065Z'
+work_branch: OOMPAH-1086
 target_branch: null
 review_url: null
 review_number: null
@@ -33,6 +33,7 @@ oompah.integration:
   head_sha: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
   submitted_at: '2026-08-11T13:50:53.226522+00:00'
   updated_at: '2026-08-11T13:50:53.226522+00:00'
+oompah.work_branch: OOMPAH-1086
 ---
 ## Summary
 
@@ -60,5 +61,10 @@ author: oompah
 created: 2026-08-11 13:50
 ---
 Implementation pushed at exact head 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f. Final boundary covers complete ordinary/authorized transition sagas plus every direct public journal reader/writer; ContextVar leases propagate safely into asyncio.to_thread and are checked against live saga ownership so cancellation cannot revive a stale lease. Close is idempotent, fences late work, drains admitted work, and cannot split the durable saga. No global timeout changed. Green evidence: transition service 112 passed; shared registry/production drain/historical events 9 passed; exact production direct-reader tests 5 passed; three race regressions passed across 10 fresh processes (30 executions); adjacent transition/restart/event surface previously 264 passed after rebase; mutation scan 21/21; secret/commit hooks passed. Definitive local make test was operator-stopped at 22% to yield to the server's authoritative validation lease, after 4,505 passed and 0 failed. Original CI close timeout remains diagnosed as uniform 3.12 runner slowdown, not claimed as caused by the independently reproduced ownership defect.
+---
+author: oompah
+created: 2026-08-11 13:51
+---
+Fenced transition-journal retirement across complete transition sagas and every public journal operation; added deterministic direct-use, saga-gap, and production graceful-drain regressions. Pushed exact head 6dedb86fa; focused/stress checks green, and local full gate yielded at 4,505 passed/0 failed to the server's authoritative validation lease.
 ---
 <!-- COMMENTS:END -->
