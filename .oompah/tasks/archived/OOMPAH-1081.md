@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:03:28.831065Z'
-updated_at: '2026-08-11T11:08:05.023059Z'
+updated_at: '2026-08-11T11:08:11.133756Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,21 @@ oompah.terminal_audit:
       \ of a Done\u2192Merged chain; the actual queued-next-stage liveness defect\
       \ is tracked separately with exact evidence."
     created_at: '2026-08-11T11:08:00.811363+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1081
+    target_state: Archived
+    evidence_fingerprint: 4a9097f0145990d78abb22da61e76ef9c9e7f6520f722168551766fb49a65ccb
+    workflow_revision: null
+    selected_ref: null
+    selected_sha: null
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T11:08:09.324881+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -65,5 +79,12 @@ author: oompah
 created: 2026-08-11 11:07
 ---
 Diagnosis correction before code changes: audit-00d5d7755c13 was the valid bound Done prerequisite in a Done→Merged chain, not a mismatched result. Metadata shows audit-078f5a8faba5 (Merged) remained pending and workflow-job-ce9f7c40... stayed queued at attempts=0 after the Done PASS and across restart. No OOMPAH-1081 code was written. Withdrawing this mis-scoped task and filing the precise chained-stage eligibility/dispatch bug.
+---
+author: oompah
+created: 2026-08-11 11:08
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Withdrawn before implementation because live metadata disproved the initial target-mismatch diagnosis. The accepted Done result was the valid prerequisite of a Done→Merged chain; the actual queued-next-stage liveness defect is tracked separately with exact evidence.
 ---
 <!-- COMMENTS:END -->
