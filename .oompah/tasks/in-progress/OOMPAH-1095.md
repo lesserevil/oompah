@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1095
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Publish direct-owner retirement before standalone delivery authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:44:31.960614Z'
-updated_at: '2026-08-11T16:44:58.462940Z'
+updated_at: '2026-08-11T16:45:14.134471Z'
 work_branch: null
 target_branch: null
 review_url: null
