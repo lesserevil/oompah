@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T04:35:54.427125Z'
-updated_at: '2026-08-11T04:36:19.357338Z'
+updated_at: '2026-08-11T05:51:34.718687Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,3 +37,11 @@ Live regression on deployed main 62c3cda3ea602b614a3a3dfc92c66468b5c34a4b after 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 05:51
+---
+Implementation is active on branch OOMPAH-1014. The repair-status orphan authority, workflow publication proof, exact auditor runtime/job lease, ABA departure transaction, malformed-ledger fail-closed handling, maintenance writer bypass, and retryable detached-worktree cleanup are implemented with direct/integrated regressions. Latest stable relevant gate: 613 passed; terminal mutation scan 21/21 and secret scan passed. Independent race/correctness re-review is still in progress before the complete Makefile gate.
+---
+<!-- COMMENTS:END -->
