@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:03:11.276660Z'
-updated_at: '2026-08-11T10:41:20.587395Z'
+updated_at: '2026-08-11T10:41:29.892028Z'
 work_branch: OOMPAH-1075
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/812
@@ -66,7 +66,23 @@ oompah.terminal_audit:
     created_at: '2026-08-11T10:41:11.763355+00:00'
     selected_ref: origin/OOMPAH-1075
     selected_sha: d912a999d13d4fc739f4c14580b1facd94056382
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1075
+    target_state: Merged
+    evidence_fingerprint: d8e7b34a480fc806c23a0fb244242deb9abaa340af54de9c781cf4e200aa62c8
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1075
+    selected_sha: d912a999d13d4fc739f4c14580b1facd94056382
+    landing_revision: null
+    audit_ids:
+    - audit-a600a072cf52
+    - audit-0432a06f3d32
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T10:41:26.632734+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -74,7 +90,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1075
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -89,12 +105,13 @@ oompah.terminal_audit:
     created_at: '2026-08-11T10:03:01.843740+00:00'
     selected_ref: origin/OOMPAH-1075
     selected_sha: d912a999d13d4fc739f4c14580b1facd94056382
+    updated_at: '2026-08-11T10:41:26.632689+00:00'
   - version: 1
     audit_id: audit-0432a06f3d32
     project_id: proj-14849f1b
     task_id: OOMPAH-1075
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -109,6 +126,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T10:03:01.843740+00:00'
     selected_ref: origin/OOMPAH-1075
     selected_sha: d912a999d13d4fc739f4c14580b1facd94056382
+    updated_at: '2026-08-11T10:41:26.632716+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -144,5 +162,12 @@ author: oompah
 created: 2026-08-11 10:03
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-11 10:41
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Project-owner completion using exact protected delivery evidence. Final combined head d912a999d13d4fc739f4c14580b1facd94056382 is contained in protected PR #812 merge 4be80277a; Python 3.11/3.12/3.13 checks passed; independent exact-head review accepted the gate-lock, cache-authority, runtime-CAS, O1073 interaction, and deterministic heartbeat behavior; 481 affected tests plus repeated adversarial tests passed. The local gate covered earlier head 00c1df8fa, so a terminal full-suite rerun would be redundant.
 ---
 <!-- COMMENTS:END -->
