@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1074
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Retire delayed epic auto-close jobs when terminal validation takes ownership
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T08:29:52.903666Z'
-updated_at: '2026-08-11T09:22:55.006227Z'
+updated_at: '2026-08-11T10:40:59.900324Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,6 +37,29 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1074
     digest: 30fe51448e83f6292669a2f9af4aab5521615db0e68c3d8bb933f5297c03daf8
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-135eed155632
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1074
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 30fe51448e83f6292669a2f9af4aab5521615db0e68c3d8bb933f5297c03daf8
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner completion using exact protected delivery evidence. Final
+      head 52e50a is contained in protected PR #811 merge e53434b41; Python 3.11/3.12/3.13
+      checks passed; independent exact-head review accepted the delayed epic-auto-close
+      retirement fix and 582 focused tests passed. No additional terminal full-suite
+      rerun is needed.'
+    created_at: '2026-08-11T10:40:54.586470+00:00'
+    selected_ref: origin/OOMPAH-1074
+    selected_sha: 52e50a446eaef3abe4f2b9dc2ff732f98d9ad6a0
+    applied: false
   version: 1
   pending_chain:
   - version: 1
