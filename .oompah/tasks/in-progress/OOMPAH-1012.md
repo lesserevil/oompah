@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T02:41:11.512382Z'
-updated_at: '2026-08-11T03:10:19.932212Z'
+updated_at: '2026-08-11T03:14:02.680617Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-08-11 03:10
 ---
 Implementation is committed and pushed at exact head 616331ef871e875d1549842c3a33856d544bdd0d. Terminal audits now preserve immutable landing_revision as containment authority while resolving selected_ref/selected_sha to the current authoritative root-main or nested-parent target under repository/project fencing, require ancestry before staging, bind both identities through durable workflow/restart/finalization paths, and preserve historical v1 serialization/hash behavior when landing_revision is absent. Focused validation passed 1,439 tests across quality gates, identity/dispatch/coordinator/store, durable enforcement/finalization/lifecycle, plus terminal mutation scan 21/21. Independent exact-head review is active; the one repository-wide gate remains reserved for the final combined head.
+---
+author: oompah
+created: 2026-08-11 03:14
+---
+Independent exact-head review ACCEPTED 616331ef871e875d1549842c3a33856d544bdd0d with no authority/security findings. The reviewer verified separate immutable landing witness/current validation SHA, root/nested resolution under the project fence, fail-closed ancestry refresh, propagation through record/attempt/workflow generation/idempotency/restart/checkpoint/dispatch/quality-gate identity, unchanged serialization/hash for old rows, and unchanged ordinary/non-epic routing. Six exact authority/ABA/restart tests also passed. The commit is composed into recovery head ca8382818, where all 1,707 changed-path tests pass.
 ---
 <!-- COMMENTS:END -->
