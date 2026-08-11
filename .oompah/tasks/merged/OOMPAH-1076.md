@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:41:07.342509Z'
-updated_at: '2026-08-11T11:24:46.855886Z'
+updated_at: '2026-08-11T11:25:00.610448Z'
 work_branch: OOMPAH-1076
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/816
@@ -98,7 +98,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T11:24:42.459083+00:00'
     selected_ref: a9bdbfdeedca4c5181851d01312cfbfc1159567d
     selected_sha: a9bdbfdeedca4c5181851d01312cfbfc1159567d
-    applied: false
+    applied: true
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1076
@@ -127,6 +127,22 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-11T11:20:51.955427+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1076
+    target_state: Merged
+    evidence_fingerprint: 7574461067baf533926f254889367a94889aa398d6d5a4bb1a3e1f2ee6dcaf1f
+    workflow_revision: null
+    selected_ref: a9bdbfdeedca4c5181851d01312cfbfc1159567d
+    selected_sha: a9bdbfdeedca4c5181851d01312cfbfc1159567d
+    landing_revision: null
+    audit_ids:
+    - audit-7fe3fcb0020d
+    - audit-a27fa4e3d94b
+    - audit-c6162cd59b1b
+    - audit-04c6472af4df
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T11:24:52.298135+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1076
@@ -141,6 +157,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-11T11:20:51.955437+00:00'
     applied_at: '2026-08-11T11:21:00.839493+00:00'
+    retired_by_override: true
   oompah.terminal_provenance_suppression:
     version: 1
     suppressed: false
@@ -278,7 +295,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1076
     target_state: Merged
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -308,7 +325,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T11:16:00.389728+00:00'
     selected_ref: a9bdbfdeedca4c5181851d01312cfbfc1159567d
     selected_sha: a9bdbfdeedca4c5181851d01312cfbfc1159567d
-    updated_at: '2026-08-11T11:23:39.822540+00:00'
+    updated_at: '2026-08-11T11:24:52.298093+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9ad1d8c664f3
@@ -502,5 +519,22 @@ author: oompah
 created: 2026-08-11 11:23
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 11:24
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Revision 2 exact head a9bdbfdeedca4c5181851d01312cfbfc1159567d passed 459 author tests, independent exact-head ACCEPT with the same 459 tests, protected Python 3.11/3.12/3.13 CI, and merged through PR 816 as 84cad614cf99db3ed4ae98ad87d163712f9cf688. Deployed live 1,882-task cold canary completed reconciliation phases in 38.78s (integration 27.91s, epic 8.28s), full tick 66.18s, cleared restart reconstruction inside the 120s SLO, and published healthy with zero alerts.
+---
+author: oompah
+created: 2026-08-11 11:25
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 8
+- Tokens: 158 in / 37 out [195 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 16s
+- Log: OOMPAH-1076__20260811T112354Z.jsonl
 ---
 <!-- COMMENTS:END -->
