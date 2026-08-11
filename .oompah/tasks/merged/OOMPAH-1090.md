@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1090
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Keep standalone delivery authority alive across long gates and terminal staging
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:26:47.067526Z'
-updated_at: '2026-08-11T17:21:17.439140Z'
+updated_at: '2026-08-11T17:29:33.010644Z'
 work_branch: OOMPAH-1090
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/825
@@ -55,6 +55,7 @@ oompah.terminal_audit:
     digest: f1dcbc7148b1ce4b91fd1c48148a4476eb358ca5ba2ce69d59109a8bcfbc9555
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1090","audit-7b88cfff3a93","attempt-dc7c136ed75d"]': '2026-08-11T16:11:08.343864+00:00'
+    '["proj-14849f1b","OOMPAH-1090","audit-58b6f417d9a3","attempt-f24a6960d7d9"]': '2026-08-11T17:29:28.334000+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1090
@@ -69,6 +70,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-11T16:11:08.343881+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1090
+    target_state: Merged
+    evidence_fingerprint: f1dcbc7148b1ce4b91fd1c48148a4476eb358ca5ba2ce69d59109a8bcfbc9555
+    workflow_revision: null
+    selected_ref: 6703b97115b0b7aff922deab2ead89119bc1d486
+    selected_sha: 6703b97115b0b7aff922deab2ead89119bc1d486
+    landing_revision: null
+    audit_ids:
+    - audit-58b6f417d9a3
+    kind: result
+    applied: true
+    retired_at: '2026-08-11T17:29:28.334020+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1090
@@ -83,6 +97,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-11T16:11:08.343891+00:00'
     applied_at: '2026-08-11T16:11:16.099298+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1090
+    audit_id: audit-58b6f417d9a3
+    attempt_id: attempt-f24a6960d7d9
+    target_state: Merged
+    evidence_fingerprint: f1dcbc7148b1ce4b91fd1c48148a4476eb358ca5ba2ce69d59109a8bcfbc9555
+    status: Merged
+    audit_ids:
+    - audit-58b6f417d9a3
+    kind: result
+    applied: false
+    created_at: '2026-08-11T17:29:28.334036+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -130,7 +156,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1090
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -139,7 +165,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f24a6960d7d9
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -151,6 +177,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1090
       selected_ref: 6703b97115b0b7aff922deab2ead89119bc1d486
       selected_sha: 6703b97115b0b7aff922deab2ead89119bc1d486
+      verdict: pass
+      completed_at: '2026-08-11T17:29:28.333833+00:00'
+      ended_at: '2026-08-11T17:29:28.333833+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -161,7 +190,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-7b88cfff3a93
     selected_ref: 6703b97115b0b7aff922deab2ead89119bc1d486
     selected_sha: 6703b97115b0b7aff922deab2ead89119bc1d486
-    updated_at: '2026-08-11T17:21:00.095822+00:00'
+    updated_at: '2026-08-11T17:29:28.333833+00:00'
     eligible_at: '2026-08-11T16:11:08.343697+00:00'
   attempt_history:
   - version: 1
