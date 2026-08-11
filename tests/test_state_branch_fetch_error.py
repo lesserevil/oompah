@@ -16,6 +16,7 @@ catch it separately and log at WARNING instead.
 from __future__ import annotations
 
 import logging
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -307,6 +308,22 @@ class TestDurableTransitionErrorClassification:
             is None
         )
 
+    def test_classifies_direct_validation_as_expected_policy(self) -> None:
+        outcome = TransitionOutcome(
+            transition_id="transition-1",
+            project_id="proj-test",
+            task_id="OOMPAH-1",
+            disposition=TransitionDisposition.REJECTED,
+            reason_code="transition.audit_staging_required",
+            observed_status="In Progress",
+            observed_version=None,
+            requested_status="In Validation",
+        )
+
+        assert server_module._transition_rejected_reason(
+            TaskTransitionNotApplied(outcome)
+        ) == "transition.audit_staging_required"
+
 
 # ---------------------------------------------------------------------------
 # Server-side: api_update_issue must log WARNING not ERROR for fetch failures
@@ -411,6 +428,69 @@ class TestUpdateIssueApiStateBranchFetchError:
             and record.levelno == logging.INFO
             and "rejected by durable transition" in record.message
         ]
+        assert not [
+            record
+            for record in caplog.records
+            if record.name == "oompah.server" and record.levelno >= logging.WARNING
+        ]
+
+    @pytest.mark.parametrize("enforce", [False, True], ids=["legacy", "enforce"])
+    def test_direct_validation_rejection_is_actionable_and_atomic(
+        self,
+        client,
+        caplog,
+        enforce,
+    ) -> None:
+        orch, tracker = _make_mock_orchestrator()
+        orch.workflow_runtime = SimpleNamespace(enforce=enforce)
+        tracker.fetch_issue_detail.return_value.state = "In Progress"
+        outcome = TransitionOutcome(
+            transition_id="transition-audit-staging-required",
+            project_id="proj-test",
+            task_id="OOMPAH-1",
+            disposition=TransitionDisposition.REJECTED,
+            reason_code="transition.audit_staging_required",
+            observed_status="In Progress",
+            observed_version=None,
+            requested_status="In Validation",
+        )
+        orch._transition_issue_status.side_effect = TaskTransitionNotApplied(outcome)
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+            patch.object(
+                server_module,
+                "_cancel_retry_for_authority_change",
+                wraps=server_module._cancel_retry_for_authority_change,
+            ) as cancel_authority,
+            caplog.at_level(logging.INFO, logger="oompah.server"),
+        ):
+            response = client.patch(
+                "/api/v1/issues/OOMPAH-1",
+                json={
+                    "status": "In Validation",
+                    "title": "must not commit",
+                    "project_id": "proj-test",
+                },
+            )
+
+        assert response.status_code == 409
+        assert response.json()["error"] == {
+            "code": "transition_rejected",
+            "message": (
+                "In Validation is owned by the terminal-audit coordinator and "
+                "cannot be set directly. Request Done, Merged, or Archived "
+                "instead (or use `oompah task submit` for completed work) so "
+                "Oompah stages the audit atomically."
+            ),
+            "reason": "transition.audit_staging_required",
+        }
+        tracker.update_issue.assert_not_called()
+        cancel_authority.assert_not_called()
+        orch._transition_issue_status.assert_not_called()
+        orch._cancel_retry_for_issue.assert_not_called()
+        orch._schedule_implementation_workflow_event.assert_not_called()
         assert not [
             record
             for record in caplog.records

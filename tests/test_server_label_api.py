@@ -100,6 +100,39 @@ class TestAddLabelEndpoint:
 
         assert resp.status_code == 400
 
+    def test_direct_validation_status_label_is_rejected_actionably(self, client):
+        """The ordinary label route cannot bypass atomic audit staging."""
+
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues/my-issue/labels",
+                json={
+                    "label": "oompah:status:in-validation",
+                    "project_id": "proj-1",
+                },
+            )
+
+        assert resp.status_code == 409
+        assert resp.json()["error"] == {
+            "code": "transition_rejected",
+            "message": (
+                "In Validation is owned by the terminal-audit coordinator and "
+                "cannot be set directly. Request Done, Merged, or Archived "
+                "instead (or use `oompah task submit` for completed work) so "
+                "Oompah stages the audit atomically."
+            ),
+            "reason": "transition.audit_staging_required",
+        }
+        mock_orch._tracker_for_project.assert_not_called()
+        mock_tracker.add_label.assert_not_called()
+        mock_orch._transition_issue_status.assert_not_called()
+        mock_orch._schedule_implementation_workflow_event.assert_not_called()
+
     def test_add_label_calls_broadcast_issues(self, client):
         """POST label endpoint must call broadcast_issues after the change."""
         mock_orch, _ = _make_mock_orchestrator()

@@ -62,6 +62,7 @@ from oompah.workflow_contract import (
 TRANSITION_JOURNAL_SCHEMA_VERSION = 1
 DEFAULT_TRANSITION_CLAIM_TTL_SECONDS = 300.0
 TERMINAL_TARGETS = frozenset({DONE, MERGED, ARCHIVED})
+AUDIT_STAGING_REQUIRED_REASON = "transition.audit_staging_required"
 
 _INITIALIZE_LOCK = threading.Lock()
 _REASON_CODE_RE = re.compile(r"^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$")
@@ -1764,6 +1765,30 @@ class TaskTransitionService:
                     "transition.stale_version",
                     issue,
                     details={"expected_version": intent.expected_version},
+                )
+                await asyncio.to_thread(
+                    self.journal.append,
+                    transition_id,
+                    TransitionPhase.REJECTED,
+                    outcome.reason_code,
+                    outcome,
+                )
+                return outcome
+            # ``In Validation`` is not an ordinary lifecycle destination.  The
+            # terminal coordinator owns the single atomic operation that first
+            # persists an audit request and then stages this tracker status.
+            # Accepting a direct intent here would bypass that transaction and
+            # leave the runtime with an auditor obligation that has no durable
+            # request or job to materialize.  Callers must request the terminal
+            # target instead; the terminal-adapter lane below remains the sole
+            # staging path.
+            if intent.requested_status == IN_VALIDATION:
+                outcome = self._outcome(
+                    transition_id,
+                    intent,
+                    TransitionDisposition.REJECTED,
+                    AUDIT_STAGING_REQUIRED_REASON,
+                    issue,
                 )
                 await asyncio.to_thread(
                     self.journal.append,

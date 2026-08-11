@@ -153,6 +153,7 @@ from oompah.task_handoff import (
     validate_task_handoff_token_classified,
 )
 from oompah.task_transition_service import (
+    AUDIT_STAGING_REQUIRED_REASON,
     TransitionAuthority,
     issue_authority_version,
     issue_exact_head,
@@ -3913,6 +3914,7 @@ def _transition_rejected_reason(exc: Exception) -> str | None:
     disposition = getattr(getattr(outcome, "disposition", None), "value", None)
     reason = getattr(outcome, "reason_code", None)
     expected_policy_rejections = {
+        AUDIT_STAGING_REQUIRED_REASON,
         "transition.generation_mismatch",
         "transition.generation_required",
         "transition.head_mismatch",
@@ -3933,6 +3935,38 @@ def _transition_rejected_reason(exc: Exception) -> str | None:
     if disposition != "rejected" or reason not in expected_policy_rejections:
         return None
     return reason
+
+
+def _transition_rejected_message(exc: Exception, reason: str) -> str:
+    """Return actionable client guidance for a durable-policy rejection."""
+
+    if reason == AUDIT_STAGING_REQUIRED_REASON:
+        return (
+            "In Validation is owned by the terminal-audit coordinator and cannot "
+            "be set directly. Request Done, Merged, or Archived instead (or use "
+            "`oompah task submit` for completed work) so Oompah stages the audit "
+            "atomically."
+        )
+    return str(exc)
+
+
+def _direct_validation_rejection_response() -> JSONResponse:
+    """Reject API surfaces that would enqueue a naked validation mutation."""
+
+    reason = AUDIT_STAGING_REQUIRED_REASON
+    return JSONResponse(
+        {
+            "error": {
+                "code": "transition_rejected",
+                "message": _transition_rejected_message(
+                    RuntimeError("direct validation transition rejected"),
+                    reason,
+                ),
+                "reason": reason,
+            }
+        },
+        status_code=409,
+    )
 
 
 def _mark_tracker_needs_human(
@@ -7279,6 +7313,8 @@ async def api_task_handoff(request: Request):
                     {"error": {"code": "validation", "message": "status is required"}},
                     status_code=400,
                 )
+            if canonicalize_status(status) == IN_VALIDATION:
+                return _direct_validation_rejection_response()
             if canonicalize_status(status) == READY_TO_INTEGRATE:
                 return JSONResponse(
                     {
@@ -7479,6 +7515,11 @@ async def api_task_handoff(request: Request):
         from oompah.label_auth import label_name_to_status
 
         status_from_label = label_name_to_status(label)
+        if (
+            action == "add-label"
+            and canonicalize_status(status_from_label) == IN_VALIDATION
+        ):
+            return _direct_validation_rejection_response()
         if canonicalize_status(status_from_label) == READY_TO_INTEGRATE:
             return JSONResponse(
                 {
@@ -14691,6 +14732,16 @@ async def api_update_issue(identifier: str, request: Request):
             existing_issue is not None
             and (existing_issue.issue_type or "").strip().lower() == "epic"
         )
+        # Reject the coordinator-owned staging state before intake gates,
+        # retry-authority withdrawal, deferred workflow scheduling, or any
+        # metadata mutation.  The durable transition service retains the same
+        # guard for non-HTTP callers, but the API boundary must not perform
+        # compensating side effects for a request it will reject.
+        if (
+            new_status is not None
+            and canonicalize_status(new_status) == IN_VALIDATION
+        ):
+            return _direct_validation_rejection_response()
 
         # Source-reference manipulation via PATCH (set-source / remove-source).
         # ``source_task_id`` sets or replaces the "Triggered by: X" header.
@@ -15307,11 +15358,13 @@ async def api_update_issue(identifier: str, request: Request):
                 "Update issue rejected by durable transition: %s",
                 rejected_reason,
             )
+            if rejected_reason == AUDIT_STAGING_REQUIRED_REASON:
+                return _direct_validation_rejection_response()
             return JSONResponse(
                 {
                     "error": {
                         "code": "transition_rejected",
-                        "message": str(exc),
+                        "message": _transition_rejected_message(exc, rejected_reason),
                         "reason": rejected_reason,
                     }
                 },
@@ -15562,6 +15615,8 @@ async def api_add_label(identifier: str, request: Request):
         from oompah.label_auth import label_name_to_status
 
         status_from_label = label_name_to_status(label)
+        if canonicalize_status(status_from_label) == IN_VALIDATION:
+            return _direct_validation_rejection_response()
         label_io = (
             _run_control_api_io
             if status_from_label is not None
