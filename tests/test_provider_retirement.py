@@ -226,6 +226,64 @@ def test_revoked_run_stays_visible_until_provider_process_exits(tmp_path) -> Non
     asyncio.run(scenario())
 
 
+@pytest.mark.asyncio
+async def test_revoked_worker_capacity_release_rearms_exact_audit_without_event(
+    tmp_path,
+) -> None:
+    """The revoked fast-exit path releases capacity through the CAS primitive."""
+
+    orch = _orchestrator(tmp_path)
+    orch._dispatch_loop = asyncio.get_running_loop()
+    orch.state.max_concurrent_agents = 1
+    entry = _entry()
+    entry.authority_revoked = True
+    orch.state.running[entry.issue.id] = entry
+    orch.state.claimed.add(entry.issue.id)
+    orch.state.claimed_issues[entry.issue.id] = entry.issue
+    orch._record_terminal_audit_stage_wake(
+        project_id="project-1",
+        task_id="AUDIT-WAKE",
+        audit_id="audit-successor",
+    )
+    dispatched = asyncio.Event()
+
+    async def _scan(**_kwargs) -> dict[str, float]:
+        if orch._available_slots() > 0:
+            orch._retire_terminal_audit_stage_wake(
+                project_id="project-1",
+                task_id="AUDIT-WAKE",
+                expected_audit_id="audit-successor",
+                reason="test_dispatch",
+            )
+            dispatched.set()
+        return {}
+
+    with (
+        patch.object(orch, "_dispatch_audit_lane", side_effect=_scan) as scan,
+        patch.object(orch, "_managed_processes", return_value={}),
+        patch.object(orch, "_notify_observers"),
+    ):
+        orch._wake_terminal_audit_continuation_lane_on_loop()
+        first_owner = orch._terminal_audit_continuation_future
+        assert first_owner is not None
+        await asyncio.wait_for(first_owner, timeout=1)
+        assert scan.await_count == 1
+        assert not dispatched.is_set()
+
+        await orch._on_worker_exit(
+            entry.issue.id,
+            "authority_revoked",
+            None,
+            run_id=entry.run_id,
+        )
+        await asyncio.wait_for(dispatched.wait(), timeout=1)
+        await asyncio.sleep(0)
+
+    assert entry.issue.id not in orch.state.running
+    assert scan.await_count == 2
+    assert orch._terminal_audit_stage_wakes_snapshot() == {}
+
+
 def test_surviving_process_keeps_agent_and_audit_metrics_visible(tmp_path) -> None:
     async def scenario() -> None:
         orch = _orchestrator(tmp_path)

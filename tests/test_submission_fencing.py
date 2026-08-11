@@ -248,6 +248,88 @@ async def test_late_tracked_changes_after_submission_acceptance_are_detected(tmp
 
 
 @pytest.mark.asyncio
+async def test_revoked_submission_capacity_release_rearms_exact_audit(
+    tmp_path,
+) -> None:
+    """Accepted-submission retirement wakes audit work from its exact pop."""
+
+    orch = _orchestrator(tmp_path)
+    orch._dispatch_loop = asyncio.get_running_loop()
+    orch.state.max_concurrent_agents = 1
+    workspace = _create_test_worktree(tmp_path)
+    accepted_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    issue = _issue(state=READY_TO_INTEGRATE, head_sha=accepted_head)
+    record = IntegrationRecord(state="ready", head_sha=accepted_head)
+    entry = RunningEntry(
+        worker_task=None,
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        assignment_id="assignment-1",
+        workspace_path=workspace,
+        authority_revoked=True,
+        accepted_submission_record=record,
+    )
+    orch.state.running[issue.id] = entry
+    orch.state.claimed.add(issue.id)
+    orch.state.claimed_issues[issue.id] = issue
+    orch._record_terminal_audit_stage_wake(
+        project_id=issue.project_id,
+        task_id="AUDIT-WAKE",
+        audit_id="audit-successor",
+    )
+    dispatched = asyncio.Event()
+
+    async def _scan(**_kwargs) -> dict[str, float]:
+        if orch._available_slots() > 0:
+            orch._retire_terminal_audit_stage_wake(
+                project_id=issue.project_id or "legacy",
+                task_id="AUDIT-WAKE",
+                expected_audit_id="audit-successor",
+                reason="test_dispatch",
+            )
+            dispatched.set()
+        return {}
+
+    tracker = _durable_tracker(issue)
+    project_store = MagicMock()
+    project_store.preserve_worktree_changes.return_value = None
+    with (
+        patch.object(orch, "_tracker_for_project", return_value=tracker),
+        patch.object(orch, "project_store", project_store),
+        patch.object(orch, "_dispatch_audit_lane", side_effect=_scan) as scan,
+        patch.object(orch, "_notify_observers"),
+    ):
+        orch._wake_terminal_audit_continuation_lane_on_loop()
+        first_owner = orch._terminal_audit_continuation_future
+        assert first_owner is not None
+        await asyncio.wait_for(first_owner, timeout=1)
+        assert scan.await_count == 1
+        assert not dispatched.is_set()
+
+        await orch._handle_revoked_submission_exit(
+            entry,
+            issue.id,
+            issue.project_id,
+            record,
+        )
+        await asyncio.wait_for(dispatched.wait(), timeout=1)
+        await asyncio.sleep(0)
+
+    assert issue.id not in orch.state.running
+    assert scan.await_count == 2
+    assert orch._terminal_audit_stage_wakes_snapshot() == {}
+
+
+@pytest.mark.asyncio
 async def test_clean_submission_with_no_late_changes_proceeds_to_integration(tmp_path):
     """Verify clean submissions without late changes proceed to integration."""
     orch = _orchestrator(tmp_path)

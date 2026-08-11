@@ -42,6 +42,7 @@ from oompah.terminal_audit_metadata import (
     TerminalAuditMetadata,
     TerminalAuditMetadataStore,
 )
+from oompah.workflow_jobs import WorkflowJobState
 
 
 class _MemoryAuditStore:
@@ -340,15 +341,22 @@ async def test_worker_task_creation_failure_restores_exact_unadmitted_audit(
     """A failed final create_task cannot retain claims or consume retry budget."""
 
     orch = _orchestrator(tmp_path)
+    orch.config.budget_limit = 10.0
     issue = _issue()
     plan = _plan()
     store = _persisted_store(plan)
+    reservation_key = orch._audit_reservation_key_for_issue(issue)
     orch._audit_branch_claims[plan.branch_key] = plan.attempt_id
     _record_queued_metric(orch, plan)
 
     with (
         patch.object(orch, "_tracker_for_issue", return_value=_tracker(issue)),
         patch.object(orch, "_audit_store", return_value=store),
+        patch.object(
+            orch,
+            "_projected_auditor_cost",
+            return_value=(0.5, None),
+        ),
         patch.object(orch, "_run_worker", new_callable=AsyncMock) as worker,
         patch(
             "oompah.orchestrator.asyncio.create_task",
@@ -362,6 +370,7 @@ async def test_worker_task_creation_failure_restores_exact_unadmitted_audit(
     assert issue.id not in orch.state.running
     assert issue.id not in orch.state.claimed
     assert plan.branch_key not in orch._audit_branch_claims
+    assert reservation_key not in orch._audit_budget_reservations
     record = store.document.pending_chain[0]
     assert record.request_state == RequestState.PENDING
     assert record.attempts == []
@@ -369,6 +378,176 @@ async def test_worker_task_creation_failure_restores_exact_unadmitted_audit(
     audit_metrics = orch.get_snapshot()["terminal_audit"]
     assert audit_metrics["queued"] == 1
     assert audit_metrics["running"] == 0
+
+
+@pytest.mark.asyncio
+async def test_budget_failure_retains_exact_wake_without_self_rearm_storm(
+    tmp_path,
+) -> None:
+    """Production audit ownership is restored before budget recovery waits."""
+
+    orch = _orchestrator(tmp_path)
+    loop = asyncio.get_running_loop()
+    orch._dispatch_loop = loop
+    orch.state.max_concurrent_agents = 1
+    orch.config.budget_limit = 10.0
+    issue = _issue()
+    plan = _plan()
+    record = TerminalAuditRecord(
+        audit_id=plan.audit_id,
+        project_id=issue.project_id or "legacy",
+        task_id=issue.identifier,
+        target_state=plan.target_state,
+        evidence_fingerprint=plan.evidence_fingerprint,
+        request_state=RequestState.PENDING,
+        attempts=[],
+        created_at=plan.created_at,
+        eligible_at=plan.created_at,
+        workflow_revision="workflow-revision-1",
+        selected_ref="refs/heads/main",
+        selected_sha="b" * 40,
+    )
+    store = _MemoryAuditStore(TerminalAuditMetadata(pending_chain=[record]))
+    wake_key = (issue.project_id or "legacy", issue.identifier)
+    orch._record_terminal_audit_stage_wake(
+        project_id=wake_key[0],
+        task_id=wake_key[1],
+        audit_id=plan.audit_id,
+    )
+    recovery_enabled = False
+    tracker = _tracker(issue)
+    tracker.get_metadata.return_value = {}
+    selector = MagicMock()
+    selector.select_candidates.return_value = ([plan.candidate], None)
+    reservation_key = orch._audit_reservation_key_for_issue(issue)
+    prior_reservation = {
+        "amount_usd": 1.25,
+        "provider_id": plan.candidate.provider_id,
+        "model": plan.candidate.model,
+        "project_id": issue.project_id,
+        "task_id": issue.identifier,
+        "issue_id": issue.id,
+        "reserved_at": "2026-08-11T16:00:00+00:00",
+        "audit_started": True,
+        "spend_reconciled": False,
+        "reconciled_at": "",
+        "authority_scope": "managed-audit-budget",
+        "authority_version": 2,
+    }
+    orch._audit_budget_reservations[reservation_key] = copy.deepcopy(
+        prior_reservation
+    )
+    assert orch._save_state(
+        audit_budget_reservations=orch._audit_budget_reservations
+    )
+    real_reconcile = orch._reconcile_audit_budget_spend
+
+    def _reconcile(*args, **kwargs) -> bool:
+        if not recovery_enabled:
+            return False
+        return real_reconcile(*args, **kwargs)
+
+    with (
+        patch.object(orch, "_tracker_for_issue", return_value=tracker),
+        patch.object(orch, "_audit_store", return_value=store),
+        patch.object(
+            orch,
+            "_fetch_audit_candidates",
+            return_value=_AuditCandidateScan((issue,)),
+        ),
+        patch.object(orch, "_is_project_paused", return_value=False),
+        patch.object(orch, "_dispatch_is_blocked", return_value=False),
+        patch.object(
+            orch,
+            "_bind_audit_record_revision",
+            side_effect=lambda _issue, current: current,
+        ),
+        patch.object(
+            orch,
+            "_prepare_audit_selector",
+            new=AsyncMock(return_value=(selector, None)),
+        ),
+        patch.object(
+            orch,
+            "_terminal_audit_validation_configuration_error",
+            return_value=None,
+        ),
+        patch.object(
+            orch,
+            "_reconcile_audit_budget_spend",
+            side_effect=_reconcile,
+        ) as reconcile_spend,
+        patch.object(
+            orch,
+            "_projected_auditor_cost",
+            return_value=(0.5, None),
+        ),
+        patch.object(
+            orch,
+            "_reserve_audit_budget_capacity",
+            wraps=orch._reserve_audit_budget_capacity,
+        ) as budget_reservation,
+        patch.object(orch, "_run_worker", new_callable=AsyncMock) as worker,
+        patch.object(orch, "_post_comment") as post_comment,
+    ):
+        orch._wake_terminal_audit_continuation_lane_on_loop()
+        failed_owner = orch._terminal_audit_continuation_future
+        assert failed_owner is not None
+        await asyncio.wait_for(failed_owner, timeout=1)
+        await asyncio.sleep(0)
+
+        assert budget_reservation.call_count == 1
+        assert post_comment.call_count == 1
+        assert orch._audit_metrics["continuation_recheck_count"] == 0
+        assert orch._terminal_audit_stage_wakes_snapshot() == {
+            wake_key: plan.audit_id
+        }
+        assert plan.branch_key not in orch._audit_branch_claims
+        assert issue.id not in orch.state.running
+        worker.assert_not_awaited()
+        assert orch._audit_budget_reservations[reservation_key] == prior_reservation
+        assert orch.state.agent_totals.estimated_cost == 0.0
+        assert reconcile_spend.call_count == 1
+        restored = store.document.pending_chain[0]
+        assert restored.request_state is RequestState.PENDING
+        assert restored.attempts == []
+        assert store.document.attempt_history == []
+        queued_job = orch.terminal_audit_workflow.observe_job(restored)
+        assert queued_job is not None
+        assert queued_job.state is WorkflowJobState.QUEUED
+        assert queued_job.attempts == 0
+        assert queued_job.retry_at is None
+        assert queued_job.lease_token is None
+
+        # A later durable budget-recovery signal owns exactly one new turn.
+        recovery_enabled = True
+        orch._wake_terminal_audit_continuation_lane()
+        recovered_owner = orch._terminal_audit_continuation_future
+        assert recovered_owner is not None
+        await asyncio.wait_for(recovered_owner, timeout=1)
+        entry = orch.state.running[issue.id]
+        assert entry.worker_task is not None
+        await asyncio.wait_for(entry.worker_task, timeout=1)
+
+    assert budget_reservation.call_count == 2
+    assert reconcile_spend.call_count == 2
+    assert orch._terminal_audit_stage_wakes_snapshot() == {}
+    assert issue.id in orch.state.running
+    worker.assert_awaited_once()
+    assert entry.worker_task.done()
+    running_record = store.document.pending_chain[0]
+    assert running_record.request_state is RequestState.IN_PROGRESS
+    assert len(running_record.attempts) == 1
+    running_job = orch.terminal_audit_workflow.observe_job(running_record)
+    assert running_job is not None
+    assert running_job.state is WorkflowJobState.RUNNING
+    assert running_job.attempts == 1
+    assert running_job.retry_at is None
+    replacement_reservation = orch._audit_budget_reservations[reservation_key]
+    assert replacement_reservation["amount_usd"] == 0.5
+    assert replacement_reservation["audit_started"] is False
+    assert orch.state.agent_totals.estimated_cost == 1.25
+    orch._remove_running_entry_and_claims(issue.id, entry)
 
 
 @pytest.mark.asyncio
@@ -1271,6 +1450,8 @@ async def test_provider_task_creation_failure_rolls_back_published_audit(
     orch.state.claimed.add(issue.id)
     orch.state.claimed_issues[issue.id] = issue
     orch._audit_branch_claims[plan.branch_key] = plan.attempt_id
+    orch._dispatch_loop = asyncio.get_running_loop()
+    orch.state.max_concurrent_agents = 1
     _record_queued_metric(orch, plan)
     orch._terminal_audit_metrics.record_running(
         issue.project_id,
@@ -1278,25 +1459,61 @@ async def test_provider_task_creation_failure_rolls_back_published_audit(
         plan.audit_id,
         attempts=1,
     )
+    orch._record_terminal_audit_stage_wake(
+        project_id=issue.project_id or "legacy",
+        task_id="AUDIT-WAKE",
+        audit_id="audit-successor",
+    )
+    dispatched = asyncio.Event()
+
+    async def _scan(**_kwargs) -> dict[str, float]:
+        if orch._available_slots() > 0:
+            orch._retire_terminal_audit_stage_wake(
+                project_id=issue.project_id or "legacy",
+                task_id="AUDIT-WAKE",
+                expected_audit_id="audit-successor",
+                reason="test_dispatch",
+            )
+            dispatched.set()
+        return {}
 
     async def _must_not_start() -> None:
         raise AssertionError("provider transport started")
 
     assert orch._provider_launch_blocked(issue, entry.run_id) is False
+    real_create_task = asyncio.create_task
+
+    def _reject_provider_task(coroutine, **kwargs):
+        if str(kwargs.get("name") or "").startswith("provider-start-"):
+            raise RuntimeError("event loop rejected provider task")
+        return real_create_task(coroutine, **kwargs)
+
     with (
         patch.object(orch, "_audit_store", return_value=store),
+        patch.object(orch, "_dispatch_audit_lane", side_effect=_scan) as scan,
         patch(
             "oompah.orchestrator.asyncio.create_task",
-            side_effect=RuntimeError("event loop rejected provider task"),
+            side_effect=_reject_provider_task,
         ),
     ):
+        orch._wake_terminal_audit_continuation_lane_on_loop()
+        first_owner = orch._terminal_audit_continuation_future
+        assert first_owner is not None
+        await asyncio.wait_for(first_owner, timeout=1)
+        assert scan.await_count == 1
+        assert not dispatched.is_set()
+
         provider_task = orch._publish_provider_start(
             issue,
             entry.run_id,
             _must_not_start,
         )
+        await asyncio.wait_for(dispatched.wait(), timeout=1)
+        await asyncio.sleep(0)
 
     assert provider_task is None
+    assert scan.await_count == 2
+    assert orch._terminal_audit_stage_wakes_snapshot() == {}
     assert issue.id not in orch.state.running
     assert issue.id not in orch.state.claimed
     assert plan.branch_key not in orch._audit_branch_claims

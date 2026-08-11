@@ -2572,6 +2572,28 @@ class Orchestrator:
         self._workflow_admission_future: asyncio.Future[None] | None = None
         self._workflow_admission_recheck_requested = False
         self._workflow_admission_wake_pending = False
+        # Exact chained terminal-audit successors have their own scheduler-loop
+        # lane. A generic refresh can sit behind a minutes-long durable world
+        # reconciliation, so it cannot provide the bounded handoff promised by
+        # the terminal-audit coordinator. One future, one lock shared with the
+        # ordinary tick audit phase, and one recheck bit provide prompt work
+        # without concurrent scans or an unbounded task fan-out.
+        self._terminal_audit_continuation_future: asyncio.Future[None] | None = None
+        self._terminal_audit_continuation_recheck_requested = False
+        self._terminal_audit_continuation_wake_pending = False
+        self._terminal_audit_lane_lock = asyncio.Lock()
+        # The ordinary dispatcher publishes whether its exact candidate cut
+        # contains runnable implementation work.  A dedicated audit wake can
+        # race that dispatcher after the audit phase releases its lane lock;
+        # retaining the proof here keeps the continuation from spending the
+        # implementation slots that the same tick just reserved.
+        self._terminal_audit_non_audit_ready_hint = False
+        # Provider tool handlers can discover a chained successor from a
+        # worker thread while the scheduler loop is retiring an older hint.
+        # Production mutations are marshalled to the scheduler loop; this
+        # narrow lock also protects startup reconstruction before that loop is
+        # live and makes exact value-CAS retirement explicit.
+        self._terminal_audit_wake_lock = threading.RLock()
         # Durable integrated-row audit staging is intentionally not part of
         # the prompt claim future.  One coalesced audit owner may replay its
         # bounded history on the tick executor while the claim lane continues
@@ -2635,6 +2657,25 @@ class Orchestrator:
             "budget_reason": None,
             "budget_deferred": False,
             "continuation_requested": False,
+            "continuation_scheduled_count": 0,
+            "continuation_started_count": 0,
+            "continuation_recheck_count": 0,
+            "continuation_pending_exact_count": 0,
+            "continuation_last_wake_at": None,
+            "continuation_last_started_at": None,
+            "continuation_last_finished_at": None,
+            "continuation_last_deferred_reason": None,
+            "continuation_last_error": None,
+            "continuation_last_task_id": None,
+            "continuation_last_audit_id": None,
+            "continuation_last_eligible_at": None,
+            "continuation_last_claim_at": None,
+            "continuation_last_dispatch_at": None,
+            "continuation_last_dispatch_latency_seconds": None,
+            "continuation_reserved_non_audit_slots": 0,
+            "continuation_absent_retirement_count": 0,
+            "continuation_absent_recheck_error_count": 0,
+            "continuation_absent_recheck_deferred_count": 0,
             "restart_publication_deferred_count": 0,
             "runtime_overrun_ms": 0.0,
             "health_cycle_seen_count": 0,
@@ -8973,6 +9014,11 @@ class Orchestrator:
                 "Resume publication suppressed because provider admission "
                 "became blocked during activation"
             )
+        elif self._terminal_audit_stage_wakes_snapshot():
+            # Paused exact-stage wakes remain durable in tracker metadata and
+            # in the in-process index. Resume their dedicated lane directly;
+            # the ordinary unpause refresh may be blocked by a long world cut.
+            self._wake_terminal_audit_continuation_lane()
         # ``get_snapshot`` may take workflow/project/journal locks. Never hold
         # provider admission while notifying, even for the blocked result.
         if notify:
@@ -10648,7 +10694,8 @@ class Orchestrator:
             if current is None or (expected is not None and current is not expected):
                 return False
             self.state.running.pop(issue_id, None)
-            return True
+        self._wake_terminal_audit_lane_after_capacity_release()
+        return True
 
     def _remove_running_entry_and_claims(
         self,
@@ -10663,7 +10710,21 @@ class Orchestrator:
             self.state.running.pop(issue_id, None)
             self.state.claimed.discard(issue_id)
             self.state.claimed_issues.pop(issue_id, None)
-            return True
+        self._wake_terminal_audit_lane_after_capacity_release()
+        return True
+
+    def _wake_terminal_audit_lane_after_capacity_release(self) -> None:
+        """Re-arm exact audit work after an authoritative slot release.
+
+        Running-entry removal and exact auditor branch-fence release are the
+        capacity linearization points.  Call this outside their authority
+        locks so scheduler-loop callbacks cannot reverse lock order.  The
+        dedicated lane coalesces repeated releases, and an empty exact-wake
+        index is a strict no-op.
+        """
+
+        if self._terminal_audit_stage_wakes_snapshot():
+            self._wake_terminal_audit_continuation_lane()
 
     def _worker_authority_current(
         self,
@@ -11870,8 +11931,96 @@ class Orchestrator:
         )
         return self._request_workflow_reconcile_continuation(reason=reason)
 
+    def _terminal_audit_stage_wakes_snapshot(self) -> dict[tuple[str, str], str]:
+        """Return a stable copy of exact successor wake ownership."""
+
+        lock = getattr(self, "_terminal_audit_wake_lock", None)
+        if lock is None:
+            lock = threading.RLock()
+            self._terminal_audit_wake_lock = lock
+        with lock:
+            wakes = getattr(self, "_eligible_audit_stage_wakes", None)
+            return dict(wakes) if isinstance(wakes, dict) else {}
+
+    def _record_terminal_audit_stage_wake(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        audit_id: str,
+    ) -> bool:
+        """Publish one exact wake, returning whether its value changed."""
+
+        lock = getattr(self, "_terminal_audit_wake_lock", None)
+        if lock is None:
+            lock = threading.RLock()
+            self._terminal_audit_wake_lock = lock
+        key = (project_id, task_id)
+        with lock:
+            wakes = getattr(self, "_eligible_audit_stage_wakes", None)
+            if not isinstance(wakes, dict):
+                wakes = {}
+                self._eligible_audit_stage_wakes = wakes
+            changed = wakes.get(key) != audit_id
+            wakes[key] = audit_id
+            pending_count = len(wakes)
+            metrics = getattr(self, "_audit_metrics", None)
+            if isinstance(metrics, dict):
+                metrics["continuation_last_wake_at"] = datetime.now(
+                    timezone.utc
+                ).isoformat()
+                metrics["continuation_last_task_id"] = task_id
+                metrics["continuation_last_audit_id"] = audit_id
+                metrics["continuation_pending_exact_count"] = pending_count
+        logger.info(
+            "Terminal-audit successor wake registered project=%s task=%s "
+            "audit=%s exact_wakes=%d",
+            project_id,
+            task_id,
+            audit_id,
+            pending_count,
+        )
+        return changed
+
+    def _retire_terminal_audit_stage_wake(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        expected_audit_id: str | None,
+        reason: str,
+    ) -> bool:
+        """Compare-and-pop one exact wake without deleting a newer value."""
+
+        if not expected_audit_id:
+            return False
+        lock = getattr(self, "_terminal_audit_wake_lock", None)
+        if lock is None:
+            lock = threading.RLock()
+            self._terminal_audit_wake_lock = lock
+        key = (project_id, task_id)
+        with lock:
+            wakes = getattr(self, "_eligible_audit_stage_wakes", None)
+            if not isinstance(wakes, dict) or wakes.get(key) != expected_audit_id:
+                return False
+            wakes.pop(key)
+            pending_count = len(wakes)
+            metrics = getattr(self, "_audit_metrics", None)
+            if isinstance(metrics, dict):
+                metrics["continuation_pending_exact_count"] = pending_count
+        logger.info(
+            "Terminal-audit successor wake retired project=%s task=%s "
+            "audit=%s reason=%s exact_wakes=%d",
+            project_id,
+            task_id,
+            expected_audit_id,
+            reason,
+            pending_count,
+        )
+        return True
+
     def _request_audit_lane_continuation(self) -> bool:
-        """Queue one coalesced follow-up for a budget-sliced audit scan."""
+        """Queue one dedicated follow-up for a budget-sliced audit scan."""
 
         runtime = self.workflow_runtime
         with self._provider_admission_lock:
@@ -11881,15 +12030,211 @@ class Orchestrator:
                 or self._paused
                 or (runtime is not None and not runtime.worker.accepting)
             ):
+                metrics = getattr(self, "_audit_metrics", None)
+                if isinstance(metrics, dict):
+                    metrics["continuation_last_deferred_reason"] = (
+                        "lifecycle_fence"
+                    )
                 return False
-            self._set_refresh_requested()
-            self._post_event(
-                DispatchEvent(
-                    event_type=DispatchEventType.REFRESH_REQUESTED,
-                    payload={"reason": "terminal_audit_budget_deferred"},
-                )
-            )
+        self._wake_terminal_audit_continuation_lane()
         return True
+
+    def _terminal_audit_continuation_blocked_reason(self) -> str | None:
+        """Return the current lifecycle fence for the dedicated audit lane."""
+
+        runtime = self.workflow_runtime
+        if self._stopping:
+            return "stopping"
+        if self._quiesced:
+            return "quiesced"
+        if self._paused:
+            return "paused"
+        if runtime is not None and not runtime.worker.accepting:
+            return "runtime_not_accepting"
+        return None
+
+    def _ensure_terminal_audit_continuation_lane(self) -> bool:
+        """Start the single bounded terminal-audit continuation owner."""
+
+        blocked_reason = self._terminal_audit_continuation_blocked_reason()
+        if blocked_reason is not None:
+            metrics = getattr(self, "_audit_metrics", None)
+            if isinstance(metrics, dict):
+                metrics["continuation_last_deferred_reason"] = blocked_reason
+            return False
+        owner = getattr(self, "_terminal_audit_continuation_future", None)
+        if owner is not None and not owner.done():
+            return False
+        self._terminal_audit_continuation_wake_pending = False
+        owner = asyncio.create_task(
+            self._run_terminal_audit_continuation_lane(),
+            name="terminal-audit-continuation",
+        )
+        self._terminal_audit_continuation_future = owner
+        metrics = getattr(self, "_audit_metrics", None)
+        if isinstance(metrics, dict):
+            metrics["continuation_scheduled_count"] = int(
+                metrics.get("continuation_scheduled_count", 0) or 0
+            ) + 1
+        logger.info(
+            "Terminal-audit continuation lane scheduled exact_wakes=%d",
+            len(self._terminal_audit_stage_wakes_snapshot()),
+        )
+        owner.add_done_callback(self._terminal_audit_continuation_lane_finished)
+        return True
+
+    def _terminal_audit_continuation_lane_finished(
+        self,
+        owner: asyncio.Future[None],
+    ) -> None:
+        """Transfer a late wake from an exiting audit owner exactly once."""
+
+        try:
+            owner.result()
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:  # noqa: BLE001 - durable recovery retries later
+            metrics = getattr(self, "_audit_metrics", None)
+            if isinstance(metrics, dict):
+                metrics["continuation_last_error"] = (
+                    f"{type(exc).__name__}: {exc}"
+                )
+            logger.exception("Terminal-audit continuation lane failed")
+        if getattr(self, "_terminal_audit_continuation_future", None) is not owner:
+            return
+        self._terminal_audit_continuation_future = None
+        if not getattr(
+            self,
+            "_terminal_audit_continuation_wake_pending",
+            False,
+        ):
+            return
+        # A wake arriving after the owner chose its return path is never lost.
+        # Lifecycle fences retain the bit for unpause/startup; capacity waits
+        # are re-published by WORKER_EXIT rather than spinning here.
+        self._ensure_terminal_audit_continuation_lane()
+
+    def _wake_terminal_audit_continuation_lane_on_loop(self) -> None:
+        """Coalesce one exact terminal-audit wake on the scheduler loop."""
+
+        blocked_reason = self._terminal_audit_continuation_blocked_reason()
+        if blocked_reason is not None:
+            self._terminal_audit_continuation_wake_pending = True
+            metrics = getattr(self, "_audit_metrics", None)
+            if isinstance(metrics, dict):
+                metrics["continuation_last_deferred_reason"] = blocked_reason
+            return
+        # Publish intent before observing the owner. Its done callback owns
+        # the narrow race after the run loop's final recheck observation.
+        self._terminal_audit_continuation_wake_pending = True
+        owner = getattr(self, "_terminal_audit_continuation_future", None)
+        if owner is not None and not owner.done():
+            self._terminal_audit_continuation_recheck_requested = True
+            metrics = getattr(self, "_audit_metrics", None)
+            if isinstance(metrics, dict):
+                metrics["continuation_recheck_count"] = int(
+                    metrics.get("continuation_recheck_count", 0) or 0
+                ) + 1
+            return
+        self._ensure_terminal_audit_continuation_lane()
+
+    def _wake_terminal_audit_continuation_lane(self) -> None:
+        """Promptly wake the bounded audit lane from any worker thread."""
+
+        loop = getattr(self, "_dispatch_loop", None)
+        if loop is None or not loop.is_running():
+            self._terminal_audit_continuation_wake_pending = True
+            return
+        if self._running_loop() is not loop:
+            try:
+                loop.call_soon_threadsafe(
+                    self._wake_terminal_audit_continuation_lane_on_loop
+                )
+            except (RuntimeError, ValueError):
+                # The scheduler loop closed after the liveness observation.
+                # Durable metadata remains authoritative across restart; keep
+                # one in-process edge for any still-live replacement loop.
+                self._terminal_audit_continuation_wake_pending = True
+            return
+        self._wake_terminal_audit_continuation_lane_on_loop()
+
+    async def _run_terminal_audit_continuation_lane(self) -> None:
+        """Run one audit owner with a one-bit handoff for concurrent wakes."""
+
+        while not self._stopping:
+            self._terminal_audit_continuation_recheck_requested = False
+            self._terminal_audit_continuation_wake_pending = False
+            metrics = getattr(self, "_audit_metrics", None)
+            if isinstance(metrics, dict):
+                metrics["continuation_started_count"] = int(
+                    metrics.get("continuation_started_count", 0) or 0
+                ) + 1
+                metrics["continuation_last_started_at"] = datetime.now(
+                    timezone.utc
+                ).isoformat()
+                metrics["continuation_last_deferred_reason"] = None
+                metrics["continuation_last_error"] = None
+            logger.info(
+                "Terminal-audit continuation lane started exact_wakes=%d",
+                len(self._terminal_audit_stage_wakes_snapshot()),
+            )
+            try:
+                await self._dispatch_audit_lane(
+                    # Recompute only after acquiring the shared audit lock.
+                    # An ordinary dispatcher can publish runnable work while
+                    # this continuation is queued behind its audit phase.
+                    allow_new_launches=True,
+                )
+                if isinstance(metrics, dict):
+                    metrics["continuation_reserved_non_audit_slots"] = int(
+                        metrics.get("reserved_non_audit_slots", 0) or 0
+                    )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - durable metadata survives
+                if isinstance(metrics, dict):
+                    metrics["continuation_last_error"] = (
+                        f"{type(exc).__name__}: {exc}"
+                    )
+                raise
+            finally:
+                if isinstance(metrics, dict):
+                    metrics["continuation_last_finished_at"] = datetime.now(
+                        timezone.utc
+                    ).isoformat()
+                    metrics["continuation_pending_exact_count"] = len(
+                        self._terminal_audit_stage_wakes_snapshot()
+                    )
+            if (
+                self._terminal_audit_continuation_recheck_requested
+                and self._terminal_audit_stage_wakes_snapshot()
+                and self._available_slots() <= 0
+            ):
+                # A budget continuation requested from this scan must not
+                # busy-loop while the current auditor still owns the only
+                # slot. WORKER_EXIT is the durable capacity-release edge.
+                self._terminal_audit_continuation_recheck_requested = False
+                self._terminal_audit_continuation_wake_pending = False
+            if not self._terminal_audit_continuation_recheck_requested:
+                remaining = self._terminal_audit_stage_wakes_snapshot()
+                if remaining and isinstance(metrics, dict):
+                    if self._terminal_audit_continuation_blocked_reason():
+                        reason = "lifecycle_fence"
+                    elif self._available_slots() <= 0:
+                        reason = "capacity"
+                    else:
+                        reason = str(
+                            metrics.get("budget_reason")
+                            or "eligibility_or_policy"
+                        )
+                    metrics["continuation_last_deferred_reason"] = reason
+                    logger.info(
+                        "Terminal-audit continuation deferred reason=%s "
+                        "exact_wakes=%d",
+                        reason,
+                        len(remaining),
+                    )
+                return
 
     def _request_next_audit_stage(
         self,
@@ -11911,12 +12256,35 @@ class Orchestrator:
         audit = str(audit_id or "").strip()
         if not task or not audit:
             return False
-        wakes = getattr(self, "_eligible_audit_stage_wakes", None)
-        if not isinstance(wakes, dict):
-            wakes = {}
-            self._eligible_audit_stage_wakes = wakes
-        wakes[(project, task)] = audit
-        return self._request_audit_lane_continuation()
+
+        def _register_on_scheduler_loop() -> bool:
+            self._record_terminal_audit_stage_wake(
+                project_id=project,
+                task_id=task,
+                audit_id=audit,
+            )
+            return self._request_audit_lane_continuation()
+
+        loop = getattr(self, "_dispatch_loop", None)
+        if (
+            loop is not None
+            and loop.is_running()
+            and self._running_loop() is not loop
+        ):
+            try:
+                loop.call_soon_threadsafe(_register_on_scheduler_loop)
+            except (RuntimeError, ValueError):
+                # Shutdown closed the loop between the liveness observation and
+                # publication. Preserve the durable hint for restart recovery.
+                self._record_terminal_audit_stage_wake(
+                    project_id=project,
+                    task_id=task,
+                    audit_id=audit,
+                )
+                self._terminal_audit_continuation_wake_pending = True
+                return False
+            return True
+        return _register_on_scheduler_loop()
 
     def _integration_executor(self) -> ThreadPoolExecutor:
         """Return the isolated integration executor once the service is live."""
@@ -13985,6 +14353,11 @@ class Orchestrator:
         try:
             # Run an initial tick on startup to catch anything already pending.
             await _run_tick()
+            if self._terminal_audit_continuation_wake_pending:
+                if self._terminal_audit_stage_wakes_snapshot():
+                    self._wake_terminal_audit_continuation_lane_on_loop()
+                else:
+                    self._terminal_audit_continuation_wake_pending = False
             if self._workflow_admission_wake_pending:
                 self._wake_workflow_admission_lane_on_loop()
 
@@ -14353,6 +14726,7 @@ class Orchestrator:
                 self._epic_maintenance_future,
                 self._integration_future,
                 self._workflow_admission_future,
+                getattr(self, "_terminal_audit_continuation_future", None),
                 self._integration_audit_future,
                 self._standalone_delivery_future,
                 self._terminal_lifecycle_future,
@@ -15872,7 +16246,7 @@ class Orchestrator:
                 self._tick_pool, self._run_terminal_audit_enforcement
             )
         return await self._dispatch_audit_lane(
-            allow_new_launches=allow_new_launches
+            allow_new_launches=allow_new_launches,
         )
 
     async def _run_restart_reconstruction_tick(
@@ -17323,13 +17697,22 @@ class Orchestrator:
         self,
         attempt_id: str | None,
         branch_key: str | None,
+        *,
+        rearm_terminal_audit: bool = True,
     ) -> None:
         if not attempt_id:
             return
         changed = False
+        branch_released = False
         with self._audit_rollback_lock:
             changed = self._pending_audit_rollbacks.pop(attempt_id, None) is not None
-            self._release_audit_branch_claim(branch_key, attempt_id)
+            branch_released = self._release_audit_branch_claim(
+                branch_key,
+                attempt_id,
+                rearm_terminal_audit=False,
+            )
+        if branch_released and rearm_terminal_audit:
+            self._wake_terminal_audit_lane_after_capacity_release()
         if changed and not self._persist_pending_audit_rollbacks():
             logger.error(
                 "Could not persist completion of deferred audit rollback attempt=%s",
@@ -17344,6 +17727,7 @@ class Orchestrator:
         branch_key: str | None,
         *,
         reason: str,
+        rearm_terminal_audit: bool = True,
     ) -> UnadmittedAuditRollbackOutcome:
         """Restore an unlaunched attempt, or journal its exact rollback owner.
 
@@ -17393,7 +17777,11 @@ class Orchestrator:
                 reason,
             )
             return outcome
-        self._clear_deferred_audit_rollback(attempt_id, branch_key)
+        self._clear_deferred_audit_rollback(
+            attempt_id,
+            branch_key,
+            rearm_terminal_audit=rearm_terminal_audit,
+        )
         return outcome
 
     def _retry_pending_audit_rollbacks(self) -> None:
@@ -17584,6 +17972,7 @@ class Orchestrator:
         recovered = 0
         retired_resolved = 0
         retired_workspaces = 0
+        reconstructed_wakes = 0
         active_task_keys = {
             (job.project_id, job.task_id)
             for job in self.workflow_job_store.list_jobs(
@@ -17702,11 +18091,12 @@ class Orchestrator:
                     # Reconstruct only a wake whose exact predecessor still
                     # proves a completed PASS.  ``pending_record`` validates
                     # the durable prerequisite edge and completion authority.
-                    wakes = getattr(self, "_eligible_audit_stage_wakes", None)
-                    if not isinstance(wakes, dict):
-                        wakes = {}
-                        self._eligible_audit_stage_wakes = wakes
-                    wakes[(record.project_id, record.task_id)] = record.audit_id
+                    if self._record_terminal_audit_stage_wake(
+                        project_id=record.project_id,
+                        task_id=record.task_id,
+                        audit_id=record.audit_id,
+                    ):
+                        reconstructed_wakes += 1
                 self._activate_status_departure_audit(document, record)
                 before = self.terminal_audit_workflow.decision(record)
                 after = self.terminal_audit_workflow.recover(
@@ -17730,6 +18120,17 @@ class Orchestrator:
             "retired_resolved": retired_resolved,
             "retired_workspaces": retired_workspaces,
         }
+        if reconstructed_wakes:
+            metrics = getattr(self, "_audit_metrics", None)
+            if isinstance(metrics, dict):
+                metrics["continuation_pending_exact_count"] = len(
+                    self._terminal_audit_stage_wakes_snapshot()
+                )
+            # Startup's first tick runs the audit phase before its full-world
+            # reconciliation. Preserve one lane edge in case that bounded pass
+            # defers the exact successor; live capacity release and budget
+            # continuation paths re-publish it directly.
+            self._terminal_audit_continuation_wake_pending = True
 
     @staticmethod
     def _terminal_audit_rearm_authorization(document: Any, record: Any) -> Any:
@@ -18282,6 +18683,8 @@ class Orchestrator:
         self,
         branch_key: str | None,
         attempt_id: str | None,
+        *,
+        rearm_terminal_audit: bool = True,
     ) -> bool:
         """Release an audit branch fence only when *attempt_id* still owns it."""
 
@@ -18290,6 +18693,8 @@ class Orchestrator:
         if self._audit_branch_claims.get(branch_key) != attempt_id:
             return False
         self._audit_branch_claims.pop(branch_key, None)
+        if rearm_terminal_audit:
+            self._wake_terminal_audit_lane_after_capacity_release()
         return True
 
     def _audit_selector(
@@ -18929,7 +19334,7 @@ class Orchestrator:
         # front of this bounded read window so the next pass can reconsider
         # them immediately.  Launch eligibility below still refuses a hinted
         # task while any higher-priority candidate is outside the window.
-        wakes = getattr(self, "_eligible_audit_stage_wakes", {})
+        wakes = self._terminal_audit_stage_wakes_snapshot()
         if wakes:
             hinted = [
                 issue
@@ -18986,7 +19391,118 @@ class Orchestrator:
             )
             for issue in candidates
         }
+    def _read_absent_terminal_audit_wake_authority(
+        self,
+        project_id: str,
+        task_id: str,
+    ) -> tuple[Issue | None, TerminalAuditMetadata]:
+        """Read exact task and metadata proof for an absent candidate key."""
 
+        tracker = (
+            self.tracker
+            if project_id == "legacy"
+            else self._tracker_for_project(project_id)
+        )
+        issue = tracker.fetch_issue_detail(task_id)
+        document = TerminalAuditMetadataStore(
+            tracker,
+            self.project_store,
+            project_id,
+        ).read(task_id)
+        return issue, document
+
+    async def _reconcile_absent_terminal_audit_wakes(
+        self,
+        candidate_scan: _AuditCandidateScan,
+        *,
+        deadline: float,
+    ) -> dict[str, int]:
+        """Retire exact hints disproved by a complete candidate corpus.
+
+        A successful all-scope ``In Validation`` query is necessary but not
+        sufficient proof: each absent key is re-read through its scoped task
+        and terminal-audit metadata. Incomplete discovery, read errors, and
+        contradictory still-eligible direct reads retain the hint. The final
+        compare-and-pop is bound to the audit ID captured before those reads,
+        so an older scan cannot erase a newly registered successor.
+        """
+
+        result = {"retired": 0, "errors": 0, "deferred": 0}
+        if not candidate_scan.scan_complete:
+            return result
+        candidate_keys = {
+            (str(issue.project_id or "legacy"), issue.identifier)
+            for issue in candidate_scan.candidates
+        }
+        absent = [
+            (key, audit_id)
+            for key, audit_id in self._terminal_audit_stage_wakes_snapshot().items()
+            if key not in candidate_keys
+        ]
+        monotonic = getattr(self, "_monotonic_clock", time.monotonic)
+        for (project_id, task_id), expected_audit_id in absent:
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                result["deferred"] += 1
+                continue
+            try:
+                issue, document = await asyncio.wait_for(
+                    asyncio.get_running_loop().run_in_executor(
+                        self._tick_pool,
+                        self._read_absent_terminal_audit_wake_authority,
+                        project_id,
+                        task_id,
+                    ),
+                    timeout=remaining,
+                )
+            except Exception as exc:  # noqa: BLE001 - retain wake on proof failure
+                result["errors"] += 1
+                logger.warning(
+                    "Could not prove absent terminal-audit successor project=%s "
+                    "task=%s audit=%s error=%s",
+                    project_id,
+                    task_id,
+                    expected_audit_id,
+                    type(exc).__name__,
+                )
+                continue
+            if document.is_quarantined:
+                result["errors"] += 1
+                continue
+            if issue is not None and issue.identifier != task_id:
+                result["errors"] += 1
+                continue
+            record = AuditorDispatchLane.pending_record(
+                document.pending_chain,
+                project_id=project_id,
+                task_id=task_id,
+            )
+            still_eligible = bool(
+                issue is not None
+                and _state_key(issue.state) == _state_key(IN_VALIDATION)
+                and record is not None
+                and record.audit_id == expected_audit_id
+                and record.eligible_at is not None
+            )
+            if still_eligible:
+                continue
+            if self._retire_terminal_audit_stage_wake(
+                project_id=project_id,
+                task_id=task_id,
+                expected_audit_id=expected_audit_id,
+                reason="authoritative_absence",
+            ):
+                result["retired"] += 1
+        metrics = getattr(self, "_audit_metrics", None)
+        if isinstance(metrics, dict):
+            metrics["continuation_absent_retirement_count"] = int(
+                metrics.get("continuation_absent_retirement_count", 0) or 0
+            ) + result["retired"]
+            metrics["continuation_absent_recheck_error_count"] = result["errors"]
+            metrics["continuation_absent_recheck_deferred_count"] = result[
+                "deferred"
+            ]
+        return result
     def _cached_audit_selector(
         self,
         issue: Issue,
@@ -19090,7 +19606,79 @@ class Orchestrator:
         )
         return min(configured, available, total - 1)
 
+    @staticmethod
+    def _decision_has_runnable_implementation_provider(
+        decision: WorkDecision,
+    ) -> bool:
+        """Return whether one published decision proves provider work ready."""
+
+        provider_jobs = {
+            "implementation_start",
+            "implementation_recovery",
+            "duplicate_screening",
+            "focus_handoff",
+        }
+        return bool(
+            decision.disposition
+            in {TaskDisposition.RUNNABLE, TaskDisposition.RETRY_SCHEDULED}
+            and provider_jobs.intersection(decision.durable_jobs)
+        )
+
+    def _terminal_audit_continuation_reserved_slots(self) -> int:
+        """Recompute the non-audit reservation for a dedicated audit turn.
+
+        The legacy dispatcher publishes its exact selection result before it
+        releases the audit lane.  Runtime-bound production also publishes
+        immutable WorkDecisions before durable admission.  Either proof is
+        sufficient to preserve the same implementation reservation while an
+        unrelated full-world reconciliation is still in flight.
+        """
+
+        non_audit_ready = bool(
+            getattr(self, "_terminal_audit_non_audit_ready_hint", False)
+        )
+        lock = getattr(self, "_work_decisions_lock", None)
+        decisions = getattr(self, "_work_decisions", {})
+        if lock is not None:
+            with lock:
+                decision_snapshot = tuple(decisions.values())
+        else:
+            decision_snapshot = tuple(decisions.values())
+        non_audit_ready = non_audit_ready or any(
+            self._decision_has_runnable_implementation_provider(decision)
+            for decision in decision_snapshot
+            if isinstance(decision, WorkDecision)
+        )
+        return self._audit_lane_reserved_slots(non_audit_ready=non_audit_ready)
+
     async def _dispatch_audit_lane(
+        self,
+        *,
+        reserved_non_audit_slots: int | None = None,
+        allow_new_launches: bool = True,
+    ) -> dict[str, float]:
+        """Serialize ordinary and dedicated terminal-audit lane owners."""
+
+        lock = getattr(self, "_terminal_audit_lane_lock", None)
+        if lock is None:
+            # A few narrow unit fixtures bypass ``__init__``. Lazy creation
+            # preserves their coverage while production initializes eagerly.
+            lock = asyncio.Lock()
+            self._terminal_audit_lane_lock = lock
+        async with lock:
+            if reserved_non_audit_slots is None:
+                reserved_non_audit_slots = (
+                    self._terminal_audit_continuation_reserved_slots()
+                )
+            metrics = getattr(self, "_audit_metrics", None)
+            if isinstance(metrics, dict):
+                metrics["reserved_non_audit_slots"] = reserved_non_audit_slots
+            return await self._dispatch_audit_lane_owned(
+                reserved_non_audit_slots=reserved_non_audit_slots,
+                allow_new_launches=allow_new_launches,
+            )
+
+    async def _dispatch_audit_lane_owned(
         self,
         *,
         reserved_non_audit_slots: int = 0,
@@ -19164,6 +19752,10 @@ class Orchestrator:
 
         candidate_scan = await asyncio.get_running_loop().run_in_executor(
             self._tick_pool, self._fetch_audit_candidates
+        )
+        await self._reconcile_absent_terminal_audit_wakes(
+            candidate_scan,
+            deadline=deadline,
         )
         discovered_candidate_count = len(candidate_scan.candidates)
         candidate_suspension = self._audit_candidate_suspension_snapshot(
@@ -19284,11 +19876,9 @@ class Orchestrator:
                     str(issue.project_id or "legacy"),
                     issue.identifier,
                 )
-                expected_wake = getattr(
-                    self,
-                    "_eligible_audit_stage_wakes",
-                    {},
-                ).get(wake_key)
+                expected_wake = self._terminal_audit_stage_wakes_snapshot().get(
+                    wake_key
+                )
                 if expected_wake is not None and (
                     record is None
                     or record.audit_id != expected_wake
@@ -19297,9 +19887,19 @@ class Orchestrator:
                     # The exact stage was retired, replaced, or is no longer
                     # eligible.  Never let an obsolete continuation distort
                     # later bounded windows.
-                    getattr(
-                        self, "_eligible_audit_stage_wakes", {}
-                    ).pop(wake_key, None)
+                    self._retire_terminal_audit_stage_wake(
+                        project_id=wake_key[0],
+                        task_id=wake_key[1],
+                        expected_audit_id=expected_wake,
+                        reason="stale_metadata",
+                    )
+                elif expected_wake is not None and record is not None:
+                    eligible_at = _audit_observability_time(record.eligible_at)
+                    metrics["continuation_last_task_id"] = issue.identifier
+                    metrics["continuation_last_audit_id"] = record.audit_id
+                    metrics["continuation_last_eligible_at"] = (
+                        eligible_at.isoformat() if eligible_at is not None else None
+                    )
                 finalization_failure_count = (
                     self._uncommitted_terminal_result_intents(
                         document,
@@ -19967,7 +20567,12 @@ class Orchestrator:
                         no_candidate.detail if no_candidate else "no candidate",
                         action_job=action_job,
                     )
-                    self._eligible_audit_stage_wakes.pop(wake_key, None)
+                    self._retire_terminal_audit_stage_wake(
+                        project_id=wake_key[0],
+                        task_id=wake_key[1],
+                        expected_audit_id=expected_wake,
+                        reason="no_independent_auditor",
+                    )
                     continue
 
                 if not allow_new_launches:
@@ -19995,6 +20600,18 @@ class Orchestrator:
                     # semantic job is terminal.  No ownerless attempt was
                     # published to tracker metadata.
                     continue
+                if expected_wake == plan.audit_id:
+                    metrics["continuation_last_claim_at"] = datetime.now(
+                        timezone.utc
+                    ).isoformat()
+                    logger.info(
+                        "Terminal-audit continuation claimed exact successor "
+                        "project=%s task=%s audit=%s workflow_job=%s",
+                        str(issue.project_id or "legacy"),
+                        issue.identifier,
+                        plan.audit_id,
+                        workflow_job.job_id,
+                    )
                 # The helper has now durably published the IN_PROGRESS record;
                 # health must expose that owned generation rather than the
                 # PENDING snapshot captured before the workflow lease CAS.
@@ -20066,8 +20683,37 @@ class Orchestrator:
                         )
                     raise
                 dispatched += 1
-                getattr(self, "_eligible_audit_stage_wakes", {}).pop(
-                    wake_key, None
+                if expected_wake == plan.audit_id:
+                    dispatched_at = datetime.now(timezone.utc)
+                    eligible_at = _audit_observability_time(record.eligible_at)
+                    latency = (
+                        max((dispatched_at - eligible_at).total_seconds(), 0.0)
+                        if eligible_at is not None
+                        else None
+                    )
+                    metrics["continuation_last_task_id"] = issue.identifier
+                    metrics["continuation_last_audit_id"] = plan.audit_id
+                    metrics["continuation_last_eligible_at"] = (
+                        eligible_at.isoformat() if eligible_at is not None else None
+                    )
+                    metrics["continuation_last_dispatch_at"] = (
+                        dispatched_at.isoformat()
+                    )
+                    metrics["continuation_last_dispatch_latency_seconds"] = latency
+                    metrics["continuation_last_deferred_reason"] = None
+                    logger.info(
+                        "Terminal-audit continuation dispatched exact successor "
+                        "project=%s task=%s audit=%s latency_seconds=%s",
+                        str(issue.project_id or "legacy"),
+                        issue.identifier,
+                        plan.audit_id,
+                        f"{latency:.3f}" if latency is not None else "unknown",
+                    )
+                self._retire_terminal_audit_stage_wake(
+                    project_id=wake_key[0],
+                    task_id=wake_key[1],
+                    expected_audit_id=expected_wake,
+                    reason="dispatched",
                 )
                 metrics["dispatch_count"] += 1
                 if plan.rotation_count:
@@ -20294,6 +20940,10 @@ class Orchestrator:
         ready = await _timed(
             "select_dispatchable", self._select_dispatchable, candidates
         )
+        # Publish the exact selection proof before the audit phase yields its
+        # shared lane lock. A dedicated successor task can otherwise run in
+        # the gap before the normal-dispatch loop and steal this reservation.
+        self._terminal_audit_non_audit_ready_hint = bool(ready)
         metrics["selection"] = getattr(self, "_last_selection_metrics", {})
         metrics["ready_count"] = len(ready)
         now = datetime.now(timezone.utc)
@@ -20342,6 +20992,7 @@ class Orchestrator:
                 break
             await self._dispatch(issue, attempt=None)
             dispatched += 1
+        self._terminal_audit_non_audit_ready_hint = dispatched < len(ready)
         timings["normal_dispatch"] = (time.monotonic() - _t_dispatch) * 1000
         metrics["dispatched_count"] = dispatched
         if self.state.max_concurrent_agents == 1 and ready:
@@ -56737,12 +57388,15 @@ class Orchestrator:
             reason: str,
             *,
             transition_locked: bool = False,
+            rearm_terminal_audit: bool = True,
+            release_audit_budget_reservation: bool = True,
         ) -> None:
             """Release exact pre-start ownership, including durable audits."""
 
             nonlocal ordinary_recovery_entry
             self.state.claimed.discard(issue.id)
             self.state.claimed_issues.pop(issue.id, None)
+            rollback_outcome = UnadmittedAuditRollbackOutcome.AMBIGUOUS
             try:
                 await _release_preflight(reason)
             except BaseException as exc:  # continue every independent recovery
@@ -56797,15 +57451,19 @@ class Orchestrator:
                 # shutting down ``_tick_pool`` before this losing dispatcher
                 # resumes.  Use the dispatch loop's independent default
                 # executor so the exact durable attempt can still be restored.
-                restored = await asyncio.to_thread(
+                rollback_outcome = await asyncio.to_thread(
                     self._restore_or_defer_unadmitted_audit_attempt,
                     issue,
                     auditor_plan.audit_id,
                     auditor_plan.attempt_id,
                     auditor_plan.branch_key,
                     reason=reason,
+                    rearm_terminal_audit=rearm_terminal_audit,
                 )
-                if restored is UnadmittedAuditRollbackOutcome.RESTORED:
+                if (
+                    rollback_outcome is UnadmittedAuditRollbackOutcome.RESTORED
+                    and release_audit_budget_reservation
+                ):
                     reservation_key = self._audit_reservation_key_for_issue(issue)
                     if not self._release_audit_budget_reservation(reservation_key):
                         logger.error(
@@ -56830,11 +57488,49 @@ class Orchestrator:
                     auditor_plan.attempt_id,
                     exc,
                 )
+            workflow_job_id = str(auditor_plan.workflow_job_id or "").strip()
+            workflow_lease_token = str(
+                auditor_plan.workflow_lease_token or ""
+            ).strip()
+            if workflow_job_id and workflow_lease_token:
+                try:
+                    workflow_job = self.workflow_job_store.get(workflow_job_id)
+                    if (
+                        workflow_job.state is WorkflowJobState.RUNNING
+                        and workflow_job.lease_token == workflow_lease_token
+                    ):
+                        if (
+                            rollback_outcome
+                            is UnadmittedAuditRollbackOutcome.SUPERSEDED
+                        ):
+                            self.terminal_audit_workflow.cancel(
+                                workflow_job,
+                                reason=(
+                                    "unadmitted auditor authority was superseded "
+                                    "before provider contact"
+                                ),
+                            )
+                        else:
+                            self.terminal_audit_workflow.lifecycle_requeue(
+                                workflow_job,
+                                reason=reason,
+                            )
+                except Exception as workflow_exc:  # noqa: BLE001 - lease remains durable
+                    logger.warning(
+                        "Could not resolve unadmitted terminal-audit workflow "
+                        "lease issue=%s audit=%s attempt=%s error=%s",
+                        issue.identifier,
+                        auditor_plan.audit_id,
+                        auditor_plan.attempt_id,
+                        type(workflow_exc).__name__,
+                    )
 
         async def _compensate_before_admission(
             reason: str,
             *,
             transition_locked: bool = False,
+            rearm_terminal_audit: bool = True,
+            release_audit_budget_reservation: bool = True,
         ) -> None:
             """Finish compensation even when the losing dispatcher is cancelled."""
 
@@ -56842,6 +57538,10 @@ class Orchestrator:
                 _abort_before_admission(
                     reason,
                     transition_locked=transition_locked,
+                    rearm_terminal_audit=rearm_terminal_audit,
+                    release_audit_budget_reservation=(
+                        release_audit_budget_reservation
+                    ),
                 ),
                 name=f"admission-compensation-{issue.identifier}",
             )
@@ -57693,11 +58393,23 @@ class Orchestrator:
                     new_audit_attempt=True,
                 )
                 if budget_error is not None:
-                    self.state.claimed.discard(issue.id)
-                    self.state.claimed_issues.pop(issue.id, None)
-                    self._release_audit_branch_claim(
-                        auditor_plan.branch_key,
-                        auditor_plan.attempt_id,
+                    await _compensate_before_admission(
+                        "auditor budget reservation failed before provider contact",
+                        # The audit lane that acquired this pre-provider fence
+                        # still owns the current bounded scan. Re-arming that
+                        # same owner turns a persistent budget-store failure
+                        # into an immediate retry/exhaustion storm. Exact audit
+                        # metadata and the workflow lease are restored first;
+                        # a later durable recovery signal or ordinary tick owns
+                        # the next attempt.
+                        rearm_terminal_audit=False,
+                        # A reserve call can fail because a prior started
+                        # projection could not be reconciled. This admission
+                        # did not acquire that financial authority and must
+                        # not delete it while rolling back metadata/workflow
+                        # ownership. Successful reserve paths retain the
+                        # default release-on-later-admission-failure behavior.
+                        release_audit_budget_reservation=False,
                     )
                     self._post_comment(
                         issue.identifier,
@@ -70198,6 +70910,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         self._release_audit_branch_claim(
                             entry.branch_key,
                             entry.audit_attempt_id,
+                            rearm_terminal_audit=False,
                         )
                     # The exact entry is no longer published. Clear the transient
                     # fence only as the last part of this non-yielding retirement
@@ -70217,6 +70930,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         )
                         if coordinator is not None:
                             coordinator.retry_satisfied = retry_token is not None
+
+            self._wake_terminal_audit_lane_after_capacity_release()
 
             elapsed = (datetime.now(timezone.utc) - entry.started_at).total_seconds()
             self.state.agent_totals.seconds_running += elapsed
