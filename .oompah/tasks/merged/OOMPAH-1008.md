@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1008
 type: bug
-status: In Progress
+status: Merged
 priority: 2
 title: Make late-effect quarantine deterministic under full-suite load
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T01:18:23.370723Z'
-updated_at: '2026-08-11T03:05:30.450400Z'
+updated_at: '2026-08-11T08:07:40.842553Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,33 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: o1007-full-gate-late-success-timeout-flake
   request_fingerprint: fa98def25d0cdaefcd8d17bafe1f395bfcba2ca5b37b3c365b29d4affc199d53
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-af04b28da53b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1008
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 31abd0543f7ce9c4b1a5cf8e86a613e9f246eca38e9bc9bd682ce5a87b6ff012
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Protected PR #806 and hosted Python 3.11/3.12/3.13 gates are green; deployed
+      build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 contains merge 62c3cda3ea602b614a3a3dfc92c66468b5c34a4b;
+      independent audit verified that every exact reviewed branch change is patch-equivalent
+      to or composition-equivalent with the protected merge and no unique branch changes
+      remain.'
+    created_at: '2026-08-11T08:07:36.389334+00:00'
+    selected_ref: origin/OOMPAH-1008
+    selected_sha: 6590e3558f5ff82fe9f60bfe7cc6669dfbc4192d
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
