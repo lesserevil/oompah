@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T23:19:04.544332Z'
-updated_at: '2026-08-11T01:34:58.439048Z'
+updated_at: '2026-08-11T01:37:09.339741Z'
 work_branch: OOMPAH-1007
 target_branch: main
 review_url: null
@@ -51,6 +51,35 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1007
     digest: 3eccdcb99e54d6089fea2f8a211fc54b9bbe27b419e0d5811424a2a2fbbd6fa5
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1007","audit-dba0f81ba987","attempt-9703c33f3489"]': '2026-08-11T01:37:00.535679+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1007
+    target_state: Done
+    evidence_fingerprint: 3eccdcb99e54d6089fea2f8a211fc54b9bbe27b419e0d5811424a2a2fbbd6fa5
+    workflow_revision: null
+    selected_ref: 5e46c8a06c3d8e98eeb0f4b5f9896d5c0ad67654
+    selected_sha: 5e46c8a06c3d8e98eeb0f4b5f9896d5c0ad67654
+    audit_ids:
+    - audit-dba0f81ba987
+    kind: result
+    applied: true
+    retired_at: '2026-08-11T01:37:00.535695+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1007
+    audit_id: audit-dba0f81ba987
+    attempt_id: attempt-9703c33f3489
+    target_state: Done
+    evidence_fingerprint: 3eccdcb99e54d6089fea2f8a211fc54b9bbe27b419e0d5811424a2a2fbbd6fa5
+    status: In Validation
+    audit_ids:
+    - audit-dba0f81ba987
+    kind: result
+    applied: true
+    created_at: '2026-08-11T01:37:00.535706+00:00'
+    applied_at: '2026-08-11T01:37:07.473833+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -58,7 +87,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1007
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -67,7 +96,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9703c33f3489
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -79,6 +108,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1007
       selected_ref: 5e46c8a06c3d8e98eeb0f4b5f9896d5c0ad67654
       selected_sha: 5e46c8a06c3d8e98eeb0f4b5f9896d5c0ad67654
+      verdict: pass
+      completed_at: '2026-08-11T01:37:00.535487+00:00'
+      ended_at: '2026-08-11T01:37:00.535487+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -88,7 +120,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T01:32:57.984953+00:00'
     selected_ref: 5e46c8a06c3d8e98eeb0f4b5f9896d5c0ad67654
     selected_sha: 5e46c8a06c3d8e98eeb0f4b5f9896d5c0ad67654
-    updated_at: '2026-08-11T01:34:50.425757+00:00'
+    updated_at: '2026-08-11T01:37:00.535487+00:00'
   - version: 1
     audit_id: audit-62db90029594
     project_id: proj-14849f1b
@@ -196,5 +228,27 @@ author: oompah
 created: 2026-08-11 01:34
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 01:37
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- implementation_structure.workflow_revision_field: Added to TerminalAuditRecord and OverrideRecord dataclasses
+- implementation_structure.exact_matching: Recurrence now requires both evidence_fingerprint AND workflow_revision to match (terminal_transition_coordinator.py:1122-1123, 1162-1163)
+- implementation_structure.authority_superseding: When workflow_revision advances, old records marked SUPERSEDED and fresh audit created (not reused)
+- implementation_structure.legacy_migration: reconcile_missing_workflow_revision_sync handles pre-cutover records with fail-closed behavior
+- regression_tests.oompah_940_scenario: test_advanced_completion_authority_replaces_same_head_epic_audits: old completion-authority-v1 records marked SUPERSEDED when fresh workflow_revision=completion-authority-v2 requested with same fingerprint
+- regression_tests.override_isolation: test_old_override_does_not_mask_live_new_workflow_revision: older overrides don't interfere with live new authority
+- regression_tests.merged_ordering: test_merged_pass_rejects_done_from_older_workflow_revision: merged status correctly rejects done from older workflow_revision
+- regression_tests.binding_rebind: test_stale_completed_binding_does_not_cancel_live_rebind: old completed bindings don't interfere with live rebirds
+- test_evidence.full_gate: make test: 19729 passed, 7 skipped, 2 xfailed (expected)
+- test_evidence.focused_suite: 485+ terminal/coordinator focused tests passed
+- test_evidence.integration_tests: 1530 workflow/audit integration tests passed (2 expected xfails)
+- test_evidence.mutation_scan: 21/21 terminal mutation scan passed
+- test_evidence.status: All regression gates green, no new failures
 ---
 <!-- COMMENTS:END -->
