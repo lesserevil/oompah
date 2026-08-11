@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T23:19:04.544332Z'
-updated_at: '2026-08-11T01:37:09.339741Z'
+updated_at: '2026-08-11T01:37:19.256857Z'
 work_branch: OOMPAH-1007
 target_branch: main
 review_url: null
@@ -157,6 +157,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1007
     selected_ref: 5e46c8a06c3d8e98eeb0f4b5f9896d5c0ad67654
     selected_sha: 5e46c8a06c3d8e98eeb0f4b5f9896d5c0ad67654
+oompah.task_costs:
+  total_input_tokens: 210
+  total_output_tokens: 6910
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 210
+      output_tokens: 6910
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 210
+    output_tokens: 6910
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T01:37:14.519256+00:00'
 ---
 ## Summary
 
@@ -250,5 +266,15 @@ Safe evidence:
 - test_evidence.integration_tests: 1530 workflow/audit integration tests passed (2 expected xfails)
 - test_evidence.mutation_scan: 21/21 terminal mutation scan passed
 - test_evidence.status: All regression gates green, no new failures
+---
+author: oompah
+created: 2026-08-11 01:37
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 54, Tool calls: 25
+- Tokens: 210 in / 6.9K out [7.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 21s
+- Log: OOMPAH-1007__20260811T013502Z.jsonl
 ---
 <!-- COMMENTS:END -->
