@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:41:07.342509Z'
-updated_at: '2026-08-11T11:17:18.030721Z'
+updated_at: '2026-08-11T11:21:02.521552Z'
 work_branch: OOMPAH-1076
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/816
@@ -91,7 +91,33 @@ oompah.terminal_audit:
     kind: override
     applied: true
     retired_at: '2026-08-11T10:51:39.426618+00:00'
-  oompah.terminal_audit_result_intents: []
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1076
+    target_state: Done
+    evidence_fingerprint: 7574461067baf533926f254889367a94889aa398d6d5a4bb1a3e1f2ee6dcaf1f
+    workflow_revision: null
+    selected_ref: a9bdbfdeedca4c5181851d01312cfbfc1159567d
+    selected_sha: a9bdbfdeedca4c5181851d01312cfbfc1159567d
+    landing_revision: null
+    audit_ids:
+    - audit-c6162cd59b1b
+    kind: result
+    applied: true
+    retired_at: '2026-08-11T11:20:51.955427+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1076
+    audit_id: audit-c6162cd59b1b
+    attempt_id: attempt-f824e8fd0c73
+    target_state: Done
+    evidence_fingerprint: 7574461067baf533926f254889367a94889aa398d6d5a4bb1a3e1f2ee6dcaf1f
+    status: In Validation
+    audit_ids:
+    - audit-c6162cd59b1b
+    kind: result
+    applied: true
+    created_at: '2026-08-11T11:20:51.955437+00:00'
+    applied_at: '2026-08-11T11:21:00.839493+00:00'
   oompah.terminal_provenance_suppression:
     version: 1
     suppressed: false
@@ -124,6 +150,8 @@ oompah.terminal_audit:
       version: 1
       identity: oompah-cli
       source: api
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1076","audit-c6162cd59b1b","attempt-f824e8fd0c73"]': '2026-08-11T11:20:51.955408+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -188,7 +216,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1076
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -197,7 +225,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f824e8fd0c73
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -209,6 +237,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1076
       selected_ref: a9bdbfdeedca4c5181851d01312cfbfc1159567d
       selected_sha: a9bdbfdeedca4c5181851d01312cfbfc1159567d
+      verdict: pass
+      completed_at: '2026-08-11T11:20:51.955272+00:00'
+      ended_at: '2026-08-11T11:20:51.955272+00:00'
     source_generation: 2
     requested_by:
       version: 1
@@ -218,7 +249,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T11:16:00.389728+00:00'
     selected_ref: a9bdbfdeedca4c5181851d01312cfbfc1159567d
     selected_sha: a9bdbfdeedca4c5181851d01312cfbfc1159567d
-    updated_at: '2026-08-11T11:17:08.651127+00:00'
+    updated_at: '2026-08-11T11:20:51.955272+00:00'
   - version: 1
     audit_id: audit-04c6472af4df
     project_id: proj-14849f1b
@@ -376,5 +407,20 @@ author: oompah
 created: 2026-08-11 11:17
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 11:20
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- code_optimizations: Per-project child index, collect-only-missing liveness facts, scoped change journaling, stable-project-preserving correction sweep, complete phase telemetry
+- test_large_corpus: 1878 task corpus with total_seconds less than 120 SLO verified
+- test_scoped_retries: Concurrent mutations trigger scoped retries converging to consistent snapshot
+- test_control_responsiveness: Event loop remains responsive under repeated concurrent mutations
+- quality_gate: make test passed in 168.73 seconds
+- properties_preserved: Fail-closed authority, atomic publication, pause quiesce, admission fencing, terminal audit exactness, OOMPAH-969 isolation, OOMPAH-974 control, OOMPAH-986 proofs
 ---
 <!-- COMMENTS:END -->
