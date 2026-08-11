@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:17:03.737871Z'
-updated_at: '2026-08-11T14:34:16.569984Z'
+updated_at: '2026-08-11T14:37:25.354844Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-08-11 14:34
 ---
 Implemented the exact pre-provider ghost/deadlock repair on the claimed branch. CrossLoopTaskLock now supports bounded acquisition; exact submission returns structured retryable submission_authority_busy instead of retaining an HTTP connection; durable direct-owner claims retry cleanly instead of quarantining; and canceled/slow pre-provider contributor evidence releases task authority within a bounded grace period without provider/workspace contact, with structured retirement evidence and budget rollback. Focused evidence currently green: 224 authority/owner/provider tests, 340 submission/handoff tests, 51 workflow-boundary/event-loop tests, compileall, and terminal mutation scan (21/21 allowlisted). Final diff/secret checks and push are in progress; not submitted or merged.
+---
+author: oompah
+created: 2026-08-11 14:37
+---
+Implementation is committed and pushed for independent exact-head review at be44b790c626d061747b205853ec21f602821c63 on origin/OOMPAH-1088. Exact working-tree evidence: 422 authority/owner/provider/submission/workflow-boundary tests passed; full task-handoff suite 123 passed; focused deadlock regressions 7 passed; compileall passed; make terminal-audit-scan passed (21 identified, 21 allowlisted); paranoid secret scan and commit hooks passed. Branch is clean and matches origin. The task remains In Progress and has not been submitted or merged, per handoff.
 ---
 <!-- COMMENTS:END -->
