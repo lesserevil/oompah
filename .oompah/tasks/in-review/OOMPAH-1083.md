@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1083
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Publish quality-gate lifecycle state before stale PID alerts escape
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:41:11.895675Z'
-updated_at: '2026-08-11T12:09:41.490881Z'
+updated_at: '2026-08-11T12:09:51.261516Z'
 work_branch: OOMPAH-1083
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/820
