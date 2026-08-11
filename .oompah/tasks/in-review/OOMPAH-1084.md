@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T12:55:59.622651Z'
+updated_at: '2026-08-11T12:56:53.414905Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
@@ -70,5 +70,10 @@ author: oompah
 created: 2026-08-11 12:55
 ---
 Independent exact-head review BLOCKED 15a2ee7: production-shaped A→B→C review advancement can strand the durable intermediate B head, and GitLab omitted source/target project IDs can fail open as same-repository identity. Direct owner repair is adding eventual-convergence and missing-ID regressions; the branch will require fresh independent review at its replacement exact head.
+---
+author: oompah
+created: 2026-08-11 12:56
+---
+Repaired the independent-review blockers and pushed exact head 1260f6ee368ef7402fb637e81a08ec79436e20cd. A production-shaped A→B checkpoint→C sequence now schedules the fresh C reconciliation and converges to Ready to Integrate at exact C; malformed or non-ready intermediate authority still fails closed. GitLab list/find/get projections now claim same-repository source identity only when both source_project_id and target_project_id are present and equal; missing-ID and fork regressions cover fail-closed behavior. Post-commit checks: 117 adapter/standalone passed; 380 SCM/GitLab-flow passed. Earlier adjacent checks also passed: 295 review/worker/transition/standalone, 155 GitLab/merge-queue, 168 orchestrator review/merge. PR #821 is draft and CI is running. Because the reviewed head changed, 1260f6ee3 requires fresh independent review; no approval or merge performed.
 ---
 <!-- COMMENTS:END -->
