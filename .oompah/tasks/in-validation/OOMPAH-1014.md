@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1014
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Retire orphaned terminal-audit authority before workflow publication
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T04:35:54.427125Z'
-updated_at: '2026-08-11T06:24:01.592086Z'
+updated_at: '2026-08-11T06:30:16.175485Z'
 work_branch: OOMPAH-1014
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/807
@@ -38,6 +38,62 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/807
 oompah.review_number: '807'
 oompah.target_branch: main
 oompah.review_head: b7c5ab03f09d0bf994dfcbb04526f96f91d58979
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-76c562467fa5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1014
+    digest: 2dcb32e584d369156740662bcc34b7bab0e63a26e2fb027fc908f989ac9c70d7
+  - version: 1
+    audit_id: audit-53b3a4c0d528
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1014
+    digest: 2dcb32e584d369156740662bcc34b7bab0e63a26e2fb027fc908f989ac9c70d7
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-76c562467fa5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1014
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2dcb32e584d369156740662bcc34b7bab0e63a26e2fb027fc908f989ac9c70d7
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T06:30:10.124774+00:00'
+    selected_ref: b7c5ab03f09d0bf994dfcbb04526f96f91d58979
+    selected_sha: b7c5ab03f09d0bf994dfcbb04526f96f91d58979
+  - version: 1
+    audit_id: audit-53b3a4c0d528
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1014
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2dcb32e584d369156740662bcc34b7bab0e63a26e2fb027fc908f989ac9c70d7
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T06:30:10.124774+00:00'
+    selected_ref: b7c5ab03f09d0bf994dfcbb04526f96f91d58979
+    selected_sha: b7c5ab03f09d0bf994dfcbb04526f96f91d58979
+  attempt_history: []
 ---
 ## Summary
 
@@ -62,5 +118,10 @@ author: oompah
 created: 2026-08-11 06:20
 ---
 Fixed orphaned terminal-audit authority across status departures, restart publication, workflow/job identity, auditor runtime reconciliation, and retryable workspace cleanup. Added fail-closed ledger validation, durable fresh-generation rearm, operator documentation, and comprehensive race/restart regressions. Validation: make test (19,823 passed, 7 skipped, 2 xfailed); affected suite 614 passed; race soak 410 passed; workflow soak passed; terminal mutation scan 21/21; secret scan passed; three independent reviews clear. Exact pushed head b7c5ab03f09d0bf994dfcbb04526f96f91d58979.
+---
+author: oompah
+created: 2026-08-11 06:30
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
