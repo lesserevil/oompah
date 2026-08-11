@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:34:25.712698Z'
-updated_at: '2026-08-11T17:28:31.396256Z'
-work_branch: null
+updated_at: '2026-08-11T17:28:56.693915Z'
+work_branch: OOMPAH-1094
 target_branch: null
 review_url: null
 review_number: null
@@ -24,6 +24,16 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 2085cefb-e493-48ea-a2dc-b6da41839427
   request_fingerprint: 1fceb852ea92bacae86c813af1227771694691f593bab362552d2db026ff7610
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1094
+  head_sha: a8e0c10db484680bc584d272a9903d229bd9576f
+  submitted_at: '2026-08-11T17:28:46.561202+00:00'
+  updated_at: '2026-08-11T17:28:46.561202+00:00'
+oompah.work_branch: OOMPAH-1094
 ---
 ## Summary
 
@@ -51,5 +61,10 @@ author: oompah
 created: 2026-08-11 17:28
 ---
 Fresh independent exact-head review ACCEPTED a8e0c10db484680bc584d272a9903d229bd9576f. Reviewer inspected all three commits and reproduced both prior bypasses through real Make paths: forged linked-worktree markers and correct cross-repo checkout plus forged service-venv both fail before uv and preserve the service editable mapping; legitimate task-private runtime still works. Evidence: 7 exact repair/shape tests, 121 broader focused tests, 30 repeated security/concurrency executions, compile/diff checks, terminal scan 21/21; remote exact and worktree clean.
+---
+author: oompah
+created: 2026-08-11 17:28
+---
+Protect the live service virtualenv from linked-worktree and cross-repository task setup, including forged marker combinations; independently accepted at a8e0c10db484680bc584d272a9903d229bd9576f.
 ---
 <!-- COMMENTS:END -->
