@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T08:11:28.178710Z'
-updated_at: '2026-08-11T10:43:13.083872Z'
+updated_at: '2026-08-11T10:43:25.187572Z'
 work_branch: OOMPAH-1072
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/809
@@ -149,6 +149,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1072
     selected_ref: origin/OOMPAH-1072
     selected_sha: 4da80c799a785da5112eec35773025224e6f1d3c
+oompah.task_costs:
+  total_input_tokens: 226
+  total_output_tokens: 8529
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 226
+      output_tokens: 8529
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 226
+    output_tokens: 8529
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T10:43:20.946633+00:00'
 ---
 ## Summary
 
@@ -213,5 +229,15 @@ Safe evidence:
 - restart_durability: PASS - fresh ErrorWatcher suppresses both classes
 - free_form_distinct: PASS - unrelated errors separate
 - no_errorwatcher_changes: PASS - only terminal_audit_enforcement modified
+---
+author: oompah
+created: 2026-08-11 10:43
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 60, Tool calls: 27
+- Tokens: 226 in / 8.5K out [8.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 21m 58s
+- Log: OOMPAH-1072__20260811T102136Z.jsonl
 ---
 <!-- COMMENTS:END -->
