@@ -17680,6 +17680,8 @@ class Orchestrator:
         self,
         attempt_id: str | None,
         branch_key: str | None,
+        *,
+        rearm_terminal_audit: bool = True,
     ) -> None:
         if not attempt_id:
             return
@@ -17692,7 +17694,7 @@ class Orchestrator:
                 attempt_id,
                 rearm_terminal_audit=False,
             )
-        if branch_released:
+        if branch_released and rearm_terminal_audit:
             self._wake_terminal_audit_lane_after_capacity_release()
         if changed and not self._persist_pending_audit_rollbacks():
             logger.error(
@@ -17708,6 +17710,7 @@ class Orchestrator:
         branch_key: str | None,
         *,
         reason: str,
+        rearm_terminal_audit: bool = True,
     ) -> UnadmittedAuditRollbackOutcome:
         """Restore an unlaunched attempt, or journal its exact rollback owner.
 
@@ -17757,7 +17760,11 @@ class Orchestrator:
                 reason,
             )
             return outcome
-        self._clear_deferred_audit_rollback(attempt_id, branch_key)
+        self._clear_deferred_audit_rollback(
+            attempt_id,
+            branch_key,
+            rearm_terminal_audit=rearm_terminal_audit,
+        )
         return outcome
 
     def _retry_pending_audit_rollbacks(self) -> None:
@@ -57364,12 +57371,14 @@ class Orchestrator:
             reason: str,
             *,
             transition_locked: bool = False,
+            rearm_terminal_audit: bool = True,
         ) -> None:
             """Release exact pre-start ownership, including durable audits."""
 
             nonlocal ordinary_recovery_entry
             self.state.claimed.discard(issue.id)
             self.state.claimed_issues.pop(issue.id, None)
+            rollback_outcome = UnadmittedAuditRollbackOutcome.AMBIGUOUS
             try:
                 await _release_preflight(reason)
             except BaseException as exc:  # continue every independent recovery
@@ -57424,15 +57433,16 @@ class Orchestrator:
                 # shutting down ``_tick_pool`` before this losing dispatcher
                 # resumes.  Use the dispatch loop's independent default
                 # executor so the exact durable attempt can still be restored.
-                restored = await asyncio.to_thread(
+                rollback_outcome = await asyncio.to_thread(
                     self._restore_or_defer_unadmitted_audit_attempt,
                     issue,
                     auditor_plan.audit_id,
                     auditor_plan.attempt_id,
                     auditor_plan.branch_key,
                     reason=reason,
+                    rearm_terminal_audit=rearm_terminal_audit,
                 )
-                if restored is UnadmittedAuditRollbackOutcome.RESTORED:
+                if rollback_outcome is UnadmittedAuditRollbackOutcome.RESTORED:
                     reservation_key = self._audit_reservation_key_for_issue(issue)
                     if not self._release_audit_budget_reservation(reservation_key):
                         logger.error(
@@ -57457,11 +57467,48 @@ class Orchestrator:
                     auditor_plan.attempt_id,
                     exc,
                 )
+            workflow_job_id = str(auditor_plan.workflow_job_id or "").strip()
+            workflow_lease_token = str(
+                auditor_plan.workflow_lease_token or ""
+            ).strip()
+            if workflow_job_id and workflow_lease_token:
+                try:
+                    workflow_job = self.workflow_job_store.get(workflow_job_id)
+                    if (
+                        workflow_job.state is WorkflowJobState.RUNNING
+                        and workflow_job.lease_token == workflow_lease_token
+                    ):
+                        if (
+                            rollback_outcome
+                            is UnadmittedAuditRollbackOutcome.SUPERSEDED
+                        ):
+                            self.terminal_audit_workflow.cancel(
+                                workflow_job,
+                                reason=(
+                                    "unadmitted auditor authority was superseded "
+                                    "before provider contact"
+                                ),
+                            )
+                        else:
+                            self.terminal_audit_workflow.lifecycle_requeue(
+                                workflow_job,
+                                reason=reason,
+                            )
+                except Exception as workflow_exc:  # noqa: BLE001 - lease remains durable
+                    logger.warning(
+                        "Could not resolve unadmitted terminal-audit workflow "
+                        "lease issue=%s audit=%s attempt=%s error=%s",
+                        issue.identifier,
+                        auditor_plan.audit_id,
+                        auditor_plan.attempt_id,
+                        type(workflow_exc).__name__,
+                    )
 
         async def _compensate_before_admission(
             reason: str,
             *,
             transition_locked: bool = False,
+            rearm_terminal_audit: bool = True,
         ) -> None:
             """Finish compensation even when the losing dispatcher is cancelled."""
 
@@ -57469,6 +57516,7 @@ class Orchestrator:
                 _abort_before_admission(
                     reason,
                     transition_locked=transition_locked,
+                    rearm_terminal_audit=rearm_terminal_audit,
                 ),
                 name=f"admission-compensation-{issue.identifier}",
             )
@@ -58320,17 +58368,15 @@ class Orchestrator:
                     new_audit_attempt=True,
                 )
                 if budget_error is not None:
-                    self.state.claimed.discard(issue.id)
-                    self.state.claimed_issues.pop(issue.id, None)
-                    self._release_audit_branch_claim(
-                        auditor_plan.branch_key,
-                        auditor_plan.attempt_id,
+                    await _compensate_before_admission(
+                        "auditor budget reservation failed before provider contact",
                         # The audit lane that acquired this pre-provider fence
-                        # still owns the current bounded scan.  Re-arming that
-                        # same owner here turns a persistent budget-store
-                        # failure into an immediate retry/exhaustion storm.
-                        # Retain the exact successor wake for the next durable
-                        # budget-recovery signal or ordinary scheduler tick.
+                        # still owns the current bounded scan. Re-arming that
+                        # same owner turns a persistent budget-store failure
+                        # into an immediate retry/exhaustion storm. Exact audit
+                        # metadata and the workflow lease are restored first;
+                        # a later durable recovery signal or ordinary tick owns
+                        # the next attempt.
                         rearm_terminal_audit=False,
                     )
                     self._post_comment(
