@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T16:32:21.308162Z'
+updated_at: '2026-08-11T16:37:00.253528Z'
 work_branch: OOMPAH-1085
 target_branch: null
 review_url: null
@@ -260,5 +260,10 @@ Output tail:
 ```text
 Trusted quality-gate runtime corruption detected; candidate CI was not run: trusted editable source mapping is inconsistent: expected one of ['/home/shedwards/src/oompah'] or immutable candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-7k6wx4bq/run/workspace; actual /home/shedwards/src/oompah-1092. Repair or replace the service test runtime before rerunning the branch gate.
 ```
+---
+author: oompah
+created: 2026-08-11 16:37
+---
+Canonical gate infrastructure was repaired without changing the accepted head: the conflicting OOMPAH-1092 full gate was stopped, no validation process remains, and  restored /home/shedwards/src/oompah/.venv editable authority from the task worktree to canonical main. The infrastructure_error occurred before candidate tests ran. Filing OOMPAH-1094 for the task-worktree service-venv escape and explicitly resubmitting the same accepted head to rearm its supported delivery path.
 ---
 <!-- COMMENTS:END -->
