@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1076
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Bound large-corpus workflow reconciliation within restart SLO
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:41:07.342509Z'
-updated_at: '2026-08-11T10:50:50.625892Z'
+updated_at: '2026-08-11T10:51:34.972764Z'
 work_branch: OOMPAH-1076
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/814
@@ -42,6 +42,30 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1076
     digest: 4fd9146b1adbf6f8266e43f47ed727692028607cb9faa9ec688515281b35d70b
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-e63e8b1f7e78
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1076
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4fd9146b1adbf6f8266e43f47ed727692028607cb9faa9ec688515281b35d70b
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner revision boundary: revision 1 exact head 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
+      passed the 170.2s branch gate, independent review, protected Python 3.11/3.12/3.13
+      CI, and merged through PR 814 as db20b747bbd61f27bafd61a4ea71ebe2d74918b3. The
+      deployed live canary subsequently exposed a remaining integration/epic cold-path
+      SLO failure; terminalize only revision 1 so a new auditable revision can immediately
+      continue the same task.'
+    created_at: '2026-08-11T10:51:30.414958+00:00'
+    selected_ref: origin/OOMPAH-1076
+    selected_sha: 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
+    applied: false
   version: 1
   pending_chain:
   - version: 1
