@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T13:38:34.915522Z'
-updated_at: '2026-08-11T14:41:57.652569Z'
+updated_at: '2026-08-11T14:43:52.033374Z'
 work_branch: OOMPAH-1087
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/822
@@ -75,5 +75,10 @@ author: oompah
 created: 2026-08-11 14:41
 ---
 Direct-owner refresh: PR 822 was green at 4d8c7b9 but its computed merge still targeted stale main fe06a0ff. With OOMPAH-1086 now merged to main fe959911, moving this task back to In Progress, rebasing its clean exact fix onto latest main, and requiring a fresh exact gate/review before merge.
+---
+author: oompah
+created: 2026-08-11 14:43
+---
+Rebased cleanly onto latest main fe9599111 after OOMPAH-1086 landed. Replacement exact head is 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061, pushed with an exact force-with-lease against prior 4d8c7b9. Post-rebase focused WebSocket/dashboard lifecycle suite: 124 passed; terminal mutation scan 21/21; diff check clean. This replacement head requires fresh exact review and canonical branch gate before merge.
 ---
 <!-- COMMENTS:END -->
