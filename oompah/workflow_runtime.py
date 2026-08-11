@@ -286,6 +286,9 @@ class WorkflowProjectBinding:
     workflow_authority_revision_source: Callable[[], int] | None = None
     tracker_authority_revision_source: Callable[[], str | None] | None = None
     tracker_publication_revision_source: Callable[[], int | None] | None = None
+    tracker_publication_changes_source: Callable[
+        [int], tuple[int, frozenset[str] | None]
+    ] | None = None
     tracker_authority_changes_source: Callable[
         [str, str], frozenset[str] | None
     ] | None = None
@@ -1559,6 +1562,15 @@ class WorkflowRuntime:
                 )
                 if callable(
                     getattr(tracker, "get_publication_revision", None)
+                )
+                else None,
+                tracker_publication_changes_source=(
+                    lambda revision, _tracker=tracker: (
+                        _tracker.publication_task_changes_since(revision)
+                    )
+                )
+                if callable(
+                    getattr(tracker, "publication_task_changes_since", None)
                 )
                 else None,
                 tracker_authority_changes_source=(
@@ -3844,6 +3856,87 @@ class WorkflowRuntime:
             with self._lock:
                 runtime_checkpoint = dict(self._latest_decisions)
             publication_excluded_identities: set[tuple[str, str]] = set()
+            tracker_scoped_publication_advances = 0
+            tracker_scoped_publication_exclusions: set[tuple[str, str]] = set()
+            durable_publication_identities = {
+                (decision.project_id, decision.task_id.casefold())
+                for _item, _name, _controller, batch in all_domains
+                for decision in batch.decisions
+                if decision.durable_jobs
+            }
+
+            def accept_task_scoped_tracker_delta(
+                project_id: str,
+                binding: WorkflowProjectBinding,
+                expected_revision: int,
+                current_revision: int,
+            ) -> bool:
+                """Exclude journal-proven unrelated tasks from this exact cut."""
+
+                nonlocal tracker_scoped_publication_advances
+                if current_revision == expected_revision:
+                    return True
+                changes_source = binding.tracker_publication_changes_source
+                if not callable(changes_source):
+                    return False
+                try:
+                    observed_revision, raw_changed_tasks = changes_source(
+                        expected_revision
+                    )
+                except Exception:  # noqa: BLE001 - authority proof fails closed
+                    return False
+                if (
+                    int(observed_revision) != current_revision
+                    or raw_changed_tasks is None
+                    or not raw_changed_tasks
+                ):
+                    return False
+                changed_by_key = {
+                    str(task_id or "").strip().casefold(): str(task_id or "").strip()
+                    for task_id in raw_changed_tasks
+                    if str(task_id or "").strip()
+                }
+                if len(changed_by_key) != len(raw_changed_tasks):
+                    return False
+                prepared_item = prepared_by_project[project_id]
+                protected_tasks = {
+                    task_id
+                    for candidate_project, task_id in durable_publication_identities
+                    if candidate_project == project_id
+                }
+                dependency_targets = frozenset(
+                    prepared_item.get("dependency_target_identities") or ()
+                )
+                changed_tasks = frozenset(changed_by_key)
+                if (
+                    not protected_tasks
+                    or prepared_item.get(
+                        "dependency_target_membership_ambiguous", False
+                    )
+                    or not changed_tasks.isdisjoint(protected_tasks)
+                    or not changed_tasks.isdisjoint(dependency_targets)
+                ):
+                    return False
+
+                known_task_ids: dict[str, str] = {}
+                for issue in prepared_item["issues"]:
+                    identifier = str(getattr(issue, "identifier", "") or "").strip()
+                    issue_id = str(getattr(issue, "id", "") or "").strip()
+                    if identifier:
+                        known_task_ids[identifier.casefold()] = identifier
+                    if issue_id and identifier:
+                        known_task_ids[issue_id.casefold()] = identifier
+                excluded = {
+                    (
+                        project_id,
+                        known_task_ids.get(task_key, changed_by_key[task_key]),
+                    )
+                    for task_key in changed_tasks
+                }
+                publication_excluded_identities.update(excluded)
+                tracker_scoped_publication_exclusions.update(excluded)
+                tracker_scoped_publication_advances += 1
+                return True
 
             def restore_caches() -> None:
                 with self._lock:
@@ -4305,13 +4398,19 @@ class WorkflowRuntime:
                     ),
                 )
                 if publication_revision_after != publication_revision_before:
-                    if callable(binding.tracker_authority_changes_source):
-                        raise _WorkflowFinalPublicationChanged(
+                    if not accept_task_scoped_tracker_delta(
+                        project_id,
+                        binding,
+                        publication_revision_before,
+                        publication_revision_after,
+                    ):
+                        if callable(binding.tracker_authority_changes_source):
+                            raise _WorkflowFinalPublicationChanged(
+                                "tracker authority changed during publication preflight"
+                            )
+                        raise WorkflowPublicationSuperseded(
                             "tracker authority changed during publication preflight"
                         )
-                    raise WorkflowPublicationSuperseded(
-                        "tracker authority changed during publication preflight"
-                    )
                 tracker_publication_revisions[project_id] = (
                     publication_revision_after
                 )
@@ -4399,16 +4498,22 @@ class WorkflowRuntime:
                                         current_publication_revision
                                         != expected_publication_revision
                                     ):
-                                        superseded = True
-                                        if callable(
-                                            binding.tracker_authority_changes_source
+                                        if not accept_task_scoped_tracker_delta(
+                                            project_id,
+                                            binding,
+                                            expected_publication_revision,
+                                            current_publication_revision,
                                         ):
-                                            raise _WorkflowFinalPublicationChanged(
+                                            superseded = True
+                                            if callable(
+                                                binding.tracker_authority_changes_source
+                                            ):
+                                                raise _WorkflowFinalPublicationChanged(
+                                                    "tracker authority changed before publication"
+                                                )
+                                            raise WorkflowPublicationSuperseded(
                                                 "tracker authority changed before publication"
                                             )
-                                        raise WorkflowPublicationSuperseded(
-                                            "tracker authority changed before publication"
-                                        )
                                 revision_source = (
                                     binding.terminal_authority_revision_source
                                 )
@@ -4589,6 +4694,7 @@ class WorkflowRuntime:
                                         )
                                         not in publication_excluded_identities
                                     ),
+                                    source_scan_complete=False,
                                 )
                                 liveness_reconciliation = (
                                     self._liveness_reconciliation(
@@ -4641,6 +4747,12 @@ class WorkflowRuntime:
             # bookkeeping and must never route the committed generation back
             # through the pre-commit authority compensator.
             marker_committed = True
+            report["reconciliation_phases"][
+                "tracker_scoped_publication_advances"
+            ] = tracker_scoped_publication_advances
+            report["reconciliation_phases"][
+                "tracker_scoped_publication_exclusions"
+            ] = len(tracker_scoped_publication_exclusions)
             observation_committed = observation is not None
             if publication_observation is not None:
                 if not isinstance(publication_result, ControllerPass):
