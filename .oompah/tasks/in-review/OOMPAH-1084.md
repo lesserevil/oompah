@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T13:45:58.824266Z'
+updated_at: '2026-08-11T13:53:55.308351Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
@@ -85,5 +85,10 @@ author: oompah
 created: 2026-08-11 13:45
 ---
 Repaired the remaining independent-review blocker and pushed replacement exact head cf3578ff00f5564a06ea31650553dca337280427 on origin/OOMPAH-1084. Ready-to-Integrate reconciliation now checkpoints an unmarked ordinary accepted submission only when the tracked open review retains the same exact submitted head and only its base generation advanced; differing-head replacement remains restricted to a valid prior review-requeue marker, so stale review history cannot overwrite newer submitted work. The durable checkpoint forces a fresh gate, survives restart, clears once on exact adoption, and base-only rejection diagnostics no longer claim equal heads differ. Evidence: 6 targeted race/restart tests passed; 788 focused integration/review/standalone/SCM/quality-gate tests passed; 561 adjacent workflow/transition/GitLab/merge-queue tests passed; terminal mutation scan passed 21/21; diff check clean. Commit and remote branch are exact cf3578ff0; PR #821 updated automatically and remains draft with protected CI running. This replacement head requires fresh independent review; no self-approval or merge performed.
+---
+author: oompah
+created: 2026-08-11 13:53
+---
+Fresh independent exact-head review ACCEPTED cf3578ff00f5564a06ea31650553dca337280427. Reviewer verified exact deployed base fe06a0ff, clean merge tree, canonical trailers, A→B→C and base-only advance races, restart/replay/idempotency, GitHub/GitLab source/target identity propagation and fail-closed cases, exact provider merge CAS, and unsupported exact auto-merge fail-closed behavior. Evidence: 788 changed-module tests, 298 adjacent workflow/transition tests, compileall, and terminal mutation scan 21/21 all green. Awaiting only protected CI on PR #821 before exact merge.
 ---
 <!-- COMMENTS:END -->
