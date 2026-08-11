@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1090
 type: bug
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Keep standalone delivery authority alive across long gates and terminal staging
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:26:47.067526Z'
-updated_at: '2026-08-11T15:04:17.660038Z'
+updated_at: '2026-08-11T15:14:39.555867Z'
 work_branch: OOMPAH-1090
 target_branch: null
 review_url: null
@@ -30,9 +30,9 @@ oompah.integration:
   attempts: 0
   mode: standalone
   task_branch: OOMPAH-1090
-  head_sha: fc1220a984310449df12564fb66cbb5f24b92980
-  submitted_at: '2026-08-11T15:04:02.615639+00:00'
-  updated_at: '2026-08-11T15:04:02.615639+00:00'
+  head_sha: 6703b97115b0b7aff922deab2ead89119bc1d486
+  submitted_at: '2026-08-11T15:14:35.883839+00:00'
+  updated_at: '2026-08-11T15:14:35.883839+00:00'
 oompah.work_branch: OOMPAH-1090
 ---
 ## Summary
@@ -83,5 +83,10 @@ author: oompah
 created: 2026-08-11 15:04
 ---
 Preserve exact standalone-delivery authority across long gates and terminal staging; accept only journal-proven unrelated tracker churn while retaining fail-closed task/dependency boundaries.
+---
+author: oompah
+created: 2026-08-11 15:14
+---
+After OOMPAH-1087 advanced main, rebased the independently ACCEPTED implementation onto current origin/main 6449341d762d9c7645271b8479dfa406e648be54 and pushed replacement exact head 6703b97115b0b7aff922deab2ead89119bc1d486. git range-diff proves the commit patch-equivalent to accepted fc1220a984310449df12564fb66cbb5f24b92980; post-rebase 443 focused quality-gate/standalone/project-lock tests passed, terminal mutation scan 21/21, diff check clean. Re-submitting the exact current-base head after the previous authority was correctly revoked by the main advance.
 ---
 <!-- COMMENTS:END -->
