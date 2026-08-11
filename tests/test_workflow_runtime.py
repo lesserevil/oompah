@@ -175,6 +175,16 @@ class ScopedMutationTracker(NativeTracker):
             if generation in self._changes
         )
 
+    def publication_task_changes_since(self, revision: int):
+        current = self.publication_revision
+        if revision < 1 or revision > current:
+            return current, None
+        return current, frozenset(
+            self._changes[generation]
+            for generation in range(revision + 1, current + 1)
+            if generation in self._changes
+        )
+
     def terminal_metadata_changes_between(self, _expected: str, _current: str):
         return None
 
@@ -258,6 +268,13 @@ def make_binding(
             if callable(getattr(tracker, "get_publication_revision", None))
             else None
         ),
+        tracker_publication_changes_source=(
+            tracker.publication_task_changes_since
+            if callable(
+                getattr(tracker, "publication_task_changes_since", None)
+            )
+            else None
+        ),
         tracker_authority_changes_source=(
             tracker.task_authority_changes_between
             if callable(getattr(tracker, "task_authority_changes_between", None))
@@ -288,7 +305,7 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
 
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     integration_queue = object()
-    tracker = NativeTracker([make_issue("TASK-BOOT")])
+    tracker = ScopedMutationTracker([make_issue("TASK-BOOT")])
     orchestrator = type(
         "OrchestratorDouble",
         (),
@@ -330,6 +347,7 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
     assert binding.terminal_audit_workflow is orchestrator.terminal_audit_workflow
     assert binding.transition_journal is not None
     assert binding.tracker_publication_revision_source is not None
+    assert binding.tracker_publication_changes_source is not None
     tracker.publication_revision = None
     assert binding.tracker_publication_revision_source() is None
     assert runtime.liveness_controller is controller
@@ -5906,6 +5924,176 @@ def test_final_preflight_scoped_mutation_retries_before_effect_publication(tmp_p
     assert store.list_jobs(limit=100) == ()
     runtime.close()
     store.close()
+
+
+def _scoped_publication_runtime(tmp_path, tracker, store):
+    binding, journal = make_binding(tmp_path, tracker, store)
+    binding.collector.sources[FactDomain.REVIEW_CI] = lambda issue: (
+        {"state": "open", "ci": "passed"}
+        if issue.identifier == "TASK-READY-EXACT"
+        else {"state": "open", "ci": "pending"}
+    )
+    controller = UniversalTotalityLivenessController(store=store)
+    controller.restore_liveness_state(None)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+    return runtime, controller
+
+
+def test_final_publication_ignores_continuous_unrelated_tracker_churn(tmp_path):
+    target = make_issue("TASK-READY-EXACT", state="In Review")
+    unrelated = make_issue("TASK-UNRELATED-CHURN", state="Backlog")
+    tracker = ScopedMutationTracker([target, unrelated])
+    store = WorkflowJobStore(str(tmp_path / "continuous-scoped-churn.sqlite3"))
+    runtime, controller = _scoped_publication_runtime(tmp_path, tracker, store)
+    original_publish = store.publish_snapshot_generation
+    publication_calls = 0
+
+    def churn_at_every_final_barrier(generation, publish, **kwargs):
+        nonlocal publication_calls
+        publication_calls += 1
+        for _ in range(64):
+            tracker.mutate(unrelated.identifier)
+        return original_publish(generation, publish, **kwargs)
+
+    store.publish_snapshot_generation = churn_at_every_final_barrier
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert publication_calls == 1
+    assert report["projects"]["project-1"]["snapshot"]["published"] is True
+    phases = report["reconciliation_phases"]
+    assert phases["scoped_publication_retries"] == 0
+    assert phases["tracker_scoped_publication_advances"] == 1
+    assert phases["tracker_scoped_publication_exclusions"] == 1
+    active = [
+        job
+        for job in store.list_jobs(
+            project_id="project-1", task_id=target.identifier
+        )
+        if job.state in ACTIVE_JOB_STATES
+    ]
+    assert [job.action for job in active] == ["review_merge"]
+    assert not store.list_jobs(
+        project_id="project-1", task_id=unrelated.identifier
+    )
+    assert {row["task_id"] for row in runtime.projections()} == {
+        target.identifier
+    }
+    health = controller.liveness_snapshot()
+    assert health.scan_complete is False
+    assert health.status != "overdue"
+    assert runtime.health_snapshot()["last_reconcile"][
+        "reconciliation_phases"
+    ]["tracker_scoped_publication_exclusions"] == 1
+    runtime.close()
+    store.close()
+
+
+def test_final_publication_retries_relevant_exact_task_drift(tmp_path):
+    target = make_issue("TASK-READY-EXACT", state="In Review")
+    unrelated = make_issue("TASK-UNRELATED-CHURN", state="Backlog")
+    tracker = ScopedMutationTracker([target, unrelated])
+    store = WorkflowJobStore(str(tmp_path / "relevant-final-drift.sqlite3"))
+    runtime, _controller = _scoped_publication_runtime(tmp_path, tracker, store)
+    original_publish = store.publish_snapshot_generation
+    publication_calls = 0
+
+    def mutate_target_once(generation, publish, **kwargs):
+        nonlocal publication_calls
+        publication_calls += 1
+        if publication_calls == 1:
+            tracker.mutate(target.identifier)
+        return original_publish(generation, publish, **kwargs)
+
+    store.publish_snapshot_generation = mutate_target_once
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert publication_calls == 2
+    assert report["projects"]["project-1"]["snapshot"]["published"] is True
+    assert report["reconciliation_phases"]["scoped_publication_retries"] == 1
+    assert report["reconciliation_phases"][
+        "tracker_scoped_publication_advances"
+    ] == 0
+    active = [
+        job
+        for job in store.list_jobs(
+            project_id="project-1", task_id=target.identifier
+        )
+        if job.state in ACTIVE_JOB_STATES
+    ]
+    assert len(active) == 1
+    assert active[0].action == "review_merge"
+    assert len({job.idempotency_key for job in active}) == 1
+    runtime.close()
+    store.close()
+
+
+def test_task_scoped_publication_restart_reuses_one_exact_job(tmp_path):
+    target = make_issue("TASK-READY-EXACT", state="In Review")
+    unrelated = make_issue("TASK-UNRELATED-CHURN", state="Backlog")
+    tracker = ScopedMutationTracker([target, unrelated])
+    path = tmp_path / "scoped-publication-restart.sqlite3"
+    store = WorkflowJobStore(str(path))
+    runtime, _controller = _scoped_publication_runtime(tmp_path, tracker, store)
+    original_publish = store.publish_snapshot_generation
+    first_publication = True
+
+    def churn_before_restart(generation, publish, **kwargs):
+        nonlocal first_publication
+        if first_publication:
+            first_publication = False
+            tracker.mutate(unrelated.identifier)
+        return original_publish(generation, publish, **kwargs)
+
+    store.publish_snapshot_generation = churn_before_restart
+    asyncio.run(runtime.start())
+    first = runtime.reconcile()
+    first_active = [
+        job
+        for job in store.list_jobs(
+            project_id="project-1", task_id=target.identifier
+        )
+        if job.state in ACTIVE_JOB_STATES
+    ]
+    assert first["reconciliation_phases"][
+        "tracker_scoped_publication_exclusions"
+    ] == 1
+    assert len(first_active) == 1
+    first_job_id = first_active[0].job_id
+    runtime.close()
+    store.close()
+
+    reopened = WorkflowJobStore(str(path))
+    restarted, restarted_controller = _scoped_publication_runtime(
+        tmp_path, tracker, reopened
+    )
+    asyncio.run(restarted.start())
+    second = restarted.reconcile()
+    second_active = [
+        job
+        for job in reopened.list_jobs(
+            project_id="project-1", task_id=target.identifier
+        )
+        if job.state in ACTIVE_JOB_STATES
+    ]
+
+    assert second["projects"]["project-1"]["snapshot"]["published"] is True
+    assert second["reconciliation_phases"]["scoped_publication_retries"] == 0
+    assert len(second_active) == 1
+    assert second_active[0].job_id == first_job_id
+    assert restarted_controller.liveness_snapshot().scan_complete is True
+    assert restarted.restart_reconstruction_pending is False
+    restarted.close()
+    reopened.close()
 
 
 def test_enforce_runtime_owns_liveness_restart_reconstruction(tmp_path):
