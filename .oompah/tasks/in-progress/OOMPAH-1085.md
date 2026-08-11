@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T17:17:47.561022Z'
+updated_at: '2026-08-11T17:18:27.239368Z'
 work_branch: OOMPAH-1085
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/827
@@ -291,5 +291,10 @@ author: oompah
 created: 2026-08-11 17:16
 ---
 Branch quality gate passed for `c2b0e1b10ea76129b8a59e041cde68948354e8cb` using `make test` in 178.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 17:18
+---
+Rebased accepted exact c2b0e1b10ea76129b8a59e041cde68948354e8cb onto merged OOMPAH-1092/main 2bdf2d942b44f15bbc4e896f03d967a163891868; resolved one adjacent-method conflict by retaining both fairness suspension snapshot and exact-successor absent-wake reconciliation. New exact 9e46db3abecbd9a94d66c46d300b7f69aa208034 is pushed remote-exact. Range-diff preserves 7/8 commits patch-equivalently; the one changed commit contains only the conflict composition. Post-resolution: 338 combined audit/lifecycle tests passed, Python 3.11 exact-successor race 25/25, merged fairness regression passed, terminal scan 21/21. Fresh independent review required for the new exact.
 ---
 <!-- COMMENTS:END -->
