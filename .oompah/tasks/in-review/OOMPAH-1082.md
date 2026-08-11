@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:08:16.081490Z'
-updated_at: '2026-08-11T11:51:15.210108Z'
+updated_at: '2026-08-11T11:55:51.156124Z'
 work_branch: OOMPAH-1082
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/819
@@ -71,5 +71,10 @@ author: oompah
 created: 2026-08-11 11:51
 ---
 Review blocker corrected and pushed at exact rebased head ae1389772b9bbe7f8cb72cf3e882239bd54d85d3 on main 712309b8179036474e40c5fd26f7d2b3c2a4b9b0. Exact prerequisite audit identity is now enforced during Done→Merged stamping, dispatch, restart wake reconstruction, and direct Merged PASS result application; missing/stale/failed/cross-authority references fail closed, with a narrow documented prereq=None legacy migration. Combined OOMPAH-1080/OOMPAH-1082 suite: 799 passed; adjacent suite: 915 passed, 2 expected xfails; terminal mutation scan: 21/21. Fresh independent exact-head re-review and protected CI are running.
+---
+author: oompah
+created: 2026-08-11 11:55
+---
+Fresh exact-head review BLOCKED ae1389772b9bbe7f8cb72cf3e882239bd54d85d3 on a recovery-chain deadlock: failed/exhausted Done -> owner rearm appends a new Done audit but leaves the pending Merged successor bound to the superseded failed prerequisite. The fresh Done PASS then cannot stamp/wake Merged, which remains pending forever with eligible_at=None. Author is adding atomic exact successor rebinding on rearm plus ambiguity/stale/cross-authority/restart regressions; this head will not merge.
 ---
 <!-- COMMENTS:END -->
