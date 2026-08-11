@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:22:55.237924Z'
-updated_at: '2026-08-11T14:42:24.622310Z'
+updated_at: '2026-08-11T14:44:42.995838Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,5 +48,10 @@ author: oompah
 created: 2026-08-11 14:42
 ---
 Live evidence confirmed both OOMPAH-1086 and OOMPAH-1087 review_merge jobs exhausted at effect_pending after one stale_evidence refusal. OOMPAH-1086's accepted integration record lacked base_branch/base_sha while the fresh PR 823 observation supplied a complete exact same-repository identity, so selection reached merge but the strict effect correctly refused it. Repair now routes missing accepted base identity through exact head/base reconciliation, supersedes an old merge effect when the second observation or forge CAS proves a valid newer review generation, and rearms stale exhaustion only for a complete non-forked non-conflicting current review identity. Wrong repositories/source/base, conflicts, missing reviews, and provider errors stay fail-closed. Green so far: 387 review/runtime/liveness tests, 74 architecture/churn tests, terminal mutation scan 21/21, production Ruff and py_compile.
+---
+author: oompah
+created: 2026-08-11 14:44
+---
+Implementation candidate pushed at exact head e8c8d052c3d28b0eb764f8d1b293227c7f10f72e. The repair enriches missing accepted base identity through exact review_head_reconciliation; turns synchronize/base/CAS changes seen after revalidation into durable supersession instead of stale_evidence exhaustion; and lets a published complete same-repository successor generation retire only prior stale-review exhaustion. Exact identity checks remain required for review ID, task/source/target branches, repository equality, accepted standalone authority, and 40/64-hex head/base. Invalid fork/source/target/base, conflict, missing-review, and provider-error cases remain bounded/actionable with zero forge merge writes. Evidence: 393 review/workflow/runtime/liveness tests green, 74 architecture/churn tests green, mutation scan 21/21, production Ruff/py_compile, diff check, paranoid secrets, and commit hooks. Awaiting independent exact-head review; not submitted or merged.
 ---
 <!-- COMMENTS:END -->
