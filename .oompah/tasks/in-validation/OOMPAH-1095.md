@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1095
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Publish direct-owner retirement before standalone delivery authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:44:31.960614Z'
-updated_at: '2026-08-11T18:19:10.022397Z'
+updated_at: '2026-08-11T18:35:48.364796Z'
 work_branch: OOMPAH-1095
 target_branch: null
 review_url: null
@@ -34,6 +34,64 @@ oompah.integration:
   submitted_at: '2026-08-11T17:21:35.917981+00:00'
   updated_at: '2026-08-11T17:21:35.917981+00:00'
 oompah.work_branch: OOMPAH-1095
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-1ab59dc8acfa
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1095
+    digest: c0d43355a6932b114bfefaa6baefb19c9b1a67a504f6b83b86cbbb2aea253ca7
+  - version: 1
+    audit_id: audit-3bd3763cacd6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1095
+    digest: c0d43355a6932b114bfefaa6baefb19c9b1a67a504f6b83b86cbbb2aea253ca7
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-1ab59dc8acfa
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1095
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c0d43355a6932b114bfefaa6baefb19c9b1a67a504f6b83b86cbbb2aea253ca7
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T18:35:41.037507+00:00'
+    eligible_at: '2026-08-11T18:35:41.037507+00:00'
+    selected_ref: cbca04ae99c93bc7edcf92270104c076b036b4c6
+    selected_sha: cbca04ae99c93bc7edcf92270104c076b036b4c6
+  - version: 1
+    audit_id: audit-3bd3763cacd6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1095
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c0d43355a6932b114bfefaa6baefb19c9b1a67a504f6b83b86cbbb2aea253ca7
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T18:35:41.037507+00:00'
+    prerequisite_audit_id: audit-1ab59dc8acfa
+    selected_ref: cbca04ae99c93bc7edcf92270104c076b036b4c6
+    selected_sha: cbca04ae99c93bc7edcf92270104c076b036b4c6
+  attempt_history: []
 ---
 ## Summary
 
@@ -66,5 +124,10 @@ author: oompah
 created: 2026-08-11 18:19
 ---
 Independent exact-head review ACCEPT: PR #831 head 6e0a488ea8d1ad7aaf5b0c2d814de6058d2180a5. Reviewed the combined generic mutation/retirement commit lane: the generic workflow guard re-proves status/version, exact accepted head, originating job, branch and authoritative remote before any owner mutation; the exact retirement guard then persists only the captured claim generation under the same project RLock before the Ready tracker write. Persistence failure rolls back and retries fail closed; marker retries are idempotent; stale remote/head/owner-generation and ABA replacement claims are rejected without marking or retiring the replacement. Retirement-pending authority survives TTL/restart, is published before Ready becomes observable, blocks standalone/shared integration materialization, and exact revocation removal wakes exactly one delivery generation. No blocking findings. Review evidence at this exact head: 671 focused owner-claim/task-transition/decision/integration/runtime/duplicate-preflight tests passed; 8 critical remote-head/ABA/restart/revocation/publication races passed 10 consecutive runs (80/80); explicit pre-effect tracker failure retry converged from retry_wait to one completed Ready transition with the same pending claim generation; terminal mutation scan passed 21/21; diff check clean; PR CI passes on Python 3.11, 3.12, and 3.13. Worktree remained clean. No submission or merge performed.
+---
+author: oompah
+created: 2026-08-11 18:35
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
