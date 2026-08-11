@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:02:12.775197Z'
-updated_at: '2026-08-11T17:37:52.447648Z'
+updated_at: '2026-08-11T17:38:07.250972Z'
 work_branch: OOMPAH-1092
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/828
@@ -164,6 +164,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1092
     selected_ref: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
     selected_sha: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
+oompah.task_costs:
+  total_input_tokens: 418
+  total_output_tokens: 10605
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 418
+      output_tokens: 10605
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 418
+    output_tokens: 10605
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T17:38:03.730516+00:00'
 ---
 ## Summary
 
@@ -245,5 +261,15 @@ Safe evidence:
 - acceptance_criteria_met.operation_bounds: operation_limit gating confirmed; observation_limit protects full corpus scan within bounded cost
 - acceptance_criteria_met.scan_complete_truth: calculated only after full cycles; remains false on incomplete observations
 - acceptance_criteria_met.no_regressions: duplicate launch prevented by durable cursor; continuation coalescing confirmed no spin
+---
+author: oompah
+created: 2026-08-11 17:38
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 110, Tool calls: 51
+- Tokens: 418 in / 10.6K out [11.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 47s
+- Log: OOMPAH-1092__20260811T172842Z.jsonl
 ---
 <!-- COMMENTS:END -->
