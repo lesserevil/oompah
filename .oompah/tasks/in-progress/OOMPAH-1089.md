@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:22:55.237924Z'
-updated_at: '2026-08-11T14:59:56.937720Z'
+updated_at: '2026-08-11T15:14:07.342603Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,15 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: review-stale-evidence-regeneration-20260811
   request_fingerprint: 632471a88f61cd821faefecc9c5fba392deb4e027a77c57f2d54abfef736019d
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1089
+  head_sha: ae985020931e3c17f1e904921b34f65207bd85af
+  submitted_at: '2026-08-11T15:14:03.387343+00:00'
+  updated_at: '2026-08-11T15:14:03.387343+00:00'
 ---
 ## Summary
 
@@ -63,5 +72,10 @@ author: oompah
 created: 2026-08-11 14:59
 ---
 Independent review found and repaired a TOCTOU in successor-generation retry authority. Successor eligibility and ordinary exhaustion handling previously performed separate current-exhaustion reads, so a concurrent replacement exhaustion could be evaluated under stale predecessor proof. Both decisions now consume one immutable tuple of frozen WorkflowJob rows, with a deterministic substitution regression proving only one authority read occurs and a later current-generation exhaustion cannot inherit the older proof. Replacement candidate pushed at exact head 6393f0b490c7b91b6783557fc2f44a08127f0fa7 (force-with-lease against a6ae095fda9b07d3a113e44c74591387e73f6053). Evidence: 392 focused review/work-decision/controller/runtime/liveness tests passed; terminal-audit mutation scan 21/21; git diff --check and py_compile clean; commit hooks and paranoid secret scans passed. Not submitted or merged; requires fresh independent exact-head review.
+---
+author: oompah
+created: 2026-08-11 15:14
+---
+Rebased the independently ACCEPTED repair onto current origin/main 6449341d762d9c7645271b8479dfa406e648be54 and pushed replacement exact head ae985020931e3c17f1e904921b34f65207bd85af. git range-diff proves both commits patch-equivalent to the accepted 6393f0b490c7b91b6783557fc2f44a08127f0fa7 series; post-rebase 392 focused review/controller/runtime/liveness tests passed, terminal mutation scan 21/21, and diff check is clean. The accepted review verified the exhaustion TOCTOU is closed by one immutable row tuple and all exact identity/fail-closed paths remain bounded. Ready for canonical validation.
 ---
 <!-- COMMENTS:END -->
