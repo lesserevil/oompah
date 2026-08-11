@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T17:40:39.597200Z'
+updated_at: '2026-08-11T17:47:10.986946Z'
 work_branch: OOMPAH-1085
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/827
@@ -72,7 +72,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1085
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -81,7 +81,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-fb07162a4c5a
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -93,6 +93,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1085
       selected_ref: c2b0e1b10ea76129b8a59e041cde68948354e8cb
       selected_sha: c2b0e1b10ea76129b8a59e041cde68948354e8cb
+      failure_classification: scheduler_pause
+      ended_at: '2026-08-11T17:46:55.922361+00:00'
+      failure_reason: operator pause interrupted auditor before verdict
     source_generation: 1
     requested_by:
       version: 1
@@ -103,7 +106,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-11T17:37:19.645047+00:00'
     selected_ref: c2b0e1b10ea76129b8a59e041cde68948354e8cb
     selected_sha: c2b0e1b10ea76129b8a59e041cde68948354e8cb
-    updated_at: '2026-08-11T17:40:30.466352+00:00'
+    updated_at: '2026-08-11T17:46:55.922361+00:00'
   - version: 1
     audit_id: audit-07ff4c62fc4a
     project_id: proj-14849f1b
@@ -129,7 +132,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-fb07162a4c5a
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -141,6 +144,25 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1085
     selected_ref: c2b0e1b10ea76129b8a59e041cde68948354e8cb
     selected_sha: c2b0e1b10ea76129b8a59e041cde68948354e8cb
+    failure_classification: scheduler_pause
+    ended_at: '2026-08-11T17:46:55.922361+00:00'
+    failure_reason: operator pause interrupted auditor before verdict
+oompah.task_costs:
+  total_input_tokens: 70
+  total_output_tokens: 17
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 70
+      output_tokens: 17
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 70
+    output_tokens: 17
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T17:47:02.645745+00:00'
 ---
 ## Summary
 
@@ -405,5 +427,20 @@ author: oompah
 created: 2026-08-11 17:40
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 17:47
+---
+Auditor transport/finalization ended before a verdict; the bounded audit retry will preserve candidate capacity.
+---
+author: oompah
+created: 2026-08-11 17:47
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 3
+- Tokens: 70 in / 17 out [87 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 29s
+- Log: OOMPAH-1085__20260811T174046Z.jsonl
 ---
 <!-- COMMENTS:END -->
