@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T13:58:33.544688Z'
+updated_at: '2026-08-11T13:58:50.179112Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
@@ -127,6 +127,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1084
     selected_ref: 15a2ee7c9b82cfefb49a00173c302c095f3ca46e
     selected_sha: 15a2ee7c9b82cfefb49a00173c302c095f3ca46e
+oompah.task_costs:
+  total_input_tokens: 174
+  total_output_tokens: 34
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 174
+      output_tokens: 34
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 174
+    output_tokens: 34
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T13:58:46.920435+00:00'
 ---
 ## Summary
 
@@ -199,5 +215,15 @@ author: oompah
 created: 2026-08-11 13:58
 ---
 Operator safety intervention: the live terminal auditor was bound to stale revision 15a2ee7c9b82cfefb49a00173c302c095f3ca46e even though PR #821 merged exact reviewed head cf3578ff00f5564a06ea31650553dca337280427 (merge 6a0f7210). Revoking this terminal attempt before it can authorize stale-head evidence. After deploying the merged exact-head synchronization fix, the task will be re-evaluated against the actual merged review head; no stale audit result will be accepted.
+---
+author: oompah
+created: 2026-08-11 13:58
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 9
+- Tokens: 174 in / 34 out [208 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 45s
+- Log: OOMPAH-1084__20260811T135512Z.jsonl
 ---
 <!-- COMMENTS:END -->
