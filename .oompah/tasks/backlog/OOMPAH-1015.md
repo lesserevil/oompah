@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T06:31:39.314795Z'
-updated_at: '2026-08-11T06:31:39.314795Z'
+updated_at: '2026-08-11T07:45:20.448526Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,3 +58,11 @@ The operation in `backend:terminal_audit_enforcement` should complete successful
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 07:45
+---
+Canonical incident for the 2026-08-11 startup flood OOMPAH-1015..1070. Build 05ed11f22 rejected valid legacy terminal-override ledger rows whose historical schema omitted the later applied field, then task-specific error fingerprints auto-filed one task per affected source. OOMPAH-1016..1070 are duplicate symptoms and are being archived. Compatibility, fail-closed ledger validation, retired-authority filtering, and explicit-false transaction ordering are deployed at 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17; paused postdeploy recovery completed with zero malformed-ledger errors, zero quarantines, and no task above OOMPAH-1070. A separate systemic task will bound terminal-enforcement error fan-out by diagnostic class.
+---
+<!-- COMMENTS:END -->
