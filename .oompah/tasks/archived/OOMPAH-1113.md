@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T21:07:45.520946Z'
-updated_at: '2026-08-11T22:45:56.560924Z'
+updated_at: '2026-08-11T22:46:06.253449Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -104,5 +104,10 @@ created: 2026-08-11 22:45
 Override by oompah-cli: terminal transition to Archived applied by project owner.
 
 Reason: Operator consolidation of a downstream terminal-transition artifact into canonical defect OOMPAH-1127 after recovering and publishing the affected Trickle state history.
+---
+author: oompah
+created: 2026-08-11 22:46
+---
+Archived as a downstream artifact of the Trickle forge-cutover checkpoint incident. The stale checkpoint-writer/credential-authority defect is tracked by OOMPAH-1127. The affected state history was recovered and fast-forwarded to GitLab at d6b89313f65b8b018a254e23cfb4510482338479.
 ---
 <!-- COMMENTS:END -->
