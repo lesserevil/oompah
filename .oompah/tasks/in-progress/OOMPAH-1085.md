@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1085
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: null
 title: Dispatch exact terminal-audit successors through a dedicated bounded continuation
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T16:45:11.426454Z'
+updated_at: '2026-08-11T16:51:33.226077Z'
 work_branch: OOMPAH-1085
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/827
@@ -278,5 +278,10 @@ author: oompah
 created: 2026-08-11 16:41
 ---
 Branch quality gate passed for `ed2cbbc4390f475ebb9bc30ed1a4fe5c210f624c` using `make test` in 181.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 16:51
+---
+Protected CI isolated a Python 3.11-only race in the new deterministic successor-lane regression: test_exact_successor_dispatch_bypasses_blocked_durable_reconcile observed capacity_deferred, then asserted _terminal_audit_continuation_future was non-null, but the continuation could already complete/clear before that inspection. Python 3.12 and 3.13 passed; 3.11 otherwise passed 20,077 tests. This is a test synchronization defect around the exact owner lifetime, not a production gate failure, but the accepted head is blocked and will be repaired/re-reviewed rather than retried blindly.
 ---
 <!-- COMMENTS:END -->
