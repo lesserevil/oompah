@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1080
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Import trusted protected ordinary-PR exact-head gates before terminal-audit
   dispatch
@@ -12,8 +12,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:00:26.321021Z'
-updated_at: '2026-08-11T11:00:45.277643Z'
-work_branch: null
+updated_at: '2026-08-11T11:27:37.537825Z'
+work_branch: OOMPAH-1080
 target_branch: null
 review_url: null
 review_number: null
@@ -25,6 +25,16 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: ac7161fc-9c77-4b8e-aa7b-5686df38ab4b
   request_fingerprint: 2bf5c669d1b5f34c19c01be0a65e261135dfea89635e99fb0c368010765c3a6f
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1080
+  head_sha: eabbcdaceabad696070014a6fa166c8d1334f46a
+  submitted_at: '2026-08-11T11:27:23.712478+00:00'
+  updated_at: '2026-08-11T11:27:23.712478+00:00'
+oompah.work_branch: OOMPAH-1080
 ---
 ## Summary
 
@@ -36,3 +46,11 @@ Triggered by: OOMPAH-1071. Problem: OOMPAH-1071 final reviewed head 238736... di
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 11:27
+---
+Generalize strict protected exact-head gate import from recovery PRs to ordinary merged PRs at eabbcdaceabad696070014a6fa166c8d1334f46a; 294 focused quality-gate tests and terminal scan pass.
+---
+<!-- COMMENTS:END -->
