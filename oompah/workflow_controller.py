@@ -47,6 +47,7 @@ from oompah.workflow_fact_model import (
 )
 from oompah.workflow_jobs import (
     WorkflowFailureCategory,
+    WorkflowJob,
     WorkflowJobStore,
     WorkflowSnapshotPublication,
 )
@@ -411,8 +412,8 @@ def _graph_problem(facts: WorkflowFacts) -> tuple[str, ...] | None:
 
 
 def _stored_retry_exhausted(
-    scheduler: WorkflowJobScheduler,
     decision: WorkDecision,
+    exhausted: Sequence[WorkflowJob],
     *,
     prospective_authority_cut: bool,
     successor_generation_proven: bool = False,
@@ -426,10 +427,6 @@ def _stored_retry_exhausted(
     action, stays fail closed.
     """
 
-    exhausted = scheduler.store.current_exhausted_jobs(
-        project_id=decision.project_id,
-        task_id=decision.task_id,
-    )
     if not exhausted:
         return False
     if not prospective_authority_cut:
@@ -444,9 +441,9 @@ _EXACT_HEAD_RE = re.compile(r"^[0-9a-f]{40,64}$")
 
 
 def _review_successor_generation_proven(
-    scheduler: WorkflowJobScheduler,
     decision: WorkDecision,
     facts: WorkflowFacts,
+    exhausted: Sequence[WorkflowJob],
 ) -> bool:
     """Prove a current exact review generation may replace stale exhaustion.
 
@@ -463,10 +460,6 @@ def _review_successor_generation_proven(
         or decision.durable_jobs[0] not in REVIEW_ACTION_JOBS
     ):
         return False
-    exhausted = scheduler.store.current_exhausted_jobs(
-        project_id=decision.project_id,
-        task_id=decision.task_id,
-    )
     if not exhausted or any(
         job.action not in REVIEW_ACTION_JOBS
         or job.failure_category is not WorkflowFailureCategory.STALE_EVIDENCE
@@ -746,17 +739,26 @@ class UniversalTotalityLivenessController:
                 alert=AlertSeverity.CRITICAL,
             )
 
+        # Bind both successor eligibility and ordinary exhaustion handling to
+        # one immutable authority read.  A worker may exhaust a replacement
+        # generation while this snapshot is being evaluated; independently
+        # re-reading here would let proof about the prior rows suppress that
+        # replacement's bounded failure.
+        current_exhaustion = self.scheduler.store.current_exhausted_jobs(
+            project_id=decision.project_id,
+            task_id=decision.task_id,
+        )
         successor_generation_proven = bool(
             prospective_authority_cut
             and _review_successor_generation_proven(
-                self.scheduler,
                 decision,
                 facts,
+                current_exhaustion,
             )
         )
         if _stored_retry_exhausted(
-            self.scheduler,
             decision,
+            current_exhaustion,
             prospective_authority_cut=prospective_authority_cut,
             successor_generation_proven=successor_generation_proven,
         ) or (

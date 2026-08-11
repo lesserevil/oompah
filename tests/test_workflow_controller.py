@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from threading import Event
 
@@ -668,6 +669,77 @@ def test_exact_review_identity_enrichment_rearms_stale_generation_after_restart(
         assert reopened.health_snapshot()["current_states"]["exhausted"] == 0
     finally:
         reopened.close()
+
+
+def test_review_successor_uses_one_immutable_exhaustion_snapshot(
+    tmp_path,
+    monkeypatch,
+):
+    """A concurrent exhaustion cannot replace the rows a proof evaluated."""
+
+    task = issue(
+        IN_REVIEW,
+        identifier="TASK-REVIEW-GENERATION",
+        work_branch="TASK-REVIEW-GENERATION",
+        target_branch="main",
+        review_number="17",
+        review_head="a" * 40,
+        head_sha="a" * 40,
+    )
+    store = WorkflowJobStore(str(tmp_path / "review-generation-snapshot.sqlite3"))
+    controller = UniversalTotalityLivenessController(
+        store=store, decision_limit=100, clock=lambda: NOW
+    )
+    initial = _review_generation_facts(task, repositories=False)
+    controller.full_sync((task,), facts={task.identifier: initial}, now=NOW)
+    running = store.claim_next(lease_owner="old-review-worker", lease_seconds=30)
+    assert running is not None
+    stale_exhaustion = store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.STALE_EVIDENCE,
+        error="review identity was incomplete",
+        retryable=False,
+    )
+    current = _review_generation_facts(task, repositories=True)
+    substituted_exhaustion = replace(
+        stale_exhaustion,
+        job_id="concurrent-current-generation-exhaustion",
+        generation="concurrent-current-generation",
+        expected_evidence_revision=current.facts_version,
+    )
+    reads = 0
+
+    def substitute_after_first_read(*, project_id, task_id):
+        nonlocal reads
+        assert (project_id, task_id) == ("project-a", task.identifier)
+        reads += 1
+        # The second value models a current-generation worker exhausting
+        # between successor proof and ordinary exhaustion handling.  It must
+        # not be consulted under proof derived from the first value.
+        return (
+            (stale_exhaustion,)
+            if reads == 1
+            else (substituted_exhaustion,)
+        )
+
+    monkeypatch.setattr(
+        store,
+        "current_exhausted_jobs",
+        substitute_after_first_read,
+    )
+    try:
+        result = controller.full_sync(
+            (task,), facts={task.identifier: current}, now=NOW
+        )
+
+        assert reads == 1
+        assert result.decisions[0].reason_code == "review.ready_to_merge"
+        assert [job.action for job in store.list_jobs() if job.is_active] == [
+            "review_merge"
+        ]
+    finally:
+        store.close()
 
 
 @pytest.mark.parametrize(
