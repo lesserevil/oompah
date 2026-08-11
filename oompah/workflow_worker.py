@@ -286,6 +286,7 @@ class DurableWorkflowWorker:
         heartbeat_seconds: float = 10,
         operation_timeout_seconds: float = 60,
         retry_delay_seconds: float = 5,
+        quarantine_persist_timeout_seconds: float = 5,
         quarantine_recycle_seconds: float = 60,
         phase_observer: PhaseObserver | None = None,
         quarantine_recycle_observer: QuarantineRecycleObserver | None = None,
@@ -322,12 +323,19 @@ class DurableWorkflowWorker:
             raise ValueError("operation_timeout_seconds must be positive")
         if retry_delay_seconds < 0:
             raise ValueError("retry_delay_seconds cannot be negative")
+        if quarantine_persist_timeout_seconds <= 0:
+            raise ValueError(
+                "quarantine_persist_timeout_seconds must be positive"
+            )
         if quarantine_recycle_seconds <= 0:
             raise ValueError("quarantine_recycle_seconds must be positive")
         self.lease_seconds = float(lease_seconds)
         self.heartbeat_seconds = float(heartbeat_seconds)
         self.operation_timeout_seconds = float(operation_timeout_seconds)
         self.retry_delay_seconds = float(retry_delay_seconds)
+        self.quarantine_persist_timeout_seconds = float(
+            quarantine_persist_timeout_seconds
+        )
         self.quarantine_recycle_seconds = float(quarantine_recycle_seconds)
         self.phase_observer = phase_observer
         self.quarantine_recycle_observer = quarantine_recycle_observer
@@ -725,7 +733,7 @@ class DurableWorkflowWorker:
                     category=failure.category,
                     error=str(failure),
                 ),
-                timeout=min(max(self.operation_timeout_seconds, 0.1), 5.0),
+                timeout=self.quarantine_persist_timeout_seconds,
             )
         except Exception as exc:  # store boundary is itself hard-bounded above
             return WorkflowRunResult(

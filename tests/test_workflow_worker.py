@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 import time
 
 import pytest
@@ -241,6 +242,7 @@ def worker(
     heartbeat_seconds: float = 10,
     operation_timeout_seconds: float = 1,
     retry_delay_seconds: float = 5,
+    quarantine_persist_timeout_seconds: float = 5,
     quarantine_recycle_seconds: float = 60,
     quarantine_recycle_observer=None,
 ):
@@ -256,6 +258,7 @@ def worker(
         heartbeat_seconds=heartbeat_seconds,
         operation_timeout_seconds=operation_timeout_seconds,
         retry_delay_seconds=retry_delay_seconds,
+        quarantine_persist_timeout_seconds=quarantine_persist_timeout_seconds,
         quarantine_recycle_seconds=quarantine_recycle_seconds,
         phase_observer=phase_observer,
         quarantine_recycle_observer=quarantine_recycle_observer,
@@ -650,11 +653,23 @@ async def test_timed_out_thread_effect_returns_without_releasing_retry_authority
 
 
 @pytest.mark.asyncio
-async def test_late_success_checkpoints_receipt_without_duplicate_apply(store):
+async def test_late_success_checkpoints_receipt_without_duplicate_apply(
+    store, monkeypatch
+):
     queued = store.enqueue(job_spec())
     handler = ScriptedHandler()
     handler.started = asyncio.Event()
     handler.release = asyncio.Event()
+    quarantine_started = threading.Event()
+    release_quarantine = threading.Event()
+    quarantine_owned = store.quarantine_owned
+
+    def delayed_quarantine(*args, **kwargs):
+        quarantine_started.set()
+        assert release_quarantine.wait(timeout=2)
+        return quarantine_owned(*args, **kwargs)
+
+    monkeypatch.setattr(store, "quarantine_owned", delayed_quarantine)
 
     async def late_apply(_context):
         handler.apply_calls += 1
@@ -664,10 +679,23 @@ async def test_late_success_checkpoints_receipt_without_duplicate_apply(store):
         return EffectResult(receipt=handler.external_receipt)
 
     handler.apply = late_apply
-    runner = worker(store, handler, operation_timeout_seconds=0.01)
+    runner = worker(
+        store,
+        handler,
+        operation_timeout_seconds=0.01,
+        quarantine_persist_timeout_seconds=1,
+    )
 
-    timed_out = await runner.run_once()
+    timed_out_call = asyncio.create_task(runner.run_once())
     await handler.started.wait()
+    assert await asyncio.to_thread(quarantine_started.wait, 0.5)
+    # The store barrier, rather than scheduler luck, keeps quarantine
+    # persistence beyond the adapter's 10ms execution budget.  Its independent
+    # authority deadline must still allow the exact lease fence to commit.
+    await asyncio.sleep(0.15)
+    assert not timed_out_call.done()
+    release_quarantine.set()
+    timed_out = await timed_out_call
 
     assert timed_out.disposition is WorkflowRunDisposition.ACTION_REQUIRED
     assert store.get(queued.job_id).phase == "quarantined"
@@ -688,6 +716,31 @@ async def test_late_success_checkpoints_receipt_without_duplicate_apply(store):
     resumed = await runner.run_once()
     assert resumed.disposition is WorkflowRunDisposition.COMPLETED
     assert handler.apply_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_true_lease_loss_during_quarantine_remains_lease_lost(
+    store, monkeypatch
+):
+    store.enqueue(job_spec())
+    handler = ScriptedHandler()
+    handler.delay_operation = "apply"
+    handler.delay_seconds = 0.1
+
+    def lose_lease(*_args, **_kwargs):
+        raise WorkflowJobLeaseLost("replaced before quarantine")
+
+    monkeypatch.setattr(store, "quarantine_owned", lose_lease)
+
+    result = await worker(
+        store,
+        handler,
+        operation_timeout_seconds=0.01,
+        quarantine_persist_timeout_seconds=1,
+    ).run_once()
+
+    assert result.disposition is WorkflowRunDisposition.LEASE_LOST
+    assert "WorkflowJobLeaseLost" in result.reason
 
 
 @pytest.mark.asyncio
@@ -1224,6 +1277,8 @@ def test_worker_configuration_rejects_unbounded_or_invalid_timing(store):
         worker(store, handler, lease_seconds=10, heartbeat_seconds=10)
     with pytest.raises(ValueError, match="timeout"):
         worker(store, handler, operation_timeout_seconds=0)
+    with pytest.raises(ValueError, match="quarantine_persist_timeout_seconds"):
+        worker(store, handler, quarantine_persist_timeout_seconds=0)
 
     handler.domain = "unknown"
     with pytest.raises(ValueError, match="known domain"):

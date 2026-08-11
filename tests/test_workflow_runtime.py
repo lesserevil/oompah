@@ -227,6 +227,7 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
         workflow_runtime_batch_size = 9
         workflow_runtime_max_concurrent = 6
         workflow_runtime_control_reserved_slots = 2
+        workflow_quarantine_persist_timeout_seconds = 19
         workflow_quarantine_recycle_seconds = 23
 
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
@@ -258,6 +259,7 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
     assert runtime.batch_size == 9
     assert runtime.max_concurrent == 6
     assert runtime.control_reserved_slots == 2
+    assert runtime.worker.quarantine_persist_timeout_seconds == 19
     assert runtime.worker.quarantine_recycle_seconds == 23
     assert runtime.worker.quarantine_recycle_observer is not None
     assert tuple(runtime.project_bindings) == ("legacy",)

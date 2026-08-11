@@ -486,6 +486,7 @@ class WorkflowRuntime:
         transition_observer: Callable[[Any], None] | None = None,
         effect_completion_observer: Callable[[Any], None] | None = None,
         quarantine_recycle_observer: Callable[[Any], Any] | None = None,
+        quarantine_persist_timeout_seconds: float = 5,
         quarantine_recycle_seconds: float = 60,
         liveness_controller: UniversalTotalityLivenessController | None = None,
         persist_liveness_state: Callable[[Mapping[str, Any]], None] | None = None,
@@ -690,6 +691,7 @@ class WorkflowRuntime:
                 for project_id, binding in self.project_bindings.items()
             },
             worker_id=runtime_owner,
+            quarantine_persist_timeout_seconds=quarantine_persist_timeout_seconds,
             quarantine_recycle_seconds=quarantine_recycle_seconds,
             phase_observer=self.record_event,
             quarantine_recycle_observer=quarantine_recycle_observer,
@@ -1731,6 +1733,13 @@ class WorkflowRuntime:
             transition_observer=transition_observer,
             effect_completion_observer=effect_completion_observer,
             quarantine_recycle_observer=quarantine_recycle_observer,
+            quarantine_persist_timeout_seconds=float(
+                getattr(
+                    orchestrator.config,
+                    "workflow_quarantine_persist_timeout_seconds",
+                    5,
+                )
+            ),
             quarantine_recycle_seconds=float(
                 getattr(
                     orchestrator.config,
