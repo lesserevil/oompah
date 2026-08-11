@@ -1028,6 +1028,113 @@ class TestStateBranchTrackerFailures:
         assert calls == ["add", "diff", "commit", "diff", "add", "diff"]
         sleep.assert_called_once_with(0.05)
 
+    def test_transient_commit_index_lock_retries_retained_staged_diff(
+        self, tmp_path: Path
+    ) -> None:
+        """A commit-phase index lock retries when the task diff remains staged."""
+        tracker = _make_tracker(
+            tmp_path,
+            state_branch_enabled=True,
+            state_branch_name="oompah/state/proj-commit-index-lock",
+        )
+        calls: list[str] = []
+        commit_count = 0
+
+        def _fake_git(args: list[str], *, check: bool, **kwargs) -> MagicMock:
+            nonlocal commit_count
+            calls.append(args[0])
+            if args[0] == "diff":
+                return _make_completed_process(1)
+            if args[0] == "commit":
+                commit_count += 1
+                if commit_count == 1:
+                    return _make_completed_process(
+                        128,
+                        stderr=(
+                            "fatal: Unable to create '/repo/.git/index.lock': "
+                            "File exists."
+                        ),
+                    )
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+        with patch("oompah.oompah_md_tracker.time.sleep") as sleep:
+            committed = tracker._stage_and_commit_state_branch(tmp_path, "message")
+
+        assert committed is True
+        assert calls == [
+            "add",
+            "diff",
+            "commit",
+            "diff",
+            "add",
+            "diff",
+            "commit",
+        ]
+        sleep.assert_called_once_with(0.05)
+
+    def test_real_git_commit_index_lock_clears_during_bounded_backoff(
+        self, tmp_path: Path
+    ) -> None:
+        """Real Git retries a commit-only index lock after add/diff succeeded."""
+        repo = tmp_path / "commit-index-lock"
+        _init_git_repo(repo)
+        task = repo / ".oompah" / "tasks" / "open" / "OOMPAH-LOCK.md"
+        task.parent.mkdir(parents=True)
+        task.write_text(
+            "---\nid: OOMPAH-LOCK\nstatus: Open\n---\n",
+            encoding="utf-8",
+        )
+        tracker = _make_tracker(repo)
+        real_git = tracker._git
+        index_lock = repo / ".git" / "index.lock"
+        calls: list[str] = []
+        lock_installed = False
+
+        def _lock_first_commit(
+            args: list[str], *, check: bool, **kwargs
+        ) -> subprocess.CompletedProcess:
+            nonlocal lock_installed
+            calls.append(args[0])
+            if args[0] == "commit" and not lock_installed:
+                lock_installed = True
+                index_lock.write_text("competing owner\n", encoding="utf-8")
+            return real_git(args, check=check, **kwargs)
+
+        def _release_lock_after_backoff(delay: float) -> None:
+            assert delay == 0.05
+            assert index_lock.exists()
+            index_lock.unlink()
+
+        tracker._git = _lock_first_commit  # type: ignore[method-assign]
+        with patch(
+            "oompah.oompah_md_tracker.time.sleep",
+            side_effect=_release_lock_after_backoff,
+        ) as sleep:
+            committed = tracker._stage_and_commit_state_branch(repo, "message")
+
+        assert committed is True
+        assert calls == [
+            "add",
+            "diff",
+            "commit",
+            "diff",
+            "add",
+            "diff",
+            "commit",
+        ]
+        sleep.assert_called_once_with(0.05)
+        assert not index_lock.exists()
+        assert _git(repo, "diff", "--cached", "--quiet").returncode == 0
+        committed_paths = _git(
+            repo,
+            "show",
+            "--name-only",
+            "--pretty=format:",
+            "HEAD",
+        ).stdout.splitlines()
+        assert committed_paths == [".oompah/tasks/open/OOMPAH-LOCK.md"]
+
     def test_failed_commit_with_consumed_task_diff_repeats_transaction(
         self, tmp_path: Path
     ) -> None:

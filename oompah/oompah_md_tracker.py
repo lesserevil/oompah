@@ -2392,42 +2392,49 @@ class OompahMarkdownTracker:
             commit_error = TrackerError(
                 f"git {' '.join(commit_args)} failed: {commit_detail}"
             )
+            transient_lock = _is_transient_state_branch_git_lock_error(
+                commit_detail
+            )
             # A concurrent process can commit the shared index after this
             # transaction proves a staged task diff but before its commit
             # acquires the ref.  Git's human-facing failure output varies with
             # version, locale, hooks, and unrelated untracked files.  Re-read
             # the exact task path in the real index instead of parsing prose.
             probe = self._git(diff_args, check=False, cwd=state_root)
-            if probe.returncode == 1:
-                # The intended task mutation is still staged.  The commit
-                # failed for its original reason; retrying could hide a hook,
-                # repository, identity, or storage failure.
-                raise commit_error
-            if probe.returncode != 0:
+            if probe.returncode not in {0, 1}:
                 probe_detail = probe.stderr.strip() or probe.stdout.strip()
                 raise TrackerError(
-                    "Cannot determine task-index ownership after failed state-branch "
-                    f"commit: git {' '.join(diff_args)} exited "
-                    f"{probe.returncode}: {probe_detail or 'no diagnostic output'}. "
-                    f"Original commit failure: {commit_detail or 'no diagnostic output'}"
+                    "Cannot determine task-index ownership after failed "
+                    "state-branch commit: "
+                    f"git {' '.join(diff_args)} exited "
+                    f"{probe.returncode}: "
+                    f"{probe_detail or 'no diagnostic output'}. "
+                    "Original commit failure: "
+                    f"{commit_detail or 'no diagnostic output'}"
                 )
+            if probe.returncode == 1:
+                # The intended task mutation is still staged.  Preserve every
+                # non-lock failure immediately so a hook, repository,
+                # identity, or storage error cannot be hidden.  A canonical
+                # transient Git lock is the one exception: no competing commit
+                # consumed the work, so retry the complete transaction after
+                # the existing bounded backoff.
+                if not transient_lock:
+                    raise commit_error
 
-            # Exit 0 proves that the staged task diff was consumed.  Repeat
-            # the complete add/diff/commit transaction within the existing
-            # bounded retry budget so a concurrent follow-up mutation is not
-            # mistaken for the already-committed generation.
+            # Exit 0 proves that the staged task diff was consumed.  Exit 1 is
+            # reachable here only for a canonical transient lock.  In either
+            # recoverable case repeat the complete add/diff/commit transaction
+            # within the existing bounded retry budget.
             if attempt >= _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS - 1:
                 raise commit_error
-            transient_lock = _is_transient_state_branch_git_lock_error(
-                commit_detail
-            )
             backoff_s = (
                 _STATE_BRANCH_GIT_LOCK_BACKOFF_SECONDS * (2**attempt)
                 if transient_lock
                 else 0.0
             )
             logger.info(
-                "State-branch task index was consumed by a competing writer; "
+                "State-branch commit lost transient authority; "
                 "rechecking stage/commit (attempt %d/%d%s)",
                 attempt + 1,
                 _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS,
