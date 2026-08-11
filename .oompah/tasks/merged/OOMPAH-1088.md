@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:17:03.737871Z'
-updated_at: '2026-08-11T17:33:08.575222Z'
+updated_at: '2026-08-11T17:33:14.560430Z'
 work_branch: OOMPAH-1088
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/826
@@ -108,8 +108,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-fe6e7c8740ff
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-11T17:33:04.094531+00:00'
+    applied_at: '2026-08-11T17:33:12.985119+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -363,5 +364,34 @@ author: oompah
 created: 2026-08-11 17:20
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 17:33
+---
+Audit PASS — Merged
+
+Completion audit PASS for OOMPAH-1088. Implementation verified: bounded task authority waits with structured retryable responses, pre-provider runtime retirement with durable evidence and lock release, worker exit path removes RunningEntry and claims atomically, direct owner claim and submission converge idempotently. All key features present, all required tests green, all acceptance criteria verified. Full gate passed 181s at target SHA 59619d68f092fd5e6078599f2a6efcce555f52f9.
+
+Safe evidence:
+- implementation_features[0]: CrossLoopTaskLock with bounded async acquire
+- implementation_features[1]: SubmissionAuthorityBusyError returns retryable 503
+- implementation_features[2]: Pre-provider retirement with durable evidence
+- implementation_features[3]: Budget rollback on pre-provider timeout
+- implementation_features[4]: Worker exit removes RunningEntry and claims
+- implementation_features[5]: Direct owner claim idempotent convergence
+- implementation_features[6]: Non-blocking synchronous legacy lock polling
+- test_coverage[0]: test_cross_loop_task_lock_has_a_bounded_retryable_acquisition
+- test_coverage[1]: test_submission_authority_wait_is_bounded_and_releases_for_retry
+- test_coverage[2]: test_owner_claim_authority_wait_is_bounded_and_retryable
+- test_coverage[3]: test_pre_provider_evidence_timeout_releases_task_authority
+- test_coverage[4]: test_pre_provider_timeout_exits_without_ghost_and_authority_lanes_continue
+- acceptance_criteria[0]: No indefinite API waits verified with bounded acquire
+- acceptance_criteria[1]: Graceful restart not held verified with entry removal
+- acceptance_criteria[2]: Pre-provider ghosts self-retire with evidence verified
+- acceptance_criteria[3]: Focused tests and mutation scan pass verified
+- acceptance_criteria[4]: Full protected gate green verified
+- quality_gate.result: passed
+- quality_gate.duration_seconds: 181
+- quality_gate.authority_current: true
 ---
 <!-- COMMENTS:END -->
