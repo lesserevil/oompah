@@ -2612,6 +2612,12 @@ class Orchestrator:
             "in_progress_count": 0,
             "discovered_candidate_count": 0,
             "scanned_candidate_count": 0,
+            "active_operation_count": 0,
+            "observation_limit": (
+                config.audit_lane_scan_limit
+                if config.audit_lane_scan_limit > 0
+                else config.audit_lane_operation_limit
+            ),
             "candidate_scan_complete": True,
             "operation_limit": config.audit_lane_operation_limit,
             "runtime_budget_seconds": config.audit_lane_max_runtime_seconds,
@@ -18928,6 +18934,42 @@ class Orchestrator:
             return ordered, False
         return ordered[:limit], True
 
+    def _audit_candidate_suspension_snapshot(
+        self,
+        candidates: Sequence[Issue],
+    ) -> dict[str, bool]:
+        """Return one project-consistent suspension view for a lane cut.
+
+        Project pause is cheap scheduling authority that is available before
+        terminal-audit metadata or provider policy is read.  Snapshot it once
+        per project so paused observations cannot consume active dispatch
+        priority, and so every candidate from the same project sees the same
+        ordering decision during this cut.  A failed authority read remains
+        active (fail closed) and will therefore continue to block lower
+        priority dispatch until an ordinary scan can prove suspension.
+        """
+
+        try:
+            projects = self.project_store.list_all()
+        except Exception as exc:  # noqa: BLE001 - priority fails closed
+            logger.warning(
+                "Could not read terminal-audit project suspension snapshot: %s",
+                type(exc).__name__,
+            )
+            projects = ()
+        project_suspension = {
+            str(project.id): bool(getattr(project, "paused", False))
+            for project in projects
+            if str(getattr(project, "id", "")).strip()
+        }
+        return {
+            self._audit_candidate_cursor_key(issue): project_suspension.get(
+                str(issue.project_id or ""),
+                False,
+            )
+            for issue in candidates
+        }
+
     def _cached_audit_selector(
         self,
         issue: Issue,
@@ -19107,24 +19149,52 @@ class Orchestrator:
             self._tick_pool, self._fetch_audit_candidates
         )
         discovered_candidate_count = len(candidate_scan.candidates)
+        candidate_suspension = self._audit_candidate_suspension_snapshot(
+            candidate_scan.candidates
+        )
         health_candidates, truncated = self._audit_health_candidate_window(
             candidate_scan.candidates
         )
-        health_window = health_candidates[:operation_limit]
-        operation_truncated = len(health_candidates) > len(health_window)
+        # ``scan_limit=0`` historically delegated the hard bound to the
+        # operation limit.  Retain that safety property while allowing a
+        # configured observation window to be wider than active dispatch
+        # capacity.  Paused/no-work entries can then remain visible without
+        # starving launchable work, while total metadata reads stay bounded.
+        # The durable rotating cursor consequently considers every candidate
+        # within ``ceil(candidate_count / observation_limit)`` lane cuts; a
+        # paused entry never increases that dispatch SLO by consuming one of
+        # the independently bounded active-operation slots.
+        configured_scan_limit = int(
+            getattr(config, "audit_lane_scan_limit", 0)
+        )
+        observation_limit = (
+            configured_scan_limit
+            if configured_scan_limit > 0
+            else operation_limit
+        )
+        health_window = health_candidates[:observation_limit]
+        observation_truncated = len(health_candidates) > len(health_window)
         candidates = health_window
         health_window_keys = {
             self._audit_candidate_cursor_key(issue) for issue in health_window
         }
+        active_candidates = [
+            issue
+            for issue in candidate_scan.candidates
+            if not candidate_suspension.get(
+                self._audit_candidate_cursor_key(issue),
+                False,
+            )
+        ]
         launch_eligible_priorities = {
             priority
             for priority in {
                 self._audit_candidate_priority(issue)
-                for issue in candidate_scan.candidates
+                for issue in active_candidates
             }
             if all(
                 self._audit_candidate_cursor_key(issue) in health_window_keys
-                for issue in candidate_scan.candidates
+                for issue in active_candidates
                 if self._audit_candidate_priority(issue) > priority
             )
         }
@@ -19141,13 +19211,15 @@ class Orchestrator:
         observations: list[AuditHealthObservation] = []
         _audit_scan_error_count: int = 0
         processed_candidate_count = 0
+        active_operation_count = 0
         processed_candidate_keys: set[str] = set()
         priority_order_deferred_keys: list[str] = []
         last_processed_cursor: str | None = None
-        budget_exhausted = operation_truncated
-        budget_reason: str | None = (
-            "operation_limit" if operation_truncated else None
-        )
+        budget_exhausted = False
+        budget_reason: str | None = None
+        if observation_truncated and configured_scan_limit <= 0:
+            budget_exhausted = True
+            budget_reason = "operation_limit"
         restart_publication_deferred_count = 0
         selector_cache: dict[
             tuple[str, int],
@@ -19162,7 +19234,7 @@ class Orchestrator:
             processed_candidate_count += 1
             cursor = self._audit_candidate_cursor_key(issue)
             processed_candidate_keys.add(cursor)
-            project_suspended = self._is_project_paused(issue.project_id)
+            project_suspended = candidate_suspension.get(cursor, False)
             if not project_suspended and self._dispatch_is_blocked(issue):
                 continue
             try:
@@ -19270,7 +19342,7 @@ class Orchestrator:
                 higher_priority_pending_in_slice = any(
                     self._audit_candidate_cursor_key(candidate)
                     not in processed_candidate_keys
-                    for candidate in candidate_scan.candidates
+                    for candidate in active_candidates
                     if self._audit_candidate_priority(candidate) > priority
                 )
                 if higher_priority_pending_in_slice:
@@ -19287,6 +19359,25 @@ class Orchestrator:
                     issue.project_id,
                     issue.identifier,
                 )
+                if (
+                    (record is not None or migration_pending)
+                    and not validation_configuration_error
+                ):
+                    if active_operation_count >= operation_limit:
+                        # Metadata observation is cheap and bounded separately
+                        # by ``audit_lane_scan_limit``.  This candidate is
+                        # active dispatch work, so leave it outside the
+                        # contiguous health prefix and let the durable cursor
+                        # put it first in the coalesced continuation rather
+                        # than spending capacity reserved for an earlier
+                        # active candidate.
+                        processed_candidate_count -= 1
+                        processed_candidate_keys.discard(cursor)
+                        observations.pop(observation_index)
+                        budget_exhausted = True
+                        budget_reason = "operation_limit"
+                        break
+                    active_operation_count += 1
                 if missing_workflow_revision or migration_pending:
                     legacy_record = record if missing_workflow_revision else None
                     remaining = deadline - monotonic()
@@ -20060,6 +20151,7 @@ class Orchestrator:
             and (
                 budget_exhausted
                 or truncated
+                or observation_truncated
                 or processed_candidate_count < len(candidates)
             )
         )
@@ -20068,6 +20160,8 @@ class Orchestrator:
             and self._request_audit_lane_continuation()
         )
         metrics["scanned_candidate_count"] = processed_candidate_count
+        metrics["active_operation_count"] = active_operation_count
+        metrics["observation_limit"] = observation_limit
         metrics["candidate_scan_complete"] = scan_complete
         metrics["operation_limit"] = operation_limit
         metrics["runtime_budget_seconds"] = runtime_budget_seconds
