@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T02:15:28.085531Z'
-updated_at: '2026-08-11T02:26:53.228675Z'
+updated_at: '2026-08-11T02:36:48.883350Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-08-11 02:26
 ---
 Implementation is committed and pushed at exact head a28cac7f6b315fb4cf2a05f14e78cf3b16261288. Fast admission now treats accepted+published authority as executable during a merely allocated scan, explicitly binds managed candidates to the published membership generation, and still fences immediately when a replacement generation is accepted. The production-shaped real-store/runtime regression proves a superseded same-task retained event wakes and completes its managed successor while a newer source scan is blocked after allocation; a concurrent tracker publication mutation still supersedes that scan. Validation: 418 focused workflow/job/runtime/worker/orchestrator tests passed, the exact five-test race/fence set passed 100/100 across 20 xdist runs, terminal mutation scan 21/21, and secret/diff/compile checks passed. Branch is clean and up to date with origin.
+---
+author: oompah
+created: 2026-08-11 02:36
+---
+Independent-review correction is committed and pushed at exact head 092debf174fe4dd7521669690a79603ecf216eef. Removed the invalid global-published-generation equality from individual membership rows: bounded scans may carry an expected-but-unevaluated task's prior membership/cursor forward. Accepted==published authority, cursor/member equality, candidate/cursor job-generation equality, and required-cut CAS remain intact. New exact store regression publishes A/B in generation 1, publishes generation 2 after evaluating only A, proves B retains generation-1 membership/cursor and remains claimable under required generation 2. Validation: 419 adjacent tests passed; six exact allocation/acceptance/bounded-membership/race tests passed 120/120 over 20 xdist runs; mutation scan 21/21 and secret/diff/compile checks passed. Branch is clean and up to date with origin.
 ---
 <!-- COMMENTS:END -->
