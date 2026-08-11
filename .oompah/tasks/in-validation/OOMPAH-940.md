@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-940
 type: epic
-status: Needs CI Fix
+status: In Validation
 priority: 1
 title: Converge the legacy Done backlog from authoritative delivery evidence
 parent: null
@@ -33,7 +33,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-11T02:36:58.281800Z'
+updated_at: '2026-08-11T02:42:08.689063Z'
 work_branch: epic-OOMPAH-940
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/757
@@ -523,5 +523,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 22m 44s
 - Log: OOMPAH-940__20260811T021419Z.jsonl
+---
+author: oompah
+created: 2026-08-11 02:42
+---
+Direct-owner recovery accepted after the natural Done audit failed at stale landed head 2dd74be2 with eight infrastructure failures already fixed by OOMPAH-971 on current main. Seven runner regressions pass immediately on deployed main; the cold-page fsync setup was the other OOMPAH-971 repair. OOMPAH-1012 now tracks the root cause: landed epic audits must preserve landing containment authority while validating an exact current target descendant. OOMPAH-940 remains the live canary; no database edit, stale-branch mutation, or terminal override is being used.
 ---
 <!-- COMMENTS:END -->
