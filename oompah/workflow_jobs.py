@@ -3430,6 +3430,7 @@ class WorkflowJobStore:
         source_generation: int,
         require_source_advance: bool = False,
         retire_managed_exhaustion: bool = False,
+        terminal_audit_binding_upgrade_from: str | None = None,
         reason: str = "superseded by a newer workflow generation",
         now: float | None = None,
     ) -> WorkflowEventWrite:
@@ -3456,6 +3457,13 @@ class WorkflowJobStore:
             raise TypeError("require_source_advance must be a boolean")
         if not isinstance(retire_managed_exhaustion, bool):
             raise TypeError("retire_managed_exhaustion must be a boolean")
+        binding_upgrade_from = _optional_text(
+            terminal_audit_binding_upgrade_from
+        )
+        if binding_upgrade_from is not None and spec.action != "terminal_audit":
+            raise ValueError(
+                "terminal-audit binding upgrades require a terminal_audit spec"
+            )
         incoming_generation = int(source_generation)
         message = _required_text(reason, "reason")
         timestamp = float(self._clock() if now is None else now)
@@ -3571,10 +3579,60 @@ class WorkflowJobStore:
                         incoming_generation == observed_generation
                         and observed_revision != spec.generation
                     ):
-                        raise WorkflowJobStoreError(
-                            "one terminal-audit source generation produced "
-                            "conflicting evidence"
+                        # A deployed pre-binding terminal-audit generation can
+                        # already be ordered before tracker metadata acquires
+                        # its immutable ref/SHA pair.  Permit exactly that one
+                        # monotonic identity upgrade at the same metadata
+                        # generation.  The caller must name the observed
+                        # legacy generation, and a matching durable job must
+                        # prove that the only payload change is acquisition of
+                        # the complete binding.  All other same-generation
+                        # evidence changes remain conflicts.
+                        incoming_payload = dict(spec.payload or {})
+                        selected_ref = _optional_text(
+                            incoming_payload.pop("selected_ref", None)
                         )
+                        selected_sha = _optional_text(
+                            incoming_payload.pop("selected_sha", None)
+                        )
+                        legacy_rows = ()
+                        if (
+                            binding_upgrade_from == observed_revision
+                            and selected_ref is not None
+                            and selected_sha is not None
+                        ):
+                            legacy_rows = self._conn.execute(
+                                """
+                                SELECT * FROM workflow_jobs
+                                 WHERE project_id = ? AND task_id = ?
+                                   AND scheduling_lane = ? AND action = ?
+                                   AND generation = ?
+                                   AND expected_evidence_revision IS ?
+                                """,
+                                (
+                                    spec.project_id,
+                                    spec.task_id,
+                                    spec.scheduling_lane,
+                                    spec.action,
+                                    observed_revision,
+                                    spec.expected_evidence_revision,
+                                ),
+                            ).fetchall()
+                        valid_binding_upgrade = any(
+                            dict(
+                                _decode_json_object(
+                                    row["payload_json"], "payload"
+                                )
+                                or {}
+                            )
+                            == incoming_payload
+                            for row in legacy_rows
+                        )
+                        if not valid_binding_upgrade:
+                            raise WorkflowJobStoreError(
+                                "one terminal-audit source generation produced "
+                                "conflicting evidence"
+                            )
                 elif require_source_advance and incoming_generation <= 1:
                     # A terminal tombstone without an ordering row can only
                     # be a pre-ordering generation.  Require proof that the

@@ -2650,6 +2650,50 @@ def test_unadmitted_rollback_loses_durable_cas_conflicts(
     assert store.document.to_dict() == before
 
 
+def test_unadmitted_rollback_ignores_override_from_older_workflow_revision(
+    tmp_path,
+) -> None:
+    orch = _orchestrator(tmp_path)
+    issue = _issue()
+    plan = _plan()
+    store = _persisted_store(plan)
+    target = replace(
+        store.document.pending_chain[0],
+        workflow_revision="workflow-revision-v2",
+    )
+    override = OverrideRecord(
+        override_id="override-v1",
+        project_id=target.project_id,
+        task_id=target.task_id,
+        target_state=target.target_state,
+        evidence_fingerprint=target.evidence_fingerprint,
+        authorized_by=ContributorIdentity("project-owner", source="github"),
+        reason="Owner accepted the earlier workflow generation.",
+        workflow_revision="workflow-revision-v1",
+    ).to_dict()
+    override["applied"] = True
+    store.document = replace(
+        store.document,
+        pending_chain=[target],
+        unknown_fields={
+            **store.document.unknown_fields,
+            "oompah.terminal_override_records": [override],
+        },
+    )
+
+    with patch.object(orch, "_audit_store", return_value=store):
+        restored = orch._restore_unadmitted_audit_attempt(
+            issue,
+            plan.audit_id,
+            plan.attempt_id,
+        )
+
+    assert restored is UnadmittedAuditRollbackOutcome.RESTORED
+    current = store.document.pending_chain[0]
+    assert current.request_state is RequestState.PENDING
+    assert current.attempts == []
+
+
 def test_ambiguous_unadmitted_cas_is_journaled_and_recovered_after_restart(
     tmp_path,
 ) -> None:

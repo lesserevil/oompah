@@ -133,6 +133,20 @@ def _record_execution_authority_key(
     )
 
 
+def _same_completion_authority(
+    left: TerminalAuditRecord,
+    right: TerminalAuditRecord,
+) -> bool:
+    """Return whether two rows authorize the same terminal-audit work."""
+
+    return (
+        left.evidence_fingerprint == right.evidence_fingerprint
+        and left.workflow_revision == right.workflow_revision
+        and left.selected_ref == right.selected_ref
+        and left.selected_sha == right.selected_sha
+    )
+
+
 def audit_branch_key(issue: Any) -> str:
     """Return the branch identity shared by auditors and implementation work."""
 
@@ -277,8 +291,7 @@ class AuditorDispatchLane:
                 if record.target_state is TargetState.DONE
                 and record.project_id == newest_source.project_id
                 and record.task_id == newest_source.task_id
-                and record.evidence_fingerprint
-                == newest_source.evidence_fingerprint
+                and _same_completion_authority(record, newest_source)
             ]
             if prerequisite_live:
                 newest_prerequisite = max(
@@ -291,8 +304,7 @@ class AuditorDispatchLane:
                 current_prerequisites = [
                     record
                     for record in prerequisite_live
-                    if record.evidence_fingerprint
-                    == newest_prerequisite.evidence_fingerprint
+                    if _same_completion_authority(record, newest_prerequisite)
                 ]
                 return max(
                     current_prerequisites,
@@ -302,8 +314,7 @@ class AuditorDispatchLane:
                 record.target_state is TargetState.DONE
                 and record.project_id == newest_source.project_id
                 and record.task_id == newest_source.task_id
-                and record.evidence_fingerprint
-                == newest_source.evidence_fingerprint
+                and _same_completion_authority(record, newest_source)
                 and record.request_state is RequestState.COMPLETED
                 and any(
                     attempt.target_state is TargetState.DONE
@@ -320,7 +331,7 @@ class AuditorDispatchLane:
         current = [
             record
             for record in lane
-            if record.evidence_fingerprint == newest_source.evidence_fingerprint
+            if _same_completion_authority(record, newest_source)
         ]
         return max(current, key=_record_execution_authority_key)
 
@@ -654,7 +665,7 @@ class AuditorDispatchLane:
         failure_classification: "FailureClassification | None" = None,
     ) -> TerminalAuditRecord:
         """Mark a launched attempt ended without changing the audit verdict.
-        
+
         When a transient failure occurs (launch error, transport error, timeout, etc.),
         set failure_classification to indicate the error type. The attempt is marked
         PENDING with next_retry_at to enable automatic rotation to the next candidate.

@@ -82,6 +82,63 @@ def test_pending_record_new_evidence_supersedes_old_running_semantics() -> None:
     ) == fresh
 
 
+@pytest.mark.parametrize(
+    ("stale_authority", "fresh_authority"),
+    [
+        (
+            {
+                "workflow_revision": "workflow-revision-a0",
+                "selected_ref": "origin/main",
+                "selected_sha": "a" * 40,
+            },
+            {
+                "workflow_revision": "workflow-revision-a1",
+                "selected_ref": "origin/main",
+                "selected_sha": "a" * 40,
+            },
+        ),
+        (
+            {
+                "workflow_revision": "workflow-revision-a1",
+                "selected_ref": "origin/old",
+                "selected_sha": "a" * 40,
+            },
+            {
+                "workflow_revision": "workflow-revision-a1",
+                "selected_ref": "origin/new",
+                "selected_sha": "b" * 40,
+            },
+        ),
+    ],
+)
+def test_pending_record_does_not_reuse_running_attempt_from_old_authority(
+    stale_authority: dict[str, str],
+    fresh_authority: dict[str, str],
+) -> None:
+    stale = replace(
+        _record(request_state=RequestState.IN_PROGRESS),
+        source_generation=1,
+        **stale_authority,
+    )
+    stale_attempt = AuditAttempt(
+        attempt_id="attempt-stale",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=stale.evidence_fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+    )
+    stale = replace(stale, attempts=[stale_attempt])
+    fresh = replace(
+        _record(),
+        audit_id="audit-fresh",
+        source_generation=2,
+        **fresh_authority,
+    )
+
+    assert AuditorDispatchLane.pending_record(
+        [stale, fresh], project_id="project-1", task_id="TASK-1"
+    ) == fresh
+
+
 def test_pending_record_preserves_done_before_newer_merged_lane() -> None:
     done = replace(_record(), source_generation=1)
     merged = replace(
@@ -161,6 +218,70 @@ def test_merged_dispatch_requires_exact_completed_done_pass() -> None:
     assert AuditorDispatchLane.pending_record(
         [passed_done, merged], project_id="project-1", task_id="TASK-1"
     ) == merged
+
+
+@pytest.mark.parametrize(
+    ("done_authority", "merged_authority"),
+    [
+        (
+            {
+                "workflow_revision": "workflow-revision-a0",
+                "selected_ref": "origin/main",
+                "selected_sha": "a" * 40,
+            },
+            {
+                "workflow_revision": "workflow-revision-a1",
+                "selected_ref": "origin/main",
+                "selected_sha": "a" * 40,
+            },
+        ),
+        (
+            {
+                "workflow_revision": "workflow-revision-a1",
+                "selected_ref": "origin/old",
+                "selected_sha": "a" * 40,
+            },
+            {
+                "workflow_revision": "workflow-revision-a1",
+                "selected_ref": "origin/new",
+                "selected_sha": "b" * 40,
+            },
+        ),
+    ],
+)
+def test_merged_dispatch_rejects_done_pass_from_old_authority(
+    done_authority: dict[str, str],
+    merged_authority: dict[str, str],
+) -> None:
+    done = replace(_record(), **done_authority)
+    passed_done = replace(
+        done,
+        request_state=RequestState.COMPLETED,
+        attempts=[
+            AuditAttempt(
+                attempt_id="attempt-passed-done",
+                target_state=TargetState.DONE,
+                evidence_fingerprint=done.evidence_fingerprint,
+                request_state=RequestState.COMPLETED,
+                verdict=Verdict.PASS,
+            )
+        ],
+    )
+    merged = replace(
+        _record(),
+        audit_id="audit-merged",
+        target_state=TargetState.MERGED,
+        **merged_authority,
+    )
+
+    assert (
+        AuditorDispatchLane.pending_record(
+            [passed_done, merged],
+            project_id="project-1",
+            task_id="TASK-1",
+        )
+        is None
+    )
 
 
 def test_merged_dispatch_ignores_same_identifier_prerequisite_from_other_project() -> None:
@@ -875,7 +996,7 @@ def test_duplicate_tick_coalescing_prevents_duplicate_dispatch():
     """Concurrent dispatches for same audit do not create duplicate attempts."""
     now = datetime(2026, 7, 29, tzinfo=timezone.utc)
     candidate = Candidate("provider-a", "model-a")
-    
+
     # Create two lane instances simulating concurrent ticks
     lane1 = AuditorDispatchLane(
         _Selector([candidate]),
@@ -940,12 +1061,12 @@ def test_crash_recovery_marks_attempt_abandoned():
             )
         ],
     )
-    
+
     # Recovery detects abandoned attempt
     recovery = lane.recover(old, active_attempt_identities=set(), now=now)
     assert recovery.ready
     assert "abandoned" in (recovery.reason or "").lower() or "TTL" in (recovery.reason or "")
-    
+
     # Next plan should rotate to new candidate
     next_plan, _ = lane.plan(recovery.record, [], branch_key="epic:EPIC-1", now=now)
     assert next_plan is not None

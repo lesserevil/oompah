@@ -992,6 +992,11 @@ class WorkflowRuntime:
                 landing_collector=landing,
                 integration_queue=getattr(orchestrator, "integration_queue", None),
             )
+            review_controller = ReviewWorkflowController(
+                collector=review_collector,
+                store=store,
+                decision_limit=configured_limit,
+            )
             epic_collector = EpicFactCollector(
                 project_id=project_id,
                 tracker=tracker,
@@ -1058,7 +1063,9 @@ class WorkflowRuntime:
                 *,
                 _controller=epic_controller,
                 _integration_controller=integration_controller,
+                _review_controller=review_controller,
                 _tracker=tracker,
+                _store=store,
             ) -> str | None:
                 guarded_reason = str(intent.reason_code or "").strip()
                 invalidate = getattr(_tracker, "invalidate_read_cache", None)
@@ -1089,6 +1096,61 @@ class WorkflowRuntime:
                     .lower()
                     != "epic"
                 ):
+                    # Review and integration both use the same terminal reason,
+                    # but their evidence revisions come from different fact
+                    # domains.  Resolve the immutable originating job before
+                    # choosing the guard; comparing a review revision with the
+                    # integration controller's revision rejects every healthy
+                    # landed review and can strand it in In Review forever.
+                    origin_job = None
+                    try:
+                        origin_job = _store.get(intent.originating_job)
+                    except KeyError:
+                        # Pre-ledger callers and focused transition tests retain
+                        # the original integration guard. Production workflow
+                        # jobs are durable and always resolve here.
+                        pass
+                    except Exception:
+                        return "terminal workflow origin is unavailable"
+                    if origin_job is not None:
+                        if (
+                            origin_job.project_id != intent.project_id
+                            or origin_job.task_id != intent.task_id
+                        ):
+                            return "terminal workflow origin changed"
+                        if origin_job.action == "review_terminal_stage":
+                            if (
+                                intent.authority
+                                is not TransitionAuthority.ORCHESTRATOR
+                            ):
+                                return "review terminal stage requires orchestrator authority"
+                            if (
+                                not intent.evidence_generation
+                                or origin_job.generation
+                                != intent.evidence_generation
+                                or origin_job.expected_evidence_revision
+                                != intent.precondition_revision
+                            ):
+                                return "review terminal workflow authority changed"
+                            review_batch = _review_controller.evaluate(
+                                (guarded_issue,)
+                            )
+                            if len(review_batch.tasks) != 1:
+                                return "review is no longer eligible for terminalization"
+                            review_decision = review_batch.tasks[0].decision
+                            if (
+                                review_decision.evidence_revision
+                                != intent.precondition_revision
+                            ):
+                                return "review landing evidence changed"
+                            if (
+                                "review_terminal_stage"
+                                not in review_decision.durable_jobs
+                            ):
+                                return "review landing no longer authorizes terminalization"
+                            return None
+                        if origin_job.action != "parent_rollup_review":
+                            return "terminal workflow origin no longer authorizes landing"
                     requests = _integration_controller.landing_requests_for(
                         guarded_issue
                     )
@@ -1374,11 +1436,7 @@ class WorkflowRuntime:
                     store=store,
                     decision_limit=configured_limit,
                 ),
-                review_controller=ReviewWorkflowController(
-                    collector=review_collector,
-                    store=store,
-                    decision_limit=configured_limit,
-                ),
+                review_controller=review_controller,
                 integration_controller=integration_controller,
                 epic_collector=epic_collector,
                 epic_controller=epic_controller,

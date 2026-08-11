@@ -538,6 +538,15 @@ class CoordinatorTerminalAdapter:
     async def stage(
         self, intent: TransitionIntent, issue: Issue
     ) -> TerminalStageResult:
+        if (
+            intent.reason_code == "terminal.immediate_target_landing_proven"
+            and intent.precondition_revision is None
+        ):
+            return TerminalStageResult(
+                success=False,
+                reason_code="transition.stale_precondition",
+                detail="workflow completion authority is missing",
+            )
         fields = dict(
             current_issue=issue,
             requested_target=TargetState.from_raw(intent.requested_status),
@@ -547,6 +556,10 @@ class CoordinatorTerminalAdapter:
                 issue, intent.project_id
             ),
         )
+        if intent.precondition_revision is not None:
+            fields["workflow_revision"] = (
+                intent.precondition_revision
+            )
         if (
             _guarded_landing_revision_lane(intent, issue) is not None
             and self._mutation_guard is not None

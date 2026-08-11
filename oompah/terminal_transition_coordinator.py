@@ -108,6 +108,7 @@ from oompah.terminal_audit import (
     build_revision_candidate_list,
     compute_integrated_evidence_fingerprint_variants,
     compute_issue_evidence_fingerprint,
+    requires_workflow_revision,
 )
 from oompah.terminal_audit_metadata import (
     TerminalAuditMetadata,
@@ -422,6 +423,29 @@ def classify_failure_to_status(
     )
 
 
+def _workflow_revision_migration_status(record: TerminalAuditRecord) -> str:
+    """Return the strongest safe state predating an unbound workflow audit.
+
+    Pre-cutover workflow requests cannot be completed because they lack the
+    immutable workflow decision revision.  Recovery may restore a recorded
+    terminal state only when it is strictly earlier than the requested target;
+    otherwise ``Open`` is the conservative actionable fallback.
+    """
+
+    previous = (
+        canonicalize_status(record.previous_state)
+        if record.previous_state
+        else ""
+    )
+    if previous and previous != IN_VALIDATION and previous not in TERMINAL_STATUSES:
+        return previous
+    if record.target_state is TargetState.MERGED and previous == DONE:
+        return DONE
+    if record.target_state is TargetState.ARCHIVED and previous in {DONE, MERGED}:
+        return previous
+    return OPEN
+
+
 # ---------------------------------------------------------------------------
 # Public result types
 # ---------------------------------------------------------------------------
@@ -609,6 +633,9 @@ class ResultRejection:
     CURRENT_EVIDENCE_UNAVAILABLE = "current task evidence could not be refreshed"
     PREREQUISITE_NOT_COMPLETED = "Done prerequisite has not passed for Merged audit"
     CURRENT_EVIDENCE_MISMATCH = "current task evidence no longer matches audit"
+    WORKFLOW_REVISION_MISSING = (
+        "workflow-authored audit lacks its completion decision revision"
+    )
     MALFORMED_RESULT = "audit result is malformed"
     METADATA_QUARANTINED = "terminal-audit metadata is quarantined"
     NEEDS_HUMAN_NOT_ACTIONABLE = (
@@ -1069,6 +1096,7 @@ class TerminalTransitionCoordinator:
         *,
         trigger_identity: ContributorIdentity,
         coalesce_pending_target: bool = False,
+        workflow_revision: str | None = None,
     ) -> AuditRevisionBinding | None:
         """Reuse durable authority before resolving a new request binding."""
 
@@ -1091,6 +1119,8 @@ class TerminalTransitionCoordinator:
                 and record.request_state
                 in (RequestState.PENDING, RequestState.IN_PROGRESS)
                 and record.evidence_fingerprint == fingerprint
+                and record.workflow_revision
+                == workflow_revision
             ),
             None,
         )
@@ -1129,6 +1159,8 @@ class TerminalTransitionCoordinator:
                 if record.target_state == target
                 and record.request_state == RequestState.COMPLETED
                 and record.evidence_fingerprint == fingerprint
+                and record.workflow_revision
+                == workflow_revision
             ),
             None,
         )
@@ -1288,6 +1320,7 @@ class TerminalTransitionCoordinator:
         *,
         mutation_guard: Callable[[], str | None] | None = None,
         revision_binding: AuditRevisionBinding | None = None,
+        workflow_revision: str | None = None,
     ) -> TransitionResult:
         """Stage a terminal transition for *current_issue*.
 
@@ -1371,6 +1404,9 @@ class TerminalTransitionCoordinator:
                         project_id,
                         evidence_fingerprint,
                         trigger_identity=trigger_identity,
+                        workflow_revision=(
+                            workflow_revision
+                        ),
                     )
                 except Exception as exc:  # noqa: BLE001 - fail closed before mutation
                     return TransitionResult(success=False, reason=str(exc))
@@ -1391,6 +1427,7 @@ class TerminalTransitionCoordinator:
                 project_id,
                 evidence_fingerprint,
                 revision_binding=selected_binding,
+                workflow_revision=workflow_revision,
                 ensure_validation_on_coalesce=True,
             )
             if outcome.success:
@@ -1562,6 +1599,12 @@ class TerminalTransitionCoordinator:
                 audit_id=record.audit_id,
                 reason="audit_ownership_mismatch",
             )
+        if requires_workflow_revision(record) and record.workflow_revision is None:
+            return TransitionResult(
+                success=False,
+                audit_id=record.audit_id,
+                reason="workflow_revision_missing",
+            )
         target_status = _target_state_to_status(record.target_state)
         if canonicalize_status(current_issue.state or "") != IN_VALIDATION:
             return TransitionResult(
@@ -1693,6 +1736,10 @@ class TerminalTransitionCoordinator:
                         and candidate.target_state == record.target_state
                         and candidate.evidence_fingerprint
                         == record.evidence_fingerprint
+                        and candidate.workflow_revision
+                        == record.workflow_revision
+                        and candidate.selected_ref == record.selected_ref
+                        and candidate.selected_sha == record.selected_sha
                         and candidate.request_state
                         in (RequestState.PENDING, RequestState.IN_PROGRESS)
                     ),
@@ -1713,6 +1760,10 @@ class TerminalTransitionCoordinator:
                     and candidate.target_state == record.target_state
                     and candidate.evidence_fingerprint
                     == record.evidence_fingerprint
+                    and candidate.workflow_revision
+                    == record.workflow_revision
+                    and candidate.selected_ref == record.selected_ref
+                    and candidate.selected_sha == record.selected_sha
                     and candidate.request_state
                     in (RequestState.COMPLETED, RequestState.SUPERSEDED)
                 ]
@@ -1728,6 +1779,10 @@ class TerminalTransitionCoordinator:
                         and candidate.target_state is TargetState.MERGED
                         and candidate.evidence_fingerprint
                         == record.evidence_fingerprint
+                        and candidate.workflow_revision
+                        == record.workflow_revision
+                        and candidate.selected_ref == record.selected_ref
+                        and candidate.selected_sha == record.selected_sha
                         and candidate.request_state
                         in (RequestState.PENDING, RequestState.IN_PROGRESS)
                     ),
@@ -1804,6 +1859,10 @@ class TerminalTransitionCoordinator:
                     and candidate.target_state == record.target_state
                     and candidate.evidence_fingerprint
                     == record.evidence_fingerprint
+                    and candidate.workflow_revision
+                    == record.workflow_revision
+                    and candidate.selected_ref == record.selected_ref
+                    and candidate.selected_sha == record.selected_sha
                     and candidate.request_state
                     in (RequestState.PENDING, RequestState.IN_PROGRESS)
                 ]
@@ -1825,6 +1884,11 @@ class TerminalTransitionCoordinator:
                     task_id=current_issue.identifier,
                     target_state=record.target_state,
                     evidence_fingerprint=record.evidence_fingerprint,
+                    workflow_revision=(
+                        record.workflow_revision
+                    ),
+                    selected_ref=record.selected_ref,
+                    selected_sha=record.selected_sha,
                     audit_ids=[source.audit_id, *retired_ids],
                     kind="completed_workflow_recurrence",
                 )
@@ -1945,6 +2009,327 @@ class TerminalTransitionCoordinator:
                 coalesced=True,
                 status_repaired=True,
                 applied_status=reconciled_status,
+                cancelled_audit_ids=retired_ids,
+            )
+
+        return self._run_project_serialized(project_id, _operation)
+
+    def reconcile_missing_workflow_revision_sync(
+        self,
+        current_issue: Issue,
+        record: TerminalAuditRecord | None,
+        project_id: str,
+    ) -> TransitionResult:
+        """Retire and unwind a pre-cutover workflow audit without authority.
+
+        Workflow-authored active records require ``workflow_revision``.  Old
+        metadata can predate that fence, so it can neither be dispatched nor
+        accept a result.  Under the project mutation lock, retire every such
+        active record for the exact task, persist a status-write intent, and
+        restore the recorded natural state (or a conservative actionable
+        fallback).  Passing ``record=None`` replays a previously persisted
+        migration intent after a crash between metadata and tracker writes.
+        """
+
+        if record is not None and not isinstance(record, TerminalAuditRecord):
+            raise TypeError("record must be a TerminalAuditRecord or None")
+        if not isinstance(project_id, str) or not project_id.strip():
+            raise ValueError("project_id must be a non-empty string")
+        if getattr(current_issue, "project_id", None) and (
+            str(current_issue.project_id) != project_id
+        ):
+            return TransitionResult(success=False, reason="project_mismatch")
+        if record is not None and (
+            record.project_id != project_id
+            or record.task_id != current_issue.identifier
+        ):
+            return TransitionResult(
+                success=False,
+                audit_id=record.audit_id,
+                reason="audit_ownership_mismatch",
+            )
+
+        def _operation() -> TransitionResult:
+            tracker = self._tracker_for_project(project_id)
+            fetch_issue_detail = getattr(tracker, "fetch_issue_detail", None)
+            if not callable(fetch_issue_detail):
+                return TransitionResult(
+                    success=False,
+                    audit_id=record.audit_id if record is not None else None,
+                    reason="tracker_read_failed",
+                )
+            try:
+                invalidate = getattr(tracker, "invalidate_read_cache", None)
+                if callable(invalidate):
+                    invalidate()
+                locked_issue = fetch_issue_detail(current_issue.identifier)
+            except Exception:
+                logger.exception(
+                    "Failed to refresh workflow-revision migration for %s",
+                    current_issue.identifier,
+                )
+                return TransitionResult(
+                    success=False,
+                    audit_id=record.audit_id if record is not None else None,
+                    reason="tracker_read_failed",
+                )
+            if getattr(locked_issue, "project_id", None) and (
+                str(locked_issue.project_id) != project_id
+            ):
+                return TransitionResult(
+                    success=False,
+                    audit_id=record.audit_id if record is not None else None,
+                    reason="project_mismatch",
+                )
+
+            store = TerminalAuditMetadataStore(
+                tracker,
+                self._project_store,
+                project_id,
+            )
+            source: TerminalAuditRecord | None = None
+            retired_ids: list[str] = []
+            desired_status: str | None = None
+            migration_attempt_id: str | None = None
+            status_already_resolved = False
+            rejection_reason = "workflow_revision_migration_not_found"
+
+            def _pending_intent(
+                doc: TerminalAuditMetadata,
+            ) -> tuple[Mapping[str, Any], TerminalAuditRecord] | None:
+                raw_intents = doc.unknown_fields.get(
+                    _TERMINAL_RESULT_INTENTS_KEY,
+                    [],
+                )
+                if not isinstance(raw_intents, list):
+                    return None
+                for raw in reversed(raw_intents):
+                    if not isinstance(raw, Mapping):
+                        continue
+                    if (
+                        raw.get("applied", True) is not False
+                        or raw.get("kind") != "workflow_revision_migration"
+                        or raw.get("project_id") != project_id
+                        or raw.get("task_id") != current_issue.identifier
+                    ):
+                        continue
+                    audit_id = str(raw.get("audit_id") or "")
+                    candidate = next(
+                        (
+                            item
+                            for item in doc.pending_chain
+                            if item.audit_id == audit_id
+                            and item.project_id == project_id
+                            and item.task_id == current_issue.identifier
+                            and item.request_state is RequestState.SUPERSEDED
+                            and requires_workflow_revision(item)
+                            and item.workflow_revision is None
+                            and raw.get("target_state")
+                            == item.target_state.value
+                            and raw.get("evidence_fingerprint")
+                            == item.evidence_fingerprint.digest
+                            and raw.get("attempt_id")
+                            == f"workflow-revision-migration:{item.audit_id}"
+                        ),
+                        None,
+                    )
+                    if candidate is not None:
+                        return raw, candidate
+                return None
+
+            def _updater(doc: TerminalAuditMetadata) -> TerminalAuditMetadata:
+                nonlocal source
+                nonlocal retired_ids
+                nonlocal desired_status
+                nonlocal migration_attempt_id
+                nonlocal status_already_resolved
+                nonlocal rejection_reason
+
+                chain = list(doc.pending_chain)
+                exact = None
+                if record is not None:
+                    exact = next(
+                        (
+                            candidate
+                            for candidate in chain
+                            if candidate.audit_id == record.audit_id
+                            and candidate.project_id == project_id
+                            and candidate.task_id == current_issue.identifier
+                            and candidate.target_state == record.target_state
+                            and candidate.evidence_fingerprint
+                            == record.evidence_fingerprint
+                            and candidate.request_state
+                            in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                            and requires_workflow_revision(candidate)
+                            and candidate.workflow_revision is None
+                        ),
+                        None,
+                    )
+
+                pending = _pending_intent(doc)
+                if exact is None and pending is None:
+                    return doc
+                source = exact if exact is not None else pending[1]
+                assert source is not None
+                now = _now_iso8601()
+                retired_ids = [
+                    candidate.audit_id
+                    for candidate in chain
+                    if candidate.project_id == project_id
+                    and candidate.task_id == current_issue.identifier
+                    and candidate.request_state
+                    in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                    and requires_workflow_revision(candidate)
+                    and candidate.workflow_revision is None
+                ]
+                if retired_ids:
+                    chain = [
+                        replace(
+                            candidate,
+                            request_state=RequestState.SUPERSEDED,
+                            updated_at=now,
+                        )
+                        if candidate.audit_id in retired_ids
+                        and candidate.project_id == project_id
+                        and candidate.task_id == current_issue.identifier
+                        else candidate
+                        for candidate in chain
+                    ]
+                remaining_live = any(
+                    candidate.project_id == project_id
+                    and candidate.task_id == current_issue.identifier
+                    and candidate.request_state
+                    in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                    for candidate in chain
+                )
+                desired_status = (
+                    IN_VALIDATION
+                    if remaining_live
+                    else _workflow_revision_migration_status(source)
+                )
+                migration_attempt_id = (
+                    f"workflow-revision-migration:{source.audit_id}"
+                )
+                unknown = _record_terminal_retirement(
+                    doc.unknown_fields,
+                    project_id=project_id,
+                    task_id=current_issue.identifier,
+                    target_state=source.target_state,
+                    evidence_fingerprint=source.evidence_fingerprint,
+                    workflow_revision=None,
+                    selected_ref=source.selected_ref,
+                    selected_sha=source.selected_sha,
+                    audit_ids=[source.audit_id, *retired_ids],
+                    kind="workflow_revision_migration",
+                )
+                unknown = _record_terminal_result_intent(
+                    unknown,
+                    project_id=project_id,
+                    task_id=current_issue.identifier,
+                    audit_id=source.audit_id,
+                    target_state=source.target_state,
+                    evidence_fingerprint=source.evidence_fingerprint,
+                    attempt_id=migration_attempt_id,
+                    status=desired_status,
+                    audit_ids=[source.audit_id, *retired_ids],
+                    kind="workflow_revision_migration",
+                )
+                current_status = canonicalize_status(locked_issue.state or "")
+                status_already_resolved = current_status == desired_status
+                if current_status not in {IN_VALIDATION, desired_status}:
+                    # Another lifecycle authority won after the audit scan.
+                    # Retire the legacy audit but never overwrite that state.
+                    desired_status = current_status
+                    status_already_resolved = True
+                if status_already_resolved:
+                    unknown = _mark_terminal_result_intent_applied(
+                        unknown,
+                        project_id=project_id,
+                        task_id=current_issue.identifier,
+                        audit_id=source.audit_id,
+                        attempt_id=migration_attempt_id,
+                    )
+                rejection_reason = ""
+                return replace(
+                    doc,
+                    pending_chain=chain,
+                    unknown_fields=unknown,
+                )
+
+            try:
+                store.update(current_issue.identifier, _updater)
+            except TerminalAuditMetadataQuarantinedError:
+                return TransitionResult(
+                    success=False,
+                    audit_id=record.audit_id if record is not None else None,
+                    reason="metadata_quarantined",
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to persist workflow-revision migration for %s",
+                    current_issue.identifier,
+                )
+                return TransitionResult(
+                    success=False,
+                    audit_id=record.audit_id if record is not None else None,
+                    reason="metadata_write_failed",
+                )
+            if source is None or desired_status is None or migration_attempt_id is None:
+                return TransitionResult(
+                    success=False,
+                    audit_id=record.audit_id if record is not None else None,
+                    reason=rejection_reason,
+                )
+
+            if not status_already_resolved:
+                try:
+                    tracker.update_issue(
+                        current_issue.identifier,
+                        status=desired_status,
+                    )
+                except Exception:
+                    logger.exception(
+                        "Failed to restore state after workflow-revision "
+                        "migration for %s",
+                        current_issue.identifier,
+                    )
+                    return TransitionResult(
+                        success=False,
+                        audit_id=source.audit_id,
+                        cancelled_audit_ids=retired_ids,
+                        reason="status_update_failed",
+                    )
+
+                try:
+                    def _finalize(
+                        doc: TerminalAuditMetadata,
+                    ) -> TerminalAuditMetadata:
+                        return replace(
+                            doc,
+                            unknown_fields=_mark_terminal_result_intent_applied(
+                                doc.unknown_fields,
+                                project_id=project_id,
+                                task_id=current_issue.identifier,
+                                audit_id=source.audit_id,
+                                attempt_id=migration_attempt_id,
+                            ),
+                        )
+
+                    store.update(current_issue.identifier, _finalize)
+                except Exception:
+                    # The safe status already won. Leave the exact intent for
+                    # bounded reconciliation if the task is observed again.
+                    logger.exception(
+                        "Failed to acknowledge workflow-revision migration for %s",
+                        current_issue.identifier,
+                    )
+
+            return TransitionResult(
+                success=True,
+                audit_id=source.audit_id,
+                coalesced=True,
+                status_repaired=True,
+                applied_status=desired_status,
                 cancelled_audit_ids=retired_ids,
             )
 
@@ -2120,6 +2505,10 @@ class TerminalTransitionCoordinator:
                                 record.target_state != fresh.target_state
                                 or record.evidence_fingerprint
                                 != fresh.evidence_fingerprint
+                                or record.workflow_revision
+                                != fresh.workflow_revision
+                                or record.selected_ref != fresh.selected_ref
+                                or record.selected_sha != fresh.selected_sha
                             )
                             for record in chain
                         )
@@ -2131,13 +2520,18 @@ class TerminalTransitionCoordinator:
                     now: str,
                 ) -> dict[str, Any]:
                     return {
-                        "version": 1,
+                        "version": 2,
                         "audit_id": fresh.audit_id,
                         "superseded_audit_id": exhausted.audit_id,
                         "project_id": project_id,
                         "task_id": current_issue.identifier,
                         "target_state": requested_target.value,
                         "evidence_fingerprint": fresh.evidence_fingerprint.digest,
+                        "workflow_revision": (
+                            fresh.workflow_revision
+                        ),
+                        "selected_ref": fresh.selected_ref,
+                        "selected_sha": fresh.selected_sha,
                         "source_generation": fresh.source_generation,
                         "actor": authorized_actor.to_dict(),
                         "reason": redact_terminal_audit_text(reason.strip()),
@@ -2165,6 +2559,10 @@ class TerminalTransitionCoordinator:
                 if any(
                     record.audit_id != authority.audit_id
                     and record.evidence_fingerprint == locked_fingerprint
+                    and record.workflow_revision
+                    == authority.workflow_revision
+                    and record.selected_ref == authority.selected_ref
+                    and record.selected_sha == authority.selected_sha
                     and record.request_state
                     in (RequestState.PENDING, RequestState.IN_PROGRESS)
                     for record in matching
@@ -2209,6 +2607,10 @@ class TerminalTransitionCoordinator:
                                 and record.target_state == requested_target
                                 and record.evidence_fingerprint
                                 == locked_fingerprint
+                                and record.workflow_revision
+                                == authority.workflow_revision
+                                and record.selected_ref == authority.selected_ref
+                                and record.selected_sha == authority.selected_sha
                                 and record.request_state
                                 == RequestState.SUPERSEDED
                                 and _is_intervening_recurrence_source(
@@ -2271,7 +2673,13 @@ class TerminalTransitionCoordinator:
                     # an unbound retention audit can later witness origin/main.
                     # The durable history row separately owns rearm
                     # authorization and exact-repeat identity.
-                    if history_row.get("version") != 1:
+                    history_version = history_row.get("version")
+                    if history_version not in {1, 2}:
+                        return doc
+                    if (
+                        history_version == 1
+                        and authority.workflow_revision is not None
+                    ):
                         return doc
                     if history_row.get("mode") != mode:
                         return doc
@@ -2287,6 +2695,19 @@ class TerminalTransitionCoordinator:
                         != authority.evidence_fingerprint.digest
                     ):
                         return doc
+                    if history_version == 2:
+                        if (
+                            history_row.get("workflow_revision")
+                            != authority.workflow_revision
+                        ):
+                            return doc
+                        if (
+                            history_row.get("selected_ref")
+                            != authority.selected_ref
+                            or history_row.get("selected_sha")
+                            != authority.selected_sha
+                        ):
+                            return doc
                     history_generation = history_row.get("source_generation")
                     if (
                         isinstance(history_generation, bool)
@@ -2321,6 +2742,10 @@ class TerminalTransitionCoordinator:
                             and record.task_id == current_issue.identifier
                             and record.target_state == requested_target
                             and record.evidence_fingerprint == locked_fingerprint
+                            and record.workflow_revision
+                            == authority.workflow_revision
+                            and record.selected_ref == authority.selected_ref
+                            and record.selected_sha == authority.selected_sha
                             and record.request_state == RequestState.SUPERSEDED
                             and _classified_audit_recovery_action(record)
                             == requested_action
@@ -2397,6 +2822,9 @@ class TerminalTransitionCoordinator:
                     now,
                     selected_ref=exhausted.selected_ref,
                     selected_sha=exhausted.selected_sha,
+                    workflow_revision=(
+                        exhausted.workflow_revision
+                    ),
                     source_generation=max(
                         (
                             record.source_generation
@@ -3009,6 +3437,7 @@ class TerminalTransitionCoordinator:
         evidence_fingerprint: EvidenceFingerprint,
         *,
         revision_binding: AuditRevisionBinding | None = None,
+        workflow_revision: str | None = None,
         coalesce_pending_target: bool = False,
         ensure_validation_on_coalesce: bool = False,
         queued_comment: str | None = None,
@@ -3082,6 +3511,16 @@ class TerminalTransitionCoordinator:
                     and record.selected_sha == revision_binding.selected_sha
                 )
 
+            def _completion_authority_matches(
+                record: TerminalAuditRecord,
+            ) -> bool:
+                """Bind recurrence/coalescing to one workflow completion proof."""
+
+                return (
+                    record.workflow_revision
+                    == workflow_revision
+                )
+
             merged_prerequisite_ready = (
                 requested_target != TargetState.MERGED
                 or any(
@@ -3090,6 +3529,7 @@ class TerminalTransitionCoordinator:
                     and record.task_id == identifier
                     and record.evidence_fingerprint == evidence_fingerprint
                     and _binding_matches(record)
+                    and _completion_authority_matches(record)
                     and record.request_state
                     in (
                         RequestState.PENDING,
@@ -3110,6 +3550,7 @@ class TerminalTransitionCoordinator:
                     and record.request_state == RequestState.COMPLETED
                     and record.evidence_fingerprint == evidence_fingerprint
                     and _binding_matches(record)
+                    and _completion_authority_matches(record)
                     and merged_prerequisite_ready
                 ):
                     duplicate_ids = [
@@ -3121,6 +3562,8 @@ class TerminalTransitionCoordinator:
                             and existing.task_id == identifier
                             and existing.target_state == requested_target
                             and existing.evidence_fingerprint == evidence_fingerprint
+                            and _binding_matches(existing)
+                            and _completion_authority_matches(existing)
                             and existing.request_state
                             in (RequestState.PENDING, RequestState.IN_PROGRESS)
                         )
@@ -3156,6 +3599,7 @@ class TerminalTransitionCoordinator:
                 requested_target,
                 evidence_fingerprint,
                 revision_binding=revision_binding,
+                workflow_revision=workflow_revision,
             ):
                 decision.early_result = TransitionResult(
                     success=False,
@@ -3181,6 +3625,7 @@ class TerminalTransitionCoordinator:
                     and record.request_state
                     in (RequestState.PENDING, RequestState.IN_PROGRESS)
                     and _binding_matches(record)
+                    and _completion_authority_matches(record)
                     and merged_prerequisite_ready
                     and (
                         coalesce_pending_target
@@ -3211,6 +3656,19 @@ class TerminalTransitionCoordinator:
                                 )
                                 and not _binding_matches(existing)
                             )
+                            mismatched_completion_authority = (
+                                existing.evidence_fingerprint
+                                == evidence_fingerprint
+                                and (
+                                    existing.target_state == requested_target
+                                    or (
+                                        requested_target == TargetState.MERGED
+                                        and existing.target_state
+                                        == TargetState.DONE
+                                    )
+                                )
+                                and not _completion_authority_matches(existing)
+                            )
                             dependent_merged = (
                                 requested_target is TargetState.DONE
                                 and existing.target_state is TargetState.MERGED
@@ -3235,6 +3693,7 @@ class TerminalTransitionCoordinator:
                                     existing.evidence_fingerprint
                                     != evidence_fingerprint
                                     or mismatched_chain_binding
+                                    or mismatched_completion_authority
                                 )
                             ):
                                 updated_chain.append(
@@ -3260,6 +3719,8 @@ class TerminalTransitionCoordinator:
                             and existing.task_id == identifier
                             and existing.target_state == requested_target
                             and existing.evidence_fingerprint == record.evidence_fingerprint
+                            and existing.workflow_revision
+                            == record.workflow_revision
                             and existing.request_state
                             in (RequestState.PENDING, RequestState.IN_PROGRESS)
                         )
@@ -3306,6 +3767,17 @@ class TerminalTransitionCoordinator:
                     and record.evidence_fingerprint == evidence_fingerprint
                     and not _binding_matches(record)
                 )
+                mismatched_completion_authority = (
+                    (
+                        record.target_state == requested_target
+                        or (
+                            requested_target == TargetState.MERGED
+                            and record.target_state == TargetState.DONE
+                        )
+                    )
+                    and record.evidence_fingerprint == evidence_fingerprint
+                    and not _completion_authority_matches(record)
+                )
                 invalid_merged_prerequisite = (
                     record.project_id == project_id
                     and record.task_id == identifier
@@ -3341,6 +3813,7 @@ class TerminalTransitionCoordinator:
                         record.evidence_fingerprint != evidence_fingerprint
                         or invalid_merged_prerequisite
                         or mismatched_target_binding
+                        or mismatched_completion_authority
                     )
                 ):
                     updated_chain.append(
@@ -3362,6 +3835,7 @@ class TerminalTransitionCoordinator:
                 evidence_fingerprint,
                 project_id,
                 revision_binding=revision_binding,
+                workflow_revision=workflow_revision,
             )
             decision.new_entries = new_entries
 
@@ -3702,6 +4176,16 @@ class TerminalTransitionCoordinator:
                 or ContributorIdentity("oompah", "terminal-audit-refresh"),
                 project_id,
                 current_fingerprint,
+                revision_binding=(
+                    AuditRevisionBinding(
+                        stale_record.selected_ref,
+                        stale_record.selected_sha,
+                    )
+                    if stale_record.selected_ref is not None
+                    and stale_record.selected_sha is not None
+                    else None
+                ),
+                workflow_revision=stale_record.workflow_revision,
                 ensure_validation_on_coalesce=True,
                 revalidate_completed=True,
             )
@@ -3856,6 +4340,13 @@ class TerminalTransitionCoordinator:
                 return doc
 
             record = chain[target_index]
+            if requires_workflow_revision(record) and record.workflow_revision is None:
+                decision.outcome = ResultOutcome(
+                    success=False,
+                    audit_id=result.audit_id,
+                    reason=ResultRejection.WORKFLOW_REVISION_MISSING,
+                )
+                return doc
             launched_attempt = next(
                 (
                     existing
@@ -3895,6 +4386,8 @@ class TerminalTransitionCoordinator:
                         and candidate.request_state is RequestState.COMPLETED
                         and candidate.evidence_fingerprint
                         == record.evidence_fingerprint
+                        and candidate.workflow_revision
+                        == record.workflow_revision
                         and any(
                             attempt.target_state is TargetState.DONE
                             and attempt.evidence_fingerprint
@@ -4076,6 +4569,10 @@ class TerminalTransitionCoordinator:
                     and r.task_id == identifier
                     and r.target_state == target_record.target_state
                     and r.evidence_fingerprint == target_record.evidence_fingerprint
+                    and r.workflow_revision
+                    == target_record.workflow_revision
+                    and r.selected_ref == target_record.selected_ref
+                    and r.selected_sha == target_record.selected_sha
                     and r.request_state in (RequestState.PENDING, RequestState.IN_PROGRESS)
                 )
             ]
@@ -4095,6 +4592,12 @@ class TerminalTransitionCoordinator:
                     r for r in chain
                     if r.project_id == project_id
                     and r.task_id == identifier
+                    and r.evidence_fingerprint
+                    == target_record.evidence_fingerprint
+                    and r.workflow_revision
+                    == target_record.workflow_revision
+                    and r.selected_ref == target_record.selected_ref
+                    and r.selected_sha == target_record.selected_sha
                     and r.request_state
                     in (RequestState.PENDING, RequestState.IN_PROGRESS)
                 ),
@@ -4117,6 +4620,11 @@ class TerminalTransitionCoordinator:
                 task_id=identifier,
                 target_state=result.target_state,
                 evidence_fingerprint=result.evidence_fingerprint,
+                workflow_revision=(
+                    target_record.workflow_revision
+                ),
+                selected_ref=target_record.selected_ref,
+                selected_sha=target_record.selected_sha,
                 audit_ids=[
                     result.audit_id,
                     *decision.cancelled_audit_ids,
@@ -4307,6 +4815,19 @@ class TerminalTransitionCoordinator:
                 error_code=OverrideRejection.METADATA_READ_FAILED,
             )
 
+        current_record_for_target = next(
+            (
+                record
+                for record in reversed(document.pending_chain)
+                if record.project_id == project_id
+                and record.task_id == identifier
+                and record.target_state == requested_target
+                and record.request_state
+                in (RequestState.PENDING, RequestState.IN_PROGRESS)
+            ),
+            None,
+        )
+
         # A repeated callback for the same applied fingerprint is an
         # acknowledgement, not a second terminal decision.  This check is
         # durable and therefore works after a service restart as well as for
@@ -4328,6 +4849,17 @@ class TerminalTransitionCoordinator:
                     and raw_override.get("task_id") == identifier
                     and raw_override.get("target_state") == requested_target.value
                     and _raw_fingerprint_digest(raw_override) == evidence_fingerprint.digest
+                    and (
+                        current_record_for_target is None
+                        or (
+                            raw_override.get("workflow_revision")
+                            == current_record_for_target.workflow_revision
+                            and raw_override.get("selected_ref")
+                            == current_record_for_target.selected_ref
+                            and raw_override.get("selected_sha")
+                            == current_record_for_target.selected_sha
+                        )
+                    )
                 ):
                     # Idempotency acknowledges the same terminal decision; it
                     # must not bless a tracker state that a stale recovery
@@ -4423,23 +4955,6 @@ class TerminalTransitionCoordinator:
         # updates) after some older audit attempts, as long as the current
         # active record matches.
         fingerprint_mismatch = False
-        current_record_for_target = None
-        for record in document.pending_chain:
-            if (
-                record.project_id == project_id
-                and record.task_id == identifier
-                and record.target_state == requested_target
-            ):
-                # Only an audit that can still produce a result owns current
-                # evidence. Completed, cancelled, and superseded rows are
-                # immutable history; letting one veto a fresh owner decision
-                # strands a task that was legitimately reopened or whose
-                # branch/review projection evolved after the old audit.
-                if record.request_state in (
-                    RequestState.PENDING,
-                    RequestState.IN_PROGRESS,
-                ):
-                    current_record_for_target = record
 
         if current_record_for_target is not None:
             if current_record_for_target.evidence_fingerprint != evidence_fingerprint:
@@ -4473,6 +4988,11 @@ class TerminalTransitionCoordinator:
                 project_id,
                 evidence_fingerprint,
                 trigger_identity=authorized_actor,
+                workflow_revision=(
+                    current_record_for_target.workflow_revision
+                    if current_record_for_target is not None
+                    else None
+                ),
             )
         except Exception:  # noqa: BLE001 - optional delivery provenance
             logger.debug(
@@ -4528,6 +5048,11 @@ class TerminalTransitionCoordinator:
             ),
             selected_sha=(
                 revision_binding.selected_sha if revision_binding is not None else None
+            ),
+            workflow_revision=(
+                current_record_for_target.workflow_revision
+                if current_record_for_target is not None
+                else None
             ),
         )
 
@@ -4640,6 +5165,9 @@ class TerminalTransitionCoordinator:
                     task_id=identifier,
                     target_state=requested_target,
                     evidence_fingerprint=evidence_fingerprint,
+                    workflow_revision=override_record.workflow_revision,
+                    selected_ref=override_record.selected_ref,
+                    selected_sha=override_record.selected_sha,
                     audit_ids=retired_alert_audit_ids,
                     kind="override",
                 )
@@ -5203,6 +5731,7 @@ def _has_terminal_retirement(
     evidence_fingerprint: EvidenceFingerprint,
     *,
     revision_binding: AuditRevisionBinding | None = None,
+    workflow_revision: str | None = None,
 ) -> bool:
     """Check the durable applied-fingerprint fence used by reconciliation.
 
@@ -5223,6 +5752,12 @@ def _has_terminal_retirement(
             and row.get("task_id") == task_id
             and row.get("target_state") == target_state.value
             and row.get("evidence_fingerprint") == evidence_fingerprint.digest
+            and row.get("workflow_revision")
+            == workflow_revision
+            and row.get("selected_ref")
+            == (revision_binding.selected_ref if revision_binding else None)
+            and row.get("selected_sha")
+            == (revision_binding.selected_sha if revision_binding else None)
         ):
             if row.get("kind") != "result":
                 return True
@@ -5240,6 +5775,8 @@ def _has_terminal_retirement(
                 and record.task_id == task_id
                 and record.target_state == target_state
                 and record.evidence_fingerprint == evidence_fingerprint
+                and record.workflow_revision
+                == workflow_revision
                 and (
                     revision_binding is None
                     or (
@@ -5295,6 +5832,20 @@ def _retired_audit_ids_for_result(
 ) -> list[str]:
     """Recover sibling IDs from the durable retirement row on callback replay."""
 
+    source = next(
+        (
+            record
+            for record in doc.pending_chain
+            if record.audit_id == result.audit_id
+            and record.project_id == project_id
+            and record.task_id == task_id
+            and record.target_state == result.target_state
+            and record.evidence_fingerprint == result.evidence_fingerprint
+        ),
+        None,
+    )
+    if source is None:
+        return []
     audit_ids: list[str] = []
     for row in _retirement_rows(doc):
         if (
@@ -5303,6 +5854,10 @@ def _retired_audit_ids_for_result(
             and row.get("task_id") == task_id
             and row.get("target_state") == result.target_state.value
             and row.get("evidence_fingerprint") == result.evidence_fingerprint.digest
+            and row.get("workflow_revision")
+            == source.workflow_revision
+            and row.get("selected_ref") == source.selected_ref
+            and row.get("selected_sha") == source.selected_sha
         ):
             raw_ids = row.get("audit_ids", [])
             if isinstance(raw_ids, list):
@@ -5319,6 +5874,9 @@ def _record_terminal_retirement(
     task_id: str,
     target_state: TargetState,
     evidence_fingerprint: EvidenceFingerprint,
+    workflow_revision: str | None = None,
+    selected_ref: str | None = None,
+    selected_sha: str | None = None,
     audit_ids: list[str],
     kind: str,
     applied: bool = True,
@@ -5336,6 +5894,9 @@ def _record_terminal_retirement(
         "task_id": task_id,
         "target_state": target_state.value,
         "evidence_fingerprint": evidence_fingerprint.digest,
+        "workflow_revision": workflow_revision,
+        "selected_ref": selected_ref,
+        "selected_sha": selected_sha,
     }
     matching = next(
         (
@@ -5577,6 +6138,7 @@ def _build_new_entries(
     project_id: str,
     *,
     revision_binding: AuditRevisionBinding | None = None,
+    workflow_revision: str | None = None,
 ) -> list[TerminalAuditRecord]:
     """Return the list of new :class:`~oompah.terminal_audit.TerminalAuditRecord` objects.
 
@@ -5610,6 +6172,7 @@ def _build_new_entries(
                 now,
                 selected_ref=selected_ref,
                 selected_sha=selected_sha,
+                workflow_revision=workflow_revision,
                 source_generation=source_generation,
             )
         ]
@@ -5619,6 +6182,7 @@ def _build_new_entries(
             current_chain, project_id, issue.identifier,
             fingerprint, trigger, previous_state, now,
             revision_binding=revision_binding,
+            workflow_revision=workflow_revision,
             source_generation=source_generation,
         )
 
@@ -5634,6 +6198,7 @@ def _build_new_entries(
                 now,
                 selected_ref=selected_ref,
                 selected_sha=selected_sha,
+                workflow_revision=workflow_revision,
                 source_generation=source_generation,
             )
         ]
@@ -5651,6 +6216,7 @@ def _build_merged_entries(
     now: str,
     *,
     revision_binding: AuditRevisionBinding | None = None,
+    workflow_revision: str | None = None,
     source_generation: int,
 ) -> list[TerminalAuditRecord]:
     """Build the new entries for a ``Merged`` request.
@@ -5671,6 +6237,8 @@ def _build_merged_entries(
             and r.task_id == task_id
             and r.request_state == RequestState.COMPLETED
             and r.evidence_fingerprint == fingerprint
+            and r.workflow_revision
+            == workflow_revision
             and (
                 revision_binding is None
                 or (
@@ -5689,6 +6257,8 @@ def _build_merged_entries(
             and r.task_id == task_id
             and r.request_state in (RequestState.PENDING, RequestState.IN_PROGRESS)
             and r.evidence_fingerprint == fingerprint
+            and r.workflow_revision
+            == workflow_revision
             and (
                 revision_binding is None
                 or (
@@ -5716,6 +6286,7 @@ def _build_merged_entries(
                 now,
                 selected_ref=selected_ref,
                 selected_sha=selected_sha,
+                workflow_revision=workflow_revision,
                 source_generation=source_generation,
             )
         )
@@ -5731,6 +6302,7 @@ def _build_merged_entries(
             now,
             selected_ref=selected_ref,
             selected_sha=selected_sha,
+            workflow_revision=workflow_revision,
             source_generation=source_generation,
         )
     )
@@ -5748,6 +6320,7 @@ def _make_record(
     *,
     selected_ref: str | None = None,
     selected_sha: str | None = None,
+    workflow_revision: str | None = None,
     source_generation: int = 1,
 ) -> TerminalAuditRecord:
     """Create a new :class:`~oompah.terminal_audit.TerminalAuditRecord` in ``PENDING`` state."""
@@ -5763,6 +6336,7 @@ def _make_record(
         created_at=created_at,
         selected_ref=selected_ref,
         selected_sha=selected_sha,
+        workflow_revision=workflow_revision,
         source_generation=source_generation,
     )
 

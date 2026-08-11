@@ -1493,6 +1493,10 @@ async def test_coordinator_adapter_binds_composed_landing_revision():
     binding = coordinator.kwargs["revision_binding"]
     assert binding.selected_ref == "b" * 40
     assert binding.selected_sha == "b" * 40
+    assert (
+        coordinator.kwargs["workflow_revision"]
+        == "landing-facts-v2"
+    )
     assert coordinator.kwargs["mutation_guard"]() is None
 
 
@@ -1537,7 +1541,80 @@ async def test_coordinator_adapter_binds_headless_root_epic_landing_revision():
     binding = coordinator.kwargs["revision_binding"]
     assert binding.selected_ref == "b" * 40
     assert binding.selected_sha == "b" * 40
+    assert (
+        coordinator.kwargs["workflow_revision"]
+        == "landing-evidence-revision"
+    )
     assert coordinator.kwargs["mutation_guard"]() is None
+
+
+@pytest.mark.asyncio
+async def test_coordinator_adapter_binds_headed_epic_workflow_revision():
+    class Coordinator:
+        def __init__(self):
+            self.kwargs = None
+
+        async def request_transition(self, **kwargs):
+            self.kwargs = kwargs
+            return type(
+                "Result", (), {"success": True, "audit_id": "audit-x", "reason": None}
+            )()
+
+    coordinator = Coordinator()
+    issue = _issue(
+        state="In Progress",
+        issue_type="epic",
+        parent_id=None,
+        head_sha="b" * 40,
+    )
+    intent = _intent(
+        issue,
+        requested_status="Merged",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="terminal.immediate_target_landing_proven",
+        evidence_generation="epic-auto-close-generation",
+        exact_head="b" * 40,
+        precondition_revision="landing-evidence-revision",
+    )
+
+    result = await CoordinatorTerminalAdapter(
+        coordinator,
+        mutation_guard=lambda _intent: None,
+    ).stage(intent, issue)
+
+    assert result.success
+    assert "revision_binding" not in coordinator.kwargs
+    assert coordinator.kwargs["workflow_revision"] == (
+        "landing-evidence-revision"
+    )
+
+
+@pytest.mark.asyncio
+async def test_coordinator_adapter_rejects_missing_workflow_revision():
+    class Coordinator:
+        def __init__(self):
+            self.calls = 0
+
+        async def request_transition(self, **_kwargs):
+            self.calls += 1
+
+    coordinator = Coordinator()
+    issue = _issue(state="In Progress", issue_type="epic", parent_id=None)
+    intent = _intent(
+        issue,
+        requested_status="Merged",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="terminal.immediate_target_landing_proven",
+        evidence_generation="epic-auto-close-generation",
+        exact_head="b" * 40,
+        precondition_revision=None,
+    )
+
+    result = await CoordinatorTerminalAdapter(coordinator).stage(intent, issue)
+
+    assert not result.success
+    assert result.reason_code == "transition.stale_precondition"
+    assert coordinator.calls == 0
 
 
 @pytest.mark.asyncio
@@ -1582,11 +1659,16 @@ async def test_coordinator_adapter_does_not_supply_unbound_root_epic_revision(
         intent_values["precondition_revision"] = None
     guard = None if mutation == "missing_guard" else lambda _intent: None
 
-    await CoordinatorTerminalAdapter(
+    result = await CoordinatorTerminalAdapter(
         coordinator,
         mutation_guard=guard,
     ).stage(_intent(issue, **intent_values), issue)
 
+    if mutation == "missing_precondition":
+        assert not result.success
+        assert result.reason_code == "transition.stale_precondition"
+        assert coordinator.kwargs is None
+        return
     assert "revision_binding" not in coordinator.kwargs
 
 

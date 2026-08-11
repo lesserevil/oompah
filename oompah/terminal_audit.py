@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import unicodedata
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -22,6 +23,23 @@ from oompah.integration import accepted_submission_branch
 
 CURRENT_VERSION = 1
 """Current serialized terminal-audit record version."""
+
+_MAX_WORKFLOW_REVISION_BYTES = 512
+"""Maximum canonical workflow-authority bytes persisted in audit metadata."""
+
+_SENSITIVE_WORKFLOW_REVISION_RE = re.compile(
+    r"(?:\bbearer\s+\S+|"
+    r"\b(?:api[_-]?key|authorization|password|secret|token)\b\s*[:=]\s*\S+|"
+    r"\bgh[pousr]_[A-Za-z0-9_]{20,}\b|"
+    r"\bgithub_pat_[A-Za-z0-9_]{20,}\b|"
+    r"\b(?:glpat|gldt)-[A-Za-z0-9_-]{20,}\b|"
+    r"\bxox[bap]-[A-Za-z0-9-]{20,}\b|"
+    r"\bsk-[A-Za-z0-9_-]{20,}\b|"
+    r"\bAKIA[0-9A-Z]{16}\b|"
+    r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY|"
+    r"\b(?:[A-Za-z0-9_-]{10,}\.){2}[A-Za-z0-9_-]{10,}\b)",
+    re.IGNORECASE,
+)
 
 
 class TargetState(str, Enum):
@@ -173,6 +191,37 @@ def _optional_string(raw: Mapping[str, Any], key: str, type_name: str) -> str | 
     if not isinstance(value, str):
         raise ValueError(f"{type_name} optional field {key!r} must be a string or null")
     return value
+
+
+def _optional_workflow_revision(value: object, type_name: str) -> str | None:
+    """Return bounded, non-secret workflow authority suitable for metadata."""
+
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(
+            f"{type_name}.workflow_revision must be non-empty when present"
+        )
+    if "\n" in value or "\r" in value:
+        raise ValueError(
+            f"{type_name}.workflow_revision must be a single-line value"
+        )
+    revision = value.strip()
+    # The durable workflow checkpoint uses ``ensure_ascii=True`` JSON.  Count
+    # the encoded string body rather than Python code points so a bounded
+    # value cannot expand (for example through ``\ud83d\ude00`` surrogate escapes)
+    # beyond the checkpoint budget after a workflow lease has been claimed.
+    encoded = json.dumps(revision, ensure_ascii=True)[1:-1].encode("ascii")
+    if len(encoded) > _MAX_WORKFLOW_REVISION_BYTES:
+        raise ValueError(
+            f"{type_name}.workflow_revision exceeds maximum encoded size "
+            f"({_MAX_WORKFLOW_REVISION_BYTES} bytes)"
+        )
+    if _SENSITIVE_WORKFLOW_REVISION_RE.search(revision):
+        raise ValueError(
+            f"{type_name}.workflow_revision must not contain credential-shaped data"
+        )
+    return revision
 
 
 def _optional_non_negative_int(
@@ -1163,6 +1212,7 @@ class TerminalAuditRecord:
     updated_at: str | None = None
     selected_ref: str | None = None
     selected_sha: str | None = None
+    workflow_revision: str | None = None
     source_generation: int = 1
 
     def __post_init__(self) -> None:
@@ -1194,6 +1244,10 @@ class TerminalAuditRecord:
         if binding is not None:
             self.selected_ref = binding.selected_ref
             self.selected_sha = binding.selected_sha
+        self.workflow_revision = _optional_workflow_revision(
+            self.workflow_revision,
+            self.__class__.__name__,
+        )
         if (
             isinstance(self.source_generation, bool)
             or not isinstance(self.source_generation, int)
@@ -1238,6 +1292,10 @@ class TerminalAuditRecord:
         if self.selected_ref is not None:
             result["selected_ref"] = self.selected_ref
             result["selected_sha"] = self.selected_sha
+        if self.workflow_revision is not None:
+            result["workflow_revision"] = (
+                self.workflow_revision
+            )
         return result
 
     @classmethod
@@ -1269,6 +1327,11 @@ class TerminalAuditRecord:
             updated_at=_optional_string(data, "updated_at", cls.__name__),
             selected_ref=_optional_string(data, "selected_ref", cls.__name__),
             selected_sha=_optional_string(data, "selected_sha", cls.__name__),
+            workflow_revision=_optional_string(
+                data,
+                "workflow_revision",
+                cls.__name__,
+            ),
             source_generation=_optional_positive_int(
                 data, "source_generation", cls.__name__
             ),
@@ -1294,6 +1357,7 @@ class OverrideRecord:
     created_at: str | None = None
     selected_ref: str | None = None
     selected_sha: str | None = None
+    workflow_revision: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.override_id, str) or not self.override_id.strip():
@@ -1319,6 +1383,14 @@ class OverrideRecord:
         if binding is not None:
             object.__setattr__(self, "selected_ref", binding.selected_ref)
             object.__setattr__(self, "selected_sha", binding.selected_sha)
+        object.__setattr__(
+            self,
+            "workflow_revision",
+            _optional_workflow_revision(
+                self.workflow_revision,
+                self.__class__.__name__,
+            ),
+        )
 
     @property
     def id(self) -> str:
@@ -1340,6 +1412,8 @@ class OverrideRecord:
         if self.selected_ref is not None:
             result["selected_ref"] = self.selected_ref
             result["selected_sha"] = self.selected_sha
+        if self.workflow_revision is not None:
+            result["workflow_revision"] = self.workflow_revision
         return result
 
     @classmethod
@@ -1363,10 +1437,28 @@ class OverrideRecord:
             created_at=_optional_string(data, "created_at", cls.__name__),
             selected_ref=_optional_string(data, "selected_ref", cls.__name__),
             selected_sha=_optional_string(data, "selected_sha", cls.__name__),
+            workflow_revision=_optional_string(
+                data,
+                "workflow_revision",
+                cls.__name__,
+            ),
         )
 
 
 AuditRecord = TerminalAuditRecord
+
+
+def requires_workflow_revision(record: TerminalAuditRecord) -> bool:
+    """Return whether a workflow-authored record must carry its decision fence."""
+
+    if not isinstance(record, TerminalAuditRecord):
+        raise TypeError("record must be a TerminalAuditRecord")
+    return (
+        str(getattr(record.requested_by, "source", "") or "")
+        .strip()
+        .lower()
+        in {"integrator", "orchestrator"}
+    )
 
 
 __all__ = [
@@ -1393,4 +1485,5 @@ __all__ = [
     "compute_evidence_fingerprint",
     "compute_integrated_evidence_fingerprint_variants",
     "compute_issue_evidence_fingerprint",
+    "requires_workflow_revision",
 ]

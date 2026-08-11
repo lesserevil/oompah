@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import replace
 from types import SimpleNamespace
 
@@ -14,14 +15,33 @@ from oompah.review_workflow_adapter import (
     build_review_workflow_handlers,
 )
 from oompah.scm import CIStatus, ReviewRequest
-from oompah.statuses import IN_REVIEW, NEEDS_CI_FIX
-from oompah.task_transition_service import TaskTransitionService, TransitionJournal
-from oompah.workflow_facts import FactDomain, FactState, WorkflowFactCollector
+from oompah.statuses import IN_REVIEW, IN_VALIDATION, NEEDS_CI_FIX
+from oompah.task_transition_service import (
+    TaskTransitionService,
+    TerminalStageResult,
+    TransitionJournal,
+)
+from oompah.workflow_facts import (
+    FactDomain,
+    FactState,
+    LandingFact,
+    LandingProofKind,
+    LandingState,
+    WorkflowFactCollector,
+)
 from oompah.workflow_jobs import WorkflowJobSpec, WorkflowJobStore
-from oompah.workflow_worker import DurableWorkflowWorker, WorkflowRunDisposition
+from oompah.workflow_worker import (
+    DurableWorkflowWorker,
+    EffectResult,
+    VerificationResult,
+    WorkflowActionError,
+    WorkflowJobContext,
+    WorkflowRunDisposition,
+)
 
 
 HEAD = "a" * 40
+NOW = "2026-08-10T12:00:00+00:00"
 
 
 def review(
@@ -110,6 +130,34 @@ def task(project_id="project-1"):
         review_number="17",
         review_head=HEAD,
     )
+
+
+class LandedCollector:
+    def __init__(self, project_id="project-1"):
+        self.project_id = project_id
+
+    def collect(self, request):
+        return LandingFact(
+            request.source,
+            request.target,
+            request.revision,
+            {"kind": LandingProofKind.MERGE_COMMIT.value, "merge_sha": "b" * 40},
+            NOW,
+            self.project_id,
+            state=LandingState.LANDED,
+            durable=True,
+        )
+
+
+class RecordingTerminalAdapter:
+    def __init__(self, tracker):
+        self.tracker = tracker
+        self.intents = []
+
+    async def stage(self, intent, issue):
+        self.intents.append(intent)
+        self.tracker.task = replace(issue, state=IN_VALIDATION)
+        return TerminalStageResult(True, "audit-1")
 
 
 def composition(tmp_path, monkeypatch, provider, *, project_id="project-1"):
@@ -243,6 +291,132 @@ async def test_ci_repair_uses_transition_service_not_backend_tracker_write(
         assert store.get(queued.job_id).result_transition is not None
     finally:
         journal.close()
+        capacity.close()
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_stage_forwards_fresh_landing_revision_to_transition_service(
+    tmp_path, monkeypatch
+):
+    provider = Provider([review(state="merged", ci=CIStatus.PASSED)])
+    orchestrator, binding, store, capacity = composition(
+        tmp_path, monkeypatch, provider
+    )
+    binding.review_controller.collector.landing_collector = LandedCollector()
+    decision = binding.review_controller.evaluate((binding.tracker.task,)).tasks[
+        0
+    ].decision
+    assert decision.durable_jobs == ("review_terminal_stage",)
+    queued = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation="terminal-generation-1",
+            action="review_terminal_stage",
+            idempotency_key="review-terminal-1",
+            expected_evidence_revision=decision.evidence_revision,
+        )
+    )
+    terminal_adapter = RecordingTerminalAdapter(binding.tracker)
+    journal = TransitionJournal(str(tmp_path / "terminal-transitions.sqlite3"))
+    service = TaskTransitionService(
+        project_id="project-1",
+        tracker=binding.tracker,
+        journal=journal,
+        terminal_adapter=terminal_adapter,
+    )
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers=build_review_workflow_handlers(orchestrator, binding),
+        transition_services={"project-1": service},
+        worker_id="review-terminal-worker",
+    )
+    try:
+        result = await worker.run_once()
+
+        assert result.disposition is WorkflowRunDisposition.COMPLETED
+        assert binding.tracker.task.state == IN_VALIDATION
+        assert len(terminal_adapter.intents) == 1
+        assert (
+            terminal_adapter.intents[0].precondition_revision
+            == decision.evidence_revision
+        )
+        assert store.get(queued.job_id).result_transition is not None
+    finally:
+        journal.close()
+        capacity.close()
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_stage_verification_rejects_fresh_evidence_drift(
+    tmp_path, monkeypatch
+):
+    provider = Provider([review(state="merged", ci=CIStatus.PASSED)])
+    orchestrator, binding, store, capacity = composition(
+        tmp_path, monkeypatch, provider
+    )
+    binding.review_controller.collector.landing_collector = LandedCollector()
+    decision = binding.review_controller.evaluate((binding.tracker.task,)).tasks[
+        0
+    ].decision
+    queued = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation="terminal-generation-before-drift",
+            action="review_terminal_stage",
+            idempotency_key="review-terminal-before-drift",
+            expected_evidence_revision=decision.evidence_revision,
+        )
+    )
+    backend = build_review_workflow_handlers(orchestrator, binding)[
+        "review_terminal_stage"
+    ].backend
+    binding.review_controller.collector.sources[FactDomain.CONFIG] = lambda _issue: {
+        "version": 2
+    }
+    context = WorkflowJobContext(queued, asyncio.Event(), asyncio.Event())
+    try:
+        with pytest.raises(
+            WorkflowActionError,
+            match="landing evidence changed before terminal transition",
+        ):
+            await backend.verify(context, EffectResult({"status": "landed"}))
+    finally:
+        capacity.close()
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_stage_transition_fails_closed_without_verified_revision(
+    tmp_path, monkeypatch
+):
+    provider = Provider([review(state="merged", ci=CIStatus.PASSED)])
+    orchestrator, binding, store, capacity = composition(
+        tmp_path, monkeypatch, provider
+    )
+    queued = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation="terminal-generation-no-revision",
+            action="review_terminal_stage",
+            idempotency_key="review-terminal-no-revision",
+        )
+    )
+    backend = build_review_workflow_handlers(orchestrator, binding)[
+        "review_terminal_stage"
+    ].backend
+    context = WorkflowJobContext(queued, asyncio.Event(), asyncio.Event())
+    try:
+        with pytest.raises(
+            WorkflowActionError,
+            match="lacks a freshly verified evidence revision",
+        ):
+            await backend.build_transition(context, VerificationResult(True, {}))
+    finally:
         capacity.close()
         store.close()
 
