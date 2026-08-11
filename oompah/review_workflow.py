@@ -511,6 +511,7 @@ class ReviewWorkflowController:
         *,
         liveness_slo_seconds: Mapping[str, int] | None = None,
         authoritative_issues: Mapping[str, Issue] | None = None,
+        authoritative_children: Mapping[str, Sequence[Issue]] | None = None,
     ) -> ReviewDecisionBatch:
         # Bound the review lane after semantic filtering.  Applying the limit
         # to unrelated project rows first can starve an In Review task forever
@@ -539,6 +540,7 @@ class ReviewWorkflowController:
                 task.identifier,
                 landing_requests=self._landing_request(task),
                 authoritative_issues=authoritative_issues,
+                authoritative_children=authoritative_children,
             )
             evaluated.append(
                 ReviewTaskDecision(

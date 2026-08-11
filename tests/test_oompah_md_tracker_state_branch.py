@@ -507,6 +507,81 @@ class TestStateBranchTrackerIntegration:
         unrelated = tracker.get_state_branch_generation()
         assert tracker.terminal_metadata_changes_between(committed, unrelated) is None
 
+    def test_ordinary_generation_delta_coalesces_multiple_and_same_task_writes(
+        self, state_branch_repo: tuple[Path, str]
+    ) -> None:
+        repo, state_branch = state_branch_repo
+        tracker = _make_tracker(
+            repo,
+            state_branch_enabled=True,
+            state_branch_name=state_branch,
+            git_sync=True,
+        )
+        first = tracker.create_issue("First scoped ordinary mutation")
+        second = tracker.create_issue("Second scoped ordinary mutation")
+        tracker.flush_checkpoint(reason="seed-ordinary-mutations")
+        before = tracker.get_state_branch_generation()
+
+        tracker.update_issue(first.identifier, status=IN_PROGRESS)
+        tracker.add_comment(first.identifier, "A second write to the same task")
+        tracker.update_issue(second.identifier, status=IN_REVIEW)
+        direct = tracker.get_state_branch_generation()
+
+        assert tracker.task_authority_changes_between(before, direct) == frozenset(
+            {first.identifier, second.identifier}
+        )
+
+        tracker.flush_checkpoint(reason="commit-ordinary-mutations")
+        committed = tracker.get_state_branch_generation()
+        assert tracker.task_authority_changes_between(
+            before, committed
+        ) == frozenset({first.identifier, second.identifier})
+
+    def test_parent_link_multi_task_write_is_deliberately_unscoped(
+        self, state_branch_repo: tuple[Path, str]
+    ) -> None:
+        repo, state_branch = state_branch_repo
+        tracker = _make_tracker(
+            repo,
+            state_branch_enabled=True,
+            state_branch_name=state_branch,
+            git_sync=True,
+        )
+        parent = tracker.create_issue("Parent", issue_type="epic")
+        child = tracker.create_issue("Child")
+        tracker.flush_checkpoint(reason="seed-parent-link")
+        before = tracker.get_state_branch_generation()
+
+        tracker.add_parent_child(child.identifier, parent.identifier)
+        current = tracker.get_state_branch_generation()
+
+        assert tracker.task_authority_changes_between(before, current) is None
+
+    def test_non_task_state_branch_diff_fails_closed_for_scoped_journal(
+        self, state_branch_repo: tuple[Path, str]
+    ) -> None:
+        repo, state_branch = state_branch_repo
+        tracker = _make_tracker(
+            repo,
+            state_branch_enabled=True,
+            state_branch_name=state_branch,
+            git_sync=True,
+        )
+        issue = tracker.create_issue("Task beside a non-task state change")
+        tracker.flush_checkpoint(reason="seed-non-task-diff")
+        before = tracker.get_state_branch_generation()
+
+        tracker.update_issue(issue.identifier, status=IN_PROGRESS)
+        tracker.flush_checkpoint(reason="commit-task-before-non-task")
+        state_root = tracker._get_state_root()
+        ledger = state_root / ".oompah" / "state-ledger.yml"
+        ledger.write_text("version: 1\n", encoding="utf-8")
+        _git(state_root, "add", str(ledger.relative_to(state_root)))
+        _git(state_root, "commit", "-m", "Add non-task state authority")
+        current = tracker.get_state_branch_generation()
+
+        assert tracker.task_authority_changes_between(before, current) is None
+
     def test_generation_bound_list_matches_detail_after_status_file_move(
         self, state_branch_repo: tuple[Path, str]
     ) -> None:

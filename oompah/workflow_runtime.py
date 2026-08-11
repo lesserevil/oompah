@@ -30,6 +30,7 @@ from collections import deque
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import ExitStack
 from dataclasses import asdict, dataclass, replace
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -191,12 +192,37 @@ class _WorkflowReconciliationInterrupted(BaseException):
     """Internal cooperative stop before a workflow snapshot is published."""
 
 
+class _WorkflowReconciliationDeadlineExceeded(BaseException):
+    """Internal fail-closed stop at the absolute restart reconstruction deadline."""
+
+
 class WorkflowRuntimeError(RuntimeError):
     """Raised when durable runtime composition is invalid."""
 
 
 class WorkflowPublicationSuperseded(WorkflowRuntimeError):
     """Raised when a concurrent authority change invalidates a staged cut."""
+
+
+class _WorkflowProjectAuthorityChanged(RuntimeError):
+    """Retry one project whose exactly-scoped tracker authority changed."""
+
+    def __init__(self, changed_tasks: frozenset[str]) -> None:
+        super().__init__("scoped tracker authority changed")
+        self.changed_tasks = changed_tasks
+
+
+class _WorkflowScopedPublicationChanged(WorkflowPublicationSuperseded):
+    """Retry a cut when final preflight proves an exact ordinary task delta."""
+
+    def __init__(self, project_id: str, changed_tasks: frozenset[str]) -> None:
+        super().__init__("tracker authority changed before publication")
+        self.project_id = project_id
+        self.changed_tasks = changed_tasks
+
+
+class _WorkflowFinalPublicationChanged(WorkflowPublicationSuperseded):
+    """Retry a whole cut after the final constant-time tracker CAS changes."""
 
 
 def _tracker_publication_revision(
@@ -260,6 +286,9 @@ class WorkflowProjectBinding:
     workflow_authority_revision_source: Callable[[], int] | None = None
     tracker_authority_revision_source: Callable[[], str | None] | None = None
     tracker_publication_revision_source: Callable[[], int | None] | None = None
+    tracker_authority_changes_source: Callable[
+        [str, str], frozenset[str] | None
+    ] | None = None
     tracker_terminal_authority_changes_source: Callable[
         [str, str], frozenset[str] | None
     ] | None = None
@@ -1508,6 +1537,15 @@ class WorkflowRuntime:
                     getattr(tracker, "get_publication_revision", None)
                 )
                 else None,
+                tracker_authority_changes_source=(
+                    lambda expected, current, _tracker=tracker: (
+                        _tracker.task_authority_changes_between(expected, current)
+                    )
+                )
+                if callable(
+                    getattr(tracker, "task_authority_changes_between", None)
+                )
+                else None,
                 tracker_terminal_authority_changes_source=(
                     lambda expected, current, _tracker=tracker: (
                         _tracker.terminal_metadata_changes_between(expected, current)
@@ -2132,6 +2170,27 @@ class WorkflowRuntime:
         return indexed
 
     @staticmethod
+    def _authoritative_children_index(
+        issues: Sequence[Any],
+    ) -> dict[str, tuple[Any, ...]]:
+        """Index direct containment once for an authoritative project cut."""
+
+        indexed: dict[str, dict[str, Any]] = {}
+        for issue in issues:
+            parent_id = str(getattr(issue, "parent_id", "") or "").strip()
+            identifier = str(getattr(issue, "identifier", "") or "").strip()
+            if not parent_id or not identifier:
+                continue
+            indexed.setdefault(parent_id.casefold(), {})[identifier.casefold()] = issue
+        return {
+            parent_id: tuple(
+                child_by_id[identifier]
+                for identifier in sorted(child_by_id)
+            )
+            for parent_id, child_by_id in indexed.items()
+        }
+
+    @staticmethod
     def _dependency_target_identities(
         issues: Sequence[Any],
         authoritative_issues: Mapping[str, Any],
@@ -2624,6 +2683,13 @@ class WorkflowRuntime:
         if not bool(getattr(self._reconcile_thread, "active", False)):
             return
         time.sleep(0)
+        deadline_at = getattr(self._reconcile_thread, "deadline_at", None)
+        if (
+            bool(getattr(self._reconcile_thread, "correction_active", False))
+            and deadline_at is not None
+            and time.monotonic() >= float(deadline_at)
+        ):
+            raise _WorkflowReconciliationDeadlineExceeded
         with self._lock:
             if self._draining:
                 raise _WorkflowReconciliationInterrupted
@@ -2631,9 +2697,73 @@ class WorkflowRuntime:
     def _reconcile_once(self) -> dict[str, Any]:
         """Run one admitted pass with cooperative lifecycle interruption."""
 
+        started_at = time.monotonic()
+        restart_budget_seconds = 120.0
+        if self.liveness_controller is not None:
+            restart_budget_seconds = float(
+                self.liveness_controller.liveness_policy.seconds.get(
+                    "restart_convergence", restart_budget_seconds
+                )
+            )
+        deadline_at = started_at + restart_budget_seconds
+        historical_deadline_seconds_remaining: float | None = None
+        if self.liveness_controller is not None:
+            try:
+                restart_health = self.liveness_controller.liveness_snapshot()
+                raw_deadline = restart_health.restart_deadline_at
+                if (
+                    restart_health.restart_reconstruction_pending
+                    and raw_deadline
+                ):
+                    parsed_deadline = datetime.fromisoformat(
+                        str(raw_deadline).replace("Z", "+00:00")
+                    )
+                    if parsed_deadline.tzinfo is None:
+                        raise ValueError("restart deadline is timezone-naive")
+                    clock = getattr(
+                        self.liveness_controller,
+                        "_clock",
+                        lambda: datetime.now(timezone.utc),
+                    )
+                    current = clock()
+                    if current.tzinfo is None:
+                        raise ValueError("liveness clock is timezone-naive")
+                    historical_deadline_seconds_remaining = (
+                        (
+                            parsed_deadline.astimezone(timezone.utc)
+                            - current.astimezone(timezone.utc)
+                        ).total_seconds()
+                    )
+            except (AttributeError, TypeError, ValueError, OverflowError):
+                # Corrupt liveness time authority is already fail-closed in
+                # the controller. Keep the policy budget as a final bound.
+                pass
+        scoped_publication_retries = 0
+        accumulated_seconds: dict[str, float] = {}
         self._reconcile_thread.active = True
+        self._reconcile_thread.deadline_at = deadline_at
+        self._reconcile_thread.correction_active = False
         try:
-            return self._reconcile_world_once()
+            while True:
+                self._reconciliation_checkpoint()
+                report = self._reconcile_world_once()
+                current_seconds = report.get("reconciliation_phases", {}).get(
+                    "seconds", {}
+                )
+                if isinstance(current_seconds, Mapping):
+                    for name, raw_seconds in current_seconds.items():
+                        accumulated_seconds[str(name)] = (
+                            accumulated_seconds.get(str(name), 0.0)
+                            + float(raw_seconds)
+                        )
+                scoped_retry = report.pop("_scoped_publication_retry", None)
+                if not scoped_retry:
+                    break
+                scoped_publication_retries += 1
+                if time.monotonic() >= deadline_at:
+                    report["scoped_publication_retry_exhausted"] = True
+                    break
+                self._reconcile_thread.correction_active = True
         except _WorkflowReconciliationInterrupted:
             partial = getattr(self._reconcile_thread, "report", None)
             report = dict(partial) if isinstance(partial, Mapping) else {
@@ -2645,10 +2775,38 @@ class WorkflowRuntime:
             )
             with self._lock:
                 self._last_reconcile = dict(report)
-            return report
+        except _WorkflowReconciliationDeadlineExceeded:
+            partial = getattr(self._reconcile_thread, "report", None)
+            report = dict(partial) if isinstance(partial, Mapping) else {
+                "mode": self.mode,
+            }
+            report["requires_reconcile"] = True
+            report["reconcile_reason"] = "restart_reconciliation_deadline"
+            report["restart_deadline_exceeded"] = True
         finally:
             self._reconcile_thread.active = False
+            self._reconcile_thread.deadline_at = None
+            self._reconcile_thread.correction_active = False
             self._reconcile_thread.report = None
+        phases = report.setdefault("reconciliation_phases", {})
+        phases["seconds"] = {
+            name: round(seconds, 6)
+            for name, seconds in sorted(accumulated_seconds.items())
+        }
+        phases["scoped_publication_retries"] = scoped_publication_retries
+        phases["restart_budget_seconds"] = restart_budget_seconds
+        phases["deadline_seconds_remaining"] = round(
+            max(0.0, deadline_at - time.monotonic()), 6
+        )
+        phases["historical_restart_deadline_seconds_remaining"] = (
+            round(historical_deadline_seconds_remaining, 6)
+            if historical_deadline_seconds_remaining is not None
+            else None
+        )
+        phases["total_seconds"] = round(time.monotonic() - started_at, 6)
+        with self._lock:
+            self._last_reconcile = dict(report)
+        return report
 
     def _reconcile_world_once(self) -> dict[str, Any]:
         """Run one admitted synchronous reconciliation."""
@@ -2662,10 +2820,32 @@ class WorkflowRuntime:
         if self._draining or self.mode == "off":
             return {"mode": self.mode, "skipped": True}
         report: dict[str, Any] = {"mode": self.mode, "projects": {}}
+        phase_totals: dict[str, float] = {}
+        project_phases: dict[str, dict[str, float]] = {}
+        report["reconciliation_phases"] = {
+            "seconds": phase_totals,
+            "projects": project_phases,
+        }
+
+        def record_phase(
+            name: str,
+            started_at: float,
+            *,
+            project_id: str | None = None,
+        ) -> None:
+            elapsed = time.monotonic() - started_at
+            phase_totals[name] = round(phase_totals.get(name, 0.0) + elapsed, 6)
+            if project_id is not None:
+                project = project_phases.setdefault(project_id, {})
+                project[name] = round(project.get(name, 0.0) + elapsed, 6)
+
         self._reconcile_thread.report = report
         policy_cut = self._capture_liveness_policy()
         liveness_slo_seconds = (
             policy_cut.seconds if policy_cut is not None else None
+        )
+        project_correction_deadline = float(
+            getattr(self._reconcile_thread, "deadline_at", time.monotonic())
         )
         if not self.enforce:
             shadow_updates: list[tuple[str, tuple[Any, ...]]] = []
@@ -2681,6 +2861,9 @@ class WorkflowRuntime:
                         self._issues_with_authority(binding)
                     )
                     authoritative_issues = self._authoritative_issue_index(
+                        issues
+                    )
+                    authoritative_children = self._authoritative_children_index(
                         issues
                     )
                     task_issues = [
@@ -2710,6 +2893,7 @@ class WorkflowRuntime:
                                     task_issues,
                                     liveness_slo_seconds=liveness_slo_seconds,
                                     authoritative_issues=authoritative_issues,
+                                    authoritative_children=authoritative_children,
                                 ),
                             )
                         )
@@ -2721,6 +2905,7 @@ class WorkflowRuntime:
                                     task_issues,
                                     liveness_slo_seconds=liveness_slo_seconds,
                                     authoritative_issues=authoritative_issues,
+                                    authoritative_children=authoritative_children,
                                 ),
                             )
                         )
@@ -2732,6 +2917,7 @@ class WorkflowRuntime:
                                     task_issues,
                                     liveness_slo_seconds=liveness_slo_seconds,
                                     authoritative_issues=authoritative_issues,
+                                    authoritative_children=authoritative_children,
                                 ),
                             )
                         )
@@ -2857,6 +3043,7 @@ class WorkflowRuntime:
         liveness_facts: dict[tuple[str, str], Any] = {}
         source_errors: dict[str, str] = {}
         excluded_projects: dict[str, str] = {}
+        project_retry_counts: dict[str, int] = {}
 
         def restore_prepared_caches() -> None:
             for item in prepared:
@@ -2877,7 +3064,83 @@ class WorkflowRuntime:
                     item["epic_landings_checkpoint"]
                 )
 
-        for project_id, binding in sorted(self.project_bindings.items()):
+        def tracker_changes_for(
+            item: Mapping[str, Any],
+        ) -> frozenset[str] | None:
+            """Return scoped changes, or raise when exact scope is unavailable."""
+
+            binding = item["binding"]
+            expected_authority = item.get("tracker_authority_revision")
+            if expected_authority is None:
+                return None
+            # Explicit legacy mode has no state-branch journal. Its one
+            # grouped corpus refresh remains the exact fail-closed proof at
+            # publication; repeating that O(N) read at every project
+            # checkpoint would recreate the large-corpus cost this path is
+            # intended to remove.
+            if item.get("tracker_authority_mode") == "legacy_digest":
+                return None
+            authority_source = binding.tracker_authority_revision_source
+            if not callable(authority_source):
+                raise WorkflowPublicationSuperseded(
+                    "tracker authority changed before project publication"
+                )
+            current_authority = authority_source()
+            if current_authority == expected_authority:
+                return None
+            changes_source = binding.tracker_authority_changes_source
+            changes = (
+                changes_source(str(expected_authority), str(current_authority))
+                if callable(changes_source)
+                and item.get("tracker_authority_mode") != "legacy_digest"
+                and current_authority is not None
+                else None
+            )
+            if changes is None:
+                raise WorkflowPublicationSuperseded(
+                    "tracker authority changed before publication"
+                )
+            canonical_changes = frozenset(
+                str(task_id or "").strip().casefold()
+                for task_id in changes
+                if str(task_id or "").strip()
+            )
+            if not canonical_changes or len(canonical_changes) != len(changes):
+                raise WorkflowPublicationSuperseded(
+                    "tracker authority changed before publication"
+                )
+            # O986 owns terminal-metadata-only churn. Preserve its safe final
+            # exclusion path instead of repeatedly recollecting the entire
+            # project when the general journal proves that no ordinary task
+            # authority changed. Final preflight revalidates this same range
+            # and excludes the affected terminal task decisions.
+            terminal_changes_source = (
+                binding.tracker_terminal_authority_changes_source
+            )
+            terminal_changes = (
+                terminal_changes_source(
+                    str(expected_authority), str(current_authority)
+                )
+                if callable(terminal_changes_source)
+                and current_authority is not None
+                else None
+            )
+            if terminal_changes is not None:
+                canonical_terminal_changes = frozenset(
+                    str(task_id or "").strip().casefold()
+                    for task_id in terminal_changes
+                    if str(task_id or "").strip()
+                )
+                if (
+                    len(canonical_terminal_changes) == len(terminal_changes)
+                    and canonical_terminal_changes == canonical_changes
+                ):
+                    return None
+            return canonical_changes
+
+        project_queue = deque(sorted(self.project_bindings.items()))
+        while project_queue:
+            project_id, binding = project_queue.popleft()
             workflow_authority_revision = None
             try:
                 workflow_revision_source = (
@@ -2944,6 +3207,7 @@ class WorkflowRuntime:
                     if callable(tracker_publication_revision_source)
                     else None
                 )
+                phase_started = time.monotonic()
                 (
                     issues,
                     tracker_authority_revision,
@@ -2951,6 +3215,8 @@ class WorkflowRuntime:
                 ) = (
                     self._issues_with_authority(binding)
                 )
+                self._reconciliation_checkpoint()
+                record_phase("issue_loading", phase_started, project_id=project_id)
                 tracker_publication_revision = (
                     _tracker_publication_revision(
                         tracker_publication_revision_source,
@@ -2962,10 +3228,16 @@ class WorkflowRuntime:
                     if callable(tracker_publication_revision_source)
                     else None
                 )
+                # The generation-bound corpus below is the authority cut. A
+                # mutation before that cut is harmless; a mutation after it
+                # is detected by the scoped project correction check after
+                # fact collection. Keep the earlier process token only for
+                # phase diagnostics instead of globally discarding fresh work.
                 if (
                     tracker_publication_revision_before is not None
                     and tracker_publication_revision
                     != tracker_publication_revision_before
+                    and not callable(binding.tracker_authority_changes_source)
                 ):
                     raise WorkflowPublicationSuperseded(
                         "tracker authority changed during source collection"
@@ -2983,7 +3255,9 @@ class WorkflowRuntime:
                     == "epic"
                     and canonicalize_status(issue.state) != IN_VALIDATION
                 ]
+                phase_started = time.monotonic()
                 authoritative_issues = self._authoritative_issue_index(issues)
+                authoritative_children = self._authoritative_children_index(issues)
                 (
                     dependency_target_identities,
                     dependency_target_membership_ambiguous,
@@ -2991,17 +3265,25 @@ class WorkflowRuntime:
                     issues,
                     authoritative_issues,
                 )
+                record_phase("issue_index", phase_started, project_id=project_id)
                 report["projects"][project_id] = {"issues": len(issues)}
                 implementation_checkpoint = dict(
                     binding.implementation_controller._latest
                 )
                 try:
+                    phase_started = time.monotonic()
                     implementation_batch = (
                         binding.implementation_controller.evaluate(
                             task_issues,
                             liveness_slo_seconds=liveness_slo_seconds,
                             authoritative_issues=authoritative_issues,
+                            authoritative_children=authoritative_children,
                         )
+                    )
+                    record_phase(
+                        "implementation",
+                        phase_started,
+                        project_id=project_id,
                     )
                 finally:
                     binding.implementation_controller._latest = (
@@ -3010,23 +3292,33 @@ class WorkflowRuntime:
                 review_checkpoint = (
                     binding.review_controller.projection_checkpoint()
                 )
+                phase_started = time.monotonic()
                 review_batch = binding.review_controller.evaluate(
                     task_issues,
                     liveness_slo_seconds=liveness_slo_seconds,
                     authoritative_issues=authoritative_issues,
+                    authoritative_children=authoritative_children,
                 )
                 review_batch = self._scope_domain_decisions(
                     "review", review_batch, REVIEW_ACTION_JOBS
                 )
+                record_phase("review", phase_started, project_id=project_id)
 
                 integration_checkpoint = dict(
                     binding.integration_controller._latest
                 )
                 try:
+                    phase_started = time.monotonic()
                     integration_batch = binding.integration_controller.evaluate(
                         task_issues,
                         liveness_slo_seconds=liveness_slo_seconds,
                         authoritative_issues=authoritative_issues,
+                        authoritative_children=authoritative_children,
+                    )
+                    record_phase(
+                        "integration",
+                        phase_started,
+                        project_id=project_id,
                     )
                 finally:
                     binding.integration_controller._latest = (
@@ -3039,6 +3331,7 @@ class WorkflowRuntime:
                 epic_latest_checkpoint = dict(binding.epic_controller._latest)
                 epic_landings_checkpoint = dict(binding.epic_controller._landings)
                 try:
+                    phase_started = time.monotonic()
                     epic_batch = binding.epic_controller.evaluate(
                         epic_issues,
                         persist_evidence=False,
@@ -3047,6 +3340,7 @@ class WorkflowRuntime:
                     evaluated_epic_landings = dict(
                         binding.epic_controller._landings
                     )
+                    record_phase("epic", phase_started, project_id=project_id)
                 finally:
                     binding.epic_controller._latest = epic_latest_checkpoint
                     binding.epic_controller._landings = (
@@ -3062,17 +3356,16 @@ class WorkflowRuntime:
                     if canonicalize_status(issue.state)
                     not in LIFECYCLE_FINAL_STATUSES
                 ]
-                project_liveness_facts = {
-                    (project_id, issue.identifier): binding.collector.collect(
-                        issue.identifier,
-                        authoritative_issues=authoritative_issues,
-                    )
+                project_liveness_identities = {
+                    (project_id, issue.identifier)
                     for issue in project_liveness_tasks
                 }
+                phase_started = time.monotonic()
                 # Reuse the exact owning-domain fact cut where one exists.
                 # A generic recollection can omit domain-specific landing
                 # requests and therefore hash differently from the cursor it
                 # must inspect for exhaustion/current authority.
+                project_liveness_facts: dict[tuple[str, str], WorkflowFacts] = {}
                 for owning_batch in (
                     implementation_batch,
                     review_batch,
@@ -3084,15 +3377,25 @@ class WorkflowRuntime:
                             project_id,
                             task_decision.task.identifier,
                         )
-                        if identity in project_liveness_facts and isinstance(
+                        if identity in project_liveness_identities and isinstance(
                             task_decision.facts, WorkflowFacts
                         ):
                             project_liveness_facts[identity] = (
                                 task_decision.facts
                             )
-                liveness_tasks.extend(project_liveness_tasks)
-                liveness_facts.update(project_liveness_facts)
-
+                # Most active work already has an owning-domain fact cut.
+                # Collect only identities that no domain evaluated, and use
+                # the project child index so containment stays O(1) per task.
+                for issue in project_liveness_tasks:
+                    identity = (project_id, issue.identifier)
+                    if identity in project_liveness_facts:
+                        continue
+                    project_liveness_facts[identity] = binding.collector.collect(
+                        issue.identifier,
+                        authoritative_issues=authoritative_issues,
+                        authoritative_children=authoritative_children,
+                    )
+                record_phase("liveness_facts", phase_started, project_id=project_id)
                 domains = (
                     ("review", binding.review_controller, review_batch),
                     ("integration", binding.integration_controller, integration_batch),
@@ -3115,8 +3418,7 @@ class WorkflowRuntime:
                     for _name, _controller, batch in domains
                     for decision in batch.decisions
                 }
-                prepared.append(
-                    {
+                prepared_item = {
                         "project_id": project_id,
                         "binding": binding,
                         "issues": issues,
@@ -3154,8 +3456,106 @@ class WorkflowRuntime:
                             workflow_authority_revision
                         ),
                     }
+                phase_started = time.monotonic()
+                scoped_changes = tracker_changes_for(prepared_item)
+                record_phase(
+                    "authority_correction",
+                    phase_started,
+                    project_id=project_id,
                 )
-                report["projects"][project_id] = {"issues": len(issues)}
+                if scoped_changes is not None:
+                    binding.review_controller.restore_projection_checkpoint(
+                        review_checkpoint
+                    )
+                    if time.monotonic() >= project_correction_deadline:
+                        raise WorkflowPublicationSuperseded(
+                            "tracker authority did not stabilize within the restart "
+                            "correction deadline"
+                        )
+                    self._reconcile_thread.correction_active = True
+                    raise _WorkflowProjectAuthorityChanged(scoped_changes)
+                prepared.append(prepared_item)
+                liveness_tasks.extend(project_liveness_tasks)
+                liveness_facts.update(project_liveness_facts)
+                report["projects"][project_id] = {
+                    "issues": len(issues),
+                    "authority_corrections": project_retry_counts.get(project_id, 0),
+                }
+
+                # A stable project collected earlier can change while a later
+                # project is evaluated. Recheck every retained cut before the
+                # queue can drain, then discard and retry only that project.
+                for stable_item in tuple(prepared):
+                    phase_started = time.monotonic()
+                    stable_changes = tracker_changes_for(stable_item)
+                    record_phase(
+                        "authority_correction",
+                        phase_started,
+                        project_id=str(stable_item["project_id"]),
+                    )
+                    if stable_changes is None:
+                        continue
+                    stable_project_id = str(stable_item["project_id"])
+                    if time.monotonic() >= project_correction_deadline:
+                        raise WorkflowPublicationSuperseded(
+                            "tracker authority did not stabilize within the restart "
+                            "correction deadline"
+                        )
+                    stable_binding = stable_item["binding"]
+                    stable_binding.review_controller.restore_projection_checkpoint(
+                        stable_item["review_checkpoint"]
+                    )
+                    prepared.remove(stable_item)
+                    stable_task_ids = {
+                        str(issue.identifier)
+                        for issue in stable_item["issues"]
+                    }
+                    liveness_tasks[:] = [
+                        task
+                        for task in liveness_tasks
+                        if not (
+                            str(getattr(task, "project_id", "") or "")
+                            == stable_project_id
+                            and str(getattr(task, "identifier", "") or "")
+                            in stable_task_ids
+                        )
+                    ]
+                    for identity in tuple(liveness_facts):
+                        if identity[0] == stable_project_id:
+                            liveness_facts.pop(identity, None)
+                    if any(
+                        str(getattr(task, "project_id", "") or "")
+                        == stable_project_id
+                        and str(getattr(task, "identifier", "") or "")
+                        in stable_task_ids
+                        for task in liveness_tasks
+                    ):
+                        raise WorkflowRuntimeError(
+                            "scoped project retry retained duplicate liveness rows"
+                        )
+                    project_retry_counts[stable_project_id] = (
+                        project_retry_counts.get(stable_project_id, 0) + 1
+                    )
+                    self._reconcile_thread.correction_active = True
+                    report["projects"][stable_project_id] = {
+                        "issues": len(stable_item["issues"]),
+                        "authority_corrections": project_retry_counts[
+                            stable_project_id
+                        ],
+                        "corrected_tasks": len(stable_changes),
+                    }
+                    project_queue.append((stable_project_id, stable_binding))
+            except _WorkflowProjectAuthorityChanged as exc:
+                project_retry_counts[project_id] = (
+                    project_retry_counts.get(project_id, 0) + 1
+                )
+                report["projects"][project_id] = {
+                    "issues": len(issues),
+                    "authority_corrections": project_retry_counts[project_id],
+                    "corrected_tasks": len(exc.changed_tasks),
+                }
+                project_queue.append((project_id, binding))
+                continue
             except WorkflowPublicationSuperseded as exc:
                 restore_prepared_caches()
                 reason = str(exc)
@@ -3194,6 +3594,8 @@ class WorkflowRuntime:
                 }
                 source_errors[project_id] = type(exc).__name__
 
+        self._reconciliation_checkpoint()
+        publication_started = time.monotonic()
         authoritative_projects = tuple(
             item["project_id"] for item in prepared
         )
@@ -3779,8 +4181,38 @@ class WorkflowRuntime:
                         else None
                     )
                     if scoped_tracker_changes is None:
-                        raise WorkflowPublicationSuperseded(
-                            "tracker authority changed before publication"
+                        general_changes_source = (
+                            binding.tracker_authority_changes_source
+                        )
+                        general_changes = (
+                            general_changes_source(
+                                str(expected_tracker_revision),
+                                str(current_tracker_revision),
+                            )
+                            if callable(general_changes_source)
+                            and tracker_authority_mode != "legacy_digest"
+                            and current_tracker_revision is not None
+                            else None
+                        )
+                        if general_changes is None:
+                            raise WorkflowPublicationSuperseded(
+                                "tracker authority changed before publication"
+                            )
+                        canonical_general_changes = frozenset(
+                            str(task_id or "").strip().casefold()
+                            for task_id in general_changes
+                            if str(task_id or "").strip()
+                        )
+                        if (
+                            not canonical_general_changes
+                            or len(canonical_general_changes) != len(general_changes)
+                        ):
+                            raise WorkflowPublicationSuperseded(
+                                "tracker authority changed before publication"
+                            )
+                        raise _WorkflowScopedPublicationChanged(
+                            project_id,
+                            canonical_general_changes,
                         )
                     canonical_changes = frozenset(
                         str(task_id or "").strip().casefold()
@@ -3805,6 +4237,11 @@ class WorkflowRuntime:
                         # a changed audit task is a dependency target (or that
                         # membership cannot be proven), excluding only its own
                         # decision would publish stale dependents.
+                        if callable(binding.tracker_authority_changes_source):
+                            raise _WorkflowScopedPublicationChanged(
+                                project_id,
+                                canonical_changes,
+                            )
                         raise WorkflowPublicationSuperseded(
                             "tracker authority changed before publication"
                         )
@@ -3817,6 +4254,10 @@ class WorkflowRuntime:
                     ),
                 )
                 if publication_revision_after != publication_revision_before:
+                    if callable(binding.tracker_authority_changes_source):
+                        raise _WorkflowFinalPublicationChanged(
+                            "tracker authority changed during publication preflight"
+                        )
                     raise WorkflowPublicationSuperseded(
                         "tracker authority changed during publication preflight"
                     )
@@ -3908,6 +4349,12 @@ class WorkflowRuntime:
                                         != expected_publication_revision
                                     ):
                                         superseded = True
+                                        if callable(
+                                            binding.tracker_authority_changes_source
+                                        ):
+                                            raise _WorkflowFinalPublicationChanged(
+                                                "tracker authority changed before publication"
+                                            )
                                         raise WorkflowPublicationSuperseded(
                                             "tracker authority changed before publication"
                                         )
@@ -4207,6 +4654,17 @@ class WorkflowRuntime:
                 }
             report["requires_reconcile"] = True
             report["reconcile_reason"] = "publication_authority_changed"
+            if isinstance(
+                exc,
+                (
+                    _WorkflowScopedPublicationChanged,
+                    _WorkflowFinalPublicationChanged,
+                ),
+            ):
+                report["_scoped_publication_retry"] = {
+                    "project_id": getattr(exc, "project_id", None),
+                    "changed_tasks": len(getattr(exc, "changed_tasks", ())),
+                }
             with self._lock:
                 self._last_reconcile = report
             return report
@@ -4312,6 +4770,7 @@ class WorkflowRuntime:
                     "error": type(exc).__name__,
                     "snapshot": dict(project_report["snapshot"]),
                 }
+        record_phase("snapshot_publication", publication_started)
         with self._lock:
             self._last_reconcile = report
         return report

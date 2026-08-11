@@ -898,7 +898,9 @@ class OompahMarkdownTracker:
             _write_markdown(path, meta, body)
             if parent:
                 self._add_child_to_parent(parent, identifier)
-            self._invalidate_after_mutation()
+            self._invalidate_after_mutation(
+                task_id=identifier if not parent else None
+            )
             self._commit_and_push(f"Create oompah task {identifier}")
         created = self.fetch_issue_detail(identifier)
         if not created:
@@ -1054,7 +1056,9 @@ class OompahMarkdownTracker:
             _write_markdown(path, meta, body)
             if normalized_parent:
                 self._add_child_to_parent(normalized_parent, identifier)
-            self._invalidate_after_mutation()
+            self._invalidate_after_mutation(
+                task_id=str(meta["id"]) if not normalized_parent else None
+            )
             self._commit_and_push(f"Create oompah task {identifier}")
             record = self._read_record_uncached(identifier)
             if record is None:
@@ -1094,7 +1098,7 @@ class OompahMarkdownTracker:
                     raise TrackerError(
                         f"Cannot move native task {path} to {new_path}: {exc}"
                     ) from exc
-            self._invalidate_after_mutation()
+            self._invalidate_after_mutation(task_id=identifier)
             self._commit_and_push(f"Update oompah task {meta['id']}")
         # Mandatory flush for terminal/In Review transitions (design § 5.3).
         # Called OUTSIDE _write_lock to avoid nested-lock deadlock with
@@ -1146,7 +1150,7 @@ class OompahMarkdownTracker:
             )
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, body)
-            self._invalidate_after_mutation()
+            self._invalidate_after_mutation(task_id=identifier)
             self._commit_and_push(f"Comment on oompah task {meta['id']}")
         return {"author": comment_author, "text": comment_text}
 
@@ -1181,7 +1185,7 @@ class OompahMarkdownTracker:
             meta["blocked_by"] = deps
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, str(rec["body"]))
-            self._invalidate_after_mutation()
+            self._invalidate_after_mutation(task_id=blocked_id)
             self._commit_and_push(f"Add dependency to oompah task {meta['id']}")
 
     def remove_dependency(self, blocked_id: str, blocker_id: str) -> None:
@@ -1199,7 +1203,7 @@ class OompahMarkdownTracker:
             meta["blocked_by"] = deps
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, str(rec["body"]))
-            self._invalidate_after_mutation()
+            self._invalidate_after_mutation(task_id=blocked_id)
             self._commit_and_push(f"Remove dependency from oompah task {meta['id']}")
 
     def add_start_dependency(self, blocked_id: str, blocker_id: str) -> None:
@@ -1220,7 +1224,7 @@ class OompahMarkdownTracker:
             meta["oompah.start_blocked_by"] = deps
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, str(rec["body"]))
-            self._invalidate_after_mutation()
+            self._invalidate_after_mutation(task_id=blocked_id)
             self._commit_and_push(
                 f"Add hard-start dependency to oompah task {meta['id']}"
             )
@@ -1246,7 +1250,7 @@ class OompahMarkdownTracker:
             meta["oompah.start_blocked_by"] = deps
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, str(rec["body"]))
-            self._invalidate_after_mutation()
+            self._invalidate_after_mutation(task_id=blocked_id)
             self._commit_and_push(
                 f"Remove hard-start dependency from oompah task {meta['id']}"
             )
@@ -1274,7 +1278,7 @@ class OompahMarkdownTracker:
             meta["oompah.attachments"] = list(attachments)
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, str(rec["body"]))
-            self._invalidate_after_mutation()
+            self._invalidate_after_mutation(task_id=identifier)
             self._commit_and_push(f"Update attachments for oompah task {meta['id']}")
 
     def get_metadata(self, identifier: str) -> dict[str, object]:
@@ -1363,7 +1367,7 @@ class OompahMarkdownTracker:
             meta = dict(rec["meta"])
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, body)
-            self._invalidate_after_mutation()
+            self._invalidate_after_mutation(task_id=identifier)
             self._commit_and_push(f"Normalize native oompah task {meta['id']}")
 
     def write_and_commit_ledger_file(
@@ -1515,12 +1519,45 @@ class OompahMarkdownTracker:
 
         return _repo_read_generation(self._repo_lock_key)
 
+    def task_authority_changes_between(
+        self,
+        expected_generation: str,
+        current_generation: str,
+    ) -> frozenset[str] | None:
+        """Prove the exact task identities changed across two generations.
+
+        Unscoped journal entries and non-task Git changes fail closed. This
+        lets reconciliation retry only the affected project while retaining
+        already-collected work for every stable project.
+        """
+
+        return self._scoped_task_changes_between(
+            expected_generation,
+            current_generation,
+            required_authority_kind=None,
+        )
+
     def terminal_metadata_changes_between(
         self,
         expected_generation: str,
         current_generation: str,
     ) -> frozenset[str] | None:
-        """Prove that a generation delta contains only terminal metadata writes.
+        """Prove that a generation delta contains only terminal metadata writes."""
+
+        return self._scoped_task_changes_between(
+            expected_generation,
+            current_generation,
+            required_authority_kind="terminal_audit",
+        )
+
+    def _scoped_task_changes_between(
+        self,
+        expected_generation: str,
+        current_generation: str,
+        *,
+        required_authority_kind: str | None,
+    ) -> frozenset[str] | None:
+        """Prove one journalled task-only generation delta.
 
         The shared read epoch identifies every local tracker mutation, while
         the Git diff proves that a concurrent sync did not bring unrelated
@@ -1564,9 +1601,11 @@ class OompahMarkdownTracker:
                 )
             if len(changes) != current_epoch - expected_epoch:
                 return None
-            if any(
-                task_id is None or authority_kind != "terminal_audit"
-                for task_id, authority_kind in changes
+            if any(task_id is None for task_id, _authority_kind in changes):
+                return None
+            if required_authority_kind is not None and any(
+                authority_kind != required_authority_kind
+                for _task_id, authority_kind in changes
             ):
                 return None
             changed_tasks = frozenset(

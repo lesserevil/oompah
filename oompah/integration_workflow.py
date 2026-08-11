@@ -1312,6 +1312,7 @@ class IntegrationWorkflowController:
         landing_requests: Mapping[str, Sequence[LandingRequest]] | None = None,
         liveness_slo_seconds: Mapping[str, int] | None = None,
         authoritative_issues: Mapping[str, Issue] | None = None,
+        authoritative_children: Mapping[str, Sequence[Issue]] | None = None,
     ) -> IntegrationDecisionBatch:
         # The window belongs to integration-owned work.  In addition to live
         # Ready submissions, the durable lane owns exact Done landing
@@ -1361,6 +1362,7 @@ class IntegrationWorkflowController:
                 task.identifier,
                 landing_requests=task_requests,
                 authoritative_issues=authoritative_issues,
+                authoritative_children=authoritative_children,
             )
             terminal_value = facts.fact(FactDomain.TERMINAL_AUDIT).value
             owner_delivery = (
@@ -1387,6 +1389,7 @@ class IntegrationWorkflowController:
                         task.identifier,
                         landing_requests=task_requests,
                         authoritative_issues=authoritative_issues,
+                        authoritative_children=authoritative_children,
                     )
             evaluated.append(
                 IntegrationTaskDecision(
