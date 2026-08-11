@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T03:11:11.351608Z'
-updated_at: '2026-08-11T03:11:26.944185Z'
+updated_at: '2026-08-11T03:12:16.151581Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Triggered by: live OOMPAH-940 rollout diagnostics and the planned ~100-task disp
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 03:12
+---
+Implementation started on branch OOMPAH-1013. I will separate fair bounded health traversal from strict-priority auditor dispatch, add mixed-priority operation-cap/restart/corpus-reset/dispatch-order regressions, run focused checks plus the terminal mutation scan, then push the exact reviewed head.
+---
+<!-- COMMENTS:END -->
