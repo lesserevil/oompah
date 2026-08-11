@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1100
 type: bug
-status: Backlog
+status: Archived
 priority: 2
 title: '[backend:checkpoint_queue] Checkpoint flush FAILED (reason=debounce); push_failures=3'
 parent: null
@@ -11,13 +11,36 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T20:53:32.233542Z'
-updated_at: '2026-08-11T20:53:32.233542Z'
+updated_at: '2026-08-11T22:40:49.726743Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-88308c27f9af
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1100
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5168591ffe1c59cd1e833d40ea162380b4d06ad6a4c0bd186d08543ea4ecb0fa
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Operator consolidation of an auto-filed retry artifact into canonical
+      defects OOMPAH-1127 and OOMPAH-1128 after recovering and publishing the affected
+      Trickle state history.
+    created_at: '2026-08-11T22:40:42.117980+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
