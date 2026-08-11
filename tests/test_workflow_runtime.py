@@ -6208,6 +6208,172 @@ def test_runtime_reactivates_fact_submission_superseded_by_owner_event(tmp_path)
     store.close()
 
 
+def test_advanced_direct_owner_branch_retires_stale_submission_across_restart(
+    tmp_path,
+):
+    path = tmp_path / "jobs.sqlite3"
+    old_head = "a" * 40
+    current_head = "c" * 40
+    task = make_issue("TASK-DIRECT-OWNER-ADVANCED", state="In Progress")
+    task.head_sha = old_head
+    task.assignment_id = "direct-owner-claim"
+    tracker = NativeTracker([task])
+    config = {
+        "version": 1,
+        "implementation_pending_action": "validation_submission",
+        "implementation_pending_payload": {
+            "owner_claim_id": task.assignment_id,
+            "owner_login": "project-owner",
+            "head_sha": old_head,
+            "work_branch": task.work_branch,
+        },
+    }
+
+    def install_sources(binding):
+        binding.collector.sources[FactDomain.CONFIG] = lambda _issue: dict(config)
+        binding.collector.sources[FactDomain.IMPLEMENTATION_AUTHORITY] = (
+            lambda _issue: {
+                "owner_id": "project-owner",
+                "generation": task.assignment_id,
+                "ownership_source": "direct_owner",
+                "lease_expires_at": "2099-01-01T00:00:00+00:00",
+            }
+        )
+
+    store = WorkflowJobStore(str(path))
+    binding, journal = make_binding(tmp_path, tracker, store)
+    install_sources(binding)
+    controller = UniversalTotalityLivenessController(store=store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+    asyncio.run(runtime.start())
+    runtime.reconcile()
+    stale = next(
+        job
+        for job in store.list_jobs(task_id=task.identifier)
+        if job.action == ImplementationAction.VALIDATION_SUBMISSION.value
+    )
+
+    # A stable remote observation has proven the direct-owner branch is now
+    # beyond the retained accepted head. The production config source parks
+    # that metadata and publishes no replacement action or fabricated head.
+    config.clear()
+    config.update(
+        {
+            "version": 1,
+            "accepted_submission_recovery_state": (
+                "accepted_submission_branch_advanced"
+            ),
+            "accepted_submission_head": old_head,
+            "accepted_submission_branch_head": current_head,
+        }
+    )
+    reports = [runtime.reconcile() for _ in range(3)]
+    parked_health = controller.liveness_snapshot()
+    active_stale = [
+        job
+        for job in store.list_jobs(task_id=task.identifier)
+        if job.action == ImplementationAction.VALIDATION_SUBMISSION.value
+        and job.state in ACTIVE_JOB_STATES
+    ]
+
+    assert store.get(stale.job_id).state is WorkflowJobState.SUPERSEDED
+    assert active_stale == []
+    assert all(
+        report["projects"]["project-1"]["implementation"]["jobs_required"]
+        == 0
+        for report in reports
+    )
+    assert parked_health.scan_complete
+    assert parked_health.reconciliation_complete
+    assert parked_health.required_recovery_count == 0
+    assert parked_health.materialized_recovery_count == 0
+    runtime.close()
+    journal.close()
+    store.close()
+
+    # Restart must preserve the retirement. It may not rediscover the old
+    # accepted head merely because process-local controller state disappeared.
+    reopened_store = WorkflowJobStore(str(path))
+    reopened_binding, reopened_journal = make_binding(
+        tmp_path, tracker, reopened_store
+    )
+    install_sources(reopened_binding)
+    reopened_controller = UniversalTotalityLivenessController(
+        store=reopened_store
+    )
+    reopened_runtime = WorkflowRuntime(
+        project_bindings={"project-1": reopened_binding},
+        store=reopened_store,
+        journals={"project-1": reopened_journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=reopened_controller,
+        **accepted_projection_wiring(),
+    )
+    asyncio.run(reopened_runtime.start())
+    reopened_runtime.reconcile()
+    assert not [
+        job
+        for job in reopened_store.list_jobs(task_id=task.identifier)
+        if job.action == ImplementationAction.VALIDATION_SUBMISSION.value
+        and job.state in ACTIVE_JOB_STATES
+    ]
+
+    # Only the explicit exact-head resubmit changes accepted authority. It is
+    # idempotently materialized once and is the sole current liveness proof.
+    task.head_sha = current_head
+    task.integration = replace(task.integration, head_sha=current_head)
+    config.clear()
+    config.update(
+        {
+            "version": 1,
+            "accepted_submission_recovery_state": (
+                "accepted_submission_exact_direct_owner"
+            ),
+            "accepted_submission_head": current_head,
+            "accepted_submission_branch_head": current_head,
+            "implementation_pending_action": "validation_submission",
+            "implementation_pending_payload": {
+                "owner_claim_id": task.assignment_id,
+                "owner_login": "project-owner",
+                "head_sha": current_head,
+                "work_branch": task.work_branch,
+            },
+        }
+    )
+    resubmits = [reopened_runtime.reconcile() for _ in range(3)]
+    resubmit_health = reopened_controller.liveness_snapshot()
+    current_jobs = [
+        job
+        for job in reopened_store.list_jobs(task_id=task.identifier)
+        if job.action == ImplementationAction.VALIDATION_SUBMISSION.value
+        and job.state in ACTIVE_JOB_STATES
+    ]
+
+    assert len(current_jobs) == 1
+    assert current_jobs[0].expected_head_sha == current_head
+    assert current_jobs[0].payload["owner_claim_id"] == task.assignment_id
+    assert sum(
+        report["projects"]["project-1"]["implementation"]["jobs_created"]
+        for report in resubmits
+    ) == 1
+    assert resubmit_health.scan_complete
+    assert resubmit_health.reconciliation_complete
+    assert resubmit_health.required_recovery_count == 1
+    assert resubmit_health.materialized_recovery_count == 1
+    reopened_runtime.close()
+    reopened_journal.close()
+    reopened_store.close()
+
+
 def test_runtime_liveness_expands_owner_window_for_101_review_tasks(tmp_path):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     tasks = [

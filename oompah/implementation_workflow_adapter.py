@@ -1453,6 +1453,15 @@ class ProductionImplementationWorkflowBackend:
         actor = "oompah"
         authority = TransitionAuthority.ORCHESTRATOR
         evidence_generation = context.job.generation
+        if action is ImplementationAction.VALIDATION_SUBMISSION:
+            # A restart-recovered accepted submission can still be owned by a
+            # live direct-owner claim.  The tracker assignment is that claim,
+            # not the fact-derived workflow job generation.  Carry the exact
+            # captured claim through the transition fence; the finalizer uses
+            # the same identity and cannot retire an ABA replacement.
+            evidence_generation = (
+                _text(payload.get("owner_claim_id")) or evidence_generation
+            )
         if action is ImplementationAction.DIRECT_OWNER_CLAIM:
             actor = _text(payload.get("owner_id"))
             evidence_generation = _text(payload.get("claim_id"))

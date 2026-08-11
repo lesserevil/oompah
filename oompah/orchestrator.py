@@ -14498,6 +14498,75 @@ class Orchestrator:
             None,
         )
 
+    def _accepted_submission_recovery_authority(
+        self,
+        issue: Issue,
+        *,
+        task_branch: str,
+        accepted_head: str,
+    ) -> tuple[bool, str, str, OwnerClaim | None]:
+        """Fence restart recovery against an accepted-branch advance.
+
+        Accepted submission metadata is normally the crash-safe source for a
+        missing validation event. It becomes historical, however, after the
+        mutable branch advances: replaying the old head can retire a repair
+        claim and strand liveness in a generation-mismatch loop. Observe the
+        remote ref through the project store's stable two-read contract and
+        prove that an exact direct-owner claim, when present, survived the
+        observation. Any unavailable or racing evidence parks recovery; only
+        an explicit current-head submit can create replacement authority.
+        """
+
+        project_id = str(issue.project_id or "").strip()
+        branch = str(task_branch or "").strip()
+        expected = str(accepted_head or "").strip().lower()
+        claim = self._owner_claim_for_issue(issue.id, issue.project_id)
+        if claim is not None and claim.retirement_pending:
+            return False, "accepted_submission_claim_retiring", "", claim
+        if not project_id or not branch or not expected:
+            return False, "accepted_submission_branch_unavailable", "", claim
+        store = getattr(self, "project_store", None)
+        remote_head = getattr(store, "remote_branch_head", None)
+        if not callable(remote_head):
+            return False, "accepted_submission_branch_unavailable", "", claim
+        try:
+            observed = str(remote_head(project_id, branch) or "").strip().lower()
+        except Exception as exc:  # noqa: BLE001 - remote evidence must fail closed
+            logger.info(
+                "Parked accepted-submission recovery for %s: remote head "
+                "authority is unavailable (%s)",
+                issue.identifier,
+                type(exc).__name__,
+            )
+            return False, "accepted_submission_branch_unavailable", "", claim
+        if not observed:
+            return False, "accepted_submission_branch_unavailable", "", claim
+        if observed != expected:
+            return False, "accepted_submission_branch_advanced", observed, claim
+        current_claim = self._owner_claim_for_issue(issue.id, issue.project_id)
+        if (
+            (claim is None) != (current_claim is None)
+            or (
+                claim is not None
+                and current_claim is not None
+                and (
+                    current_claim.retirement_pending
+                    or current_claim.claim_id != claim.claim_id
+                )
+            )
+        ):
+            return False, "accepted_submission_claim_changed", observed, current_claim
+        return (
+            True,
+            (
+                "accepted_submission_exact_direct_owner"
+                if current_claim is not None
+                else "accepted_submission_exact"
+            ),
+            observed,
+            current_claim,
+        )
+
     def _workflow_shadow_sources(self, issue: Issue) -> dict[FactDomain, Any]:
         """Build read-only fact adapters over the current legacy runtime."""
 
@@ -14876,6 +14945,7 @@ class Orchestrator:
                     self._duplicate_preflight_limit() > 0
                 ),
             }
+            accepted_submission_recovery_parked = False
             integration = getattr(current, "integration", None)
             integration_state = str(
                 getattr(integration, "state", "") or ""
@@ -14894,40 +14964,70 @@ class Orchestrator:
                 # If the process dies after persisting it but before publishing
                 # the imperative validation event, fact reconciliation must
                 # finish that handoff rather than launch another implementer.
-                running = self._workflow_shadow_running_entry(
-                    current, auditor=False
+                task_branch = str(
+                    getattr(integration, "task_branch", None)
+                    or current.work_branch
+                    or current.branch_name
+                    or ""
                 )
-                value["implementation_pending_action"] = (
-                    "validation_submission"
+                (
+                    recovery_authorized,
+                    recovery_state,
+                    observed_branch_head,
+                    recovery_claim,
+                ) = self._accepted_submission_recovery_authority(
+                    current,
+                    task_branch=task_branch,
+                    accepted_head=integration_head,
                 )
-                value["implementation_pending_payload"] = {
-                    "owner_id": str(getattr(running, "run_id", None) or ""),
-                    "run_id": str(getattr(running, "run_id", None) or ""),
-                    "prior_generation": str(
-                        getattr(running, "authority_generation", None) or ""
-                    ),
-                    "assignment_id": str(
-                        getattr(current, "assignment_id", None) or ""
-                    ),
-                    "work_branch": str(
-                        getattr(integration, "task_branch", None)
-                        or current.work_branch
-                        or current.branch_name
-                        or ""
-                    ),
-                    "head_sha": integration_head,
-                    "base_branch": str(
-                        getattr(integration, "base_branch", None) or ""
-                    ),
-                    "base_sha": str(
-                        getattr(integration, "base_sha", None) or ""
-                    ),
-                    "expected_status": current.state,
-                    "reason": "recover accepted validation submission",
-                }
+                value["accepted_submission_recovery_state"] = recovery_state
+                value["accepted_submission_head"] = integration_head
+                accepted_submission_recovery_parked = not recovery_authorized
+                if observed_branch_head:
+                    value["accepted_submission_branch_head"] = (
+                        observed_branch_head
+                    )
+                if recovery_authorized:
+                    running = self._workflow_shadow_running_entry(
+                        current, auditor=False
+                    )
+                    value["implementation_pending_action"] = (
+                        "validation_submission"
+                    )
+                    value["implementation_pending_payload"] = {
+                        "owner_id": str(
+                            getattr(running, "run_id", None) or ""
+                        ),
+                        "run_id": str(
+                            getattr(running, "run_id", None) or ""
+                        ),
+                        "prior_generation": str(
+                            getattr(running, "authority_generation", None) or ""
+                        ),
+                        "owner_claim_id": str(
+                            getattr(recovery_claim, "claim_id", None) or ""
+                        ),
+                        "owner_login": str(
+                            getattr(recovery_claim, "owner_login", None) or ""
+                        ),
+                        "assignment_id": str(
+                            getattr(current, "assignment_id", None) or ""
+                        ),
+                        "work_branch": task_branch,
+                        "head_sha": integration_head,
+                        "base_branch": str(
+                            getattr(integration, "base_branch", None) or ""
+                        ),
+                        "base_sha": str(
+                            getattr(integration, "base_sha", None) or ""
+                        ),
+                        "expected_status": current.state,
+                        "reason": "recover accepted validation submission",
+                    }
             if (
                 canonicalize_status(current.state) == IN_PROGRESS
                 and "implementation_pending_action" not in value
+                and not accepted_submission_recovery_parked
             ):
                 running = self._workflow_shadow_running_entry(
                     current, auditor=False
@@ -15038,6 +15138,7 @@ class Orchestrator:
                     if (
                         requested_status is not None
                         and "implementation_pending_action" not in value
+                        and not accepted_submission_recovery_parked
                     ):
                         value["implementation_pending_action"] = "worker_exit"
                         value["implementation_pending_payload"] = {
@@ -15051,6 +15152,7 @@ class Orchestrator:
                         }
                     elif (
                         "implementation_pending_action" not in value
+                        and not accepted_submission_recovery_parked
                         and self._duplicate_preflight_limit() > 0
                         and assessment.state is not ScreeningState.CHECKED
                         and assessment.state is not ScreeningState.RUNNING

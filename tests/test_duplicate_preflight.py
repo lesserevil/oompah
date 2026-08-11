@@ -31,9 +31,16 @@ from oompah.duplicate_screening import (
 )
 from oompah.events import EventBus, EventType
 from oompah.integration import IntegrationRecord
-from oompah.models import BlockerRef, Issue, OrchestratorState, RunningEntry
+from oompah.models import (
+    BlockerRef,
+    Issue,
+    OrchestratorState,
+    OwnerClaim,
+    RunningEntry,
+)
 from oompah.orchestrator import Orchestrator, _acp_text_activity_detail
 from oompah import orchestrator as orchestrator_module
+from oompah.projects import ProjectError
 from oompah.statuses import (
     DONE,
     DUPLICATE_CANDIDATE,
@@ -172,6 +179,7 @@ def _orch(tracker: _Tracker, *, slots: int = 3, preflight_limit: int = 1):
         duplicate_preflight_max_agents=preflight_limit,
     )
     orch.state = OrchestratorState(max_concurrent_agents=slots)
+    orch._owner_claims_lock = threading.RLock()
     orch._service_instance_id = "scheduler-1"
     orch._epic_maintenance_project_locks = {}
     orch.tracker = tracker
@@ -210,6 +218,7 @@ def _orch(tracker: _Tracker, *, slots: int = 3, preflight_limit: int = 1):
     orch.project_store = MagicMock()
     orch.project_store.get.return_value = None
     orch.project_store.list_all.return_value = []
+    orch.project_store.remote_branch_head.return_value = "a" * 40
     return orch
 
 
@@ -227,6 +236,26 @@ def _entry(issue: Issue, claim_id: str, fingerprint: str) -> RunningEntry:
         duplicate_preflight_claim_id=claim_id,
         duplicate_preflight_fingerprint=fingerprint,
     )
+
+
+def _install_owner_claim(
+    orch: Orchestrator,
+    issue: Issue,
+    *,
+    claim_id: str = "direct-owner-generation",
+) -> OwnerClaim:
+    claim = OwnerClaim(
+        claim_id=claim_id,
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="project-owner",
+        claimed_at=1.0,
+        expires_at=datetime.now(timezone.utc).timestamp() + 3600,
+    )
+    orch.state.owner_claims[
+        orch._owner_claim_key(issue.project_id, issue.id)
+    ] = claim
+    return claim
 
 
 def test_concurrent_claim_attempts_have_exactly_one_winner():
@@ -553,6 +582,136 @@ def test_accepted_submission_precedes_duplicate_recovery_after_restart():
 
     assert config["implementation_pending_action"] == "validation_submission"
     assert config["implementation_pending_payload"]["head_sha"] == "a" * 40
+
+
+def test_direct_owner_branch_advance_parks_stale_submission_recovery():
+    issue = _issue(state="In Progress")
+    issue.head_sha = "a" * 40
+    issue.integration = SimpleNamespace(
+        state="ready",
+        head_sha="a" * 40,
+        task_branch="TASK-1",
+        base_branch="main",
+        base_sha="b" * 40,
+    )
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    _install_owner_claim(orch, issue)
+    orch.project_store.remote_branch_head.return_value = "c" * 40
+    # Stale duplicate and focus evidence must not replace the parked
+    # submission with another fact-derived implementation action.
+    issue.labels = ["focus-complete:docs", "needs:feature"]
+    tracker.add_comment(
+        issue.identifier,
+        "Focus handoff: docs\nRecommended next focus: feature",
+        author="oompah",
+    )
+    orch._eligible_for_duplicate_investigation = lambda *_args, **_kwargs: True
+
+    configs = [
+        orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+        for _ in range(3)
+    ]
+
+    assert all(
+        config["accepted_submission_recovery_state"]
+        == "accepted_submission_branch_advanced"
+        for config in configs
+    )
+    assert all(
+        config["accepted_submission_head"] == "a" * 40
+        and config["accepted_submission_branch_head"] == "c" * 40
+        for config in configs
+    )
+    assert all("implementation_pending_action" not in config for config in configs)
+    orch.state.owner_claims.clear()
+    after_claim_expiry = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](
+        issue
+    )
+    assert after_claim_expiry["accepted_submission_recovery_state"] == (
+        "accepted_submission_branch_advanced"
+    )
+    assert "implementation_pending_action" not in after_claim_expiry
+    assert orch.project_store.remote_branch_head.call_count == 4
+
+
+def test_direct_owner_exact_submission_recovery_carries_claim_identity():
+    issue = _issue(state="In Progress")
+    issue.head_sha = "a" * 40
+    issue.integration = SimpleNamespace(
+        state="ready",
+        head_sha="a" * 40,
+        task_branch="TASK-1",
+        base_branch="main",
+        base_sha="b" * 40,
+    )
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    claim = _install_owner_claim(orch, issue)
+    orch.project_store.remote_branch_head.return_value = "a" * 40
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert config["accepted_submission_recovery_state"] == (
+        "accepted_submission_exact_direct_owner"
+    )
+    assert config["implementation_pending_action"] == "validation_submission"
+    payload = config["implementation_pending_payload"]
+    assert payload["owner_claim_id"] == claim.claim_id
+    assert payload["owner_login"] == claim.owner_login
+    assert payload["head_sha"] == "a" * 40
+
+
+def test_direct_owner_submission_recovery_fails_closed_on_remote_or_claim_race():
+    issue = _issue(state="In Progress")
+    issue.head_sha = "a" * 40
+    issue.integration = SimpleNamespace(
+        state="ready",
+        head_sha="a" * 40,
+        task_branch="TASK-1",
+        base_branch="main",
+        base_sha="b" * 40,
+    )
+    tracker = _Tracker([issue])
+    unavailable = _orch(tracker)
+    _install_owner_claim(unavailable, issue)
+    unavailable.project_store.remote_branch_head.side_effect = ProjectError(
+        "remote moved while being observed"
+    )
+
+    unavailable_config = unavailable._workflow_shadow_sources(issue)[
+        FactDomain.CONFIG
+    ](issue)
+
+    assert unavailable_config["accepted_submission_recovery_state"] == (
+        "accepted_submission_branch_unavailable"
+    )
+    assert "implementation_pending_action" not in unavailable_config
+
+    racing = _orch(tracker)
+    original = _install_owner_claim(racing, issue, claim_id="claim-before-read")
+
+    def replace_claim(_project_id, _branch):
+        replacement = OwnerClaim(
+            claim_id="claim-after-read",
+            issue_id=issue.id,
+            project_id=issue.project_id,
+            owner_login="replacement-owner",
+            claimed_at=original.claimed_at + 1,
+            expires_at=original.expires_at,
+        )
+        racing.state.owner_claims[
+            racing._owner_claim_key(issue.project_id, issue.id)
+        ] = replacement
+        return "a" * 40
+
+    racing.project_store.remote_branch_head.side_effect = replace_claim
+    racing_config = racing._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert racing_config["accepted_submission_recovery_state"] == (
+        "accepted_submission_claim_changed"
+    )
+    assert "implementation_pending_action" not in racing_config
 
 
 def test_workflow_source_recovers_trusted_focus_handoff_after_restart():
@@ -1813,7 +1972,7 @@ def test_owner_resolved_verdict_resets_retry_count():
     )
     tracker.set_metadata_field(issue.identifier, METADATA_KEY, inconclusive.to_dict())
     issue.duplicate_screening = inconclusive.to_dict()
-    
+
     # Owner resolves: no_duplicate
     from oompah.duplicate_screening import owner_resolution_record
     resolved = owner_resolution_record(
@@ -1822,7 +1981,7 @@ def test_owner_resolved_verdict_resets_retry_count():
         verdict=ScreeningVerdict.NO_DUPLICATE,
         reason="Reviewed active tasks; no equivalent exists.",
     )
-    
+
     assert resolved.retry_count == 0
     assert resolved.is_owner_resolved is True
     assert resolved.owner_login == "owner@example.com"
@@ -1832,10 +1991,10 @@ def test_owner_resolved_verdict_resets_retry_count():
 def test_owner_resolution_cannot_use_inconclusive_verdict():
     """Owner resolutions reject inconclusive verdicts."""
     from oompah.duplicate_screening import owner_resolution_record
-    
+
     issue = _issue()
     record = new_claim_record(issue, owner="scheduler")
-    
+
     with pytest.raises(ValueError, match="conclusive"):
         owner_resolution_record(
             record,
@@ -1847,12 +2006,12 @@ def test_owner_resolution_cannot_use_inconclusive_verdict():
 def test_owner_resolved_task_skipped_from_selection():
     """Owner-resolved tasks do not re-enter duplicate screening."""
     from oompah.duplicate_screening import owner_resolution_record
-    
+
     issue = _issue()
     tracker = _Tracker([issue])
     orch = _orch(tracker, slots=4, preflight_limit=4)
     orch._should_dispatch = lambda issue, duplicate_preflight=False: True
-    
+
     # Owner-resolved task
     record = new_claim_record(issue, owner="scheduler")
     resolved = owner_resolution_record(
@@ -1862,13 +2021,13 @@ def test_owner_resolved_task_skipped_from_selection():
         reason="No active duplicate found.",
     )
     tracker.set_metadata_field(issue.identifier, METADATA_KEY, resolved.to_dict())
-    
+
     candidate = tracker.fetch_issue_detail(issue.identifier)
     assert candidate is not None
     candidate.project_id = "project-1"
-    
+
     selected = orch._select_duplicate_preflight_candidates([candidate])
-    
+
     assert selected == []
     metrics = orch._last_duplicate_preflight_metrics
     assert metrics["skipped_checked"] == 1
@@ -1879,7 +2038,7 @@ def test_owner_resolution_applied_via_orchestrator_method():
     issue = _issue()
     tracker = _Tracker([issue])
     orch = _orch(tracker)
-    
+
     # Seed an inconclusive record
     claim = new_claim_record(issue, owner="scheduler", retry_count=2)
     inconclusive = inconclusive_record(
@@ -1888,7 +2047,7 @@ def test_owner_resolution_applied_via_orchestrator_method():
         retry_after=datetime.now(timezone.utc),
     )
     tracker.set_metadata_field(issue.identifier, METADATA_KEY, inconclusive.to_dict())
-    
+
     # Owner resolves through orchestrator
     result = orch._owner_resolve_duplicate_screening(
         issue,
@@ -1896,7 +2055,7 @@ def test_owner_resolution_applied_via_orchestrator_method():
         verdict=ScreeningVerdict.NO_DUPLICATE,
         reason="Confirmed: no active equivalent.",
     )
-    
+
     assert result is True
     resolved = tracker.get_metadata(issue.identifier)[METADATA_KEY]
     assert resolved["owner_resolved_at"] is not None
@@ -2229,11 +2388,11 @@ def test_concurrent_owner_resolution_and_late_claim_completion():
     issue = _issue()
     tracker = _Tracker([issue])
     orch = _orch(tracker)
-    
+
     # First: claim is made
     claim = orch._claim_duplicate_preflight(issue)
     assert claim is not None
-    
+
     # Owner resolves while agent is running
     orch._owner_resolve_duplicate_screening(
         issue,
@@ -2241,11 +2400,11 @@ def test_concurrent_owner_resolution_and_late_claim_completion():
         verdict=ScreeningVerdict.NO_DUPLICATE,
         reason="No duplicate.",
     )
-    
+
     # Now agent finishes (late), tries to record inconclusive
     entry = _entry(issue, claim.claim_id or "", claim.task_fingerprint)
     result = orch._finish_duplicate_preflight_sync(entry, "abnormal", "test error")
-    
+
     # Late completion must not overwrite the owner resolution
     stored = tracker.get_metadata(issue.identifier)[METADATA_KEY]
     assert stored["owner_login"] == "owner@example.com"
@@ -2260,14 +2419,14 @@ def test_truncated_response_with_leading_verdict_is_parsed():
     orch = _orch(tracker)
     claim = orch._claim_duplicate_preflight(issue)
     assert claim is not None
-    
+
     # Simulate agent output truncated after the verdict line
     truncated_response = (
         "**Duplicate preflight verdict: no_duplicate**\n"
         "**Matches: none**\n"
         "[TRUNCATED: Response cut off due to token limit..."
     )
-    
+
     entry = _entry(issue, claim.claim_id or "", claim.task_fingerprint)
     entry.activity_log.append(
         AgentActivity(
@@ -2278,13 +2437,13 @@ def test_truncated_response_with_leading_verdict_is_parsed():
             timestamp=datetime.now(timezone.utc).timestamp(),
         )
     )
-    
+
     result = orch._finish_duplicate_preflight_sync(
         entry,
         "normal",
         None,
     )
-    
+
     refreshed = tracker.fetch_issue_detail(issue.identifier)
     assert result["outcome"] == "checked"
     assert refreshed.state == OPEN
@@ -2298,13 +2457,13 @@ def test_prose_verdict_without_structured_marker_is_inconclusive():
     orch = _orch(tracker)
     claim = orch._claim_duplicate_preflight(issue)
     assert claim is not None
-    
+
     # Agent only provides prose (common when truncated before conclusion)
     prose_only = (
         "After reviewing all active candidates, I found no equivalent work. "
         "The requirements are unique and not addressed elsewhere."
     )
-    
+
     entry = _entry(issue, claim.claim_id or "", claim.task_fingerprint)
     entry.activity_log.append(
         AgentActivity(
@@ -2315,13 +2474,13 @@ def test_prose_verdict_without_structured_marker_is_inconclusive():
             timestamp=datetime.now(timezone.utc).timestamp(),
         )
     )
-    
+
     result = orch._finish_duplicate_preflight_sync(
         entry,
         "normal",
         None,
     )
-    
+
     # Should retry (inconclusive)
     assert result["outcome"] == "retry"
     assert result["retry_count"] == 1
@@ -2408,7 +2567,7 @@ def test_non_owner_cannot_forge_duplicate_verdict_via_comment():
         "Matches: OTHER-123",
         author="random-user",
     )
-    
+
     # The verdict parsing should NOT accept this without a current claim
     comments = tracker.fetch_comments(issue.identifier)
     verdict, matches, evidence = Orchestrator._parse_duplicate_preflight_verdict(
@@ -2416,7 +2575,7 @@ def test_non_owner_cannot_forge_duplicate_verdict_via_comment():
         claimed_at=None,  # No active claim
         activity_log=None,
     )
-    
+
     # Comments are never a result channel, even when they contain the marker.
     assert verdict is None
     assert matches == []
@@ -2426,7 +2585,7 @@ def test_verdict_from_before_claim_is_rejected():
     """Verdicts created before the claim started are ignored."""
     issue = _issue()
     tracker = _Tracker([issue])
-    
+
     # Pre-claim comment with verdict
     tracker.add_comment(
         issue.identifier,
@@ -2434,12 +2593,12 @@ def test_verdict_from_before_claim_is_rejected():
         "Matches: none",
         author="old-agent",
     )
-    
+
     # Now claim is created
     orch = _orch(tracker)
     claim = orch._claim_duplicate_preflight(issue)
     assert claim is not None
-    
+
     # The old comment should be ignored because it was created before claimed_at
     comments = tracker.fetch_comments(issue.identifier)
     verdict, matches, evidence = Orchestrator._parse_duplicate_preflight_verdict(
@@ -2447,7 +2606,7 @@ def test_verdict_from_before_claim_is_rejected():
         claimed_at=claim.claimed_at,
         activity_log=None,
     )
-    
+
     # No verdict found (old comment ignored)
     assert verdict is None
 
