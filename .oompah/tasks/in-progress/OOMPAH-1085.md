@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T13:45:48.337761Z'
+updated_at: '2026-08-11T14:57:41.042082Z'
 work_branch: OOMPAH-1085
 target_branch: null
 review_url: null
@@ -187,5 +187,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 34s
 - Log: OOMPAH-1085__20260811T134228Z.jsonl
+---
+author: oompah
+created: 2026-08-11 14:57
+---
+Rebased the repaired dedicated audit-successor implementation onto current origin/main fe9599111d478b8221a2949c878fecb61d558760 and pushed replacement exact head 7ca1e67353d25254370466b870728463dbf6f681. The repair atomically retires completed/absent exact running entries while retaining incomplete or contradictory evidence, marshals provider-thread callbacks onto the scheduler loop, snapshots shared maps safely, makes repeated worker-exit events idempotent, and keeps the event-post helper thin. Post-rebase verification: 178 focused event-loop/terminal-audit observability tests passed; terminal mutation scan 21/21; git diff check clean. Earlier pre-rebase adjacent evidence was 1,140 tests plus 261 focused and an independent repair review ACCEPT. Awaiting a fresh independent exact-head review before submission.
 ---
 <!-- COMMENTS:END -->
