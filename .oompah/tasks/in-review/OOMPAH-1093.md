@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1093
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 2
 title: '[backend:orchestrator] Orchestrator shutdown attempt failed; retaining process
   and retrying'
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:04:30.156611Z'
-updated_at: '2026-08-11T16:53:04.591132Z'
+updated_at: '2026-08-11T16:53:11.862421Z'
 work_branch: OOMPAH-1093
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/829
