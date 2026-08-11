@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:22:55.237924Z'
-updated_at: '2026-08-11T15:50:39.083877Z'
+updated_at: '2026-08-11T15:53:54.579605Z'
 work_branch: OOMPAH-1089
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/824
@@ -51,6 +51,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1089
     digest: 0c6a9b4e3b82298ec68113d40ce0c1335e5e7b05c1d4cec01bf5c52bb99e7472
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1089","audit-22603e70f558","attempt-832db0c7fd32"]': '2026-08-11T15:53:44.665717+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1089
+    target_state: Done
+    evidence_fingerprint: 0c6a9b4e3b82298ec68113d40ce0c1335e5e7b05c1d4cec01bf5c52bb99e7472
+    workflow_revision: null
+    selected_ref: ae985020931e3c17f1e904921b34f65207bd85af
+    selected_sha: ae985020931e3c17f1e904921b34f65207bd85af
+    landing_revision: null
+    audit_ids:
+    - audit-22603e70f558
+    kind: result
+    applied: true
+    retired_at: '2026-08-11T15:53:44.665733+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1089
+    audit_id: audit-22603e70f558
+    attempt_id: attempt-832db0c7fd32
+    target_state: Done
+    evidence_fingerprint: 0c6a9b4e3b82298ec68113d40ce0c1335e5e7b05c1d4cec01bf5c52bb99e7472
+    status: In Validation
+    audit_ids:
+    - audit-22603e70f558
+    kind: result
+    applied: true
+    created_at: '2026-08-11T15:53:44.665744+00:00'
+    applied_at: '2026-08-11T15:53:53.044888+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -58,7 +88,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1089
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -67,7 +97,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-832db0c7fd32
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -79,6 +109,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1089
       selected_ref: ae985020931e3c17f1e904921b34f65207bd85af
       selected_sha: ae985020931e3c17f1e904921b34f65207bd85af
+      verdict: pass
+      completed_at: '2026-08-11T15:53:44.665524+00:00'
+      ended_at: '2026-08-11T15:53:44.665524+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -89,7 +122,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-11T15:35:15.992180+00:00'
     selected_ref: ae985020931e3c17f1e904921b34f65207bd85af
     selected_sha: ae985020931e3c17f1e904921b34f65207bd85af
-    updated_at: '2026-08-11T15:50:24.200750+00:00'
+    updated_at: '2026-08-11T15:53:44.665524+00:00'
   - version: 1
     audit_id: audit-a1299b687c8f
     project_id: proj-14849f1b
@@ -111,6 +144,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-22603e70f558
     selected_ref: ae985020931e3c17f1e904921b34f65207bd85af
     selected_sha: ae985020931e3c17f1e904921b34f65207bd85af
+    updated_at: '2026-08-11T15:53:44.665524+00:00'
+    eligible_at: '2026-08-11T15:53:44.665524+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-832db0c7fd32
@@ -196,5 +231,28 @@ author: oompah
 created: 2026-08-11 15:50
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 15:53
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- test_coverage.identity_enrichment: test_legacy_review_identity_is_enriched_before_merge
+- test_coverage.base_advance: test_base_only_change_requeues_exact_generation_for_regating, test_base_only_reconciliation_resumes_after_metadata_checkpoint
+- test_coverage.head_advance: test_head_change_supersedes_queued_merge_without_forge_write
+- test_coverage.merge_synchronize: test_synchronize_between_merge_revalidation_and_effect_blocks_merge
+- test_coverage.restart_scenarios: test_head_reconciliation_resumes_after_metadata_checkpoint_restart, test_review_successor_regeneration_survives_restart_and_coalesces
+- test_coverage.webhook_poll_races: test_review_successor_regeneration_survives_restart_and_coalesces
+- test_coverage.fail_closed_invalid: test_invalid_merge_races_exhaust_without_forge_write (fork, source, target, conflict, missing), test_head_reconciliation_fails_closed_on_identity_drift
+- quality_gate: make test passed 181 seconds on exact head ae985020931e3c17f1e904921b34f65207bd85af
+- verification: 392 focused tests, mutation scan 21/21, diff check clean, production Ruff/py_compile, independently ACCEPTED exact-head review, rebased with patch equivalence proven
+- acceptance_criteria[0]: Normal review evidence changes cannot strand In Review tasks in retry.exhausted
+- acceptance_criteria[1]: Current exact authority is regenerated automatically
+- acceptance_criteria[2]: Focused review/workflow/liveness tests passing
+- acceptance_criteria[3]: Terminal mutation scan passing
+- acceptance_criteria[4]: Protected CI green
 ---
 <!-- COMMENTS:END -->
