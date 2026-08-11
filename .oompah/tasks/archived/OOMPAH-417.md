@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-23T19:34:44.997439Z'
-updated_at: '2026-07-31T06:01:30.457992Z'
+updated_at: '2026-08-11T07:36:42.763618Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -58,12 +58,13 @@ oompah.terminal_audit:
       source: auto_archive
     previous_state: Merged
     created_at: '2026-07-30T21:55:16.148863+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-c82d10975d68
     project_id: proj-14849f1b
     task_id: OOMPAH-417
     target_state: Archived
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -88,7 +89,8 @@ oompah.terminal_audit:
       source: api
     previous_state: Needs Human
     created_at: '2026-07-31T06:00:23.935672+00:00'
-    updated_at: '2026-07-31T06:01:17.955642+00:00'
+    updated_at: '2026-08-11T07:36:41.140031+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-06574e7cafd9

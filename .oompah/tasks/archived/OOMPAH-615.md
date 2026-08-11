@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:22:18.934506Z'
-updated_at: '2026-07-31T06:07:31.257515Z'
+updated_at: '2026-08-11T07:36:52.308698Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -127,7 +127,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-615
     target_state: Archived
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -152,7 +152,8 @@ oompah.terminal_audit:
       source: api
     previous_state: Ready to Integrate
     created_at: '2026-07-31T06:06:16.514388+00:00'
-    updated_at: '2026-07-31T06:06:36.642106+00:00'
+    updated_at: '2026-08-11T07:36:50.743434+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-3e11c1a1d215

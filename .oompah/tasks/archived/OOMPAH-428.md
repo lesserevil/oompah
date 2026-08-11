@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:34:08.303204Z'
-updated_at: '2026-07-31T06:01:41.088112Z'
+updated_at: '2026-08-11T07:36:46.564246Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -107,12 +107,13 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-07-30T22:31:38.986991+00:00'
     updated_at: '2026-07-30T22:36:12.130565+00:00'
+    source_generation: 1
   - version: 1
     audit_id: audit-d12b80ae98f4
     project_id: proj-14849f1b
     task_id: OOMPAH-428
     target_state: Archived
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -137,7 +138,8 @@ oompah.terminal_audit:
       source: api
     previous_state: Needs Human
     created_at: '2026-07-31T06:00:29.719227+00:00'
-    updated_at: '2026-07-31T06:00:37.048713+00:00'
+    updated_at: '2026-08-11T07:36:44.987028+00:00'
+    source_generation: 1
   attempt_history:
   - version: 1
     attempt_id: attempt-e6b946c713cc
