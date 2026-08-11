@@ -2880,6 +2880,71 @@ def test_open_webhook_revalidates_task_after_unlocked_gate(harness):
     assert task.integration.head_sha == replacement_head
 
 
+def test_open_webhook_revalidates_status_after_unlocked_gate(harness):
+    """A lifecycle transition wins without partial review publication."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    accepted_head = "6" * 40
+    task = _issue("TASK-OPEN-WEBHOOK-STATUS-RACE", branch="feature/status-race")
+    task.target_branch = project.default_branch
+    task.integration = IntegrationRecord(
+        state="ready",
+        task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        head_sha=accepted_head,
+        submitted_at="2026-08-11T09:01:00+00:00",
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    observed = copy.deepcopy(task)
+    provider.find_pr_for_branch.return_value = _review(
+        task.work_branch or "",
+        state="open",
+        review_id="721",
+        head_sha=accepted_head,
+    )
+    gate_started = threading.Event()
+    release_gate = threading.Event()
+
+    def blocked_gate(*_args, **_kwargs) -> bool:
+        gate_started.set()
+        assert release_gate.wait(timeout=5)
+        return True
+
+    gate.side_effect = blocked_gate
+    outcome: list[tuple[bool, str]] = []
+    worker = threading.Thread(
+        target=lambda: outcome.append(
+            orch.adopt_open_review_from_webhook(
+                observed_issue=observed,
+                project=project,
+                tracker=tracker,
+                provider=provider,
+                repo_slug="org/repo",
+                review_id="721",
+                review_url="https://github.com/org/repo/pull/721",
+                source_branch=task.work_branch or "",
+                target_branch=project.default_branch,
+                review_head=accepted_head,
+            )
+        )
+    )
+
+    worker.start()
+    assert gate_started.wait(timeout=2)
+    with orch.issue_transition_lock(task.id).sync():
+        task.state = OPEN
+    release_gate.set()
+    worker.join(timeout=5)
+
+    assert not worker.is_alive()
+    assert outcome == [
+        (False, "task lifecycle state changed while branch quality gate ran")
+    ]
+    tracker.set_metadata_field.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    assert task.state == OPEN
+
+
 def test_only_authoritative_reopen_webhook_clears_close_fence(harness):
     """A late opened event loses; an explicit reopened event may re-adopt."""
 

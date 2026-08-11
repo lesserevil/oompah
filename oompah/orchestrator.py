@@ -10321,6 +10321,7 @@ class Orchestrator:
         if current is None or review is None:
             return False, reason
         gated_task_revision = self._standalone_delivery_evidence_revision(current)
+        gated_task_status = canonicalize_status(current.state)
         gated_review_observation = self._standalone_review_observation(review)
 
         # The exact-head gate may run for minutes. Never retain the shared task
@@ -10358,6 +10359,11 @@ class Orchestrator:
             )
             if gated_current is None or gated_review is None:
                 return False, reason
+            if canonicalize_status(gated_current.state) != gated_task_status:
+                return (
+                    False,
+                    "task lifecycle state changed while branch quality gate ran",
+                )
             if (
                 self._standalone_review_observation(gated_review)
                 != gated_review_observation
