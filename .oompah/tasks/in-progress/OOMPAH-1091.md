@@ -12,7 +12,7 @@ labels:
 - workflow-liveness
 assignee: null
 created_at: '2026-08-11T15:35:51.682286Z'
-updated_at: '2026-08-11T16:21:17.226935Z'
+updated_at: '2026-08-11T16:46:49.792838Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,6 +25,15 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: stale-accepted-validation-recovery-after-branch-advance-v1
   request_fingerprint: 06d8f22fc277fa73860a8bc4eb5f0a9186117394a1000d66baab926583e755a8
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1091
+  head_sha: 66f40f54566a64b55957ce0a29846289992e2f3f
+  submitted_at: '2026-08-11T16:46:45.273666+00:00'
+  updated_at: '2026-08-11T16:46:45.273666+00:00'
 ---
 ## Summary
 
@@ -49,5 +58,10 @@ author: oompah
 created: 2026-08-11 16:21
 ---
 Independent-review follow-up is committed and pushed at replacement head 5e86477733b7f30bf41e333a8d2c483cc12be0a2. The commit-time TOCTOU is closed: ordinary workflow mutations now support a final project-scoped mutation guard; validation submission re-reads the durable originating job, stable live remote task-branch head, and exact current direct-owner claim inside the same project publication lock as the final tracker read/write. A late remote advance, missing/unavailable authority, or owner-claim ABA rejects with transition.stale_precondition and cannot reach Ready to Integrate. Deterministic precommit-barrier regressions cover remote advance and a durably persisted owner-claim replacement after job/fact materialization; restart replay stays rejected and an explicit new exact-head submission converges once. Evidence: 428 runtime/transition/incident tests passed; 7 focused direct-owner validation tests passed; 43 submission-fencing/worker-submission tests passed; terminal mutation scan 21/21; staged and repository secret scans plus commit hooks passed. Branch remains In Progress for independent review; not submitted or merged.
+---
+author: oompah
+created: 2026-08-11 16:46
+---
+Fresh independent review ACCEPTED replacement exact head 9596e809554d9232b9049621a0858a515c890026. Reviewer verified the prior real ProjectStore RLock watchdog deadlock is closed by limiting guarded off-thread commit authority to implementation.validation_submission, while exact live remote-head and owner-claim ABA checks remain fail-closed at the commit boundary. Independent evidence: 518 candidate tests, 524 clean-current-main merge tests, six deterministic remote/claim/restart/RLock probes, terminal mutation scan 21/21, clean diff. Rebased the exact three-commit series onto current origin/main 3264da678 with git range-diff proving all three commits patch-equivalent, yielding current head 66f40f54566a64b55957ce0a29846289992e2f3f; reran all eight changed race/restart/RLock nodes successfully, pushed with exact force-with-lease. Submitting current-base head.
 ---
 <!-- COMMENTS:END -->
