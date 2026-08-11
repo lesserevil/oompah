@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T03:11:11.351608Z'
-updated_at: '2026-08-11T08:09:39.337104Z'
+updated_at: '2026-08-11T08:09:46.279865Z'
 work_branch: OOMPAH-1013
 target_branch: null
 review_url: null
@@ -57,7 +57,21 @@ oompah.terminal_audit:
     created_at: '2026-08-11T08:09:34.809166+00:00'
     selected_ref: fe63e237ffbc342ac6a147d1143477d49128df5f
     selected_sha: fe63e237ffbc342ac6a147d1143477d49128df5f
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1013
+    target_state: Merged
+    evidence_fingerprint: 615350229177274e7f991b35e02543738bcd32329ebbceafabc9f98fc07de47b
+    workflow_revision: null
+    selected_ref: fe63e237ffbc342ac6a147d1143477d49128df5f
+    selected_sha: fe63e237ffbc342ac6a147d1143477d49128df5f
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T08:09:44.727143+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -108,5 +122,12 @@ author: oompah
 created: 2026-08-11 03:38
 ---
 Independent re-review ACCEPTED exact head 4e5621853df5e27b9b6cc54ef069de4c50922ad0. The reviewer reproduced and cleared both adversarial cases: runtime-partial mixed-priority health now advances and completes; a pending lower-priority audit gets a one-shot cursor revisit and launches after higher-priority work proves non-launchable. Higher candidates outside the bounded slice do not trigger a revisit loop. Three exact adversarial tests and 79 focused observability tests pass. The complete repair series is composed at recovery head 80ad800a6, where all 1,712 changed-path tests pass.
+---
+author: oompah
+created: 2026-08-11 08:09
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Protected PR #806 and hosted Python 3.11/3.12/3.13 gates are green; deployed build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 contains merge 62c3cda3ea602b614a3a3dfc92c66468b5c34a4b; independent audit verified that every exact reviewed branch change is patch-equivalent to or composition-equivalent with the protected merge and no unique branch changes remain.
 ---
 <!-- COMMENTS:END -->
