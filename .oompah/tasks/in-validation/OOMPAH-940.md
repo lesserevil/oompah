@@ -33,7 +33,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-11T02:11:01.673825Z'
+updated_at: '2026-08-11T02:14:14.384858Z'
 work_branch: epic-OOMPAH-940
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/757
@@ -216,12 +216,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-940
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 94a960ba65598196a55806687fd80d6be305ef6a22620a73c47c6ab4dcf3ef0a
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-8ae087449874
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 94a960ba65598196a55806687fd80d6be305ef6a22620a73c47c6ab4dcf3ef0a
+      created_at: '2026-08-11T02:14:05.245481+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-11T02:14:05.245481+00:00'
+      branch_key: epic-OOMPAH-940
+      selected_ref: origin/epic-OOMPAH-940
+      selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
     source_generation: 3
     requested_by:
       version: 1
@@ -232,6 +247,7 @@ oompah.terminal_audit:
     selected_ref: origin/epic-OOMPAH-940
     selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
     workflow_revision: a546ab1dc76434c66032c526140661166450cbffdea54a4b756844094030f917
+    updated_at: '2026-08-11T02:14:05.245481+00:00'
   - version: 1
     audit_id: audit-819dae95b4f7
     project_id: proj-14849f1b
@@ -288,6 +304,21 @@ oompah.terminal_audit:
     selected_ref: origin/epic-OOMPAH-940
     selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
     candidate_rotation_count: 1
+  - version: 1
+    attempt_id: attempt-8ae087449874
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 94a960ba65598196a55806687fd80d6be305ef6a22620a73c47c6ab4dcf3ef0a
+    created_at: '2026-08-11T02:14:05.245481+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-11T02:14:05.245481+00:00'
+    branch_key: epic-OOMPAH-940
+    selected_ref: origin/epic-OOMPAH-940
+    selected_sha: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
 oompah.task_costs:
   total_input_tokens: 232
   total_output_tokens: 5892
@@ -429,5 +460,15 @@ author: oompah
 created: 2026-08-10 02:58
 ---
 Live rollout reached healthy generation 986: complete liveness and terminal-audit scans, zero current divergence, zero overdue/action-required work, and zero active operator alerts. The five-minute canary was then invalidated by a new implementation_recovery row exhausting against OOMPAH-981's valid direct-owner claim; OOMPAH-982 now owns that independently reproduced race. OOMPAH-940's remaining semantic blocker is also exact: seven later Done children are still projected against the already-landed epic branch, including direct-main follow-ups OOMPAH-979/980. OOMPAH-981 is being extended so authoritative post-landing children use protected standalone delivery and project their live-target landing back into parent rollup facts. No database/task-file edits or stale-branch reuse are being used.
+---
+author: oompah
+created: 2026-08-11 02:14
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-11 02:14
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
