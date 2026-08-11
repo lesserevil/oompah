@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T03:11:11.351608Z'
-updated_at: '2026-08-11T08:09:46.279865Z'
+updated_at: '2026-08-11T08:09:54.817182Z'
 work_branch: OOMPAH-1013
 target_branch: null
 review_url: null
@@ -129,5 +129,10 @@ created: 2026-08-11 08:09
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Protected PR #806 and hosted Python 3.11/3.12/3.13 gates are green; deployed build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 contains merge 62c3cda3ea602b614a3a3dfc92c66468b5c34a4b; independent audit verified that every exact reviewed branch change is patch-equivalent to or composition-equivalent with the protected merge and no unique branch changes remain.
+---
+author: oompah
+created: 2026-08-11 08:09
+---
+Delivered through protected PR #806 and verified on healthy deployed build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17.
 ---
 <!-- COMMENTS:END -->
