@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1079
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] Lifecycle state publication failed'
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T10:43:32.317191Z'
-updated_at: '2026-08-11T11:12:43.324570Z'
+updated_at: '2026-08-11T11:18:51.327745Z'
 work_branch: OOMPAH-1079
 target_branch: null
 review_url: null
@@ -28,6 +28,62 @@ oompah.integration:
   submitted_at: '2026-08-11T11:12:30.936161+00:00'
   updated_at: '2026-08-11T11:12:30.936161+00:00'
 oompah.work_branch: OOMPAH-1079
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-bb55a2f9eeb7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1079
+    digest: 5402ae5f9530247b9bc7e3a4281e9c1b97fd16d5d9498afae5b2e1ad7a868bb2
+  - version: 1
+    audit_id: audit-9dc17c2a55b9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1079
+    digest: 5402ae5f9530247b9bc7e3a4281e9c1b97fd16d5d9498afae5b2e1ad7a868bb2
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-bb55a2f9eeb7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1079
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5402ae5f9530247b9bc7e3a4281e9c1b97fd16d5d9498afae5b2e1ad7a868bb2
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T11:18:45.072100+00:00'
+    selected_ref: d54b92a0c5067aad11df0094d6f3cff5e1b28068
+    selected_sha: d54b92a0c5067aad11df0094d6f3cff5e1b28068
+  - version: 1
+    audit_id: audit-9dc17c2a55b9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1079
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5402ae5f9530247b9bc7e3a4281e9c1b97fd16d5d9498afae5b2e1ad7a868bb2
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T11:18:45.072100+00:00'
+    selected_ref: d54b92a0c5067aad11df0094d6f3cff5e1b28068
+    selected_sha: d54b92a0c5067aad11df0094d6f3cff5e1b28068
+  attempt_history: []
 ---
 ## Summary
 
@@ -98,5 +154,10 @@ author: oompah
 created: 2026-08-11 11:12
 ---
 Fix lifecycle publication teardown race; exact head d54b92a0c5067aad11df0094d6f3cff5e1b28068, 144 affected tests and terminal mutation scan passed.
+---
+author: oompah
+created: 2026-08-11 11:18
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
