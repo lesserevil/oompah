@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T14:30:01.436176Z'
+updated_at: '2026-08-11T14:33:45.688459Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
@@ -63,6 +63,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1084
     digest: af52f77940943df05f61b8547b3b4536269fc3586a99771c764f30fb5a8edcce
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1084","audit-0efdc0b1cba3","attempt-2269b15dd52c"]': '2026-08-11T14:33:35.393476+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1084
+    target_state: Done
+    evidence_fingerprint: af52f77940943df05f61b8547b3b4536269fc3586a99771c764f30fb5a8edcce
+    workflow_revision: null
+    selected_ref: cf3578ff00f5564a06ea31650553dca337280427
+    selected_sha: cf3578ff00f5564a06ea31650553dca337280427
+    landing_revision: null
+    audit_ids:
+    - audit-0efdc0b1cba3
+    kind: result
+    applied: true
+    retired_at: '2026-08-11T14:33:35.393493+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1084
+    audit_id: audit-0efdc0b1cba3
+    attempt_id: attempt-2269b15dd52c
+    target_state: Done
+    evidence_fingerprint: af52f77940943df05f61b8547b3b4536269fc3586a99771c764f30fb5a8edcce
+    status: In Validation
+    audit_ids:
+    - audit-0efdc0b1cba3
+    kind: result
+    applied: true
+    created_at: '2026-08-11T14:33:35.393504+00:00'
+    applied_at: '2026-08-11T14:33:43.778486+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -129,7 +159,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1084
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -138,7 +168,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-2269b15dd52c
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -150,6 +180,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1084
       selected_ref: cf3578ff00f5564a06ea31650553dca337280427
       selected_sha: cf3578ff00f5564a06ea31650553dca337280427
+      verdict: pass
+      completed_at: '2026-08-11T14:33:35.393251+00:00'
+      ended_at: '2026-08-11T14:33:35.393251+00:00'
     source_generation: 2
     requested_by:
       version: 1
@@ -160,7 +193,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-11T14:28:27.692253+00:00'
     selected_ref: cf3578ff00f5564a06ea31650553dca337280427
     selected_sha: cf3578ff00f5564a06ea31650553dca337280427
-    updated_at: '2026-08-11T14:29:51.712833+00:00'
+    updated_at: '2026-08-11T14:33:35.393251+00:00'
   - version: 1
     audit_id: audit-76b589ad52aa
     project_id: proj-14849f1b
@@ -182,6 +215,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-0efdc0b1cba3
     selected_ref: cf3578ff00f5564a06ea31650553dca337280427
     selected_sha: cf3578ff00f5564a06ea31650553dca337280427
+    updated_at: '2026-08-11T14:33:35.393251+00:00'
+    eligible_at: '2026-08-11T14:33:35.393251+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-1fb9fef38ea0
@@ -347,5 +382,30 @@ author: oompah
 created: 2026-08-11 14:30
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 14:33
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- implementation_verified.scm_reviewer_request: head_sha, base_sha, source_repository, target_repository fields added to ReviewRequest dataclass
+- implementation_verified.work_decision_head_changed: Detection logic lines 855-902: recorded_head vs observed_head comparison, emits review.head_changed reason code, returns RETRY_SCHEDULED with REVIEW_MONITOR owner
+- implementation_verified.integration_requeue_marker: review_generation_requeue_marker() function creates restart-safe checkpoint binding (review_id, head_sha, base_sha)
+- implementation_verified.test_coverage: test_scm.py: head_sha/base_sha propagation, fork detection; test_review_workflow.py: head_changed detection; test_standalone_ready_to_integrate.py: 99+ tests covering A→B→C late-race, base-only advance, repeated webhooks, restart safety, fork/source validation
+- requirements_met[0]: Exact open-review head SHA propagated from provider
+- requirements_met[1]: Source/target repository identity propagated
+- requirements_met[2]: Synchronized head changes detected and requeued
+- requirements_met[3]: Stale authority revoked on head change
+- requirements_met[4]: A+draft→B scenario: exposes B, revokes A, gates/adopts B
+- requirements_met[5]: A→B→C late-race: checkpoints B, regates before C adoption
+- requirements_met[6]: Repository identity validation (forks fail-closed)
+- requirements_met[7]: Repeated polls/webhooks idempotent
+- requirements_met[8]: Restart-safe with durably persisted generation marker
+- requirements_met[9]: GitHub/GitLab fork/source/base validation preserved
+- quality_gate: Authoritative make test passed for exact head cf3578ff (176.67s, result=passed, status=passed)
+- prior_attempts: 15a2ee7c9b→1260f6ee3→575e6c35→cf3578ff progression with independent review accepted, PR#821 merged to main (6a0f7210)
 ---
 <!-- COMMENTS:END -->
