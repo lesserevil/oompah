@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 import json
 import os
 import re
@@ -489,11 +490,53 @@ class OrchestratorImplementationEffects:
 
         lock_factory = getattr(self.orchestrator, "issue_transition_lock", None)
         lock = lock_factory(issue.id) if callable(lock_factory) else None
-        if lock is None or not hasattr(lock, "__aenter__"):
+        if lock is None or not callable(getattr(lock, "acquire", None)):
             yield
             return
-        async with lock:
+        control_timeout = max(
+            float(
+                getattr(
+                    getattr(self.orchestrator, "config", None),
+                    "terminal_control_lock_timeout_seconds",
+                    5.0,
+                )
+            ),
+            0.1,
+        )
+        # The pre-provider evidence fence releases within one control interval;
+        # a second interval lets this durable retry win naturally after that
+        # retirement without approaching the workflow call's outer deadline.
+        timeout_seconds = control_timeout * 2.0
+        acquisition_is_bounded = True
+        try:
+            acquisition = lock.acquire(timeout_seconds=timeout_seconds)
+        except TypeError:
+            acquisition = lock.acquire()
+            acquisition_is_bounded = False
+        if not inspect.isawaitable(acquisition):
             yield
+            return
+        if acquisition_is_bounded:
+            acquired = await acquisition
+        else:
+            try:
+                acquired = await asyncio.wait_for(
+                    acquisition,
+                    timeout=timeout_seconds,
+                )
+            except TimeoutError:
+                acquired = False
+        if not acquired:
+            raise WorkflowActionError(
+                "direct-owner claim is waiting for bounded task authority "
+                f"(issue_id={issue.id}, waited={timeout_seconds:g}s)",
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            )
+        try:
+            yield
+        finally:
+            lock.release()
 
     async def _admit_dispatch(
         self,

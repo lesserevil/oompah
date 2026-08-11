@@ -6076,11 +6076,67 @@ async def _submission_authority_lock(orch, issue_id: str):
     lock = lock_factory(issue_id) if callable(lock_factory) else None
     # Test doubles and legacy orchestrator adapters may not expose the native
     # cross-loop lock. They already serialize their mocked writes themselves.
-    if lock is not None and hasattr(lock, "__aenter__"):
-        async with lock:
-            yield
-    else:
+    if lock is None or not callable(getattr(lock, "acquire", None)):
         yield
+        return
+    control_timeout = max(
+        float(
+            getattr(
+                getattr(orch, "config", None),
+                "terminal_control_lock_timeout_seconds",
+                5.0,
+            )
+        ),
+        0.1,
+    )
+    # Pre-provider retirement gives its synchronous evidence write at most one
+    # control interval.  Waiting for two intervals lets that retirement release
+    # the lane and still leaves a deterministic retryable API deadline.
+    timeout_seconds = control_timeout * 2.0
+    acquisition_is_bounded = True
+    try:
+        acquisition = lock.acquire(timeout_seconds=timeout_seconds)
+    except TypeError:
+        # Compatibility for asyncio.Lock-based adapters and test doubles.
+        acquisition = lock.acquire()
+        acquisition_is_bounded = False
+    if not inspect.isawaitable(acquisition):
+        # Loose legacy adapters expose MagicMock-like attribute surfaces but
+        # do not provide a real async lock.  Preserve their historical
+        # self-serialization rather than treating a mock return as authority.
+        yield
+        return
+    if acquisition_is_bounded:
+        acquired = await acquisition
+    else:
+        try:
+            acquired = await asyncio.wait_for(
+                acquisition,
+                timeout=timeout_seconds,
+            )
+        except TimeoutError:
+            acquired = False
+    if not acquired:
+        raise SubmissionAuthorityBusyError(
+            issue_id=issue_id,
+            timeout_seconds=timeout_seconds,
+        )
+    try:
+        yield
+    finally:
+        lock.release()
+
+
+class SubmissionAuthorityBusyError(RuntimeError):
+    """A task mutex did not become available before the API deadline."""
+
+    def __init__(self, *, issue_id: str, timeout_seconds: float) -> None:
+        self.issue_id = str(issue_id)
+        self.timeout_seconds = float(timeout_seconds)
+        super().__init__(
+            "task submission authority is busy; retry the exact request "
+            f"(issue_id={self.issue_id}, waited={self.timeout_seconds:g}s)"
+        )
 
 
 async def _clear_submission_assignment(tracker, issue) -> bool:
@@ -6571,6 +6627,19 @@ async def api_submit_issue(identifier: str, request: Request):
             project_id,
             body,
             initial_issue=issue,
+        )
+    except SubmissionAuthorityBusyError as exc:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "submission_authority_busy",
+                    "message": str(exc),
+                    "retryable": True,
+                    "issue_id": exc.issue_id,
+                    "timeout_seconds": exc.timeout_seconds,
+                }
+            },
+            status_code=503,
         )
     except ValueError as exc:
         return JSONResponse(
@@ -7277,6 +7346,19 @@ async def api_task_handoff(request: Request):
                     )
 
                 accepted = await run_mutation(persist_submission)
+            except SubmissionAuthorityBusyError as exc:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "submission_authority_busy",
+                            "message": str(exc),
+                            "retryable": True,
+                            "issue_id": exc.issue_id,
+                            "timeout_seconds": exc.timeout_seconds,
+                        }
+                    },
+                    status_code=503,
+                )
             except ValueError as exc:
                 record_task_handoff_failure(
                     token, "task handoff submission validation failed"
