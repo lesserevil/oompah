@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T12:50:04.104337Z'
+updated_at: '2026-08-11T13:09:58.919205Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Live OOMPAH-1082 acceptance failed on 2026-08-11: the Merged terminal-audit succ
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 13:09
+---
+Implemented the dedicated single-flight terminal-audit continuation lane on branch OOMPAH-1085. Exact wakes now bypass serialized full-world reconciliation, share one audit scan lock with ordinary ticks, retain pause/restart authority, and re-arm on WORKER_EXIT capacity release. Added blocked-durable-reconcile, active-wake coalescing, capacity handoff, pause/unpause, restart reconstruction, stale-hint, one-owner, failure-observability, and latency coverage. Focused terminal-audit suites pass (141); broader adjacent audit/event/quiesce suites pass (708 and 238); terminal mutation scan passes 21/21. The full project gate is running. After it completes I will compose current origin/main (OOMPAH-1083), rerun combined focused checks and the final gate, then push and submit.
+---
+<!-- COMMENTS:END -->
