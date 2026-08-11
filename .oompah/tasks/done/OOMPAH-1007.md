@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T23:19:04.544332Z'
-updated_at: '2026-08-11T01:49:06.658810Z'
+updated_at: '2026-08-11T02:03:57.191876Z'
 work_branch: OOMPAH-1007
 target_branch: main
 review_url: null
@@ -106,6 +106,34 @@ oompah.terminal_audit:
     selected_ref: 5e46c8a06c3d8e98eeb0f4b5f9896d5c0ad67654
     selected_sha: 5e46c8a06c3d8e98eeb0f4b5f9896d5c0ad67654
     applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'Implementation is delivered by protected PR #805 with hosted CI and an
+      exact Done audit passed. Retain the topology-valid shared-child Done state while
+      parent OOMPAH-940 owns final rollup; this removes the invalid Merged recovery
+      tracked by OOMPAH-1010 and unblocks parent auto-close during the OOMPAH-1005
+      wake regression.'
+    marked_at: '2026-08-11T02:03:55.582835+00:00'
+    updated_at: '2026-08-11T02:03:55.582835+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'Implementation is delivered by protected PR #805 with hosted CI and
+        an exact Done audit passed. Retain the topology-valid shared-child Done state
+        while parent OOMPAH-940 owns final rollup; this removes the invalid Merged
+        recovery tracked by OOMPAH-1010 and unblocks parent auto-close during the
+        OOMPAH-1005 wake regression.'
+      recorded_at: '2026-08-11T02:03:55.582835+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1

@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T19:11:49.831627Z'
-updated_at: '2026-08-10T21:03:27.276207Z'
+updated_at: '2026-08-11T02:03:53.758069Z'
 work_branch: OOMPAH-1003
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/802
@@ -88,6 +88,34 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-10T21:03:17.539253+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'Implementation is delivered by protected PR #803 and its topology-valid
+      Done state is intentionally retained while parent epic OOMPAH-940 owns final
+      rollup. This removes a self-superseding child Merged recovery that is starving
+      the current parent auto-close job; OOMPAH-1005 regression follow-up is being
+      filed.'
+    marked_at: '2026-08-11T02:03:52.090415+00:00'
+    updated_at: '2026-08-11T02:03:52.090415+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'Implementation is delivered by protected PR #803 and its topology-valid
+        Done state is intentionally retained while parent epic OOMPAH-940 owns final
+        rollup. This removes a self-superseding child Merged recovery that is starving
+        the current parent auto-close job; OOMPAH-1005 regression follow-up is being
+        filed.'
+      recorded_at: '2026-08-11T02:03:52.090415+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
