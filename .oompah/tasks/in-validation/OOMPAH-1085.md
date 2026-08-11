@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T17:48:42.119167Z'
+updated_at: '2026-08-11T18:17:17.859689Z'
 work_branch: OOMPAH-1085
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/827
@@ -447,5 +447,20 @@ author: oompah
 created: 2026-08-11 17:48
 ---
 Direct-owner live validation REJECTED the merged implementation on build b948150a808d80c331769fba8ae2a39e9a102a47. With exact successor wakes for OOMPAH-1092/1093 and an available project audit slot, the continuation lane logged 95 starts in one minute, repeatedly deferred reason=eligibility_or_policy, consumed ~55% server CPU, and did not dispatch either exact successor. Global/project scheduling is now paused by operator. Reopening OOMPAH-1085 for rework; acceptance must cover the live project-capacity/eligibility shape and prove one bounded owner/no rearm storm plus actual exact dispatch.
+---
+author: oompah
+created: 2026-08-11 18:17
+---
+Direct-control rework is pushed for independent exact-head review.
+
+Head: 574c3f98038f43cf506a7227ff8b0992f16a490b on OOMPAH-1085, rebased onto main b7ad6d1c2ebd2dc2c5200459161866f4bcc23f46.
+
+Root cause: exact successor hints were promoted ahead of active higher-priority observations. The sequential eligibility check therefore treated an already-running/nonlaunchable higher-priority task as unprocessed, requested another priority revisit, then rebuilt the same bad order. One continuation owner executed 637 scans/641 rechecks. The continuation capacity guard also used raw global slots instead of audit-spendable slots after the project/implementation reservation.
+
+Fix: preserve active priority ahead of exact hints while allowing hints to bypass suspended projects; distinguish external release/exact-stage edges from internal budget hints; cap each owner at one in-owner recheck; hand a late external edge to exactly one successor owner; suppress repeated internal self-rearming; use audit-specific capacity; and expose owner, scan, external-recheck, and suppressed-recheck counters.
+
+Exact-head evidence: 111 tests passed in tests/test_terminal_audit_observability.py; 1,094 relevant terminal-audit/auditor/fencing/event-loop tests passed (3 pre-existing warnings); make terminal-audit-scan passed (21/21 allowlisted); git diff --check clean; branch-private .venv resolves this worktree. Deterministic regressions cover the live priority shape, reservation-shaped zero audit capacity, log-rate bounding, and a late external release after the bounded recheck.
+
+Per operator direction I have not submitted the task. Please independently review exact head 574c3f980 before validation/merge.
 ---
 <!-- COMMENTS:END -->
