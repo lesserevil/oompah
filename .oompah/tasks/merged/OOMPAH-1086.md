@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:54:01.877028Z'
-updated_at: '2026-08-11T15:01:06.214959Z'
+updated_at: '2026-08-11T15:01:12.484517Z'
 work_branch: OOMPAH-1086
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/823
@@ -105,8 +105,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-90733bffbafa
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-11T15:01:01.614243+00:00'
+    applied_at: '2026-08-11T15:01:10.789673+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -339,5 +340,22 @@ author: oompah
 created: 2026-08-11 14:55
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 15:01
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- commit_verified: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
+- lifecycle_mechanisms: _lifecycle_condition, _active_uses, _active_transition_leases, _closing, _closed, ContextVar-based lease
+- close_fencing: sets _closing=True, drains _active_uses==0 under condition variable without holding SQLite lock, idempotent return if _closed
+- regression_tests: test_journal_close_drains_admitted_transition_saga (line 135), test_journal_close_drains_direct_use_and_fences_late_callers (line 214), test_background_drain_waits_for_admitted_transition_saga (line 920)
+- authoritative_gate: make test PASSED 186.32s
+- independent_review: ACCEPTED with lifecycle fencing and comprehensive coverage verified
+- mutation_scan: 21/21 passed
+- implementation_changes: oompah/task_transition_service.py +362 lines, tests/test_task_transition_service.py +320 lines, tests/test_restart_api.py +205 lines
 ---
 <!-- COMMENTS:END -->
