@@ -15,6 +15,7 @@ import sys
 import threading
 import time
 import urllib.request
+import venv
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from dataclasses import replace
@@ -54,6 +55,7 @@ from oompah.quality_gate import (
     _SandboxUnavailable,
     _TrustedRuntimeCorruption,
     _editable_oompah_source,
+    _validate_or_repair_trusted_runtime_source,
     _validate_trusted_runtime_source,
 )
 from oompah.scm import (
@@ -5516,6 +5518,67 @@ def test_poisoned_editable_source_mapping_is_executor_corruption(tmp_path, monke
         _validate_trusted_runtime_source(runtime, candidate)
 
 
+def test_canonical_gate_preflight_repairs_poisoned_runtime_before_candidate(
+    tmp_path,
+    monkeypatch,
+):
+    service = tmp_path / "service"
+    task = tmp_path / "task"
+    (service / ".git").mkdir(parents=True)
+    (service / "oompah").mkdir()
+    (service / "oompah" / "__init__.py").write_text("", encoding="utf-8")
+    (task / "oompah").mkdir(parents=True)
+    (task / "oompah" / "__init__.py").write_text("", encoding="utf-8")
+    runtime = service / ".venv"
+    venv.EnvBuilder(with_pip=False).create(runtime)
+    site_packages = subprocess.run(
+        [
+            str(runtime / "bin" / "python"),
+            "-c",
+            "import site; print(site.getsitepackages()[0])",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    editable_path = Path(site_packages) / "_editable_impl_oompah.pth"
+    editable_path.write_text(f"{task}\n", encoding="utf-8")
+    (runtime / ".uv-test-setup").touch()
+    (service / "pyproject.toml").write_text(
+        "[project]\nname = 'oompah'\nversion = '0'\n",
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    uv_called = tmp_path / "uv-called"
+    fake_uv = fake_bin / "uv"
+    fake_uv.write_text(
+        "#!/bin/sh\n"
+        f"touch {shlex.quote(str(uv_called))}\n"
+        f"printf '%s\\n' {shlex.quote(str(service))} > "
+        f"{shlex.quote(str(editable_path))}\n",
+        encoding="utf-8",
+    )
+    fake_uv.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{fake_bin}:/usr/bin:/bin")
+    monkeypatch.setattr(
+        quality_gate,
+        "__file__",
+        str(service / "oompah" / "quality_gate.py"),
+    )
+    monkeypatch.setattr(
+        quality_gate,
+        "_declared_editable_oompah_source",
+        lambda: Path(editable_path.read_text(encoding="utf-8").strip()),
+    )
+
+    repaired = _validate_or_repair_trusted_runtime_source(runtime, tmp_path / "candidate")
+
+    assert repaired == service.resolve()
+    assert uv_called.exists()
+    assert editable_path.read_text(encoding="utf-8").strip() == str(service)
+
+
 def test_gate_reports_poisoned_runtime_without_running_candidate(tmp_path):
     repo = _git_repo(tmp_path)
     marker = tmp_path / "candidate-ran"
@@ -5536,6 +5599,44 @@ def test_gate_reports_poisoned_runtime_without_running_candidate(tmp_path):
     assert "candidate CI was not run" in result.output_tail
     assert not marker.exists()
     assert not (tmp_path / "quality.json").exists()
+
+
+def test_gate_retries_same_immutable_candidate_after_runtime_repair(tmp_path):
+    """Runtime corruption burns neither candidate evidence nor retry authority."""
+    repo = _git_repo(tmp_path)
+    marker = tmp_path / "candidate-ran"
+    poisoned = True
+
+    def repairable_launcher(command, _repo_path, _run_root):
+        if poisoned:
+            raise _TrustedRuntimeCorruption(
+                "expected /service or immutable candidate; actual /other-task"
+            )
+        return ["/bin/sh", "-c", command]
+
+    state_path = tmp_path / "quality.json"
+    gate = BranchQualityGate(
+        str(state_path),
+        safety_head=_safety_head(repo),
+        sandbox_launcher=repairable_launcher,
+    )
+    command = f"touch {shlex.quote(str(marker))}"
+
+    first = _run(gate, repo, command)
+    head = first.head_sha
+    poisoned = False
+    second = _run(gate, repo, command)
+
+    assert first.status == "infrastructure_error"
+    assert first.head_sha == head
+    assert not first.cached
+    assert second.status == "passed"
+    assert second.head_sha == head
+    assert not second.cached
+    assert marker.exists()
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    assert len(persisted["results"]) == 1
+    assert next(iter(persisted["results"].values()))["status"] == "passed"
 
 
 @pytest.mark.parametrize(

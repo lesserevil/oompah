@@ -53,6 +53,7 @@ import os
 import re
 import shutil
 import stat
+import sys
 import tempfile
 import urllib.parse
 from collections.abc import Mapping
@@ -83,8 +84,13 @@ CLIENT_AUTH_DISABLED_ENV = "OOMPAH_DISABLE_CLIENT_AUTH"
 # these selectors out of worker processes; Make receives an explicit,
 # worktree-private environment path below instead.
 TASK_VENV_ENV = "OOMPAH_TASK_VENV"
+SERVICE_CHECKOUT_ENV = "OOMPAH_SERVICE_CHECKOUT"
+SERVICE_VENV_ENV = "OOMPAH_SERVICE_VENV"
 _WORKER_RUNTIME_SELECTOR_ENV_VARS = frozenset(
     {
+        TASK_VENV_ENV,
+        SERVICE_CHECKOUT_ENV,
+        SERVICE_VENV_ENV,
         "VIRTUAL_ENV",
         "UV_PROJECT_ENVIRONMENT",
         "UV_PYTHON",
@@ -1121,6 +1127,10 @@ def agent_environment(
         environment.pop(key, None)
     if workspace_path is not None:
         environment[TASK_VENV_ENV] = task_venv_path(workspace_path)
+        environment[SERVICE_CHECKOUT_ENV] = str(
+            Path(__file__).resolve().parent.parent
+        )
+        environment[SERVICE_VENV_ENV] = str(Path(sys.prefix).resolve())
     environment[CLIENT_AUTH_DISABLED_ENV] = "1"
 
     # Handle read-only XDG_RUNTIME_DIR (OOMPAH-686): if inherited runtime dir

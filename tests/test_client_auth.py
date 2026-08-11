@@ -28,6 +28,7 @@ from __future__ import annotations
 import os
 import shutil
 import stat
+import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -36,6 +37,8 @@ import pytest
 
 from oompah.client_auth import (
     CLIENT_AUTH_DISABLED_ENV,
+    SERVICE_CHECKOUT_ENV,
+    SERVICE_VENV_ENV,
     TASK_VENV_ENV,
     ClientCredentials,
     CredentialError,
@@ -48,6 +51,8 @@ from oompah.client_auth import (
     sanitize_server_url,
     task_venv_path,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 # ---------------------------------------------------------------------------
@@ -780,6 +785,7 @@ class TestEndToEnd:
         clean = agent_environment(
             {
                 "PATH": "/bin",
+                TASK_VENV_ENV: service_venv,
                 "VIRTUAL_ENV": service_venv,
                 "UV_PROJECT_ENVIRONMENT": service_venv,
                 "PYTHONPATH": str(tmp_path / "service"),
@@ -790,6 +796,8 @@ class TestEndToEnd:
         )
 
         assert clean[TASK_VENV_ENV] == task_venv_path(tmp_path / "task-worktree")
+        assert clean[SERVICE_CHECKOUT_ENV] == str(ROOT)
+        assert clean[SERVICE_VENV_ENV] == str(Path(sys.prefix).resolve())
         assert all(
             key not in clean
             for key in (
@@ -798,6 +806,19 @@ class TestEndToEnd:
                 "PYTHONPATH",
                 "PYTHONHOME",
             )
+        )
+
+    def test_agent_environment_drops_inherited_task_venv_without_workspace(self):
+        clean = agent_environment(
+            {
+                "PATH": "/bin",
+                TASK_VENV_ENV: "/operator/service/.venv",
+            }
+        )
+
+        assert all(
+            key not in clean
+            for key in (TASK_VENV_ENV, SERVICE_CHECKOUT_ENV, SERVICE_VENV_ENV)
         )
 
     def test_epic_rebase_environment_is_a_clean_credential_domain(self):
