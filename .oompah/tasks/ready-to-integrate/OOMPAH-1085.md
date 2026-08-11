@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1085
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Dispatch exact terminal-audit successors through a dedicated bounded continuation
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T16:27:35.246969Z'
+updated_at: '2026-08-11T16:27:45.852628Z'
 work_branch: OOMPAH-1085
 target_branch: null
 review_url: null
@@ -35,7 +35,7 @@ oompah.integration:
   submitted_at: '2026-08-11T16:27:31.218611+00:00'
   updated_at: '2026-08-11T16:27:31.218611+00:00'
 oompah.work_branch: OOMPAH-1085
-oompah.agent_run_id: 8edf6d56-a309-470c-aea6-203826fef15a
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 677e8b1ddbc445509377e5599ada2af7--contributor-57ff1a86c984
@@ -217,5 +217,10 @@ author: oompah
 created: 2026-08-11 16:27
 ---
 Fresh independent release review ACCEPTED exact head ed2cbbc4390f475ebb9bc30ed1a4fe5c210f624c. Reviewer verified exact key/audit-ID CAS wake indexing, one-owner bounded continuation with no capacity/budget self-loop, post-release capacity wake ordering, restart reconstruction/resume consumption, preservation and later reconciliation of prior started/unreconciled budget authority, and release of newly acquired reservations on later pre-admission failure. Independent evidence: 237 terminal-audit/submission/quiesce tests, 100 event-loop/provider-retirement tests, terminal mutation scan 21/21, and clean diff. Submitting the accepted exact head for canonical validation.
+---
+author: oompah
+created: 2026-08-11 16:27
+---
+Dispatch exact terminal-audit successors through a dedicated bounded continuation; preserve prior budget authority on deferral; recover exact wakes across restart without self-spinning.
 ---
 <!-- COMMENTS:END -->
