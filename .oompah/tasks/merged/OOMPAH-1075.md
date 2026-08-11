@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1075
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Keep branch quality gates off restart reconciliation control ticks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:03:11.276660Z'
-updated_at: '2026-08-11T10:41:14.352215Z'
+updated_at: '2026-08-11T10:41:20.587395Z'
 work_branch: OOMPAH-1075
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/812
