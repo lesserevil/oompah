@@ -17,7 +17,11 @@ import pytest
 from tests.tick_test_support import tick_dispatch_mock
 
 from oompah.config import ServiceConfig
-from oompah.integration import IntegrationRecord
+from oompah.integration import (
+    IntegrationRecord,
+    REVIEW_GENERATION_REQUEUE_WAIT_REASON,
+    review_generation_requeue_marker,
+)
 from oompah.models import BlockerRef, Issue, Project
 from oompah.orchestrator import Orchestrator
 from oompah.provenance_suppression import ProvenanceGuardedTracker
@@ -64,12 +68,15 @@ def _issue(
         issue_type=issue_type,
         priority=priority,
         work_branch=branch or identifier,
+        target_branch="trunk",
     )
     if with_integration:
         issue.integration = IntegrationRecord(
             state="ready",
             mode="standalone",
             task_branch=branch or identifier,
+            base_branch="trunk",
+            base_sha="d" * 40,
             head_sha=head_sha,
             submitted_at=submitted_at or "2026-08-01T00:00:00Z",
         )
@@ -82,8 +89,11 @@ def _review(
     state: str = "open",
     review_id: str = "42",
     head_sha: str = "a" * 40,
+    base_sha: str = "d" * 40,
     source_branch: str | None = None,
     target_branch: str = "trunk",
+    source_repository: str = "org/repo",
+    target_repository: str = "org/repo",
 ) -> ReviewRequest:
     return ReviewRequest(
         id=review_id,
@@ -96,9 +106,9 @@ def _review(
         created_at="2026-07-30T00:00:00+00:00",
         updated_at="2026-07-30T00:00:00+00:00",
         head_sha=head_sha,
-        base_sha="d" * 40,
-        source_repository="org/repo",
-        target_repository="org/repo",
+        base_sha=base_sha,
+        source_repository=source_repository,
+        target_repository=target_repository,
     )
 
 
@@ -1324,6 +1334,43 @@ def test_existing_open_review_gate_failure_preserves_ready_review(harness):
     assert task.state == READY_TO_INTEGRATE
 
 
+@pytest.mark.parametrize(
+    ("source_repository", "target_repository", "reason"),
+    [
+        ("", "org/repo", "positive source and target repository identity"),
+        ("org/repo", "", "positive source and target repository identity"),
+        ("fork/repo", "org/repo", "source repository fork/repo does not match"),
+    ],
+)
+def test_gitlab_style_open_review_requires_exact_repository_identity_for_adoption(
+    harness,
+    source_repository,
+    target_repository,
+    reason,
+):
+    """Missing GitLab project IDs and fork MRs cannot enter In Review."""
+
+    orch, _project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-GITLAB-IDENTITY", branch="feature/gitlab-identity")
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.find_pr_for_branch.return_value = _review(
+        task.identifier,
+        review_id="gitlab-44",
+        source_branch=task.work_branch,
+        source_repository=source_repository,
+        target_repository=target_repository,
+    )
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_not_called()
+    provider.create_review.assert_not_called()
+    tracker.set_metadata_field.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    assert task.state == READY_TO_INTEGRATE
+    assert reason in _delivery_alerts(orch)[0]["message"]
+
+
 def test_merged_review_gate_failure_blocks_terminal_reconciliation(harness):
     """Forge merge success cannot replace local exact-head evidence."""
 
@@ -1370,7 +1417,10 @@ def test_changed_existing_review_head_is_gated_before_readoption(harness):
     task = _issue("TASK-3-REPAIR", branch="feature/task-3-repair")
     task.integration = IntegrationRecord(
         state="ready",
+        mode="standalone",
         task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        base_sha="d" * 40,
         head_sha=old_head,
         submitted_at="2026-08-05T12:10:00+00:00",
     )
@@ -1397,7 +1447,10 @@ def test_changed_existing_review_head_is_gated_before_readoption(harness):
     task.state = READY_TO_INTEGRATE
     task.integration = IntegrationRecord(
         state="ready",
+        mode="standalone",
         task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        base_sha="d" * 40,
         head_sha=repaired_head,
         submitted_at="2026-08-05T12:54:50+00:00",
     )
@@ -1472,6 +1525,214 @@ def test_reconciled_review_head_is_regated_then_readopted_exactly(harness):
         "oompah.review_head",
         synchronized_head,
     ) in [call.args[:3] for call in tracker.set_metadata_field.call_args_list]
+
+
+def test_open_review_late_advance_converges_and_regates_before_adoption(harness):
+    """A PR B->C race after B's gate remains Ready until C is checkpointed."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    old_head = "a" * 40
+    gated_head = "b" * 40
+    advanced_head = "c" * 40
+    gated_base = "d" * 40
+    advanced_base = "e" * 40
+    review_id = "101"
+    task = _issue("TASK-LATE-ADVANCE", branch="feature/late-advance")
+    task.review_number = review_id
+    task.review_url = f"https://github.com/org/repo/pull/{review_id}"
+    task.review_head = old_head
+    task.integration = replace(
+        task.integration,
+        head_sha=gated_head,
+        base_sha=gated_base,
+        wait_reason=REVIEW_GENERATION_REQUEUE_WAIT_REASON,
+        wait_generation=review_generation_requeue_marker(
+            review_id,
+            gated_head,
+            gated_base,
+        ),
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    current_review = _review(
+        task.identifier,
+        review_id=review_id,
+        source_branch=task.work_branch,
+        head_sha=gated_head,
+        base_sha=gated_base,
+    )
+
+    def review_lookup(*_args, **_kwargs):
+        return current_review
+
+    provider.find_pr_for_branch.side_effect = review_lookup
+    provider.get_branch_head_sha.side_effect = lambda *_args: current_review.head_sha
+
+    def persist_metadata(_identifier, key, value):
+        if key == "oompah.integration":
+            task.integration = IntegrationRecord.from_dict(value)
+        elif key == "oompah.review_url":
+            task.review_url = value or None
+        elif key == "oompah.review_number":
+            task.review_number = value or None
+        elif key == "oompah.work_branch":
+            task.work_branch = value or None
+        elif key == "oompah.target_branch":
+            task.target_branch = value or None
+        elif key == "oompah.review_head":
+            task.review_head = value or None
+
+    tracker.set_metadata_field.side_effect = persist_metadata
+    gated_generations: list[tuple[str | None, str | None]] = []
+
+    def advance_after_first_gate(*_args, **_kwargs):
+        nonlocal current_review
+        gated_generations.append((task.integration.head_sha, task.integration.base_sha))
+        if len(gated_generations) == 1:
+            current_review = _review(
+                task.identifier,
+                review_id=review_id,
+                source_branch=task.work_branch,
+                head_sha=advanced_head,
+                base_sha=advanced_base,
+            )
+        return True
+
+    gate.side_effect = advance_after_first_gate
+
+    # B passed, but the final authority check observes C and refuses adoption.
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+    assert task.state == READY_TO_INTEGRATE
+    assert task.integration.head_sha == gated_head
+    tracker.update_issue.assert_not_called()
+
+    # The next sweep durably replaces B with C and returns without reusing B's pass.
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+    assert task.state == READY_TO_INTEGRATE
+    assert task.integration.head_sha == advanced_head
+    assert task.integration.base_sha == advanced_base
+    assert task.integration.wait_generation == review_generation_requeue_marker(
+        review_id,
+        advanced_head,
+        advanced_base,
+    )
+    assert gated_generations == [(gated_head, gated_base)]
+
+    # Only C's own gate can clear the checkpoint and publish In Review.
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+    assert gated_generations == [
+        (gated_head, gated_base),
+        (advanced_head, advanced_base),
+    ]
+    assert task.state == IN_REVIEW
+    assert task.review_head == advanced_head
+    assert task.integration.head_sha == advanced_head
+    assert task.integration.base_sha == advanced_base
+    assert task.integration.wait_reason is None
+    assert task.integration.wait_generation is None
+    provider.create_review.assert_not_called()
+    tracker.update_issue.assert_called_once_with(task.identifier, status=IN_REVIEW)
+    assert not _delivery_alerts(orch)
+
+
+def test_unmarked_ready_submission_is_not_replaced_by_stale_open_review(harness):
+    """A later accepted submission cannot be overwritten by old review history."""
+
+    orch, _project, tracker, provider, _detect, gate = harness
+    old_review_head = "a" * 40
+    stale_forge_head = "b" * 40
+    accepted_head = "c" * 40
+    task = _issue("TASK-NEW-SUBMISSION", branch="feature/new-submission")
+    task.review_number = "101"
+    task.review_head = old_review_head
+    task.integration = replace(task.integration, head_sha=accepted_head)
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.get_branch_head_sha.return_value = accepted_head
+    provider.find_pr_for_branch.return_value = _review(
+        task.identifier,
+        review_id="101",
+        source_branch=task.work_branch,
+        head_sha=stale_forge_head,
+    )
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    assert task.state == READY_TO_INTEGRATE
+    assert task.integration.head_sha == accepted_head
+    assert task.integration.wait_reason is None
+    gate.assert_not_called()
+    provider.create_review.assert_not_called()
+    tracker.set_metadata_field.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    assert "does not match accepted submission" in _delivery_alerts(orch)[0]["message"]
+
+
+def test_restart_recovers_persisted_open_review_generation_checkpoint(
+    tmp_path,
+    monkeypatch,
+):
+    """A fresh service re-gates and adopts a durable RTI replacement marker."""
+
+    project = Project(
+        id="proj-review-restart",
+        name="Review Restart",
+        repo_url="https://github.com/org/repo.git",
+        repo_path=str(tmp_path / "repo"),
+        default_branch="trunk",
+    )
+    head = "c" * 40
+    base = "e" * 40
+    review_id = "restart-101"
+    task = _issue("TASK-REVIEW-RESTART", branch="feature/review-restart")
+    task.review_number = review_id
+    task.review_url = f"https://github.com/org/repo/pull/{review_id}"
+    task.review_head = "b" * 40
+    task.integration = replace(
+        task.integration,
+        head_sha=head,
+        base_sha=base,
+        wait_reason=REVIEW_GENERATION_REQUEUE_WAIT_REASON,
+        wait_generation=review_generation_requeue_marker(review_id, head, base),
+    )
+    tracker = _MemoryTracker(task)
+    provider = mock.MagicMock(spec=SCMProvider)
+    provider.get_branch_head_sha.return_value = head
+    provider.find_pr_for_branch.return_value = _review(
+        task.identifier,
+        review_id=review_id,
+        source_branch=task.work_branch,
+        head_sha=head,
+        base_sha=base,
+    )
+    monkeypatch.setattr(
+        "oompah.orchestrator.detect_provider",
+        lambda *_args, **_kwargs: provider,
+    )
+    restarted = _make_orchestrator(
+        tmp_path,
+        project=project,
+        tracker=tracker,
+        provider_store=ProviderStore(str(tmp_path / "providers.json")),
+    )
+    gate = mock.MagicMock(return_value=True)
+    monkeypatch.setattr(restarted, "_review_quality_gate_passes", gate)
+
+    try:
+        restarted._reconcile_standalone_ready_to_integrate_tasks()
+
+        gate.assert_called_once_with(
+            project,
+            task,
+            task.work_branch,
+            project.default_branch,
+        )
+        assert task.state == IN_REVIEW
+        assert task.review_head == head
+        assert task.integration is not None
+        assert task.integration.wait_reason is None
+        assert task.integration.wait_generation is None
+        provider.create_review.assert_not_called()
+    finally:
+        _close_orchestrator(restarted)
 
 
 def test_existing_closed_review_is_replaced_after_gate(harness):

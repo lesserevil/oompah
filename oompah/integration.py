@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
@@ -28,6 +28,8 @@ INTEGRATION_MODES = frozenset({"queue", "standalone"})
 # the submission boundary and therefore owns its branch identity until a
 # later accepted submission replaces it.
 ACCEPTED_SUBMISSION_STATES = INTEGRATION_STATES - {"working"}
+REVIEW_GENERATION_REQUEUE_WAIT_REASON = "review_generation_requeue"
+_EXACT_GIT_SHA_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 
 
 def task_submit_required_message(identifier: object) -> str:
@@ -854,6 +856,68 @@ class IntegrationRecord:
         if self.required_base_missing:
             result["required_base_missing"] = list(self.required_base_missing)
         return result
+
+
+def review_generation_requeue_marker(
+    review_id: object,
+    head_sha: object,
+    base_sha: object,
+) -> str | None:
+    """Bind one restart-safe review requeue checkpoint to its exact generation."""
+
+    review = str(review_id or "").strip()
+    head = str(head_sha or "").strip().lower()
+    base = str(base_sha or "").strip().lower()
+    if (
+        not review
+        or _EXACT_GIT_SHA_RE.fullmatch(head) is None
+        or _EXACT_GIT_SHA_RE.fullmatch(base) is None
+    ):
+        return None
+    payload = "\0".join((review, head, base))
+    return "review:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def requeue_standalone_review_generation(
+    integration: IntegrationRecord,
+    *,
+    review_id: object,
+    head_sha: object,
+    base_sha: object,
+    updated_at: str,
+) -> IntegrationRecord:
+    """Replace stale standalone authority with one exact ungated generation."""
+
+    head = str(head_sha or "").strip().lower()
+    base = str(base_sha or "").strip().lower()
+    marker = review_generation_requeue_marker(review_id, head, base)
+    if (
+        integration.mode not in {None, "standalone"}
+        or marker is None
+        or not str(updated_at or "").strip()
+    ):
+        raise ValueError("exact standalone review generation is required")
+    return replace(
+        integration,
+        state="ready",
+        mode=integration.mode or "standalone",
+        base_sha=base,
+        head_sha=head,
+        integrated_sha=None,
+        maintenance_publication_proven=False,
+        attempts=0,
+        updated_at=str(updated_at).strip(),
+        last_error=None,
+        dependency_heads={},
+        backoff_until=None,
+        repair_failure_reason=None,
+        gate_outcome=None,
+        gate_cancellation=None,
+        canonical_landing_evidence=None,
+        wait_reason=REVIEW_GENERATION_REQUEUE_WAIT_REASON,
+        wait_generation=marker,
+        required_base_missing=(),
+    )
 
 
 def parse_integration_record(value: object) -> IntegrationRecord | None:

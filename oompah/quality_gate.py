@@ -5523,6 +5523,7 @@ class BranchQualityGate:
         work_branch: str,
         command: str,
         retry_forced: bool = False,
+        force_recheck: bool = False,
         expected_head_sha: str | None = None,
         require_source_head_match: bool = True,
         generation: str | None = None,
@@ -5534,7 +5535,9 @@ class BranchQualityGate:
 
         When retry_forced=True, bypasses cached candidate failures and
         timeouts. Runner/infrastructure outcomes are always re-executed;
-        passed results remain cached and reusable.
+        passed results remain cached and reusable. ``force_recheck`` also
+        bypasses a cached pass when external base-generation evidence changed
+        while the candidate head remained immutable.
 
         ``owner`` binds cancellation to the exact project/task/head and
         authority generation.  ``generation`` remains a compatibility path
@@ -5781,6 +5784,8 @@ class BranchQualityGate:
                 head_sha=head_sha,
                 command=command,
             )
+            if force_recheck:
+                return loaded, None
             if cached_result is None:
                 return loaded, None
             # Runner/infrastructure termination is diagnostic evidence, not a

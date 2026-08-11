@@ -21,7 +21,10 @@ from typing import Any
 from oompah.integration import (
     ACCEPTED_SUBMISSION_STATES,
     IntegrationRecord,
+    REVIEW_GENERATION_REQUEUE_WAIT_REASON,
     assigned_work_branch,
+    requeue_standalone_review_generation,
+    review_generation_requeue_marker,
 )
 from oompah.models import Issue
 from oompah.review_workflow import (
@@ -402,7 +405,7 @@ class ProductionReviewWorkflowBackend:
     @staticmethod
     def _head_reconciliation_identity(
         snapshot: ReviewActionSnapshot,
-    ) -> tuple[IntegrationRecord, str, str]:
+    ) -> tuple[IntegrationRecord, str, str, str]:
         """Bind a forge head replacement to one accepted standalone review."""
 
         issue = snapshot.issue
@@ -411,6 +414,24 @@ class ProductionReviewWorkflowBackend:
         integration = issue.integration
         old_head = _text(issue.review_head).lower()
         new_head = _text(observation.head_sha if observation is not None else None).lower()
+        old_base = _text(
+            integration.base_sha if isinstance(integration, IntegrationRecord) else None
+        ).lower()
+        new_base = _text(
+            observation.base_sha if observation is not None else None
+        ).lower()
+        checkpoint = review_generation_requeue_marker(
+            observation.review_id if observation is not None else None,
+            new_head,
+            new_base,
+        )
+        accepted_checkpoint = review_generation_requeue_marker(
+            observation.review_id if observation is not None else None,
+            integration.head_sha
+            if isinstance(integration, IntegrationRecord)
+            else None,
+            old_base,
+        )
         expected_repo = _text(
             provider_context.repo if provider_context is not None else None
         ).casefold()
@@ -440,15 +461,26 @@ class ProductionReviewWorkflowBackend:
             and expected_repo == _text(observation.source_repository).casefold()
             and _HEAD_RE.fullmatch(old_head)
             and _HEAD_RE.fullmatch(new_head)
-            and _HEAD_RE.fullmatch(_text(observation.base_sha).lower())
-            and new_head != old_head
+            and _HEAD_RE.fullmatch(old_base)
+            and _HEAD_RE.fullmatch(new_base)
+            and (
+                new_head != old_head
+                or new_base != old_base
+                or (
+                    integration.wait_reason
+                    == REVIEW_GENERATION_REQUEUE_WAIT_REASON
+                    and checkpoint is not None
+                    and integration.wait_generation == checkpoint
+                )
+            )
             and (
                 _text(integration.head_sha).lower() == old_head
                 or (
                     integration.state == "ready"
-                    and _HEAD_RE.fullmatch(
-                        _text(integration.head_sha).lower()
-                    )
+                    and integration.wait_reason
+                    == REVIEW_GENERATION_REQUEUE_WAIT_REASON
+                    and accepted_checkpoint is not None
+                    and integration.wait_generation == accepted_checkpoint
                 )
             )
         )
@@ -458,7 +490,7 @@ class ProductionReviewWorkflowBackend:
                 category=WorkflowFailureCategory.STALE_EVIDENCE,
                 retryable=False,
             )
-        return integration, old_head, new_head
+        return integration, old_head, new_head, new_base
 
     def _persist_reconciled_head(
         self,
@@ -467,7 +499,7 @@ class ProductionReviewWorkflowBackend:
     ) -> IntegrationRecord:
         """Atomically replace accepted authority before the RTI transition."""
 
-        integration, _old_head, new_head = self._head_reconciliation_identity(
+        integration, _old_head, new_head, new_base = self._head_reconciliation_identity(
             snapshot
         )
         issue_id = _text(snapshot.issue.id or snapshot.issue.identifier)
@@ -483,6 +515,15 @@ class ProductionReviewWorkflowBackend:
                 isinstance(current_integration, IntegrationRecord)
                 and current_integration.state == "ready"
                 and _text(current_integration.head_sha).lower() == new_head
+                and _text(current_integration.base_sha).lower() == new_base
+                and current_integration.wait_reason
+                == REVIEW_GENERATION_REQUEUE_WAIT_REASON
+                and current_integration.wait_generation
+                == review_generation_requeue_marker(
+                    snapshot.observation.review_id,
+                    new_head,
+                    new_base,
+                )
             ):
                 return current_integration
             if issue_authority_version(current) != issue_authority_version(
@@ -493,33 +534,12 @@ class ProductionReviewWorkflowBackend:
                     category=WorkflowFailureCategory.STALE_EVIDENCE,
                     retryable=False,
                 )
-            base_sha = _text(
-                snapshot.observation.base_sha
-                if snapshot.observation is not None
-                else None
-            ).lower()
-            replacement = replace(
+            replacement = requeue_standalone_review_generation(
                 integration,
-                state="ready",
-                mode=_text(integration.mode).lower() or "standalone",
-                base_sha=(
-                    base_sha if _HEAD_RE.fullmatch(base_sha) else integration.base_sha
-                ),
+                review_id=snapshot.observation.review_id,
                 head_sha=new_head,
-                integrated_sha=None,
-                maintenance_publication_proven=False,
-                attempts=0,
+                base_sha=new_base,
                 updated_at=datetime.now(timezone.utc).isoformat(),
-                last_error=None,
-                dependency_heads={},
-                backoff_until=None,
-                repair_failure_reason=None,
-                gate_outcome=None,
-                gate_cancellation=None,
-                canonical_landing_evidence=None,
-                wait_reason=None,
-                wait_generation=None,
-                required_base_missing=(),
             )
             self.binding.tracker.set_metadata_field(
                 context.job.task_id,
@@ -532,6 +552,9 @@ class ProductionReviewWorkflowBackend:
                 not isinstance(persisted, IntegrationRecord)
                 or persisted.state != "ready"
                 or _text(persisted.head_sha).lower() != new_head
+                or _text(persisted.base_sha).lower() != new_base
+                or persisted.wait_reason != REVIEW_GENERATION_REQUEUE_WAIT_REASON
+                or persisted.wait_generation != replacement.wait_generation
             ):
                 raise WorkflowActionError(
                     "review head replacement did not persist",
@@ -695,7 +718,36 @@ class ProductionReviewWorkflowBackend:
                 snapshot.issue.review_head or snapshot.issue.head_sha
             ).lower()
             observed_head = _text(observation.head_sha).lower()
-            return "head_changed" if issue_head and observed_head != issue_head else "observed"
+            integration = snapshot.issue.integration
+            integration_base = _text(
+                integration.base_sha
+                if isinstance(integration, IntegrationRecord)
+                else None
+            ).lower()
+            observed_base = _text(observation.base_sha).lower()
+            checkpoint = review_generation_requeue_marker(
+                observation.review_id,
+                observed_head,
+                observed_base,
+            )
+            pending = bool(
+                isinstance(integration, IntegrationRecord)
+                and integration.wait_reason
+                == REVIEW_GENERATION_REQUEUE_WAIT_REASON
+                and checkpoint is not None
+                and integration.wait_generation == checkpoint
+            )
+            return (
+                "head_changed"
+                if pending
+                or (issue_head and observed_head != issue_head)
+                or (
+                    integration_base
+                    and observed_base
+                    and integration_base != observed_base
+                )
+                else "observed"
+            )
         if action == "review_merge":
             if observation.state == "merged":
                 return "observed"
@@ -849,7 +901,7 @@ class ProductionReviewWorkflowBackend:
             receipt = dict(effect.receipt)
             if action == "review_head_reconciliation" and current == expected:
                 try:
-                    _integration, _old_head, new_head = (
+                    _integration, _old_head, new_head, new_base = (
                         self._head_reconciliation_identity(snapshot)
                     )
                 except WorkflowActionError:
@@ -863,6 +915,7 @@ class ProductionReviewWorkflowBackend:
                     not isinstance(current_integration, IntegrationRecord)
                     or current_integration.state != "ready"
                     or _text(current_integration.head_sha).lower() != new_head
+                    or _text(current_integration.base_sha).lower() != new_base
                 ):
                     return VerificationResult(
                         False,

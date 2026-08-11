@@ -7,7 +7,11 @@ from types import SimpleNamespace
 import pytest
 
 import oompah.review_workflow_adapter as adapter_module
-from oompah.integration import IntegrationRecord
+from oompah.integration import (
+    IntegrationRecord,
+    REVIEW_GENERATION_REQUEUE_WAIT_REASON,
+    review_generation_requeue_marker,
+)
 from oompah.models import Issue
 from oompah.review_capacity import ReviewCapacityStore
 from oompah.review_workflow import ReviewWorkflowController
@@ -63,6 +67,7 @@ def review(
     state: str = "open",
     ci: CIStatus = CIStatus.PENDING,
     head: str = HEAD,
+    base: str = BASE,
     conflict: bool = False,
     draft: bool = False,
     review_id: str = "17",
@@ -84,7 +89,7 @@ def review(
         ci_status=ci,
         has_conflicts=conflict,
         head_sha=head,
-        base_sha=BASE,
+        base_sha=base,
         source_repository=source_repository,
         target_repository=target_repository,
         draft=draft,
@@ -788,6 +793,10 @@ async def test_head_reconciliation_resumes_after_metadata_checkpoint_restart(
             binding.tracker.task.integration,
             state="ready",
             head_sha=new_head,
+            wait_reason=REVIEW_GENERATION_REQUEUE_WAIT_REASON,
+            wait_generation=review_generation_requeue_marker(
+                "17", new_head, BASE
+            ),
         ),
     )
     decision = binding.review_controller.evaluate((binding.tracker.task,)).tasks[
@@ -819,6 +828,118 @@ async def test_head_reconciliation_resumes_after_metadata_checkpoint_restart(
         assert binding.tracker.task.state == READY_TO_INTEGRATE
         assert binding.tracker.task.integration.head_sha == new_head
         assert store.get(queued.job_id).state.value == "completed"
+    finally:
+        journal.close()
+        capacity.close()
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_base_only_change_requeues_exact_generation_for_regating(
+    tmp_path, monkeypatch
+):
+    new_base = "e" * 40
+    provider = Provider([review(base=new_base, ci=CIStatus.PASSED)])
+    orchestrator, binding, store, capacity = composition(
+        tmp_path, monkeypatch, provider
+    )
+    decision = binding.review_controller.evaluate((binding.tracker.task,)).tasks[
+        0
+    ].decision
+    assert decision.reason_code == "review.head_changed"
+    assert decision.durable_jobs == ("review_head_reconciliation",)
+    store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation="base-only-change",
+            action="review_head_reconciliation",
+            idempotency_key="base-only-change",
+            expected_evidence_revision=decision.evidence_revision,
+        )
+    )
+    journal = TransitionJournal(str(tmp_path / "base-only-transitions.sqlite3"))
+    service = TaskTransitionService(
+        project_id="project-1", tracker=binding.tracker, journal=journal
+    )
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers=build_review_workflow_handlers(orchestrator, binding),
+        transition_services={"project-1": service},
+        worker_id="base-review-worker",
+    )
+    try:
+        result = await worker.run_once()
+
+        assert result.disposition is WorkflowRunDisposition.COMPLETED
+        assert binding.tracker.task.state == READY_TO_INTEGRATE
+        assert binding.tracker.task.integration.head_sha == HEAD
+        assert binding.tracker.task.integration.base_sha == new_base
+        assert (
+            binding.tracker.task.integration.wait_reason
+            == REVIEW_GENERATION_REQUEUE_WAIT_REASON
+        )
+        assert binding.tracker.task.integration.wait_generation == (
+            review_generation_requeue_marker("17", HEAD, new_base)
+        )
+        assert provider.merge_calls == 0
+    finally:
+        journal.close()
+        capacity.close()
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_base_only_reconciliation_resumes_after_metadata_checkpoint(
+    tmp_path, monkeypatch
+):
+    new_base = "e" * 40
+    provider = Provider([review(base=new_base, draft=True)])
+    orchestrator, binding, store, capacity = composition(
+        tmp_path, monkeypatch, provider
+    )
+    binding.tracker.task = replace(
+        binding.tracker.task,
+        integration=replace(
+            binding.tracker.task.integration,
+            base_sha=new_base,
+            wait_reason=REVIEW_GENERATION_REQUEUE_WAIT_REASON,
+            wait_generation=review_generation_requeue_marker(
+                "17", HEAD, new_base
+            ),
+        ),
+    )
+    decision = binding.review_controller.evaluate((binding.tracker.task,)).tasks[
+        0
+    ].decision
+    assert decision.durable_jobs == ("review_head_reconciliation",)
+    store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation="base-checkpoint-restart",
+            action="review_head_reconciliation",
+            idempotency_key="base-checkpoint-restart",
+            expected_evidence_revision=decision.evidence_revision,
+        )
+    )
+    journal = TransitionJournal(str(tmp_path / "base-restart.sqlite3"))
+    service = TaskTransitionService(
+        project_id="project-1", tracker=binding.tracker, journal=journal
+    )
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers=build_review_workflow_handlers(orchestrator, binding),
+        transition_services={"project-1": service},
+        worker_id="base-restart-worker",
+    )
+    try:
+        result = await worker.run_once()
+
+        assert result.disposition is WorkflowRunDisposition.COMPLETED
+        assert binding.tracker.task.state == READY_TO_INTEGRATE
+        assert binding.tracker.task.integration.base_sha == new_base
+        assert provider.merge_calls == 0
     finally:
         journal.close()
         capacity.close()
@@ -1046,10 +1167,92 @@ async def test_review_advancing_to_c_after_b_write_cannot_transition_b(
 
 
 @pytest.mark.asyncio
+async def test_base_advancing_again_after_checkpoint_converges_exactly(
+    tmp_path, monkeypatch
+):
+    base_b = "e" * 40
+    base_c = "f" * 40
+
+    class AdvancingBaseProvider(Provider):
+        def list_open_reviews(self, repo):
+            observed = super().list_open_reviews(repo)
+            if self.list_calls >= 4:
+                self.reviews[0].base_sha = base_c
+            return [item for item in self.reviews if item.state == "open"]
+
+    provider = AdvancingBaseProvider([review(base=base_b, draft=True)])
+    orchestrator, binding, store, capacity = composition(
+        tmp_path, monkeypatch, provider
+    )
+    decision_b = binding.review_controller.evaluate(
+        (binding.tracker.task,)
+    ).tasks[0].decision
+    store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation="base-b-before-c",
+            action="review_head_reconciliation",
+            idempotency_key="base-b-before-c",
+            expected_evidence_revision=decision_b.evidence_revision,
+            max_attempts=3,
+        )
+    )
+    journal = TransitionJournal(str(tmp_path / "base-c-transitions.sqlite3"))
+    service = TaskTransitionService(
+        project_id="project-1", tracker=binding.tracker, journal=journal
+    )
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers=build_review_workflow_handlers(orchestrator, binding),
+        transition_services={"project-1": service},
+        worker_id="base-review-worker",
+    )
+    try:
+        first = await worker.run_once()
+
+        assert first.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+        assert binding.tracker.task.state == IN_REVIEW
+        assert binding.tracker.task.integration.base_sha == base_b
+        assert provider.reviews[0].base_sha == base_c
+
+        decision_c = binding.review_controller.evaluate(
+            (binding.tracker.task,)
+        ).tasks[0].decision
+        store.enqueue(
+            WorkflowJobSpec(
+                project_id="project-1",
+                task_id="TASK-1",
+                generation="base-c-after-b-checkpoint",
+                action="review_head_reconciliation",
+                idempotency_key="base-c-after-b-checkpoint",
+                expected_evidence_revision=decision_c.evidence_revision,
+                max_attempts=3,
+            )
+        )
+
+        second = await worker.run_once()
+
+        assert second.disposition is WorkflowRunDisposition.COMPLETED
+        assert binding.tracker.task.state == READY_TO_INTEGRATE
+        assert binding.tracker.task.integration.head_sha == HEAD
+        assert binding.tracker.task.integration.base_sha == base_c
+        assert provider.merge_calls == 0
+    finally:
+        journal.close()
+        capacity.close()
+        store.close()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("intermediate_state", "intermediate_head"),
-    [("blocked", "b" * 40), ("ready", "not-an-exact-head")],
-    ids=["non-ready", "malformed-head"],
+    [
+        ("blocked", "b" * 40),
+        ("ready", "not-an-exact-head"),
+        ("ready", "b" * 40),
+    ],
+    ids=["non-ready", "malformed-head", "unmarked-ready-head"],
 )
 async def test_head_reconciliation_rejects_untrusted_intermediate_authority(
     tmp_path,
