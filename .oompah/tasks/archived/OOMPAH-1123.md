@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1123
 type: bug
-status: Backlog
+status: Archived
 priority: 2
 title: '[backend:terminal_transition_coordinator] Failed to apply audit-result status
   ''Merged'' for TRICKLE-125'
@@ -12,13 +12,36 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T21:14:06.202489Z'
-updated_at: '2026-08-11T21:14:06.202489Z'
+updated_at: '2026-08-11T22:50:09.684670Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-834d01cc8730
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1123
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e3a6465fd9ac2bdb9907d69cfec4552426c94cb194ce0075688896ecef4ca25d
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Operator consolidation of a downstream terminal-transition artifact into
+      canonical defect OOMPAH-1127 after recovering and publishing the affected Trickle
+      state history.
+    created_at: '2026-08-11T22:50:04.948219+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
