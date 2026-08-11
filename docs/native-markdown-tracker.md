@@ -104,19 +104,22 @@ before touching the filesystem or running `git add` / `git commit` /
 subprocesses against the same repository.
 
 **Do not run multiple oompah server instances pointing at the same managed
-repository.** The lock is in-process only. Two separate oompah processes (or
-two uvicorn workers, if the `workers` parameter were ever passed through) would
-each have their own lock object and could race on git commits, producing errors
-like:
+repository.** The serialization lock is in-process only. Two separate oompah
+processes (or two uvicorn workers, if the `workers` parameter were ever passed
+through) each have their own lock object and can contend on Git's locks:
 
 ```
 fatal: cannot lock ref 'HEAD': is at <sha> but expected <sha>
 fatal: Unable to create '.git/index.lock': File exists.
 ```
 
-The default configuration (`OOMPAH_SERVER_WORKERS` unset, uvicorn backend) runs
-a single process with a single in-process lock, so this constraint is satisfied
-automatically.
+The tracker tolerates a brief process overlap or mixed-version direct writer by
+retrying the complete state-branch stage/commit transaction with bounded
+backoff. It does not delete or bypass Git-owned lock files. Persistent lock
+contention still fails closed and usually means that multiple writers remain
+active. The default configuration (`OOMPAH_SERVER_WORKERS` unset, uvicorn
+backend) runs a single process with a single in-process lock, so this constraint
+is satisfied automatically.
 
 If you see either of these errors in `oompah.log`, check whether two server
 processes are running against the same repository at the same time (for example,
