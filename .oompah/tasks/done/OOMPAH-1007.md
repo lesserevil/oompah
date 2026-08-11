@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T23:19:04.544332Z'
-updated_at: '2026-08-11T01:48:57.434517Z'
+updated_at: '2026-08-11T01:49:06.658810Z'
 work_branch: OOMPAH-1007
 target_branch: main
 review_url: null
@@ -374,5 +374,10 @@ created: 2026-08-11 01:48
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Protected PR #805 merged at f9060c80e after all Python 3.11/3.12/3.13 hosted checks passed, and exact terminal audit attempt 9703c33f3489 passed the topology-valid Done stage. OOMPAH-1010 tracks the erroneous follow-on Merged staging for this shared-epic child; OOMPAH-1009 tracks the restart-publication livelock amplified by those audit writes. This override applies the already-passed child result so parent OOMPAH-940 can resume naturally.
+---
+author: oompah
+created: 2026-08-11 01:49
+---
+Delivered exact workflow-authority terminal-audit fencing through protected PR #805; hosted matrix and exact Done audit are green. Owner override applies the valid child terminal lane while OOMPAH-1009/OOMPAH-1010 own the exposed orchestration bugs.
 ---
 <!-- COMMENTS:END -->
