@@ -6,6 +6,7 @@ import asyncio
 import copy
 import sqlite3
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from types import SimpleNamespace
@@ -22,6 +23,7 @@ from oompah.task_transition_service import (
     TransitionDisposition,
     TransitionIntent,
     TransitionJournal,
+    TransitionJournalClosedError,
     TransitionJournalCorruptionError,
     TransitionOutcome,
     TransitionPhase,
@@ -128,6 +130,142 @@ def _service(tmp_path, tracker, **overrides):
         journal=journal,
         **overrides,
     )
+
+
+def test_journal_close_drains_admitted_transition_saga(tmp_path):
+    """Retirement cannot close SQLite between a transition's journal writes."""
+
+    issue = _issue()
+    tracker = FakeTracker(issue)
+    fetch_entered = threading.Event()
+    release_fetch = threading.Event()
+    close_started = threading.Event()
+    close_finished = threading.Event()
+    original_fetch = tracker.fetch_issue_detail
+
+    def blocked_fetch(identifier: str):
+        fetch_entered.set()
+        assert release_fetch.wait(timeout=3)
+        return original_fetch(identifier)
+
+    tracker.fetch_issue_detail = blocked_fetch
+    path = tmp_path / "close-drains-transition.sqlite3"
+    journal = TransitionJournal(str(path))
+    service = _service(tmp_path, tracker, journal=journal)
+
+    def close_journal() -> None:
+        close_started.set()
+        journal.close()
+        close_finished.set()
+
+    async def scenario():
+        transition = asyncio.create_task(service.execute(_intent(issue)))
+        assert await asyncio.to_thread(fetch_entered.wait, 1)
+        closing = asyncio.create_task(asyncio.to_thread(close_journal))
+        assert await asyncio.to_thread(close_started.wait, 1)
+        deadline = asyncio.get_running_loop().time() + 1
+        while asyncio.get_running_loop().time() < deadline:
+            with journal._lifecycle_condition:
+                if journal._closing:
+                    break
+            await asyncio.sleep(0.01)
+        else:
+            raise AssertionError("journal retirement did not fence admission")
+        assert close_finished.is_set() is False
+        with pytest.raises(
+            TransitionJournalClosedError,
+            match="transition journal is closing or closed",
+        ):
+            await service.execute(_intent(issue, idempotency_key="job-concurrent"))
+
+        release_fetch.set()
+        outcome = await transition
+        await closing
+        return outcome
+
+    try:
+        outcome = asyncio.run(scenario())
+    finally:
+        release_fetch.set()
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert tracker.issue.state == "In Progress"
+    assert tracker.updates == [(issue.identifier, "In Progress")]
+    assert close_finished.is_set() is True
+
+    reopened = TransitionJournal(str(path))
+    try:
+        assert (
+            reopened.events(outcome.transition_id)[-1].phase
+            is TransitionPhase.APPLIED
+        )
+    finally:
+        reopened.close()
+
+    # Retirement is idempotent and permanently fences later transition work.
+    journal.close()
+    with pytest.raises(
+        TransitionJournalClosedError,
+        match="transition journal is closing or closed",
+    ):
+        asyncio.run(service.execute(_intent(tracker.issue, idempotency_key="job-2")))
+
+
+def test_journal_close_drains_direct_use_and_fences_late_callers(tmp_path):
+    """Every public journal operation participates in the close boundary."""
+
+    journal = TransitionJournal(str(tmp_path / "close-drains-reader.sqlite3"))
+    reader_result = []
+    reader_finished = threading.Event()
+    close_finished = threading.Event()
+
+    def read_events() -> None:
+        reader_result.append(journal.events("missing-transition"))
+        reader_finished.set()
+
+    def close_journal() -> None:
+        journal.close()
+        close_finished.set()
+
+    journal._lock.acquire()
+    reader = threading.Thread(target=read_events)
+    closer = threading.Thread(target=close_journal)
+    try:
+        reader.start()
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline:
+            with journal._lifecycle_condition:
+                if journal._active_uses == 1:
+                    break
+            time.sleep(0.01)
+        else:
+            raise AssertionError("direct reader did not acquire a lifetime lease")
+
+        closer.start()
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline:
+            with journal._lifecycle_condition:
+                if journal._closing:
+                    break
+            time.sleep(0.01)
+        else:
+            raise AssertionError("journal retirement did not fence direct uses")
+
+        with pytest.raises(
+            TransitionJournalClosedError,
+            match="transition journal is closing or closed",
+        ):
+            journal.integrity_check()
+        assert reader_finished.is_set() is False
+        assert close_finished.is_set() is False
+    finally:
+        journal._lock.release()
+        reader.join(timeout=1)
+        closer.join(timeout=1)
+
+    assert reader_result == [()]
+    assert reader_finished.is_set() is True
+    assert close_finished.is_set() is True
 
 
 def test_intent_is_canonical_and_has_stable_round_trip():

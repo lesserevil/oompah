@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import contextvars
 import hashlib
 import inspect
 import json
@@ -26,7 +27,7 @@ import sqlite3
 import threading
 import time
 import uuid
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -621,6 +622,10 @@ class TransitionJournalCorruptionError(TransitionJournalError):
     """Raised when immutable journal content cannot be decoded safely."""
 
 
+class TransitionJournalClosedError(TransitionJournalError):
+    """Raised when journal work starts after retirement begins."""
+
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
     key TEXT PRIMARY KEY,
@@ -706,6 +711,17 @@ class TransitionJournal:
             os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         self._clock = clock
         self._lock = threading.RLock()
+        self._lifecycle_condition = threading.Condition(threading.RLock())
+        self._active_uses = 0
+        self._active_transition_leases: set[object] = set()
+        self._transition_lease: contextvars.ContextVar[object | None] = (
+            contextvars.ContextVar(
+                f"transition-journal-lease-{id(self)}",
+                default=None,
+            )
+        )
+        self._closing = False
+        self._closed = False
         self._conn = sqlite3.connect(self.path, check_same_thread=False, timeout=10)
         self._conn.row_factory = sqlite3.Row
         with _INITIALIZE_LOCK, self._lock:
@@ -719,9 +735,87 @@ class TransitionJournal:
             )
             self._conn.commit()
 
+    @contextlib.contextmanager
+    def _admit_use(self) -> Iterator[None]:
+        """Fence one complete public journal use against retirement."""
+
+        with self._lifecycle_condition:
+            # ``asyncio.to_thread`` copies context.  The live-set check lets
+            # an admitted saga finish journal work after the close fence, but
+            # prevents a worker carrying a stale, cancelled lease from doing
+            # the same after its outer saga has exited.
+            transition_lease = self._transition_lease.get()
+            owns_active_transition = (
+                transition_lease is not None
+                and transition_lease in self._active_transition_leases
+            )
+            if (self._closing or self._closed) and not owns_active_transition:
+                raise TransitionJournalClosedError(
+                    "transition journal is closing or closed"
+                )
+            self._active_uses += 1
+        try:
+            yield
+        finally:
+            with self._lifecycle_condition:
+                self._active_uses -= 1
+                if self._active_uses == 0:
+                    self._lifecycle_condition.notify_all()
+
+    @contextlib.contextmanager
+    def admit_transition(self) -> Iterator[None]:
+        """Hold journal lifetime authority for one complete transition saga.
+
+        A transition deliberately releases the SQLite lock while it performs
+        tracker I/O.  Closing the connection based on lock ownership alone can
+        therefore retire the journal between its durable intent and outcome
+        writes.  This lease spans those gaps: retirement fences new sagas and
+        waits for every already-admitted saga to record or recover its outcome.
+        """
+
+        lease = object()
+        with self._lifecycle_condition:
+            if self._closing or self._closed:
+                raise TransitionJournalClosedError(
+                    "transition journal is closing or closed"
+                )
+            self._active_transition_leases.add(lease)
+            self._active_uses += 1
+        context_token = self._transition_lease.set(lease)
+        try:
+            yield
+        finally:
+            self._transition_lease.reset(context_token)
+            with self._lifecycle_condition:
+                self._active_transition_leases.remove(lease)
+                self._active_uses -= 1
+                if self._active_uses == 0:
+                    self._lifecycle_condition.notify_all()
+
     def close(self) -> None:
-        with self._lock:
-            self._conn.close()
+        """Fence new uses, drain admitted work, and close exactly once."""
+
+        with self._lifecycle_condition:
+            while self._closing:
+                self._lifecycle_condition.wait()
+            if self._closed:
+                return
+            self._closing = True
+        try:
+            with self._lifecycle_condition:
+                while self._active_uses:
+                    self._lifecycle_condition.wait()
+            with self._lock:
+                self._conn.close()
+        except BaseException:
+            with self._lifecycle_condition:
+                self._closing = False
+                self._lifecycle_condition.notify_all()
+            raise
+        with self._lifecycle_condition:
+            self._closed = True
+            self._closing = False
+            self._lifecycle_condition.notify_all()
 
     def _decode_outcome(
         self, raw: object, *, replayed: bool = False
@@ -769,7 +863,7 @@ class TransitionJournal:
         return self._event_from_row(row) if row is not None else None
 
     def latest_event(self, transition_id: str) -> TransitionJournalEvent | None:
-        with self._lock:
+        with self._admit_use(), self._lock:
             return self._latest_event_locked(transition_id)
 
     def latest_committed_task_transition(
@@ -785,7 +879,7 @@ class TransitionJournal:
         human, auditor, or system transition still consumes the old capability.
         """
 
-        with self._lock:
+        with self._admit_use(), self._lock:
             rows = self._conn.execute(
                 """
                 SELECT event.*
@@ -835,7 +929,7 @@ class TransitionJournal:
     ) -> tuple[tuple[TransitionIntent, TransitionJournalEvent, str], ...]:
         """Return committed task transitions from newest to oldest."""
 
-        with self._lock:
+        with self._admit_use(), self._lock:
             rows = self._conn.execute(
                 """
                 SELECT event.*, request.intent_json,
@@ -874,7 +968,7 @@ class TransitionJournal:
             return tuple(committed)
 
     def events(self, transition_id: str) -> tuple[TransitionJournalEvent, ...]:
-        with self._lock:
+        with self._admit_use(), self._lock:
             rows = self._conn.execute(
                 """
                 SELECT * FROM task_transition_events
@@ -885,7 +979,7 @@ class TransitionJournal:
             return tuple(self._event_from_row(row) for row in rows)
 
     def load_intent(self, transition_id: str) -> TransitionIntent:
-        with self._lock:
+        with self._admit_use(), self._lock:
             row = self._conn.execute(
                 "SELECT intent_json FROM task_transition_requests WHERE transition_id = ?",
                 (transition_id,),
@@ -935,6 +1029,21 @@ class TransitionJournal:
         reason_code: str,
         outcome: TransitionOutcome | None = None,
     ) -> int:
+        with self._admit_use():
+            return self._append_admitted(
+                transition_id,
+                phase,
+                reason_code,
+                outcome,
+            )
+
+    def _append_admitted(
+        self,
+        transition_id: str,
+        phase: TransitionPhase,
+        reason_code: str,
+        outcome: TransitionOutcome | None = None,
+    ) -> int:
         with self._lock:
             row = self._conn.execute(
                 """
@@ -963,6 +1072,20 @@ class TransitionJournal:
         lease_ttl_seconds: float = DEFAULT_TRANSITION_CLAIM_TTL_SECONDS,
     ) -> _BeginResult:
         """Atomically register an idempotency key and acquire task ownership."""
+
+        with self._admit_use():
+            return self._begin_admitted(
+                intent,
+                lease_ttl_seconds=lease_ttl_seconds,
+            )
+
+    def _begin_admitted(
+        self,
+        intent: TransitionIntent,
+        *,
+        lease_ttl_seconds: float = DEFAULT_TRANSITION_CLAIM_TTL_SECONDS,
+    ) -> _BeginResult:
+        """Begin a transition whose caller already owns lifecycle admission."""
 
         if lease_ttl_seconds <= 0:
             raise ValueError("lease_ttl_seconds must be positive")
@@ -1257,6 +1380,15 @@ class TransitionJournal:
                 raise
 
     def release(self, project_id: str, task_id: str, claim_token: str) -> bool:
+        with self._admit_use():
+            return self._release_admitted(project_id, task_id, claim_token)
+
+    def _release_admitted(
+        self,
+        project_id: str,
+        task_id: str,
+        claim_token: str,
+    ) -> bool:
         with self._lock:
             cursor = self._conn.execute(
                 """
@@ -1276,6 +1408,21 @@ class TransitionJournal:
     ) -> bool:
         """Yield a claim while retaining its durable recovery obligation."""
 
+        with self._admit_use():
+            return self._expire_for_retry_admitted(
+                project_id,
+                task_id,
+                claim_token,
+            )
+
+    def _expire_for_retry_admitted(
+        self,
+        project_id: str,
+        task_id: str,
+        claim_token: str,
+    ) -> bool:
+        """Expire a claim whose caller already owns lifecycle admission."""
+
         with self._lock:
             cursor = self._conn.execute(
                 """
@@ -1289,7 +1436,7 @@ class TransitionJournal:
             return cursor.rowcount == 1
 
     def integrity_check(self) -> None:
-        with self._lock:
+        with self._admit_use(), self._lock:
             result = self._conn.execute("PRAGMA integrity_check").fetchone()
             if result is None or str(result[0]).lower() != "ok":
                 raise TransitionJournalCorruptionError(
@@ -1562,6 +1709,12 @@ class TaskTransitionService:
         )
 
     async def execute(self, intent: TransitionIntent) -> TransitionOutcome:
+        """Run one ordinary transition under the journal lifetime lease."""
+
+        with self.journal.admit_transition():
+            return await self._execute_admitted(intent)
+
+    async def _execute_admitted(self, intent: TransitionIntent) -> TransitionOutcome:
         """Journal, fence, apply, and verify one status transition."""
 
         if intent.project_id != self.project_id:
@@ -2315,6 +2468,15 @@ class TaskTransitionService:
                 )
 
     async def recover_authorized(self, intent: TransitionIntent) -> TransitionOutcome:
+        """Run one authorized recovery under the journal lifetime lease."""
+
+        with self.journal.admit_transition():
+            return await self._recover_authorized_admitted(intent)
+
+    async def _recover_authorized_admitted(
+        self,
+        intent: TransitionIntent,
+    ) -> TransitionOutcome:
         """Apply a pre-authorized recovery without re-running lifecycle policy.
 
         This narrow path exists for durable authorities that are themselves the
