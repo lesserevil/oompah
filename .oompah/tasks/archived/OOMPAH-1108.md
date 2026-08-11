@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T21:03:20.567536Z'
-updated_at: '2026-08-11T22:43:59.403958Z'
+updated_at: '2026-08-11T22:44:09.902246Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,21 @@ oompah.terminal_audit:
       canonical defect OOMPAH-1127 after recovering and publishing the affected Trickle
       state history.
     created_at: '2026-08-11T22:43:53.505986+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1108
+    target_state: Archived
+    evidence_fingerprint: 121a6258da928ce2a6200a662a491b8fea15382d55e882357cc4f3f9906b3cdc
+    workflow_revision: null
+    selected_ref: null
+    selected_sha: null
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T22:44:03.781620+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -82,3 +96,18 @@ The operation in `backend:terminal_transition_coordinator` should complete succe
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 22:44
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Operator consolidation of a downstream terminal-transition artifact into canonical defect OOMPAH-1127 after recovering and publishing the affected Trickle state history.
+---
+author: oompah
+created: 2026-08-11 22:44
+---
+Archived as a downstream artifact of the Trickle forge-cutover checkpoint incident. The stale checkpoint-writer/credential-authority defect is tracked by OOMPAH-1127. The affected state history was recovered and fast-forwarded to GitLab at d6b89313f65b8b018a254e23cfb4510482338479.
+---
+<!-- COMMENTS:END -->
