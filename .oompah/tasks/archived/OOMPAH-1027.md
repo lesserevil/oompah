@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1027
 type: bug
-status: Backlog
+status: Archived
 priority: 2
 title: '[backend:terminal_audit_enforcement] terminal-audit enforcement: pre_recovery_finalization_metadata_malformed:proj-14849f1b:OOMPAH-485'
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T06:32:00.748570Z'
-updated_at: '2026-08-11T07:49:22.055359Z'
+updated_at: '2026-08-11T07:49:26.491715Z'
 work_branch: null
 target_branch: null
 review_url: null
