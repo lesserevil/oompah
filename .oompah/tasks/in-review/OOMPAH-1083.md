@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:41:11.895675Z'
-updated_at: '2026-08-11T12:30:17.541028Z'
+updated_at: '2026-08-11T12:55:56.852304Z'
 work_branch: OOMPAH-1083
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/820
@@ -77,5 +77,10 @@ author: oompah
 created: 2026-08-11 12:29
 ---
 Branch quality gate passed for `be48003555fed724a752512d73fd70d5c72b2795` using `make test` in 176.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 12:55
+---
+Protected CI Python 3.12 passed all 19,945 test bodies but hit a load-sensitive autouse teardown timeout while closing TransitionJournal; 3.11 and 3.13 are green. Exact-head Python 3.12 focused test passed 10/10 locally, independent diagnosis found no OOMPAH-1083 regression, and only the failed 3.12 matrix cell is rerunning as job 93785370387. Filed and directly claimed OOMPAH-1086 to make the observed cleanup boundary deterministic rather than hiding the race.
 ---
 <!-- COMMENTS:END -->

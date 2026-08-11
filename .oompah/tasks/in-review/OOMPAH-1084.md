@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T12:49:03.830021Z'
+updated_at: '2026-08-11T12:55:59.622651Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
@@ -65,5 +65,10 @@ author: oompah
 created: 2026-08-11 12:48
 ---
 Branch quality gate passed for `15a2ee7c9b82cfefb49a00173c302c095f3ca46e` using `make test` in 180.4s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 12:55
+---
+Independent exact-head review BLOCKED 15a2ee7: production-shaped A→B→C review advancement can strand the durable intermediate B head, and GitLab omitted source/target project IDs can fail open as same-repository identity. Direct owner repair is adding eventual-convergence and missing-ID regressions; the branch will require fresh independent review at its replacement exact head.
 ---
 <!-- COMMENTS:END -->
