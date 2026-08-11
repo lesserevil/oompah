@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:34:25.712698Z'
-updated_at: '2026-08-11T16:35:09.355637Z'
+updated_at: '2026-08-11T17:03:09.181296Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Triggered by: OOMPAH-1085 and OOMPAH-1092. Live reproduction on 2026-08-11: an a
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 17:03
+---
+Implementation pushed at exact head 1b36938b7a9d64534049af27963cba92b605a38d on branch OOMPAH-1094. Added a standard-library Make/setup mutation guard that resolves the invoking and primary service checkouts, compares resolved path plus device/inode aliases, carries exact service checkout/venv markers into worker environments, rejects task attempts to target the live service venv before uv, and serializes linked-worktree setup/repair with a shared Git flock. Canonical main setup remains repair authority; quality-gate preflight shares the lock and safely repairs proven canonical editable corruption before candidate execution. Verification: tests/test_makefile_setup.py + tests/test_client_auth.py 111 passed; tests/test_quality_gate.py 314 passed; terminal mutation scan 21/21. The live service direct_url mapping remained file:///home/shedwards/src/oompah before and after guarded task Make execution; task runtime remained file:///home/shedwards/src/oompah-1094. A redundant full make test reached 28% of 20,070 tests with no failures, then was operator-cancelled because four workers were blocked on jbd2 fsync and starving the critical release gate; all worker processes were confirmed gone. Per instruction, task is not submitted or merged and awaits independent review/canonical gate.
+---
+<!-- COMMENTS:END -->
