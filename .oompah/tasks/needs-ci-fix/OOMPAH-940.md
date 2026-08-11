@@ -33,12 +33,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-10T23:19:06.426215Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
-review_head: null
+updated_at: '2026-08-11T01:54:52.672538Z'
+work_branch: epic-OOMPAH-940
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/757
+review_number: '757'
+review_head: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
@@ -258,6 +258,11 @@ oompah.task_costs:
     output_tokens: 5861
     cost_usd: 0.0
     recorded_at: '2026-08-09T18:06:44.667632+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/757
+oompah.review_number: '757'
+oompah.work_branch: epic-OOMPAH-940
+oompah.target_branch: main
+oompah.review_head: 2dd74be288b81265ea4a242d7467ecc1ed9f1435
 ---
 ## Summary
 
