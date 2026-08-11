@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:08:16.081490Z'
-updated_at: '2026-08-11T12:34:16.496980Z'
+updated_at: '2026-08-11T12:37:40.402845Z'
 work_branch: OOMPAH-1082
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/819
@@ -54,6 +54,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1082
     digest: 9b2b997b620044ccd53da6072f11e1fdd456545a48d5d643f416f256730dc3dc
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1082","audit-9193cb8ddfd6","attempt-b707ed02a354"]': '2026-08-11T12:37:31.504266+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1082
+    target_state: Done
+    evidence_fingerprint: 9b2b997b620044ccd53da6072f11e1fdd456545a48d5d643f416f256730dc3dc
+    workflow_revision: null
+    selected_ref: 4af4260085204071f14689771609658fb52329e1
+    selected_sha: 4af4260085204071f14689771609658fb52329e1
+    landing_revision: null
+    audit_ids:
+    - audit-9193cb8ddfd6
+    kind: result
+    applied: true
+    retired_at: '2026-08-11T12:37:31.504283+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1082
+    audit_id: audit-9193cb8ddfd6
+    attempt_id: attempt-b707ed02a354
+    target_state: Done
+    evidence_fingerprint: 9b2b997b620044ccd53da6072f11e1fdd456545a48d5d643f416f256730dc3dc
+    status: In Validation
+    audit_ids:
+    - audit-9193cb8ddfd6
+    kind: result
+    applied: true
+    created_at: '2026-08-11T12:37:31.504294+00:00'
+    applied_at: '2026-08-11T12:37:38.897641+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -61,7 +91,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1082
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -70,7 +100,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-b707ed02a354
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -82,6 +112,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1082
       selected_ref: 4af4260085204071f14689771609658fb52329e1
       selected_sha: 4af4260085204071f14689771609658fb52329e1
+      verdict: pass
+      completed_at: '2026-08-11T12:37:31.504054+00:00'
+      ended_at: '2026-08-11T12:37:31.504054+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -91,7 +124,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T12:30:38.817712+00:00'
     selected_ref: 4af4260085204071f14689771609658fb52329e1
     selected_sha: 4af4260085204071f14689771609658fb52329e1
-    updated_at: '2026-08-11T12:34:07.866474+00:00'
+    updated_at: '2026-08-11T12:37:31.504054+00:00'
   - version: 1
     audit_id: audit-a54c56f04b36
     project_id: proj-14849f1b
@@ -112,6 +145,9 @@ oompah.terminal_audit:
     created_at: '2026-08-11T12:30:38.817712+00:00'
     selected_ref: 4af4260085204071f14689771609658fb52329e1
     selected_sha: 4af4260085204071f14689771609658fb52329e1
+    updated_at: '2026-08-11T12:37:31.504054+00:00'
+    eligible_at: '2026-08-11T12:37:31.504054+00:00'
+    prerequisite_audit_id: audit-9193cb8ddfd6
   attempt_history:
   - version: 1
     attempt_id: attempt-b707ed02a354
@@ -195,5 +231,31 @@ author: oompah
 created: 2026-08-11 12:34
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 12:37
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- implementation.eligible_at_field: terminal_audit.py defines durable stage eligibility boundary
+- implementation.prerequisite_audit_id_field: terminal_audit.py defines exact prerequisite binding
+- implementation.successor_wake: terminal_transition_coordinator.py line 4943-4945 sets eligible_at=now and prerequisite_audit_id
+- implementation.audit_lane_continuation: orchestrator.py line 11859-11860 triggers bounded continuation immediately
+- implementation.aging_correct: terminal_audit_health.py line 72-76 uses eligible_at for pending age, returns None for blocked stages
+- implementation.exact_prerequisite_enforcement: auditor_dispatch.py and terminal_transition_coordinator.py validate prerequisite_audit_id match
+- implementation.owner_rearm_rebinding: terminal_transition_coordinator.py lines 2756-2780 atomically rebind successors
+- implementation.restart_recovery: orchestrator.py lines 17629-17643 reconstruct and immediately revisit eligible stages
+- test_coverage.done_merged_chain: test_pass_on_done_wakes_its_exact_merged_successor verifies wake mechanism
+- test_coverage.chain_progression: test_pass_on_done_keeps_issue_in_validation_until_merged verifies blocking
+- test_coverage.combined_tests: 808 passed
+- test_coverage.adjacent_tests: 915 passed
+- test_coverage.mutation_scan: 21/21 passed
+- quality_gate.command: make test
+- quality_gate.duration_seconds: 179.7
+- quality_gate.status: passed
+- quality_gate.review_status: independent exact-head ACCEPTED
 ---
 <!-- COMMENTS:END -->
