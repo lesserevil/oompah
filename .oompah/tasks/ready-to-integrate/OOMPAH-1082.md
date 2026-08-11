@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1082
 type: task
-status: In Review
+status: Ready to Integrate
 priority: null
 title: Wake and age chained terminal-audit stages only after prerequisites become
   eligible
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:08:16.081490Z'
-updated_at: '2026-08-11T12:08:13.698611Z'
+updated_at: '2026-08-11T12:17:15.759145Z'
 work_branch: OOMPAH-1082
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/819
@@ -31,9 +31,11 @@ oompah.integration:
   attempts: 0
   mode: standalone
   task_branch: OOMPAH-1082
-  head_sha: a2d82ab7009cdba0bb325296d26d73568906a593
-  submitted_at: '2026-08-11T11:30:18.399366+00:00'
-  updated_at: '2026-08-11T11:30:18.399366+00:00'
+  base_branch: main
+  base_sha: 712309b8179036474e40c5fd26f7d2b3c2a4b9b0
+  head_sha: 4af4260085204071f14689771609658fb52329e1
+  submitted_at: '2026-08-11T12:17:04.041362+00:00'
+  updated_at: '2026-08-11T12:17:04.041362+00:00'
 oompah.work_branch: OOMPAH-1082
 oompah.review_url: https://github.com/lesserevil/oompah/pull/819
 oompah.review_number: '819'
@@ -81,5 +83,10 @@ author: oompah
 created: 2026-08-11 12:08
 ---
 Independent exact-head re-review ACCEPT for 4af4260085204071f14689771609658fb52329e1. Production reproducer confirms exhausted Done gen7 -> fresh owner rearm gen8 atomically rebinds the same Merged record while ineligible; restart replay coalesces; fresh Done PASS stamps and dispatches that exact Merged. Wrong fingerprint/workflow/ref/SHA/landing/generation/eligibility/attempt state fails closed with byte-identical metadata and no tracker write. Independent combined suite: 808 passed; terminal mutation scan 21/21; diff check clean.
+---
+author: oompah
+created: 2026-08-11 12:17
+---
+Correct exact-head prerequisite chaining and owner-rearm recovery at 4af4260085204071f14689771609658fb52329e1; 808 combined tests, 915 adjacent tests, mutation scan, independent ACCEPT, and protected CI pass.
 ---
 <!-- COMMENTS:END -->
