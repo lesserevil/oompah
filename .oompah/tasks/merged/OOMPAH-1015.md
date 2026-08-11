@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T06:31:39.314795Z'
-updated_at: '2026-08-11T08:10:01.118347Z'
+updated_at: '2026-08-11T08:10:13.576160Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,7 +40,21 @@ oompah.terminal_audit:
     created_at: '2026-08-11T08:09:56.603183+00:00'
     selected_ref: origin/OOMPAH-1015
     selected_sha: 0226b16bcab880a62122e893d8aab799f3393133
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1015
+    target_state: Merged
+    evidence_fingerprint: e9e054d2c6c10dc88e29b3fea5a77095557a6a3dfcde76b2158c2726cfcbe1cd
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1015
+    selected_sha: 0226b16bcab880a62122e893d8aab799f3393133
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T08:10:05.830948+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -90,5 +104,17 @@ author: oompah
 created: 2026-08-11 07:45
 ---
 Canonical incident for the 2026-08-11 startup flood OOMPAH-1015..1070. Build 05ed11f22 rejected valid legacy terminal-override ledger rows whose historical schema omitted the later applied field, then task-specific error fingerprints auto-filed one task per affected source. OOMPAH-1016..1070 are duplicate symptoms and are being archived. Compatibility, fail-closed ledger validation, retired-authority filtering, and explicit-false transaction ordering are deployed at 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17; paused postdeploy recovery completed with zero malformed-ledger errors, zero quarantines, and no task above OOMPAH-1070. A separate systemic task will bound terminal-enforcement error fan-out by diagnostic class.
+---
+author: oompah
+created: 2026-08-11 08:10
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Protected PR #808 merged and hosted Python 3.11/3.12/3.13 gates passed; deployed build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 is healthy while paused, accepted all legacy override ledger rows, completed terminal-audit recovery with no malformed rows or quarantine, and passed the paused rollout canary.
+---
+author: oompah
+created: 2026-08-11 08:10
+---
+Legacy terminal-override compatibility repair delivered through protected PR #808 and verified on deployed build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17.
 ---
 <!-- COMMENTS:END -->
