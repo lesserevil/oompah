@@ -39,6 +39,7 @@ from oompah.server import app
 from oompah.task_transition_service import (
     TransitionAuthority,
     TransitionDisposition,
+    TransitionIntent,
     TransitionOutcome,
     TransitionPhase,
     issue_authority_version,
@@ -1688,6 +1689,138 @@ def test_enforce_owner_claim_atomically_promotes_backlog_with_owner_authority(
     assert transition_intent["actor"] == "alice"
     assert transition_intent["authority"] == "project_owner"
     assert transition_intent["evidence_generation"] == claim.claim_id
+    effects.receipts.close()
+
+
+@pytest.mark.parametrize(
+    ("actor", "claim_id", "reason_code"),
+    (
+        ("mallory", "claim-live", "transition.owner_claim_actor_mismatch"),
+        ("alice", "claim-invented", "transition.owner_claim_generation_mismatch"),
+    ),
+)
+def test_backlog_commit_rejects_inexact_live_owner_authority(
+    tmp_path,
+    actor,
+    claim_id,
+    reason_code,
+):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.state = "Backlog"
+    issue.labels = []
+    tracker.fetch_issue_detail.return_value = issue
+    live = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+        claim_id="claim-live",
+    )
+    intent = TransitionIntent(
+        project_id=str(issue.project_id),
+        task_id=issue.identifier,
+        expected_status="Backlog",
+        expected_version=issue_authority_version(issue),
+        requested_status="In Progress",
+        actor=actor,
+        authority=TransitionAuthority.PROJECT_OWNER,
+        reason_code="implementation.direct_owner_claim",
+        idempotency_key=f"owner-claim-inexact:{actor}:{claim_id}",
+        originating_job=f"owner-claim-job:{actor}:{claim_id}",
+        evidence_generation=claim_id,
+    )
+
+    outcome = asyncio.run(
+        orch._task_transition_service(issue.project_id, tracker).execute(intent)
+    )
+
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == reason_code
+    assert issue.state == "Backlog"
+    tracker.update_issue.assert_not_called()
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is live
+
+
+def test_enforce_owner_claim_release_after_intent_cannot_commit_backlog(
+    tmp_path,
+):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.state = "Backlog"
+    issue.labels = []
+    tracker.fetch_issue_detail.return_value = issue
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+
+    def enqueue_owner_claim(**kwargs):
+        payload = dict(kwargs["payload"])
+        return orch.workflow_job_store.enqueue(
+            WorkflowJobSpec(
+                project_id=kwargs["project_id"],
+                task_id=kwargs["identifier"],
+                generation=f"direct-owner:{payload['claim_id']}",
+                action=kwargs["action"].value,
+                idempotency_key=f"owner-claim:{payload['claim_id']}",
+                payload=payload,
+                expected_evidence_revision=kwargs["expected_evidence_revision"],
+                expected_head_sha=kwargs["expected_head_sha"],
+                priority=kwargs["priority"],
+            )
+        )
+
+    orch._schedule_implementation_workflow_event = MagicMock(
+        side_effect=enqueue_owner_claim
+    )
+    client = TestClient(app, raise_server_exceptions=False)
+    endpoint = "/api/v1/projects/proj-1/tasks/OOMPAH-1/owner-claim"
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new=AsyncMock()),
+    ):
+        accepted = client.post(endpoint, json={"actor_login": "alice"})
+
+    assert accepted.status_code == 202, accepted.text
+    job = orch.workflow_job_store.get(accepted.json()["job_id"])
+    claim_id = job.payload["claim_id"]
+    effects = OrchestratorImplementationEffects(
+        orch,
+        project_id=str(issue.project_id),
+        tracker=tracker,
+    )
+
+    def release_after_intent(phase, _job):
+        if phase == "transition_intent":
+            assert orch.release_owner_claim(
+                issue_id=issue.id,
+                project_id=issue.project_id,
+                expected_claim_id=claim_id,
+            )
+
+    worker = DurableWorkflowWorker(
+        store=orch.workflow_job_store,
+        handlers={
+            ImplementationAction.DIRECT_OWNER_CLAIM.value: (
+                ImplementationWorkflowHandler(
+                    ProductionImplementationWorkflowBackend(effects)
+                )
+            )
+        },
+        transition_services={
+            str(issue.project_id): orch._task_transition_service(
+                issue.project_id,
+                tracker,
+            )
+        },
+        worker_id="released-owner-claim-worker",
+        phase_observer=release_after_intent,
+    )
+
+    result = asyncio.run(worker.run_once())
+
+    assert result.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    assert issue.state == "Backlog"
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is None
+    tracker.update_issue.assert_not_called()
+    durable = orch.workflow_job_store.get(job.job_id)
+    assert durable.state.value == "exhausted"
+    assert durable.checkpoint["transition_compensation"]["claim_id"] == claim_id
     effects.receipts.close()
 
 

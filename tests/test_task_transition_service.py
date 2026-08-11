@@ -724,9 +724,19 @@ async def test_project_owner_can_atomically_claim_eligible_work(
     tmp_path,
     initial_status,
 ):
-    issue = _issue(state=initial_status, assignment_id=None)
+    issue = _issue(
+        state=initial_status,
+        assignment_id=None,
+        description="Implement the exact owner-scoped task.",
+    )
     tracker = FakeTracker(issue)
-    service = _service(tmp_path, tracker)
+    commit_lock = threading.RLock()
+    service = _service(
+        tmp_path,
+        tracker,
+        direct_owner_write_lock=lambda: commit_lock,
+        direct_owner_claim_guard=lambda _intent, _issue: None,
+    )
 
     applied = await service.execute(
         _intent(
@@ -740,6 +750,63 @@ async def test_project_owner_can_atomically_claim_eligible_work(
 
     assert applied.disposition is TransitionDisposition.APPLIED
     assert tracker.updates == [("TASK-1", "In Progress")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("mutation", "reason_code"),
+    (
+        ("empty_description", "transition.actionable_description_required"),
+        ("unrelated_reason", "transition.direct_owner_claim_authority_required"),
+        ("invented_claim", "transition.owner_claim_generation_mismatch"),
+    ),
+)
+async def test_backlog_direct_claim_reproves_exact_live_authority_at_commit(
+    tmp_path,
+    mutation,
+    reason_code,
+):
+    issue = _issue(
+        state="Backlog",
+        assignment_id=None,
+        description=(
+            "" if mutation == "empty_description" else "Implement this task."
+        ),
+    )
+    tracker = FakeTracker(issue)
+    live_claim_id = "claim-live"
+    commit_lock = threading.RLock()
+
+    def claim_guard(intent, _issue):
+        if intent.evidence_generation != live_claim_id:
+            return "transition.owner_claim_generation_mismatch"
+        return None
+
+    service = _service(
+        tmp_path,
+        tracker,
+        direct_owner_write_lock=lambda: commit_lock,
+        direct_owner_claim_guard=claim_guard,
+    )
+    intent = _intent(
+        issue,
+        actor="alice",
+        authority=TransitionAuthority.PROJECT_OWNER,
+        reason_code=(
+            "owner.unrelated"
+            if mutation == "unrelated_reason"
+            else "implementation.direct_owner_claim"
+        ),
+        evidence_generation=(
+            "claim-invented" if mutation == "invented_claim" else live_claim_id
+        ),
+    )
+
+    rejected = await service.execute(intent)
+
+    assert rejected.disposition is TransitionDisposition.REJECTED
+    assert rejected.reason_code == reason_code
+    assert tracker.updates == []
 
 
 @pytest.mark.asyncio

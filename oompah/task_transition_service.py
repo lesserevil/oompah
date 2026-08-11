@@ -524,6 +524,11 @@ class TerminalTransitionAdapter(Protocol):
         """Durably stage one terminal intent without directly writing its target."""
 
 
+class DirectOwnerClaimGuard(Protocol):
+    def __call__(self, intent: TransitionIntent, issue: Issue) -> str | None:
+        """Return a stable rejection reason unless the exact live lease owns commit."""
+
+
 class CoordinatorTerminalAdapter:
     """Adapt ``TerminalTransitionCoordinator`` to the service boundary."""
 
@@ -1323,6 +1328,8 @@ class TaskTransitionService:
         journal: TransitionJournal,
         terminal_adapter: TerminalTransitionAdapter | None = None,
         write_lock: Callable[[], Any] | None = None,
+        direct_owner_write_lock: Callable[[], Any] | None = None,
+        direct_owner_claim_guard: DirectOwnerClaimGuard | None = None,
         claim_ttl_seconds: float = DEFAULT_TRANSITION_CLAIM_TTL_SECONDS,
     ) -> None:
         self.project_id = _required_text(project_id, "project_id")
@@ -1330,6 +1337,8 @@ class TaskTransitionService:
         self.journal = journal
         self.terminal_adapter = terminal_adapter
         self._write_lock = write_lock
+        self._direct_owner_write_lock = direct_owner_write_lock or write_lock
+        self._direct_owner_claim_guard = direct_owner_claim_guard
         if claim_ttl_seconds <= 0:
             raise ValueError("claim_ttl_seconds must be positive")
         self.claim_ttl_seconds = claim_ttl_seconds
@@ -1415,6 +1424,101 @@ class TaskTransitionService:
                 operation(task_id, status=status)
 
         await asyncio.to_thread(update)
+
+    @staticmethod
+    def _is_direct_owner_claim_intent(intent: TransitionIntent) -> bool:
+        return bool(
+            intent.expected_status == BACKLOG
+            and intent.requested_status == IN_PROGRESS
+        )
+
+    def _direct_owner_commit_conflict(
+        self,
+        intent: TransitionIntent,
+        issue: Issue | None,
+    ) -> tuple[str | None, bool]:
+        """Re-prove direct-owner authority inside the tracker commit lane."""
+
+        if issue is None:
+            return "transition.task_missing", False
+        if issue.project_id and str(issue.project_id) != intent.project_id:
+            return "transition.project_mismatch", False
+        if canonicalize_status(issue.state) != intent.expected_status:
+            return "transition.stale_status", False
+        if issue_authority_version(issue) != intent.expected_version:
+            return "transition.stale_version", False
+        if intent.authority is not TransitionAuthority.PROJECT_OWNER:
+            return "transition.project_owner_authority_required", False
+        if intent.reason_code != "implementation.direct_owner_claim":
+            return "transition.direct_owner_claim_authority_required", False
+        if not str(getattr(issue, "description", None) or "").strip():
+            return "transition.actionable_description_required", False
+        guard = self._direct_owner_claim_guard
+        if guard is None:
+            return "transition.owner_claim_authority_unavailable", False
+        try:
+            conflict = guard(intent, issue)
+        except Exception:  # noqa: BLE001 - lease authority must fail closed
+            return "transition.owner_claim_validation_failed", True
+        reason = str(conflict or "").strip()
+        return (reason or None), False
+
+    async def _commit_direct_owner_update(
+        self,
+        intent: TransitionIntent,
+    ) -> tuple[Issue | None, str | None, bool]:
+        """Validate the exact lease and update status under one project lock."""
+
+        fetch = self.tracker.fetch_issue_detail
+        update = self.tracker.update_issue
+        if inspect.iscoroutinefunction(fetch) or inspect.iscoroutinefunction(update):
+            context = (
+                self._direct_owner_write_lock()
+                if self._direct_owner_write_lock is not None
+                else contextlib.nullcontext()
+            )
+            with context:
+                issue = (
+                    await fetch(intent.task_id)
+                    if inspect.iscoroutinefunction(fetch)
+                    else fetch(intent.task_id)
+                )
+                if isinstance(issue, Issue) and not issue.project_id:
+                    issue.project_id = self.project_id
+                concrete = issue if isinstance(issue, Issue) else None
+                conflict, retryable = self._direct_owner_commit_conflict(
+                    intent,
+                    concrete,
+                )
+                if conflict is not None:
+                    return concrete, conflict, retryable
+                if inspect.iscoroutinefunction(update):
+                    await update(intent.task_id, status=intent.requested_status)
+                else:
+                    update(intent.task_id, status=intent.requested_status)
+                return concrete, None, False
+
+        def commit() -> tuple[Issue | None, str | None, bool]:
+            context = (
+                self._direct_owner_write_lock()
+                if self._direct_owner_write_lock is not None
+                else contextlib.nullcontext()
+            )
+            with context:
+                observed = fetch(intent.task_id)
+                if isinstance(observed, Issue) and not observed.project_id:
+                    observed.project_id = self.project_id
+                issue = observed if isinstance(observed, Issue) else None
+                conflict, retryable = self._direct_owner_commit_conflict(
+                    intent,
+                    issue,
+                )
+                if conflict is not None:
+                    return issue, conflict, retryable
+                update(intent.task_id, status=intent.requested_status)
+                return issue, None, False
+
+        return await asyncio.to_thread(commit)
 
     def _outcome(
         self,
@@ -2057,7 +2161,37 @@ class TaskTransitionService:
                 return outcome
 
             try:
-                await self._update(intent.task_id, intent.requested_status)
+                if self._is_direct_owner_claim_intent(intent):
+                    guarded_issue, commit_conflict, retryable_conflict = (
+                        await self._commit_direct_owner_update(intent)
+                    )
+                    if commit_conflict is not None:
+                        outcome = self._outcome(
+                            transition_id,
+                            intent,
+                            (
+                                TransitionDisposition.RETRYABLE
+                                if retryable_conflict
+                                else TransitionDisposition.REJECTED
+                            ),
+                            commit_conflict,
+                            guarded_issue or issue,
+                            retryable=retryable_conflict,
+                        )
+                        await asyncio.to_thread(
+                            self.journal.append,
+                            transition_id,
+                            (
+                                TransitionPhase.RETRY_SCHEDULED
+                                if retryable_conflict
+                                else TransitionPhase.REJECTED
+                            ),
+                            outcome.reason_code,
+                            outcome,
+                        )
+                        return outcome
+                else:
+                    await self._update(intent.task_id, intent.requested_status)
             except Exception as exc:  # noqa: BLE001 - verify ambiguous tracker write
                 latest, _ = await self._try_fetch(intent.task_id)
                 if (
