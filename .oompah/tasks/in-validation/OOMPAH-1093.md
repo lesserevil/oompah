@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:04:30.156611Z'
-updated_at: '2026-08-11T17:36:30.238192Z'
+updated_at: '2026-08-11T17:36:51.258646Z'
 work_branch: OOMPAH-1093
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/829
@@ -159,6 +159,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1093
     selected_ref: 4c6de3f056fcec98fa1e0118e7fe683c76b71ceb
     selected_sha: 4c6de3f056fcec98fa1e0118e7fe683c76b71ceb
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 294
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 10
+      output_tokens: 294
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 10
+    output_tokens: 294
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T17:36:46.619009+00:00'
 ---
 ## Summary
 
@@ -265,5 +281,15 @@ Safe evidence:
 - regression_test: test_safe_stop_retries_retired_snapshot_without_backend_error verifies no error logged for lifecycle drain timeout, stores remain open until release
 - authoritative_evidence: make test: 180.1s passed, 33 restart API + 110+ lifecycle/event tests, terminal mutation 21/21, clean diff/hooks
 - root_cause_addressed: Terminal auditor claim/worktree admission no longer loses quiesce race; publication drain timeout classified as bounded graceful-stop retry, not backend error
+---
+author: oompah
+created: 2026-08-11 17:36
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 106, Tool calls: 49
+- Tokens: 10 in / 294 out [304 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 12s
+- Log: OOMPAH-1093__20260811T172658Z.jsonl
 ---
 <!-- COMMENTS:END -->
