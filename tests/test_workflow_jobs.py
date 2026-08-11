@@ -3617,6 +3617,96 @@ def test_claim_is_atomically_bound_to_required_accepted_published_snapshot(store
     assert store.get(second.job_id).state is WorkflowJobState.QUEUED
 
 
+def test_published_bounded_scan_keeps_unevaluated_member_claimable(store):
+    project_id = "project-1"
+    task_a = "TASK-A"
+    task_b = "TASK-B"
+    first = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(first)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=first,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_a), (project_id, task_b)),
+    ).accepted
+    first_jobs = {}
+    for task_id in (task_a, task_b):
+        cursor = store.activate_schedule(
+            project_id=project_id,
+            task_id=task_id,
+            decision_revision=f"first-decision:{task_id}",
+            snapshot_generation=first,
+        )
+        assert store.reconcile_schedule(
+            project_id=project_id,
+            task_id=task_id,
+            snapshot_generation=first,
+            job_generation=cursor.job_generation,
+            specs=(
+                spec(
+                    key=f"first-job:{task_id}",
+                    project=project_id,
+                    task=task_id,
+                    generation=cursor.job_generation,
+                ),
+            ),
+        ).accepted
+        first_jobs[task_id] = next(
+            job
+            for job in store.list_jobs(task_id=task_id)
+            if job.generation == cursor.job_generation
+        )
+    assert store.publish_snapshot_generation(first, lambda: None)[0]
+
+    second = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(second)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=second,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_a), (project_id, task_b)),
+        evaluated_identities=((project_id, task_a),),
+    ).accepted
+    task_a_cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_a,
+        decision_revision="second-decision:TASK-A",
+        snapshot_generation=second,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_a,
+        snapshot_generation=second,
+        job_generation=task_a_cursor.job_generation,
+        specs=(
+            spec(
+                key="second-job:TASK-A",
+                project=project_id,
+                task=task_a,
+                generation=task_a_cursor.job_generation,
+            ),
+        ),
+    ).accepted
+    assert store.publish_snapshot_generation(second, lambda: None)[0]
+
+    assert store.snapshot_membership() == (
+        (project_id, task_a, second),
+        (project_id, task_b, first),
+    )
+    assert store.schedule_cursor(
+        project_id=project_id, task_id=task_b
+    ).snapshot_generation == first
+    assert store.has_claimable(
+        task_id=task_b,
+        required_snapshot_generation=second,
+    )
+    claimed = claim(
+        store,
+        task_id=task_b,
+        required_snapshot_generation=second,
+    )
+    assert claimed is not None
+    assert claimed.job_id == first_jobs[task_b].job_id
+
+
 def test_integrity_check_detects_tampered_spec(store):
     job = store.enqueue(spec())
     store._conn.execute(  # noqa: SLF001 - deliberate corruption boundary test
