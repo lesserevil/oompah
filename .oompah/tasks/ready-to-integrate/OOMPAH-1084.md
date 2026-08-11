@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1084
 type: task
-status: Needs CI Fix
+status: Ready to Integrate
 priority: null
 title: Propagate synchronized open-review heads into exact gate and merge authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T14:03:50.305288Z'
+updated_at: '2026-08-11T14:16:24.124014Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
@@ -30,9 +30,11 @@ oompah.integration:
   attempts: 0
   mode: standalone
   task_branch: OOMPAH-1084
-  head_sha: 15a2ee7c9b82cfefb49a00173c302c095f3ca46e
-  submitted_at: '2026-08-11T12:41:57.981846+00:00'
-  updated_at: '2026-08-11T12:41:57.981846+00:00'
+  base_branch: main
+  base_sha: cf3578ff00f5564a06ea31650553dca337280427
+  head_sha: cf3578ff00f5564a06ea31650553dca337280427
+  submitted_at: '2026-08-11T14:16:09.997349+00:00'
+  updated_at: '2026-08-11T14:16:09.997349+00:00'
 oompah.work_branch: OOMPAH-1084
 oompah.review_url: https://github.com/lesserevil/oompah/pull/821
 oompah.review_number: '821'
@@ -144,7 +146,7 @@ oompah.task_costs:
     output_tokens: 34
     cost_usd: 0.0
     recorded_at: '2026-08-11T13:58:46.920435+00:00'
-oompah.agent_run_id: 1890867f-29b7-4af4-a249-b39102b15c33
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 5bf6b3e5cf5e4df8bfadee8d1a8ed651--contributor-1e03bff0a496
@@ -242,5 +244,10 @@ author: oompah
 created: 2026-08-11 14:03
 ---
 Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-11 14:16
+---
+Recover exact reviewed and merged head cf3578ff after stale terminal-audit authority was revoked.
 ---
 <!-- COMMENTS:END -->
