@@ -200,12 +200,6 @@ def _is_transient_state_branch_git_lock_error(output: str) -> bool:
     )
 
 
-def _is_commit_noop_after_staged_diff(stdout: str, stderr: str) -> bool:
-    """Recognize Git's exact no-op after another writer commits the index."""
-    output = f"{stdout or ''}\n{stderr or ''}".lower()
-    return "nothing to commit, working tree clean" in output
-
-
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -2359,57 +2353,88 @@ class OompahMarkdownTracker:
         state worktree had nothing left to commit.
         """
         for attempt in range(_STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS):
-            commit_noop = False
-            failed_args = ["add", TASKS_DIR]
-            failed = self._git(failed_args, check=False, cwd=state_root)
-
-            if failed.returncode == 0:
-                diff_args = ["diff", "--cached", "--quiet", "--", TASKS_DIR]
-                diff = self._git(diff_args, check=False, cwd=state_root)
-                if diff.returncode == 0:
-                    return False
-                if diff.returncode != 1:
-                    detail = diff.stderr.strip() or diff.stdout.strip()
-                    raise TrackerError(
-                        f"git {' '.join(diff_args)} failed: {detail}"
-                    )
-
-                failed_args = ["commit", "-m", message]
-                failed = self._git(failed_args, check=False, cwd=state_root)
-                if failed.returncode == 0:
-                    return True
-                commit_noop = _is_commit_noop_after_staged_diff(
-                    failed.stdout,
-                    failed.stderr,
-                )
-
-            detail = failed.stderr.strip() or failed.stdout.strip()
-            error = TrackerError(f"git {' '.join(failed_args)} failed: {detail}")
-            if commit_noop:
+            add_args = ["add", TASKS_DIR]
+            add = self._git(add_args, check=False, cwd=state_root)
+            if add.returncode != 0:
+                detail = add.stderr.strip() or add.stdout.strip()
+                error = TrackerError(f"git {' '.join(add_args)} failed: {detail}")
+                if not _is_transient_state_branch_git_lock_error(detail):
+                    raise error
                 if attempt >= _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS - 1:
                     raise error
+
+                backoff_s = _STATE_BRANCH_GIT_LOCK_BACKOFF_SECONDS * (2**attempt)
                 logger.info(
-                    "State-branch index was committed by a competing writer; "
-                    "rechecking stage/commit (attempt %d/%d)",
+                    "State-branch Git lock contention; retrying stage/commit "
+                    "(attempt %d/%d in %.3fs): %s",
                     attempt + 1,
                     _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS,
+                    backoff_s,
+                    detail,
                 )
+                time.sleep(backoff_s)
                 continue
-            if not _is_transient_state_branch_git_lock_error(detail):
-                raise error
-            if attempt >= _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS - 1:
-                raise error
 
-            backoff_s = _STATE_BRANCH_GIT_LOCK_BACKOFF_SECONDS * (2**attempt)
+            diff_args = ["diff", "--cached", "--quiet", "--", TASKS_DIR]
+            diff = self._git(diff_args, check=False, cwd=state_root)
+            if diff.returncode == 0:
+                return False
+            if diff.returncode != 1:
+                detail = diff.stderr.strip() or diff.stdout.strip()
+                raise TrackerError(f"git {' '.join(diff_args)} failed: {detail}")
+
+            commit_args = ["commit", "-m", message]
+            commit = self._git(commit_args, check=False, cwd=state_root)
+            if commit.returncode == 0:
+                return True
+
+            commit_detail = commit.stderr.strip() or commit.stdout.strip()
+            commit_error = TrackerError(
+                f"git {' '.join(commit_args)} failed: {commit_detail}"
+            )
+            # A concurrent process can commit the shared index after this
+            # transaction proves a staged task diff but before its commit
+            # acquires the ref.  Git's human-facing failure output varies with
+            # version, locale, hooks, and unrelated untracked files.  Re-read
+            # the exact task path in the real index instead of parsing prose.
+            probe = self._git(diff_args, check=False, cwd=state_root)
+            if probe.returncode == 1:
+                # The intended task mutation is still staged.  The commit
+                # failed for its original reason; retrying could hide a hook,
+                # repository, identity, or storage failure.
+                raise commit_error
+            if probe.returncode != 0:
+                probe_detail = probe.stderr.strip() or probe.stdout.strip()
+                raise TrackerError(
+                    "Cannot determine task-index ownership after failed state-branch "
+                    f"commit: git {' '.join(diff_args)} exited "
+                    f"{probe.returncode}: {probe_detail or 'no diagnostic output'}. "
+                    f"Original commit failure: {commit_detail or 'no diagnostic output'}"
+                )
+
+            # Exit 0 proves that the staged task diff was consumed.  Repeat
+            # the complete add/diff/commit transaction within the existing
+            # bounded retry budget so a concurrent follow-up mutation is not
+            # mistaken for the already-committed generation.
+            if attempt >= _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS - 1:
+                raise commit_error
+            transient_lock = _is_transient_state_branch_git_lock_error(
+                commit_detail
+            )
+            backoff_s = (
+                _STATE_BRANCH_GIT_LOCK_BACKOFF_SECONDS * (2**attempt)
+                if transient_lock
+                else 0.0
+            )
             logger.info(
-                "State-branch Git lock contention; retrying stage/commit "
-                "(attempt %d/%d in %.3fs): %s",
+                "State-branch task index was consumed by a competing writer; "
+                "rechecking stage/commit (attempt %d/%d%s)",
                 attempt + 1,
                 _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS,
-                backoff_s,
-                detail,
+                f" in {backoff_s:.3f}s" if transient_lock else "",
             )
-            time.sleep(backoff_s)
+            if transient_lock:
+                time.sleep(backoff_s)
 
         raise AssertionError("state-branch Git lock retry loop did not terminate")
 
