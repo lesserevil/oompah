@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1091
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Stop stale accepted-validation recovery after repaired branch advances
 parent: null
@@ -12,7 +12,7 @@ labels:
 - workflow-liveness
 assignee: null
 created_at: '2026-08-11T15:35:51.682286Z'
-updated_at: '2026-08-11T17:44:03.779646Z'
+updated_at: '2026-08-11T17:50:57.544263Z'
 work_branch: OOMPAH-1091
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/830
@@ -84,6 +84,29 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-11T17:43:40.168702+00:00'
     applied_at: '2026-08-11T17:43:47.752999+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d82522182921
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1091
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8c4484bec1ff7527ef6a8e2ebb88ddfe197868882da6fa68d5531b65773debdc
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Operator audit under globally paused scheduling: independently accepted
+      exact 66f40f54566a64b55957ce0a29846289992e2f3f; 524 focused and deterministic
+      race checks passed; protected Python 3.11/3.12/3.13 CI passed; PR 830 merged
+      as b948150a808d80c331769fba8ae2a39e9a102a47; exact head is contained in current
+      main.'
+    created_at: '2026-08-11T17:50:52.854832+00:00'
+    selected_ref: 66f40f54566a64b55957ce0a29846289992e2f3f
+    selected_sha: 66f40f54566a64b55957ce0a29846289992e2f3f
+    applied: false
   version: 1
   pending_chain:
   - version: 1
