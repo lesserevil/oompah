@@ -37,6 +37,7 @@ from oompah.integration_workflow import (
     IntegrationWorkflowController,
 )
 from oompah.models import BlockerRef, Issue
+from oompah.oompah_md_tracker import OompahMarkdownTracker
 from oompah.provenance_suppression import (
     authorize_new_revision,
     mark_provenance_only,
@@ -753,6 +754,90 @@ def test_native_tracker_generation_race_supersedes_stale_status_publication(
     assert health["accepted_snapshot_generation"] == (
         health["published_snapshot_generation"]
     )
+    runtime.close()
+    store.close()
+
+
+def test_native_cache_refresh_does_not_self_supersede_runtime_publication(
+    tmp_path,
+):
+    """Defensive reads stay neutral while a real native write still fences."""
+
+    tracker = OompahMarkdownTracker(
+        active_states=["Open", "In Progress"],
+        terminal_states=["Done", "Merged"],
+        cwd=str(tmp_path / "native-refresh"),
+        default_branch="main",
+        git_sync=False,
+    )
+    task = tracker.create_issue(
+        "Cache-neutral runtime publication",
+        description="Publish a complete workflow snapshot.",
+        initial_status="Backlog",
+    )
+    # Exercise the native generation-bound path without requiring a Git state
+    # worktree in this focused CAS test. The production method combines its
+    # durable commit with the same process-local publication revision.
+    tracker.state_branch_enabled = True
+    tracker.state_branch_name = "oompah/state/runtime-refresh"
+    tracker._get_state_root = lambda: tracker.root_path  # type: ignore[method-assign]
+    tracker._state_branch_generation_locked = lambda: (  # type: ignore[method-assign]
+        f"{'a' * 40}:{tracker.get_publication_revision()}"
+    )
+    store = WorkflowJobStore(str(tmp_path / "native-refresh.sqlite3"))
+    binding, journal = make_binding(tmp_path, tracker, store)
+    original_config_source = binding.collector.sources[FactDomain.CONFIG]
+    refreshed = False
+
+    def refresh_during_collection(issue):
+        nonlocal refreshed
+        if not refreshed:
+            refreshed = True
+            tracker.invalidate_read_cache()
+        return original_config_source(issue)
+
+    binding.collector.sources[FactDomain.CONFIG] = refresh_during_collection
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=UniversalTotalityLivenessController(store=store),
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    publication_revision = tracker.get_publication_revision()
+    report = runtime.reconcile()
+
+    assert refreshed is True
+    assert tracker.get_publication_revision() == publication_revision
+    assert report["projects"]["project-1"]["snapshot"]["published"] is True
+    assert not report.get("requires_reconcile", False)
+
+    mutated = False
+
+    def mutate_during_collection(issue):
+        nonlocal mutated
+        if not mutated:
+            mutated = True
+            tracker.update_issue(
+                task.identifier,
+                description="A real task mutation supersedes this cut.",
+            )
+        return original_config_source(issue)
+
+    binding.collector.sources[FactDomain.CONFIG] = mutate_during_collection
+    superseded = runtime.reconcile()
+
+    assert mutated is True
+    assert tracker.get_publication_revision() == publication_revision + 1
+    assert superseded["requires_reconcile"] is True
+    assert superseded["projects"]["project-1"] == {
+        "publication_superseded": True,
+        "reason": "tracker authority changed before publication",
+    }
     runtime.close()
     store.close()
 
