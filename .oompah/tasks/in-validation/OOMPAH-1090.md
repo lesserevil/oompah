@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:26:47.067526Z'
-updated_at: '2026-08-11T16:11:17.889596Z'
+updated_at: '2026-08-11T16:11:40.590432Z'
 work_branch: OOMPAH-1090
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/825
@@ -164,6 +164,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1090
     selected_ref: 6703b97115b0b7aff922deab2ead89119bc1d486
     selected_sha: 6703b97115b0b7aff922deab2ead89119bc1d486
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 292
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 10
+      output_tokens: 292
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 10
+    output_tokens: 292
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T16:11:37.136733+00:00'
 ---
 ## Summary
 
@@ -287,5 +303,15 @@ Safe evidence:
 - test_results: 632 affected quality-gate/standalone/integration tests passed; 73 project-lock tests passed; terminal mutation scan 21/21; bridge_timeout_test verified no issue lock held
 - acceptance_criteria_status: gates_longer_than_lease_work; detached_staging_survives_bridge_timeout; OOMPAH-1084_recovery_completes; focused_workflow_tests_pass; terminal_mutation_scan_pass; protected_ci_green
 - review_status: independent review ACCEPTED on fc1220a; patch-equivalent rebased to current main 6703b971
+---
+author: oompah
+created: 2026-08-11 16:11
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 68, Tool calls: 30
+- Tokens: 10 in / 292 out [302 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 26s
+- Log: OOMPAH-1090__20260811T160828Z.jsonl
 ---
 <!-- COMMENTS:END -->
