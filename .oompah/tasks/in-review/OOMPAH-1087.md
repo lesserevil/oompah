@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T13:38:34.915522Z'
-updated_at: '2026-08-11T13:52:28.449104Z'
+updated_at: '2026-08-11T13:55:22.312847Z'
 work_branch: OOMPAH-1087
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/822
@@ -65,5 +65,10 @@ author: oompah
 created: 2026-08-11 13:51
 ---
 Branch quality gate passed for `4d8c7b9a9fdda0e0119fe6ebbe6a0951c0631f71` using `make test` in 176.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 13:55
+---
+Fresh independent exact-head review ACCEPTED 4d8c7b9a9fdda0e0119fe6ebbe6a0951c0631f71. Reviewer verified both embedded Uvicorn construction paths use the shared configuration, Uvicorn 0.41 accepts ws_ping_interval=None and disables only protocol keepalive, while application ping/pong, 30-second stale closure, bounded reconnect, sequence/full-refresh backfill, and client cleanup remain intact. Evidence: 99/99 focused WebSocket/dashboard/bootstrap tests plus 7/7 direct causal/recovery assertions; exact clean pushed branch, canonical trailer, diff and secret scans green. Protected CI on PR #822 remains the next boundary.
 ---
 <!-- COMMENTS:END -->
