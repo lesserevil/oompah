@@ -34332,7 +34332,6 @@ class Orchestrator:
             project is not None
             and initial.get("decision") == "full_gate_required"
             and initial.get("authority_current") is True
-            and initial.get("staged_attempt_identity") is True
         ):
             trust_fingerprint = (
                 self._try_import_protected_workflow_gate(
@@ -34370,6 +34369,74 @@ class Orchestrator:
                 "selected_sha",
                 "landing_revision",
             )
+        )
+
+    @staticmethod
+    def _terminal_audit_ordinary_review_identity(
+        issue: Issue,
+        target: AuditorTargetContract,
+        *,
+        accepted_head: str,
+        work_branch: str,
+        target_branch: str,
+    ) -> tuple[str, ...] | None:
+        """Return an exact ordinary merged-review identity or fail closed.
+
+        Recovery audits derive their immutable source identity from the active
+        audit attempt.  An ordinary merged pull request instead has to prove
+        that the durable accepted-submission record and review projection name
+        the same review, source branch/head, base branch, and base commit.
+        """
+
+        integration = getattr(issue, "integration", None)
+        if not isinstance(integration, IntegrationRecord):
+            return None
+        review_id = str(
+            getattr(issue, "review_id", None)
+            or getattr(issue, "review_number", None)
+            or ""
+        ).strip()
+        review_head = str(getattr(issue, "review_head", None) or "").strip().lower()
+        integration_state = str(integration.state or "").strip().lower()
+        integration_mode = str(integration.mode or "").strip().lower()
+        integration_branch = str(integration.task_branch or "").strip()
+        integration_head = str(integration.head_sha or "").strip().lower()
+        integration_base_branch = str(integration.base_branch or "").strip()
+        integration_base_sha = str(integration.base_sha or "").strip().lower()
+        head = str(accepted_head or "").strip().lower()
+        source = str(work_branch or "").strip()
+        destination = str(target_branch or "").strip()
+        if (
+            TargetState.from_raw(target.target_state)
+            not in {TargetState.DONE, TargetState.MERGED}
+            or canonicalize_status(target.previous_state or "") != IN_REVIEW
+            or not target.attempt_id
+            or target.selected_sha != head
+            or not target.selected_ref
+            or integration_state not in ACCEPTED_SUBMISSION_STATES
+            or integration_mode not in {"", "standalone"}
+            or not review_id.isdigit()
+            or int(review_id) <= 0
+            or review_head != head
+            or integration_branch != source
+            or integration_head != head
+            or integration_base_branch != destination
+            or re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", head) is None
+            or re.fullmatch(
+                r"[0-9a-f]{40}|[0-9a-f]{64}", integration_base_sha
+            )
+            is None
+        ):
+            return None
+        return (
+            review_id,
+            review_head,
+            integration_state,
+            integration_mode,
+            integration_branch,
+            integration_head,
+            integration_base_branch,
+            integration_base_sha,
         )
 
     def _terminal_audit_remote_source_branch_current(
@@ -34569,6 +34636,10 @@ class Orchestrator:
             or review.head_sha != request.head_sha
             or review.target_repository != repository
             or review.target_branch != request.target_branch
+            or (
+                request.review_id is not None
+                and review.review_id != request.review_id
+            )
             or not str(review.review_id or "").isdigit()
             or int(review.review_id) <= 0
             or not review.merged_at
@@ -34677,7 +34748,6 @@ class Orchestrator:
             if (
                 initial.get("decision") != "full_gate_required"
                 or initial.get("authority_current") is not True
-                or initial.get("staged_attempt_identity") is not True
                 or not target.attempt_id
             ):
                 return None
@@ -34707,6 +34777,46 @@ class Orchestrator:
                 return None
             if target.selected_sha != accepted_head:
                 return None
+
+            staged_attempt_identity = (
+                initial.get("staged_attempt_identity") is True
+            )
+            ordinary_review_identity = None
+            if not staged_attempt_identity:
+                authority_tracker = self._tracker_for_project(target.project_id)
+                invalidate = getattr(
+                    authority_tracker,
+                    "invalidate_read_cache",
+                    None,
+                )
+                if callable(invalidate):
+                    invalidate()
+                authority_issue = authority_tracker.fetch_issue_detail(target.task_id)
+                if authority_issue is None:
+                    return None
+                if not authority_issue.project_id:
+                    authority_issue.project_id = issue.project_id
+                if (
+                    str(authority_issue.project_id or "") != target.project_id
+                    or canonicalize_status(authority_issue.state) != IN_VALIDATION
+                    or compute_issue_evidence_fingerprint(
+                        authority_issue,
+                        target.project_id,
+                    ).digest
+                    != target.evidence_fingerprint
+                ):
+                    return None
+                ordinary_review_identity = (
+                    self._terminal_audit_ordinary_review_identity(
+                        authority_issue,
+                        target,
+                        accepted_head=accepted_head,
+                        work_branch=work_branch,
+                        target_branch=target_branch,
+                    )
+                )
+                if ordinary_review_identity is None:
+                    return None
 
             trust_config = self.config.protected_workflow_quality_evidence
             matches = trust_config.matching_entries(
@@ -34745,7 +34855,11 @@ class Orchestrator:
                 required_job_names=trust.required_jobs,
                 required_step_names=trust.required_steps,
                 event=trust.event,
-                review_id=None,
+                review_id=(
+                    ordinary_review_identity[0]
+                    if ordinary_review_identity is not None
+                    else None
+                ),
             )
             observed = provider.collect_protected_workflow_evidence(
                 repository,
@@ -34762,6 +34876,11 @@ class Orchestrator:
                 evidence,
                 request,
                 trust,
+            ):
+                return None
+            if (
+                ordinary_review_identity is not None
+                and evidence.review.base_sha != ordinary_review_identity[-1]
             ):
                 return None
 
@@ -34858,7 +34977,18 @@ class Orchestrator:
                 work_branch,
                 target_branch,
                 repo_identity,
-                True,
+                staged_attempt_identity,
+            ):
+                return None
+            if not staged_attempt_identity and (
+                self._terminal_audit_ordinary_review_identity(
+                    current_issue,
+                    current_target,
+                    accepted_head=current_head,
+                    work_branch=current_work_branch,
+                    target_branch=current_target_branch,
+                )
+                != ordinary_review_identity
             ):
                 return None
 

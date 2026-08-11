@@ -66,6 +66,7 @@ from oompah.scm import (
 )
 from oompah.statuses import (
     IN_PROGRESS,
+    IN_REVIEW,
     IN_VALIDATION,
     MERGED,
     NEEDS_HUMAN,
@@ -1143,14 +1144,18 @@ def _direct_recovery_quality_gate_context(
     return orchestrator, project, issue, target, tracker, record
 
 
-def _protected_workflow_test_policy():
+def _protected_workflow_test_policy(
+    *,
+    checkout_mode="merge_tree_equivalent",
+    workflow_blob_sha="5" * 40,
+):
     trust = ProtectedWorkflowQualityEvidenceTrust(
         repository="lesserevil/oompah",
         target_branch="main",
         workflow_id=242651660,
         workflow_path=".github/workflows/ci.yml",
-        workflow_blob_sha="5" * 40,
-        checkout_mode="merge_tree_equivalent",
+        workflow_blob_sha=workflow_blob_sha,
+        checkout_mode=checkout_mode,
         event="pull_request",
         app_id=15368,
         app_slug="github-actions",
@@ -1164,10 +1169,19 @@ def _protected_workflow_test_policy():
     )
 
 
-def _protected_workflow_test_evidence(head, source_branch="OOMPAH-999"):
-    base = "2" * 40
-    merge = "3" * 40
-    tree = "4" * 40
+def _protected_workflow_test_evidence(
+    head,
+    source_branch="OOMPAH-999",
+    *,
+    review_id="799",
+    base="2" * 40,
+    merge="3" * 40,
+    head_tree="4" * 40,
+    merge_tree=None,
+    workflow_blob_sha="5" * 40,
+):
+    if merge_tree is None:
+        merge_tree = head_tree
     jobs = []
     for index, name in enumerate(
         ("test (3.11)", "test (3.12)", "test (3.13)")
@@ -1208,7 +1222,7 @@ def _protected_workflow_test_evidence(head, source_branch="OOMPAH-999"):
     return ProtectedWorkflowEvidence(
         repository="lesserevil/oompah",
         review=ProtectedReviewEvidence(
-            review_id="799",
+            review_id=review_id,
             state="merged",
             source_repository="lesserevil/oompah",
             source_branch=source_branch,
@@ -1226,7 +1240,7 @@ def _protected_workflow_test_evidence(head, source_branch="OOMPAH-999"):
             state="active",
             node_id="W_kwDOExample",
         ),
-        workflow_blob_sha="5" * 40,
+        workflow_blob_sha=workflow_blob_sha,
         workflow_blob_commit_sha=merge,
         run=ProtectedWorkflowRunEvidence(
             run_id=31411330877,
@@ -1256,12 +1270,12 @@ def _protected_workflow_test_evidence(head, source_branch="OOMPAH-999"):
         jobs=tuple(jobs),
         head_commit=ProtectedGitCommitEvidence(
             sha=head,
-            tree_sha=tree,
+            tree_sha=head_tree,
             parent_shas=("6" * 40,),
         ),
         merge_commit=ProtectedGitCommitEvidence(
             sha=merge,
-            tree_sha=tree,
+            tree_sha=merge_tree,
             parent_shas=(base, head),
         ),
     )
@@ -1321,6 +1335,126 @@ def _protected_workflow_launch_context(tmp_path, monkeypatch):
     detect = MagicMock(return_value=provider)
     monkeypatch.setattr("oompah.orchestrator.detect_provider", detect)
     return orchestrator, project, issue, target, tracker, record, gate, provider, detect
+
+
+_O1071_HEAD = "238736b06a9f3a915906dcb2444e70fd5edcc73a"
+_O1071_BASE = "aafbdac66307e05aee883a3ba07d634dcc19122e"
+_O1071_MERGE = "dced79a3369472773483eb0c510ede1a98a1e8a4"
+_O1071_HEAD_TREE = "1d183aa6f1009dab70aa3bc377e3a91c2ce23808"
+_O1071_MERGE_TREE = "8ae840124507036755cf1f47807f10ddbf93a722"
+_O1071_WORKFLOW_BLOB = "de02344ae644f815b708875dc6fa449001f1d6eb"
+
+
+def _ordinary_protected_workflow_launch_context(tmp_path, monkeypatch):
+    (
+        orchestrator,
+        project,
+        _issue,
+        _target,
+        tracker,
+        _record,
+        _gate,
+        _provider,
+        _detect,
+    ) = _protected_workflow_launch_context(tmp_path, monkeypatch)
+    project = replace(
+        project,
+        repo_url="https://github.com/lesserevil/oompah.git",
+        repo_path=str(tmp_path),
+    )
+    integration = IntegrationRecord(
+        state="ready",
+        mode="standalone",
+        task_branch="OOMPAH-1071",
+        head_sha=_O1071_HEAD,
+        base_branch="main",
+        base_sha=_O1071_BASE,
+    )
+    issue = Issue(
+        id="oompah-1071",
+        identifier="OOMPAH-1071",
+        title="Ordinary merged review",
+        project_id="project",
+        state=IN_VALIDATION,
+        target_branch="main",
+        review_number="810",
+        review_head=_O1071_HEAD,
+        integration=integration,
+    )
+    fingerprint = EvidenceFingerprint(
+        compute_issue_evidence_fingerprint(issue, "project").digest
+    )
+    attempt = AuditAttempt(
+        attempt_id="attempt-o1071",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        branch_key="OOMPAH-1071",
+        selected_ref=_O1071_HEAD,
+        selected_sha=_O1071_HEAD,
+    )
+    record = TerminalAuditRecord(
+        audit_id="audit-o1071",
+        project_id="project",
+        task_id="OOMPAH-1071",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        attempts=[attempt],
+        previous_state=IN_REVIEW,
+        selected_ref=_O1071_HEAD,
+        selected_sha=_O1071_HEAD,
+    )
+    target = SimpleNamespace(
+        project_id="project",
+        task_id="OOMPAH-1071",
+        audit_id="audit-o1071",
+        attempt_id="attempt-o1071",
+        target_state="Done",
+        previous_state=IN_REVIEW,
+        evidence_fingerprint=fingerprint.digest,
+        selected_ref=_O1071_HEAD,
+        selected_sha=_O1071_HEAD,
+        landing_revision=None,
+    )
+    tracker.fetch_issue_detail.return_value = issue
+    tracker.get_metadata.return_value = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
+    }
+    gate = BranchQualityGate(str(tmp_path / "ordinary-quality.json"))
+    orchestrator._branch_quality_gate = gate
+    orchestrator.project_store.get.return_value = project
+    orchestrator._quality_gate_branch_head = MagicMock(return_value="")
+    orchestrator._terminal_audit_work_branch_absent = MagicMock(return_value=True)
+    orchestrator._terminal_audit_accepted_head_containment = MagicMock(
+        return_value=(True, "")
+    )
+    orchestrator.config = SimpleNamespace(
+        protected_workflow_quality_evidence=_protected_workflow_test_policy(
+            checkout_mode="explicit_review_head",
+            workflow_blob_sha=_O1071_WORKFLOW_BLOB,
+        )
+    )
+    provider = SimpleNamespace(
+        collect_protected_workflow_evidence=MagicMock(
+            return_value=ProtectedWorkflowEvidenceResult(
+                disposition=ProtectedWorkflowEvidenceDisposition.COMPLETE,
+                evidence=_protected_workflow_test_evidence(
+                    _O1071_HEAD,
+                    "OOMPAH-1071",
+                    review_id="810",
+                    base=_O1071_BASE,
+                    merge=_O1071_MERGE,
+                    head_tree=_O1071_HEAD_TREE,
+                    merge_tree=_O1071_MERGE_TREE,
+                    workflow_blob_sha=_O1071_WORKFLOW_BLOB,
+                ),
+            )
+        )
+    )
+    detect = MagicMock(return_value=provider)
+    monkeypatch.setattr("oompah.orchestrator.detect_provider", detect)
+    return orchestrator, project, issue, target, tracker, gate, provider
 
 
 def test_terminal_audit_launch_imports_exact_protected_workflow_without_review_metadata(
@@ -1412,6 +1546,213 @@ def test_terminal_audit_launch_imports_exact_protected_workflow_without_review_m
     )
     detect.assert_called_once()
     provider.collect_protected_workflow_evidence.assert_called_once()
+
+
+def test_terminal_audit_launch_imports_ordinary_merged_pr_exact_head_gate(
+    tmp_path,
+    monkeypatch,
+):
+    (
+        orchestrator,
+        project,
+        issue,
+        target,
+        _tracker,
+        gate,
+        provider,
+    ) = _ordinary_protected_workflow_launch_context(tmp_path, monkeypatch)
+    imported = MagicMock(wraps=gate.import_protected_workflow_pass)
+    monkeypatch.setattr(gate, "import_protected_workflow_pass", imported)
+    launch_issue = replace(
+        issue,
+        review_number=None,
+        review_head=None,
+        integration=None,
+    )
+
+    bundle = orchestrator._prepare_terminal_audit_quality_gate_evidence(
+        launch_issue,
+        project,
+        target,
+    )
+
+    assert bundle["decision"] == "reuse_authoritative_gate"
+    assert bundle["authority_current"] is True
+    assert bundle["staged_attempt_identity"] is False
+    assert bundle["evidence_source"] == "protected_workflow"
+    request = provider.collect_protected_workflow_evidence.call_args.args[1]
+    assert (request.review_id, request.source_branch, request.head_sha) == (
+        "810",
+        "OOMPAH-1071",
+        _O1071_HEAD,
+    )
+    proof = imported.call_args.args[0]
+    assert (
+        proof.pull_request_number,
+        proof.base_sha,
+        proof.merge_sha,
+        proof.head_tree_sha,
+        proof.merge_tree_sha,
+        proof.checkout_mode,
+    ) == (
+        810,
+        _O1071_BASE,
+        _O1071_MERGE,
+        _O1071_HEAD_TREE,
+        _O1071_MERGE_TREE,
+        "explicit_review_head",
+    )
+
+
+@pytest.mark.parametrize("mismatch", ["review", "base"])
+def test_terminal_audit_launch_rejects_ordinary_review_forge_mismatch(
+    tmp_path,
+    monkeypatch,
+    mismatch,
+):
+    (
+        orchestrator,
+        project,
+        issue,
+        target,
+        _tracker,
+        gate,
+        provider,
+    ) = _ordinary_protected_workflow_launch_context(tmp_path, monkeypatch)
+    evidence = provider.collect_protected_workflow_evidence.return_value.evidence
+    if mismatch == "review":
+        evidence = replace(
+            evidence,
+            review=replace(evidence.review, review_id="811"),
+        )
+    else:
+        wrong_base = "9" * 40
+        evidence = replace(
+            evidence,
+            review=replace(evidence.review, base_sha=wrong_base),
+            merge_commit=replace(
+                evidence.merge_commit,
+                parent_shas=(wrong_base, _O1071_HEAD),
+            ),
+        )
+    provider.collect_protected_workflow_evidence.return_value = (
+        ProtectedWorkflowEvidenceResult(
+            disposition=ProtectedWorkflowEvidenceDisposition.COMPLETE,
+            evidence=evidence,
+        )
+    )
+    imported = MagicMock(wraps=gate.import_protected_workflow_pass)
+    monkeypatch.setattr(gate, "import_protected_workflow_pass", imported)
+
+    bundle = orchestrator._prepare_terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        target,
+    )
+
+    assert bundle["decision"] == "full_gate_required"
+    imported.assert_not_called()
+
+
+@pytest.mark.parametrize("mutation", ["review", "base"])
+def test_terminal_audit_launch_rejects_ordinary_review_mutated_during_fetch(
+    tmp_path,
+    monkeypatch,
+    mutation,
+):
+    (
+        orchestrator,
+        project,
+        issue,
+        target,
+        tracker,
+        gate,
+        provider,
+    ) = _ordinary_protected_workflow_launch_context(tmp_path, monkeypatch)
+    result = provider.collect_protected_workflow_evidence.return_value
+
+    def mutate_authority_before_return(*_args, **_kwargs):
+        raced = (
+            replace(issue, review_number="811")
+            if mutation == "review"
+            else replace(
+                issue,
+                integration=replace(issue.integration, base_sha="9" * 40),
+            )
+        )
+        tracker.fetch_issue_detail.return_value = raced
+        return result
+
+    provider.collect_protected_workflow_evidence.side_effect = (
+        mutate_authority_before_return
+    )
+    imported = MagicMock(wraps=gate.import_protected_workflow_pass)
+    monkeypatch.setattr(gate, "import_protected_workflow_pass", imported)
+
+    bundle = orchestrator._prepare_terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        target,
+    )
+
+    assert bundle["decision"] == "full_gate_required"
+    assert bundle["authority_current"] is False
+    imported.assert_not_called()
+
+
+def test_terminal_audit_ordinary_protected_import_survives_restart_and_revocation(
+    tmp_path,
+    monkeypatch,
+):
+    (
+        orchestrator,
+        project,
+        issue,
+        target,
+        _tracker,
+        gate,
+        provider,
+    ) = _ordinary_protected_workflow_launch_context(tmp_path, monkeypatch)
+
+    first = orchestrator._prepare_terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        target,
+    )
+    orchestrator._branch_quality_gate = BranchQualityGate(str(gate.state_path))
+    second = orchestrator._prepare_terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        target,
+    )
+
+    assert first["decision"] == second["decision"] == "reuse_authoritative_gate"
+    assert first["recorded_at"] == second["recorded_at"]
+    assert provider.collect_protected_workflow_evidence.call_count == 2
+    policy = Orchestrator._auditor_validation_reuse_policy(second, target)
+    assert policy is not None
+    assert (
+        orchestrator._auditor_validation_reuse_authority_state(
+            issue,
+            target,
+            policy,
+        )
+        == "reuse_authoritative_gate"
+    )
+
+    orchestrator.config = SimpleNamespace(
+        protected_workflow_quality_evidence=(
+            ProtectedWorkflowQualityEvidenceConfig()
+        )
+    )
+    assert (
+        orchestrator._auditor_validation_reuse_authority_state(
+            issue,
+            target,
+            policy,
+        )
+        == "stale_authority"
+    )
 
 
 def test_terminal_audit_launch_ordinary_pass_never_queries_protected_workflow(
