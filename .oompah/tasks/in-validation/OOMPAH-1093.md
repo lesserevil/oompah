@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:04:30.156611Z'
-updated_at: '2026-08-11T17:26:29.592110Z'
+updated_at: '2026-08-11T17:26:43.627345Z'
 work_branch: OOMPAH-1093
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/829
@@ -205,5 +205,15 @@ author: oompah
 created: 2026-08-11 17:21
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-11 17:26
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-11 17:26
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
