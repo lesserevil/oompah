@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1089
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Regenerate current review jobs after stale-evidence exhaustion
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:22:55.237924Z'
-updated_at: '2026-08-11T15:23:24.673146Z'
+updated_at: '2026-08-11T15:23:31.977388Z'
 work_branch: OOMPAH-1089
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/824
