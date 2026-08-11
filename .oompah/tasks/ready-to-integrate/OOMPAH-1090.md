@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1090
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep standalone delivery authority alive across long gates and terminal staging
 parent: null
@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:26:47.067526Z'
-updated_at: '2026-08-11T15:03:54.733801Z'
-work_branch: null
+updated_at: '2026-08-11T15:04:17.660038Z'
+work_branch: OOMPAH-1090
 target_branch: null
 review_url: null
 review_number: null
@@ -24,6 +24,16 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: standalone-delivery-long-effect-authority-20260811
   request_fingerprint: b6ba9251b85b875b51c6525abdd27dc17cfb827d712b3b17797b91d5087ce666
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1090
+  head_sha: fc1220a984310449df12564fb66cbb5f24b92980
+  submitted_at: '2026-08-11T15:04:02.615639+00:00'
+  updated_at: '2026-08-11T15:04:02.615639+00:00'
+oompah.work_branch: OOMPAH-1090
 ---
 ## Summary
 
@@ -68,5 +78,10 @@ author: oompah
 created: 2026-08-11 15:03
 ---
 Fresh independent exact-head review ACCEPTED fc1220a984310449df12564fb66cbb5f24b92980 on current main fe9599111. Reviewer verified same-task and finish-dependency mutations reject; completed unrelated-task mutation publishes; active/unscoped/unknown/overflow deltas fail closed; final late-change CAS is serialized under project_write_lock; and the 10s terminal bridge interval retains workflow ownership through success, cancellation, and loop shutdown without holding the issue lock. Evidence: 682 changed-area/integration/workflow-worker tests passed, adversarial journal probes passed, terminal mutation scan 21/21, diff check clean. Ready for canonical branch gate and integration.
+---
+author: oompah
+created: 2026-08-11 15:04
+---
+Preserve exact standalone-delivery authority across long gates and terminal staging; accept only journal-proven unrelated tracker churn while retaining fail-closed task/dependency boundaries.
 ---
 <!-- COMMENTS:END -->
