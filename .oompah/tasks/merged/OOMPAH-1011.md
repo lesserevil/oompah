@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T02:15:28.085531Z'
-updated_at: '2026-08-11T08:08:57.082822Z'
+updated_at: '2026-08-11T08:09:02.903768Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,7 +47,21 @@ oompah.terminal_audit:
     created_at: '2026-08-11T08:08:50.082032+00:00'
     selected_ref: origin/OOMPAH-1011
     selected_sha: 092debf174fe4dd7521669690a79603ecf216eef
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1011
+    target_state: Merged
+    evidence_fingerprint: 0b65e996ef714b3a14b488b428392e31f91606c952f2eb197f87728b2d0791c8
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1011
+    selected_sha: 092debf174fe4dd7521669690a79603ecf216eef
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T08:09:01.330561+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -93,5 +107,12 @@ author: oompah
 created: 2026-08-11 03:05
 ---
 Independent re-review accepted exact head 092debf174fe4dd7521669690a79603ecf216eef with no findings. Accepted/published authority remains the fast-admission fence, bounded carry-forward membership remains claimable, and a genuinely accepted newer generation still fences stale work. The combined four-fix branch passed 827 changed-path tests.
+---
+author: oompah
+created: 2026-08-11 08:09
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Protected PR #806 and hosted Python 3.11/3.12/3.13 gates are green; deployed build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 contains merge 62c3cda3ea602b614a3a3dfc92c66468b5c34a4b; independent audit verified that every exact reviewed branch change is patch-equivalent to or composition-equivalent with the protected merge and no unique branch changes remain.
 ---
 <!-- COMMENTS:END -->
