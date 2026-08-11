@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1007
 type: task
-status: In Validation
+status: Done
 priority: null
 title: Fence completed terminal-audit recurrence to current workflow completion authority
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T23:19:04.544332Z'
-updated_at: '2026-08-11T01:43:48.578022Z'
+updated_at: '2026-08-11T01:48:47.580378Z'
 work_branch: OOMPAH-1007
 target_branch: main
 review_url: null
@@ -80,6 +80,30 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-11T01:37:00.535706+00:00'
     applied_at: '2026-08-11T01:37:07.473833+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d29e9b3b1fc5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1007
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3eccdcb99e54d6089fea2f8a211fc54b9bbe27b419e0d5811424a2a2fbbd6fa5
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Protected PR #805 merged at f9060c80e after all Python 3.11/3.12/3.13
+      hosted checks passed, and exact terminal audit attempt 9703c33f3489 passed the
+      topology-valid Done stage. OOMPAH-1010 tracks the erroneous follow-on Merged
+      staging for this shared-epic child; OOMPAH-1009 tracks the restart-publication
+      livelock amplified by those audit writes. This override applies the already-passed
+      child result so parent OOMPAH-940 can resume naturally.'
+    created_at: '2026-08-11T01:48:40.210649+00:00'
+    selected_ref: 5e46c8a06c3d8e98eeb0f4b5f9896d5c0ad67654
+    selected_sha: 5e46c8a06c3d8e98eeb0f4b5f9896d5c0ad67654
+    applied: false
   version: 1
   pending_chain:
   - version: 1
