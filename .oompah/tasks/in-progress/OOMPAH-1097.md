@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T17:34:07.685347Z'
-updated_at: '2026-08-11T18:48:38.282621Z'
+updated_at: '2026-08-11T18:56:14.274146Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,5 +51,10 @@ author: oompah
 created: 2026-08-11 18:48
 ---
 Reviewer rejection fixed and pushed for fresh independent review at exact head 46a03f06c2dd10f69f4303198fbc1b2d3fbb760f on branch OOMPAH-1097, rebased onto origin/main 2c010f7b800a1bf0053baf95c2998eda74d3cd3b. The retained WebSocket now explicitly permits only read-only ping, refresh, and full_sync messages during restart drain; console_input and every other non-observability message receive a retryable restart_draining response without closing the socket. Console input is fenced again after session lookup. ConsoleSession also applies the exact orchestrator/provider-lock admission callback when a queued turn is selected, before ACP construction, and at AcpAgentSession's true before_transport_contact edge, so a drain winning after enqueue or during local setup still creates no provider contact. Exact-owner replacement also fails closed. Deterministic regressions reproduce the rejected direct-handler path, lookup race, retained read-only message behavior, queued-input race, manager wiring, and transport-edge race. Post-rebase evidence: 370 console tests passed; 115 WebSocket/full-sync/fault tests passed; 679 restart/Granian/auth/webhook tests passed; 224 event-driven/auto-update/lifecycle tests passed; seven critical rejection races passed 10 consecutive runs (70/70); terminal mutation scan passed 21/21; py_compile and commit diff checks passed. Worktree is clean and synchronized. No submit, merge, or service/scheduling change performed; ready for fresh independent exact-head review.
+---
+author: oompah
+created: 2026-08-11 18:56
+---
+Rebased review head onto accepted OOMPAH-1085 main. Exact head: 4012ea5fc39751478cb64ba517199dc490e37ea4; exact base: 28ce5b1b2dd461c2d6a2ba579b3adfc65e41cbbe. OOMPAH-1085 terminal-audit continuation scheduling composes cleanly with OOMPAH-1097 restart admission/listener cutover; no rebase conflict. Verification after rebase: 370 console + 115 WebSocket/full-sync + 679 restart/auth/webhook + 335 OOMPAH-1085 terminal-audit/auto-update/lifecycle tests passed (1,499 focused total); seven critical provider-admission/WebSocket races repeated 10x (70/70); terminal-audit-scan 21/21; py_compile and git whitespace checks clean. Branch force-with-lease updated and synchronized with origin. No submit, merge, service restart, or scheduling resume performed. Ready for fresh review of exact head 4012ea5fc39751478cb64ba517199dc490e37ea4.
 ---
 <!-- COMMENTS:END -->
