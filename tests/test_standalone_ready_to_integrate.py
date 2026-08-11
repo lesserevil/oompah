@@ -1634,6 +1634,89 @@ def test_open_review_late_advance_converges_and_regates_before_adoption(harness)
     assert not _delivery_alerts(orch)
 
 
+def test_unmarked_submission_base_advance_checkpoints_and_regates(harness):
+    """A target-only race cannot strand an ordinary repaired submission."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    old_review_head = "a" * 40
+    accepted_head = "c" * 40
+    accepted_base = "d" * 40
+    advanced_base = "e" * 40
+    review_id = "101"
+    task = _issue("TASK-BASE-RACE", branch="feature/base-race")
+    task.review_number = review_id
+    task.review_url = f"https://github.com/org/repo/pull/{review_id}"
+    task.review_head = old_review_head
+    task.integration = replace(
+        task.integration,
+        head_sha=accepted_head,
+        base_sha=accepted_base,
+        wait_reason=None,
+        wait_generation=None,
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.get_branch_head_sha.return_value = accepted_head
+    provider.find_pr_for_branch.return_value = _review(
+        task.identifier,
+        review_id=review_id,
+        source_branch=task.work_branch,
+        head_sha=accepted_head,
+        base_sha=advanced_base,
+    )
+
+    def persist_metadata(_identifier, key, value):
+        if key == "oompah.integration":
+            task.integration = IntegrationRecord.from_dict(value)
+        elif key == "oompah.review_url":
+            task.review_url = value or None
+        elif key == "oompah.review_number":
+            task.review_number = value or None
+        elif key == "oompah.work_branch":
+            task.work_branch = value or None
+        elif key == "oompah.target_branch":
+            task.target_branch = value or None
+        elif key == "oompah.review_head":
+            task.review_head = value or None
+
+    tracker.set_metadata_field.side_effect = persist_metadata
+
+    # The first observation checkpoints only the changed base. It neither
+    # reuses prior gate evidence nor replaces the newer submitted head.
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    assert task.state == READY_TO_INTEGRATE
+    assert task.integration.head_sha == accepted_head
+    assert task.integration.base_sha == advanced_base
+    assert task.integration.wait_reason == REVIEW_GENERATION_REQUEUE_WAIT_REASON
+    assert task.integration.wait_generation == review_generation_requeue_marker(
+        review_id,
+        accepted_head,
+        advanced_base,
+    )
+    gate.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    assert not _delivery_alerts(orch)
+
+    # The checkpoint owns exactly one fresh gate/adoption pass.
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once_with(
+        project,
+        task,
+        task.work_branch,
+        project.default_branch,
+    )
+    assert task.state == IN_REVIEW
+    assert task.review_head == accepted_head
+    assert task.integration.head_sha == accepted_head
+    assert task.integration.base_sha == advanced_base
+    assert task.integration.wait_reason is None
+    assert task.integration.wait_generation is None
+    provider.create_review.assert_not_called()
+    tracker.update_issue.assert_called_once_with(task.identifier, status=IN_REVIEW)
+    assert not _delivery_alerts(orch)
+
+
 def test_unmarked_ready_submission_is_not_replaced_by_stale_open_review(harness):
     """A later accepted submission cannot be overwritten by old review history."""
 
@@ -1664,6 +1747,44 @@ def test_unmarked_ready_submission_is_not_replaced_by_stale_open_review(harness)
     tracker.set_metadata_field.assert_not_called()
     tracker.update_issue.assert_not_called()
     assert "does not match accepted submission" in _delivery_alerts(orch)[0]["message"]
+
+
+def test_untracked_same_head_base_mismatch_reports_base_identity(harness):
+    """A rejected base mismatch must not claim two equal heads differ."""
+
+    orch, _project, tracker, provider, _detect, gate = harness
+    accepted_head = "c" * 40
+    accepted_base = "d" * 40
+    observed_base = "e" * 40
+    task = _issue("TASK-BASE-DIAGNOSTIC", branch="feature/base-diagnostic")
+    task.review_number = "101"
+    task.review_head = "a" * 40
+    task.integration = replace(
+        task.integration,
+        head_sha=accepted_head,
+        base_sha=accepted_base,
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.get_branch_head_sha.return_value = accepted_head
+    provider.find_pr_for_branch.return_value = _review(
+        task.identifier,
+        review_id="202",
+        source_branch=task.work_branch,
+        head_sha=accepted_head,
+        base_sha=observed_base,
+    )
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    assert task.state == READY_TO_INTEGRATE
+    assert task.integration.head_sha == accepted_head
+    assert task.integration.base_sha == accepted_base
+    gate.assert_not_called()
+    tracker.set_metadata_field.assert_not_called()
+    alert = _delivery_alerts(orch)[0]["message"]
+    assert f"review base {observed_base}" in alert
+    assert f"accepted submission base {accepted_base}" in alert
+    assert "review head" not in alert
 
 
 def test_restart_recovers_persisted_open_review_generation_checkpoint(
@@ -1728,6 +1849,107 @@ def test_restart_recovers_persisted_open_review_generation_checkpoint(
         assert task.state == IN_REVIEW
         assert task.review_head == head
         assert task.integration is not None
+        assert task.integration.wait_reason is None
+        assert task.integration.wait_generation is None
+        provider.create_review.assert_not_called()
+    finally:
+        _close_orchestrator(restarted)
+
+
+def test_restart_recovers_unmarked_submission_base_race_once(
+    tmp_path,
+    monkeypatch,
+):
+    """A crash after the base checkpoint cannot reuse or repeat old evidence."""
+
+    project = Project(
+        id="proj-unmarked-base-restart",
+        name="Unmarked Base Restart",
+        repo_url="https://github.com/org/repo.git",
+        repo_path=str(tmp_path / "repo"),
+        default_branch="trunk",
+    )
+    accepted_head = "c" * 40
+    accepted_base = "d" * 40
+    advanced_base = "e" * 40
+    review_id = "101"
+    task = _issue("TASK-UNMARKED-BASE-RESTART", branch="feature/base-restart")
+    task.review_number = review_id
+    task.review_url = f"https://github.com/org/repo/pull/{review_id}"
+    task.review_head = "a" * 40
+    task.integration = replace(
+        task.integration,
+        head_sha=accepted_head,
+        base_sha=accepted_base,
+        wait_reason=None,
+        wait_generation=None,
+    )
+    tracker = _MemoryTracker(task)
+    provider = mock.MagicMock(spec=SCMProvider)
+    provider.get_branch_head_sha.return_value = accepted_head
+    provider.find_pr_for_branch.return_value = _review(
+        task.identifier,
+        review_id=review_id,
+        source_branch=task.work_branch,
+        head_sha=accepted_head,
+        base_sha=advanced_base,
+    )
+    monkeypatch.setattr(
+        "oompah.orchestrator.detect_provider",
+        lambda *_args, **_kwargs: provider,
+    )
+    provider_store = ProviderStore(str(tmp_path / "providers.json"))
+    before_restart = _make_orchestrator(
+        tmp_path,
+        project=project,
+        tracker=tracker,
+        provider_store=provider_store,
+        state_name="before-base-restart.json",
+    )
+    old_gate = mock.MagicMock(return_value=True)
+    monkeypatch.setattr(before_restart, "_review_quality_gate_passes", old_gate)
+
+    try:
+        before_restart._reconcile_standalone_ready_to_integrate_tasks()
+
+        old_gate.assert_not_called()
+        assert task.state == READY_TO_INTEGRATE
+        assert task.integration is not None
+        assert task.integration.head_sha == accepted_head
+        assert task.integration.base_sha == advanced_base
+        assert task.integration.wait_generation == review_generation_requeue_marker(
+            review_id,
+            accepted_head,
+            advanced_base,
+        )
+    finally:
+        _close_orchestrator(before_restart)
+
+    restarted = _make_orchestrator(
+        tmp_path,
+        project=project,
+        tracker=tracker,
+        provider_store=provider_store,
+        state_name="after-base-restart.json",
+    )
+    fresh_gate = mock.MagicMock(return_value=True)
+    monkeypatch.setattr(restarted, "_review_quality_gate_passes", fresh_gate)
+
+    try:
+        restarted._reconcile_standalone_ready_to_integrate_tasks()
+        restarted._reconcile_standalone_ready_to_integrate_tasks()
+
+        fresh_gate.assert_called_once_with(
+            project,
+            task,
+            task.work_branch,
+            project.default_branch,
+        )
+        assert task.state == IN_REVIEW
+        assert task.review_head == accepted_head
+        assert task.integration is not None
+        assert task.integration.head_sha == accepted_head
+        assert task.integration.base_sha == advanced_base
         assert task.integration.wait_reason is None
         assert task.integration.wait_generation is None
         provider.create_review.assert_not_called()

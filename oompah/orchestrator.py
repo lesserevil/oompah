@@ -23263,9 +23263,18 @@ class Orchestrator:
         if (
             review_state == "open"
             and same_recorded_review
-            and accepted_review_requeue
             and (
-                forge_head != expected_head or forge_base != expected_base
+                (
+                    accepted_review_requeue
+                    and (
+                        forge_head != expected_head
+                        or forge_base != expected_base
+                    )
+                )
+                or (
+                    forge_head == expected_head
+                    and forge_base != expected_base
+                )
             )
         ):
             return (
@@ -23278,6 +23287,13 @@ class Orchestrator:
                 review_state != "open" or forge_base == expected_base
             ):
                 return "exact", forge_head, ""
+            if review_state == "open" and forge_head == expected_head:
+                return (
+                    "historical",
+                    forge_head,
+                    f"review base {forge_base} does not match accepted "
+                    f"submission base {expected_base}",
+                )
             return (
                 "historical",
                 forge_head,
