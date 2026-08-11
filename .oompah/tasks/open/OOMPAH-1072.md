@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1072
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Aggregate structured terminal-enforcement errors by stable diagnostic class
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T08:11:28.178710Z'
-updated_at: '2026-08-11T08:11:28.178710Z'
+updated_at: '2026-08-11T08:20:42.411982Z'
 work_branch: null
 target_branch: null
 review_url: null
