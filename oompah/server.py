@@ -30,6 +30,7 @@ from oompah.agent_instructions import (
     ensure_github_issues_agent_instructions,
     ensure_oompah_task_agent_instructions,
 )
+from oompah.authority_lock import acquire_bounded_task_lock
 from oompah.build_info import build_identity
 from oompah.events import EventType
 from oompah.scm import (
@@ -6093,29 +6094,16 @@ async def _submission_authority_lock(orch, issue_id: str):
     # control interval.  Waiting for two intervals lets that retirement release
     # the lane and still leaves a deterministic retryable API deadline.
     timeout_seconds = control_timeout * 2.0
-    acquisition_is_bounded = True
-    try:
-        acquisition = lock.acquire(timeout_seconds=timeout_seconds)
-    except TypeError:
-        # Compatibility for asyncio.Lock-based adapters and test doubles.
-        acquisition = lock.acquire()
-        acquisition_is_bounded = False
-    if not inspect.isawaitable(acquisition):
+    acquired = await acquire_bounded_task_lock(
+        lock,
+        timeout_seconds=timeout_seconds,
+    )
+    if acquired is None:
         # Loose legacy adapters expose MagicMock-like attribute surfaces but
         # do not provide a real async lock.  Preserve their historical
-        # self-serialization rather than treating a mock return as authority.
+        # self-serialization without invoking a blocking acquisition.
         yield
         return
-    if acquisition_is_bounded:
-        acquired = await acquisition
-    else:
-        try:
-            acquired = await asyncio.wait_for(
-                acquisition,
-                timeout=timeout_seconds,
-            )
-        except TimeoutError:
-            acquired = False
     if not acquired:
         raise SubmissionAuthorityBusyError(
             issue_id=issue_id,
@@ -14642,6 +14630,19 @@ async def api_terminal_provenance_action(
                     status_transition=orch._recover_terminal_audit_status,
                 )
                 status = OPEN
+    except SubmissionAuthorityBusyError as exc:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "control_busy",
+                    "message": str(exc),
+                    "retryable": True,
+                    "issue_id": exc.issue_id,
+                    "timeout_seconds": exc.timeout_seconds,
+                }
+            },
+            status_code=503,
+        )
     except ProvenanceControlBusyError:
         return JSONResponse(
             {

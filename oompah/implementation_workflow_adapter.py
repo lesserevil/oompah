@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import inspect
 import json
 import os
 import re
@@ -26,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
 
+from oompah.authority_lock import acquire_bounded_task_lock
 from oompah.duplicate_screening import (
     DETECTOR_VERSION as DUPLICATE_DETECTOR_VERSION,
     ScreeningState,
@@ -507,25 +507,13 @@ class OrchestratorImplementationEffects:
         # a second interval lets this durable retry win naturally after that
         # retirement without approaching the workflow call's outer deadline.
         timeout_seconds = control_timeout * 2.0
-        acquisition_is_bounded = True
-        try:
-            acquisition = lock.acquire(timeout_seconds=timeout_seconds)
-        except TypeError:
-            acquisition = lock.acquire()
-            acquisition_is_bounded = False
-        if not inspect.isawaitable(acquisition):
+        acquired = await acquire_bounded_task_lock(
+            lock,
+            timeout_seconds=timeout_seconds,
+        )
+        if acquired is None:
             yield
             return
-        if acquisition_is_bounded:
-            acquired = await acquisition
-        else:
-            try:
-                acquired = await asyncio.wait_for(
-                    acquisition,
-                    timeout=timeout_seconds,
-                )
-            except TimeoutError:
-                acquired = False
         if not acquired:
             raise WorkflowActionError(
                 "direct-owner claim is waiting for bounded task authority "
