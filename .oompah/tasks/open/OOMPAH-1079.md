@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T10:43:32.317191Z'
-updated_at: '2026-08-11T10:59:39.984151Z'
+updated_at: '2026-08-11T10:59:48.405734Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,3 +58,11 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 10:59
+---
+Root cause reproduced from the 2026-08-11 10:43 graceful restart: _run_lifecycle_publication called get_snapshot()->workflow_job_store.health_snapshot() after the workflow-jobs SQLite connection had closed, raising sqlite3.ProgrammingError. Direct-owner claim established; fix will make shutdown drain/close lifecycle publication authority before dependent stores and add a deterministic race regression.
+---
+<!-- COMMENTS:END -->
