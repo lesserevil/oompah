@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import errno
 import hashlib
 import http.server
@@ -27,6 +28,7 @@ from oompah.auditor import auditor_target_contract
 from oompah.config import (
     ProtectedWorkflowQualityEvidenceConfig,
     ProtectedWorkflowQualityEvidenceTrust,
+    ServiceConfig,
 )
 from oompah.integration import IntegrationRecord
 from oompah.models import Issue, Project
@@ -9443,6 +9445,747 @@ def test_quality_gate_tracks_and_removes_processes_on_completion(tmp_path):
     assert result.passed
     with BranchQualityGate._processes_lock:
         assert BranchQualityGate._active_processes == {}
+
+
+def test_quality_gate_active_state_change_requests_coalesced_publication():
+    orchestrator = Orchestrator.__new__(Orchestrator)
+    orchestrator.request_lifecycle_publication = MagicMock(return_value=True)
+
+    orchestrator._quality_gate_active_state_changed()
+
+    orchestrator.request_lifecycle_publication.assert_called_once_with()
+
+
+@pytest.mark.parametrize(
+    ("command", "expected_status"),
+    [("true", "passed"), ("exit 7", "failed")],
+)
+def test_quality_gate_publishes_active_registry_edges(
+    tmp_path,
+    command,
+    expected_status,
+):
+    repo = _git_repo(tmp_path)
+    head = BranchQualityGate._head_sha(str(repo))
+    owner = QualityGateOwner("project-1", "task-1", head, "generation-1")
+    observed = []
+    gate = _gate(
+        tmp_path / "quality.json",
+        repo,
+        active_state_changed=lambda: observed.append(
+            BranchQualityGate.active_state()
+        ),
+    )
+
+    result = _run(gate, repo, command, expected_head_sha=head, owner=owner)
+
+    assert result.status == expected_status
+    assert len(observed) == 2
+    assert observed[0][0]["task_id"] == owner.task_id
+    assert observed[0][0]["head_sha"] == owner.head_sha
+    assert observed[1] == []
+
+
+def test_quality_gate_publishes_timeout_and_callback_exception_is_isolated(tmp_path):
+    repo = _git_repo(tmp_path)
+    callback = MagicMock(side_effect=RuntimeError("publisher unavailable"))
+    gate = _gate(
+        tmp_path / "quality.json",
+        repo,
+        timeout_seconds=1,
+        active_state_changed=callback,
+    )
+
+    result = _run(gate, repo, "sleep 10")
+
+    assert result.status == "timed_out"
+    assert callback.call_count == 2
+    assert BranchQualityGate.active_state() == []
+
+
+def test_quality_gate_publishes_removal_after_runner_exception(
+    tmp_path,
+    monkeypatch,
+):
+    repo = _git_repo(tmp_path)
+    observed = []
+    gate = _gate(
+        tmp_path / "quality.json",
+        repo,
+        active_state_changed=lambda: observed.append(
+            BranchQualityGate.active_state()
+        ),
+    )
+    original_popen = quality_gate.subprocess.Popen
+
+    def raising_gate_popen(*args, **kwargs):
+        process = original_popen(*args, **kwargs)
+        if kwargs.get("start_new_session") is True:
+            communicate = process.communicate
+
+            def communicate_then_raise(*call_args, **call_kwargs):
+                communicate(*call_args, **call_kwargs)
+                raise OSError("injected runner transport failure")
+
+            process.communicate = communicate_then_raise
+        return process
+
+    monkeypatch.setattr(quality_gate.subprocess, "Popen", raising_gate_popen)
+
+    result = _run(gate, repo, "true")
+
+    assert result.status == "error"
+    assert len(observed) == 2
+    assert observed[0]
+    assert observed[1] == []
+
+
+def test_quality_gate_cancellation_cannot_signal_or_remove_reused_pid(monkeypatch):
+    pid = 4242
+    owner_old = QualityGateOwner(
+        "project-1", "task-old", "a" * 40, "generation-old"
+    )
+    owner_new = QualityGateOwner(
+        "project-1", "task-new", "b" * 40, "generation-new"
+    )
+    callback_events = []
+    signals = []
+    old_token = object()
+    new_token = object()
+
+    def callback(label):
+        assert BranchQualityGate._processes_lock.acquire(blocking=False)
+        BranchQualityGate._processes_lock.release()
+        callback_events.append(label)
+
+    class ReplacementProcess:
+        def __init__(self):
+            self.pid = pid
+
+    replacement = ReplacementProcess()
+
+    class OldProcess:
+        def __init__(self):
+            self.pid = pid
+            self.wait_calls = 0
+
+        def poll(self):
+            return None
+
+        def wait(self, *, timeout):
+            self.wait_calls += 1
+            if self.wait_calls == 1:
+                with BranchQualityGate._processes_lock:
+                    callbacks = BranchQualityGate._register_active_process_locked(
+                        replacement,
+                        generation=owner_new.authority_generation,
+                        owner=owner_new,
+                        snapshot=Path("/replacement"),
+                        callback=lambda: callback("new"),
+                        registration_token=new_token,
+                    )
+                BranchQualityGate._notify_active_state_changed(callbacks)
+                raise subprocess.TimeoutExpired("old-gate", timeout)
+            return 0
+
+    old = OldProcess()
+    try:
+        with BranchQualityGate._processes_lock:
+            callbacks = BranchQualityGate._register_active_process_locked(
+                old,
+                generation=owner_old.authority_generation,
+                owner=owner_old,
+                snapshot=Path("/old"),
+                callback=lambda: callback("old"),
+                registration_token=old_token,
+            )
+        BranchQualityGate._notify_active_state_changed(callbacks)
+        monkeypatch.setattr(
+            quality_gate.os,
+            "killpg",
+            lambda observed_pid, sig: signals.append((observed_pid, sig)),
+        )
+
+        assert BranchQualityGate.cleanup_active_processes() == 1
+
+        assert signals == [(pid, signal.SIGTERM)]
+        assert callback_events == ["old", "old", "new"]
+        with BranchQualityGate._processes_lock:
+            assert BranchQualityGate._active_processes[pid] is replacement
+            assert BranchQualityGate._active_owners[pid] == owner_new
+            assert BranchQualityGate._active_registration_tokens[pid] is new_token
+        assert not hasattr(replacement, "_oompah_interrupted")
+    finally:
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._active_processes.pop(pid, None)
+            BranchQualityGate._active_generations.pop(pid, None)
+            BranchQualityGate._active_owners.pop(pid, None)
+            BranchQualityGate._active_snapshots.pop(pid, None)
+            BranchQualityGate._active_registration_tokens.pop(pid, None)
+            BranchQualityGate._active_state_callbacks.pop(pid, None)
+
+
+def test_quality_gate_cancellation_rechecks_registration_before_term(monkeypatch):
+    pid = 4243
+    owner_old = QualityGateOwner(
+        "project-1", "task-old", "a" * 40, "generation-old"
+    )
+    owner_new = QualityGateOwner(
+        "project-1", "task-new", "b" * 40, "generation-new"
+    )
+    callback_events = []
+    signals = []
+    old_token = object()
+    new_token = object()
+    replacement_installed = False
+
+    def callback(label):
+        assert BranchQualityGate._processes_lock.acquire(blocking=False)
+        BranchQualityGate._processes_lock.release()
+        callback_events.append(label)
+
+    class Process:
+        def __init__(self):
+            self.pid = pid
+
+        def poll(self):
+            return None
+
+        def wait(self, *, timeout):
+            return 0
+
+    old = Process()
+    replacement = Process()
+    original_signal = BranchQualityGate._signal_active_process_group.__func__
+
+    def replace_before_signal(
+        cls, observed_pid, process, registration_token, signal_number
+    ):
+        nonlocal replacement_installed
+        if signal_number == signal.SIGTERM and not replacement_installed:
+            replacement_installed = True
+            with cls._processes_lock:
+                callbacks = cls._register_active_process_locked(
+                    replacement,
+                    generation=owner_new.authority_generation,
+                    owner=owner_new,
+                    snapshot=Path("/replacement"),
+                    callback=lambda: callback("new"),
+                    registration_token=new_token,
+                )
+            cls._notify_active_state_changed(callbacks)
+        return original_signal(
+            cls,
+            observed_pid,
+            process,
+            registration_token,
+            signal_number,
+        )
+
+    try:
+        with BranchQualityGate._processes_lock:
+            callbacks = BranchQualityGate._register_active_process_locked(
+                old,
+                generation=owner_old.authority_generation,
+                owner=owner_old,
+                snapshot=Path("/old"),
+                callback=lambda: callback("old"),
+                registration_token=old_token,
+            )
+        BranchQualityGate._notify_active_state_changed(callbacks)
+        monkeypatch.setattr(
+            BranchQualityGate,
+            "_signal_active_process_group",
+            classmethod(replace_before_signal),
+        )
+        monkeypatch.setattr(
+            quality_gate.os,
+            "killpg",
+            lambda observed_pid, sig: signals.append((observed_pid, sig)),
+        )
+
+        assert BranchQualityGate.cleanup_active_processes() == 0
+
+        assert signals == []
+        assert callback_events == ["old", "old", "new"]
+        with BranchQualityGate._processes_lock:
+            assert BranchQualityGate._active_processes[pid] is replacement
+            assert BranchQualityGate._active_owners[pid] == owner_new
+            assert BranchQualityGate._active_registration_tokens[pid] is new_token
+        assert not hasattr(replacement, "_oompah_interrupted")
+    finally:
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._active_processes.pop(pid, None)
+            BranchQualityGate._active_generations.pop(pid, None)
+            BranchQualityGate._active_owners.pop(pid, None)
+            BranchQualityGate._active_snapshots.pop(pid, None)
+            BranchQualityGate._active_registration_tokens.pop(pid, None)
+            BranchQualityGate._active_state_callbacks.pop(pid, None)
+
+
+def test_quality_gate_cleanup_does_not_signal_reaped_registration(monkeypatch):
+    pid = 4244
+    registration_token = object()
+    callback_events = []
+    signals = []
+
+    class ReapedProcess:
+        def __init__(self):
+            self.pid = pid
+
+        def poll(self):
+            return 0
+
+        def wait(self, *, timeout):
+            return 0
+
+    process = ReapedProcess()
+
+    def callback():
+        callback_events.append("changed")
+
+    try:
+        with BranchQualityGate._processes_lock:
+            callbacks = BranchQualityGate._register_active_process_locked(
+                process,
+                generation="generation-old",
+                owner=None,
+                snapshot=Path("/old"),
+                callback=callback,
+                registration_token=registration_token,
+            )
+        BranchQualityGate._notify_active_state_changed(callbacks)
+        monkeypatch.setattr(
+            quality_gate.os,
+            "killpg",
+            lambda observed_pid, sig: signals.append((observed_pid, sig)),
+        )
+
+        assert BranchQualityGate.cleanup_active_processes() == 0
+
+        assert signals == []
+        assert callback_events == ["changed", "changed"]
+        with BranchQualityGate._processes_lock:
+            assert pid not in BranchQualityGate._active_processes
+            assert pid not in BranchQualityGate._active_registration_tokens
+    finally:
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._active_processes.pop(pid, None)
+            BranchQualityGate._active_generations.pop(pid, None)
+            BranchQualityGate._active_owners.pop(pid, None)
+            BranchQualityGate._active_snapshots.pop(pid, None)
+            BranchQualityGate._active_registration_tokens.pop(pid, None)
+            BranchQualityGate._active_state_callbacks.pop(pid, None)
+
+
+def test_quality_gate_timeout_cannot_kill_or_remove_reused_pid(
+    tmp_path, monkeypatch
+):
+    repo = _git_repo(tmp_path)
+    old_callback_states = []
+    new_callback_states = []
+    replacement_holder = {}
+    signals = []
+    original_popen = quality_gate.subprocess.Popen
+    owner_new = QualityGateOwner(
+        "project-1", "task-new", "b" * 40, "generation-new"
+    )
+
+    def record_state(destination):
+        assert BranchQualityGate._processes_lock.acquire(blocking=False)
+        BranchQualityGate._processes_lock.release()
+        destination.append(BranchQualityGate.active_state())
+
+    def timeout_after_pid_reuse_popen(*args, **kwargs):
+        process = original_popen(*args, **kwargs)
+        if kwargs.get("start_new_session") is True:
+            communicate = process.communicate
+            first_call = True
+
+            def communicate_then_timeout(*call_args, **call_kwargs):
+                nonlocal first_call
+                if first_call and call_kwargs.get("timeout") is not None:
+                    first_call = False
+                    stdout, stderr = communicate(*call_args, **call_kwargs)
+                    replacement = SimpleNamespace(pid=process.pid)
+                    replacement_token = object()
+                    with BranchQualityGate._processes_lock:
+                        callbacks = (
+                            BranchQualityGate._register_active_process_locked(
+                                replacement,
+                                generation=owner_new.authority_generation,
+                                owner=owner_new,
+                                snapshot=Path("/replacement"),
+                                callback=lambda: record_state(new_callback_states),
+                                registration_token=replacement_token,
+                            )
+                        )
+                    BranchQualityGate._notify_active_state_changed(callbacks)
+                    replacement_holder.update(
+                        process=replacement,
+                        token=replacement_token,
+                    )
+                    raise subprocess.TimeoutExpired(
+                        "gate",
+                        call_kwargs["timeout"],
+                        output=stdout,
+                        stderr=stderr,
+                    )
+                return communicate(*call_args, **call_kwargs)
+
+            process.communicate = communicate_then_timeout
+        return process
+
+    gate = _gate(
+        tmp_path / "quality.json",
+        repo,
+        active_state_changed=lambda: record_state(old_callback_states),
+    )
+    monkeypatch.setattr(quality_gate.subprocess, "Popen", timeout_after_pid_reuse_popen)
+    monkeypatch.setattr(
+        quality_gate.os,
+        "killpg",
+        lambda observed_pid, sig: signals.append((observed_pid, sig)),
+    )
+
+    try:
+        result = _run(gate, repo, "true")
+
+        assert result.status == "timed_out"
+        assert signals == []
+        assert len(old_callback_states) == 2
+        assert len(new_callback_states) == 1
+        replacement = replacement_holder["process"]
+        with BranchQualityGate._processes_lock:
+            assert BranchQualityGate._active_processes[replacement.pid] is replacement
+            assert BranchQualityGate._active_owners[replacement.pid] == owner_new
+            assert (
+                BranchQualityGate._active_registration_tokens[replacement.pid]
+                is replacement_holder["token"]
+            )
+    finally:
+        if replacement_holder:
+            pid = replacement_holder["process"].pid
+            with BranchQualityGate._processes_lock:
+                BranchQualityGate._active_processes.pop(pid, None)
+                BranchQualityGate._active_generations.pop(pid, None)
+                BranchQualityGate._active_owners.pop(pid, None)
+                BranchQualityGate._active_snapshots.pop(pid, None)
+                BranchQualityGate._active_registration_tokens.pop(pid, None)
+                BranchQualityGate._active_state_callbacks.pop(pid, None)
+
+
+def test_quality_gate_finally_cannot_remove_reused_pid(tmp_path, monkeypatch):
+    repo = _git_repo(tmp_path)
+    old_callback_states = []
+    new_callback_states = []
+    replacement_holder = {}
+    original_popen = quality_gate.subprocess.Popen
+    owner_new = QualityGateOwner(
+        "project-1", "task-new", "b" * 40, "generation-new"
+    )
+
+    def record_state(destination):
+        assert BranchQualityGate._processes_lock.acquire(blocking=False)
+        BranchQualityGate._processes_lock.release()
+        destination.append(BranchQualityGate.active_state())
+
+    def reused_pid_popen(*args, **kwargs):
+        process = original_popen(*args, **kwargs)
+        if kwargs.get("start_new_session") is True:
+            communicate = process.communicate
+
+            def communicate_then_reuse(*call_args, **call_kwargs):
+                result = communicate(*call_args, **call_kwargs)
+                replacement = SimpleNamespace(pid=process.pid)
+                replacement_token = object()
+                with BranchQualityGate._processes_lock:
+                    callbacks = BranchQualityGate._register_active_process_locked(
+                        replacement,
+                        generation=owner_new.authority_generation,
+                        owner=owner_new,
+                        snapshot=Path("/replacement"),
+                        callback=lambda: record_state(new_callback_states),
+                        registration_token=replacement_token,
+                    )
+                BranchQualityGate._notify_active_state_changed(callbacks)
+                replacement_holder.update(
+                    process=replacement,
+                    token=replacement_token,
+                )
+                return result
+
+            process.communicate = communicate_then_reuse
+        return process
+
+    gate = _gate(
+        tmp_path / "quality.json",
+        repo,
+        active_state_changed=lambda: record_state(old_callback_states),
+    )
+    monkeypatch.setattr(quality_gate.subprocess, "Popen", reused_pid_popen)
+
+    try:
+        result = _run(gate, repo, "true")
+
+        assert result.passed
+        assert len(old_callback_states) == 2
+        assert len(new_callback_states) == 1
+        replacement = replacement_holder["process"]
+        with BranchQualityGate._processes_lock:
+            assert BranchQualityGate._active_processes[replacement.pid] is replacement
+            assert BranchQualityGate._active_owners[replacement.pid] == owner_new
+            assert (
+                BranchQualityGate._active_registration_tokens[replacement.pid]
+                is replacement_holder["token"]
+            )
+    finally:
+        if replacement_holder:
+            pid = replacement_holder["process"].pid
+            with BranchQualityGate._processes_lock:
+                BranchQualityGate._active_processes.pop(pid, None)
+                BranchQualityGate._active_generations.pop(pid, None)
+                BranchQualityGate._active_owners.pop(pid, None)
+                BranchQualityGate._active_snapshots.pop(pid, None)
+                BranchQualityGate._active_registration_tokens.pop(pid, None)
+                BranchQualityGate._active_state_callbacks.pop(pid, None)
+
+
+def test_quality_gate_publishes_cancelled_registry_removal(tmp_path):
+    repo = _git_repo(tmp_path)
+    head = BranchQualityGate._head_sha(str(repo))
+    owner = QualityGateOwner("project-1", "task-1", head, "generation-1")
+    observed = []
+    gate = _gate(
+        tmp_path / "quality.json",
+        repo,
+        active_state_changed=lambda: observed.append(
+            BranchQualityGate.active_state()
+        ),
+    )
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(
+                _run,
+                gate,
+                repo,
+                "sleep 30",
+                expected_head_sha=head,
+                owner=owner,
+            )
+            deadline = time.monotonic() + 5
+            while (
+                time.monotonic() < deadline
+                and not BranchQualityGate.active_state()
+            ):
+                time.sleep(0.01)
+            assert BranchQualityGate.active_state()
+            while time.monotonic() < deadline and not observed:
+                time.sleep(0.01)
+            assert observed
+
+            assert BranchQualityGate.cancel_owner(owner) == 1
+            result = future.result(timeout=5)
+
+        assert result.status == "interrupted"
+        assert len(observed) == 2
+        assert observed[0][0]["task_id"] == owner.task_id
+        assert observed[1] == []
+    finally:
+        BranchQualityGate.cleanup_active_processes()
+
+
+def test_concurrent_gate_owners_publish_exact_registry_transitions(tmp_path):
+    repo = _git_repo(tmp_path)
+    head = BranchQualityGate._head_sha(str(repo))
+    owners = (
+        QualityGateOwner("project-1", "task-a", head, "generation-a"),
+        QualityGateOwner("project-1", "task-b", head, "generation-b"),
+    )
+    observed = []
+    observed_lock = threading.Lock()
+
+    def record_active_state():
+        state = BranchQualityGate.active_state()
+        with observed_lock:
+            observed.append(state)
+
+    gate = _gate(
+        tmp_path / "quality.json",
+        repo,
+        active_state_changed=record_active_state,
+    )
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [
+                pool.submit(
+                    _run,
+                    gate,
+                    repo,
+                    (
+                        f"sleep {'0.1' if owner.task_id == 'task-a' else '0.8'} "
+                        f"# {owner.task_id}"
+                    ),
+                    expected_head_sha=head,
+                    owner=owner,
+                )
+                for owner in owners
+            ]
+            results = [future.result(timeout=5) for future in futures]
+
+        assert all(result.passed for result in results)
+        assert len(observed) == 4
+        assert {row["task_id"] for state in observed for row in state} == {
+            "task-a",
+            "task-b",
+        }
+        assert any(len(state) == 2 for state in observed)
+        assert any(
+            [row["task_id"] for row in state] == ["task-b"]
+            for state in observed
+        )
+        assert observed[-1] == []
+    finally:
+        BranchQualityGate.cleanup_active_processes()
+
+
+def test_blocked_state_cut_replays_exact_replacement_gate_to_http_and_ws(
+    tmp_path,
+    monkeypatch,
+):
+    from oompah import server
+
+    repo = _git_repo(tmp_path)
+    head = BranchQualityGate._head_sha(str(repo))
+    owner_a = QualityGateOwner("project-1", "task-a", head, "generation-a")
+    owner_b = QualityGateOwner("project-1", "task-b", head, "generation-b")
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orch = Orchestrator(
+        config=ServiceConfig(duplicate_preflight_max_agents=0),
+        workflow_path=str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service-state.json"),
+    )
+    first_cut = threading.Event()
+    release_first = threading.Event()
+    snapshot_calls = 0
+    snapshot_calls_lock = threading.Lock()
+    revisions = []
+
+    def gate_snapshot():
+        nonlocal snapshot_calls
+        active = BranchQualityGate.active_state()
+        quality_gates = {
+            "status": "running" if active else "idle",
+            "active": active,
+            "recent": [],
+        }
+        with snapshot_calls_lock:
+            snapshot_calls += 1
+            call_number = snapshot_calls
+        snapshot = {
+            "generated_at": f"2026-08-11T12:00:{call_number:02d}+00:00",
+            "quality_gates": quality_gates,
+            "health": {"quality_gates": quality_gates},
+            "alerts": Orchestrator._quality_gate_dashboard_alerts(quality_gates),
+        }
+        if call_number == 1:
+            first_cut.set()
+            assert release_first.wait(timeout=3)
+        return snapshot
+
+    def cache_snapshot(snapshot):
+        revisions.append(server._update_state_snapshot(snapshot))
+
+    monkeypatch.setattr(orch, "get_snapshot", gate_snapshot)
+    monkeypatch.setattr(server, "_orchestrator", orch)
+    monkeypatch.setattr(server, "_ipc", None)
+    monkeypatch.setattr(server, "_state_snapshot", None)
+    monkeypatch.setattr(server, "_state_snapshot_authority", None)
+    monkeypatch.setattr(server, "_state_snapshot_signature", None)
+    monkeypatch.setattr(
+        server,
+        "_state_snapshot_epoch",
+        server._protocol_values()[0],
+    )
+    orch._observers.append(cache_snapshot)
+    gate = _gate(
+        tmp_path / "quality.json",
+        repo,
+        active_state_changed=orch._quality_gate_active_state_changed,
+    )
+    orch._branch_quality_gate = gate
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            gate_a = pool.submit(
+                _run,
+                gate,
+                repo,
+                "sleep 0.1 # task-a",
+                expected_head_sha=head,
+                owner=owner_a,
+            )
+            assert first_cut.wait(timeout=2)
+            assert gate_a.result(timeout=3).passed
+
+            gate_b = pool.submit(
+                _run,
+                gate,
+                repo,
+                "sleep 30 # task-b",
+                expected_head_sha=head,
+                owner=owner_b,
+            )
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline:
+                active = BranchQualityGate.active_state()
+                if any(row["task_id"] == owner_b.task_id for row in active):
+                    break
+                time.sleep(0.01)
+            else:
+                raise AssertionError("replacement quality gate did not register")
+
+            release_first.set()
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline:
+                cached = server._read_state_snapshot(allow_stale=True)
+                active = (cached or {}).get("quality_gates", {}).get("active", [])
+                if [row.get("task_id") for row in active] == [owner_b.task_id]:
+                    break
+                time.sleep(0.01)
+            else:
+                raise AssertionError("replacement gate state was not published")
+
+            response = asyncio.run(server.api_state())
+            http_state = json.loads(response.body)
+            ws_message = server._current_state_message()
+            assert [
+                row["task_id"] for row in http_state["quality_gates"]["active"]
+            ] == [owner_b.task_id]
+            assert [
+                row["task_id"]
+                for row in ws_message["data"]["quality_gates"]["active"]
+            ] == [owner_b.task_id]
+            assert [
+                alert["task_id"]
+                for alert in http_state["alerts"]
+                if alert["recovery_state"] == "running"
+            ] == [owner_b.task_id]
+            assert len(revisions) >= 2
+            assert revisions[-1] > revisions[0]
+            assert ws_message["state_revision"] == revisions[-1]
+
+            assert BranchQualityGate.cancel_owner(owner_b) == 1
+            assert gate_b.result(timeout=3).status == "interrupted"
+    finally:
+        release_first.set()
+        BranchQualityGate.cleanup_active_processes()
+        assert orch._shutdown_lifecycle_publications()
+        orch._close_owned_persistent_stores()
 
 
 def test_quality_gate_cleans_up_on_timeout(tmp_path):

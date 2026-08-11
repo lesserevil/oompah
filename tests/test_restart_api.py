@@ -782,6 +782,50 @@ def test_shutdown_revokes_snapshot_blocked_before_external_publication(
     assert observer_published.is_set() is False
 
 
+def test_same_generation_state_edge_replays_after_running_snapshot(
+    tmp_path,
+    monkeypatch,
+):
+    """Coalescing retains one edge that the in-flight snapshot may have missed."""
+
+    orch = _real_orchestrator(tmp_path)
+    first_started = threading.Event()
+    release_first = threading.Event()
+    calls = []
+    calls_lock = threading.Lock()
+
+    def _snapshot() -> dict[str, int]:
+        with calls_lock:
+            calls.append(len(calls) + 1)
+            call_number = calls[-1]
+        if call_number == 1:
+            first_started.set()
+            assert release_first.wait(timeout=3)
+        return {"snapshot_call": call_number}
+
+    monkeypatch.setattr(orch, "get_snapshot", _snapshot)
+
+    try:
+        assert orch.request_lifecycle_publication(expected_generation=0)
+        assert first_started.wait(timeout=1)
+        assert orch.request_lifecycle_publication(expected_generation=0)
+        release_first.set()
+
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            with orch._lifecycle_publication_lock:
+                if not orch._lifecycle_publication_running:
+                    break
+            time.sleep(0.01)
+        else:
+            raise AssertionError("coalesced lifecycle publication did not finish")
+
+        assert calls == [1, 2]
+    finally:
+        release_first.set()
+        assert orch._shutdown_lifecycle_publications()
+
+
 @pytest.mark.asyncio
 async def test_background_drain_rejects_undrained_lifecycle_callbacks():
     """Persistent stores stay open when callback revocation times out."""

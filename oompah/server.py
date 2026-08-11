@@ -5478,7 +5478,12 @@ async def api_console_delete(project_id: str):
     return JSONResponse({"ok": True})
 
 
-def _enrich_state_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
+def _enrich_state_snapshot(
+    snapshot: dict[str, Any],
+    *,
+    snapshot_updated_at: float | None = None,
+    now_monotonic: float | None = None,
+) -> dict[str, Any]:
     """Enrich state snapshot with HTTP auth, build, sync metrics, and alerts.
 
     This centralizes state enrichment so REST and WebSocket endpoints send
@@ -5487,6 +5492,8 @@ def _enrich_state_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
 
     Args:
         snapshot: A state snapshot dict from _cached_state_snapshot_or_unavailable()
+        snapshot_updated_at: Optional monotonic IPC cache write timestamp.
+        now_monotonic: Injectable monotonic clock value for deterministic tests.
 
     Returns:
         A new dict with the snapshot enriched with build_id, service_instance_id,
@@ -5494,12 +5501,63 @@ def _enrich_state_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     """
     # Create a copy to avoid mutating cached snapshots
     enriched = dict(snapshot)
+    if snapshot_updated_at is not None:
+        now = time.monotonic() if now_monotonic is None else now_monotonic
+        age = max(0.0, now - snapshot_updated_at)
+        if age > _STATE_SNAPSHOT_MAX_AGE_S:
+            enriched["state_snapshot_stale"] = True
+            enriched["state_snapshot_age_seconds"] = round(age, 3)
+    if enriched.get("state_snapshot_stale") is True:
+        # A cached gate row describes a real process at its generation time,
+        # but its pid and exact task owner are not current evidence once the
+        # whole snapshot is stale.  Keep the stale payload cheap and useful
+        # while withholding only those live-process assertions.  The gate
+        # lifecycle callback normally publishes both edges; this is the
+        # presentation-boundary safety net for delayed/crashed publishers.
+        def _without_active_gate_rows(value: object) -> object:
+            if not isinstance(value, Mapping):
+                return value
+            active_rows = value.get("active")
+            quality_gates = dict(value)
+            changed = False
+            if isinstance(active_rows, list) and active_rows:
+                quality_gates["stale_active_count"] = len(active_rows)
+                quality_gates["active_snapshot_stale"] = True
+                quality_gates["active"] = []
+                changed = True
+            if quality_gates.get("status") == "running":
+                quality_gates["status"] = "snapshot_stale"
+                changed = True
+            return quality_gates if changed else value
+
+        if "quality_gates" in enriched:
+            enriched["quality_gates"] = _without_active_gate_rows(
+                enriched.get("quality_gates")
+            )
+        health = enriched.get("health")
+        if isinstance(health, Mapping):
+            enriched_health = dict(health)
+            if "quality_gates" in health:
+                enriched_health["quality_gates"] = _without_active_gate_rows(
+                    health.get("quality_gates")
+                )
+            enriched["health"] = enriched_health
     # Cached snapshots may have been produced by an older scheduler during a
     # rolling upgrade, and the unavailable-state fallback is assembled here.
     # Normalize once more at the API/WebSocket boundary so every client sees
     # the same redacted contract even in those paths.
     if isinstance(enriched.get("alerts"), list):
         enriched["alerts"] = normalize_alerts(enriched["alerts"])
+        if enriched.get("state_snapshot_stale") is True:
+            enriched["alerts"] = [
+                alert
+                for alert in enriched["alerts"]
+                if not (
+                    str(alert.get("source") or "").startswith("quality_gate:")
+                    and alert.get("recovery_state") == "running"
+                    and alert.get("active") is True
+                )
+            ]
     enriched["build_id"] = dict(_BUILD_ID)
     enriched["service_instance_id"] = _INSTANCE_ID
     enriched["http_auth"] = _http_auth_reload_status()
@@ -5546,7 +5604,7 @@ async def api_state():
     try:
         # API-only mode: read state from the IPC SQLite cache.
         if _orchestrator is None and _ipc is not None:
-            snapshot, _ = _ipc.read_state()
+            snapshot, updated_at = _ipc.read_state()
             if snapshot is None:
                 return JSONResponse(
                     {
@@ -5560,7 +5618,12 @@ async def api_state():
                 )
             duration_ms = (time.monotonic() - t_start) * 1000
             _record_api_latency("/api/v1/state", duration_ms)
-            return JSONResponse(_enrich_state_snapshot(snapshot))
+            return JSONResponse(
+                _enrich_state_snapshot(
+                    snapshot,
+                    snapshot_updated_at=updated_at,
+                )
+            )
 
         # Combined mode: prefer the cached snapshot to avoid recomputing
         # during maintenance / tick bursts.
