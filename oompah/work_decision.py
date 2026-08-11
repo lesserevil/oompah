@@ -16,7 +16,11 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 
-from oompah.integration import direct_epic_maintenance_handoff_ready
+from oompah.integration import (
+    REVIEW_GENERATION_REQUEUE_WAIT_REASON,
+    direct_epic_maintenance_handoff_ready,
+    review_generation_requeue_marker,
+)
 from oompah.models import Issue
 from oompah.statuses import (
     ARCHIVED,
@@ -851,13 +855,37 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
     recorded_head = str(task_fact.get("review_head") or "").strip().lower()
     current_head = str(task_fact.get("head_sha") or "").strip().lower()
     observed_head = str(value.get("head_sha") or "").strip().lower()
+    integration_fact = facts.fact(FactDomain.INTEGRATION)
+    integration_value = (
+        _mapping(integration_fact.value)
+        if integration_fact.state is FactState.KNOWN
+        else None
+    ) or {}
+    recorded_base = str(integration_value.get("base_sha") or "").strip().lower()
+    observed_base = str(value.get("base_sha") or "").strip().lower()
     expected_head = recorded_head or current_head
     changed_head = ""
     if recorded_head and current_head and recorded_head != current_head:
         changed_head = current_head
     if expected_head and observed_head and expected_head != observed_head:
         changed_head = observed_head
-    if changed_head:
+    changed_base = bool(
+        recorded_base and observed_base and recorded_base != observed_base
+    )
+    observed_generation_marker = review_generation_requeue_marker(
+        value.get("review_id"),
+        observed_head,
+        observed_base,
+    )
+    pending_generation = bool(
+        integration_value.get("wait_reason")
+        == REVIEW_GENERATION_REQUEUE_WAIT_REASON
+        and observed_generation_marker is not None
+        and integration_value.get("wait_generation")
+        == observed_generation_marker
+    )
+    if changed_head or changed_base or pending_generation:
+        current_generation = changed_head or observed_head or expected_head
         return _decision(
             task,
             facts,
@@ -867,8 +895,8 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             prerequisites=(
                 UnmetPrerequisite(
                     "review.head_changed",
-                    expected_head,
-                    changed_head,
+                    f"{expected_head}@{recorded_base or '<missing-base>'}",
+                    f"{current_generation}@{observed_base or '<missing-base>'}",
                 ),
             ),
             actions=(PermittedAction.ROUTE_REBASE,),

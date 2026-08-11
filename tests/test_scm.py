@@ -5,6 +5,8 @@ import os
 import time
 from unittest import mock
 
+import pytest
+
 from oompah.scm import (
     CIStatus,
     CIState,
@@ -59,6 +61,13 @@ class TestSCMProviderContract:
         ]
         assert provider.get_branch_ci_status("org/repo", "main") is CIStatus.UNKNOWN
         assert provider.observe_branch_landing("org/repo", "a", "main") is None
+        assert provider.merge_review_exact("org/repo", "7", "a" * 40) == (
+            False,
+            "Provider does not support exact-head review merge",
+        )
+        assert provider.enable_auto_merge_exact(
+            "org/repo", "7", "a" * 40
+        ) == (False, "Provider does not support exact-head auto-merge")
 
     def test_legacy_commit_implementation_is_available_through_contract_name(self):
         assert _ContractFakeProvider().get_review_commits("org/repo", "7") == ["a" * 40]
@@ -179,6 +188,31 @@ class TestMergeReviewBranchCleanupProtection:
         assert ok
         assert not any(m == "DELETE" for m, _ in calls)
 
+    def test_github_exact_merge_sends_atomic_expected_head(self):
+        provider = GitHubProvider(access_token="t")
+        calls = []
+
+        class _Resp:
+            status_code = 200
+            text = ""
+
+            def json(self):
+                return {"head": {"ref": "release/next"}}
+
+        def fake_api(method, path, **kwargs):
+            calls.append((method, path, kwargs))
+            return _Resp()
+
+        provider._api = fake_api
+        expected = "b" * 40
+
+        assert provider.merge_review_exact("o/r", "5", expected)[0] is True
+        merge_call = next(call for call in calls if call[1].endswith("/merge"))
+        assert merge_call[2]["json"] == {
+            "merge_method": "merge",
+            "sha": expected,
+        }
+
     def _gitlab(self, source_branch):
         provider = GitLabProvider(access_token="t")
         merge_kwargs = {}
@@ -212,6 +246,13 @@ class TestMergeReviewBranchCleanupProtection:
         ok, _ = provider.merge_review("g/p", "5")
         assert ok
         assert merge_kwargs.get("should_remove_source_branch") is False
+
+    def test_gitlab_exact_merge_sends_atomic_expected_head(self):
+        provider, merge_kwargs = self._gitlab("trickle-abc1")
+        expected = "b" * 40
+
+        assert provider.merge_review_exact("g/p", "5", expected)[0] is True
+        assert merge_kwargs["sha"] == expected
 
 
 class TestCloseReview:
@@ -1186,6 +1227,28 @@ class TestGitHubReviewQueueState:
         assert len(reviews) == 1
         assert reviews[0].auto_merge_enabled is True
         assert reviews[0].mergeable_state == "clean"
+
+    def test_list_open_reviews_propagates_exact_generation_identity(self):
+        pr = self._pr_payload(
+            head={
+                "ref": "feat",
+                "sha": "a" * 40,
+                "repo": {"full_name": "x/y"},
+            },
+            base={
+                "ref": "main",
+                "sha": "b" * 40,
+                "repo": {"full_name": "x/y"},
+            },
+        )
+        provider = self._provider(list_payload=[pr])
+
+        review = provider.list_open_reviews("x/y")[0]
+
+        assert review.head_sha == "a" * 40
+        assert review.base_sha == "b" * 40
+        assert review.source_repository == "x/y"
+        assert review.target_repository == "x/y"
 
     def test_list_open_reviews_auto_merge_disabled(self):
         pr = self._pr_payload(auto_merge=None, mergeable_state="blocked")
@@ -3801,6 +3864,9 @@ class TestGitLabListOpenReviews:
             "has_conflicts": False,
             "diverged_commits_count": 0,
             "sha": "a" * 40,
+            "diff_refs": {"base_sha": "b" * 40},
+            "source_project_id": 21,
+            "target_project_id": 21,
             "head_pipeline": None,
             "changes_count": 5,
         }
@@ -3825,6 +3891,33 @@ class TestGitLabListOpenReviews:
         assert r.has_conflicts is False
         assert r.needs_rebase is False
         assert r.head_sha == "a" * 40
+        assert r.base_sha == "b" * 40
+        assert r.source_repository == "group/project"
+        assert r.target_repository == "group/project"
+
+    @pytest.mark.parametrize(
+        "project_ids",
+        [
+            {},
+            {"source_project_id": 21},
+            {"target_project_id": 21},
+            {"source_project_id": 21, "target_project_id": 22},
+        ],
+        ids=["both-missing", "target-missing", "source-missing", "fork"],
+    )
+    def test_source_repository_requires_complete_same_project_identity(
+        self, project_ids
+    ):
+        mr = self._mr(**project_ids)
+        for key in {"source_project_id", "target_project_id"} - project_ids.keys():
+            mr.pop(key)
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+
+        result = p.list_open_reviews("group/project")[0]
+
+        assert result.source_repository == ""
+        assert result.target_repository == "group/project"
 
     def test_returns_empty_on_401(self):
         p = _GL.provider()
@@ -4066,6 +4159,10 @@ class TestGitLabFindPrForBranch:
             "labels": [],
             "draft": False,
             "work_in_progress": False,
+            "sha": "a" * 40,
+            "diff_refs": {"base_sha": "b" * 40},
+            "source_project_id": 21,
+            "target_project_id": 21,
         }
         base.update(overrides)
         return base
@@ -4077,6 +4174,23 @@ class TestGitLabFindPrForBranch:
         assert result is not None
         assert result.id == "7"
         assert result.state == "open"
+        assert result.head_sha == "a" * 40
+        assert result.base_sha == "b" * 40
+        assert result.source_repository == "g/p"
+        assert result.target_repository == "g/p"
+
+    @pytest.mark.parametrize("missing", ["source_project_id", "target_project_id"])
+    def test_missing_project_identity_does_not_infer_source_repository(self, missing):
+        mr = self._mr()
+        mr.pop(missing)
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+
+        result = p.find_pr_for_branch("g/p", "OOMPAH-7")
+
+        assert result is not None
+        assert result.source_repository == ""
+        assert result.target_repository == "g/p"
 
     def test_finds_merged_mr(self):
         p = _GL.provider()
@@ -4149,6 +4263,10 @@ class TestGitLabGetReview:
             "labels": ["bug", "wontfix"],
             "draft": False,
             "work_in_progress": False,
+            "sha": "a" * 40,
+            "diff_refs": {"base_sha": "b" * 40},
+            "source_project_id": 21,
+            "target_project_id": 21,
         }
         base.update(overrides)
         return base
@@ -4163,7 +4281,24 @@ class TestGitLabGetReview:
         assert result.author == "eve"
         assert result.source_branch == "fix/something"
         assert result.labels == ["bug", "wontfix"]
+        assert result.head_sha == "a" * 40
+        assert result.base_sha == "b" * 40
+        assert result.source_repository == "g/p"
+        assert result.target_repository == "g/p"
         assert p.last_review_fetch_ok is True
+
+    @pytest.mark.parametrize("missing", ["source_project_id", "target_project_id"])
+    def test_missing_project_identity_does_not_infer_source_repository(self, missing):
+        mr = self._mr()
+        mr.pop(missing)
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(mr)
+
+        result = p.get_review("g/p", "42")
+
+        assert result is not None
+        assert result.source_repository == ""
+        assert result.target_repository == "g/p"
 
     def test_returns_none_on_404(self):
         p = _GL.provider()

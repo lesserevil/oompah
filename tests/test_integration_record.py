@@ -6,10 +6,13 @@ import pytest
 
 from oompah.integration import (
     IntegrationRecord,
+    REVIEW_GENERATION_REQUEUE_WAIT_REASON,
     accepted_submission_branch,
     assigned_work_branch,
     expected_submission_branch,
     parse_integration_record,
+    requeue_standalone_review_generation,
+    review_generation_requeue_marker,
     validate_submission_branch,
 )
 
@@ -38,6 +41,69 @@ def test_integration_record_round_trips_all_supported_evidence():
     )
 
     assert IntegrationRecord.from_dict(record.to_dict()) == record
+
+
+def test_review_generation_requeue_marker_requires_exact_complete_identity():
+    valid = review_generation_requeue_marker("42", "a" * 40, "b" * 40)
+
+    assert valid is not None
+    assert valid.startswith("review:")
+    assert review_generation_requeue_marker("", "a" * 40, "b" * 40) is None
+    assert review_generation_requeue_marker("42", "short", "b" * 40) is None
+    assert review_generation_requeue_marker("42", "a" * 41, "b" * 40) is None
+    assert review_generation_requeue_marker("42", "a" * 40, None) is None
+
+
+def test_requeue_standalone_review_generation_resets_stale_delivery_evidence():
+    original = IntegrationRecord(
+        state="integrated",
+        mode="standalone",
+        task_branch="TASK-1",
+        base_branch="main",
+        base_sha="a" * 40,
+        head_sha="b" * 40,
+        integrated_sha="b" * 40,
+        attempts=3,
+        last_error="stale failure",
+        gate_outcome="passed",
+        dependency_heads={"TASK-0": "c" * 40},
+        required_base_missing=("TASK-0",),
+    )
+
+    replacement = requeue_standalone_review_generation(
+        original,
+        review_id="42",
+        head_sha="d" * 40,
+        base_sha="e" * 40,
+        updated_at="2026-08-11T12:00:00+00:00",
+    )
+
+    assert replacement.state == "ready"
+    assert replacement.head_sha == "d" * 40
+    assert replacement.base_sha == "e" * 40
+    assert replacement.integrated_sha is None
+    assert replacement.attempts == 0
+    assert replacement.last_error is None
+    assert replacement.gate_outcome is None
+    assert replacement.dependency_heads == {}
+    assert replacement.required_base_missing == ()
+    assert replacement.wait_reason == REVIEW_GENERATION_REQUEUE_WAIT_REASON
+    assert replacement.wait_generation == review_generation_requeue_marker(
+        "42",
+        "d" * 40,
+        "e" * 40,
+    )
+
+
+def test_requeue_standalone_review_generation_rejects_non_standalone_identity():
+    with pytest.raises(ValueError, match="exact standalone review generation"):
+        requeue_standalone_review_generation(
+            IntegrationRecord(state="ready", mode="queue"),
+            review_id="42",
+            head_sha="a" * 40,
+            base_sha="b" * 40,
+            updated_at="2026-08-11T12:00:00+00:00",
+        )
 
 
 def test_integration_record_rejects_unknown_delivery_mode():

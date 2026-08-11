@@ -30,7 +30,11 @@ from oompah.config import (
     ProtectedWorkflowQualityEvidenceTrust,
     ServiceConfig,
 )
-from oompah.integration import IntegrationRecord
+from oompah.integration import (
+    IntegrationRecord,
+    REVIEW_GENERATION_REQUEUE_WAIT_REASON,
+    review_generation_requeue_marker,
+)
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator, StandaloneDeliveryAuthority
 from oompah.projects import ProjectStore
@@ -3271,6 +3275,23 @@ def test_passing_head_is_cached_and_survives_restart(tmp_path):
     assert first.passed and not first.cached
     assert second.passed and second.cached
     assert counter.read_text(encoding="utf-8") == "x"
+
+
+def test_base_generation_recheck_bypasses_same_head_pass_cache(tmp_path):
+    repo = _git_repo(tmp_path)
+    counter = tmp_path / "counter"
+    command = f"printf x >> {shlex.quote(str(counter))}"
+    state = tmp_path / "quality.json"
+    gate = _gate(state, repo)
+
+    first = _run(gate, repo, command)
+    cached = _run(gate, repo, command)
+    rechecked = _run(gate, repo, command, force_recheck=True)
+
+    assert first.passed and not first.cached
+    assert cached.passed and cached.cached
+    assert rechecked.passed and not rechecked.cached
+    assert counter.read_text(encoding="utf-8") == "xx"
 
 
 @pytest.mark.parametrize(
@@ -8834,6 +8855,37 @@ def test_orchestrator_fetches_accepted_head_into_stale_managed_clone(tmp_path):
         == submitted_head
     )
     assert tracker.update_issue.call_count == 0
+
+
+def test_orchestrator_forces_same_head_gate_for_pending_review_base_generation(
+    tmp_path,
+):
+    _source, managed, submitted_head = _stale_managed_clone_with_submission(tmp_path)
+    orch, project, issue, _tracker, counter = _submitted_gate_orchestrator(
+        tmp_path,
+        managed,
+        submitted_head,
+    )
+    review_id = "42"
+    base_sha = "d" * 40
+    issue.review_number = review_id
+    issue.integration = replace(
+        issue.integration,
+        mode="standalone",
+        base_branch="main",
+        base_sha=base_sha,
+        wait_reason=REVIEW_GENERATION_REQUEUE_WAIT_REASON,
+        wait_generation=review_generation_requeue_marker(
+            review_id,
+            submitted_head,
+            base_sha,
+        ),
+    )
+
+    assert orch._review_quality_gate_passes(project, issue, "work", "main")
+    assert orch._review_quality_gate_passes(project, issue, "work", "main")
+
+    assert counter.read_text(encoding="utf-8") == "xx"
 
 
 def test_orchestrator_does_not_gate_newer_remote_than_accepted_head(tmp_path):

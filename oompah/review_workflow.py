@@ -74,6 +74,9 @@ class ReviewObservation:
     source_branch: str | None = None
     target_branch: str | None = None
     head_sha: str | None = None
+    base_sha: str | None = None
+    source_repository: str | None = None
+    target_repository: str | None = None
     ci: str = "unknown"
     mergeable: bool | None = None
     mergeable_state: str = ""
@@ -103,6 +106,9 @@ class ReviewObservation:
             "source_branch",
             "target_branch",
             "head_sha",
+            "base_sha",
+            "source_repository",
+            "target_repository",
             "provider",
         ):
             value = _text(getattr(self, name)) or None
@@ -142,6 +148,13 @@ class ReviewObservation:
             source_branch=_text(getattr(review, "source_branch", None)) or None,
             target_branch=_text(getattr(review, "target_branch", None)) or None,
             head_sha=_text(getattr(review, "head_sha", None)) or None,
+            base_sha=_text(getattr(review, "base_sha", None)) or None,
+            source_repository=(
+                _text(getattr(review, "source_repository", None)) or None
+            ),
+            target_repository=(
+                _text(getattr(review, "target_repository", None)) or None
+            ),
             ci=_text(ci) or "unknown",
             mergeable=mergeable,
             mergeable_state=_text(getattr(review, "mergeable_state", None)),
@@ -180,6 +193,9 @@ class ReviewObservation:
             "source_branch": self.source_branch,
             "target_branch": self.target_branch,
             "head_sha": self.head_sha,
+            "base_sha": self.base_sha,
+            "source_repository": self.source_repository,
+            "target_repository": self.target_repository,
             "ci": self.ci,
             "mergeable": self.mergeable,
             "mergeable_state": self.mergeable_state,

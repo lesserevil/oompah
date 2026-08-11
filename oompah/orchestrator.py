@@ -98,6 +98,7 @@ from oompah.integration import (
     CanonicalChildLandingEvidence,
     CanonicalLandingEvidence,
     IntegrationRecord,
+    REVIEW_GENERATION_REQUEUE_WAIT_REASON,
     _compute_evidence_fingerprint,
     _compute_child_landing_fingerprint,
     accepted_submission_branch,
@@ -107,6 +108,8 @@ from oompah.integration import (
     is_direct_epic_maintenance_issue,
     parse_integration_record,
     parse_canonical_child_landing_evidence,
+    requeue_standalone_review_generation,
+    review_generation_requeue_marker,
 )
 from oompah.git_credentials import git_credential_environment, redact_git_output
 from oompah.integration_executor import (
@@ -22227,6 +22230,33 @@ class Orchestrator:
                     submitted_head
                     and str(branch_head).strip().lower() != submitted_head
                 ):
+                    tracked_review_id = str(issue.review_number or "").strip()
+                    if tracked_review_id:
+                        try:
+                            advanced_review = provider.find_pr_for_branch(
+                                repo_slug,
+                                task_branch,
+                            )
+                        except Exception:  # noqa: BLE001 - fallback alert below
+                            advanced_review = None
+                        if advanced_review is not None:
+                            replaced, _replacement_reason = (
+                                self._replace_standalone_open_review_generation_owned(
+                                    project,
+                                    tracker,
+                                    provider,
+                                    authority,
+                                    repo_slug=repo_slug,
+                                    work_branch=task_branch,
+                                    expected_review=advanced_review,
+                                )
+                            )
+                            if replaced:
+                                self._clear_standalone_delivery_alert(
+                                    project_id,
+                                    task_id,
+                                )
+                                return
                     reason = (
                         f"remote branch {task_branch} advanced from accepted "
                         f"submitted head {submitted_head} to {branch_head}; "
@@ -22367,6 +22397,31 @@ class Orchestrator:
                         )
                     )
                     if review_disposition != "exact":
+                        if review_state == "open" and review_disposition == "replacement":
+                            replaced, replacement_reason = (
+                                self._replace_standalone_open_review_generation_owned(
+                                    project,
+                                    tracker,
+                                    provider,
+                                    authority,
+                                    repo_slug=repo_slug,
+                                    work_branch=task_branch,
+                                    expected_review=existing_pr,
+                                )
+                            )
+                            if replaced:
+                                self._clear_standalone_delivery_alert(
+                                    project_id,
+                                    task_id,
+                                )
+                            else:
+                                self._arm_standalone_delivery_alert(
+                                    project_id,
+                                    task_id,
+                                    replacement_reason,
+                                    authority=authority,
+                                )
+                            return
                         if review_state == "open" or review_disposition == "unknown":
                             self._arm_standalone_delivery_alert(
                                 project_id,
@@ -23114,7 +23169,10 @@ class Orchestrator:
         target_branch = str(
             getattr(review, "target_branch", "") or ""
         ).strip()
-        expected_head = str(authority.head_sha or "").strip().lower()
+        integration = getattr(authority.issue, "integration", None)
+        expected_head = str(
+            authority.head_sha or getattr(integration, "head_sha", "") or ""
+        ).strip().lower()
         if not expected_head:
             return "unknown", "", "accepted submission head is unavailable"
         if source_branch != authority.branch:
@@ -23131,11 +23189,111 @@ class Orchestrator:
                 f"target branch {target_branch or '<missing>'} does not match "
                 f"{authority.target_branch}",
             )
+        expected_repository = extract_repo_slug(
+            str(project.repo_url or "")
+        ).strip().casefold()
+        source_repository = str(
+            getattr(review, "source_repository", "") or ""
+        ).strip().casefold()
+        target_repository = str(
+            getattr(review, "target_repository", "") or ""
+        ).strip().casefold()
+        review_state = str(getattr(review, "state", "") or "").strip().lower()
+        if source_repository and source_repository != expected_repository:
+            return (
+                "historical",
+                "",
+                f"source repository {source_repository} does not match "
+                f"{expected_repository}",
+            )
+        if target_repository and target_repository != expected_repository:
+            return (
+                "historical",
+                "",
+                f"target repository {target_repository} does not match "
+                f"{expected_repository}",
+            )
+        if review_state == "open" and (
+            not expected_repository
+            or not source_repository
+            or not target_repository
+        ):
+            return (
+                "unknown",
+                "",
+                "open review lacks positive source and target repository identity",
+            )
 
         forge_head = str(getattr(review, "head_sha", "") or "").strip().lower()
+        forge_base = str(getattr(review, "base_sha", "") or "").strip().lower()
+        expected_base = str(
+            getattr(integration, "base_sha", "") or ""
+        ).strip().lower()
+        recorded_review_id = str(
+            getattr(issue, "review_number", "") or ""
+        ).strip()
+        recorded_head = str(getattr(issue, "review_head", "") or "").strip().lower()
+        same_recorded_review = bool(
+            review_id
+            and recorded_review_id == review_id
+            and re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", recorded_head)
+        )
+        accepted_requeue_marker = review_generation_requeue_marker(
+            review_id,
+            expected_head,
+            expected_base,
+        )
+        accepted_review_requeue = bool(
+            isinstance(integration, IntegrationRecord)
+            and integration.wait_reason
+            == REVIEW_GENERATION_REQUEUE_WAIT_REASON
+            and accepted_requeue_marker is not None
+            and integration.wait_generation == accepted_requeue_marker
+        )
+        if review_state == "open" and (
+            not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", forge_head)
+            or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", forge_base)
+            or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", expected_base)
+        ):
+            return (
+                "unknown",
+                forge_head,
+                "open review lacks exact head or base generation identity",
+            )
+        if (
+            review_state == "open"
+            and same_recorded_review
+            and (
+                (
+                    accepted_review_requeue
+                    and (
+                        forge_head != expected_head
+                        or forge_base != expected_base
+                    )
+                )
+                or (
+                    forge_head == expected_head
+                    and forge_base != expected_base
+                )
+            )
+        ):
+            return (
+                "replacement",
+                forge_head,
+                "tracked open review advanced to a replacement generation",
+            )
         if forge_head:
-            if forge_head == expected_head:
+            if forge_head == expected_head and (
+                review_state != "open" or forge_base == expected_base
+            ):
                 return "exact", forge_head, ""
+            if review_state == "open" and forge_head == expected_head:
+                return (
+                    "historical",
+                    forge_head,
+                    f"review base {forge_base} does not match accepted "
+                    f"submission base {expected_base}",
+                )
             return (
                 "historical",
                 forge_head,
@@ -23143,10 +23301,6 @@ class Orchestrator:
                 f"head {expected_head}",
             )
 
-        recorded_review_id = str(
-            getattr(issue, "review_number", "") or ""
-        ).strip()
-        recorded_head = str(getattr(issue, "review_head", "") or "").strip().lower()
         if review_id and recorded_review_id == review_id and recorded_head:
             if recorded_head == expected_head:
                 return "exact", recorded_head, ""
@@ -23157,7 +23311,6 @@ class Orchestrator:
                 f"accepted submission head {expected_head}",
             )
 
-        review_state = str(getattr(review, "state", "") or "").strip().lower()
         if review_state == "closed":
             return (
                 "historical",
@@ -23219,6 +23372,13 @@ class Orchestrator:
             str(getattr(review, "source_branch", "") or "").strip(),
             str(getattr(review, "target_branch", "") or "").strip(),
             str(getattr(review, "head_sha", "") or "").strip().lower(),
+            str(getattr(review, "base_sha", "") or "").strip().lower(),
+            str(getattr(review, "source_repository", "") or "")
+            .strip()
+            .casefold(),
+            str(getattr(review, "target_repository", "") or "")
+            .strip()
+            .casefold(),
             "draft" if bool(getattr(review, "draft", False)) else "ready",
         )
 
@@ -23274,6 +23434,101 @@ class Orchestrator:
                 review_id=getattr(current_review, "id", None),
             )
         return True
+
+    def _replace_standalone_open_review_generation_owned(
+        self,
+        project: Project,
+        tracker: TrackerProtocol,
+        provider: SCMProvider,
+        authority: StandaloneDeliveryAuthority,
+        *,
+        repo_slug: str,
+        work_branch: str,
+        expected_review: ReviewRequest,
+    ) -> tuple[bool, str]:
+        """Checkpoint a later generation of the same tracked open review."""
+
+        if not self._standalone_delivery_locally_authorized(authority):
+            return False, "delivery authority changed before review replacement"
+        try:
+            current_review = provider.find_pr_for_branch(repo_slug, work_branch)
+            current_branch_head = provider.get_branch_head_sha(
+                repo_slug,
+                work_branch,
+            )
+        except Exception as exc:  # noqa: BLE001 - final forge CAS fails closed
+            return False, f"replacement review lookup failed: {exc}"
+        if (
+            current_review is None
+            or self._standalone_review_observation(current_review)
+            != self._standalone_review_observation(expected_review)
+        ):
+            return False, "review changed before replacement checkpoint"
+        disposition, new_head, reason = self._standalone_review_matches_submission(
+            project,
+            authority.issue,
+            current_review,
+            authority,
+        )
+        new_base = str(getattr(current_review, "base_sha", "") or "").strip().lower()
+        if (
+            disposition != "replacement"
+            or not new_head
+            or str(current_branch_head or "").strip().lower() != new_head
+        ):
+            return False, reason or "review replacement identity is not exact"
+
+        observed = self._fresh_standalone_delivery_issue(authority, tracker)
+        if (
+            observed is None
+            or canonicalize_status(observed.state) != READY_TO_INTEGRATE
+            or self._standalone_delivery_evidence_revision(observed)
+            != authority.evidence_revision
+        ):
+            return False, "task changed before review replacement checkpoint"
+        issue_id = str(observed.id or observed.identifier or authority.task_id)
+        with self.issue_transition_lock(issue_id).sync(blocking=False) as acquired:
+            if acquired is None:
+                return False, "task transition is busy"
+            invalidate = getattr(tracker, "invalidate_read_cache", None)
+            if callable(invalidate):
+                invalidate()
+            current = tracker.fetch_issue_detail(authority.task_id)
+            integration = getattr(current, "integration", None) if current else None
+            if (
+                current is None
+                or canonicalize_status(current.state) != READY_TO_INTEGRATE
+                or not self._standalone_delivery_locally_authorized(authority)
+                or self._standalone_delivery_evidence_revision(current)
+                != authority.evidence_revision
+                or not isinstance(integration, IntegrationRecord)
+            ):
+                return False, "task changed during review replacement checkpoint"
+            try:
+                replacement = requeue_standalone_review_generation(
+                    integration,
+                    review_id=getattr(current_review, "id", None),
+                    head_sha=new_head,
+                    base_sha=new_base,
+                    updated_at=datetime.now(timezone.utc).isoformat(),
+                )
+            except ValueError:
+                return False, "replacement review generation is malformed"
+            tracker.set_metadata_field(
+                authority.task_id,
+                "oompah.integration",
+                replacement.to_dict(),
+            )
+            if callable(invalidate):
+                invalidate()
+            persisted = tracker.fetch_issue_detail(authority.task_id)
+            persisted_integration = (
+                getattr(persisted, "integration", None) if persisted else None
+            )
+            if persisted_integration != replacement:
+                return False, "replacement review generation did not persist"
+        self._retire_exact_standalone_delivery_authority(authority)
+        return True, ""
 
     def _adopt_standalone_open_review_owned(
         self,
@@ -36566,6 +36821,17 @@ class Orchestrator:
             head_sha=publication_head,
             authority_generation=gate_generation,
         )
+        review_requeue_checkpoint = bool(
+            isinstance(integration, IntegrationRecord)
+            and integration.wait_reason
+            == REVIEW_GENERATION_REQUEUE_WAIT_REASON
+            and integration.wait_generation
+            == review_generation_requeue_marker(
+                issue.review_number,
+                integration.head_sha,
+                integration.base_sha,
+            )
+        )
         if materialize_status:
             result = QualityGateResult(
                 status=materialize_status,
@@ -36601,6 +36867,11 @@ class Orchestrator:
                 target_branch=target_branch,
                 work_branch=branch,
                 command=command,
+                **(
+                    {"force_recheck": True}
+                    if review_requeue_checkpoint
+                    else {}
+                ),
                 expected_head_sha=expected_head,
                 require_source_head_match=source_requires_head_match,
                 generation=gate_generation,
@@ -45573,6 +45844,38 @@ class Orchestrator:
                     exc,
                 )
                 if authority is not None or strict:
+                    return False
+        if authority is not None:
+            integration = getattr(authority.issue, "integration", None)
+            if (
+                isinstance(integration, IntegrationRecord)
+                and integration.wait_reason
+                == REVIEW_GENERATION_REQUEUE_WAIT_REASON
+            ):
+                expected_marker = review_generation_requeue_marker(
+                    review_id or authority.issue.review_number,
+                    integration.head_sha,
+                    integration.base_sha,
+                )
+                if (
+                    expected_marker is None
+                    or integration.wait_generation != expected_marker
+                ):
+                    return False
+                cleared = replace(
+                    integration,
+                    wait_reason=None,
+                    wait_generation=None,
+                )
+                if not self._standalone_delivery_mutation(
+                    authority,
+                    tracker,
+                    lambda: tracker.set_metadata_field(
+                        identifier,
+                        "oompah.integration",
+                        cleared.to_dict(),
+                    ),
+                ):
                     return False
         return True
 
