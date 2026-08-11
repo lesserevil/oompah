@@ -379,6 +379,7 @@ def test_done_pass_successor_converges_after_crash_before_wake(tmp_path) -> None
     assert restarted._eligible_audit_stage_wakes == {
         (PROJECT_ID, TASK_ID): eligible_merged.audit_id
     }
+    assert restarted._terminal_audit_continuation_wake_pending is True
 
     # A persisted eligibility timestamp is not authority by itself.  A crash
     # recovery pass must reject a replacement/stale prerequisite ID instead

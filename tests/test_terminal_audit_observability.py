@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,6 +16,7 @@ from oompah.auditor_candidate_selector import AuditorCandidateSelector
 from oompah.config import ServiceConfig
 from oompah.models import Issue, Project, RunningEntry
 from oompah.orchestrator import (
+    DispatchEvent,
     DispatchEventType,
     Orchestrator,
     _AuditCandidateScan,
@@ -1473,6 +1475,58 @@ def test_exact_successor_wake_enters_next_bounded_audit_window(
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
+@pytest.mark.asyncio
+async def test_dedicated_scan_retires_stale_exact_successor_hint(
+    tmp_path: Path,
+) -> None:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    issue = Issue(
+        id="issue-stale",
+        identifier="TASK-STALE",
+        title="Retired successor",
+        state="In Validation",
+        project_id="project-a",
+    )
+    store = MagicMock()
+    store.read.return_value = SimpleNamespace(
+        pending_chain=[],
+        is_quarantined=False,
+        unknown_fields={},
+    )
+    orchestrator._eligible_audit_stage_wakes[(
+        "project-a",
+        "TASK-STALE",
+    )] = "audit-retired"
+    try:
+        with (
+            patch.object(orchestrator, "_available_slots", return_value=1),
+            patch.object(orchestrator, "_dispatch_is_blocked", return_value=False),
+            patch.object(orchestrator, "_is_project_paused", return_value=False),
+            patch.object(
+                orchestrator,
+                "_fetch_audit_candidates",
+                return_value=_AuditCandidateScan((issue,)),
+            ),
+            patch.object(orchestrator, "_audit_store", return_value=store),
+        ):
+            await orchestrator._dispatch_audit_lane()
+
+        assert orchestrator._eligible_audit_stage_wakes == {}
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
 def test_audit_candidate_window_interleaves_projects_within_priority(
     tmp_path: Path,
 ) -> None:
@@ -1996,6 +2050,10 @@ async def test_runtime_partial_mixed_priority_health_progress_preserves_dispatch
         )
         for issue in (high, low)
     }
+    records[high.identifier] = replace(
+        records[high.identifier],
+        eligible_at=created_at.isoformat(),
+    )
     store = MagicMock()
     clock = {"value": 0.0, "expire_on_low": True}
 
@@ -2074,10 +2132,22 @@ async def test_runtime_partial_mixed_priority_health_progress_preserves_dispatch
             assert orchestrator._audit_metrics["health_cycle_seen_count"] == 1
             assert orchestrator._audit_metrics["cursor"].endswith("TASK-LOW")
 
+            orchestrator._eligible_audit_stage_wakes[(
+                str(high.project_id),
+                high.identifier,
+            )] = records[high.identifier].audit_id
             await orchestrator._dispatch_audit_lane()
 
         assert dispatch_order == ["TASK-HIGH", "TASK-LOW"]
         assert orchestrator._audit_metrics["last_dispatched_count"] == 2
+        assert orchestrator._audit_metrics["continuation_last_claim_at"] is not None
+        assert orchestrator._audit_metrics["continuation_last_dispatch_at"] is not None
+        assert (
+            orchestrator._audit_metrics[
+                "continuation_last_dispatch_latency_seconds"
+            ]
+            is not None
+        )
         assert orchestrator._audit_health.scan_complete is True
         continuation.assert_called_once_with()
     finally:
@@ -2522,7 +2592,7 @@ async def test_audit_finalization_replays_before_expired_candidate_budget(
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
-def test_audit_budget_continuation_posts_coalescible_refresh() -> None:
+def test_audit_budget_continuation_queues_dedicated_lane_before_startup() -> None:
     orchestrator = object.__new__(Orchestrator)
     orchestrator.workflow_runtime = SimpleNamespace(
         worker=SimpleNamespace(accepting=True)
@@ -2531,18 +2601,19 @@ def test_audit_budget_continuation_posts_coalescible_refresh() -> None:
     orchestrator._stopping = False
     orchestrator._quiesced = False
     orchestrator._paused = False
+    orchestrator._dispatch_loop = None
+    orchestrator._terminal_audit_continuation_wake_pending = False
     orchestrator._set_refresh_requested = Mock()
     orchestrator._post_event = Mock()
 
     assert orchestrator._request_audit_lane_continuation() is True
 
-    orchestrator._set_refresh_requested.assert_called_once_with()
-    event = orchestrator._post_event.call_args.args[0]
-    assert event.event_type is DispatchEventType.REFRESH_REQUESTED
-    assert event.payload == {"reason": "terminal_audit_budget_deferred"}
+    orchestrator._set_refresh_requested.assert_not_called()
+    orchestrator._post_event.assert_not_called()
+    assert orchestrator._terminal_audit_continuation_wake_pending is True
 
 
-def test_next_audit_stage_registers_exact_wake_before_requesting_refresh() -> None:
+def test_next_audit_stage_registers_exact_wake_before_requesting_lane() -> None:
     orchestrator = object.__new__(Orchestrator)
     orchestrator._eligible_audit_stage_wakes = {}
     orchestrator._request_audit_lane_continuation = Mock(return_value=True)
@@ -2588,6 +2659,307 @@ def test_audit_budget_continuation_respects_shutdown_fences(
     assert orchestrator._request_audit_lane_continuation() is False
     orchestrator._set_refresh_requested.assert_not_called()
     orchestrator._post_event.assert_not_called()
+
+
+def _dedicated_audit_lane_host(
+    loop: asyncio.AbstractEventLoop,
+) -> Orchestrator:
+    """Return the smallest production-shaped dedicated-lane host."""
+
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.config = ServiceConfig(workspace_root=".")
+    orchestrator.workflow_runtime = SimpleNamespace(
+        started=True,
+        worker=SimpleNamespace(accepting=True),
+    )
+    orchestrator._provider_admission_lock = threading.RLock()
+    orchestrator._stopping = False
+    orchestrator._quiesced = False
+    orchestrator._paused = False
+    orchestrator._dispatch_loop = loop
+    orchestrator._dispatch_queue = asyncio.Queue()
+    orchestrator._dispatch_event_lock = threading.Lock()
+    orchestrator._dispatch_pending_event_keys = set()
+    orchestrator._dispatch_pending_coalesced_counts = {}
+    orchestrator._dispatch_events_coalesced = 0
+    orchestrator._refresh_requested = asyncio.Event()
+    orchestrator._terminal_audit_continuation_future = None
+    orchestrator._terminal_audit_continuation_recheck_requested = False
+    orchestrator._terminal_audit_continuation_wake_pending = False
+    orchestrator._terminal_audit_lane_lock = asyncio.Lock()
+    orchestrator._eligible_audit_stage_wakes = {}
+    orchestrator._audit_metrics = {}
+    orchestrator._available_slots = Mock(return_value=1)
+    return orchestrator
+
+
+@pytest.mark.asyncio
+async def test_exact_successor_dispatch_bypasses_blocked_durable_reconcile() -> None:
+    """Reproduce the live OOMPAH-1082 full-world tick race."""
+
+    loop = asyncio.get_running_loop()
+    orchestrator = _dedicated_audit_lane_host(loop)
+    reconcile_started = asyncio.Event()
+    release_reconcile = asyncio.Event()
+    capacity_deferred = asyncio.Event()
+    successor_claimed = asyncio.Event()
+    capacity = {"available": False}
+
+    async def _reconcile_async() -> dict:
+        reconcile_started.set()
+        await release_reconcile.wait()
+        return {"worker": {}}
+
+    orchestrator.workflow_runtime.reconcile_async = _reconcile_async
+    orchestrator._run_terminal_audit_tick_phase = AsyncMock(return_value={})
+    orchestrator._request_runtime_report_continuation = Mock(return_value=False)
+    orchestrator._request_workflow_batch_continuation = Mock(return_value=False)
+    orchestrator._maintenance_future = loop.create_future()
+    orchestrator._monotonic_clock = loop.time
+    orchestrator._notify_observers = Mock()
+    orchestrator._handle_auto_update = AsyncMock()
+    orchestrator._finish_terminal_audit_workflow = Mock(return_value=True)
+    orchestrator._record_audit_outcome_ownership = Mock()
+    orchestrator._available_slots.side_effect = lambda: int(capacity["available"])
+
+    async def _audit_scan(**_kwargs) -> dict[str, float]:
+        if not capacity["available"]:
+            capacity_deferred.set()
+            return {}
+        orchestrator._eligible_audit_stage_wakes.pop(
+            ("project-a", "TASK-1"), None
+        )
+        successor_claimed.set()
+        return {}
+
+    orchestrator._dispatch_audit_lane = AsyncMock(side_effect=_audit_scan)
+
+    world_tick = asyncio.create_task(
+        orchestrator._run_durable_workflow_tick(started_at=loop.time())
+    )
+    await asyncio.wait_for(reconcile_started.wait(), timeout=1)
+
+    issue = Issue(
+        id="TASK-1",
+        identifier="TASK-1",
+        title="Chained audit",
+        state="In Validation",
+        project_id="project-a",
+    )
+    outcome = SimpleNamespace(
+        success=True,
+        advanced_target=TargetState.MERGED,
+        advanced_audit_id="audit-merged",
+    )
+    assert orchestrator._finish_and_wake_terminal_audit_workflow(
+        issue,
+        SimpleNamespace(),
+        outcome,
+        SimpleNamespace(),
+    )
+    await asyncio.wait_for(capacity_deferred.wait(), timeout=1)
+    first_owner = orchestrator._terminal_audit_continuation_future
+    assert first_owner is not None
+    await first_owner
+    await asyncio.sleep(0)
+    assert not successor_claimed.is_set()
+    assert not release_reconcile.is_set()
+
+    # The Done auditor now retires and releases its only slot. WORKER_EXIT is
+    # a direct dedicated-lane edge even though the unrelated world cut remains
+    # blocked.
+    capacity["available"] = True
+    orchestrator._post_event(
+        DispatchEvent(
+            event_type=DispatchEventType.WORKER_EXIT,
+            issue_id="done-worker",
+            payload={"auditor": True},
+        )
+    )
+    await asyncio.wait_for(successor_claimed.wait(), timeout=1)
+    assert not release_reconcile.is_set()
+
+    release_reconcile.set()
+    await asyncio.wait_for(world_tick, timeout=1)
+    orchestrator._maintenance_future.cancel()
+    assert orchestrator._run_terminal_audit_tick_phase.await_count == 1
+    assert orchestrator._audit_metrics["continuation_scheduled_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_dedicated_audit_lane_coalesces_active_wakes_into_one_recheck() -> None:
+    loop = asyncio.get_running_loop()
+    orchestrator = _dedicated_audit_lane_host(loop)
+    first_started = asyncio.Event()
+    release_first = asyncio.Event()
+    active = 0
+    max_active = 0
+    scans = 0
+
+    async def _audit_scan(**_kwargs) -> dict[str, float]:
+        nonlocal active, max_active, scans
+        scans += 1
+        active += 1
+        max_active = max(max_active, active)
+        try:
+            if scans == 1:
+                first_started.set()
+                await release_first.wait()
+            else:
+                orchestrator._eligible_audit_stage_wakes.clear()
+            return {}
+        finally:
+            active -= 1
+
+    orchestrator._dispatch_audit_lane = AsyncMock(side_effect=_audit_scan)
+
+    assert orchestrator._request_next_audit_stage(
+        project_id="project-a",
+        task_id="TASK-1",
+        audit_id="audit-1",
+    )
+    await asyncio.wait_for(first_started.wait(), timeout=1)
+    owner = orchestrator._terminal_audit_continuation_future
+    assert owner is not None
+    for task_id in ("TASK-2", "TASK-3"):
+        assert orchestrator._request_next_audit_stage(
+            project_id="project-a",
+            task_id=task_id,
+            audit_id=f"audit-{task_id}",
+        )
+
+    release_first.set()
+    await asyncio.wait_for(owner, timeout=1)
+    await asyncio.sleep(0)
+
+    assert scans == 2
+    assert max_active == 1
+    assert orchestrator._terminal_audit_continuation_future is None
+    assert orchestrator._audit_metrics["continuation_scheduled_count"] == 1
+    assert orchestrator._audit_metrics["continuation_recheck_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_paused_exact_wake_runs_when_dedicated_lane_is_resumed() -> None:
+    loop = asyncio.get_running_loop()
+    orchestrator = _dedicated_audit_lane_host(loop)
+    dispatched = asyncio.Event()
+    orchestrator._paused = True
+    orchestrator._eligible_audit_stage_wakes[(
+        "project-a",
+        "TASK-1",
+    )] = "audit-merged"
+
+    orchestrator._wake_terminal_audit_continuation_lane_on_loop()
+
+    assert orchestrator._terminal_audit_continuation_wake_pending is True
+    assert orchestrator._terminal_audit_continuation_future is None
+    assert orchestrator._audit_metrics["continuation_last_deferred_reason"] == "paused"
+
+    async def _audit_scan(**_kwargs) -> dict[str, float]:
+        orchestrator._eligible_audit_stage_wakes.clear()
+        dispatched.set()
+        return {}
+
+    orchestrator._dispatch_audit_lane = AsyncMock(side_effect=_audit_scan)
+    orchestrator._paused = False
+    orchestrator._wake_terminal_audit_continuation_lane_on_loop()
+    await asyncio.wait_for(dispatched.wait(), timeout=1)
+
+
+@pytest.mark.asyncio
+async def test_dedicated_audit_lane_failure_is_observable_and_not_spun() -> None:
+    loop = asyncio.get_running_loop()
+    orchestrator = _dedicated_audit_lane_host(loop)
+    orchestrator._eligible_audit_stage_wakes[(
+        "project-a",
+        "TASK-1",
+    )] = "audit-merged"
+    orchestrator._dispatch_audit_lane = AsyncMock(
+        side_effect=RuntimeError("audit store unavailable")
+    )
+
+    orchestrator._wake_terminal_audit_continuation_lane_on_loop()
+    owner = orchestrator._terminal_audit_continuation_future
+    assert owner is not None
+    await asyncio.gather(owner, return_exceptions=True)
+    await asyncio.sleep(0)
+
+    assert orchestrator._dispatch_audit_lane.await_count == 1
+    assert orchestrator._eligible_audit_stage_wakes
+    assert orchestrator._audit_metrics["continuation_last_error"] == (
+        "RuntimeError: audit store unavailable"
+    )
+
+
+@pytest.mark.asyncio
+async def test_ordinary_and_dedicated_audit_scans_have_one_lane_owner() -> None:
+    loop = asyncio.get_running_loop()
+    orchestrator = _dedicated_audit_lane_host(loop)
+    first_started = asyncio.Event()
+    release_first = asyncio.Event()
+    active = 0
+    max_active = 0
+    calls = 0
+
+    async def _owned_scan(**_kwargs) -> dict[str, float]:
+        nonlocal active, max_active, calls
+        calls += 1
+        active += 1
+        max_active = max(max_active, active)
+        try:
+            if calls == 1:
+                first_started.set()
+                await release_first.wait()
+            return {}
+        finally:
+            active -= 1
+
+    orchestrator._dispatch_audit_lane_owned = AsyncMock(side_effect=_owned_scan)
+    ordinary = asyncio.create_task(orchestrator._dispatch_audit_lane())
+    await asyncio.wait_for(first_started.wait(), timeout=1)
+    dedicated = asyncio.create_task(orchestrator._dispatch_audit_lane())
+    await asyncio.sleep(0)
+    assert orchestrator._dispatch_audit_lane_owned.await_count == 1
+
+    release_first.set()
+    await asyncio.gather(ordinary, dedicated)
+
+    assert orchestrator._dispatch_audit_lane_owned.await_count == 2
+    assert max_active == 1
+
+
+def test_unpause_rearms_retained_exact_successor_wake(tmp_path: Path) -> None:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    orchestrator._paused = True
+    orchestrator._eligible_audit_stage_wakes[(
+        "project-a",
+        "TASK-1",
+    )] = "audit-merged"
+    try:
+        with (
+            patch.object(orchestrator, "_save_paused_state_if_generation"),
+            patch.object(
+                orchestrator,
+                "_wake_terminal_audit_continuation_lane",
+            ) as wake,
+        ):
+            assert orchestrator.unpause(notify=False) is True
+
+        wake.assert_called_once_with()
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
 def test_audit_capacity_reserves_repair_slot_and_alternates_at_one(
