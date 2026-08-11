@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T17:33:22.243112Z'
-updated_at: '2026-08-11T17:35:03.020365Z'
+updated_at: '2026-08-11T17:48:59.269244Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Bug observed live on 2026-08-11: workflow jobs 5180 (OOMPAH-1091 review_merge), 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 17:48
+---
+Implementation is committed and pushed at exact head 1cade67f25011c1e94df187f737957d5e8bad67b on branch OOMPAH-1096, rebased patch-equivalently onto current origin/main b948150a8. The workflow snapshot publisher now consumes the existing managed per-task publication journal: a final revision advance is accepted only when the journal is complete, the delta is nonempty and exactly matches the observed counter, at least one exact durable action is staged, and every changed task is disjoint from staged effect identities and dependency targets. Journal-proven unrelated tasks are excluded from the projection and mark the liveness cut intentionally incomplete; exact task drift, dependency drift, ambiguous membership, missing history, and unknown scope still supersede and retry the whole generation. Observability records tracker_scoped_publication_advances/exclusions separately from scoped_publication_retries. Deterministic regressions cover a 64-write continuous unrelated burst publishing review_merge on the first cut, relevant exact-task drift forcing a fresh generation, durable-store restart reusing one exact job, and health projection remaining non-overdue. Verification after rebase: 446 focused workflow job/controller/runtime/cache/tracker-lock tests passed; make workflow-soak-ci completed 120 tasks with 380 projection checks, 0 mismatches, 1 expected actionable alert, and no unexplained tasks; make terminal-audit-scan passed 21/21; py_compile, diff check, secret hooks, and range-diff clean. No full 20k gate was run per handoff. Not submitted; awaiting independent exact-head review.
+---
+<!-- COMMENTS:END -->
