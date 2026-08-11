@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1008
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: Make late-effect quarantine deterministic under full-suite load
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T01:18:23.370723Z'
-updated_at: '2026-08-11T01:18:23.370723Z'
+updated_at: '2026-08-11T02:20:03.736008Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,3 +37,11 @@ The OOMPAH-1007 full make test gate on 2026-08-11 produced 19,729 passes and one
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 02:20
+---
+Claimed for direct-owner implementation in the current systemic workflow recovery program. The repair will isolate quarantine bookkeeping from the effect timeout without weakening lease fencing, add deterministic regression coverage, pass focused and complete gates, and use protected delivery.
+---
+<!-- COMMENTS:END -->
