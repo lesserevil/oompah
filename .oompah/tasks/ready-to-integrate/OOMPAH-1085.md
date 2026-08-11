@@ -12,12 +12,12 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T16:41:51.919700Z'
+updated_at: '2026-08-11T16:42:06.025682Z'
 work_branch: OOMPAH-1085
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/827
 review_number: '827'
-review_head: null
+review_head: ed2cbbc4390f475ebb9bc30ed1a4fe5c210f624c
 merged_at: null
 oompah.create_once:
   version: 1
@@ -48,6 +48,8 @@ oompah.work_contributors:
     completed_at: ''
 oompah.review_url: https://github.com/lesserevil/oompah/pull/827
 oompah.review_number: '827'
+oompah.target_branch: main
+oompah.review_head: ed2cbbc4390f475ebb9bc30ed1a4fe5c210f624c
 ---
 ## Summary
 
