@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:03:11.276660Z'
-updated_at: '2026-08-11T09:03:49.157859Z'
+updated_at: '2026-08-11T09:23:18.289729Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,3 +37,11 @@ Live reproduction on deployed main aafbdac663 at 2026-08-11 08:58 UTC: opening d
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 09:23
+---
+Refined live diagnosis after a quiet-window reproduction: releasing the long exact-head quality gate from the task transition lock fixes one head-of-line blocker, but a second deterministic self-supersession remained. Read-only reconciliation/API proof paths call invalidate_read_cache() defensively; the native tracker incorrectly treated that refresh as a task mutation, advanced its publication authority, and notified server caches. An epic fact refresh therefore invalidated the same snapshot being built even when no task changed. The branch now separates read-only cache refresh from mutation invalidation, retains shared authority advancement/callbacks for every native write, and adds regression coverage proving refreshes do not advance state/publication generations while real writes do. It also closes the independent-review status-only race before any review capacity or metadata write.
+---
+<!-- COMMENTS:END -->
