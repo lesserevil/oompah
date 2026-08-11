@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:08:16.081490Z'
-updated_at: '2026-08-11T11:35:42.809588Z'
+updated_at: '2026-08-11T11:36:07.349445Z'
 work_branch: OOMPAH-1082
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/819
@@ -61,5 +61,10 @@ author: oompah
 created: 2026-08-11 11:35
 ---
 Branch quality gate passed for `a2d82ab7009cdba0bb325296d26d73568906a593` using `make test` in 176.2s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 11:36
+---
+Independent exact-head review BLOCKED a2d82ab7009cdba0bb325296d26d73568906a593: prerequisite_audit_id is persisted but not enforced. An eligible Merged stage referencing audit-done-other can fail open and dispatch using a different same-authority Done PASS audit-done-a; coordinator PASS stamping can also preserve the wrong ID while making it eligible. Author is fixing exact prerequisite identity enforcement plus wrong/missing/stale negative regressions; this head will not merge.
 ---
 <!-- COMMENTS:END -->
