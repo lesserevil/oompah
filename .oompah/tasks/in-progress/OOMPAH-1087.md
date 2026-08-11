@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T13:38:34.915522Z'
-updated_at: '2026-08-11T13:38:53.646688Z'
+updated_at: '2026-08-11T13:45:28.384497Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,15 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 26ecd924-6fee-4fc9-9b64-dcf37334f4d8
   request_fingerprint: a4c85ef17eaf3089604c59256d01d1ebab7be8ce232c89a37ae0046f73c9a3c1
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1087
+  head_sha: 4d8c7b9a9fdda0e0119fe6ebbe6a0951c0631f71
+  submitted_at: '2026-08-11T13:45:24.216406+00:00'
+  updated_at: '2026-08-11T13:45:24.216406+00:00'
 ---
 ## Summary
 
@@ -35,3 +44,11 @@ Live deployed main fe06a0ff logged an uncaught websockets legacy protocol ERROR 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 13:45
+---
+Reproduced the ownership conflict from the live 13:35:40 UTC keepalive_ping assertion: Uvicorn defaulted to a second protocol ping owner even though OOMPAH-690 dashboard application ping/pong already owns freshness, reconnect, and full-state backfill. Exact head 4d8c7b9a9 disables Uvicorn protocol pings through one shared config helper used by both default and Granian-fallback startup paths; transport WebSockets remain enabled. Focused dashboard liveness/WebSocket lifecycle/fault-injection/bootstrap coverage passed 99/99, Ruff (excluding one pre-existing unrelated F401), py_compile, diff check, commit hooks, and paranoid secret scan are green.
+---
+<!-- COMMENTS:END -->
