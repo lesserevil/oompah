@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1084
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Propagate synchronized open-review heads into exact gate and merge authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T13:53:55.308351Z'
+updated_at: '2026-08-11T13:54:42.267336Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
@@ -38,6 +38,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/821
 oompah.review_number: '821'
 oompah.target_branch: main
 oompah.review_head: 15a2ee7c9b82cfefb49a00173c302c095f3ca46e
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-97fb62e4e037
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1084
+    digest: f1a4b5ee467aabb315f3fd550ba4710d18894459b4b2b81a23bbe855fa12b1af
+  - version: 1
+    audit_id: audit-1e738dcb6fa0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1084
+    digest: f1a4b5ee467aabb315f3fd550ba4710d18894459b4b2b81a23bbe855fa12b1af
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-97fb62e4e037
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1084
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f1a4b5ee467aabb315f3fd550ba4710d18894459b4b2b81a23bbe855fa12b1af
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T13:54:32.428061+00:00'
+    eligible_at: '2026-08-11T13:54:32.428061+00:00'
+    selected_ref: 15a2ee7c9b82cfefb49a00173c302c095f3ca46e
+    selected_sha: 15a2ee7c9b82cfefb49a00173c302c095f3ca46e
+  - version: 1
+    audit_id: audit-1e738dcb6fa0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1084
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f1a4b5ee467aabb315f3fd550ba4710d18894459b4b2b81a23bbe855fa12b1af
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T13:54:32.428061+00:00'
+    prerequisite_audit_id: audit-97fb62e4e037
+    selected_ref: 15a2ee7c9b82cfefb49a00173c302c095f3ca46e
+    selected_sha: 15a2ee7c9b82cfefb49a00173c302c095f3ca46e
+  attempt_history: []
 ---
 ## Summary
 
@@ -90,5 +148,10 @@ author: oompah
 created: 2026-08-11 13:53
 ---
 Fresh independent exact-head review ACCEPTED cf3578ff00f5564a06ea31650553dca337280427. Reviewer verified exact deployed base fe06a0ff, clean merge tree, canonical trailers, A→B→C and base-only advance races, restart/replay/idempotency, GitHub/GitLab source/target identity propagation and fail-closed cases, exact provider merge CAS, and unsupported exact auto-merge fail-closed behavior. Evidence: 788 changed-module tests, 298 adjacent workflow/transition tests, compileall, and terminal mutation scan 21/21 all green. Awaiting only protected CI on PR #821 before exact merge.
+---
+author: oompah
+created: 2026-08-11 13:54
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
