@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1092
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Do not let suspended terminal audits starve active dispatch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:02:12.775197Z'
-updated_at: '2026-08-11T16:03:11.973112Z'
+updated_at: '2026-08-11T16:03:35.432570Z'
 work_branch: null
 target_branch: null
 review_url: null
