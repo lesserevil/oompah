@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import replace
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -166,6 +167,68 @@ def test_sibling_target_running_job_cannot_make_pending_audit_owned(tmp_path):
         decision = _decision(_issue(), observation)
         assert decision.disposition is TaskDisposition.RETRY_SCHEDULED
         assert decision.reason_code == "validation.queued"
+    finally:
+        store.close()
+
+
+@pytest.mark.parametrize(
+    "repair_status",
+    ["Needs CI Fix", "Open", "Needs Human", "Done", "Merged", "Archived"],
+)
+def test_terminal_audit_fact_revokes_orphaned_record_outside_validation(
+    tmp_path,
+    repair_status,
+):
+    store = WorkflowJobStore(str(tmp_path / f"{repair_status}.sqlite3"))
+    try:
+        record = _record(
+            audit_id="audit-orphaned",
+            target=TargetState.DONE,
+            evidence="orphaned",
+        )
+        workflow = TerminalAuditWorkflow(store)
+        old_job = workflow.start(
+            record,
+            attempt_id="attempt-orphaned",
+            candidate=Candidate("provider-a", "model-a"),
+        )
+        assert old_job is not None
+        records = [record]
+        metadata = SimpleNamespace(
+            read=lambda _identifier: TerminalAuditMetadata(pending_chain=records)
+        )
+        orchestrator = _orchestrator(store, metadata)
+        issue = _issue()
+        issue.state = repair_status
+
+        value = orchestrator._workflow_shadow_sources(issue)[
+            FactDomain.TERMINAL_AUDIT
+        ](issue)
+
+        assert value is None or "audit_id" not in value
+
+        fresh = replace(
+            record,
+            audit_id="audit-fresh",
+            source_generation=record.source_generation + 1,
+        )
+        workflow.cancel(old_job, reason="repair status revoked old generation")
+        assert workflow.start(
+            fresh,
+            attempt_id="attempt-fresh",
+            candidate=Candidate("provider-a", "model-a"),
+        ) is not None
+        records[:] = [
+            replace(record, request_state=RequestState.CANCELLED),
+            fresh,
+        ]
+        issue.state = "In Validation"
+        active = orchestrator._workflow_shadow_sources(issue)[
+            FactDomain.TERMINAL_AUDIT
+        ](issue)
+        assert active["audit_id"] == fresh.audit_id
+        assert active["request_state"] == RequestState.PENDING.value
+        assert active["audit_job_present"] is True
     finally:
         store.close()
 

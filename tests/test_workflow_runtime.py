@@ -53,6 +53,7 @@ from oompah.terminal_audit_metadata import (
     TerminalAuditMetadata,
     TerminalAuditMetadataStore,
 )
+from oompah.terminal_audit_enforcement import TerminalAuditEnforcement
 from oompah.task_transition_service import (
     TaskTransitionService,
     TransitionAuthority,
@@ -536,6 +537,172 @@ def test_terminal_audit_proof_rejects_metadata_race_until_current_job_exists(
     assert not proof(decision_b, mismatched_audit, "terminal_audit")
     assert proof(decision_b, observed_b, "terminal_audit")
 
+    # An owner repair transition is a stronger authority change than the
+    # previously collected terminal-audit envelope.  The publication proof
+    # must reject that old cut immediately, before restart recovery gets a
+    # chance to durably cancel the orphaned metadata and workflow job.
+    for status in ("Needs CI Fix", "Open", "Needs Human", "Done", "Merged", "Archived"):
+        task.state = status
+        assert not proof(decision_b, observed_b, "terminal_audit")
+        repaired_facts = binding.collector.collect(task.identifier)
+        repaired_value = repaired_facts.fact(FactDomain.TERMINAL_AUDIT).value
+        assert repaired_value is None or "audit_id" not in repaired_value
+
+    runtime.close()
+    store.close()
+
+
+def test_repair_status_orphan_cannot_deadlock_restart_world_publication(tmp_path):
+    """An OOMPAH-940-shaped orphan converges on the next stable world cut."""
+
+    from oompah.orchestrator import Orchestrator
+
+    class AuditTracker(NativeTracker):
+        def __init__(self, issues):
+            super().__init__(issues)
+            self.metadata = {}
+
+        def get_metadata(self, identifier):
+            return self.metadata.get(identifier, {})
+
+        def set_metadata_field(self, identifier, key, value):
+            self.metadata.setdefault(identifier, {})[key] = value
+
+        def invalidate_read_cache(self):
+            return None
+
+    class ProjectStore:
+        def __init__(self):
+            self.lock = threading.RLock()
+
+        def list_all(self):
+            return []
+
+        def project_write_lock(self, project_id):
+            assert project_id == "legacy"
+            return self.lock
+
+    class Config:
+        workflow_engine_mode = "shadow"
+        workflow_runtime_decision_limit = 17
+        workflow_runtime_batch_size = 9
+
+    task = make_issue("TASK-AUDIT-ORPHAN", state="In Validation", project_id="legacy")
+    tracker = AuditTracker([task])
+    project_store = ProjectStore()
+    store = WorkflowJobStore(str(tmp_path / "orphan-jobs.sqlite3"))
+    workflow = TerminalAuditWorkflow(store)
+    metadata = TerminalAuditMetadataStore(tracker, project_store, "legacy")
+    record = TerminalAuditRecord(
+        audit_id="audit-orphan",
+        project_id="legacy",
+        task_id=task.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=EvidenceFingerprint("a" * 64),
+        request_state=RequestState.IN_PROGRESS,
+        source_generation=7,
+    )
+    metadata.write(
+        task.identifier,
+        TerminalAuditMetadata(pending_chain=[record]),
+    )
+    orphan_job = workflow.ensure(record)
+
+    class OrchestratorDouble:
+        config = Config()
+        workflow_job_store = store
+        terminal_audit_workflow = workflow
+        _state_path = str(tmp_path / "orphan-service-state.json")
+
+        def __init__(self):
+            self.project_store = project_store
+            self.tracker = tracker
+
+        def _audit_store(self, _issue):
+            return metadata
+
+        def _workflow_shadow_sources(self, issue):
+            return Orchestrator._workflow_shadow_sources(self, issue)
+
+        def _workflow_shadow_running_entry(self, _issue, *, auditor):
+            assert auditor
+            return None
+
+    # Build the actual service terminal-audit source and publication proofs,
+    # then place them in the compact runtime fixture whose unrelated fact
+    # domains are deterministic.  The task moves to its owner repair state
+    # after the audit generation was already durably materialized.
+    task.state = "Needs CI Fix"
+    enforcer = TerminalAuditEnforcement(
+        str(tmp_path / "orphan-enforcement-state.json"),
+        terminal_states=("Done", "Merged", "Archived"),
+        project_store=project_store,
+    )
+    assert enforcer.recover_pending_audits([("legacy", tracker)]) == []
+    sync = Orchestrator.__new__(Orchestrator)
+    sync.workflow_job_store = store
+    sync.terminal_audit_workflow = workflow
+    sync._terminal_audit_enforcement = enforcer
+    sync._maintenance_status = {}
+    sync._running_values_snapshot = lambda: []
+    sync._tracker_for_project = lambda _project_id: tracker
+    sync.project_store = project_store
+    sync._sync_terminal_audit_workflow_jobs()
+    assert store.get(orphan_job.job_id).state is WorkflowJobState.CANCELLED
+
+    factory_runtime = WorkflowRuntime.from_orchestrator(
+        OrchestratorDouble(),
+        state_dir=tmp_path / "factory-runtime",
+    )
+    factory_binding = factory_runtime.project_bindings["legacy"]
+    binding, journal = make_binding(tmp_path, tracker, store, "legacy")
+    binding.collector.sources[FactDomain.TERMINAL_AUDIT] = (
+        factory_binding.collector.sources[FactDomain.TERMINAL_AUDIT]
+    )
+    binding.terminal_audit_proof_source = (
+        factory_binding.terminal_audit_proof_source
+    )
+    binding.terminal_audit_snapshot_proof_source = (
+        factory_binding.terminal_audit_snapshot_proof_source
+    )
+    binding.terminal_audit_lane_proof_source = (
+        factory_binding.terminal_audit_lane_proof_source
+    )
+    binding.terminal_audit_publication_lock = (
+        factory_binding.terminal_audit_publication_lock
+    )
+    factory_runtime.close()
+
+    controller = UniversalTotalityLivenessController(store=store)
+    controller.restore_liveness_state(None)
+    runtime = WorkflowRuntime(
+        project_bindings={"legacy": binding},
+        store=store,
+        journals={"legacy": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    first = runtime.reconcile()
+    second = runtime.reconcile()
+    health = store.health_snapshot()
+
+    assert first["projects"]["legacy"].get("publication_superseded") is not True
+    assert second["projects"]["legacy"].get("publication_superseded") is not True
+    assert controller.liveness_snapshot().scan_complete
+    assert not runtime.restart_reconstruction_pending
+    assert health["accepted_snapshot_generation"] > 0
+    assert health["accepted_snapshot_generation"] == health[
+        "published_snapshot_generation"
+    ]
+    writes_after_convergence = tracker.metadata.get(task.identifier)
+    assert enforcer.recover_pending_audits([("legacy", tracker)]) == []
+    sync._sync_terminal_audit_workflow_jobs()
+    assert tracker.metadata.get(task.identifier) == writes_after_convergence
+    assert store.get(orphan_job.job_id).state is WorkflowJobState.CANCELLED
     runtime.close()
     store.close()
 

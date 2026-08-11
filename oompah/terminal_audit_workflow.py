@@ -369,7 +369,19 @@ class TerminalAuditWorkflow:
         """
 
         semantic_jobs = self._matching_jobs(record)
-        active = [job for job in semantic_jobs if job.state in ACTIVE_JOB_STATES]
+        active = [
+            job
+            for job in semantic_jobs
+            if job.state in ACTIVE_JOB_STATES
+            and str((job.checkpoint or {}).get("audit_id") or "").strip()
+            in {"", record.audit_id}
+        ]
+        # Semantic target/evidence identity intentionally coalesces duplicate
+        # requests, but a started lease is callback-bound to its audit UUID.
+        # A departure ABA creates a fresh UUID and source generation; exclude
+        # the revoked runtime so enqueue_replacing_lane atomically publishes
+        # the fresh activation and supersedes the old lease. A stale incoming
+        # source is rejected without cancelling the legitimate owner first.
         reusable = [
             job
             for job in semantic_jobs
@@ -543,6 +555,86 @@ class TerminalAuditWorkflow:
             reason="coordinator-authorized owner rearm",
             now=self.clock(),
         )
+
+    def activate_status_departure_rearm(
+        self,
+        record: TerminalAuditRecord,
+        *,
+        prior: TerminalAuditRecord,
+        marker: Mapping[str, Any],
+    ) -> WorkflowJob:
+        """Activate one server-owned status-departure replacement exactly once."""
+
+        if prior.request_state is not RequestState.CANCELLED:
+            raise AuditWorkflowIdentityError(
+                "status-departure source audit is not cancelled"
+            )
+        if (
+            prior.project_id != record.project_id
+            or prior.task_id != record.task_id
+            or prior.target_state != record.target_state
+            or prior.evidence_fingerprint != record.evidence_fingerprint
+            or prior.audit_id == record.audit_id
+            or record.source_generation <= prior.source_generation
+        ):
+            raise AuditWorkflowIdentityError(
+                "status-departure replacement identity does not match"
+            )
+        if (
+            marker.get("version") != 1
+            or marker.get("applied") is not True
+            or marker.get("outcome") != "rearmed"
+            or marker.get("project_id") != record.project_id
+            or marker.get("task_id") != record.task_id
+        ):
+            raise AuditWorkflowIdentityError(
+                "status-departure authorization does not match"
+            )
+        rearm = next(
+            (
+                raw
+                for raw in marker.get("rearms", [])
+                if isinstance(raw, Mapping)
+                and raw.get("audit_id") == prior.audit_id
+                and raw.get("rearm_audit_id") == record.audit_id
+                and raw.get("source_generation") == record.source_generation
+            ),
+            None,
+        )
+        if rearm is None:
+            raise AuditWorkflowIdentityError(
+                "status-departure rearm generation does not match"
+            )
+        departure_id = _required_text(
+            marker.get("departure_id"),
+            "departure_id",
+        )
+        idempotency_key = (
+            f"{self.idempotency_key(record)}:status-departure:"
+            f"{departure_id}:{record.source_generation}"
+        )
+        write = self.store.enqueue_replacing_lane(
+            self.spec(
+                record,
+                max_attempts=self.max_attempts,
+                idempotency_key=idempotency_key,
+            ),
+            source_generation=record.source_generation,
+            require_source_advance=True,
+            retire_managed_exhaustion=True,
+            terminal_audit_binding_upgrade_from=(
+                self._legacy_generation(record)
+                if _revision_binding(record)[0] is not None
+                else None
+            ),
+            reason="replaced by a durable status-departure audit generation",
+            now=self.clock(),
+        )
+        if not write.accepted or write.job is None:
+            raise AuditWorkflowIdentityError(
+                "terminal-audit source generation is stale"
+            )
+        return write.job
 
     def retire_resolved(
         self,

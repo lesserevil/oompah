@@ -24,6 +24,7 @@ import logging
 import os
 import tempfile
 import threading
+import uuid
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
@@ -34,6 +35,7 @@ from oompah.integration import is_direct_epic_maintenance_issue
 from oompah.models import Issue
 from oompah.statuses import (
     ARCHIVED,
+    CANONICAL_STATUSES,
     DONE,
     IN_VALIDATION,
     MERGED,
@@ -69,6 +71,7 @@ TERMINAL_OVERRIDE_RECORDS_KEY = "oompah.terminal_override_records"
 TERMINAL_RETIREMENTS_KEY = "oompah.terminal_audit_retirements"
 TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
 TERMINAL_REARM_HISTORY_KEY = "oompah.terminal_audit_rearm_history"
+TERMINAL_STATUS_DEPARTURES_KEY = "oompah.terminal_audit_status_departures"
 LIFECYCLE_RECONCILIATIONS_KEY = "oompah.lifecycle_reconciliations"
 LIFECYCLE_RECONCILIATION_STATE_KEY = "lifecycle_reconciliation"
 LIFECYCLE_RECONCILIATION_VERSION = 2
@@ -113,6 +116,146 @@ def get_recovery_snapshot() -> dict[str, Issue] | None:
     Returns None when called outside of a recovery context.
     """
     return _recovery_snapshot.get()
+
+
+def _valid_result_intent_row(raw: Any) -> bool:
+    """Validate the durable identity fields required to fence result replay."""
+
+    if not isinstance(raw, Mapping) or not isinstance(raw.get("applied"), bool):
+        return False
+    if not all(
+        isinstance(raw.get(key), str) and bool(str(raw.get(key)).strip())
+        for key in (
+            "project_id",
+            "task_id",
+            "audit_id",
+            "attempt_id",
+            "target_state",
+            "evidence_fingerprint",
+            "status",
+        )
+    ):
+        return False
+    try:
+        TargetState.from_raw(raw.get("target_state"))
+        EvidenceFingerprint(str(raw.get("evidence_fingerprint")))
+    except (TypeError, ValueError):
+        return False
+    if canonicalize_status(raw.get("status")) not in CANONICAL_STATUSES:
+        return False
+    audit_ids = raw.get("audit_ids")
+    if not isinstance(audit_ids, list) or any(
+        not isinstance(value, str) or not value.strip() for value in audit_ids
+    ):
+        return False
+    kind = raw.get("kind")
+    return kind is None or (isinstance(kind, str) and bool(kind.strip()))
+
+
+def _valid_override_row(raw: Any) -> bool:
+    """Validate an override ledger row before it can coexist with dispatch."""
+
+    if not isinstance(raw, Mapping) or not isinstance(raw.get("applied"), bool):
+        return False
+    try:
+        OverrideRecord.from_dict(raw)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def _valid_status_departure_row(
+    raw: Any,
+    *,
+    project_id: str | None = None,
+    task_id: str | None = None,
+) -> bool:
+    """Validate one durable validation-departure transaction marker."""
+
+    if not isinstance(raw, Mapping) or raw.get("version") != 1:
+        return False
+    if not isinstance(raw.get("applied"), bool):
+        return False
+    for key in (
+        "departure_id",
+        "project_id",
+        "task_id",
+        "from_status",
+        "requested_status",
+        "prepared_at",
+    ):
+        if not isinstance(raw.get(key), str) or not str(raw.get(key)).strip():
+            return False
+    if project_id is not None and raw.get("project_id") != project_id:
+        return False
+    if task_id is not None and raw.get("task_id") != task_id:
+        return False
+    requested = canonicalize_status(raw.get("requested_status"))
+    if (
+        canonicalize_status(raw.get("from_status")) != IN_VALIDATION
+        or requested not in CANONICAL_STATUSES
+        or requested in {IN_VALIDATION, DONE, MERGED, ARCHIVED}
+    ):
+        return False
+    rearms = raw.get("rearms")
+    if not isinstance(rearms, list) or not rearms:
+        return False
+    old_ids: set[str] = set()
+    new_ids: set[str] = set()
+    for rearm in rearms:
+        if not isinstance(rearm, Mapping):
+            return False
+        if not all(
+            isinstance(rearm.get(key), str) and bool(str(rearm.get(key)).strip())
+            for key in ("audit_id", "rearm_audit_id")
+        ):
+            return False
+        old_id = str(rearm.get("audit_id"))
+        new_id = str(rearm.get("rearm_audit_id"))
+        if (
+            old_id == new_id
+            or old_id in old_ids
+            or new_id in new_ids
+            or new_id in old_ids
+            or old_id in new_ids
+        ):
+            return False
+        old_ids.add(old_id)
+        new_ids.add(new_id)
+        generation = rearm.get("source_generation")
+        if isinstance(generation, bool) or not isinstance(generation, int):
+            return False
+        if generation < 1:
+            return False
+    if raw.get("applied") is True:
+        if not isinstance(raw.get("resolved_at"), str) or not str(
+            raw.get("resolved_at")
+        ).strip():
+            return False
+        if raw.get("outcome") not in {"rearmed", "superseded", "retired"}:
+            return False
+    return True
+
+
+def _valid_status_departure_ledger(
+    raw: Any,
+    *,
+    project_id: str,
+    task_id: str,
+) -> bool:
+    """Validate marker rows plus their ledger-wide transaction identity."""
+
+    if not isinstance(raw, list) or any(
+        not _valid_status_departure_row(
+            row,
+            project_id=project_id,
+            task_id=task_id,
+        )
+        for row in (raw if isinstance(raw, list) else [])
+    ):
+        return False
+    departure_ids = [str(row.get("departure_id")) for row in raw]
+    return len(departure_ids) == len(set(departure_ids))
 
 
 def _as_fingerprint(value: Any) -> EvidenceFingerprint:
@@ -923,6 +1066,489 @@ class TerminalAuditEnforcement:
                 match.merge_record(entry.record)
         return result
 
+    def prepare_status_departure(
+        self,
+        tracker: TrackerProtocol,
+        issue: Issue,
+        project_id: str,
+        requested_status: str,
+    ) -> str | None:
+        """Fence active audit generations before leaving validation.
+
+        The marker and cancellation share the project write lock.  If the
+        subsequent status mutation fails or races through an out-and-back
+        transition, :meth:`resolve_status_departure` creates a new exact
+        generation instead of reviving the cancelled provider authority.
+        """
+
+        project_id = str(project_id)
+        identifier = str(issue.identifier)
+        if canonicalize_status(issue.state) != IN_VALIDATION:
+            return None
+        requested = canonicalize_status(requested_status)
+        if requested in {IN_VALIDATION, DONE, MERGED, ARCHIVED}:
+            return None
+        store = TerminalAuditMetadataStore(
+            tracker,
+            self.project_store,
+            project_id,
+        )
+        departure_id = f"audit-departure-{uuid.uuid4().hex}"
+        now = datetime.now(timezone.utc).isoformat()
+        prepared = False
+
+        with self.project_store.project_write_lock(project_id):
+            invalidate = getattr(tracker, "invalidate_read_cache", None)
+            if callable(invalidate):
+                invalidate()
+            fetch_detail = getattr(tracker, "fetch_issue_detail", None)
+            current = fetch_detail(identifier) if callable(fetch_detail) else issue
+            if current is None or canonicalize_status(current.state) != IN_VALIDATION:
+                return None
+            from oompah.task_transition_service import (  # noqa: PLC0415
+                issue_authority_version,
+            )
+
+            if issue_authority_version(current) != issue_authority_version(issue):
+                return None
+
+            def _prepare(document: TerminalAuditMetadata) -> TerminalAuditMetadata:
+                nonlocal prepared
+                raw_results = document.unknown_fields.get(
+                    TERMINAL_RESULT_INTENTS_KEY,
+                    [],
+                )
+                raw_overrides = document.unknown_fields.get(
+                    TERMINAL_OVERRIDE_RECORDS_KEY,
+                    [],
+                )
+                if (
+                    not isinstance(raw_results, list)
+                    or any(
+                        not _valid_result_intent_row(raw)
+                        for raw in raw_results
+                        if isinstance(raw_results, list)
+                    )
+                    or not isinstance(raw_overrides, list)
+                    or any(
+                        not _valid_override_row(raw)
+                        for raw in raw_overrides
+                        if isinstance(raw_overrides, list)
+                    )
+                ):
+                    raise RuntimeError(
+                        "terminal-audit finalization metadata is malformed"
+                    )
+                if any(
+                    isinstance(raw, Mapping)
+                    and raw.get("applied", True) is False
+                    and raw.get("project_id") == project_id
+                    and raw.get("task_id") == identifier
+                    for raw in raw_results
+                ) or any(
+                    isinstance(raw, Mapping)
+                    and raw.get("applied", True) is False
+                    and raw.get("project_id") == project_id
+                    and raw.get("task_id") == identifier
+                    for raw in raw_overrides
+                ):
+                    raise RuntimeError(
+                        "terminal-audit finalization owns the current status"
+                    )
+
+                active = [
+                    record
+                    for record in document.pending_chain
+                    if record.project_id == project_id
+                    and record.task_id == identifier
+                    and record.request_state in PENDING_REQUEST_STATES
+                ]
+                if not active:
+                    return document
+                next_generation = max(
+                    (
+                        record.source_generation
+                        for record in document.pending_chain
+                        if record.project_id == project_id
+                        and record.task_id == identifier
+                    ),
+                    default=0,
+                )
+                rearms: list[dict[str, Any]] = []
+                for offset, record in enumerate(active, start=1):
+                    rearms.append(
+                        {
+                            "audit_id": record.audit_id,
+                            "rearm_audit_id": f"audit-{uuid.uuid4().hex}",
+                            "source_generation": next_generation + offset,
+                        }
+                    )
+                chain = [
+                    replace(
+                        record,
+                        request_state=RequestState.CANCELLED,
+                        updated_at=now,
+                    )
+                    if record in active
+                    else record
+                    for record in document.pending_chain
+                ]
+                unknown = dict(document.unknown_fields)
+                raw_departures = unknown.get(TERMINAL_STATUS_DEPARTURES_KEY, [])
+                if not _valid_status_departure_ledger(
+                    raw_departures,
+                    project_id=project_id,
+                    task_id=identifier,
+                ):
+                    raise RuntimeError(
+                        "terminal-audit status-departure metadata is malformed"
+                    )
+                departures = [
+                    dict(raw)
+                    for raw in raw_departures
+                ]
+                departures.append(
+                    {
+                        "version": 1,
+                        "departure_id": departure_id,
+                        "project_id": project_id,
+                        "task_id": identifier,
+                        "from_status": IN_VALIDATION,
+                        "requested_status": requested,
+                        "prepared_at": now,
+                        "applied": False,
+                        "rearms": rearms,
+                    }
+                )
+                unknown[TERMINAL_STATUS_DEPARTURES_KEY] = departures
+                prepared = True
+                return replace(document, pending_chain=chain, unknown_fields=unknown)
+
+            store.update(identifier, _prepare)
+        return departure_id if prepared else None
+
+    def resolve_status_departure(
+        self,
+        tracker: TrackerProtocol,
+        issue: Issue,
+        project_id: str,
+        departure_id: str,
+    ) -> bool:
+        """Finalize one departure or rearm it with a fresh generation."""
+
+        project_id = str(project_id)
+        identifier = str(issue.identifier)
+        store = TerminalAuditMetadataStore(
+            tracker,
+            self.project_store,
+            project_id,
+        )
+        resolved = False
+        with self.project_store.project_write_lock(project_id):
+            invalidate = getattr(tracker, "invalidate_read_cache", None)
+            if callable(invalidate):
+                invalidate()
+            fetch_detail = getattr(tracker, "fetch_issue_detail", None)
+            current = fetch_detail(identifier) if callable(fetch_detail) else issue
+            if current is None:
+                return False
+            rearm = canonicalize_status(current.state) == IN_VALIDATION
+            current_fingerprint = (
+                self._authoritative_recovery_fingerprint(
+                    current,
+                    tracker,
+                    project_id=project_id,
+                )
+                if rearm
+                else None
+            )
+            if rearm and current_fingerprint is None:
+                # A branch-backed projection without an immutable revision
+                # cannot prove either equality or inequality with the
+                # cancelled request.  Keep the durable marker unapplied so a
+                # later authoritative refresh can decide it; resolving it as
+                # superseded here would strand In Validation without audit
+                # authority.
+                return False
+            now = datetime.now(timezone.utc).isoformat()
+
+            def _resolve(document: TerminalAuditMetadata) -> TerminalAuditMetadata:
+                nonlocal resolved
+                unknown = dict(document.unknown_fields)
+                raw_departures = unknown.get(TERMINAL_STATUS_DEPARTURES_KEY, [])
+                if not _valid_status_departure_ledger(
+                    raw_departures,
+                    project_id=project_id,
+                    task_id=identifier,
+                ):
+                    raise RuntimeError(
+                        "terminal-audit status-departure metadata is malformed"
+                    )
+                departures: list[dict[str, Any]] = []
+                selected: Mapping[str, Any] | None = None
+                for raw in raw_departures:
+                    if not isinstance(raw, Mapping):
+                        continue
+                    item = dict(raw)
+                    if (
+                        item.get("departure_id") == departure_id
+                        and item.get("project_id") == project_id
+                        and item.get("task_id") == identifier
+                        and item.get("applied", True) is False
+                    ):
+                        selected = item
+                    departures.append(item)
+                if selected is None:
+                    return document
+
+                chain = list(document.pending_chain)
+                rearmed_count = 0
+                superseded_count = 0
+                if rearm:
+                    raw_rearms = selected.get("rearms", [])
+                    marker_requested = selected.get("requested_status")
+                    if (
+                        selected.get("version") != 1
+                        or canonicalize_status(selected.get("from_status"))
+                        != IN_VALIDATION
+                        or not isinstance(marker_requested, str)
+                        or not marker_requested.strip()
+                        or canonicalize_status(marker_requested)
+                        not in CANONICAL_STATUSES
+                        or canonicalize_status(marker_requested)
+                        in {IN_VALIDATION, DONE, MERGED, ARCHIVED}
+                        or not isinstance(raw_rearms, list)
+                    ):
+                        raise RuntimeError(
+                            "terminal-audit status-departure marker is malformed"
+                        )
+                    normalized_rearms: list[dict[str, Any]] = []
+                    for raw_rearm in raw_rearms:
+                        if not isinstance(raw_rearm, Mapping):
+                            raise RuntimeError(
+                                "terminal-audit status-departure rearm is malformed"
+                            )
+                        rearm_row = dict(raw_rearm)
+                        old_id = str(raw_rearm.get("audit_id") or "")
+                        new_id = str(raw_rearm.get("rearm_audit_id") or "")
+                        generation = raw_rearm.get("source_generation")
+                        if (
+                            not old_id
+                            or not new_id
+                            or isinstance(generation, bool)
+                            or not isinstance(generation, int)
+                        ):
+                            raise RuntimeError(
+                                "terminal-audit status-departure rearm is malformed"
+                            )
+                        existing = next(
+                            (
+                                record
+                                for record in chain
+                                if record.audit_id == new_id
+                                and record.project_id == project_id
+                                and record.task_id == identifier
+                            ),
+                            None,
+                        )
+                        if existing is not None:
+                            old = next(
+                                (
+                                    record
+                                    for record in chain
+                                    if record.audit_id == old_id
+                                    and record.project_id == project_id
+                                    and record.task_id == identifier
+                                    and record.request_state
+                                    is RequestState.CANCELLED
+                                ),
+                                None,
+                            )
+                            if old is None:
+                                raise RuntimeError(
+                                    "terminal-audit status-departure source is unavailable"
+                                )
+                            normalized_existing = replace(
+                                existing,
+                                audit_id=old.audit_id,
+                                request_state=old.request_state,
+                                attempts=old.attempts,
+                                source_generation=old.source_generation,
+                                created_at=old.created_at,
+                                updated_at=old.updated_at,
+                            )
+                            if (
+                                existing.request_state is not RequestState.PENDING
+                                or existing.attempts
+                                or existing.source_generation != generation
+                                or normalized_existing != old
+                            ):
+                                raise RuntimeError(
+                                    "terminal-audit status-departure successor is malformed"
+                                )
+                            normalized_rearms.append(rearm_row)
+                            if (
+                                current_fingerprint is not None
+                                and existing.evidence_fingerprint
+                                == current_fingerprint
+                            ):
+                                rearmed_count += int(
+                                    existing.request_state
+                                    in PENDING_REQUEST_STATES
+                                )
+                            elif existing.request_state in PENDING_REQUEST_STATES:
+                                chain = [
+                                    replace(
+                                        record,
+                                        request_state=RequestState.SUPERSEDED,
+                                        updated_at=now,
+                                    )
+                                    if record is existing
+                                    else record
+                                    for record in chain
+                                ]
+                                superseded_count += 1
+                            continue
+                        old = next(
+                            (
+                                record
+                                for record in chain
+                                if record.audit_id == old_id
+                                and record.project_id == project_id
+                                and record.task_id == identifier
+                                and record.request_state is RequestState.CANCELLED
+                            ),
+                            None,
+                        )
+                        if old is None:
+                            raise RuntimeError(
+                                "terminal-audit status-departure source is unavailable"
+                            )
+                        # A status out-and-back does not prove that the task's
+                        # evidence stayed unchanged while it was in repair.
+                        # Only clone the cancelled generation when freshly
+                        # read immutable evidence still matches it.  Otherwise
+                        # the normal In Validation producer must mint authority
+                        # for the revised task instead of leaving an active,
+                        # non-materializable audit in metadata.
+                        if old.evidence_fingerprint != current_fingerprint:
+                            normalized_rearms.append(rearm_row)
+                            superseded_count += 1
+                            continue
+                        successor = next(
+                            (
+                                record
+                                for record in chain
+                                if record.audit_id != old.audit_id
+                                and record.project_id == project_id
+                                and record.task_id == identifier
+                                and record.target_state == old.target_state
+                                and record.evidence_fingerprint
+                                == old.evidence_fingerprint
+                                and record.request_state in PENDING_REQUEST_STATES
+                            ),
+                            None,
+                        )
+                        if successor is not None:
+                            normalized_rearms.append(rearm_row)
+                            superseded_count += 1
+                            continue
+                        generation = max(
+                            generation,
+                            max(
+                                (
+                                    record.source_generation
+                                    for record in chain
+                                    if record.project_id == project_id
+                                    and record.task_id == identifier
+                                ),
+                                default=0,
+                            )
+                            + 1,
+                        )
+                        rearm_row["source_generation"] = generation
+                        normalized_rearms.append(rearm_row)
+                        chain.append(
+                            replace(
+                                old,
+                                audit_id=new_id,
+                                request_state=RequestState.PENDING,
+                                attempts=[],
+                                source_generation=generation,
+                                created_at=now,
+                                updated_at=now,
+                            )
+                        )
+                        rearmed_count += 1
+                    selected["rearms"] = normalized_rearms
+                for item in departures:
+                    if item.get("departure_id") == departure_id:
+                        if selected is not item:
+                            item.update(selected)
+                        item["applied"] = True
+                        item["resolved_at"] = now
+                        item["outcome"] = (
+                            "rearmed"
+                            if rearmed_count
+                            else "superseded"
+                            if superseded_count
+                            else "retired"
+                        )
+                unknown[TERMINAL_STATUS_DEPARTURES_KEY] = departures
+                resolved = True
+                return replace(document, pending_chain=chain, unknown_fields=unknown)
+
+            store.update(identifier, _resolve)
+        return resolved
+
+    def _recover_status_departures(
+        self,
+        tracker: TrackerProtocol,
+        issue: Issue,
+        project_id: str,
+    ) -> None:
+        """Resolve every interrupted status-departure transaction."""
+
+        store = TerminalAuditMetadataStore(
+            tracker,
+            self.project_store,
+            project_id,
+        )
+        document = store.read(str(issue.identifier))
+        raw_departures = document.unknown_fields.get(
+            TERMINAL_STATUS_DEPARTURES_KEY,
+            [],
+        )
+        if not _valid_status_departure_ledger(
+            raw_departures,
+            project_id=str(project_id),
+            task_id=str(issue.identifier),
+        ):
+            raise RuntimeError(
+                "terminal-audit status-departure metadata is malformed"
+            )
+        departure_ids = [
+            str(raw.get("departure_id"))
+            for raw in (
+                raw_departures
+            )
+            if isinstance(raw, Mapping)
+            and raw.get("applied", True) is False
+            and raw.get("project_id") == str(project_id)
+            and raw.get("task_id") == str(issue.identifier)
+            and str(raw.get("departure_id") or "").strip()
+        ]
+        for departure_id in departure_ids:
+            if not self.resolve_status_departure(
+                tracker,
+                issue,
+                project_id,
+                departure_id,
+            ):
+                raise RuntimeError(
+                    "terminal-audit status-departure evidence is unavailable"
+                )
+
     def _reconcile_current(
         self,
         current: Iterable[tuple[str, TrackerProtocol, Issue, EvidenceFingerprint]],
@@ -974,9 +1600,12 @@ class TerminalAuditEnforcement:
     ) -> list[PendingAudit]:
         """Recover pending/in-progress records from ``In Validation`` metadata.
 
-        Recovery is intentionally read-only for valid metadata.  Existing
-        ``AuditAttempt`` IDs are copied into the queue, never regenerated, so
-        a restart cannot duplicate an auditor attempt.
+        Existing ``AuditAttempt`` IDs are copied into the queue, never
+        regenerated, so a restart cannot duplicate an auditor attempt.  A
+        valid active record whose task has authoritatively left ``In
+        Validation`` is cancelled under the project fence.  That record can
+        no longer accept a result, and retaining it as live authority would
+        let an orphaned audit block every later workflow publication.
         """
 
         raw_scopes = scopes.items() if isinstance(scopes, Mapping) else scopes
@@ -1025,6 +1654,63 @@ class TerminalAuditEnforcement:
                 # died between persisting the intent and writing its status.
                 with self.project_store.project_write_lock(str(project_id)):
                     for issue in all_issues:
+                        try:
+                            recovery_document = store.read(
+                                str(issue.identifier)
+                            )
+                        except Exception as exc:
+                            self._error(
+                                "pre_recovery_metadata_read_failed:"
+                                f"{project_id}:{issue.identifier}",
+                                exc,
+                            )
+                            self._recovery_scan_complete = False
+                            self._recovery_scan_error_count += 1
+                            continue
+                        recovery_results = recovery_document.unknown_fields.get(
+                            TERMINAL_RESULT_INTENTS_KEY,
+                            [],
+                        )
+                        recovery_overrides = recovery_document.unknown_fields.get(
+                            TERMINAL_OVERRIDE_RECORDS_KEY,
+                            [],
+                        )
+                        recovery_departures = recovery_document.unknown_fields.get(
+                            TERMINAL_STATUS_DEPARTURES_KEY,
+                            [],
+                        )
+                        if (
+                            not isinstance(recovery_results, list)
+                            or any(
+                                not _valid_result_intent_row(raw)
+                                for raw in (
+                                    recovery_results
+                                    if isinstance(recovery_results, list)
+                                    else []
+                                )
+                            )
+                            or not isinstance(recovery_overrides, list)
+                            or any(
+                                not _valid_override_row(raw)
+                                for raw in (
+                                    recovery_overrides
+                                    if isinstance(recovery_overrides, list)
+                                    else []
+                                )
+                            )
+                            or not _valid_status_departure_ledger(
+                                recovery_departures,
+                                project_id=str(project_id),
+                                task_id=str(issue.identifier),
+                            )
+                        ):
+                            self._error(
+                                "pre_recovery_finalization_metadata_malformed:"
+                                f"{project_id}:{issue.identifier}"
+                            )
+                            self._recovery_scan_complete = False
+                            self._recovery_scan_error_count += 1
+                            continue
                         if reconcile_lifecycle:
                             self._reconcile_incompatible_shared_epic_merged(
                                 store, tracker, issue, str(project_id)
@@ -1033,6 +1719,20 @@ class TerminalAuditEnforcement:
                             store, tracker, issue, str(project_id)
                         )
                         self._recover_terminal_result(store, tracker, issue, str(project_id))
+                        try:
+                            self._recover_status_departures(
+                                tracker,
+                                issue,
+                                str(project_id),
+                            )
+                        except Exception as exc:
+                            self._error(
+                                "status_departure_recovery_failed:"
+                                f"{project_id}:{issue.identifier}",
+                                exc,
+                            )
+                            self._recovery_scan_complete = False
+                            self._recovery_scan_error_count += 1
             finally:
                 _recovery_snapshot.reset(token)
             # Status-intent recovery above can move a task into or out of In
@@ -1063,12 +1763,65 @@ class TerminalAuditEnforcement:
                     continue
                 try:
                     unstaged_document = store.read(str(unstaged_issue.identifier))
-                except Exception:
+                except Exception as exc:
+                    self._error(
+                        "inactive_status_metadata_read_failed:"
+                        f"{project_id}:{unstaged_issue.identifier}",
+                        exc,
+                    )
+                    self._recovery_scan_complete = False
+                    self._recovery_scan_error_count += 1
                     continue
                 raw_unstaged_intents = unstaged_document.unknown_fields.get(
                     TERMINAL_RESULT_INTENTS_KEY, []
                 )
-                if not isinstance(raw_unstaged_intents, list):
+                raw_unstaged_overrides = unstaged_document.unknown_fields.get(
+                    TERMINAL_OVERRIDE_RECORDS_KEY, []
+                )
+                raw_unstaged_departures = unstaged_document.unknown_fields.get(
+                    TERMINAL_STATUS_DEPARTURES_KEY, []
+                )
+                if not isinstance(raw_unstaged_intents, list) or any(
+                    not _valid_result_intent_row(raw)
+                    for raw in (
+                        raw_unstaged_intents
+                        if isinstance(raw_unstaged_intents, list)
+                        else []
+                    )
+                ):
+                    self._error(
+                        "inactive_status_result_intents_malformed:"
+                        f"{project_id}:{unstaged_issue.identifier}"
+                    )
+                    self._recovery_scan_complete = False
+                    self._recovery_scan_error_count += 1
+                    continue
+                if not _valid_status_departure_ledger(
+                    raw_unstaged_departures,
+                    project_id=str(project_id),
+                    task_id=str(unstaged_issue.identifier),
+                ):
+                    self._error(
+                        "inactive_status_departure_records_malformed:"
+                        f"{project_id}:{unstaged_issue.identifier}"
+                    )
+                    self._recovery_scan_complete = False
+                    self._recovery_scan_error_count += 1
+                    continue
+                if not isinstance(raw_unstaged_overrides, list) or any(
+                    not _valid_override_row(raw)
+                    for raw in (
+                        raw_unstaged_overrides
+                        if isinstance(raw_unstaged_overrides, list)
+                        else []
+                    )
+                ):
+                    self._error(
+                        "inactive_status_override_records_malformed:"
+                        f"{project_id}:{unstaged_issue.identifier}"
+                    )
+                    self._recovery_scan_complete = False
+                    self._recovery_scan_error_count += 1
                     continue
                 failures = sum(
                     1
@@ -1083,6 +1836,38 @@ class TerminalAuditEnforcement:
                     self.finalization_failure_counts[str(project_id)] = (
                         self.finalization_failure_counts.get(str(project_id), 0)
                         + failures
+                    )
+                    continue
+                if not any(
+                    record.request_state in PENDING_REQUEST_STATES
+                    for record in unstaged_document.pending_chain
+                    if record.project_id == str(project_id)
+                    and record.task_id == str(unstaged_issue.identifier)
+                ):
+                    continue
+                try:
+                    retired = self._retire_status_incompatible_audits(
+                        store,
+                        tracker,
+                        unstaged_issue,
+                        str(project_id),
+                    )
+                except Exception as exc:
+                    self._error(
+                        "inactive_status_audit_retirement_failed:"
+                        f"{project_id}:{unstaged_issue.identifier}",
+                        exc,
+                    )
+                    self._recovery_scan_complete = False
+                    self._recovery_scan_error_count += 1
+                    continue
+                if retired:
+                    logger.info(
+                        "Retired %d terminal-audit record(s) for %s/%s after "
+                        "the task left In Validation",
+                        retired,
+                        project_id,
+                        unstaged_issue.identifier,
                     )
             for issue in issues:
                 current_fingerprint = self._authoritative_recovery_fingerprint(
@@ -1102,23 +1887,50 @@ class TerminalAuditEnforcement:
                     self._recovery_scan_complete = False
                     self._recovery_scan_error_count += 1
                     continue
+                raw_departures = document.unknown_fields.get(
+                    TERMINAL_STATUS_DEPARTURES_KEY,
+                    [],
+                )
+                if not _valid_status_departure_ledger(
+                    raw_departures,
+                    project_id=str(project_id),
+                    task_id=str(issue.identifier),
+                ):
+                    self._error(
+                        "validation_status_departure_records_malformed:"
+                        f"{project_id}:{issue.identifier}"
+                    )
+                    self._recovery_scan_complete = False
+                    self._recovery_scan_error_count += 1
+                    continue
                 raw_intents = document.unknown_fields.get(
                     TERMINAL_RESULT_INTENTS_KEY, []
                 )
-                if isinstance(raw_intents, list):
-                    failures = sum(
-                        1
-                        for raw_intent in raw_intents
-                        if isinstance(raw_intent, Mapping)
-                        and raw_intent.get("applied", True) is False
-                        and raw_intent.get("project_id") == str(project_id)
-                        and raw_intent.get("task_id") == str(issue.identifier)
+                if not isinstance(raw_intents, list) or any(
+                    not _valid_result_intent_row(raw)
+                    for raw in raw_intents
+                    if isinstance(raw_intents, list)
+                ):
+                    self._error(
+                        "validation_status_result_intents_malformed:"
+                        f"{project_id}:{issue.identifier}"
                     )
-                    if failures:
-                        self.finalization_failure_counts[str(project_id)] = (
-                            self.finalization_failure_counts.get(str(project_id), 0)
-                            + failures
-                        )
+                    self._recovery_scan_complete = False
+                    self._recovery_scan_error_count += 1
+                    continue
+                failures = sum(
+                    1
+                    for raw_intent in raw_intents
+                    if isinstance(raw_intent, Mapping)
+                    and raw_intent.get("applied", True) is False
+                    and raw_intent.get("project_id") == str(project_id)
+                    and raw_intent.get("task_id") == str(issue.identifier)
+                )
+                if failures:
+                    self.finalization_failure_counts[str(project_id)] = (
+                        self.finalization_failure_counts.get(str(project_id), 0)
+                        + failures
+                    )
                 if document.is_quarantined:
                     self._error(f"metadata_quarantined:{project_id}:{issue.identifier}")
                     self._recovery_scan_complete = False
@@ -1132,6 +1944,18 @@ class TerminalAuditEnforcement:
                 raw_overrides = document.unknown_fields.get(
                     TERMINAL_OVERRIDE_RECORDS_KEY, []
                 )
+                if not isinstance(raw_overrides, list) or any(
+                    not _valid_override_row(raw)
+                    for raw in raw_overrides
+                    if isinstance(raw_overrides, list)
+                ):
+                    self._error(
+                        "validation_status_override_records_malformed:"
+                        f"{project_id}:{issue.identifier}"
+                    )
+                    self._recovery_scan_complete = False
+                    self._recovery_scan_error_count += 1
+                    continue
                 if any(
                     isinstance(raw, Mapping)
                     and raw.get("applied", True) is False
@@ -1165,6 +1989,111 @@ class TerminalAuditEnforcement:
         if persist:
             self._persist(self._load_root_state())
         return list(self.pending_audits)
+
+    def _retire_status_incompatible_audits(
+        self,
+        store: TerminalAuditMetadataStore,
+        tracker: TrackerProtocol,
+        issue: Issue,
+        project_id: str,
+    ) -> int:
+        """Cancel exact live records after their task leaves validation.
+
+        Result and owner-override intents are recovered before this method is
+        called.  Any still-unapplied intent retains authority and must remain
+        actionable rather than being mistaken for an external status
+        override.  The status refresh and metadata CAS share the project lock
+        so a concurrent, legitimate re-entry into ``In Validation`` wins
+        cleanly and keeps its audit generation live.
+        """
+
+        identifier = str(issue.identifier)
+        retired = 0
+        with self.project_store.project_write_lock(project_id):
+            invalidate = getattr(tracker, "invalidate_read_cache", None)
+            if callable(invalidate):
+                invalidate()
+            fetch_detail = getattr(tracker, "fetch_issue_detail", None)
+            current_issue = (
+                fetch_detail(identifier) if callable(fetch_detail) else issue
+            )
+            if current_issue is None:
+                return 0
+            current_state = str(getattr(current_issue, "state", "") or "")
+            if status_key(current_state) == status_key(IN_VALIDATION):
+                return 0
+
+            now = datetime.now(timezone.utc).isoformat()
+
+            def _cancel(document: TerminalAuditMetadata) -> TerminalAuditMetadata:
+                nonlocal retired
+                raw_result_intents = document.unknown_fields.get(
+                    TERMINAL_RESULT_INTENTS_KEY,
+                    [],
+                )
+                raw_overrides = document.unknown_fields.get(
+                    TERMINAL_OVERRIDE_RECORDS_KEY,
+                    [],
+                )
+                if (
+                    not isinstance(raw_result_intents, list)
+                    or any(
+                        not _valid_result_intent_row(raw)
+                        for raw in raw_result_intents
+                        if isinstance(raw_result_intents, list)
+                    )
+                    or not isinstance(raw_overrides, list)
+                    or any(
+                        not _valid_override_row(raw)
+                        for raw in raw_overrides
+                        if isinstance(raw_overrides, list)
+                    )
+                ):
+                    raise RuntimeError(
+                        "terminal-audit finalization metadata is malformed"
+                    )
+                if any(
+                    isinstance(raw, Mapping)
+                    and raw.get("applied", True) is False
+                    and raw.get("project_id") == project_id
+                    and raw.get("task_id") == identifier
+                    for raw in (
+                        raw_result_intents
+                        if isinstance(raw_result_intents, list)
+                        else []
+                    )
+                ) or any(
+                    isinstance(raw, Mapping)
+                    and raw.get("applied", True) is False
+                    and raw.get("project_id") == project_id
+                    and raw.get("task_id") == identifier
+                    for raw in (
+                        raw_overrides if isinstance(raw_overrides, list) else []
+                    )
+                ):
+                    return document
+
+                chain: list[TerminalAuditRecord] = []
+                for record in document.pending_chain:
+                    if (
+                        record.project_id == project_id
+                        and record.task_id == identifier
+                        and record.request_state in PENDING_REQUEST_STATES
+                    ):
+                        chain.append(
+                            replace(
+                                record,
+                                request_state=RequestState.CANCELLED,
+                                updated_at=now,
+                            )
+                        )
+                        retired += 1
+                    else:
+                        chain.append(record)
+                return replace(document, pending_chain=chain)
+
+            store.update(identifier, _cancel)
+        return retired
 
     def lifecycle_reconciliation_status(self) -> dict[str, Any]:
         """Return a redacted, non-blocking view of lifecycle migration progress.

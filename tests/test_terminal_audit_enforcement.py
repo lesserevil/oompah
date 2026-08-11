@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from oompah.auditor_dispatch import AuditorDispatchLane
 from oompah.integration import IntegrationRecord
 from oompah.models import Issue
 from oompah.config import ServiceConfig
@@ -45,6 +46,7 @@ from oompah.terminal_audit_enforcement import (
     SERVICE_STATE_KEY,
     TERMINAL_OVERRIDE_RECORDS_KEY,
     TERMINAL_RESULT_INTENTS_KEY,
+    TERMINAL_STATUS_DEPARTURES_KEY,
     TerminalAuditEnforcement,
     TerminalAuditEnforcementState,
     _authority_key,
@@ -174,7 +176,10 @@ class _OverrideRaceTracker(_Tracker):
 
     def get_metadata(self, identifier: str):
         self.read_count += 1
-        if self.read_count == 2:
+        # Recovery now performs one fail-closed ledger validation read before
+        # selecting an override. Inject on the subsequent metadata-CAS read,
+        # preserving the intended concurrent-finalizer race boundary.
+        if self.read_count == 3:
             current = TerminalAuditMetadata.from_dict(
                 self.metadata[identifier][METADATA_KEY]
             )
@@ -401,7 +406,7 @@ def test_recovery_replaces_mixed_persisted_rows_with_live_metadata_per_project(t
     """Only current In Validation metadata is retained as a launchable queue."""
 
     live = _pending_record("project-a", "TASK-1", "audit-live")
-    stale_status = _pending_record("project-a", "TASK-2", "audit-archived")
+    stale_status = _pending_record("project-a", "TASK-2", "audit-repair-state")
     stale_revision = _pending_record("project-a", "TASK-3", "audit-revision")
     stale_evidence = _pending_record("project-a", "TASK-4", "audit-evidence")
     stale_missing = _pending_record("project-b", "TASK-1", "audit-missing")
@@ -409,7 +414,7 @@ def test_recovery_replaces_mixed_persisted_rows_with_live_metadata_per_project(t
     tracker_a = _Tracker(
         [
             _issue("TASK-1", "In Validation", "evidence-a"),
-            _issue("TASK-2", "Archived", "evidence-a"),
+            _issue("TASK-2", "Needs CI Fix", "evidence-a"),
             _issue("TASK-3", "In Validation", "evidence-a"),
             _issue("TASK-4", "In Validation", "evidence-a"),
         ]
@@ -418,6 +423,9 @@ def test_recovery_replaces_mixed_persisted_rows_with_live_metadata_per_project(t
     tracker_b = _Tracker([])
     tracker_a.metadata["TASK-1"] = {
         METADATA_KEY: TerminalAuditMetadata(pending_chain=[live]).to_dict()
+    }
+    tracker_a.metadata["TASK-2"] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[stale_status]).to_dict()
     }
     tracker_a.metadata["TASK-3"] = {
         METADATA_KEY: TerminalAuditMetadata(
@@ -454,12 +462,678 @@ def test_recovery_replaces_mixed_persisted_rows_with_live_metadata_per_project(t
     assert [entry["audit_id"] for entry in persisted[SERVICE_STATE_KEY]["pending_audits"]] == [
         "audit-live"
     ]
+    retired_status = TerminalAuditMetadata.from_dict(
+        tracker_a.metadata["TASK-2"][METADATA_KEY]
+    ).pending_chain[0]
+    assert retired_status.request_state is RequestState.CANCELLED
+
+    writes_after_retirement = tracker_a.set_calls
+    enforcer.recover_pending_audits(
+        [("project-a", tracker_a), ("project-b", tracker_b)]
+    )
+    assert tracker_a.set_calls == writes_after_retirement
 
     repeated = _enforcer(tmp_path).initialize(
         [("project-a", tracker_a), ("project-b", tracker_b)]
     )
     assert repeated["pending_audits"] == 1
     assert repeated["scan_complete"] is True
+
+
+@pytest.mark.parametrize("repair_status", ["Needs CI Fix", "Open", "Needs Human"])
+def test_recovery_cancels_all_live_audits_after_task_enters_repair_state(
+    tmp_path,
+    repair_status,
+):
+    issue = _issue("TASK-1", repair_status, "evidence-a")
+    first = _pending_record(
+        "project-a",
+        issue.identifier,
+        "audit-running",
+        request_state=RequestState.IN_PROGRESS,
+    )
+    sibling = _pending_record(
+        "project-a",
+        issue.identifier,
+        "audit-pending",
+    )
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[first, sibling]
+        ).to_dict()
+    }
+    enforcer = _enforcer(tmp_path)
+
+    assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
+
+    document = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    assert [record.request_state for record in document.pending_chain] == [
+        RequestState.CANCELLED,
+        RequestState.CANCELLED,
+    ]
+    assert issue.state == repair_status
+    assert tracker.status_updates == []
+
+    writes_after_retirement = tracker.set_calls
+    assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
+    assert tracker.set_calls == writes_after_retirement
+
+
+def test_repair_status_retirement_isolated_from_same_task_id_in_other_project(
+    tmp_path,
+):
+    repair = _pending_record("project-a", "TASK-1", "audit-repair")
+    live = _pending_record("project-b", "TASK-1", "audit-live")
+    tracker_a = _Tracker([_issue("TASK-1", "Needs CI Fix", "evidence-a")])
+    tracker_b = _Tracker([_issue("TASK-1", "In Validation", "evidence-b")])
+    tracker_a.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[repair]).to_dict()
+    }
+    tracker_b.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[live]).to_dict()
+    }
+    enforcer = _enforcer(tmp_path)
+
+    recovered = enforcer.recover_pending_audits(
+        [("project-a", tracker_a), ("project-b", tracker_b)]
+    )
+
+    assert [(entry.project_id, entry.audit_id) for entry in recovered] == [
+        ("project-b", "audit-live")
+    ]
+    assert TerminalAuditMetadata.from_dict(
+        tracker_a.metadata["TASK-1"][METADATA_KEY]
+    ).pending_chain[0].request_state is RequestState.CANCELLED
+    assert TerminalAuditMetadata.from_dict(
+        tracker_b.metadata["TASK-1"][METADATA_KEY]
+    ).pending_chain[0].request_state is RequestState.PENDING
+
+
+def test_status_departure_cancels_old_generation_before_repair_transition(tmp_path):
+    issue = _issue("TASK-1", "In Validation", "evidence-a", "project-a")
+    record = _pending_record("project-a", issue.identifier, "audit-old")
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
+    }
+    enforcer = _enforcer(tmp_path)
+
+    departure_id = enforcer.prepare_status_departure(
+        tracker,
+        issue,
+        "project-a",
+        "Needs CI Fix",
+    )
+
+    assert departure_id
+    prepared = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    assert prepared.pending_chain[0].request_state is RequestState.CANCELLED
+    marker = prepared.unknown_fields[TERMINAL_STATUS_DEPARTURES_KEY][0]
+    assert marker["departure_id"] == departure_id
+    assert marker["applied"] is False
+
+    tracker.update_issue(issue.identifier, status="Needs CI Fix")
+    assert enforcer.resolve_status_departure(
+        tracker,
+        issue,
+        "project-a",
+        departure_id,
+    )
+    resolved = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    assert resolved.unknown_fields[TERMINAL_STATUS_DEPARTURES_KEY][0][
+        "outcome"
+    ] == "retired"
+    assert AuditorDispatchLane.pending_record(
+        resolved.pending_chain,
+        project_id="project-a",
+        task_id=issue.identifier,
+    ) is None
+
+    # Even a bare tracker flip cannot revive the cancelled generation.
+    tracker.update_issue(issue.identifier, status="In Validation")
+    assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
+
+
+def test_status_departure_aba_rearms_only_a_fresh_generation(tmp_path):
+    issue = _issue("TASK-1", "In Validation", "evidence-a", "project-a")
+    record = _pending_record("project-a", issue.identifier, "audit-old")
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
+    }
+    enforcer = _enforcer(tmp_path)
+    departure_id = enforcer.prepare_status_departure(
+        tracker,
+        issue,
+        "project-a",
+        "Needs Human",
+    )
+    assert departure_id
+
+    # Model an out-and-back status race before the departure owner resolves.
+    tracker.update_issue(issue.identifier, status="Needs Human")
+    tracker.update_issue(issue.identifier, status="In Validation")
+    recovered = enforcer.recover_pending_audits([("project-a", tracker)])
+
+    document = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    old = next(value for value in document.pending_chain if value.audit_id == "audit-old")
+    active = AuditorDispatchLane.pending_record(
+        document.pending_chain,
+        project_id="project-a",
+        task_id=issue.identifier,
+    )
+    assert old.request_state is RequestState.CANCELLED
+    assert active is not None
+    assert active.audit_id != old.audit_id
+    assert active.source_generation > old.source_generation
+    assert active.attempts == []
+    assert [entry.audit_id for entry in recovered] == [active.audit_id]
+    assert document.unknown_fields[TERMINAL_STATUS_DEPARTURES_KEY][0][
+        "outcome"
+    ] == "rearmed"
+
+
+def test_status_departure_aba_does_not_rearm_obsolete_evidence(tmp_path):
+    issue = _issue("TASK-1", "In Validation", "evidence-a", "project-a")
+    record = _pending_record("project-a", issue.identifier, "audit-old")
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
+    }
+    enforcer = _enforcer(tmp_path)
+    departure_id = enforcer.prepare_status_departure(
+        tracker,
+        issue,
+        "project-a",
+        "Needs Human",
+    )
+    assert departure_id
+
+    tracker.update_issue(issue.identifier, status="Needs Human")
+    issue.description = "revised requirements"
+    tracker.update_issue(issue.identifier, status="In Validation")
+
+    assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
+    document = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    assert len(document.pending_chain) == 1
+    assert document.pending_chain[0].audit_id == record.audit_id
+    assert document.pending_chain[0].request_state is RequestState.CANCELLED
+    assert AuditorDispatchLane.pending_record(
+        document.pending_chain,
+        project_id="project-a",
+        task_id=issue.identifier,
+    ) is None
+    assert document.unknown_fields[TERMINAL_STATUS_DEPARTURES_KEY][0][
+        "outcome"
+    ] == "superseded"
+
+
+def test_status_departure_aba_waits_for_authoritative_evidence(tmp_path):
+    issue = _issue("TASK-1", "In Validation", "evidence-a", "project-a")
+    issue.work_branch = "TASK-1"
+    record = _pending_record("project-a", issue.identifier, "audit-old")
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
+    }
+    enforcer = _enforcer(tmp_path)
+    departure_id = enforcer.prepare_status_departure(
+        tracker,
+        issue,
+        "project-a",
+        "Needs Human",
+    )
+    assert departure_id
+
+    tracker.update_issue(issue.identifier, status="Needs Human")
+    tracker.update_issue(issue.identifier, status="In Validation")
+    first = enforcer.initialize([("project-a", tracker)])
+
+    assert first["scan_complete"] is False
+    document = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    marker = document.unknown_fields[TERMINAL_STATUS_DEPARTURES_KEY][0]
+    assert marker["applied"] is False
+    assert document.pending_chain[0].request_state is RequestState.CANCELLED
+
+    # Once the tracker exposes immutable equality, the same durable marker
+    # can safely rearm a fresh UUID/generation.
+    issue.evidence_fingerprint = record.evidence_fingerprint.to_dict()
+    recovered = enforcer.recover_pending_audits([("project-a", tracker)])
+    document = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    active = AuditorDispatchLane.pending_record(
+        document.pending_chain,
+        project_id="project-a",
+        task_id=issue.identifier,
+    )
+    assert active is not None
+    assert active.audit_id != record.audit_id
+    assert [entry.audit_id for entry in recovered] == [active.audit_id]
+
+
+def test_stale_status_departure_snapshot_cannot_cancel_current_audit(tmp_path):
+    issue = _issue("TASK-1", "In Validation", "evidence-a", "project-a")
+    stale = deepcopy(issue)
+    record = _pending_record("project-a", issue.identifier, "audit-current")
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
+    }
+    issue.title = "newer requirements authority"
+    enforcer = _enforcer(tmp_path)
+
+    assert enforcer.prepare_status_departure(
+        tracker,
+        stale,
+        "project-a",
+        "Needs Human",
+    ) is None
+    document = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    assert document.pending_chain[0].request_state is RequestState.PENDING
+    assert TERMINAL_STATUS_DEPARTURES_KEY not in document.unknown_fields
+
+
+def test_status_departure_resolution_preserves_newer_exact_audit(tmp_path):
+    issue = _issue("TASK-1", "In Validation", "evidence-a", "project-a")
+    old = _pending_record("project-a", issue.identifier, "audit-old")
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[old]).to_dict()
+    }
+    enforcer = _enforcer(tmp_path)
+    departure_id = enforcer.prepare_status_departure(
+        tracker,
+        issue,
+        "project-a",
+        "Needs Human",
+    )
+    assert departure_id
+    fresh = replace(
+        old,
+        audit_id="audit-concurrent-fresh",
+        request_state=RequestState.PENDING,
+        source_generation=old.source_generation + 10,
+    )
+    TerminalAuditMetadataStore(tracker, _LockStore(), "project-a").update(
+        issue.identifier,
+        lambda document: replace(
+            document,
+            pending_chain=[*document.pending_chain, fresh],
+        ),
+    )
+
+    assert enforcer.resolve_status_departure(
+        tracker,
+        issue,
+        "project-a",
+        departure_id,
+    )
+    document = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    active = [
+        record
+        for record in document.pending_chain
+        if record.request_state in {RequestState.PENDING, RequestState.IN_PROGRESS}
+    ]
+    assert active == [fresh]
+    assert document.unknown_fields[TERMINAL_STATUS_DEPARTURES_KEY][0][
+        "outcome"
+    ] == "superseded"
+
+
+def test_malformed_repair_status_result_intents_fail_recovery_closed(tmp_path):
+    issue = _issue("TASK-1", "Needs Human", "evidence-a", "project-a")
+    record = _pending_record("project-a", issue.identifier, "audit-old")
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={TERMINAL_RESULT_INTENTS_KEY: {}},
+        ).to_dict()
+    }
+
+    result = _enforcer(tmp_path).initialize([("project-a", tracker)])
+
+    assert result["scan_complete"] is False
+    assert any(
+        "inactive_status_result_intents_malformed" in error
+        for error in result["errors"]
+    )
+    assert TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    ).pending_chain[0].request_state is RequestState.PENDING
+
+
+@pytest.mark.parametrize(
+    ("metadata_key", "error_key"),
+    [
+        (
+            TERMINAL_RESULT_INTENTS_KEY,
+            "validation_status_result_intents_malformed",
+        ),
+        (
+            TERMINAL_OVERRIDE_RECORDS_KEY,
+            "validation_status_override_records_malformed",
+        ),
+    ],
+)
+def test_malformed_validation_finalization_metadata_fails_recovery_closed(
+    tmp_path,
+    metadata_key,
+    error_key,
+):
+    issue = _issue("TASK-1", "In Validation", "evidence-a", "project-a")
+    record = _pending_record("project-a", issue.identifier, "audit-old")
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={metadata_key: {}},
+        ).to_dict()
+    }
+
+    result = _enforcer(tmp_path).initialize([("project-a", tracker)])
+
+    assert result["scan_complete"] is False
+    assert result["pending_audits"] == 0
+    assert any(error_key in error for error in result["errors"])
+
+
+@pytest.mark.parametrize(
+    ("metadata_key", "error_key"),
+    [
+        (
+            TERMINAL_RESULT_INTENTS_KEY,
+            "validation_status_result_intents_malformed",
+        ),
+        (
+            TERMINAL_OVERRIDE_RECORDS_KEY,
+            "validation_status_override_records_malformed",
+        ),
+    ],
+)
+@pytest.mark.parametrize("malformed_row", [42, {}], ids=("non-mapping", "identity"))
+def test_malformed_validation_finalization_rows_fail_recovery_closed(
+    tmp_path,
+    metadata_key,
+    error_key,
+    malformed_row,
+):
+    issue = _issue("TASK-1", "In Validation", "evidence-a", "project-a")
+    record = _pending_record("project-a", issue.identifier, "audit-old")
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={metadata_key: [malformed_row]},
+        ).to_dict()
+    }
+
+    result = _enforcer(tmp_path).initialize([("project-a", tracker)])
+
+    assert result["scan_complete"] is False
+    assert result["pending_audits"] == 0
+    assert any(error_key in error for error in result["errors"])
+
+
+@pytest.mark.parametrize("ledger_kind", ["result", "override"])
+def test_malformed_row_cannot_be_erased_by_valid_finalization_recovery(
+    tmp_path,
+    ledger_kind,
+):
+    issue = _issue("TASK-1", "In Validation", "evidence-a", "project-a")
+    record = _pending_record("project-a", issue.identifier, "audit-old")
+    if ledger_kind == "result":
+        metadata_key = TERMINAL_RESULT_INTENTS_KEY
+        valid_row = {
+            "project_id": "project-a",
+            "task_id": issue.identifier,
+            "audit_id": record.audit_id,
+            "attempt_id": "attempt-pass",
+            "target_state": record.target_state.value,
+            "evidence_fingerprint": record.evidence_fingerprint.digest,
+            "status": "Done",
+            "audit_ids": [record.audit_id],
+            "applied": False,
+        }
+    else:
+        metadata_key = TERMINAL_OVERRIDE_RECORDS_KEY
+        valid_row = {
+            "version": 1,
+            "override_id": "override-valid",
+            "project_id": "project-a",
+            "task_id": issue.identifier,
+            "target_state": record.target_state.value,
+            "evidence_fingerprint": record.evidence_fingerprint.to_dict(),
+            "authorized_by": {"version": 1, "identity": "owner"},
+            "reason": "valid neighboring owner intent",
+            "applied": False,
+        }
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={metadata_key: [42, valid_row]},
+        ).to_dict()
+    }
+
+    result = _enforcer(tmp_path).initialize([("project-a", tracker)])
+
+    assert result["scan_complete"] is False
+    assert result["pending_audits"] == 0
+    assert issue.state == "In Validation"
+    stored = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    assert stored.unknown_fields[metadata_key] == [42, valid_row]
+
+
+@pytest.mark.parametrize("malformed_departure", [42, {}], ids=("row", "identity"))
+def test_malformed_status_departure_row_fails_recovery_closed(
+    tmp_path,
+    malformed_departure,
+):
+    issue = _issue("TASK-1", "In Validation", "evidence-a", "project-a")
+    record = _pending_record("project-a", issue.identifier, "audit-old")
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={
+                TERMINAL_STATUS_DEPARTURES_KEY: [malformed_departure]
+            },
+        ).to_dict()
+    }
+
+    result = _enforcer(tmp_path).initialize([("project-a", tracker)])
+
+    assert result["scan_complete"] is False
+    assert result["pending_audits"] == 0
+    assert TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    ).pending_chain[0].request_state is RequestState.PENDING
+
+
+def test_empty_status_departure_rearm_set_fails_recovery_closed(tmp_path):
+    issue = _issue("TASK-1", "In Validation", "evidence-a", "project-a")
+    record = _pending_record(
+        "project-a",
+        issue.identifier,
+        "audit-old",
+        request_state=RequestState.CANCELLED,
+    )
+    marker = {
+        "version": 1,
+        "departure_id": "audit-departure-empty",
+        "project_id": "project-a",
+        "task_id": issue.identifier,
+        "from_status": "In Validation",
+        "requested_status": "Needs Human",
+        "prepared_at": "2026-08-11T00:00:00+00:00",
+        "applied": False,
+        "rearms": [],
+    }
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={TERMINAL_STATUS_DEPARTURES_KEY: [marker]},
+        ).to_dict()
+    }
+
+    result = _enforcer(tmp_path).initialize([("project-a", tracker)])
+
+    assert result["scan_complete"] is False
+    assert result["pending_audits"] == 0
+    stored = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    assert stored.unknown_fields[TERMINAL_STATUS_DEPARTURES_KEY][0][
+        "applied"
+    ] is False
+
+
+def test_status_departure_cannot_rearm_cancelled_source_under_same_id(tmp_path):
+    issue = _issue("TASK-1", "In Validation", "evidence-a", "project-a")
+    record = _pending_record(
+        "project-a",
+        issue.identifier,
+        "audit-old",
+        request_state=RequestState.CANCELLED,
+    )
+    marker = {
+        "version": 1,
+        "departure_id": "audit-departure-same-id",
+        "project_id": "project-a",
+        "task_id": issue.identifier,
+        "from_status": "In Validation",
+        "requested_status": "Needs Human",
+        "prepared_at": "2026-08-11T00:00:00+00:00",
+        "applied": False,
+        "rearms": [
+            {
+                "audit_id": record.audit_id,
+                "rearm_audit_id": record.audit_id,
+                "source_generation": record.source_generation + 1,
+            }
+        ],
+    }
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={TERMINAL_STATUS_DEPARTURES_KEY: [marker]},
+        ).to_dict()
+    }
+
+    result = _enforcer(tmp_path).initialize([("project-a", tracker)])
+
+    assert result["scan_complete"] is False
+    assert result["pending_audits"] == 0
+    stored = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    assert stored.unknown_fields[TERMINAL_STATUS_DEPARTURES_KEY][0][
+        "applied"
+    ] is False
+    assert stored.pending_chain == [record]
+
+
+def test_duplicate_status_departure_ids_fail_recovery_closed(tmp_path):
+    issue = _issue("TASK-1", "In Validation", "evidence-a", "project-a")
+    done = _pending_record(
+        "project-a",
+        issue.identifier,
+        "audit-done-old",
+        request_state=RequestState.CANCELLED,
+    )
+    merged = replace(
+        done,
+        audit_id="audit-merged-old",
+        target_state=TargetState.MERGED,
+        source_generation=2,
+    )
+
+    def marker(old, new_id, generation):
+        return {
+            "version": 1,
+            "departure_id": "audit-departure-duplicate",
+            "project_id": "project-a",
+            "task_id": issue.identifier,
+            "from_status": "In Validation",
+            "requested_status": "Needs Human",
+            "prepared_at": "2026-08-11T00:00:00+00:00",
+            "applied": False,
+            "rearms": [
+                {
+                    "audit_id": old.audit_id,
+                    "rearm_audit_id": new_id,
+                    "source_generation": generation,
+                }
+            ],
+        }
+
+    markers = [
+        marker(done, "audit-done-new", 3),
+        marker(merged, "audit-merged-new", 4),
+    ]
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[done, merged],
+            unknown_fields={TERMINAL_STATUS_DEPARTURES_KEY: markers},
+        ).to_dict()
+    }
+
+    result = _enforcer(tmp_path).initialize([("project-a", tracker)])
+
+    assert result["scan_complete"] is False
+    assert result["pending_audits"] == 0
+    stored = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    assert [
+        raw["applied"]
+        for raw in stored.unknown_fields[TERMINAL_STATUS_DEPARTURES_KEY]
+    ] == [False, False]
+    assert stored.pending_chain == [done, merged]
+
+
+@pytest.mark.parametrize("terminal_status", ["Done", "Merged", "Archived"])
+def test_terminal_status_retires_live_audit_before_reentry(tmp_path, terminal_status):
+    issue = _issue("TASK-1", terminal_status, "evidence-a", "project-a")
+    record = _pending_record("project-a", issue.identifier, "audit-stale")
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
+    }
+    enforcer = _enforcer(tmp_path, terminal_states=("Done", "Merged", "Archived"))
+
+    assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
+    document = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    assert document.pending_chain[0].request_state is RequestState.CANCELLED
+
+    tracker.update_issue(issue.identifier, status="In Validation")
+    assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
 
 
 def test_corrupt_service_state_fails_closed_and_is_observable(tmp_path, caplog):
@@ -585,7 +1259,7 @@ def test_restart_finishes_override_retirement_after_status_write(tmp_path):
     assert stored.unknown_fields["oompah.terminal_audit_retirements"][0]["applied"] is True
 
 
-def test_legacy_incompatible_shared_merged_child_restores_done_without_canceling_unrelated_audit(
+def test_legacy_incompatible_shared_merged_child_restores_done_and_retires_live_audits(
     tmp_path,
 ):
     """Legacy EXOCOMP-240-shaped state converges to its completed Done audit."""
@@ -661,7 +1335,11 @@ def test_legacy_incompatible_shared_merged_child_restores_done_without_canceling
     assert child.state == "Done"
     assert by_id[done.audit_id].request_state == RequestState.COMPLETED
     assert by_id[merged.audit_id].request_state == RequestState.SUPERSEDED
-    assert by_id[unrelated.audit_id].request_state == RequestState.PENDING
+    # No active audit authority may survive a terminal canonical status. The
+    # unrelated historical Archive request remains in the chain for
+    # provenance, but is no longer launchable until an explicit re-entry
+    # creates a fresh generation.
+    assert by_id[unrelated.audit_id].request_state == RequestState.CANCELLED
     repaired_override = stored.unknown_fields[TERMINAL_OVERRIDE_RECORDS_KEY][0]
     assert repaired_override["lifecycle_reconciled"] is True
     assert repaired_override["reconciled_to"] == "Done"

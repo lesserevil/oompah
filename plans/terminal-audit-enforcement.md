@@ -1,7 +1,7 @@
 # Terminal-Audit Enforcement: Periodic Reconciliation and Bypass Detection
 
-**Status:** Implemented (OOMPAH-483)  
-**Prerequisite:** OOMPAH-465, OOMPAH-466 (Terminal Transition Coordinator staging)  
+**Status:** Implemented (OOMPAH-483)
+**Prerequisite:** OOMPAH-465, OOMPAH-466 (Terminal Transition Coordinator staging)
 **Related:** `plans/terminal-transition-coordinator.md`
 
 ## Overview
@@ -173,10 +173,10 @@ class TerminalAuditEnforcement:
         self, scopes: Iterable[tuple[str, TrackerProtocol]]
     ) -> dict[str, Any]:
         """Initialize or reconcile enforcement baseline and pending audits.
-        
+
         Args:
             scopes: List of (project_id, tracker) tuples.
-        
+
         Returns:
             Dict with keys:
             - first_startup: bool (True if no prior baseline)
@@ -187,17 +187,21 @@ class TerminalAuditEnforcement:
             - errors: list[str] (error codes encountered)
         """
         pass
-    
+
     def recover_pending_audits(
         self, scopes: Iterable[tuple[str, TrackerProtocol]], *, persist: bool = True
     ) -> list[PendingAudit]:
-        """Recover pending audits from In Validation metadata.
-        
-        Read-only operation; does not modify In Validation tasks.
-        Copies attempt IDs from prior run to avoid duplication on restart.
+        """Recover terminal-audit authority from durable task metadata.
+
+        Replays incomplete result, override, and validation-departure
+        transactions before projecting pending audits. Recovery may retire
+        status-incompatible records or append a fresh generation when a task
+        returns to In Validation with the same immutable evidence. Exact live
+        authority resumes with its existing IDs; cancelled or departed
+        generations and attempt IDs are never revived or reassigned.
         """
         pass
-    
+
     def is_grandfathered(
         self,
         project_id: str,
@@ -206,7 +210,7 @@ class TerminalAuditEnforcement:
     ) -> bool:
         """Check if a task still matches its grandfathered baseline."""
         pass
-    
+
     def mark_audit_passed(
         self,
         project_id: str,
@@ -214,7 +218,7 @@ class TerminalAuditEnforcement:
         fingerprint: EvidenceFingerprint | str | Mapping[str, Any],
     ) -> None:
         """Promote a freshly audited task into the grandfathered baseline.
-        
+
         Called by the auditor after a passing audit; reestablishes the baseline
         for this task so later runs don't re-audit the same evidence.
         """
@@ -293,22 +297,22 @@ from oompah.terminal_audit_enforcement import TerminalAuditEnforcement
 
 def _run_terminal_audit_enforcement(self) -> None:
     """Initialize terminal-audit enforcement baseline on startup."""
-    
+
     enforcer = TerminalAuditEnforcement(
         state_path=self.state_path,
         terminal_states=self.configured_terminal_states,
         project_store=self.project_store,
     )
-    
+
     scopes = self._terminal_audit_scopes()  # List of (project_id, tracker) tuples
     result = enforcer.initialize(scopes)
-    
+
     logger.info("Terminal-audit enforcement initialized: %s", result)
-    
+
     # Recover pending audits and queue them
     pending = enforcer.recover_pending_audits(scopes)
     self._maintenance_status["terminal_audit_enforcement"] = result
-    
+
     # Auditor will consume pending queue
     self._pending_terminal_audits = pending
 ```

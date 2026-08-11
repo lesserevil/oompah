@@ -2065,10 +2065,12 @@ class TestBacklogStatusReconciliation:
             is_auditor=True,
         )
         orch._fetch_running_states = MagicMock(return_value={issue.id: fresh})
+        orch._auditor_runtime_has_current_authority = MagicMock(return_value=True)
         orch._terminate_running = AsyncMock()
 
         asyncio.run(orch._reconcile())
 
+        orch._auditor_runtime_has_current_authority.assert_called_once()
         orch._terminate_running.assert_not_called()
         assert orch.state.running[issue.id].issue is fresh
 
@@ -2101,6 +2103,36 @@ class TestBacklogStatusReconciliation:
         orch = self._make_orchestrator(tmp_path)
         issue = _make_issue("audit-2", state=IN_VALIDATION)
         fresh = _make_issue("audit-2", state="Done")
+        task = MagicMock()
+        task.done.return_value = False
+        orch.state.running[issue.id] = RunningEntry(
+            worker_task=task,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            is_auditor=True,
+        )
+        orch._fetch_running_states = MagicMock(return_value={issue.id: fresh})
+        orch._terminate_running = AsyncMock(return_value=True)
+
+        asyncio.run(orch._reconcile())
+
+        orch._terminate_running.assert_awaited_once_with(
+            issue.id,
+            cleanup_workspace=True,
+        )
+
+    @pytest.mark.parametrize("repair_status", ["Needs CI Fix", "Open", "Needs Human"])
+    def test_reconcile_retires_repair_status_auditor_workspace(
+        self,
+        tmp_path,
+        repair_status,
+    ):
+        orch = self._make_orchestrator(tmp_path)
+        issue = _make_issue("audit-repair", state=IN_VALIDATION)
+        fresh = _make_issue("audit-repair", state=repair_status)
         task = MagicMock()
         task.done.return_value = False
         orch.state.running[issue.id] = RunningEntry(
