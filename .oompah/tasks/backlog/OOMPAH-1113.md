@@ -12,13 +12,36 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T21:07:45.520946Z'
-updated_at: '2026-08-11T21:07:45.520946Z'
+updated_at: '2026-08-11T22:45:46.222186Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-91b4fb102b09
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1113
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4ad45575615ae0758a911fce560f487d1b785b4c6c85a1b95e99761eb9ce407d
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Operator consolidation of a downstream terminal-transition artifact into
+      canonical defect OOMPAH-1127 after recovering and publishing the affected Trickle
+      state history.
+    created_at: '2026-08-11T22:45:44.622542+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
