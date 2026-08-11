@@ -446,7 +446,9 @@ class ProductionReviewWorkflowBackend:
                 _text(integration.head_sha).lower() == old_head
                 or (
                     integration.state == "ready"
-                    and _text(integration.head_sha).lower() == new_head
+                    and _HEAD_RE.fullmatch(
+                        _text(integration.head_sha).lower()
+                    )
                 )
             )
         )

@@ -5,6 +5,8 @@ import os
 import time
 from unittest import mock
 
+import pytest
+
 from oompah.scm import (
     CIStatus,
     CIState,
@@ -3862,6 +3864,9 @@ class TestGitLabListOpenReviews:
             "has_conflicts": False,
             "diverged_commits_count": 0,
             "sha": "a" * 40,
+            "diff_refs": {"base_sha": "b" * 40},
+            "source_project_id": 21,
+            "target_project_id": 21,
             "head_pipeline": None,
             "changes_count": 5,
         }
@@ -3886,6 +3891,33 @@ class TestGitLabListOpenReviews:
         assert r.has_conflicts is False
         assert r.needs_rebase is False
         assert r.head_sha == "a" * 40
+        assert r.base_sha == "b" * 40
+        assert r.source_repository == "group/project"
+        assert r.target_repository == "group/project"
+
+    @pytest.mark.parametrize(
+        "project_ids",
+        [
+            {},
+            {"source_project_id": 21},
+            {"target_project_id": 21},
+            {"source_project_id": 21, "target_project_id": 22},
+        ],
+        ids=["both-missing", "target-missing", "source-missing", "fork"],
+    )
+    def test_source_repository_requires_complete_same_project_identity(
+        self, project_ids
+    ):
+        mr = self._mr(**project_ids)
+        for key in {"source_project_id", "target_project_id"} - project_ids.keys():
+            mr.pop(key)
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+
+        result = p.list_open_reviews("group/project")[0]
+
+        assert result.source_repository == ""
+        assert result.target_repository == "group/project"
 
     def test_returns_empty_on_401(self):
         p = _GL.provider()
@@ -4127,6 +4159,10 @@ class TestGitLabFindPrForBranch:
             "labels": [],
             "draft": False,
             "work_in_progress": False,
+            "sha": "a" * 40,
+            "diff_refs": {"base_sha": "b" * 40},
+            "source_project_id": 21,
+            "target_project_id": 21,
         }
         base.update(overrides)
         return base
@@ -4138,6 +4174,23 @@ class TestGitLabFindPrForBranch:
         assert result is not None
         assert result.id == "7"
         assert result.state == "open"
+        assert result.head_sha == "a" * 40
+        assert result.base_sha == "b" * 40
+        assert result.source_repository == "g/p"
+        assert result.target_repository == "g/p"
+
+    @pytest.mark.parametrize("missing", ["source_project_id", "target_project_id"])
+    def test_missing_project_identity_does_not_infer_source_repository(self, missing):
+        mr = self._mr()
+        mr.pop(missing)
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+
+        result = p.find_pr_for_branch("g/p", "OOMPAH-7")
+
+        assert result is not None
+        assert result.source_repository == ""
+        assert result.target_repository == "g/p"
 
     def test_finds_merged_mr(self):
         p = _GL.provider()
@@ -4210,6 +4263,10 @@ class TestGitLabGetReview:
             "labels": ["bug", "wontfix"],
             "draft": False,
             "work_in_progress": False,
+            "sha": "a" * 40,
+            "diff_refs": {"base_sha": "b" * 40},
+            "source_project_id": 21,
+            "target_project_id": 21,
         }
         base.update(overrides)
         return base
@@ -4224,7 +4281,24 @@ class TestGitLabGetReview:
         assert result.author == "eve"
         assert result.source_branch == "fix/something"
         assert result.labels == ["bug", "wontfix"]
+        assert result.head_sha == "a" * 40
+        assert result.base_sha == "b" * 40
+        assert result.source_repository == "g/p"
+        assert result.target_repository == "g/p"
         assert p.last_review_fetch_ok is True
+
+    @pytest.mark.parametrize("missing", ["source_project_id", "target_project_id"])
+    def test_missing_project_identity_does_not_infer_source_repository(self, missing):
+        mr = self._mr()
+        mr.pop(missing)
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(mr)
+
+        result = p.get_review("g/p", "42")
+
+        assert result is not None
+        assert result.source_repository == ""
+        assert result.target_repository == "g/p"
 
     def test_returns_none_on_404(self):
         p = _GL.provider()

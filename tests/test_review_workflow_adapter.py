@@ -1012,8 +1012,86 @@ async def test_review_advancing_to_c_after_b_write_cannot_transition_b(
         assert binding.tracker.task.integration.head_sha == head_b
         assert provider.reviews[0].head_sha == head_c
         assert provider.merge_calls == 0
+
+        decision_c = binding.review_controller.evaluate(
+            (binding.tracker.task,)
+        ).tasks[0].decision
+        assert decision_c.reason_code == "review.head_changed"
+        assert decision_c.durable_jobs == ("review_head_reconciliation",)
+        store.enqueue(
+            WorkflowJobSpec(
+                project_id="project-1",
+                task_id="TASK-1",
+                generation="head-c-after-b-checkpoint",
+                action="review_head_reconciliation",
+                idempotency_key="head-c-after-b-checkpoint",
+                expected_evidence_revision=decision_c.evidence_revision,
+                max_attempts=3,
+            )
+        )
+
+        result = await worker.run_once()
+
+        assert result.disposition is WorkflowRunDisposition.COMPLETED
+        assert binding.tracker.task.state == READY_TO_INTEGRATE
+        assert binding.tracker.task.review_head == HEAD
+        assert binding.tracker.task.integration.state == "ready"
+        assert binding.tracker.task.integration.head_sha == head_c
+        assert provider.reviews[0].head_sha == head_c
+        assert provider.merge_calls == 0
     finally:
         journal.close()
+        capacity.close()
+        store.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("intermediate_state", "intermediate_head"),
+    [("blocked", "b" * 40), ("ready", "not-an-exact-head")],
+    ids=["non-ready", "malformed-head"],
+)
+async def test_head_reconciliation_rejects_untrusted_intermediate_authority(
+    tmp_path,
+    monkeypatch,
+    intermediate_state,
+    intermediate_head,
+):
+    provider = Provider([review(head="c" * 40, draft=True)])
+    orchestrator, binding, store, capacity = composition(
+        tmp_path, monkeypatch, provider
+    )
+    binding.tracker.task = replace(
+        binding.tracker.task,
+        integration=replace(
+            binding.tracker.task.integration,
+            state=intermediate_state,
+            head_sha=intermediate_head,
+        ),
+    )
+    queued = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation="untrusted-intermediate-head",
+            action="review_head_reconciliation",
+            idempotency_key=(
+                f"untrusted-intermediate-{intermediate_state}-{intermediate_head}"
+            ),
+        )
+    )
+    backend = build_review_workflow_handlers(orchestrator, binding)[
+        "review_head_reconciliation"
+    ].backend
+    context = WorkflowJobContext(queued, asyncio.Event(), asyncio.Event())
+    try:
+        with pytest.raises(WorkflowActionError):
+            await backend.repair(context)
+        assert binding.tracker.task.state == IN_REVIEW
+        assert binding.tracker.task.integration.state == intermediate_state
+        assert binding.tracker.task.integration.head_sha == intermediate_head
+        assert provider.merge_calls == 0
+    finally:
         capacity.close()
         store.close()
 

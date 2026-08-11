@@ -3411,6 +3411,24 @@ class GitLabProvider(SCMProvider):
     def provider_name(self) -> str:
         return "gitlab"
 
+    @staticmethod
+    def _same_project_source_repository(
+        repo: str,
+        review: Mapping[str, Any],
+    ) -> str:
+        """Return ``repo`` only for positive same-project identity evidence."""
+
+        source_project_id = review.get("source_project_id")
+        target_project_id = review.get("target_project_id")
+        if (
+            source_project_id is None
+            or target_project_id is None
+            or not str(source_project_id).strip()
+            or not str(target_project_id).strip()
+        ):
+            return ""
+        return repo if source_project_id == target_project_id else ""
+
     def is_available(self) -> bool:
         try:
             r = self._api("GET", "/user")
@@ -3486,11 +3504,7 @@ class GitLabProvider(SCMProvider):
                     or ""
                 ),
                 base_sha=str((mr.get("diff_refs") or {}).get("base_sha") or ""),
-                source_repository=(
-                    repo
-                    if mr.get("source_project_id") == mr.get("target_project_id")
-                    else ""
-                ),
+                source_repository=self._same_project_source_repository(repo, mr),
                 target_repository=repo,
             ))
         return results
@@ -3693,11 +3707,7 @@ class GitLabProvider(SCMProvider):
                 or ""
             ),
             base_sha=str((mr.get("diff_refs") or {}).get("base_sha") or ""),
-            source_repository=(
-                repo
-                if mr.get("source_project_id") == mr.get("target_project_id")
-                else ""
-            ),
+            source_repository=self._same_project_source_repository(repo, mr),
             target_repository=repo,
         )
 
@@ -3749,11 +3759,7 @@ class GitLabProvider(SCMProvider):
                 or ""
             ),
             base_sha=str((mr.get("diff_refs") or {}).get("base_sha") or ""),
-            source_repository=(
-                repo
-                if mr.get("source_project_id") == mr.get("target_project_id")
-                else ""
-            ),
+            source_repository=self._same_project_source_repository(repo, mr),
             target_repository=repo,
         )
 
