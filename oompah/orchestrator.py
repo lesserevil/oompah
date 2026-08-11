@@ -25317,15 +25317,11 @@ class Orchestrator:
                 request.close()
                 return False, None
             try:
-                return future.result(
-                    timeout=_STANDALONE_TERMINAL_BRIDGE_TIMEOUT_SECONDS
+                return self._await_standalone_terminal_bridge(
+                    future,
+                    task_id=authority.task_id,
+                    operation="contained landing staging",
                 )
-            except TimeoutError:
-                logger.warning(
-                    "Timed out waiting for contained landing staging for %s",
-                    authority.task_id,
-                )
-                return False, None
             except Exception as exc:  # noqa: BLE001 - retryable bridge failure
                 logger.warning(
                     "Contained landing staging bridge failed for %s: %s",
@@ -25334,6 +25330,34 @@ class Orchestrator:
                 )
                 return False, None
         return asyncio.run(request)
+
+    @staticmethod
+    def _await_standalone_terminal_bridge(
+        future: Any,
+        *,
+        task_id: str,
+        operation: str,
+    ) -> tuple[bool, TransitionResult | None]:
+        """Keep the synchronous workflow owner until exact staging settles.
+
+        The timeout is a liveness observation interval, not an authority
+        boundary. Returning while the shielded coroutine is still running lets
+        the workflow worker retry and revoke the very generation the coroutine
+        needs for its final tracker CAS.
+        """
+
+        while True:
+            try:
+                return future.result(
+                    timeout=_STANDALONE_TERMINAL_BRIDGE_TIMEOUT_SECONDS
+                )
+            except TimeoutError:
+                logger.info(
+                    "Still waiting for exact %s for %s; workflow authority remains "
+                    "owned by the admitted continuation",
+                    operation,
+                    task_id,
+                )
 
     async def _request_standalone_merged_with_authority_inner(
         self,
@@ -25520,16 +25544,11 @@ class Orchestrator:
                 request.close()
                 return False, None
             try:
-                return future.result(
-                    timeout=_STANDALONE_TERMINAL_BRIDGE_TIMEOUT_SECONDS
+                return self._await_standalone_terminal_bridge(
+                    future,
+                    task_id=authority.task_id,
+                    operation="standalone terminal staging",
                 )
-            except TimeoutError:
-                logger.warning(
-                    "Timed out waiting for standalone terminal staging for %s; "
-                    "the detached operation retains task ownership until it exits",
-                    authority.task_id,
-                )
-                return False, None
             except Exception as exc:  # loop shutdown/cancellation is retryable
                 logger.warning(
                     "Standalone terminal staging bridge failed for %s: %s",
@@ -36419,6 +36438,39 @@ class Orchestrator:
         def tracker_publication_revision() -> int | None:
             return integer_revision(tracker_revision_source)
 
+        tracker_changes_source = getattr(
+            tracker,
+            "publication_task_changes_since",
+            None,
+        )
+        protected_task_ids = {str(task_id).strip().casefold()}
+
+        def tracker_revision_preserves_task(
+            expected: int,
+            current: int,
+        ) -> bool:
+            """Accept only journal-proven deltas outside the gated task."""
+
+            if current == expected:
+                return True
+            if not callable(tracker_changes_source):
+                return False
+            try:
+                observed_revision, changed_tasks = tracker_changes_source(expected)
+            except Exception:  # noqa: BLE001 - publication must fail closed
+                return False
+            if observed_revision != current or changed_tasks is None:
+                return False
+            normalized = frozenset(
+                str(changed_task or "").strip().casefold()
+                for changed_task in changed_tasks
+                if str(changed_task or "").strip()
+            )
+            return bool(
+                len(normalized) == len(changed_tasks)
+                and normalized.isdisjoint(protected_task_ids)
+            )
+
         authority_snapshot: tuple[Any, ...] | None = None
         workflow_authority_check: Callable[[], bool] | None = None
         if authority is not None:
@@ -36526,6 +36578,11 @@ class Orchestrator:
                     str(project_id), str(task_id)
                 )
                 return False
+            protected_task_ids.update(
+                str(dependency or "").strip().casefold()
+                for dependency in dependency_state.dependencies
+                if str(dependency or "").strip()
+            )
             if expected_head:
                 if not callable(head_resolver):
                     return False
@@ -36582,7 +36639,10 @@ class Orchestrator:
             return reject_stale_producer()
         if (
             tracker_revision_before is not None
-            and tracker_revision_after != tracker_revision_before
+            and not tracker_revision_preserves_task(
+                tracker_revision_before,
+                tracker_revision_after,
+            )
         ):
             return reject_stale_producer()
 
@@ -36601,7 +36661,14 @@ class Orchestrator:
                 )
                 or (
                     tracker_revision_after is not None
-                    and tracker_publication_revision() != tracker_revision_after
+                    and (
+                        (final_tracker_revision := tracker_publication_revision())
+                        is None
+                        or not tracker_revision_preserves_task(
+                            tracker_revision_after,
+                            final_tracker_revision,
+                        )
+                    )
                 )
             ):
                 return reject_stale_producer()

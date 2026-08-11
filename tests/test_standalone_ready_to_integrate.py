@@ -4224,8 +4224,8 @@ def test_stopped_dispatch_loop_bridge_fails_bounded_without_leaking_coroutine(
     assert time.monotonic() - started < 1
 
 
-def test_bridge_timeout_does_not_retain_issue_lock_during_coordinator(harness):
-    """Detached coordinator work never starves a newer issue-boundary owner."""
+def test_bridge_timeout_retains_workflow_owner_without_issue_lock(harness):
+    """A long coordinator keeps its job owner without starving task mutation."""
 
     orch, project, tracker, provider, _detect, _gate = harness
     accepted_head = "1" * 40
@@ -4288,13 +4288,11 @@ def test_bridge_timeout_does_not_retain_issue_lock_during_coordinator(harness):
         asyncio.run(own_task())
 
     submit_worker = threading.Thread(target=submit)
-    try:
-        with mock.patch(
-            "oompah.orchestrator._STANDALONE_TERMINAL_BRIDGE_TIMEOUT_SECONDS",
-            0.05,
-        ):
-            started = time.monotonic()
-            result = orch._request_standalone_merged_with_authority(
+    bridge_results: list[tuple[bool, TransitionResult | None]] = []
+
+    def bridge() -> None:
+        bridge_results.append(
+            orch._request_standalone_merged_with_authority(
                 authority,
                 tracker,
                 provider=provider,
@@ -4305,27 +4303,44 @@ def test_bridge_timeout_does_not_retain_issue_lock_during_coordinator(harness):
                 review_url="https://github.com/org/repo/pull/712",
                 review_head=accepted_head,
             )
-        assert result == (False, None)
-        assert time.monotonic() - started < 1
-        assert coordinator_started.wait(timeout=2)
+        )
 
-        submit_worker.start()
-        assert submit_acquired.wait(timeout=2)
-        submit_worker.join(timeout=2)
-        assert not submit_worker.is_alive()
+    bridge_worker = threading.Thread(target=bridge)
+    try:
+        with mock.patch(
+            "oompah.orchestrator._STANDALONE_TERMINAL_BRIDGE_TIMEOUT_SECONDS",
+            0.05,
+        ):
+            bridge_worker.start()
+            assert coordinator_started.wait(timeout=2)
+            time.sleep(0.1)
+            assert bridge_worker.is_alive()
+            assert bridge_results == []
 
-        release_coordinator.set()
-        assert coordinator_finished.wait(timeout=2)
-        time.sleep(0.05)
+            submit_worker.start()
+            assert submit_acquired.wait(timeout=2)
+            submit_worker.join(timeout=2)
+            assert not submit_worker.is_alive()
+
+            release_coordinator.set()
+            assert coordinator_finished.wait(timeout=2)
+            bridge_worker.join(timeout=2)
     finally:
         release_coordinator.set()
         if submit_worker.is_alive():
             submit_worker.join(timeout=2)
+        if bridge_worker.is_alive():
+            bridge_worker.join(timeout=2)
         dispatch_loop.call_soon_threadsafe(dispatch_loop.stop)
         loop_worker.join(timeout=2)
         orch._dispatch_loop = None
 
     assert not loop_worker.is_alive()
+    assert not bridge_worker.is_alive()
+    assert len(bridge_results) == 1
+    assert bridge_results[0][0] is True
+    assert bridge_results[0][1] is not None
+    assert bridge_results[0][1].success is True
     orch.request_terminal_transition.assert_awaited_once()
 
 

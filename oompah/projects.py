@@ -12,7 +12,7 @@ import subprocess
 import threading
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, replace
 from fnmatch import fnmatchcase
@@ -1828,7 +1828,13 @@ class ProjectStore:
         # publication uses this process-local token to fence server-mediated
         # mutations between external preflight and final project-lock CAS.
         self._tracker_authority_revisions: dict[str, int] = {}
-        self._tracker_authority_active_mutations: dict[str, set[str]] = {}
+        self._tracker_authority_active_mutations: dict[
+            str, dict[str, frozenset[str] | None]
+        ] = {}
+        self._tracker_authority_changes: dict[
+            str, list[tuple[int, frozenset[str] | None]]
+        ] = {}
+        self._tracker_authority_change_floors: dict[str, int] = {}
 
         self._load()
 
@@ -2012,19 +2018,83 @@ class ProjectStore:
                     return None
                 return self._tracker_authority_revisions.get(project_id, 0)
 
-    def admit_tracker_authority_mutation(self, project_id: str) -> str:
+    @staticmethod
+    def _tracker_change_scope(
+        task_ids: Iterable[str] | None,
+    ) -> frozenset[str] | None:
+        if task_ids is None:
+            return None
+        normalized = frozenset(
+            str(task_id or "").strip()
+            for task_id in task_ids
+            if str(task_id or "").strip()
+        )
+        return normalized or None
+
+    def _advance_tracker_authority_locked(
+        self,
+        project_id: str,
+        scope: frozenset[str] | None,
+    ) -> int:
+        revision = self._tracker_authority_revisions.get(project_id, 0) + 1
+        self._tracker_authority_revisions[project_id] = revision
+        changes = self._tracker_authority_changes.setdefault(project_id, [])
+        changes.append((revision, scope))
+        excess = len(changes) - _TERMINAL_AUTHORITY_CHANGE_HISTORY_LIMIT
+        if excess > 0:
+            self._tracker_authority_change_floors[project_id] = changes[
+                excess - 1
+            ][0]
+            del changes[:excess]
+        return revision
+
+    def tracker_authority_changes_since(
+        self,
+        project_id: str,
+        revision: int,
+    ) -> tuple[int, frozenset[str] | None]:
+        """Return task identities behind a quiescent tracker revision delta."""
+
+        if isinstance(revision, bool) or int(revision) < 0:
+            raise ValueError("revision must be a nonnegative integer")
+        expected = int(revision)
+        with self.project_write_lock(project_id):
+            with self._project_locks_meta:
+                current = self._tracker_authority_revisions.get(project_id, 0)
+                if (
+                    self._tracker_authority_active_mutations.get(project_id)
+                    or expected > current
+                    or expected
+                    < self._tracker_authority_change_floors.get(project_id, 0)
+                ):
+                    return current, None
+                changes = [
+                    scope
+                    for changed_revision, scope in self._tracker_authority_changes.get(
+                        project_id, []
+                    )
+                    if changed_revision > expected
+                ]
+                if any(scope is None for scope in changes):
+                    return current, None
+                return current, frozenset().union(*changes)
+
+    def admit_tracker_authority_mutation(
+        self,
+        project_id: str,
+        task_ids: Iterable[str] | None = None,
+    ) -> str:
         """Fence publication before one external managed tracker callback."""
 
         with self.project_write_lock(project_id):
             with self._project_locks_meta:
                 token = uuid.uuid4().hex
+                scope = self._tracker_change_scope(task_ids)
                 active = self._tracker_authority_active_mutations.setdefault(
-                    project_id, set()
+                    project_id, {}
                 )
-                active.add(token)
-                self._tracker_authority_revisions[project_id] = (
-                    self._tracker_authority_revisions.get(project_id, 0) + 1
-                )
+                active[token] = scope
+                self._advance_tracker_authority_locked(project_id, scope)
                 return token
 
     def finalize_tracker_authority_mutation(
@@ -2041,21 +2111,24 @@ class ProjectStore:
                     raise ProjectError(
                         "managed tracker mutation token is not active"
                     )
-                active.remove(token)
+                scope = active.pop(token)
                 if not active:
                     self._tracker_authority_active_mutations.pop(project_id, None)
-                revision = self._tracker_authority_revisions.get(project_id, 0) + 1
-                self._tracker_authority_revisions[project_id] = revision
-                return revision
+                return self._advance_tracker_authority_locked(project_id, scope)
 
-    def advance_tracker_authority_revision(self, project_id: str) -> int:
+    def advance_tracker_authority_revision(
+        self,
+        project_id: str,
+        task_ids: Iterable[str] | None = None,
+    ) -> int:
         """Advance task authority after a successful managed tracker write."""
 
         with self.project_write_lock(project_id):
             with self._project_locks_meta:
-                revision = self._tracker_authority_revisions.get(project_id, 0) + 1
-                self._tracker_authority_revisions[project_id] = revision
-                return revision
+                return self._advance_tracker_authority_locked(
+                    project_id,
+                    self._tracker_change_scope(task_ids),
+                )
 
     def canonical_remote_name(self, project_id: str) -> str:
         """Return the server-owned Git remote for a managed project.

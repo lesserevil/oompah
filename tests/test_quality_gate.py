@@ -35,7 +35,7 @@ from oompah.integration import (
     REVIEW_GENERATION_REQUEUE_WAIT_REASON,
     review_generation_requeue_marker,
 )
-from oompah.models import Issue, Project
+from oompah.models import BlockerRef, Issue, Project
 from oompah.orchestrator import Orchestrator, StandaloneDeliveryAuthority
 from oompah.projects import ProjectStore
 from oompah.provenance_suppression import ProvenanceGuardedTracker
@@ -71,6 +71,7 @@ from oompah.scm import (
     ProtectedWorkflowStepEvidence,
 )
 from oompah.statuses import (
+    DONE,
     IN_PROGRESS,
     IN_REVIEW,
     IN_VALIDATION,
@@ -4226,6 +4227,106 @@ def test_external_task_creation_supersedes_publication_without_blocking(tmp_path
     assert len(raw_tracker.created) == 1
     assert project_store.tracker_authority_revision(project.id) == 2
     assert orch._quality_gate_result_for(project.id, issue.identifier) is None
+
+
+@pytest.mark.parametrize(
+    ("mutated_task", "protect_dependency", "published"),
+    [
+        ("task-2", False, True),
+        ("task-1", False, False),
+        ("task-2", True, False),
+    ],
+    ids=[
+        "unrelated-task-preserved",
+        "gated-task-superseded",
+        "finish-dependency-superseded",
+    ],
+)
+def test_standalone_gate_publication_uses_task_scoped_tracker_changes(
+    tmp_path,
+    mutated_task,
+    protect_dependency,
+    published,
+):
+    orch = _outcome_fence_orchestrator()
+    authority = _outcome_authority()
+    issue = authority.issue
+    other = replace(
+        issue,
+        id="task-2",
+        identifier="task-2",
+        title="Other",
+        state=DONE if protect_dependency else READY_TO_INTEGRATE,
+    )
+    if protect_dependency:
+        issue.blocked_by = [BlockerRef(identifier=other.identifier)]
+    project = _outcome_project()
+    project_store = ProjectStore(
+        path=str(tmp_path / "projects-scoped.json"),
+        repos_root=str(tmp_path / "repos-scoped"),
+        worktree_root=str(tmp_path / "worktrees-scoped"),
+    )
+    project_store._projects[project.id] = project
+    read_started = threading.Event()
+    release_read = threading.Event()
+
+    class ExternalTracker:
+        def __init__(self):
+            self.issues = {issue.identifier: issue, other.identifier: other}
+
+        def fetch_issue_detail(self, task_id):
+            current = self.issues[task_id]
+            if task_id == issue.identifier:
+                read_started.set()
+                assert release_read.wait(timeout=5)
+            return replace(current)
+
+        def fetch_all_issues(self):
+            return [replace(current) for current in self.issues.values()]
+
+        def update_issue(self, task_id, **fields):
+            for key, value in fields.items():
+                setattr(self.issues[task_id], key, value)
+
+    tracker = ProvenanceGuardedTracker(
+        ExternalTracker(), project_store, project.id
+    )
+    orch.project_store = project_store
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    authority.evidence_revision = orch._standalone_delivery_evidence_revision(issue)
+    dependency_state = orch._standalone_finish_dependency_state(
+        issue,
+        [issue, other],
+    )
+    assert dependency_state is not None
+    authority.dependency_revision = dependency_state.revision
+    orch._standalone_delivery_authorities[(project.id, issue.identifier)] = authority
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        publication = pool.submit(
+            orch._publish_quality_gate_result,
+            project.id,
+            issue.identifier,
+            _interrupted_outcome(authority),
+            authority=authority,
+            producer=_outcome_producer(authority),
+            issue=issue,
+            branch=authority.branch,
+            target_branch=authority.target_branch,
+            observed_status=READY_TO_INTEGRATE,
+        )
+        assert read_started.wait(timeout=2)
+        mutation = pool.submit(
+            tracker.update_issue,
+            mutated_task,
+            title="Concurrent mutation",
+        )
+        mutation.result(timeout=2)
+        release_read.set()
+        assert publication.result(timeout=5) is published
+
+    stored = orch._quality_gate_result_for(project.id, issue.identifier)
+    assert (stored is not None) is published
 
 
 def test_blocked_external_tracker_mutation_is_lock_free_and_fails_publication(

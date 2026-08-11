@@ -38,7 +38,7 @@ Design invariants
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
@@ -783,16 +783,66 @@ class ProvenanceGuardedTracker:
         )
         return int(fallback(self._provenance_project_id)) if callable(fallback) else 0
 
-    def _advance_publication_revision(self) -> None:
+    @staticmethod
+    def _mutation_task_ids(
+        args: tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+        *,
+        count: int = 1,
+    ) -> tuple[str, ...] | None:
+        identifiers = [
+            str(value or "").strip()
+            for value in args[:count]
+            if str(value or "").strip()
+        ]
+        if not identifiers:
+            for key in (
+                "identifier",
+                "child_id",
+                "parent_id",
+                "blocked_id",
+                "blocker_id",
+            ):
+                value = str(kwargs.get(key) or "").strip()
+                if value:
+                    identifiers.append(value)
+                if len(identifiers) >= count:
+                    break
+        return tuple(identifiers) if len(identifiers) == count else None
+
+    def publication_task_changes_since(
+        self,
+        revision: int,
+    ) -> tuple[int, frozenset[str] | None]:
+        """Expose the managed mutation journal for task-scoped publication."""
+
+        source = getattr(
+            self._provenance_project_store,
+            "tracker_authority_changes_since",
+            None,
+        )
+        if not callable(source):
+            return self.get_publication_revision() or 0, None
+        return source(self._provenance_project_id, revision)
+
+    def _advance_publication_revision(
+        self,
+        task_ids: tuple[str, ...] | None = None,
+    ) -> None:
         advance = getattr(
             self._provenance_project_store,
             "advance_tracker_authority_revision",
             None,
         )
         if callable(advance):
-            advance(self._provenance_project_id)
+            advance(self._provenance_project_id, task_ids)
 
-    def _publication_mutation(self, operation: Callable[[], Any]) -> Any:
+    def _publication_mutation(
+        self,
+        operation: Callable[[], Any],
+        *,
+        task_ids: tuple[str, ...] | None = None,
+    ) -> Any:
         """Fence one external tracker write without retaining project authority."""
 
         admit = getattr(
@@ -807,9 +857,9 @@ class ProvenanceGuardedTracker:
         )
         if not callable(admit) or not callable(finalize):
             result = operation()
-            self._advance_publication_revision()
+            self._advance_publication_revision(task_ids)
             return result
-        token = str(admit(self._provenance_project_id))
+        token = str(admit(self._provenance_project_id, task_ids))
         try:
             return operation()
         finally:
@@ -827,57 +877,68 @@ class ProvenanceGuardedTracker:
 
     def add_comment(self, *args: Any, **kwargs: Any) -> dict:
         return self._publication_mutation(
-            lambda: self._provenance_tracker.add_comment(*args, **kwargs)
+            lambda: self._provenance_tracker.add_comment(*args, **kwargs),
+            task_ids=self._mutation_task_ids(args, kwargs),
         )
 
     def append_comment(self, *args: Any, **kwargs: Any) -> Any:
         return self._publication_mutation(
-            lambda: self._provenance_tracker.append_comment(*args, **kwargs)
+            lambda: self._provenance_tracker.append_comment(*args, **kwargs),
+            task_ids=self._mutation_task_ids(args, kwargs),
         )
 
     def add_label(self, *args: Any, **kwargs: Any) -> None:
         self._publication_mutation(
-            lambda: self._provenance_tracker.add_label(*args, **kwargs)
+            lambda: self._provenance_tracker.add_label(*args, **kwargs),
+            task_ids=self._mutation_task_ids(args, kwargs),
         )
 
     def remove_label(self, *args: Any, **kwargs: Any) -> None:
         self._publication_mutation(
-            lambda: self._provenance_tracker.remove_label(*args, **kwargs)
+            lambda: self._provenance_tracker.remove_label(*args, **kwargs),
+            task_ids=self._mutation_task_ids(args, kwargs),
         )
 
     def add_parent_child(self, *args: Any, **kwargs: Any) -> None:
         self._publication_mutation(
-            lambda: self._provenance_tracker.add_parent_child(*args, **kwargs)
+            lambda: self._provenance_tracker.add_parent_child(*args, **kwargs),
+            task_ids=self._mutation_task_ids(args, kwargs, count=2),
         )
 
     def add_dependency(self, *args: Any, **kwargs: Any) -> None:
         self._publication_mutation(
-            lambda: self._provenance_tracker.add_dependency(*args, **kwargs)
+            lambda: self._provenance_tracker.add_dependency(*args, **kwargs),
+            task_ids=self._mutation_task_ids(args, kwargs, count=2),
         )
 
     def remove_dependency(self, *args: Any, **kwargs: Any) -> None:
         self._publication_mutation(
-            lambda: self._provenance_tracker.remove_dependency(*args, **kwargs)
+            lambda: self._provenance_tracker.remove_dependency(*args, **kwargs),
+            task_ids=self._mutation_task_ids(args, kwargs, count=2),
         )
 
     def add_start_dependency(self, *args: Any, **kwargs: Any) -> None:
         self._publication_mutation(
-            lambda: self._provenance_tracker.add_start_dependency(*args, **kwargs)
+            lambda: self._provenance_tracker.add_start_dependency(*args, **kwargs),
+            task_ids=self._mutation_task_ids(args, kwargs, count=2),
         )
 
     def remove_start_dependency(self, *args: Any, **kwargs: Any) -> None:
         self._publication_mutation(
-            lambda: self._provenance_tracker.remove_start_dependency(*args, **kwargs)
+            lambda: self._provenance_tracker.remove_start_dependency(*args, **kwargs),
+            task_ids=self._mutation_task_ids(args, kwargs, count=2),
         )
 
     def set_attachments(self, *args: Any, **kwargs: Any) -> None:
         self._publication_mutation(
-            lambda: self._provenance_tracker.set_attachments(*args, **kwargs)
+            lambda: self._provenance_tracker.set_attachments(*args, **kwargs),
+            task_ids=self._mutation_task_ids(args, kwargs),
         )
 
     def set_metadata_field(self, *args: Any, **kwargs: Any) -> None:
         self._publication_mutation(
-            lambda: self._provenance_tracker.set_metadata_field(*args, **kwargs)
+            lambda: self._provenance_tracker.set_metadata_field(*args, **kwargs),
+            task_ids=self._mutation_task_ids(args, kwargs),
         )
 
     @contextmanager
@@ -944,7 +1005,8 @@ class ProvenanceGuardedTracker:
     def update_issue(self, identifier: str, **fields: str) -> None:
         if "status" not in fields:
             self._publication_mutation(
-                lambda: self._provenance_tracker.update_issue(identifier, **fields)
+                lambda: self._provenance_tracker.update_issue(identifier, **fields),
+                task_ids=(str(identifier),),
             )
             return
         with self._provenance_project_store.project_write_lock(
@@ -952,7 +1014,7 @@ class ProvenanceGuardedTracker:
         ):
             self._assert_status_mutation_allowed(identifier)
             self._provenance_tracker.update_issue(identifier, **fields)
-            self._advance_publication_revision()
+            self._advance_publication_revision((str(identifier),))
 
     def reopen_issue(self, identifier: str) -> None:
         with self._provenance_project_store.project_write_lock(
@@ -960,7 +1022,7 @@ class ProvenanceGuardedTracker:
         ):
             self._assert_status_mutation_allowed(identifier)
             self._provenance_tracker.reopen_issue(identifier)
-            self._advance_publication_revision()
+            self._advance_publication_revision((str(identifier),))
 
     def mark_needs_human(
         self,
@@ -977,7 +1039,7 @@ class ProvenanceGuardedTracker:
                 comment,
                 author=author,
             )
-            self._advance_publication_revision()
+            self._advance_publication_revision((str(identifier),))
 
     def close_issue(self, identifier: str, *, reason: str | None = None) -> None:
         with self._provenance_project_store.project_write_lock(
@@ -985,7 +1047,7 @@ class ProvenanceGuardedTracker:
         ):
             self._assert_status_mutation_allowed(identifier)
             self._provenance_tracker.close_issue(identifier, reason=reason)
-            self._advance_publication_revision()
+            self._advance_publication_revision((str(identifier),))
 
     def archive_issue(self, identifier: str) -> None:
         with self._provenance_project_store.project_write_lock(
@@ -993,7 +1055,7 @@ class ProvenanceGuardedTracker:
         ):
             self._assert_status_mutation_allowed(identifier)
             self._provenance_tracker.archive_issue(identifier)
-            self._advance_publication_revision()
+            self._advance_publication_revision((str(identifier),))
 
     def authorize_owner_revision(
         self,
@@ -1088,7 +1150,7 @@ class ProvenanceGuardedTracker:
                     "owner revision authority changed during status transition"
                 )
             result = authorize_new_revision(store, identifier, actor, reason)
-            self._advance_publication_revision()
+            self._advance_publication_revision((str(identifier),))
             return result
 
 
