@@ -3237,6 +3237,7 @@ async def test_exact_successor_dispatch_bypasses_blocked_durable_reconcile() -> 
     reconcile_started = asyncio.Event()
     release_reconcile = asyncio.Event()
     capacity_deferred = asyncio.Event()
+    release_deferred_owner = asyncio.Event()
     successor_claimed = asyncio.Event()
     done_auditor = object()
     orchestrator.state = SimpleNamespace(
@@ -3269,6 +3270,7 @@ async def test_exact_successor_dispatch_bypasses_blocked_durable_reconcile() -> 
     async def _audit_scan(**_kwargs) -> dict[str, float]:
         if orchestrator._available_slots() <= 0:
             capacity_deferred.set()
+            await release_deferred_owner.wait()
             return {}
         orchestrator._eligible_audit_stage_wakes.pop(
             ("project-a", "TASK-1"), None
@@ -3304,25 +3306,33 @@ async def test_exact_successor_dispatch_bypasses_blocked_durable_reconcile() -> 
     await asyncio.wait_for(capacity_deferred.wait(), timeout=1)
     first_owner = orchestrator._terminal_audit_continuation_future
     assert first_owner is not None
-    await first_owner
-    await asyncio.sleep(0)
+    assert not first_owner.done()
     assert not successor_claimed.is_set()
     assert not release_reconcile.is_set()
 
     # The Done auditor now retires and releases its only slot. The exact
     # capacity CAS is a direct dedicated-lane edge even though the unrelated
-    # world cut remains blocked; no generic event or full sync is required.
+    # world cut remains blocked. Hold the initial owner after its capacity
+    # observation so the release must coalesce into that same owner; no
+    # generic event or full sync is required.
     assert orchestrator._remove_running_entry(
         "done-auditor", done_auditor
     ) is True
+    assert orchestrator._terminal_audit_continuation_future is first_owner
+    assert orchestrator._terminal_audit_continuation_recheck_requested is True
+    assert orchestrator._audit_metrics["continuation_scheduled_count"] == 1
+    release_deferred_owner.set()
     await asyncio.wait_for(successor_claimed.wait(), timeout=1)
+    await asyncio.wait_for(first_owner, timeout=1)
     assert not release_reconcile.is_set()
 
     release_reconcile.set()
     await asyncio.wait_for(world_tick, timeout=1)
     orchestrator._maintenance_future.cancel()
     assert orchestrator._run_terminal_audit_tick_phase.await_count == 1
-    assert orchestrator._audit_metrics["continuation_scheduled_count"] == 2
+    assert orchestrator._dispatch_audit_lane.await_count == 2
+    assert orchestrator._audit_metrics["continuation_scheduled_count"] == 1
+    assert orchestrator._audit_metrics["continuation_recheck_count"] == 1
 
 
 @pytest.mark.asyncio
