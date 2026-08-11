@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T14:16:24.124014Z'
+updated_at: '2026-08-11T14:28:30.608535Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
@@ -53,6 +53,16 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1084
     digest: f1a4b5ee467aabb315f3fd550ba4710d18894459b4b2b81a23bbe855fa12b1af
+  - version: 1
+    audit_id: audit-0efdc0b1cba3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1084
+    digest: af52f77940943df05f61b8547b3b4536269fc3586a99771c764f30fb5a8edcce
+  - version: 1
+    audit_id: audit-76b589ad52aa
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1084
+    digest: af52f77940943df05f61b8547b3b4536269fc3586a99771c764f30fb5a8edcce
   version: 1
   pending_chain:
   - version: 1
@@ -114,6 +124,48 @@ oompah.terminal_audit:
     selected_ref: 15a2ee7c9b82cfefb49a00173c302c095f3ca46e
     selected_sha: 15a2ee7c9b82cfefb49a00173c302c095f3ca46e
     updated_at: '2026-08-11T14:00:13.873111+00:00'
+  - version: 1
+    audit_id: audit-0efdc0b1cba3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1084
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: af52f77940943df05f61b8547b3b4536269fc3586a99771c764f30fb5a8edcce
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T14:28:27.692253+00:00'
+    eligible_at: '2026-08-11T14:28:27.692253+00:00'
+    selected_ref: cf3578ff00f5564a06ea31650553dca337280427
+    selected_sha: cf3578ff00f5564a06ea31650553dca337280427
+  - version: 1
+    audit_id: audit-76b589ad52aa
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1084
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: af52f77940943df05f61b8547b3b4536269fc3586a99771c764f30fb5a8edcce
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T14:28:27.692253+00:00'
+    prerequisite_audit_id: audit-0efdc0b1cba3
+    selected_ref: cf3578ff00f5564a06ea31650553dca337280427
+    selected_sha: cf3578ff00f5564a06ea31650553dca337280427
   attempt_history:
   - version: 1
     attempt_id: attempt-1fb9fef38ea0
@@ -249,5 +301,10 @@ author: oompah
 created: 2026-08-11 14:16
 ---
 Recover exact reviewed and merged head cf3578ff after stale terminal-audit authority was revoked.
+---
+author: oompah
+created: 2026-08-11 14:28
+---
+Automatic standalone delivery exhausted because of OOMPAH-1090: the exact cf3578ff canonical gate passed, but its long effect lost workflow authority before publication; four cached-pass retries each timed out at the 15-second terminal-staging bridge and revoked the detached exact operation before tracker mutation. Applying the supported terminal transition workaround now. The completion auditor must bind exact branch/review head cf3578ff00f5564a06ea31650553dca337280427, merged PR 821, and landed main merge 6a0f7210ad1f94dc48efe2131dbdacec915bd615; stale 15a2ee7 evidence remains invalid.
 ---
 <!-- COMMENTS:END -->
