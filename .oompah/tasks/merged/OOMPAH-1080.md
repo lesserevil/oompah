@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1080
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Import trusted protected ordinary-PR exact-head gates before terminal-audit
   dispatch
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:00:26.321021Z'
-updated_at: '2026-08-11T11:50:55.247001Z'
+updated_at: '2026-08-11T11:56:24.739044Z'
 work_branch: OOMPAH-1080
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/818
@@ -54,6 +54,7 @@ oompah.terminal_audit:
     digest: 517b6cec65ddd2782a17fce0fc2e6091100b1c7a149088226f7d0f90cd4fca17
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1080","audit-f40993597ee1","attempt-3307ed4270fd"]': '2026-08-11T11:48:30.590727+00:00'
+    '["proj-14849f1b","OOMPAH-1080","audit-a2ff6b47d77f","attempt-9f408c2c5beb"]': '2026-08-11T11:56:17.491879+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1080
@@ -68,6 +69,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-11T11:48:30.590743+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1080
+    target_state: Merged
+    evidence_fingerprint: 517b6cec65ddd2782a17fce0fc2e6091100b1c7a149088226f7d0f90cd4fca17
+    workflow_revision: null
+    selected_ref: eabbcdaceabad696070014a6fa166c8d1334f46a
+    selected_sha: eabbcdaceabad696070014a6fa166c8d1334f46a
+    landing_revision: null
+    audit_ids:
+    - audit-a2ff6b47d77f
+    kind: result
+    applied: true
+    retired_at: '2026-08-11T11:56:17.491898+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1080
@@ -82,6 +96,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-11T11:48:30.590753+00:00'
     applied_at: '2026-08-11T11:48:39.001071+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1080
+    audit_id: audit-a2ff6b47d77f
+    attempt_id: attempt-9f408c2c5beb
+    target_state: Merged
+    evidence_fingerprint: 517b6cec65ddd2782a17fce0fc2e6091100b1c7a149088226f7d0f90cd4fca17
+    status: Merged
+    audit_ids:
+    - audit-a2ff6b47d77f
+    kind: result
+    applied: false
+    created_at: '2026-08-11T11:56:17.491911+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -128,7 +154,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1080
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -137,7 +163,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9f408c2c5beb
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -149,6 +175,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1080
       selected_ref: eabbcdaceabad696070014a6fa166c8d1334f46a
       selected_sha: eabbcdaceabad696070014a6fa166c8d1334f46a
+      verdict: pass
+      completed_at: '2026-08-11T11:56:17.491710+00:00'
+      ended_at: '2026-08-11T11:56:17.491710+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -158,7 +187,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T11:40:14.620111+00:00'
     selected_ref: eabbcdaceabad696070014a6fa166c8d1334f46a
     selected_sha: eabbcdaceabad696070014a6fa166c8d1334f46a
-    updated_at: '2026-08-11T11:50:46.395579+00:00'
+    updated_at: '2026-08-11T11:56:17.491710+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3307ed4270fd
