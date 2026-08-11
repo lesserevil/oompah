@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1090
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Keep standalone delivery authority alive across long gates and terminal staging
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:26:47.067526Z'
-updated_at: '2026-08-11T14:26:47.067526Z'
+updated_at: '2026-08-11T14:27:14.178019Z'
 work_branch: null
 target_branch: null
 review_url: null
