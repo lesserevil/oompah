@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T01:48:19.145541Z'
-updated_at: '2026-08-11T02:17:08.906734Z'
+updated_at: '2026-08-11T02:34:44.242521Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,5 +43,10 @@ author: oompah
 created: 2026-08-11 02:16
 ---
 Claimed for direct-owner implementation in the current systemic workflow recovery program. Work will be isolated on this task branch, covered by focused regression tests, independently reviewed, fully gated, pushed, and submitted through the protected delivery path.
+---
+author: oompah
+created: 2026-08-11 02:34
+---
+Implementation is committed and pushed at exact head c71b7f57d500fefa9343c72b3c42fe2d62fa6582. Landed standalone/root and nested-epic reviews target Merged, while shared ordinary children target Done; unreadable or invalid parent topology fails closed across direct and merge-group webhooks, durable review recovery, and decision projection. Validation passed 1,317 unique focused tests plus a 68-test changed-path rerun, mutation scan 21/21, secret scan, compile, diff, and commit hooks. Independent exact-head review is active before protected integration.
 ---
 <!-- COMMENTS:END -->
