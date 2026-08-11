@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1085
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Dispatch exact terminal-audit successors through a dedicated bounded continuation
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T13:42:54.815403Z'
+updated_at: '2026-08-11T13:45:48.337761Z'
 work_branch: OOMPAH-1085
 target_branch: null
 review_url: null
@@ -171,6 +171,21 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 40s
+- Log: OOMPAH-1085__20260811T134228Z.jsonl
+---
+author: oompah
+created: 2026-08-11 13:45
+---
+Independent review blocked the submitted head before its canonical gate: an exact successor wake can survive an authoritative complete scan when the task disappeared from the candidate corpus, causing every later WORKER_EXIT to re-arm the lane, and older scans can compare a stale hint then delete a newer audit ID. Reopening for authoritative absent-task reconciliation, scheduler-loop-owned wake mutation, value-CAS removal, and repeated-exit/no-spin regressions.
+---
+author: oompah
+created: 2026-08-11 13:45
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 34s
 - Log: OOMPAH-1085__20260811T134228Z.jsonl
 ---
 <!-- COMMENTS:END -->

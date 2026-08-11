@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1087
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Prevent redundant WebSocket keepalive races during dashboard reconnects
 parent: null
@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T13:38:34.915522Z'
-updated_at: '2026-08-11T13:45:28.384497Z'
-work_branch: null
+updated_at: '2026-08-11T13:45:44.599125Z'
+work_branch: OOMPAH-1087
 target_branch: null
 review_url: null
 review_number: null
@@ -33,6 +33,7 @@ oompah.integration:
   head_sha: 4d8c7b9a9fdda0e0119fe6ebbe6a0951c0631f71
   submitted_at: '2026-08-11T13:45:24.216406+00:00'
   updated_at: '2026-08-11T13:45:24.216406+00:00'
+oompah.work_branch: OOMPAH-1087
 ---
 ## Summary
 
@@ -50,5 +51,10 @@ author: oompah
 created: 2026-08-11 13:45
 ---
 Reproduced the ownership conflict from the live 13:35:40 UTC keepalive_ping assertion: Uvicorn defaulted to a second protocol ping owner even though OOMPAH-690 dashboard application ping/pong already owns freshness, reconnect, and full-state backfill. Exact head 4d8c7b9a9 disables Uvicorn protocol pings through one shared config helper used by both default and Granian-fallback startup paths; transport WebSockets remain enabled. Focused dashboard liveness/WebSocket lifecycle/fault-injection/bootstrap coverage passed 99/99, Ruff (excluding one pre-existing unrelated F401), py_compile, diff check, commit hooks, and paranoid secret scan are green.
+---
+author: oompah
+created: 2026-08-11 13:45
+---
+Made the dashboard application heartbeat the sole WebSocket liveness owner in both embedded Uvicorn paths, eliminating redundant protocol keepalive close/backpressure assertions while preserving reconnect and full-sync recovery.
 ---
 <!-- COMMENTS:END -->
