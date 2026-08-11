@@ -1527,6 +1527,224 @@ async def test_dedicated_scan_retires_stale_exact_successor_hint(
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
+@pytest.mark.asyncio
+async def test_complete_empty_scan_retires_authoritatively_absent_exact_wake(
+    tmp_path: Path,
+) -> None:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    orchestrator._record_terminal_audit_stage_wake(
+        project_id="project-a",
+        task_id="TASK-ABSENT",
+        audit_id="audit-absent",
+    )
+    authority = MagicMock(
+        return_value=(None, TerminalAuditMetadata.empty())
+    )
+    try:
+        with (
+            patch.object(orchestrator, "_available_slots", return_value=1),
+            patch.object(orchestrator, "_dispatch_is_blocked", return_value=False),
+            patch.object(
+                orchestrator,
+                "_fetch_audit_candidates",
+                return_value=_AuditCandidateScan(()),
+            ),
+            patch.object(
+                orchestrator,
+                "_read_absent_terminal_audit_wake_authority",
+                authority,
+            ),
+        ):
+            await orchestrator._dispatch_audit_lane()
+
+        assert orchestrator._terminal_audit_stage_wakes_snapshot() == {}
+        assert orchestrator._audit_metrics["continuation_pending_exact_count"] == 0
+        assert orchestrator._audit_metrics[
+            "continuation_absent_retirement_count"
+        ] == 1
+        authority.assert_called_once_with("project-a", "TASK-ABSENT")
+
+        with patch.object(
+            orchestrator,
+            "_wake_terminal_audit_continuation_lane",
+        ) as wake:
+            for issue_id in ("worker-1", "worker-2", "worker-3"):
+                orchestrator._wake_terminal_audit_lane_for_event(
+                    DispatchEvent(
+                        event_type=DispatchEventType.WORKER_EXIT,
+                        issue_id=issue_id,
+                    )
+                )
+        wake.assert_not_called()
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "proof_mode",
+    ["incomplete", "error", "quarantined", "still_eligible"],
+)
+async def test_absent_exact_wake_survives_incomplete_or_unusable_proof(
+    tmp_path: Path,
+    proof_mode: str,
+) -> None:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    orchestrator._record_terminal_audit_stage_wake(
+        project_id="project-a",
+        task_id="TASK-RETAIN",
+        audit_id="audit-retain",
+    )
+    eligible_record = TerminalAuditRecord(
+        audit_id="audit-retain",
+        project_id="project-a",
+        task_id="TASK-RETAIN",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=EvidenceFingerprint("e" * 64),
+        request_state=RequestState.PENDING,
+        eligible_at="2026-08-11T13:00:00+00:00",
+    )
+    proof = {
+        "incomplete": (None, TerminalAuditMetadata.empty()),
+        "error": (None, TerminalAuditMetadata.empty()),
+        "quarantined": (
+            None,
+            TerminalAuditMetadata(
+                quarantine=MetadataQuarantine("f" * 64),
+            ),
+        ),
+        "still_eligible": (
+            Issue(
+                id="retain",
+                identifier="TASK-RETAIN",
+                title="Still eligible",
+                state="In Validation",
+                project_id="project-a",
+            ),
+            TerminalAuditMetadata(pending_chain=[eligible_record]),
+        ),
+    }[proof_mode]
+    authority = MagicMock(return_value=proof)
+    if proof_mode == "error":
+        authority.side_effect = RuntimeError("tracker unavailable")
+    scan = _AuditCandidateScan(
+        (),
+        scan_error_count=1 if proof_mode == "incomplete" else 0,
+    )
+    try:
+        with (
+            patch.object(orchestrator, "_available_slots", return_value=1),
+            patch.object(orchestrator, "_dispatch_is_blocked", return_value=False),
+            patch.object(
+                orchestrator,
+                "_fetch_audit_candidates",
+                return_value=scan,
+            ),
+            patch.object(
+                orchestrator,
+                "_read_absent_terminal_audit_wake_authority",
+                authority,
+            ),
+        ):
+            await orchestrator._dispatch_audit_lane()
+
+        assert orchestrator._terminal_audit_stage_wakes_snapshot() == {
+            ("project-a", "TASK-RETAIN"): "audit-retain"
+        }
+        if proof_mode != "incomplete":
+            authority.assert_called_once_with("project-a", "TASK-RETAIN")
+        else:
+            authority.assert_not_called()
+        if proof_mode in {"error", "quarantined"}:
+            assert orchestrator._audit_metrics[
+                "continuation_absent_recheck_error_count"
+            ] == 1
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+@pytest.mark.asyncio
+async def test_absent_scan_value_cas_preserves_newer_exact_wake(
+    tmp_path: Path,
+) -> None:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    orchestrator._record_terminal_audit_stage_wake(
+        project_id="project-a",
+        task_id="TASK-RACE",
+        audit_id="audit-old",
+    )
+    proof_started = threading.Event()
+    release_proof = threading.Event()
+
+    def _blocked_authority(_project_id: str, _task_id: str):
+        proof_started.set()
+        assert release_proof.wait(timeout=1)
+        return None, TerminalAuditMetadata.empty()
+
+    try:
+        with patch.object(
+            orchestrator,
+            "_read_absent_terminal_audit_wake_authority",
+            side_effect=_blocked_authority,
+        ):
+            reconcile = asyncio.create_task(
+                orchestrator._reconcile_absent_terminal_audit_wakes(
+                    _AuditCandidateScan(()),
+                    deadline=asyncio.get_running_loop().time() + 2,
+                )
+            )
+            assert await asyncio.to_thread(proof_started.wait, 1)
+            orchestrator._record_terminal_audit_stage_wake(
+                project_id="project-a",
+                task_id="TASK-RACE",
+                audit_id="audit-new",
+            )
+            release_proof.set()
+            result = await asyncio.wait_for(reconcile, timeout=1)
+
+        assert result["retired"] == 0
+        assert orchestrator._terminal_audit_stage_wakes_snapshot() == {
+            ("project-a", "TASK-RACE"): "audit-new"
+        }
+        assert orchestrator._audit_metrics["continuation_pending_exact_count"] == 1
+    finally:
+        release_proof.set()
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
 def test_audit_candidate_window_interleaves_projects_within_priority(
     tmp_path: Path,
 ) -> None:
@@ -2691,6 +2909,46 @@ def _dedicated_audit_lane_host(
     orchestrator._audit_metrics = {}
     orchestrator._available_slots = Mock(return_value=1)
     return orchestrator
+
+
+@pytest.mark.asyncio
+async def test_worker_thread_successor_registration_is_owned_by_scheduler_loop() -> None:
+    loop = asyncio.get_running_loop()
+    orchestrator = _dedicated_audit_lane_host(loop)
+    scheduler_thread = threading.get_ident()
+    registered = asyncio.Event()
+    original_record = orchestrator._record_terminal_audit_stage_wake
+
+    def _record_on_owner(**kwargs) -> bool:
+        assert threading.get_ident() == scheduler_thread
+        changed = original_record(**kwargs)
+        registered.set()
+        return changed
+
+    with (
+        patch.object(
+            orchestrator,
+            "_record_terminal_audit_stage_wake",
+            side_effect=_record_on_owner,
+        ),
+        patch.object(
+            orchestrator,
+            "_request_audit_lane_continuation",
+            return_value=False,
+        ),
+    ):
+        queued = await asyncio.to_thread(
+            orchestrator._request_next_audit_stage,
+            project_id="project-a",
+            task_id="TASK-THREAD",
+            audit_id="audit-thread",
+        )
+        assert queued is True
+        await asyncio.wait_for(registered.wait(), timeout=1)
+
+    assert orchestrator._terminal_audit_stage_wakes_snapshot() == {
+        ("project-a", "TASK-THREAD"): "audit-thread"
+    }
 
 
 @pytest.mark.asyncio
