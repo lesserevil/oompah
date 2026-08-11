@@ -59,6 +59,13 @@ class TestSCMProviderContract:
         ]
         assert provider.get_branch_ci_status("org/repo", "main") is CIStatus.UNKNOWN
         assert provider.observe_branch_landing("org/repo", "a", "main") is None
+        assert provider.merge_review_exact("org/repo", "7", "a" * 40) == (
+            False,
+            "Provider does not support exact-head review merge",
+        )
+        assert provider.enable_auto_merge_exact(
+            "org/repo", "7", "a" * 40
+        ) == (False, "Provider does not support exact-head auto-merge")
 
     def test_legacy_commit_implementation_is_available_through_contract_name(self):
         assert _ContractFakeProvider().get_review_commits("org/repo", "7") == ["a" * 40]
@@ -179,6 +186,31 @@ class TestMergeReviewBranchCleanupProtection:
         assert ok
         assert not any(m == "DELETE" for m, _ in calls)
 
+    def test_github_exact_merge_sends_atomic_expected_head(self):
+        provider = GitHubProvider(access_token="t")
+        calls = []
+
+        class _Resp:
+            status_code = 200
+            text = ""
+
+            def json(self):
+                return {"head": {"ref": "release/next"}}
+
+        def fake_api(method, path, **kwargs):
+            calls.append((method, path, kwargs))
+            return _Resp()
+
+        provider._api = fake_api
+        expected = "b" * 40
+
+        assert provider.merge_review_exact("o/r", "5", expected)[0] is True
+        merge_call = next(call for call in calls if call[1].endswith("/merge"))
+        assert merge_call[2]["json"] == {
+            "merge_method": "merge",
+            "sha": expected,
+        }
+
     def _gitlab(self, source_branch):
         provider = GitLabProvider(access_token="t")
         merge_kwargs = {}
@@ -212,6 +244,13 @@ class TestMergeReviewBranchCleanupProtection:
         ok, _ = provider.merge_review("g/p", "5")
         assert ok
         assert merge_kwargs.get("should_remove_source_branch") is False
+
+    def test_gitlab_exact_merge_sends_atomic_expected_head(self):
+        provider, merge_kwargs = self._gitlab("trickle-abc1")
+        expected = "b" * 40
+
+        assert provider.merge_review_exact("g/p", "5", expected)[0] is True
+        assert merge_kwargs["sha"] == expected
 
 
 class TestCloseReview:
@@ -1186,6 +1225,28 @@ class TestGitHubReviewQueueState:
         assert len(reviews) == 1
         assert reviews[0].auto_merge_enabled is True
         assert reviews[0].mergeable_state == "clean"
+
+    def test_list_open_reviews_propagates_exact_generation_identity(self):
+        pr = self._pr_payload(
+            head={
+                "ref": "feat",
+                "sha": "a" * 40,
+                "repo": {"full_name": "x/y"},
+            },
+            base={
+                "ref": "main",
+                "sha": "b" * 40,
+                "repo": {"full_name": "x/y"},
+            },
+        )
+        provider = self._provider(list_payload=[pr])
+
+        review = provider.list_open_reviews("x/y")[0]
+
+        assert review.head_sha == "a" * 40
+        assert review.base_sha == "b" * 40
+        assert review.source_repository == "x/y"
+        assert review.target_repository == "x/y"
 
     def test_list_open_reviews_auto_merge_disabled(self):
         pr = self._pr_payload(auto_merge=None, mergeable_state="blocked")

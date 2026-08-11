@@ -338,6 +338,12 @@ class ReviewRequest:
     # current branch tip, this remains authoritative when a reused branch is
     # advanced after an older review merged.
     head_sha: str = ""
+    base_sha: str = ""
+    # Repository identity is part of an exact review generation too.  Branch
+    # names and pull-request numbers alone cannot distinguish an in-repository
+    # task branch from a same-named fork branch.
+    source_repository: str = ""
+    target_repository: str = ""
 
     def __post_init__(self) -> None:
         """Normalize legacy provider strings at the contract boundary.
@@ -372,6 +378,9 @@ class ReviewRequest:
             "auto_merge_enabled": self.auto_merge_enabled,
             "mergeable_state": self.mergeable_state,
             "head_sha": self.head_sha,
+            "base_sha": self.base_sha,
+            "source_repository": self.source_repository,
+            "target_repository": self.target_repository,
             "files": self.files,
             "churn_magnet": self.churn_magnet,
             "churn_magnet_files": self.churn_magnet_files,
@@ -463,6 +472,26 @@ class SCMProvider(ABC):
             (success, message) tuple.
         """
         ...
+
+    def merge_review_exact(
+        self,
+        repo: str,
+        review_id: str,
+        expected_head_sha: str,
+    ) -> tuple[bool, str]:
+        """Merge only when the forge can atomically bind the expected head."""
+
+        return False, "Provider does not support exact-head review merge"
+
+    def enable_auto_merge_exact(
+        self,
+        repo: str,
+        review_id: str,
+        expected_head_sha: str,
+    ) -> tuple[bool, str]:
+        """Enable auto-merge only with an immutable expected-head fence."""
+
+        return False, "Provider does not support exact-head auto-merge"
 
     @abstractmethod
     def close_review(
@@ -2640,6 +2669,16 @@ class GitHubProvider(SCMProvider):
                 has_conflicts=has_conflicts,
                 auto_merge_enabled=auto_merge_enabled,
                 mergeable_state=merge_state_raw,
+                head_sha=str(pr.get("head", {}).get("sha", "") or ""),
+                base_sha=str(pr.get("base", {}).get("sha", "") or ""),
+                source_repository=str(
+                    (pr.get("head", {}).get("repo") or {}).get("full_name", "")
+                    or ""
+                ),
+                target_repository=str(
+                    (pr.get("base", {}).get("repo") or {}).get("full_name", "")
+                    or ""
+                ),
             ))
 
         # Evict cache entries for PRs in this repo that were not in
@@ -2850,6 +2889,15 @@ class GitHubProvider(SCMProvider):
             labels=[l.get("name", "") for l in (pr.get("labels") or [])],
             draft=pr.get("draft", False),
             head_sha=str(pr.get("head", {}).get("sha", "") or ""),
+            base_sha=str(pr.get("base", {}).get("sha", "") or ""),
+            source_repository=str(
+                (pr.get("head", {}).get("repo") or {}).get("full_name", "")
+                or ""
+            ),
+            target_repository=str(
+                (pr.get("base", {}).get("repo") or {}).get("full_name", "")
+                or ""
+            ),
         )
 
     def get_review(self, repo: str, review_id: str) -> ReviewRequest | None:
@@ -2914,6 +2962,15 @@ class GitHubProvider(SCMProvider):
             auto_merge_enabled=auto_merge_enabled,
             mergeable_state=merge_state_raw,
             head_sha=str(pr.get("head", {}).get("sha", "") or ""),
+            base_sha=str(pr.get("base", {}).get("sha", "") or ""),
+            source_repository=str(
+                (pr.get("head", {}).get("repo") or {}).get("full_name", "")
+                or ""
+            ),
+            target_repository=str(
+                (pr.get("base", {}).get("repo") or {}).get("full_name", "")
+                or ""
+            ),
         )
 
     def create_review(
@@ -2987,6 +3044,55 @@ class GitHubProvider(SCMProvider):
                 return True, "PR merged successfully"
             return False, f"Merge failed: HTTP {r.status_code} {r.text[:300]}"
         except httpx.HTTPError as exc:
+            return False, f"Merge failed: {exc}"
+
+    def merge_review_exact(
+        self,
+        repo: str,
+        review_id: str,
+        expected_head_sha: str,
+    ) -> tuple[bool, str]:
+        """Use GitHub's merge ``sha`` precondition as the final head CAS."""
+
+        try:
+            pr = self._api("GET", f"/repos/{repo}/pulls/{review_id}")
+            if pr.status_code != 200:
+                return False, f"Merge failed: HTTP {pr.status_code} {pr.text[:300]}"
+            pr_body = pr.json()
+            head = pr_body.get("head") or {}
+            branch = str(head.get("ref") or "").strip()
+            source_repo = str(
+                (head.get("repo") or {}).get("full_name") or ""
+            ).strip()
+            r = self._api(
+                "PUT",
+                f"/repos/{repo}/pulls/{review_id}/merge",
+                json={
+                    "merge_method": "merge",
+                    "sha": str(expected_head_sha or "").strip().lower(),
+                },
+            )
+            if r.status_code != 200:
+                return False, f"Merge failed: HTTP {r.status_code} {r.text[:300]}"
+            # Delete only an in-repository source that still names the merged
+            # generation.  A post-merge push must never be removed under the
+            # authority of this older exact-head operation.
+            if (
+                branch
+                and source_repo.casefold() == repo.casefold()
+                and not _is_protected_branch(branch)
+            ):
+                current = self.get_branch_head_sha(repo, branch)
+                if current == str(expected_head_sha or "").strip().lower():
+                    self._api("DELETE", f"/repos/{repo}/git/refs/heads/{branch}")
+            elif branch and _is_protected_branch(branch):
+                logger.info(
+                    "Skipping post-merge deletion of protected branch %s in %s",
+                    branch,
+                    repo,
+                )
+            return True, "PR merged successfully"
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
             return False, f"Merge failed: {exc}"
 
     def close_review(
@@ -3379,6 +3485,13 @@ class GitLabProvider(SCMProvider):
                     or (mr.get("diff_refs") or {}).get("head_sha")
                     or ""
                 ),
+                base_sha=str((mr.get("diff_refs") or {}).get("base_sha") or ""),
+                source_repository=(
+                    repo
+                    if mr.get("source_project_id") == mr.get("target_project_id")
+                    else ""
+                ),
+                target_repository=repo,
             ))
         return results
 
@@ -3579,6 +3692,13 @@ class GitLabProvider(SCMProvider):
                 or (mr.get("diff_refs") or {}).get("head_sha")
                 or ""
             ),
+            base_sha=str((mr.get("diff_refs") or {}).get("base_sha") or ""),
+            source_repository=(
+                repo
+                if mr.get("source_project_id") == mr.get("target_project_id")
+                else ""
+            ),
+            target_repository=repo,
         )
 
     def get_review(self, repo: str, review_id: str) -> ReviewRequest | None:
@@ -3628,6 +3748,13 @@ class GitLabProvider(SCMProvider):
                 or (mr.get("diff_refs") or {}).get("head_sha")
                 or ""
             ),
+            base_sha=str((mr.get("diff_refs") or {}).get("base_sha") or ""),
+            source_repository=(
+                repo
+                if mr.get("source_project_id") == mr.get("target_project_id")
+                else ""
+            ),
+            target_repository=repo,
         )
 
     def create_review(
@@ -3685,6 +3812,38 @@ class GitLabProvider(SCMProvider):
                           json={
                               "should_remove_source_branch": remove_source,
                           })
+            if r.status_code == 200:
+                return True, "MR merged successfully"
+            return False, f"Merge failed: HTTP {r.status_code} {r.text[:300]}"
+        except httpx.HTTPError as exc:
+            return False, f"Merge failed: {exc}"
+
+    def merge_review_exact(
+        self,
+        repo: str,
+        review_id: str,
+        expected_head_sha: str,
+    ) -> tuple[bool, str]:
+        """Use GitLab's merge ``sha`` precondition as the final head CAS."""
+
+        encoded = self._project_path(repo)
+        try:
+            mr = self._api(
+                "GET",
+                f"/projects/{encoded}/merge_requests/{review_id}",
+            )
+            if mr.status_code != 200:
+                return False, f"Merge failed: HTTP {mr.status_code}"
+            source_branch = mr.json().get("source_branch", "")
+            remove_source = not _is_protected_branch(source_branch)
+            r = self._api(
+                "PUT",
+                f"/projects/{encoded}/merge_requests/{review_id}/merge",
+                json={
+                    "should_remove_source_branch": remove_source,
+                    "sha": str(expected_head_sha or "").strip().lower(),
+                },
+            )
             if r.status_code == 200:
                 return True, "MR merged successfully"
             return False, f"Merge failed: HTTP {r.status_code} {r.text[:300]}"

@@ -10,13 +10,19 @@ any project sweep.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 import threading
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
 from typing import Any
 
-from oompah.integration import assigned_work_branch
+from oompah.integration import (
+    ACCEPTED_SUBMISSION_STATES,
+    IntegrationRecord,
+    assigned_work_branch,
+)
 from oompah.models import Issue
 from oompah.review_workflow import (
     ReviewCapacityReconciler,
@@ -117,6 +123,9 @@ class FreshReviewFactSource:
             source_branch=_text(raw.get("source_branch")) or None,
             target_branch=_text(raw.get("target_branch")) or None,
             head_sha=_text(raw.get("head_sha")) or None,
+            base_sha=_text(raw.get("base_sha")) or None,
+            source_repository=_text(raw.get("source_repository")) or None,
+            target_repository=_text(raw.get("target_repository")) or None,
             ci=_text(raw.get("ci")) or "unknown",
             mergeable=raw.get("mergeable"),
             mergeable_state=_text(raw.get("mergeable_state")),
@@ -334,52 +343,200 @@ class ProductionReviewWorkflowBackend:
         issue = snapshot.issue
         observation = snapshot.observation
         review_id = _text(issue.review_number)
-        head = _text(issue.review_head or issue.head_sha).lower()
-        if observation is not None:
-            observed_review = _text(observation.review_id)
-            observed_head = _text(observation.head_sha).lower()
-            expected_source = _text(
-                assigned_work_branch(issue)
-                or issue.work_branch
-                or issue.branch_name
-                or issue.identifier
+        review_head = _text(issue.review_head).lower()
+        integration = issue.integration
+        integration_head = _text(
+            integration.head_sha if isinstance(integration, IntegrationRecord) else None
+        ).lower()
+        integration_base = _text(
+            integration.base_sha if isinstance(integration, IntegrationRecord) else None
+        ).lower()
+        if (
+            observation is None
+            or snapshot.provider_context is None
+            or not isinstance(integration, IntegrationRecord)
+            or integration.state not in ACCEPTED_SUBMISSION_STATES
+        ):
+            raise WorkflowActionError(
+                "review merge lacks accepted integration identity",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=False,
             )
-            expected_target = _text(issue.target_branch)
-            if review_id and observed_review and review_id != observed_review:
-                raise WorkflowActionError(
-                    "review identity changed after scheduling",
-                    category=WorkflowFailureCategory.STALE_EVIDENCE,
-                    retryable=False,
-                )
-            if (
-                expected_source
-                and observation.source_branch
-                and expected_source != observation.source_branch
-            ):
-                raise WorkflowActionError(
-                    "review source changed after scheduling",
-                    category=WorkflowFailureCategory.STALE_EVIDENCE,
-                    retryable=False,
-                )
-            if (
-                expected_target
-                and observation.target_branch
-                and expected_target != observation.target_branch
-            ):
-                raise WorkflowActionError(
-                    "review target changed after scheduling",
-                    category=WorkflowFailureCategory.STALE_EVIDENCE,
-                    retryable=False,
-                )
-            if head and observed_head and head != observed_head:
-                raise WorkflowActionError(
-                    "review head changed after scheduling",
-                    category=WorkflowFailureCategory.STALE_EVIDENCE,
-                    retryable=False,
-                )
-            review_id = review_id or observed_review
-            head = head or observed_head
+        observed_review = _text(observation.review_id)
+        observed_head = _text(observation.head_sha).lower()
+        expected_source = _text(
+            assigned_work_branch(issue)
+            or issue.work_branch
+            or issue.branch_name
+            or issue.identifier
+        )
+        expected_target = _text(issue.target_branch)
+        expected_repo = _text(snapshot.provider_context.repo).casefold()
+        identities_match = bool(
+            review_id
+            and review_id == observed_review
+            and expected_source
+            and expected_source == observation.source_branch
+            and expected_source == _text(integration.task_branch)
+            and expected_target
+            and expected_target == observation.target_branch
+            and expected_target == _text(integration.base_branch)
+            and expected_repo
+            and expected_repo == _text(observation.target_repository).casefold()
+            and expected_repo == _text(observation.source_repository).casefold()
+            and _HEAD_RE.fullmatch(review_head)
+            and review_head == integration_head
+            and review_head == observed_head
+            and _HEAD_RE.fullmatch(integration_base)
+            and integration_base == _text(observation.base_sha).lower()
+        )
+        if not identities_match:
+            raise WorkflowActionError(
+                "review, repository, branch, or exact head identity changed",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=False,
+            )
+        head = review_head
         return review_id, head
+
+    @staticmethod
+    def _head_reconciliation_identity(
+        snapshot: ReviewActionSnapshot,
+    ) -> tuple[IntegrationRecord, str, str]:
+        """Bind a forge head replacement to one accepted standalone review."""
+
+        issue = snapshot.issue
+        observation = snapshot.observation
+        provider_context = snapshot.provider_context
+        integration = issue.integration
+        old_head = _text(issue.review_head).lower()
+        new_head = _text(observation.head_sha if observation is not None else None).lower()
+        expected_repo = _text(
+            provider_context.repo if provider_context is not None else None
+        ).casefold()
+        expected_source = _text(
+            assigned_work_branch(issue)
+            or issue.work_branch
+            or issue.branch_name
+            or issue.identifier
+        )
+        expected_target = _text(issue.target_branch)
+        valid = bool(
+            observation is not None
+            and provider_context is not None
+            and isinstance(integration, IntegrationRecord)
+            and integration.state in ACCEPTED_SUBMISSION_STATES
+            and _text(integration.mode).lower() in {"", "standalone"}
+            and _text(issue.review_number)
+            and _text(issue.review_number) == _text(observation.review_id)
+            and expected_source
+            and expected_source == observation.source_branch
+            and expected_source == _text(integration.task_branch)
+            and expected_target
+            and expected_target == observation.target_branch
+            and expected_target == _text(integration.base_branch)
+            and expected_repo
+            and expected_repo == _text(observation.target_repository).casefold()
+            and expected_repo == _text(observation.source_repository).casefold()
+            and _HEAD_RE.fullmatch(old_head)
+            and _HEAD_RE.fullmatch(new_head)
+            and _HEAD_RE.fullmatch(_text(observation.base_sha).lower())
+            and new_head != old_head
+            and (
+                _text(integration.head_sha).lower() == old_head
+                or (
+                    integration.state == "ready"
+                    and _text(integration.head_sha).lower() == new_head
+                )
+            )
+        )
+        if not valid:
+            raise WorkflowActionError(
+                "review head replacement lacks exact task, review, branch, or repository identity",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=False,
+            )
+        return integration, old_head, new_head
+
+    def _persist_reconciled_head(
+        self,
+        context: WorkflowJobContext,
+        snapshot: ReviewActionSnapshot,
+    ) -> IntegrationRecord:
+        """Atomically replace accepted authority before the RTI transition."""
+
+        integration, _old_head, new_head = self._head_reconciliation_identity(
+            snapshot
+        )
+        issue_id = _text(snapshot.issue.id or snapshot.issue.identifier)
+        lock_factory = getattr(self.orchestrator, "issue_transition_lock", None)
+        lock = lock_factory(issue_id) if callable(lock_factory) else None
+        sync = getattr(lock, "sync", None)
+        lock_context = sync() if callable(sync) else contextlib.nullcontext()
+        with lock_context:
+            context.check_interrupted()
+            current = self._issue(context.job.task_id)
+            current_integration = current.integration
+            if (
+                isinstance(current_integration, IntegrationRecord)
+                and current_integration.state == "ready"
+                and _text(current_integration.head_sha).lower() == new_head
+            ):
+                return current_integration
+            if issue_authority_version(current) != issue_authority_version(
+                snapshot.issue
+            ):
+                raise WorkflowActionError(
+                    "review task authority changed before head replacement",
+                    category=WorkflowFailureCategory.STALE_EVIDENCE,
+                    retryable=False,
+                )
+            base_sha = _text(
+                snapshot.observation.base_sha
+                if snapshot.observation is not None
+                else None
+            ).lower()
+            replacement = replace(
+                integration,
+                state="ready",
+                mode=_text(integration.mode).lower() or "standalone",
+                base_sha=(
+                    base_sha if _HEAD_RE.fullmatch(base_sha) else integration.base_sha
+                ),
+                head_sha=new_head,
+                integrated_sha=None,
+                maintenance_publication_proven=False,
+                attempts=0,
+                updated_at=datetime.now(timezone.utc).isoformat(),
+                last_error=None,
+                dependency_heads={},
+                backoff_until=None,
+                repair_failure_reason=None,
+                gate_outcome=None,
+                gate_cancellation=None,
+                canonical_landing_evidence=None,
+                wait_reason=None,
+                wait_generation=None,
+                required_base_missing=(),
+            )
+            self.binding.tracker.set_metadata_field(
+                context.job.task_id,
+                "oompah.integration",
+                replacement.to_dict(),
+            )
+            context.check_interrupted()
+            persisted = self._issue(context.job.task_id).integration
+            if (
+                not isinstance(persisted, IntegrationRecord)
+                or persisted.state != "ready"
+                or _text(persisted.head_sha).lower() != new_head
+            ):
+                raise WorkflowActionError(
+                    "review head replacement did not persist",
+                    category=WorkflowFailureCategory.TRANSIENT,
+                    retryable=True,
+                )
+            return persisted
 
     @staticmethod
     def _identity_matches(snapshot: ReviewActionSnapshot) -> bool:
@@ -398,6 +555,11 @@ class ProductionReviewWorkflowBackend:
             or issue.identifier
         )
         expected_target = _text(issue.target_branch)
+        expected_repo = _text(
+            snapshot.provider_context.repo
+            if snapshot.provider_context is not None
+            else None
+        ).casefold()
         return bool(
             (
                 not expected_review
@@ -418,6 +580,16 @@ class ProductionReviewWorkflowBackend:
                 not expected_target
                 or not observation.target_branch
                 or expected_target == observation.target_branch
+            )
+            and (
+                not expected_repo
+                or not observation.target_repository
+                or expected_repo == observation.target_repository.casefold()
+            )
+            and (
+                not expected_repo
+                or not observation.source_repository
+                or expected_repo == observation.source_repository.casefold()
             )
         )
 
@@ -558,12 +730,52 @@ class ProductionReviewWorkflowBackend:
 
     async def repair(self, context: WorkflowJobContext) -> ReviewExecutionResult:
         context.check_interrupted()
-        snapshot = await self._current_snapshot(context)
         action = context.job.action
+        # Effects must observe again after revalidation.  A synchronize,
+        # undraft, or check delivery can otherwise change the review between
+        # the decision read and a merge/requeue write.
+        snapshot = (
+            await self._snapshot(context)
+            if action in {"review_merge", "review_head_reconciliation"}
+            else await self._current_snapshot(context)
+        )
+        if action == "review_head_reconciliation":
+            decision = snapshot.decision
+            if (
+                decision is None
+                or action not in decision.durable_jobs
+                or self._condition(action, snapshot) != "head_changed"
+            ):
+                raise WorkflowActionError(
+                    "review head replacement is no longer current",
+                    category=WorkflowFailureCategory.STALE_EVIDENCE,
+                    retryable=False,
+                )
+            replacement = await asyncio.to_thread(
+                self._persist_reconciled_head,
+                context,
+                snapshot,
+            )
+            return ReviewExecutionResult(
+                "head_changed",
+                f"accepted standalone head replaced with {replacement.head_sha}",
+                snapshot.observation,
+            )
         if action == "review_merge":
             provider_context = snapshot.provider_context
             if provider_context is None:
                 return ReviewExecutionResult("provider_unavailable")
+            decision = snapshot.decision
+            if (
+                decision is None
+                or action not in decision.durable_jobs
+                or self._condition(action, snapshot) != "ready_to_merge"
+            ):
+                raise WorkflowActionError(
+                    "review is no longer authorized for merge",
+                    category=WorkflowFailureCategory.STALE_EVIDENCE,
+                    retryable=False,
+                )
             review_id, head = self._exact_identity(snapshot)
             if not review_id or not _HEAD_RE.fullmatch(head):
                 raise WorkflowActionError(
@@ -572,12 +784,12 @@ class ProductionReviewWorkflowBackend:
                     retryable=False,
                 )
             operation = (
-                provider_context.provider.enable_auto_merge
+                provider_context.provider.enable_auto_merge_exact
                 if bool(getattr(provider_context.project, "merge_queue_enabled", False))
-                else provider_context.provider.merge_review
+                else provider_context.provider.merge_review_exact
             )
             ok, message = await asyncio.to_thread(
-                operation, provider_context.repo, review_id
+                operation, provider_context.repo, review_id, head
             )
             context.check_interrupted()
             if not ok:
@@ -633,6 +845,29 @@ class ProductionReviewWorkflowBackend:
             }[action]
             current = self._condition(action, snapshot)
             receipt = dict(effect.receipt)
+            if action == "review_head_reconciliation" and current == expected:
+                try:
+                    _integration, _old_head, new_head = (
+                        self._head_reconciliation_identity(snapshot)
+                    )
+                except WorkflowActionError:
+                    return VerificationResult(
+                        False,
+                        receipt,
+                        "review advanced again before replacement transition",
+                    )
+                current_integration = snapshot.issue.integration
+                if (
+                    not isinstance(current_integration, IntegrationRecord)
+                    or current_integration.state != "ready"
+                    or _text(current_integration.head_sha).lower() != new_head
+                ):
+                    return VerificationResult(
+                        False,
+                        receipt,
+                        "replacement integration generation is not durable",
+                    )
+                receipt["head_sha"] = new_head
             if action == "review_terminal_stage" and current == expected:
                 decision = snapshot.decision
                 evidence_revision = _text(
@@ -785,6 +1020,19 @@ class ProductionReviewWorkflowBackend:
             if precondition_revision is None:
                 raise WorkflowActionError(
                     "review terminal transition lacks a freshly verified evidence revision",
+                    category=WorkflowFailureCategory.PERMANENT,
+                    retryable=False,
+                )
+        elif context.job.action == "review_head_reconciliation":
+            integration = issue.integration
+            exact_head = _text(
+                integration.head_sha
+                if isinstance(integration, IntegrationRecord)
+                else None
+            ).lower()
+            if not _HEAD_RE.fullmatch(exact_head):
+                raise WorkflowActionError(
+                    "review head transition lacks replacement integration authority",
                     category=WorkflowFailureCategory.PERMANENT,
                     retryable=False,
                 )

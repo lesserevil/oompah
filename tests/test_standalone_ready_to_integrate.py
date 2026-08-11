@@ -96,6 +96,9 @@ def _review(
         created_at="2026-07-30T00:00:00+00:00",
         updated_at="2026-07-30T00:00:00+00:00",
         head_sha=head_sha,
+        base_sha="d" * 40,
+        source_repository="org/repo",
+        target_repository="org/repo",
     )
 
 
@@ -1414,6 +1417,61 @@ def test_changed_existing_review_head_is_gated_before_readoption(harness):
         mock.call(task.identifier, status=IN_REVIEW),
         mock.call(task.identifier, status=IN_REVIEW),
     ]
+
+
+def test_reconciled_review_head_is_regated_then_readopted_exactly(harness):
+    """Head A cannot authorize adoption after synchronize produced head B."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    old_head = "a" * 40
+    synchronized_head = "b" * 40
+    task = _issue("TASK-SYNC", branch="feature/task-sync")
+    # This is the durable boundary produced by review_head_reconciliation:
+    # review A is retained as history/mismatch evidence, while accepted
+    # standalone generation B has returned to Ready to Integrate.
+    task.review_number = "101"
+    task.review_url = "https://github.com/org/repo/pull/101"
+    task.review_head = old_head
+    task.integration = IntegrationRecord(
+        state="ready",
+        mode="standalone",
+        task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        base_sha="d" * 40,
+        head_sha=synchronized_head,
+        submitted_at="2026-08-10T12:54:50+00:00",
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.get_branch_head_sha.return_value = synchronized_head
+    provider.find_pr_for_branch.return_value = _review(
+        task.identifier,
+        review_id="101",
+        source_branch=task.work_branch,
+        head_sha=synchronized_head,
+    )
+
+    def gate_b(_project, issue, _source, _target):
+        assert issue.review_head == old_head
+        assert issue.integration.head_sha == synchronized_head
+        return True
+
+    gate.side_effect = gate_b
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once_with(
+        project,
+        task,
+        task.work_branch,
+        project.default_branch,
+    )
+    provider.create_review.assert_not_called()
+    tracker.update_issue.assert_called_once_with(task.identifier, status=IN_REVIEW)
+    assert (
+        task.identifier,
+        "oompah.review_head",
+        synchronized_head,
+    ) in [call.args[:3] for call in tracker.set_metadata_field.call_args_list]
 
 
 def test_existing_closed_review_is_replaced_after_gate(harness):

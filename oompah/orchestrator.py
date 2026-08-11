@@ -23131,6 +23131,29 @@ class Orchestrator:
                 f"target branch {target_branch or '<missing>'} does not match "
                 f"{authority.target_branch}",
             )
+        expected_repository = extract_repo_slug(
+            str(project.repo_url or "")
+        ).strip().casefold()
+        source_repository = str(
+            getattr(review, "source_repository", "") or ""
+        ).strip().casefold()
+        target_repository = str(
+            getattr(review, "target_repository", "") or ""
+        ).strip().casefold()
+        if source_repository and source_repository != expected_repository:
+            return (
+                "historical",
+                "",
+                f"source repository {source_repository} does not match "
+                f"{expected_repository}",
+            )
+        if target_repository and target_repository != expected_repository:
+            return (
+                "historical",
+                "",
+                f"target repository {target_repository} does not match "
+                f"{expected_repository}",
+            )
 
         forge_head = str(getattr(review, "head_sha", "") or "").strip().lower()
         if forge_head:
@@ -23219,6 +23242,13 @@ class Orchestrator:
             str(getattr(review, "source_branch", "") or "").strip(),
             str(getattr(review, "target_branch", "") or "").strip(),
             str(getattr(review, "head_sha", "") or "").strip().lower(),
+            str(getattr(review, "base_sha", "") or "").strip().lower(),
+            str(getattr(review, "source_repository", "") or "")
+            .strip()
+            .casefold(),
+            str(getattr(review, "target_repository", "") or "")
+            .strip()
+            .casefold(),
             "draft" if bool(getattr(review, "draft", False)) else "ready",
         )
 
