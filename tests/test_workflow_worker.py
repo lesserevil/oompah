@@ -1279,6 +1279,13 @@ def test_worker_configuration_rejects_unbounded_or_invalid_timing(store):
         worker(store, handler, operation_timeout_seconds=0)
     with pytest.raises(ValueError, match="quarantine_persist_timeout_seconds"):
         worker(store, handler, quarantine_persist_timeout_seconds=0)
+    for nonfinite in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError, match="finite and positive"):
+            worker(
+                store,
+                handler,
+                quarantine_persist_timeout_seconds=nonfinite,
+            )
 
     handler.domain = "unknown"
     with pytest.raises(ValueError, match="known domain"):

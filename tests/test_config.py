@@ -189,6 +189,11 @@ class TestServiceConfig:
             == 0.1
         )
 
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    def test_workflow_quarantine_persist_timeout_must_be_finite(self, value):
+        with pytest.raises(ValueError, match="must be finite"):
+            ServiceConfig(workflow_quarantine_persist_timeout_seconds=value)
+
     def test_container_cycle_repair_policy_comes_from_environment(self, monkeypatch):
         monkeypatch.setenv("OOMPAH_CONTAINER_CYCLE_REPAIR_ENABLED", "false")
         wf = WorkflowDefinition(config={}, prompt_template="test")

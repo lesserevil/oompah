@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import os
 import re
 from dataclasses import dataclass, field
@@ -1450,8 +1451,15 @@ class ServiceConfig:
         self.terminal_control_lock_timeout_seconds = max(
             float(self.terminal_control_lock_timeout_seconds), 0.1
         )
+        quarantine_persist_timeout = float(
+            self.workflow_quarantine_persist_timeout_seconds
+        )
+        if not math.isfinite(quarantine_persist_timeout):
+            raise ValueError(
+                "workflow_quarantine_persist_timeout_seconds must be finite"
+            )
         self.workflow_quarantine_persist_timeout_seconds = max(
-            float(self.workflow_quarantine_persist_timeout_seconds), 0.1
+            quarantine_persist_timeout, 0.1
         )
         self.workflow_quarantine_recycle_seconds = max(
             float(self.workflow_quarantine_recycle_seconds), 0.1

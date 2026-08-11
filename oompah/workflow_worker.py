@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import math
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
@@ -323,9 +324,13 @@ class DurableWorkflowWorker:
             raise ValueError("operation_timeout_seconds must be positive")
         if retry_delay_seconds < 0:
             raise ValueError("retry_delay_seconds cannot be negative")
-        if quarantine_persist_timeout_seconds <= 0:
+        quarantine_persist_timeout = float(quarantine_persist_timeout_seconds)
+        if (
+            not math.isfinite(quarantine_persist_timeout)
+            or quarantine_persist_timeout <= 0
+        ):
             raise ValueError(
-                "quarantine_persist_timeout_seconds must be positive"
+                "quarantine_persist_timeout_seconds must be finite and positive"
             )
         if quarantine_recycle_seconds <= 0:
             raise ValueError("quarantine_recycle_seconds must be positive")
@@ -333,9 +338,7 @@ class DurableWorkflowWorker:
         self.heartbeat_seconds = float(heartbeat_seconds)
         self.operation_timeout_seconds = float(operation_timeout_seconds)
         self.retry_delay_seconds = float(retry_delay_seconds)
-        self.quarantine_persist_timeout_seconds = float(
-            quarantine_persist_timeout_seconds
-        )
+        self.quarantine_persist_timeout_seconds = quarantine_persist_timeout
         self.quarantine_recycle_seconds = float(quarantine_recycle_seconds)
         self.phase_observer = phase_observer
         self.quarantine_recycle_observer = quarantine_recycle_observer
