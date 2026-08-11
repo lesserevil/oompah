@@ -531,6 +531,11 @@ class DirectOwnerClaimGuard(Protocol):
         """Return a stable rejection reason unless the exact live lease owns commit."""
 
 
+class TransitionMutationGuard(Protocol):
+    def __call__(self, intent: TransitionIntent, issue: Issue) -> str | None:
+        """Return detail when live workflow authority no longer permits commit."""
+
+
 class CoordinatorTerminalAdapter:
     """Adapt ``TerminalTransitionCoordinator`` to the service boundary."""
 
@@ -1476,8 +1481,10 @@ class TaskTransitionService:
         journal: TransitionJournal,
         terminal_adapter: TerminalTransitionAdapter | None = None,
         write_lock: Callable[[], Any] | None = None,
+        mutation_write_lock: Callable[[], Any] | None = None,
         direct_owner_write_lock: Callable[[], Any] | None = None,
         direct_owner_claim_guard: DirectOwnerClaimGuard | None = None,
+        mutation_guard: TransitionMutationGuard | None = None,
         claim_ttl_seconds: float = DEFAULT_TRANSITION_CLAIM_TTL_SECONDS,
     ) -> None:
         self.project_id = _required_text(project_id, "project_id")
@@ -1485,8 +1492,10 @@ class TaskTransitionService:
         self.journal = journal
         self.terminal_adapter = terminal_adapter
         self._write_lock = write_lock
+        self._mutation_write_lock = mutation_write_lock or write_lock
         self._direct_owner_write_lock = direct_owner_write_lock or write_lock
         self._direct_owner_claim_guard = direct_owner_claim_guard
+        self._mutation_guard = mutation_guard
         if claim_ttl_seconds <= 0:
             raise ValueError("claim_ttl_seconds must be positive")
         self.claim_ttl_seconds = claim_ttl_seconds
@@ -1665,6 +1674,107 @@ class TaskTransitionService:
                     return issue, conflict, retryable
                 update(intent.task_id, status=intent.requested_status)
                 return issue, None, False
+
+        return await asyncio.to_thread(commit)
+
+    def _guarded_commit_conflict(
+        self,
+        intent: TransitionIntent,
+        issue: Issue | None,
+    ) -> tuple[str | None, bool, str | None]:
+        """Re-prove tracker and workflow authority inside the write lane."""
+
+        if issue is None:
+            return "transition.task_missing", False, None
+        if issue.project_id and str(issue.project_id) != intent.project_id:
+            return "transition.project_mismatch", False, None
+        if canonicalize_status(issue.state) != intent.expected_status:
+            return "transition.stale_status", False, None
+        if issue_authority_version(issue) != intent.expected_version:
+            return "transition.stale_version", False, None
+        observed_generation = _optional_text(getattr(issue, "assignment_id", None))
+        if (
+            intent.evidence_generation
+            and observed_generation
+            and intent.evidence_generation != observed_generation
+        ):
+            return "transition.generation_mismatch", False, None
+        if intent.exact_head:
+            observed_head = issue_exact_head(issue)
+            guarded_landing_head = (
+                _guarded_landing_revision_lane(intent, issue) is not None
+            )
+            if observed_head != intent.exact_head and not guarded_landing_head:
+                return (
+                    "transition.head_missing"
+                    if observed_head is None
+                    else "transition.head_mismatch",
+                    False,
+                    None,
+                )
+        guard = self._mutation_guard
+        if guard is None:
+            return None, False, None
+        try:
+            detail = str(guard(intent, issue) or "").strip()
+        except Exception:  # noqa: BLE001 - workflow authority must fail closed
+            return "transition.mutation_guard_failed", True, None
+        if detail:
+            return "transition.stale_precondition", False, detail
+        return None, False, None
+
+    async def _commit_guarded_update(
+        self,
+        intent: TransitionIntent,
+    ) -> tuple[Issue | None, str | None, bool, str | None]:
+        """Validate live workflow authority and update under one project lock."""
+
+        fetch = self.tracker.fetch_issue_detail
+        update = self.tracker.update_issue
+        if inspect.iscoroutinefunction(fetch) or inspect.iscoroutinefunction(update):
+            context = (
+                self._mutation_write_lock()
+                if self._mutation_write_lock is not None
+                else contextlib.nullcontext()
+            )
+            with context:
+                observed = (
+                    await fetch(intent.task_id)
+                    if inspect.iscoroutinefunction(fetch)
+                    else fetch(intent.task_id)
+                )
+                if isinstance(observed, Issue) and not observed.project_id:
+                    observed.project_id = self.project_id
+                issue = observed if isinstance(observed, Issue) else None
+                conflict, retryable, detail = self._guarded_commit_conflict(
+                    intent, issue
+                )
+                if conflict is not None:
+                    return issue, conflict, retryable, detail
+                if inspect.iscoroutinefunction(update):
+                    await update(intent.task_id, status=intent.requested_status)
+                else:
+                    update(intent.task_id, status=intent.requested_status)
+                return issue, None, False, None
+
+        def commit() -> tuple[Issue | None, str | None, bool, str | None]:
+            context = (
+                self._mutation_write_lock()
+                if self._mutation_write_lock is not None
+                else contextlib.nullcontext()
+            )
+            with context:
+                observed = fetch(intent.task_id)
+                if isinstance(observed, Issue) and not observed.project_id:
+                    observed.project_id = self.project_id
+                issue = observed if isinstance(observed, Issue) else None
+                conflict, retryable, detail = self._guarded_commit_conflict(
+                    intent, issue
+                )
+                if conflict is not None:
+                    return issue, conflict, retryable, detail
+                update(intent.task_id, status=intent.requested_status)
+                return issue, None, False, None
 
         return await asyncio.to_thread(commit)
 
@@ -2355,6 +2465,47 @@ class TaskTransitionService:
                             commit_conflict,
                             guarded_issue or issue,
                             retryable=retryable_conflict,
+                        )
+                        await asyncio.to_thread(
+                            self.journal.append,
+                            transition_id,
+                            (
+                                TransitionPhase.RETRY_SCHEDULED
+                                if retryable_conflict
+                                else TransitionPhase.REJECTED
+                            ),
+                            outcome.reason_code,
+                            outcome,
+                        )
+                        return outcome
+                elif (
+                    self._mutation_guard is not None
+                    and intent.reason_code
+                    == "implementation.validation_submission"
+                ):
+                    (
+                        guarded_issue,
+                        commit_conflict,
+                        retryable_conflict,
+                        conflict_detail,
+                    ) = await self._commit_guarded_update(intent)
+                    if commit_conflict is not None:
+                        outcome = self._outcome(
+                            transition_id,
+                            intent,
+                            (
+                                TransitionDisposition.RETRYABLE
+                                if retryable_conflict
+                                else TransitionDisposition.REJECTED
+                            ),
+                            commit_conflict,
+                            guarded_issue or issue,
+                            retryable=retryable_conflict,
+                            details=(
+                                {"detail": conflict_detail}
+                                if conflict_detail
+                                else {}
+                            ),
                         )
                         await asyncio.to_thread(
                             self.journal.append,

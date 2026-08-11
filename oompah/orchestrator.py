@@ -5664,6 +5664,79 @@ class Orchestrator:
             return "transition.owner_claim_task_mismatch"
         return None
 
+    def _validation_submission_transition_conflict(
+        self,
+        intent: TransitionIntent,
+        issue: Issue,
+    ) -> str | None:
+        """Re-prove accepted-head and direct-owner authority at status commit.
+
+        The task transition service invokes this while holding the project's
+        write lock.  Consequently Oompah's ref publication and owner-claim
+        mutations cannot interleave between these live reads and the tracker
+        update that promotes the task to Ready to Integrate.
+        """
+
+        if intent.reason_code != "implementation.validation_submission":
+            return None
+        if intent.authority is not TransitionAuthority.ORCHESTRATOR:
+            return "validation submission requires orchestrator authority"
+        try:
+            submission = self.workflow_job_store.get(intent.originating_job)
+        except Exception:  # noqa: BLE001 - durable origin must fail closed
+            return "validation submission origin is unavailable"
+        if (
+            submission.action != "validation_submission"
+            or submission.project_id != intent.project_id
+            or submission.task_id != intent.task_id
+        ):
+            return "validation submission origin changed"
+        expected_head = str(submission.expected_head_sha or "").strip().lower()
+        if not expected_head or expected_head != str(intent.exact_head or ""):
+            return "validation submission head authority changed"
+        payload = submission.payload or {}
+        branch = str(accepted_submission_branch(issue) or "").strip()
+        captured_branch = str(payload.get("work_branch") or "").strip()
+        if not branch or (captured_branch and captured_branch != branch):
+            return "validation submission branch authority changed"
+        try:
+            remote_head = str(
+                self.project_store.remote_branch_head(intent.project_id, branch)
+                or ""
+            ).strip().lower()
+        except Exception:  # noqa: BLE001 - remote authority must fail closed
+            return "validation submission remote head is unavailable"
+        if remote_head != expected_head:
+            return "validation submission remote head changed"
+
+        captured_claim_id = str(payload.get("owner_claim_id") or "").strip()
+        current_claim = self._live_owner_claim_for_issue_locked(
+            issue.id,
+            intent.project_id,
+        )
+        if not captured_claim_id:
+            if submission.generation != intent.evidence_generation:
+                return "validation submission generation changed"
+            if current_claim is not None:
+                return "validation submission owner authority changed"
+            return None
+        if current_claim is None:
+            return "validation submission owner claim is missing"
+        if current_claim.retirement_pending:
+            return "validation submission owner claim is retiring"
+        if current_claim.claim_id != captured_claim_id:
+            return "validation submission owner claim changed"
+        if intent.evidence_generation != captured_claim_id:
+            return "validation submission owner generation changed"
+        captured_owner = str(payload.get("owner_login") or "").strip()
+        if captured_owner and current_claim.owner_login != captured_owner:
+            return "validation submission owner identity changed"
+        if str(current_claim.project_id or "") != intent.project_id:
+            return "validation submission owner project changed"
+        if str(current_claim.issue_id or "") != str(issue.id):
+            return "validation submission owner task changed"
+        return None
+
     def _scheduler_owns_project_issue(
         self,
         issue_id: str,
@@ -11157,6 +11230,20 @@ class Orchestrator:
                         if project_id is not None
                         else None
                     ),
+                    mutation_write_lock=(
+                        lambda: self.project_store.project_write_lock(
+                            service_project_id
+                        )
+                        if project_id is not None
+                        and hasattr(self, "project_store")
+                        else None
+                    ),
+                    mutation_guard=(
+                        self._validation_submission_transition_conflict
+                        if project_id is not None
+                        and hasattr(self, "project_store")
+                        else None
+                    ),
                     direct_owner_write_lock=(
                         lambda: self.project_store.project_write_lock(
                             service_project_id
@@ -14895,6 +14982,75 @@ class Orchestrator:
             None,
         )
 
+    def _accepted_submission_recovery_authority(
+        self,
+        issue: Issue,
+        *,
+        task_branch: str,
+        accepted_head: str,
+    ) -> tuple[bool, str, str, OwnerClaim | None]:
+        """Fence restart recovery against an accepted-branch advance.
+
+        Accepted submission metadata is normally the crash-safe source for a
+        missing validation event. It becomes historical, however, after the
+        mutable branch advances: replaying the old head can retire a repair
+        claim and strand liveness in a generation-mismatch loop. Observe the
+        remote ref through the project store's stable two-read contract and
+        prove that an exact direct-owner claim, when present, survived the
+        observation. Any unavailable or racing evidence parks recovery; only
+        an explicit current-head submit can create replacement authority.
+        """
+
+        project_id = str(issue.project_id or "").strip()
+        branch = str(task_branch or "").strip()
+        expected = str(accepted_head or "").strip().lower()
+        claim = self._owner_claim_for_issue(issue.id, issue.project_id)
+        if claim is not None and claim.retirement_pending:
+            return False, "accepted_submission_claim_retiring", "", claim
+        if not project_id or not branch or not expected:
+            return False, "accepted_submission_branch_unavailable", "", claim
+        store = getattr(self, "project_store", None)
+        remote_head = getattr(store, "remote_branch_head", None)
+        if not callable(remote_head):
+            return False, "accepted_submission_branch_unavailable", "", claim
+        try:
+            observed = str(remote_head(project_id, branch) or "").strip().lower()
+        except Exception as exc:  # noqa: BLE001 - remote evidence must fail closed
+            logger.info(
+                "Parked accepted-submission recovery for %s: remote head "
+                "authority is unavailable (%s)",
+                issue.identifier,
+                type(exc).__name__,
+            )
+            return False, "accepted_submission_branch_unavailable", "", claim
+        if not observed:
+            return False, "accepted_submission_branch_unavailable", "", claim
+        if observed != expected:
+            return False, "accepted_submission_branch_advanced", observed, claim
+        current_claim = self._owner_claim_for_issue(issue.id, issue.project_id)
+        if (
+            (claim is None) != (current_claim is None)
+            or (
+                claim is not None
+                and current_claim is not None
+                and (
+                    current_claim.retirement_pending
+                    or current_claim.claim_id != claim.claim_id
+                )
+            )
+        ):
+            return False, "accepted_submission_claim_changed", observed, current_claim
+        return (
+            True,
+            (
+                "accepted_submission_exact_direct_owner"
+                if current_claim is not None
+                else "accepted_submission_exact"
+            ),
+            observed,
+            current_claim,
+        )
+
     def _workflow_shadow_sources(self, issue: Issue) -> dict[FactDomain, Any]:
         """Build read-only fact adapters over the current legacy runtime."""
 
@@ -15273,6 +15429,7 @@ class Orchestrator:
                     self._duplicate_preflight_limit() > 0
                 ),
             }
+            accepted_submission_recovery_parked = False
             integration = getattr(current, "integration", None)
             integration_state = str(
                 getattr(integration, "state", "") or ""
@@ -15291,40 +15448,70 @@ class Orchestrator:
                 # If the process dies after persisting it but before publishing
                 # the imperative validation event, fact reconciliation must
                 # finish that handoff rather than launch another implementer.
-                running = self._workflow_shadow_running_entry(
-                    current, auditor=False
+                task_branch = str(
+                    getattr(integration, "task_branch", None)
+                    or current.work_branch
+                    or current.branch_name
+                    or ""
                 )
-                value["implementation_pending_action"] = (
-                    "validation_submission"
+                (
+                    recovery_authorized,
+                    recovery_state,
+                    observed_branch_head,
+                    recovery_claim,
+                ) = self._accepted_submission_recovery_authority(
+                    current,
+                    task_branch=task_branch,
+                    accepted_head=integration_head,
                 )
-                value["implementation_pending_payload"] = {
-                    "owner_id": str(getattr(running, "run_id", None) or ""),
-                    "run_id": str(getattr(running, "run_id", None) or ""),
-                    "prior_generation": str(
-                        getattr(running, "authority_generation", None) or ""
-                    ),
-                    "assignment_id": str(
-                        getattr(current, "assignment_id", None) or ""
-                    ),
-                    "work_branch": str(
-                        getattr(integration, "task_branch", None)
-                        or current.work_branch
-                        or current.branch_name
-                        or ""
-                    ),
-                    "head_sha": integration_head,
-                    "base_branch": str(
-                        getattr(integration, "base_branch", None) or ""
-                    ),
-                    "base_sha": str(
-                        getattr(integration, "base_sha", None) or ""
-                    ),
-                    "expected_status": current.state,
-                    "reason": "recover accepted validation submission",
-                }
+                value["accepted_submission_recovery_state"] = recovery_state
+                value["accepted_submission_head"] = integration_head
+                accepted_submission_recovery_parked = not recovery_authorized
+                if observed_branch_head:
+                    value["accepted_submission_branch_head"] = (
+                        observed_branch_head
+                    )
+                if recovery_authorized:
+                    running = self._workflow_shadow_running_entry(
+                        current, auditor=False
+                    )
+                    value["implementation_pending_action"] = (
+                        "validation_submission"
+                    )
+                    value["implementation_pending_payload"] = {
+                        "owner_id": str(
+                            getattr(running, "run_id", None) or ""
+                        ),
+                        "run_id": str(
+                            getattr(running, "run_id", None) or ""
+                        ),
+                        "prior_generation": str(
+                            getattr(running, "authority_generation", None) or ""
+                        ),
+                        "owner_claim_id": str(
+                            getattr(recovery_claim, "claim_id", None) or ""
+                        ),
+                        "owner_login": str(
+                            getattr(recovery_claim, "owner_login", None) or ""
+                        ),
+                        "assignment_id": str(
+                            getattr(current, "assignment_id", None) or ""
+                        ),
+                        "work_branch": task_branch,
+                        "head_sha": integration_head,
+                        "base_branch": str(
+                            getattr(integration, "base_branch", None) or ""
+                        ),
+                        "base_sha": str(
+                            getattr(integration, "base_sha", None) or ""
+                        ),
+                        "expected_status": current.state,
+                        "reason": "recover accepted validation submission",
+                    }
             if (
                 canonicalize_status(current.state) == IN_PROGRESS
                 and "implementation_pending_action" not in value
+                and not accepted_submission_recovery_parked
             ):
                 running = self._workflow_shadow_running_entry(
                     current, auditor=False
@@ -15435,6 +15622,7 @@ class Orchestrator:
                     if (
                         requested_status is not None
                         and "implementation_pending_action" not in value
+                        and not accepted_submission_recovery_parked
                     ):
                         value["implementation_pending_action"] = "worker_exit"
                         value["implementation_pending_payload"] = {
@@ -15448,6 +15636,7 @@ class Orchestrator:
                         }
                     elif (
                         "implementation_pending_action" not in value
+                        and not accepted_submission_recovery_parked
                         and self._duplicate_preflight_limit() > 0
                         and assessment.state is not ScreeningState.CHECKED
                         and assessment.state is not ScreeningState.RUNNING

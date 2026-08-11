@@ -1886,6 +1886,53 @@ async def test_submission_builds_only_transition_service_status_intent(tmp_path)
 
 
 @pytest.mark.asyncio
+async def test_restart_submission_uses_exact_direct_owner_claim_generation(
+    tmp_path,
+):
+    issue = make_issue(status=IN_PROGRESS)
+    issue.assignment_id = "claim-submitted"
+    issue.integration = SimpleNamespace(state="ready", head_sha=HEAD_A)
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    _jobs, context = make_context(
+        tmp_path,
+        action=ImplementationAction.VALIDATION_SUBMISSION,
+        payload={
+            "owner_claim_id": issue.assignment_id,
+            "owner_login": "project-owner",
+            "work_branch": "TASK-1",
+            "head_sha": HEAD_A,
+        },
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    backend = ProductionImplementationWorkflowBackend(effects)
+
+    result = await backend.execute(context)
+    intent = await backend.build_transition(
+        context,
+        VerificationResult(
+            True,
+            {"disposition": result.disposition.to_dict()},
+        ),
+    )
+
+    assert intent.evidence_generation == issue.assignment_id
+    assert intent.evidence_generation != context.job.generation
+    assert intent.exact_head == HEAD_A
+    journal = TransitionJournal(str(tmp_path / "claim-submission-transition.sqlite3"))
+    transition = await TaskTransitionService(
+        project_id="project-a",
+        tracker=tracker,
+        journal=journal,
+    ).execute(intent)
+    assert transition.disposition is TransitionDisposition.APPLIED
+    assert transition.reason_code == "transition.applied"
+    assert tracker.status_writes == [(issue.identifier, READY_TO_INTEGRATE)]
+    journal.close()
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
 async def test_submission_finalizes_exact_owner_handoff_off_event_loop(tmp_path):
     issue = make_issue(status=READY_TO_INTEGRATE)
     issue.integration = SimpleNamespace(state="ready", head_sha=HEAD_A)
