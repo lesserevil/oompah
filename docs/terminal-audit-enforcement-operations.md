@@ -1,6 +1,6 @@
 # Terminal-Audit Enforcement: Operator Guide
 
-**Audience:** Operators managing oompah deployments  
+**Audience:** Operators managing oompah deployments
 **Related:** `plans/terminal-audit-enforcement.md` (design), `plans/terminal-transition-coordinator.md` (coordinator)
 
 ## Overview
@@ -244,24 +244,44 @@ INFO: Terminal-audit enforcement initialized: {
 **Operator action**:
 
 1. **Identify the problematic task**: `TASK-50` has corrupted metadata
-2. **Inspect the metadata**:
+2. **Inspect through the managed task API and server logs**:
    ```bash
-   gh issue view TASK-50 --json body
-   # Look for oompah.terminal_audit JSON block
+   oompah task view TASK-50 --project proj-abc
    ```
-3. **Clear the metadata** (operator's choice of how to handle the in-flight audit):
-   - Let the audit complete naturally (if it's active, the auditor may recover)
-   - Manually move the task to a repair status (e.g., "Needs Human")
-   - Delete the metadata field if the task should start over
+3. **Do not delete or hand-edit terminal-audit metadata.** Result intents,
+   owner overrides, and status-departure markers form one validated ledger.
+   Recovery fails closed before modifying any row when that ledger is
+   malformed.
+4. **Repair the source through an owner-authorized tracker operation**, then
+   restart with `make restart`. If the ledger itself requires repair, stop the
+   server and use the project-specific recovery procedure rather than editing
+   a live task.
+
+Relevant fail-closed error prefixes include
+`pre_recovery_finalization_metadata_malformed`,
+`validation_status_departure_records_malformed`,
+`inactive_status_departure_records_malformed`, and
+`status_departure_recovery_failed`. The suffix identifies the project and
+task.
 
 ### Scenario 6: Restart Recovery
 
 **What happens**:
 
 1. Server crashes while an audit is in progress (status `IN_PROGRESS`)
-2. Enforcement reads `In Validation` metadata and finds the pending audit
-3. Attempt IDs are copied from prior run (no duplicates)
-4. Audit is re-enqueued for auditor to resume
+2. Enforcement validates the complete result, override, and status-departure
+   ledger before applying recovery mutations
+3. An audit that still has exact `In Validation` authority is re-enqueued with
+   its existing generation and attempt identity
+4. An audit whose task left `In Validation` is retired; its incompatible
+   runtime job and attempt worktree are cleaned up, with cleanup retried on a
+   later reconciliation if the first attempt fails
+5. If an interrupted status transition returns the task to `In Validation`
+   with the same immutable evidence, the durable departure marker creates a
+   fresh audit generation and fresh identifiers. The cancelled generation is
+   never revived
+6. If immutable evidence is temporarily unavailable, recovery keeps the
+   departure marker unapplied and retries instead of guessing
 
 **Expected log**:
 
@@ -278,7 +298,10 @@ INFO: Terminal-audit enforcement initialized: {
 INFO: Recovered 1 pending audit from In Validation metadata
 ```
 
-**Operator action**: None required. Auditor will resume the in-flight audit without duplication.
+**Operator action**: None required for a valid ledger. The auditor resumes an
+exact in-flight generation or receives the fresh generation created by
+status-departure recovery. Investigate only persistent fail-closed errors;
+do not clear a transient marker or cleanup retry manually.
 
 ## Monitoring and Alerting
 

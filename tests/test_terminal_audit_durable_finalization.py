@@ -38,7 +38,11 @@ from oompah.terminal_audit import (
     compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
-from oompah.terminal_audit_workflow import TerminalAuditWorkflow
+from oompah.terminal_audit_enforcement import TerminalAuditEnforcement
+from oompah.terminal_audit_workflow import (
+    AuditWorkflowIdentityError,
+    TerminalAuditWorkflow,
+)
 from oompah.terminal_transition_coordinator import (
     AuditResult,
     ResultOutcome,
@@ -60,9 +64,16 @@ SELECTED_SHA = "a" * 40
 class _ProjectLocks:
     def __init__(self) -> None:
         self._lock = threading.RLock()
+        self.worktrees: list[str] = []
 
     def project_write_lock(self, _project_id: str) -> threading.RLock:
         return self._lock
+
+    def list_all(self) -> list[SimpleNamespace]:
+        return [SimpleNamespace(id=PROJECT_ID)]
+
+    def list_worktrees(self, _project_id: str) -> list[str]:
+        return list(self.worktrees)
 
 
 class _RevisionProjectLocks(_ProjectLocks):
@@ -111,6 +122,9 @@ class _Tracker:
 
     def fetch_issue_states_by_ids(self, issue_ids: list[str]) -> list[Issue]:
         return [self.fetch_issue_detail(identifier) for identifier in issue_ids]
+
+    def fetch_all_issues_enriched(self) -> list[Issue]:
+        return [self.fetch_issue_detail(TASK_ID)]
 
 
 def _result(record, attempt_id: str) -> AuditResult:
@@ -3013,6 +3027,147 @@ def test_resolved_archive_is_retired_after_cancel_crash_and_restart(tmp_path) ->
     reopened_store.close()
 
 
+def test_repair_status_restart_retires_orphaned_metadata_and_lane_job(
+    tmp_path,
+) -> None:
+    """An OOMPAH-940-shaped repair status cannot revive its old audit."""
+
+    tracker = _Tracker()
+    tracker.status = NEEDS_HUMAN
+    locks = _ProjectLocks()
+    fingerprint = compute_issue_evidence_fingerprint(
+        tracker.fetch_issue_detail(TASK_ID),
+        PROJECT_ID,
+    )
+    attempt = AuditAttempt(
+        attempt_id="attempt-orphaned",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        provider_id="provider-a",
+        model="model-a",
+    )
+    record = TerminalAuditRecord(
+        audit_id="audit-orphaned",
+        project_id=PROJECT_ID,
+        task_id=TASK_ID,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        attempts=[attempt],
+        source_generation=4,
+    )
+    metadata = TerminalAuditMetadataStore(tracker, locks, PROJECT_ID)
+    metadata.update(
+        TASK_ID,
+        lambda document: replace(document, pending_chain=[record]),
+    )
+    workflow_store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    workflow = TerminalAuditWorkflow(workflow_store)
+    queued = workflow.ensure(record)
+    locks.remove_worktree = MagicMock(
+        side_effect=[OSError("transient worktree cleanup failure"), True]
+    )
+    enforcer = TerminalAuditEnforcement(
+        str(tmp_path / "service-state.json"),
+        terminal_states=(DONE, MERGED, "Archived"),
+        project_store=locks,
+    )
+
+    assert enforcer.recover_pending_audits([(PROJECT_ID, tracker)]) == []
+    assert metadata.read(TASK_ID).pending_chain[0].request_state is (
+        RequestState.CANCELLED
+    )
+
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=locks,
+        post_comments=False,
+    )
+    stale_outcome = asyncio.run(
+        coordinator.apply_audit_result(
+            tracker.fetch_issue_detail(TASK_ID),
+            _result(record, attempt.attempt_id),
+            PROJECT_ID,
+        )
+    )
+    assert not stale_outcome.success
+    assert stale_outcome.reason is ResultRejection.ISSUE_NOT_IN_VALIDATION
+    assert tracker.status == NEEDS_HUMAN
+
+    restarted = _orchestrator(tracker, coordinator, workflow_store, workflow)
+    restarted._terminal_audit_enforcement = enforcer
+    restarted._maintenance_status = {}
+    restarted._sync_terminal_audit_workflow_jobs()
+
+    assert restarted._maintenance_status["terminal_audit_workflow"] == {
+        "materialized": 0,
+        "recovered": 0,
+        "retired_resolved": 0,
+        "retired_workspaces": 0,
+    }
+    assert workflow_store.get(queued.job_id).state is WorkflowJobState.QUEUED
+
+    # The still-active workflow row remains the durable discovery owner, so a
+    # later maintenance pass retries cleanup before retiring the lane.
+    restarted._sync_terminal_audit_workflow_jobs()
+    assert restarted._maintenance_status["terminal_audit_workflow"] == {
+        "materialized": 0,
+        "recovered": 0,
+        "retired_resolved": 1,
+        "retired_workspaces": 1,
+    }
+    assert workflow_store.get(queued.job_id).state is WorkflowJobState.CANCELLED
+    assert locks.remove_worktree.call_count == 2
+    locks.remove_worktree.assert_called_with(
+        PROJECT_ID,
+        f"{TASK_ID}--terminal-audit-{attempt.attempt_id}",
+    )
+
+    writes_after_retirement = tracker.metadata_write_count
+    assert enforcer.recover_pending_audits([(PROJECT_ID, tracker)]) == []
+    assert tracker.metadata_write_count == writes_after_retirement
+    with pytest.raises(
+        AuditWorkflowIdentityError,
+        match="terminal-audit source generation is stale",
+    ):
+        workflow.ensure(record)
+
+    # A later, explicit return to In Validation must not revive source
+    # generation 4.  The coordinator may reuse the logical audit identity,
+    # but only by publishing a fresh, exact generation with no live attempt
+    # from the cancelled owner.
+    tracker.status = IN_VALIDATION
+    rearmed = asyncio.run(
+        coordinator.request_transition(
+            tracker.fetch_issue_detail(TASK_ID),
+            TargetState.DONE,
+            ContributorIdentity("operator-repair", "oompah"),
+            PROJECT_ID,
+            compute_issue_evidence_fingerprint(
+                tracker.fetch_issue_detail(TASK_ID),
+                PROJECT_ID,
+            ),
+            workflow_revision="workflow-revision-rearmed",
+        )
+    )
+    assert rearmed.success
+    active = AuditorDispatchLane.pending_record(
+        metadata.read(TASK_ID).pending_chain,
+        project_id=PROJECT_ID,
+        task_id=TASK_ID,
+    )
+    assert active is not None
+    assert active.source_generation > record.source_generation
+    assert active.request_state is RequestState.PENDING
+    assert not any(
+        value.attempt_id == attempt.attempt_id
+        and value.request_state in {RequestState.PENDING, RequestState.IN_PROGRESS}
+        for value in active.attempts
+    )
+    workflow_store.close()
+
+
 def test_resolved_metadata_does_not_retire_typed_finalization(tmp_path) -> None:
     store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
     workflow = TerminalAuditWorkflow(store)
@@ -3045,6 +3200,271 @@ def test_resolved_metadata_does_not_retire_typed_finalization(tmp_path) -> None:
         records=[resolved],
     ) == 0
     assert store.get(finalizing.job_id).state is WorkflowJobState.RUNNING
+    store.close()
+
+
+def test_sync_activates_applied_status_departure_after_exhausted_semantics(
+    tmp_path,
+) -> None:
+    tracker = _Tracker()
+    tracker.status = IN_VALIDATION
+    locks = _ProjectLocks()
+    fingerprint = compute_issue_evidence_fingerprint(
+        tracker.fetch_issue_detail(TASK_ID),
+        PROJECT_ID,
+    )
+    old = TerminalAuditRecord(
+        audit_id="audit-before-departure",
+        project_id=PROJECT_ID,
+        task_id=TASK_ID,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.PENDING,
+        source_generation=1,
+    )
+    fresh = replace(
+        old,
+        audit_id="audit-after-departure",
+        source_generation=2,
+    )
+    marker = {
+        "version": 1,
+        "departure_id": "audit-departure-sync",
+        "project_id": PROJECT_ID,
+        "task_id": TASK_ID,
+        "from_status": IN_VALIDATION,
+        "requested_status": NEEDS_HUMAN,
+        "prepared_at": "2026-08-11T00:00:00+00:00",
+        "resolved_at": "2026-08-11T00:00:01+00:00",
+        "applied": True,
+        "outcome": "rearmed",
+        "rearms": [
+            {
+                "audit_id": old.audit_id,
+                "rearm_audit_id": fresh.audit_id,
+                "source_generation": fresh.source_generation,
+            }
+        ],
+    }
+    metadata = TerminalAuditMetadataStore(tracker, locks, PROJECT_ID)
+    metadata.update(
+        TASK_ID,
+        lambda document: replace(
+            document,
+            pending_chain=[
+                replace(old, request_state=RequestState.CANCELLED),
+                fresh,
+            ],
+            unknown_fields={
+                **document.unknown_fields,
+                "oompah.terminal_audit_status_departures": [marker],
+            },
+        ),
+    )
+    workflow_store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    workflow = TerminalAuditWorkflow(workflow_store)
+    running = workflow.start(
+        old,
+        attempt_id="attempt-exhausted-before-departure",
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert running is not None
+    exhausted = workflow.action_required(
+        running,
+        record=old,
+        action_code="no_independent_auditor",
+        reason="auditor candidates exhausted",
+    )
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=locks,
+        post_comments=False,
+    )
+    orchestrator = _orchestrator(
+        tracker,
+        coordinator,
+        workflow_store,
+        workflow,
+    )
+    orchestrator._terminal_audit_enforcement = SimpleNamespace(
+        pending_audits=[SimpleNamespace(record=fresh)]
+    )
+    orchestrator._maintenance_status = {}
+
+    orchestrator._sync_terminal_audit_workflow_jobs()
+
+    active = [
+        job
+        for job in workflow_store.list_jobs(task_id=TASK_ID)
+        if job.state in {WorkflowJobState.QUEUED, WorkflowJobState.RUNNING}
+    ]
+    assert len(active) == 1
+    assert active[0].job_id != exhausted.job_id
+    assert active[0].state is WorkflowJobState.QUEUED
+    assert workflow.ensure(fresh).job_id == active[0].job_id
+    workflow_store.close()
+
+
+def test_finalizing_workspace_cleanup_is_rediscovered_after_job_terminalizes(
+    tmp_path,
+) -> None:
+    tracker = _Tracker()
+    tracker.status = NEEDS_HUMAN
+    locks = _ProjectLocks()
+    fingerprint = compute_issue_evidence_fingerprint(
+        tracker.fetch_issue_detail(TASK_ID),
+        PROJECT_ID,
+    )
+    attempt = AuditAttempt(
+        attempt_id="attempt-finalizing-cleanup",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        provider_id="provider-a",
+        model="model-a",
+    )
+    record = TerminalAuditRecord(
+        audit_id="audit-finalizing-cleanup",
+        project_id=PROJECT_ID,
+        task_id=TASK_ID,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        attempts=[attempt],
+        source_generation=7,
+    )
+    metadata = TerminalAuditMetadataStore(tracker, locks, PROJECT_ID)
+    metadata.update(
+        TASK_ID,
+        lambda document: replace(
+            document,
+            pending_chain=[
+                replace(record, request_state=RequestState.CANCELLED)
+            ],
+        ),
+    )
+    workflow_store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    workflow = TerminalAuditWorkflow(workflow_store)
+    running = workflow.start(
+        record,
+        attempt_id=attempt.attempt_id,
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert running is not None and running.lease_token is not None
+    finalizing = workflow.mark_finalizing(
+        running,
+        record,
+        result=_result(record, attempt.attempt_id),
+        attempt_id=attempt.attempt_id,
+        lease_token=running.lease_token,
+    )
+    workspace = f"{TASK_ID}--terminal-audit-{attempt.attempt_id}"
+    locks.worktrees = [str(tmp_path / workspace)]
+    locks.remove_worktree = MagicMock(
+        side_effect=[OSError("transient cleanup outage"), True]
+    )
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=locks,
+        post_comments=False,
+    )
+    orchestrator = _orchestrator(
+        tracker,
+        coordinator,
+        workflow_store,
+        workflow,
+    )
+    orchestrator._terminal_audit_enforcement = SimpleNamespace(
+        pending_audits=[]
+    )
+    orchestrator._maintenance_status = {}
+
+    orchestrator._sync_terminal_audit_workflow_jobs()
+    assert workflow_store.get(finalizing.job_id).state is WorkflowJobState.RUNNING
+
+    # Model the independent finalization replay terminalizing its workflow row
+    # after the first cleanup attempt failed.
+    workflow.cancel(finalizing, reason="stale finalization rejected")
+    assert workflow_store.get(finalizing.job_id).state is WorkflowJobState.CANCELLED
+
+    orchestrator._sync_terminal_audit_workflow_jobs()
+
+    assert locks.remove_worktree.call_count == 2
+    locks.remove_worktree.assert_called_with(PROJECT_ID, workspace)
+    assert orchestrator._maintenance_status["terminal_audit_workflow"][
+        "retired_workspaces"
+    ] == 1
+    workflow_store.close()
+
+
+def test_repair_status_restart_rejects_and_cancels_stale_typed_finalization(
+    tmp_path,
+) -> None:
+    tracker = _Tracker()
+    tracker.status = IN_VALIDATION
+    locks = _ProjectLocks()
+    issue = tracker.fetch_issue_detail(TASK_ID)
+    fingerprint = compute_issue_evidence_fingerprint(issue, PROJECT_ID)
+    record = TerminalAuditRecord(
+        audit_id="audit-stale-finalizing",
+        project_id=PROJECT_ID,
+        task_id=TASK_ID,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.PENDING,
+        source_generation=3,
+    )
+    metadata = TerminalAuditMetadataStore(tracker, locks, PROJECT_ID)
+    metadata.update(
+        TASK_ID,
+        lambda document: replace(document, pending_chain=[record]),
+    )
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    workflow = TerminalAuditWorkflow(store)
+    running = workflow.start(
+        record,
+        attempt_id="attempt-stale-finalizing",
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert running is not None
+    finalizing = workflow.mark_finalizing(
+        running,
+        record,
+        result=_result(record, "attempt-stale-finalizing"),
+        attempt_id="attempt-stale-finalizing",
+        lease_token=running.lease_token,
+    )
+
+    tracker.status = NEEDS_HUMAN
+    enforcer = TerminalAuditEnforcement(
+        str(tmp_path / "service-state.json"),
+        terminal_states=(DONE, MERGED, "Archived"),
+        project_store=locks,
+    )
+    assert enforcer.recover_pending_audits([(PROJECT_ID, tracker)]) == []
+    assert metadata.read(TASK_ID).pending_chain[0].request_state is (
+        RequestState.CANCELLED
+    )
+
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=locks,
+        post_comments=False,
+    )
+    orchestrator = _orchestrator(tracker, coordinator, store, workflow)
+    orchestrator._terminal_audit_enforcement = enforcer
+    orchestrator._maintenance_status = {}
+    orchestrator._sync_terminal_audit_workflow_jobs()
+    assert store.get(finalizing.job_id).phase == "finalizing"
+
+    assert asyncio.run(orchestrator._replay_terminal_audit_finalizations()) == 1
+    cancelled = store.get(finalizing.job_id)
+    assert cancelled.state is WorkflowJobState.CANCELLED
+    assert tracker.status == NEEDS_HUMAN
+    document = metadata.read(TASK_ID)
+    assert document.pending_chain[0].request_state is RequestState.CANCELLED
+    assert not document.unknown_fields.get("oompah.terminal_audit_result_intents")
+    assert asyncio.run(orchestrator._replay_terminal_audit_finalizations()) == 0
     store.close()
 
 

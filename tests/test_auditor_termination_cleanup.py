@@ -36,6 +36,7 @@ from oompah.terminal_audit import (
     Verdict,
     compute_evidence_fingerprint,
 )
+from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
 from oompah.terminal_transition_coordinator import AuditResult
 
 
@@ -148,6 +149,131 @@ def test_forced_auditor_termination_releases_all_runtime_claims(tmp_path) -> Non
     assert entry.issue.id not in orch.state.claimed_issues
     assert entry.branch_key not in orch._audit_branch_claims
     assert not orch._audit_branch_busy(entry.issue, entry.branch_key)
+
+
+def test_repair_status_reconcile_retires_exact_auditor_runtime_and_workspace(
+    tmp_path,
+) -> None:
+    orch = _orchestrator(tmp_path)
+    entry = _entry("attempt-repair")
+    fresh = Issue(
+        id=entry.issue.id,
+        identifier=entry.identifier,
+        title=entry.issue.title,
+        description=entry.issue.description,
+        state="Needs CI Fix",
+        project_id=entry.issue.project_id,
+    )
+    orch.state.running[entry.issue.id] = entry
+    orch.state.claimed.add(entry.issue.id)
+    orch.state.claimed_issues[entry.issue.id] = entry.issue
+    orch._audit_branch_claims[entry.branch_key] = entry.audit_attempt_id
+    orch._fetch_running_states = MagicMock(return_value={entry.issue.id: fresh})
+    orch._schedule_retry = MagicMock()
+
+    with (
+        patch.object(orch, "_managed_processes", return_value={}),
+        patch.object(
+            orch,
+            "_reconcile_audit_budget_spend",
+            return_value=True,
+        ) as reconcile_budget,
+        patch.object(
+            orch,
+            "_release_audit_budget_reservation",
+            return_value=True,
+        ) as release_budget,
+        patch.object(orch, "_fire_task_cost_record"),
+        patch.object(orch, "_fire_telemetry_comment"),
+        patch.object(orch, "_notify_observers"),
+        patch.object(orch, "_post_event"),
+    ):
+        asyncio.run(orch._reconcile())
+
+    assert entry.issue.id not in orch.state.running
+    assert entry.issue.id not in orch.state.claimed
+    assert entry.issue.id not in orch.state.claimed_issues
+    assert entry.branch_key not in orch._audit_branch_claims
+    reconcile_budget.assert_called_once()
+    release_budget.assert_called_once()
+    orch.project_store.remove_worktree.assert_called_once_with(
+        "project-1",
+        "OOMPAH-591--terminal-audit-attempt-repair",
+    )
+    orch._schedule_retry.assert_not_called()
+
+
+def test_validation_reconcile_retires_replaced_audit_identity(tmp_path) -> None:
+    orch = _orchestrator(tmp_path)
+    entry = _entry("attempt-before-aba")
+    fresh_issue = Issue(
+        id=entry.issue.id,
+        identifier=entry.identifier,
+        title=entry.issue.title,
+        description=entry.issue.description,
+        state=IN_VALIDATION,
+        project_id=entry.issue.project_id,
+    )
+    fingerprint = compute_evidence_fingerprint(
+        requirements_text=fresh_issue.description,
+        project_id="project-1",
+        task_id=fresh_issue.identifier,
+    )
+    fresh_attempt = AuditAttempt(
+        attempt_id="attempt-after-aba",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+    )
+    fresh_record = TerminalAuditRecord(
+        audit_id="audit-after-aba",
+        project_id="project-1",
+        task_id=fresh_issue.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        attempts=[fresh_attempt],
+        source_generation=2,
+    )
+    tracker = MagicMock()
+    tracker.get_metadata.return_value = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[fresh_record],
+        ).to_dict()
+    }
+    orch._tracker_for_issue = MagicMock(return_value=tracker)
+    orch.state.running[entry.issue.id] = entry
+    orch.state.claimed.add(entry.issue.id)
+    orch.state.claimed_issues[entry.issue.id] = entry.issue
+    orch._audit_branch_claims[entry.branch_key] = entry.audit_attempt_id
+    orch._fetch_running_states = MagicMock(
+        return_value={entry.issue.id: fresh_issue}
+    )
+    orch._schedule_retry = MagicMock()
+
+    with (
+        patch.object(orch, "_managed_processes", return_value={}),
+        patch.object(orch, "_reconcile_audit_budget_spend", return_value=True),
+        patch.object(
+            orch,
+            "_release_audit_budget_reservation",
+            return_value=True,
+        ),
+        patch.object(orch, "_fire_task_cost_record"),
+        patch.object(orch, "_fire_telemetry_comment"),
+        patch.object(orch, "_notify_observers"),
+        patch.object(orch, "_post_event"),
+    ):
+        asyncio.run(orch._reconcile())
+
+    assert entry.issue.id not in orch.state.running
+    assert entry.issue.id not in orch.state.claimed
+    assert entry.branch_key not in orch._audit_branch_claims
+    orch.project_store.remove_worktree.assert_called_once_with(
+        "project-1",
+        "OOMPAH-591--terminal-audit-attempt-before-aba",
+    )
+    orch._schedule_retry.assert_not_called()
 
 
 def test_forced_termination_does_not_release_replacement_auditor_claim(

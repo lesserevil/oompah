@@ -230,7 +230,11 @@ from oompah.terminal_audit import (
     compute_issue_evidence_fingerprint,
     requires_workflow_revision,
 )
-from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadataStore
+from oompah.terminal_audit_metadata import (
+    METADATA_KEY,
+    TerminalAuditMetadata,
+    TerminalAuditMetadataStore,
+)
 from oompah.provenance_suppression import (
     describe_malformed_marker,
     load_provenance_suppression_status,
@@ -249,6 +253,7 @@ from oompah.terminal_audit_enforcement import (
     DEFAULT_LIFECYCLE_RECONCILIATION_MAX_ATTEMPTS,
     DEFAULT_LIFECYCLE_RECONCILIATION_MAX_BACKOFF_SECONDS,
     DEFAULT_LIFECYCLE_RECONCILIATION_RETRY_BACKOFF_SECONDS,
+    TERMINAL_STATUS_DEPARTURES_KEY,
     TerminalAuditEnforcement,
 )
 from oompah.terminal_audit_observability import (
@@ -10686,6 +10691,15 @@ class Orchestrator:
                 scoped_project_id
             ),
         )
+        departure_id: str | None = None
+        enforcement = getattr(self, "_terminal_audit_enforcement", None)
+        if isinstance(enforcement, TerminalAuditEnforcement):
+            departure_id = enforcement.prepare_status_departure(
+                tracker,
+                authority_issue,
+                scoped_project_id,
+                requested_status,
+            )
 
         # A transition claim is normally held only for one tracker read/write
         # round trip.  Retry short-lived contention with the same immutable
@@ -10693,22 +10707,42 @@ class Orchestrator:
         # observation (or vice versa).  Longer/ambiguous ownership remains a
         # durable retryable outcome and fails closed.
         outcome: TransitionOutcome | None = None
-        for attempt in range(20):
-            loop = self._dispatch_loop
-            if loop is not None and loop.is_running():
-                if self._running_loop() is loop:
-                    raise RuntimeError(
-                        "synchronous maintenance cannot block the dispatch loop "
-                        "for a task status transition"
+        try:
+            for attempt in range(20):
+                loop = self._dispatch_loop
+                if loop is not None and loop.is_running():
+                    if self._running_loop() is loop:
+                        raise RuntimeError(
+                            "synchronous maintenance cannot block the dispatch loop "
+                            "for a task status transition"
+                        )
+                    request = service.execute(intent)
+                    outcome = asyncio.run_coroutine_threadsafe(
+                        request,
+                        loop,
+                    ).result()
+                else:
+                    outcome = asyncio.run(service.execute(intent))
+                if outcome.disposition is not TransitionDisposition.WAITING:
+                    break
+                if attempt < 19:
+                    time.sleep(0.01)
+        finally:
+            if departure_id is not None:
+                try:
+                    enforcement.resolve_status_departure(
+                        tracker,
+                        authority_issue,
+                        scoped_project_id,
+                        departure_id,
                     )
-                request = service.execute(intent)
-                outcome = asyncio.run_coroutine_threadsafe(request, loop).result()
-            else:
-                outcome = asyncio.run(service.execute(intent))
-            if outcome.disposition is not TransitionDisposition.WAITING:
-                return outcome
-            if attempt < 19:
-                time.sleep(0.01)
+                except Exception:  # noqa: BLE001 - startup recovery owns marker
+                    logger.exception(
+                        "Maintenance terminal-audit status departure remains "
+                        "pending for %s/%s",
+                        scoped_project_id,
+                        authority_issue.identifier,
+                    )
         assert outcome is not None
         return outcome
 
@@ -11033,11 +11067,38 @@ class Orchestrator:
             effective_project_id,
             effective_tracker,
         )
-        outcome = await (
-            service.recover_authorized(intent)
-            if authorized_recovery
-            else service.execute(intent)
-        )
+        departure_id: str | None = None
+        enforcement = getattr(self, "_terminal_audit_enforcement", None)
+        if isinstance(enforcement, TerminalAuditEnforcement):
+            departure_id = await asyncio.to_thread(
+                enforcement.prepare_status_departure,
+                effective_tracker,
+                issue,
+                str(effective_project_id or "legacy"),
+                requested_status,
+            )
+        try:
+            outcome = await (
+                service.recover_authorized(intent)
+                if authorized_recovery
+                else service.execute(intent)
+            )
+        finally:
+            if departure_id is not None:
+                try:
+                    await asyncio.to_thread(
+                        enforcement.resolve_status_departure,
+                        effective_tracker,
+                        issue,
+                        str(effective_project_id or "legacy"),
+                        departure_id,
+                    )
+                except Exception:  # noqa: BLE001 - durable marker retries at recovery
+                    logger.exception(
+                        "Terminal-audit status departure remains pending for %s/%s",
+                        effective_project_id,
+                        issue.identifier,
+                    )
         logger.info(
             "Task transition outcome task=%s expected=%s requested=%s "
             "disposition=%s reason=%s transition_id=%s",
@@ -14439,6 +14500,18 @@ class Orchestrator:
                     project_id=project_id,
                     task_id=current.identifier,
                 )
+                if (
+                    record is not None
+                    and canonicalize_status(current.state) != IN_VALIDATION
+                ):
+                    # Terminal-audit result authority exists only while the
+                    # task remains In Validation. Recovery may preserve a
+                    # pending terminal-chain record as historical scheduling
+                    # metadata after Done/Merged, but no live provider result
+                    # or publication obligation can retain authority there.
+                    # This exact status fence prevents any stale envelope from
+                    # blocking the whole workflow publication.
+                    record = None
                 if record is not None:
                     authority = {
                         "audit_id": record.audit_id,
@@ -16304,6 +16377,106 @@ class Orchestrator:
             self._tracker_for_issue(issue), self.project_store, project_id
         )
 
+    def _activate_status_departure_audit(
+        self,
+        document: TerminalAuditMetadata,
+        record: TerminalAuditRecord,
+    ) -> bool:
+        """Materialize a fresh audit authorized by its durable departure marker."""
+
+        raw_markers = document.unknown_fields.get(
+            TERMINAL_STATUS_DEPARTURES_KEY,
+            [],
+        )
+        if not isinstance(raw_markers, list):
+            return False
+        for raw_marker in reversed(raw_markers):
+            if not isinstance(raw_marker, Mapping):
+                continue
+            rearm = next(
+                (
+                    raw
+                    for raw in raw_marker.get("rearms", [])
+                    if isinstance(raw, Mapping)
+                    and raw.get("rearm_audit_id") == record.audit_id
+                ),
+                None,
+            )
+            if rearm is None:
+                continue
+            prior = next(
+                (
+                    candidate
+                    for candidate in document.pending_chain
+                    if candidate.audit_id == rearm.get("audit_id")
+                    and candidate.project_id == record.project_id
+                    and candidate.task_id == record.task_id
+                ),
+                None,
+            )
+            if prior is None:
+                raise AuditWorkflowIdentityError(
+                    "status-departure source audit is unavailable"
+                )
+            self.terminal_audit_workflow.activate_status_departure_rearm(
+                record,
+                prior=prior,
+                marker=raw_marker,
+            )
+            return True
+        return False
+
+    def _auditor_runtime_has_current_authority(
+        self,
+        entry: RunningEntry,
+        issue: Issue,
+    ) -> bool:
+        """Return whether tracker metadata still owns this exact auditor."""
+
+        if canonicalize_status(issue.state) != IN_VALIDATION:
+            return False
+        # Minimal legacy/test orchestrators without enforcement have no
+        # durable audit plane to consult.  Production instances always do.
+        if not isinstance(
+            getattr(self, "_terminal_audit_enforcement", None),
+            TerminalAuditEnforcement,
+        ):
+            return True
+        audit_id = str(entry.audit_id or "").strip()
+        attempt_id = str(entry.audit_attempt_id or "").strip()
+        if not audit_id or not attempt_id:
+            return False
+        try:
+            document = self._audit_store(issue).read(issue.identifier)
+        except Exception:  # noqa: BLE001 - missing authority fails closed
+            logger.warning(
+                "Could not verify auditor authority for %s/%s",
+                issue.project_id or "legacy",
+                issue.identifier,
+                exc_info=True,
+            )
+            return False
+        record = next(
+            (
+                candidate
+                for candidate in document.pending_chain
+                if candidate.project_id == str(issue.project_id or "legacy")
+                and candidate.task_id == issue.identifier
+                and candidate.audit_id == audit_id
+                and candidate.request_state
+                in {RequestState.PENDING, RequestState.IN_PROGRESS}
+            ),
+            None,
+        )
+        if record is None:
+            return False
+        return any(
+            attempt.attempt_id == attempt_id
+            and attempt.request_state
+            in {RequestState.PENDING, RequestState.IN_PROGRESS}
+            for attempt in record.attempts
+        )
+
     def _audit_update_record(
         self,
         store: TerminalAuditMetadataStore,
@@ -17204,6 +17377,7 @@ class Orchestrator:
         materialized = 0
         recovered = 0
         retired_resolved = 0
+        retired_workspaces = 0
         active_task_keys = {
             (job.project_id, job.task_id)
             for job in self.workflow_job_store.list_jobs(
@@ -17212,7 +17386,28 @@ class Orchestrator:
                 limit=1000,
             )
         }
-        for project_id, task_id in active_task_keys:
+        cleanup_task_keys: set[tuple[str, str]] = set()
+        list_projects = getattr(self.project_store, "list_all", None)
+        list_worktrees = getattr(self.project_store, "list_worktrees", None)
+        if callable(list_projects) and callable(list_worktrees):
+            try:
+                for project in list_projects():
+                    project_id = str(getattr(project, "id", "") or "").strip()
+                    if not project_id:
+                        continue
+                    for path in list_worktrees(project_id):
+                        workspace = os.path.basename(str(path).rstrip(os.sep))
+                        task_id, marker, attempt_id = workspace.partition(
+                            "--terminal-audit-"
+                        )
+                        if marker and task_id and attempt_id:
+                            cleanup_task_keys.add((project_id, task_id))
+            except Exception as exc:  # noqa: BLE001 - active jobs remain owners
+                logger.warning(
+                    "Could not discover detached terminal-audit worktrees: %s",
+                    type(exc).__name__,
+                )
+        for project_id, task_id in active_task_keys | cleanup_task_keys:
             try:
                 tracker = self._tracker_for_project(project_id)
                 document = TerminalAuditMetadataStore(
@@ -17220,6 +17415,49 @@ class Orchestrator:
                     self.project_store,
                     project_id,
                 ).read(task_id)
+                remove_worktree = getattr(
+                    self.project_store,
+                    "remove_worktree",
+                    None,
+                )
+                if callable(remove_worktree):
+                    for record in document.pending_chain:
+                        if (
+                            record.project_id != project_id
+                            or record.task_id != task_id
+                            or record.request_state
+                            in {RequestState.PENDING, RequestState.IN_PROGRESS}
+                        ):
+                            continue
+                        for attempt in record.attempts:
+                            attempt_id = str(attempt.attempt_id or "").strip()
+                            if not attempt_id:
+                                continue
+                            identity = audit_attempt_identity(
+                                project_id,
+                                task_id,
+                                record.audit_id,
+                                attempt_id,
+                            )
+                            if identity in active_attempts:
+                                continue
+                            workspace_identifier = self._audit_workspace_identifier(
+                                task_id,
+                                attempt_id,
+                            )
+                            retired_workspaces += int(
+                                bool(
+                                    remove_worktree(
+                                        project_id,
+                                        workspace_identifier,
+                                    )
+                                )
+                            )
+                # Keep the active workflow row as the durable discovery owner
+                # until every retired attempt workspace has been removed.  If
+                # cleanup raises, the row remains active and this task is
+                # rediscovered on the next sweep instead of leaking a
+                # detached worktree permanently.
                 retired_resolved += self.terminal_audit_workflow.retire_resolved(
                     project_id=project_id,
                     task_id=task_id,
@@ -17236,6 +17474,13 @@ class Orchestrator:
             if record is None:
                 continue
             try:
+                tracker = self._tracker_for_project(record.project_id)
+                document = TerminalAuditMetadataStore(
+                    tracker,
+                    self.project_store,
+                    record.project_id,
+                ).read(record.task_id)
+                self._activate_status_departure_audit(document, record)
                 before = self.terminal_audit_workflow.decision(record)
                 after = self.terminal_audit_workflow.recover(
                     record,
@@ -17256,6 +17501,7 @@ class Orchestrator:
             "materialized": materialized,
             "recovered": recovered,
             "retired_resolved": retired_resolved,
+            "retired_workspaces": retired_workspaces,
         }
 
     @staticmethod
@@ -19018,6 +19264,11 @@ class Orchestrator:
                 # worker becomes queued durable work after restart.
                 workflow_decision = None
                 try:
+                    departure_document = store.read(issue.identifier)
+                    self._activate_status_departure_audit(
+                        departure_document,
+                        record,
+                    )
                     workflow_decision = self.terminal_audit_workflow.recover(
                         record,
                         active_attempt_identities=active,
@@ -67780,13 +68031,35 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             if (
                 running_entry
                 and running_entry.is_auditor
-                and canonicalize_status(issue.state) == IN_VALIDATION
+                and self._auditor_runtime_has_current_authority(
+                    running_entry,
+                    issue,
+                )
             ):
                 # Auditors intentionally run while the audited task remains
-                # In Validation. Treat that state as active for auditor
-                # entries only; ordinary implementation workers must still
-                # be stopped if their task moves out of In Progress.
+                # In Validation *and* their exact audit/attempt still owns the
+                # metadata generation. Treat that bounded authority as active
+                # for auditor entries only; ordinary implementation workers
+                # must still be stopped if their task moves out of In Progress.
                 self.state.running[issue_id].issue = issue
+            elif running_entry and running_entry.is_auditor:
+                # Every terminal-audit runtime is authorized exclusively by
+                # the task's live In Validation status plus exact metadata
+                # generation. Recovery cancels the orphaned metadata/job after
+                # an owner repair transition; this runtime fence independently
+                # retires the exact provider claim and its attempt-scoped
+                # detached workspace. Do not route an auditor through ordinary
+                # Open/repair retry behavior.
+                logger.warning(
+                    "Reconcile: auditor lost exact terminal-audit authority "
+                    "issue_id=%s state=%s — terminating auditor",
+                    issue_id,
+                    issue.state,
+                )
+                await self._terminate_running(
+                    issue_id,
+                    cleanup_workspace=True,
+                )
             elif state_norm == "in_progress":
                 # Still in progress — update issue snapshot
                 self.state.running[issue_id].issue = issue

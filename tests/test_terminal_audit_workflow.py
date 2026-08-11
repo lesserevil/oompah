@@ -935,6 +935,206 @@ def test_cancelled_semantics_require_a_newer_source_for_fresh_activation(
     assert activated.idempotency_key.endswith(":activation:2")
 
 
+def test_fresh_audit_identity_cannot_inherit_running_semantic_lease(durable):
+    workflow, store, _clock = durable
+    old = record(audit_id="audit-before-departure", source_generation=1)
+    running = workflow.start(
+        old,
+        attempt_id="attempt-before-departure",
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert running is not None
+
+    fresh = replace(
+        old,
+        audit_id="audit-after-aba",
+        source_generation=2,
+        attempts=[],
+        request_state=RequestState.PENDING,
+    )
+    activated = workflow.ensure(fresh)
+
+    assert activated.job_id != running.job_id
+    assert activated.state is WorkflowJobState.QUEUED
+    assert activated.idempotency_key.endswith(":activation:2")
+    assert store.get(running.job_id).state is WorkflowJobState.SUPERSEDED
+    assert workflow.ensure(fresh).job_id == activated.job_id
+
+
+def test_stale_audit_identity_cannot_cancel_newer_running_lease(durable):
+    workflow, store, _clock = durable
+    current = record(audit_id="audit-current", source_generation=2)
+    running = workflow.start(
+        current,
+        attempt_id="attempt-current",
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert running is not None
+    stale = replace(
+        current,
+        audit_id="audit-stale",
+        source_generation=1,
+        attempts=[],
+        request_state=RequestState.PENDING,
+    )
+
+    with pytest.raises(
+        AuditWorkflowIdentityError,
+        match="source generation is stale",
+    ):
+        workflow.ensure(stale)
+
+    assert store.get(running.job_id).state is WorkflowJobState.RUNNING
+
+
+def test_status_departure_marker_activates_fresh_job_after_exhaustion(durable):
+    workflow, store, _clock = durable
+    old = record(audit_id="audit-before-departure", source_generation=1)
+    running = workflow.start(
+        old,
+        attempt_id="attempt-exhausted",
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert running is not None
+    exhausted = workflow.action_required(
+        running,
+        record=old,
+        action_code="no_independent_auditor",
+        reason="auditor candidates exhausted",
+    )
+    prior = replace(old, request_state=RequestState.CANCELLED)
+    fresh = replace(
+        old,
+        audit_id="audit-after-departure",
+        request_state=RequestState.PENDING,
+        attempts=[],
+        source_generation=2,
+    )
+    marker = {
+        "version": 1,
+        "departure_id": "audit-departure-1",
+        "project_id": fresh.project_id,
+        "task_id": fresh.task_id,
+        "applied": True,
+        "outcome": "rearmed",
+        "rearms": [
+            {
+                "audit_id": prior.audit_id,
+                "rearm_audit_id": fresh.audit_id,
+                "source_generation": fresh.source_generation,
+            }
+        ],
+    }
+
+    activated = workflow.activate_status_departure_rearm(
+        fresh,
+        prior=prior,
+        marker=marker,
+    )
+
+    assert activated.job_id != exhausted.job_id
+    assert activated.state is WorkflowJobState.QUEUED
+    assert store.get(exhausted.job_id).state is WorkflowJobState.EXHAUSTED
+    assert workflow.ensure(fresh).job_id == activated.job_id
+    assert workflow.activate_status_departure_rearm(
+        fresh,
+        prior=prior,
+        marker=marker,
+    ).job_id == activated.job_id
+
+
+def test_status_departure_activation_rejects_mismatch_without_mutation(durable):
+    workflow, store, _clock = durable
+    prior = record(
+        audit_id="audit-before-departure",
+        source_generation=1,
+    )
+    prior = replace(prior, request_state=RequestState.CANCELLED)
+    fresh = replace(
+        prior,
+        audit_id="audit-after-departure",
+        request_state=RequestState.PENDING,
+        source_generation=2,
+    )
+    marker = {
+        "version": 1,
+        "departure_id": "audit-departure-mismatch",
+        "project_id": fresh.project_id,
+        "task_id": fresh.task_id,
+        "applied": True,
+        "outcome": "rearmed",
+        "rearms": [
+            {
+                "audit_id": prior.audit_id,
+                "rearm_audit_id": fresh.audit_id,
+                "source_generation": 99,
+            }
+        ],
+    }
+
+    with pytest.raises(
+        AuditWorkflowIdentityError,
+        match="rearm generation does not match",
+    ):
+        workflow.activate_status_departure_rearm(
+            fresh,
+            prior=prior,
+            marker=marker,
+        )
+
+    assert store.list_jobs(task_id=fresh.task_id) == ()
+
+
+def test_stale_status_departure_cannot_displace_newer_running_job(durable):
+    workflow, store, _clock = durable
+    current = record(audit_id="audit-current", source_generation=3)
+    running = workflow.start(
+        current,
+        attempt_id="attempt-current",
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert running is not None
+    prior = replace(
+        current,
+        audit_id="audit-prior",
+        request_state=RequestState.CANCELLED,
+        source_generation=1,
+    )
+    stale = replace(
+        current,
+        audit_id="audit-stale-departure",
+        request_state=RequestState.PENDING,
+        source_generation=2,
+    )
+    marker = {
+        "version": 1,
+        "departure_id": "audit-departure-stale",
+        "project_id": stale.project_id,
+        "task_id": stale.task_id,
+        "applied": True,
+        "outcome": "rearmed",
+        "rearms": [
+            {
+                "audit_id": prior.audit_id,
+                "rearm_audit_id": stale.audit_id,
+                "source_generation": stale.source_generation,
+            }
+        ],
+    }
+
+    with pytest.raises(
+        AuditWorkflowIdentityError,
+        match="source generation is stale",
+    ):
+        workflow.activate_status_departure_rearm(
+            stale,
+            prior=prior,
+            marker=marker,
+        )
+
+    assert store.get(running.job_id).state is WorkflowJobState.RUNNING
+
+
 def test_running_finalizing_and_completed_survive_reopen(durable, tmp_path):
     workflow, store, clock = durable
     current = record()

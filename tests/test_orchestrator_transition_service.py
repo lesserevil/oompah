@@ -5,13 +5,18 @@ from __future__ import annotations
 import ast
 from copy import deepcopy
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from oompah.config import ServiceConfig
 from oompah.models import Issue
 from oompah.orchestrator import Orchestrator, TaskTransitionNotApplied
-from oompah.task_transition_service import TransitionDisposition, TransitionPhase
+from oompah.task_transition_service import (
+    TransitionAuthority,
+    TransitionDisposition,
+    TransitionPhase,
+)
 
 
 class _StatefulTracker:
@@ -133,6 +138,81 @@ def test_nonterminal_transition_is_journalled_applied_and_verified(tmp_path) -> 
         TransitionPhase.APPLYING,
         TransitionPhase.APPLIED,
     ]
+
+
+def test_leaving_validation_fences_and_resolves_terminal_audit_generation(
+    tmp_path,
+) -> None:
+    tracker = _StatefulTracker(_issue("In Validation"))
+    orchestrator = _orchestrator(tmp_path, tracker)
+    enforcement = orchestrator._terminal_audit_enforcement
+
+    with (
+        patch.object(
+            enforcement,
+            "prepare_status_departure",
+            return_value="audit-departure-test",
+        ) as prepare,
+        patch.object(
+            enforcement,
+            "resolve_status_departure",
+            return_value=True,
+        ) as resolve_departure,
+    ):
+        outcome = orchestrator._transition_issue_status(
+            tracker.fetch_issue_detail("OOMPAH-TEST"),
+            "Needs Human",
+            tracker=tracker,
+            reason_code="watchdog.test_validation_departure",
+        )
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    prepare.assert_called_once()
+    assert prepare.call_args.args[1].state == "In Validation"
+    assert prepare.call_args.args[3] == "Needs Human"
+    resolve_departure.assert_called_once()
+    assert resolve_departure.call_args.args[-1] == "audit-departure-test"
+    assert tracker.issue.state == "Needs Human"
+
+
+def test_maintenance_departure_uses_same_terminal_audit_fence(tmp_path) -> None:
+    tracker = _StatefulTracker(_issue("In Validation"))
+    orchestrator = _orchestrator(tmp_path, tracker)
+    enforcement = orchestrator._terminal_audit_enforcement
+    issue = tracker.fetch_issue_detail("OOMPAH-TEST")
+    assert issue is not None
+
+    with (
+        patch.object(
+            enforcement,
+            "prepare_status_departure",
+            return_value="audit-departure-maintenance",
+        ) as prepare,
+        patch.object(
+            enforcement,
+            "resolve_status_departure",
+            return_value=True,
+        ) as resolve_departure,
+    ):
+        outcome = orchestrator._request_task_status_transition_from_maintenance(
+            project_id="legacy",
+            tracker=tracker,
+            issue=issue,
+            requested_status="Needs Human",
+            actor="watchdog",
+            authority=TransitionAuthority.WATCHDOG,
+            reason_code="watchdog.test_maintenance_departure",
+            idempotency_key="watchdog-test-maintenance-departure",
+            originating_job="watchdog-test",
+        )
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    prepare.assert_called_once()
+    assert prepare.call_args.args[1].state == "In Validation"
+    assert prepare.call_args.args[3] == "Needs Human"
+    resolve_departure.assert_called_once()
+    assert resolve_departure.call_args.args[-1] == "audit-departure-maintenance"
+    assert tracker.issue.state == "Needs Human"
 
 
 def test_stale_observation_cannot_overwrite_newer_status(tmp_path) -> None:

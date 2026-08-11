@@ -1313,6 +1313,8 @@ class WorkflowRuntime:
                         return False
                     if not getattr(current, "project_id", None):
                         current.project_id = _project_id
+                    if canonicalize_status(current.state) != IN_VALIDATION:
+                        return False
                     document = audit_store_source(current).read(
                         current.identifier
                     )
