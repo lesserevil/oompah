@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1014
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Retire orphaned terminal-audit authority before workflow publication
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T04:35:54.427125Z'
-updated_at: '2026-08-11T04:35:54.427125Z'
+updated_at: '2026-08-11T04:36:19.357338Z'
 work_branch: null
 target_branch: null
 review_url: null
