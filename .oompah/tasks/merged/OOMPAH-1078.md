@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T10:13:51.547647Z'
-updated_at: '2026-08-11T11:02:55.382016Z'
+updated_at: '2026-08-11T11:03:07.991797Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -215,13 +215,13 @@ oompah.terminal_audit:
     selected_ref: origin/OOMPAH-1078
     selected_sha: 9c78b999f9b8eeddda14e2c783ea01a688543325
 oompah.task_costs:
-  total_input_tokens: 218
-  total_output_tokens: 6766
+  total_input_tokens: 808
+  total_output_tokens: 6911
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 218
-      output_tokens: 6766
+      input_tokens: 808
+      output_tokens: 6911
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -230,6 +230,12 @@ oompah.task_costs:
     output_tokens: 6766
     cost_usd: 0.0
     recorded_at: '2026-08-11T10:55:03.599740+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 590
+    output_tokens: 145
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T11:03:02.507119+00:00'
 ---
 ## Summary
 
@@ -318,5 +324,15 @@ created: 2026-08-11 11:02
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Exact head 9c78b999f9b8eeddda14e2c783ea01a688543325 passed 530 author tests, 441 independent replacement-review tests with ACCEPT, protected Python 3.11/3.12/3.13 CI, and merged through PR 815 as 9ae083d39357d537bb91ce82b171ee85a82ac6a6. Deployed live canary returned the actionable coordinator-owned 409 for direct In Validation, preserved OOMPAH-1076 In Progress, and preserved its exact direct-owner claim.
+---
+author: oompah
+created: 2026-08-11 11:03
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 35
+- Tokens: 590 in / 145 out [735 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 55s
+- Log: OOMPAH-1078__20260811T105930Z.jsonl
 ---
 <!-- COMMENTS:END -->
