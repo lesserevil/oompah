@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1092
 type: bug
-status: In Review
+status: Ready to Integrate
 priority: 1
 title: Do not let suspended terminal audits starve active dispatch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:02:12.775197Z'
-updated_at: '2026-08-11T16:51:02.278204Z'
+updated_at: '2026-08-11T16:51:12.982687Z'
 work_branch: OOMPAH-1092
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/828
