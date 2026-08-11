@@ -3224,6 +3224,8 @@ class TerminalAuditEnforcement:
                         == record.selected_ref
                         and history_row.get("selected_sha")
                         == record.selected_sha
+                        and history_row.get("landing_revision")
+                        == record.landing_revision
                     )
                     if (
                         history_row is None

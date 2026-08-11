@@ -180,6 +180,15 @@ def _authority_payload(record: object) -> dict[str, str]:
     if selected_ref is not None and selected_sha is not None:
         payload["selected_ref"] = selected_ref
         payload["selected_sha"] = selected_sha
+    landing_revision = str(
+        getattr(record, "landing_revision", None) or ""
+    ).strip().lower()
+    if landing_revision:
+        if selected_ref is None or selected_sha is None:
+            raise AuditWorkflowIdentityError(
+                "terminal-audit landing revision has no validation binding"
+            )
+        payload["landing_revision"] = landing_revision
     return payload
 
 
@@ -280,13 +289,17 @@ class TerminalAuditWorkflow:
             key += f":completion-authority:{authority_digest}"
         selected_ref, selected_sha = _revision_binding(record)
         if selected_ref is not None and selected_sha is not None:
+            binding_identity = {
+                "selected_ref": selected_ref,
+                "selected_sha": selected_sha,
+            }
+            landing_revision = str(
+                getattr(record, "landing_revision", None) or ""
+            ).strip().lower()
+            if landing_revision:
+                binding_identity["landing_revision"] = landing_revision
             binding_digest = hashlib.sha256(
-                _canonical(
-                    {
-                        "selected_ref": selected_ref,
-                        "selected_sha": selected_sha,
-                    }
-                ).encode()
+                _canonical(binding_identity).encode()
             ).hexdigest()
             key += f":revision-binding:{binding_digest}"
         return key
@@ -900,6 +913,16 @@ class TerminalAuditWorkflow:
             raise AuditWorkflowIdentityError(
                 "terminal-audit revision binding changed"
             )
+        job_landing_revision = str(
+            (job.payload or {}).get("landing_revision") or ""
+        ).strip().lower()
+        record_landing_revision = str(
+            getattr(record, "landing_revision", None) or ""
+        ).strip().lower()
+        if job_landing_revision != record_landing_revision:
+            raise AuditWorkflowIdentityError(
+                "terminal-audit landing revision changed"
+            )
         if job.phase not in {phase.value for phase in allowed_phases}:
             raise AuditWorkflowIdentityError(
                 "terminal-audit phase no longer accepts results"
@@ -1357,7 +1380,7 @@ class TerminalAuditWorkflow:
                 workflow_revision,
                 "workflow_revision",
             )
-        for key in ("selected_ref", "selected_sha"):
+        for key in ("selected_ref", "selected_sha", "landing_revision"):
             value = (
                 record_data.get(key)
                 or (job.payload or {}).get(key)

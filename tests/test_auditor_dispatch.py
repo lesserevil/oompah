@@ -416,6 +416,7 @@ def test_plan_and_retry_preserve_immutable_revision_binding():
         _record(),
         selected_ref="origin/epic-OOMPAH-768",
         selected_sha="a" * 40,
+        landing_revision="9" * 40,
     )
 
     plan, _ = lane.plan(record, [], branch_key="epic:OOMPAH-768")
@@ -423,6 +424,7 @@ def test_plan_and_retry_preserve_immutable_revision_binding():
     persisted = lane.persist_plan(record, plan)
     assert persisted.attempts[0].selected_ref == record.selected_ref
     assert persisted.attempts[0].selected_sha == record.selected_sha
+    assert persisted.attempts[0].landing_revision == record.landing_revision
 
     failed = lane.finish_attempt(persisted, plan.attempt_id, reason="transport")
     retry_lane = _lane(
@@ -434,6 +436,7 @@ def test_plan_and_retry_preserve_immutable_revision_binding():
     assert retry is not None
     assert retry.selected_ref == record.selected_ref
     assert retry.selected_sha == record.selected_sha
+    assert retry.landing_revision == record.landing_revision
 
 
 def test_dispatch_plan_is_fenced_to_project_and_task() -> None:

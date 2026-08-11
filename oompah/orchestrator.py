@@ -16367,11 +16367,13 @@ class Orchestrator:
                     existing,
                     selected_ref=None,
                     selected_sha=None,
+                    landing_revision=None,
                 )
                 requested_without_binding = replace(
                     record,
                     selected_ref=None,
                     selected_sha=None,
+                    landing_revision=None,
                 )
                 if existing_without_binding != requested_without_binding:
                     return document
@@ -16380,10 +16382,12 @@ class Orchestrator:
                         existing,
                         selected_ref=record.selected_ref,
                         selected_sha=record.selected_sha,
+                        landing_revision=record.landing_revision,
                     )
                 elif (
                     existing.selected_ref == record.selected_ref
                     and existing.selected_sha == record.selected_sha
+                    and existing.landing_revision == record.landing_revision
                 ):
                     promoted = existing
                 else:
@@ -16401,6 +16405,7 @@ class Orchestrator:
             binding_matches = (
                 existing.selected_ref == record.selected_ref
                 and existing.selected_sha == record.selected_sha
+                and existing.landing_revision == record.landing_revision
             )
             if (
                 existing.project_id != record.project_id
@@ -17270,6 +17275,7 @@ class Orchestrator:
                 and raw.get("workflow_revision") == record.workflow_revision
                 and raw.get("selected_ref") == record.selected_ref
                 and raw.get("selected_sha") == record.selected_sha
+                and raw.get("landing_revision") == record.landing_revision
             )
             legacy_identity = bool(
                 version == 1 and record.workflow_revision is None
@@ -17332,6 +17338,7 @@ class Orchestrator:
                         "workflow_revision",
                         "selected_ref",
                         "selected_sha",
+                        "landing_revision",
                         "source_generation",
                         "authorized_at",
                     )
@@ -17385,6 +17392,15 @@ class Orchestrator:
             selected_sha=(
                 str(
                     (getattr(job, "payload", None) or {}).get("selected_sha")
+                    or ""
+                ).strip()
+                or None
+            ),
+            landing_revision=(
+                str(
+                    (getattr(job, "payload", None) or {}).get(
+                        "landing_revision"
+                    )
                     or ""
                 ).strip()
                 or None
@@ -17554,6 +17570,15 @@ class Orchestrator:
             selected_sha=(
                 str(
                     (getattr(job, "payload", None) or {}).get("selected_sha")
+                    or ""
+                ).strip()
+                or None
+            ),
+            landing_revision=(
+                str(
+                    (getattr(job, "payload", None) or {}).get(
+                        "landing_revision"
+                    )
                     or ""
                 ).strip()
                 or None
@@ -33315,31 +33340,52 @@ class Orchestrator:
                 return False
 
             integration = getattr(issue, "integration", None)
-            if (
+            landed_validation = bool(target.landing_revision)
+            if not landed_validation and (
                 str(getattr(integration, "state", "") or "").casefold()
                 == "integrated"
             ):
                 return False
-            head_sha = str(
-                issue_exact_head(issue)
-                or getattr(issue, "source_sha", "")
-                or ""
-            ).strip().lower()
-            work_branch = str(
-                getattr(integration, "task_branch", "")
-                or getattr(issue, "source_branch", "")
-                or getattr(issue, "work_branch", "")
-                or getattr(issue, "branch_name", "")
-                or ""
-            ).strip()
-            target_branch = str(
-                getattr(integration, "base_branch", "")
-                or getattr(issue, "target_branch", "")
-                or project.default_branch
-                or ""
-            ).strip()
+            if landed_validation:
+                (
+                    head_sha,
+                    work_branch,
+                    target_branch,
+                    _repo_identity,
+                    staged_attempt_identity,
+                ) = self._terminal_audit_quality_gate_identity(
+                    issue,
+                    project,
+                    target,
+                    tracker,
+                )
+                if not staged_attempt_identity:
+                    return False
+            else:
+                head_sha = str(
+                    issue_exact_head(issue)
+                    or getattr(issue, "source_sha", "")
+                    or ""
+                ).strip().lower()
+                work_branch = str(
+                    getattr(integration, "task_branch", "")
+                    or getattr(issue, "source_branch", "")
+                    or getattr(issue, "work_branch", "")
+                    or getattr(issue, "branch_name", "")
+                    or ""
+                ).strip()
+                target_branch = str(
+                    getattr(integration, "base_branch", "")
+                    or getattr(issue, "target_branch", "")
+                    or project.default_branch
+                    or ""
+                ).strip()
             workspace_head = self._worktree_head(str(workspace_path)).lower()
-            branch_head = self._quality_gate_branch_head(project, work_branch).lower()
+            branch_head = (
+                head_sha
+                if landed_validation
+                else self._quality_gate_branch_head(project, work_branch).lower()
+            )
             if not head_sha or branch_head != head_sha:
                 return False
             detached = subprocess.run(
@@ -33434,7 +33480,12 @@ class Orchestrator:
         accepted_head, work_branch, target_branch, repo_identity = (
             self._terminal_audit_issue_quality_gate_identity(issue, project)
         )
-        if accepted_head:
+        landing_revision = str(target.landing_revision or "").strip().lower()
+        if landing_revision and accepted_head and accepted_head != landing_revision:
+            raise ValueError(
+                "terminal audit landing revision conflicts with the accepted exact head"
+            )
+        if accepted_head and not landing_revision:
             if target.selected_sha and target.selected_sha != accepted_head:
                 raise ValueError(
                     "terminal audit revision conflicts with the accepted exact head"
@@ -33477,6 +33528,7 @@ class Orchestrator:
             != str(target.previous_state or "")
             or record.selected_ref != target.selected_ref
             or record.selected_sha != target.selected_sha
+            or record.landing_revision != target.landing_revision
         ):
             raise ValueError("durable terminal audit identity is stale")
 
@@ -33499,16 +33551,26 @@ class Orchestrator:
             or attempt.evidence_fingerprint != target_fingerprint
             or attempt.selected_ref != target.selected_ref
             or attempt.selected_sha != target.selected_sha
+            or attempt.landing_revision != target.landing_revision
             or attempt.verdict is not None
             or attempt.failure_classification is not None
             or not branch_key
         ):
             raise ValueError("durable terminal audit attempt identity is stale")
 
+        validation_target = target_branch
+        if landing_revision:
+            validation_target = str(target.selected_ref or "").strip()
+            if validation_target.startswith("refs/remotes/origin/"):
+                validation_target = validation_target.removeprefix(
+                    "refs/remotes/origin/"
+                )
+            elif validation_target.startswith("origin/"):
+                validation_target = validation_target.removeprefix("origin/")
         return (
             target.selected_sha,
             branch_key,
-            target_branch,
+            validation_target or target_branch,
             repo_identity,
             True,
         )
@@ -33843,6 +33905,7 @@ class Orchestrator:
                 "evidence_fingerprint",
                 "selected_ref",
                 "selected_sha",
+                "landing_revision",
             )
         )
 

@@ -815,6 +815,51 @@ class TestDetachedAuditWorktree:
             with pytest.raises(ProjectError, match="remote fetch failed"):
                 store.resolve_audit_revision("proj-sync1", "origin/main")
 
+    def test_landed_audit_selects_advanced_target_head_after_containment(self, tmp_path):
+        store, source, _managed, epic_sha, _task_sha = _submission_authority_store(
+            tmp_path
+        )
+        subprocess.run(["git", "checkout", "main"], cwd=source, check=True)
+        subprocess.run(
+            ["git", "merge", "--ff-only", epic_sha], cwd=source, check=True
+        )
+        (source / "after-landing.txt").write_text("current target\n", encoding="utf-8")
+        subprocess.run(["git", "add", "after-landing.txt"], cwd=source, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "advance target after landing"],
+            cwd=source,
+            check=True,
+        )
+        target_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=source,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        subprocess.run(["git", "push", "origin", "main"], cwd=source, check=True)
+
+        selected = store.resolve_containing_audit_revision(
+            "proj-authority",
+            target_revision="origin/main",
+            landing_revision=epic_sha,
+        )
+
+        assert selected == target_sha
+        assert selected != epic_sha
+
+    def test_landed_audit_rejects_target_without_landing_ancestor(self, tmp_path):
+        store, _source, _managed, _epic_sha, task_sha = (
+            _submission_authority_store(tmp_path)
+        )
+
+        with pytest.raises(ProjectError, match="not contained"):
+            store.resolve_containing_audit_revision(
+                "proj-authority",
+                target_revision="origin/main",
+                landing_revision=task_sha,
+            )
+
     def test_creates_branchless_worktree_at_resolved_commit(self, tmp_path):
         store, _repo = _store_with_one_project(tmp_path)
         sha = "a" * 40

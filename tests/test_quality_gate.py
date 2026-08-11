@@ -771,6 +771,136 @@ def test_orchestrator_records_only_clean_exact_detached_auditor_workspace(
     )
 
 
+def test_orchestrator_records_landed_epic_gate_at_fresh_validation_head(tmp_path):
+    repo = _git_repo(tmp_path)
+    landing = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    subprocess.run(["git", "checkout", "-q", "main"], cwd=repo, check=True)
+    (repo / "source.txt").write_text("target advanced\n", encoding="utf-8")
+    subprocess.run(["git", "add", "source.txt"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "advance validation target"],
+        cwd=repo,
+        check=True,
+    )
+    validation_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    audit_workspace = tmp_path / "audit"
+    subprocess.run(
+        [
+            "git",
+            "worktree",
+            "add",
+            "--detach",
+            str(audit_workspace),
+            validation_head,
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    project = Project(
+        id="project",
+        name="project",
+        repo_url=str(repo),
+        repo_path=str(repo),
+        default_branch="main",
+        test_command_full="make test",
+    )
+    issue = Issue(
+        id="task",
+        identifier="TASK-1",
+        title="Task",
+        description="requirements",
+        project_id="project",
+        state=IN_VALIDATION,
+        integration=IntegrationRecord(
+            state="integrated",
+            task_branch="epic-TASK-1",
+            base_branch="main",
+            head_sha=landing,
+            integrated_sha=landing,
+        ),
+    )
+    fingerprint = EvidenceFingerprint(
+        compute_issue_evidence_fingerprint(issue, "project").digest
+    )
+    attempt = AuditAttempt(
+        attempt_id="attempt-1",
+        target_state=TargetState.MERGED,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        branch_key="epic-TASK-1",
+        selected_ref="origin/main",
+        selected_sha=validation_head,
+        landing_revision=landing,
+    )
+    record = TerminalAuditRecord(
+        audit_id="audit-1",
+        project_id="project",
+        task_id="TASK-1",
+        target_state=TargetState.MERGED,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        attempts=[attempt],
+        previous_state=READY_TO_INTEGRATE,
+        selected_ref="origin/main",
+        selected_sha=validation_head,
+        landing_revision=landing,
+    )
+    tracker = MagicMock(fetch_issue_detail=MagicMock(return_value=issue))
+    tracker.get_metadata.return_value = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
+    }
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.project_store = MagicMock()
+    orchestrator.project_store.get.return_value = project
+    orchestrator.project_store.project_write_lock.return_value = nullcontext()
+    orchestrator._tracker_for_project = MagicMock(return_value=tracker)
+    orchestrator._quality_gate_branch_head = MagicMock()
+    orchestrator._branch_quality_gate = _gate(tmp_path / "quality.json", repo)
+    target = {
+        "audit_id": "audit-1",
+        "attempt_id": "attempt-1",
+        "task_id": "TASK-1",
+        "project_id": "project",
+        "target_state": "Merged",
+        "previous_state": READY_TO_INTEGRATE,
+        "evidence_fingerprint": fingerprint.digest,
+        "selected_ref": "origin/main",
+        "selected_sha": validation_head,
+        "landing_revision": landing,
+    }
+
+    assert orchestrator.record_auditor_quality_evidence(
+        audit_target=target,
+        workspace_path=audit_workspace,
+        command="make test",
+    )
+    assert (
+        orchestrator._branch_quality_gate.lookup(
+            repo_identity=str(repo),
+            target_branch="main",
+            work_branch="epic-TASK-1",
+            head_sha=validation_head,
+            command="make test",
+        )
+        is not None
+    )
+    orchestrator._quality_gate_branch_head.assert_not_called()
+
+
 @pytest.mark.parametrize(
     ("gate_result", "expected_decision"),
     [

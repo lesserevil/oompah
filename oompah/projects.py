@@ -3165,6 +3165,69 @@ class ProjectStore:
                 raise ProjectError("terminal audit requires a revision")
             return self._resolve_audit_revision_locked(project, requested)
 
+    def resolve_containing_audit_revision(
+        self,
+        project_id: str,
+        *,
+        target_revision: str,
+        landing_revision: str,
+    ) -> str:
+        """Bind an already-landed audit to the current target head.
+
+        ``landing_revision`` remains the immutable lifecycle witness.  The
+        returned SHA is the exact authoritative target head whose complete
+        tree an auditor must validate.  Fetch, resolution, and ancestor proof
+        share the project write lock so a mutable ref is never persisted
+        without proving that it contains the named landing revision.
+        """
+
+        with self.project_write_lock(project_id):
+            project = self._projects.get(project_id)
+            if not project:
+                raise ProjectError(f"Unknown project: {project_id}")
+            target = str(target_revision or "").strip()
+            landing = str(landing_revision or "").strip().lower()
+            if not target or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", landing):
+                raise ProjectError(
+                    "terminal audit landing containment requires an exact landing "
+                    "revision and target ref"
+                )
+            target_sha = self._resolve_audit_revision_locked(project, target)
+            try:
+                landing_object = subprocess.run(
+                    ["git", "rev-parse", "--verify", f"{landing}^{{commit}}"],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                )
+                contained = subprocess.run(
+                    ["git", "merge-base", "--is-ancestor", landing, target_sha],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise ProjectError(
+                    "terminal audit landing containment could not be verified"
+                ) from exc
+            if (
+                landing_object.returncode != 0
+                or landing_object.stdout.strip().lower() != landing
+            ):
+                raise ProjectError(
+                    "terminal audit landing revision is unavailable"
+                )
+            if contained.returncode != 0:
+                raise ProjectError(
+                    "terminal audit landing revision is not contained in the "
+                    "authoritative target head"
+                )
+            return target_sha
+
     def _resolve_audit_revision_locked(
         self,
         project: Project,

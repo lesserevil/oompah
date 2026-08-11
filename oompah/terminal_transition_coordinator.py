@@ -1306,6 +1306,116 @@ class TerminalTransitionCoordinator:
             return "trusted composed landing revision resolved to a different commit"
         return None
 
+    def _landed_epic_validation_binding(
+        self,
+        issue: Issue,
+        target: TargetState,
+        trigger_identity: ContributorIdentity,
+        project_id: str,
+        mutation_guard: Callable[[], str | None] | None,
+        landing_revision: str,
+    ) -> AuditRevisionBinding:
+        """Select the exact current target head for an already-landed epic.
+
+        The landing SHA authorizes lifecycle containment; it does not freeze
+        the target tree forever.  Root and nested epics therefore audit the
+        freshly resolved default/parent-epic head after proving that head
+        contains the immutable landing revision.  Ordinary task and
+        standalone revision routing never enters this lane.
+        """
+
+        if target is not TargetState.MERGED:
+            raise ValueError(
+                "landed epic validation requires a Merged transition"
+            )
+        if (
+            str(trigger_identity.source or "").strip().lower()
+            != "orchestrator"
+        ):
+            raise ValueError(
+                "landed epic validation requires orchestrator authority"
+            )
+        if str(getattr(issue, "issue_type", "") or "").strip().lower() != "epic":
+            raise ValueError("landed epic validation requires an epic task")
+        if canonicalize_status(issue.state) not in {IN_PROGRESS, DONE}:
+            raise ValueError(
+                "landed epic validation requires a current rollup state"
+            )
+        if str(getattr(issue, "project_id", "") or "").strip() != project_id:
+            raise ValueError("landed epic validation project authority changed")
+        if mutation_guard is None:
+            raise ValueError(
+                "landed epic validation requires a workflow mutation guard"
+            )
+        try:
+            landing = AuditRevisionBinding(
+                str(landing_revision or ""), str(landing_revision or "")
+            ).selected_sha
+        except ValueError as exc:
+            raise ValueError(
+                "landed epic validation requires an exact landing revision"
+            ) from exc
+        current_head = self._issue_exact_head(issue)
+        if current_head is not None and current_head != landing:
+            raise ValueError("landed epic validation task head changed")
+
+        project = self._project_store.get(project_id)
+        if project is None:
+            raise ValueError("landed epic validation project is unavailable")
+        parent_id = str(getattr(issue, "parent_id", None) or "").strip()
+        if parent_id:
+            tracker = self._tracker_for_project(project_id)
+            fetch = getattr(tracker, "fetch_issue_detail", None)
+            if not callable(fetch):
+                raise ValueError(
+                    "landed nested epic parent cannot be refreshed"
+                )
+            parent = fetch(parent_id)
+            if (
+                not isinstance(parent, Issue)
+                or str(parent.identifier) != parent_id
+                or str(getattr(parent, "issue_type", "") or "").strip().lower()
+                != "epic"
+                or (
+                    str(getattr(parent, "project_id", "") or "").strip()
+                    not in {"", project_id}
+                )
+            ):
+                raise ValueError(
+                    "landed nested epic parent topology is unavailable or changed"
+                )
+            branch_name = getattr(self._project_store, "epic_branch_name", None)
+            if not callable(branch_name):
+                raise ValueError(
+                    "landed nested epic target routing is unavailable"
+                )
+            target_branch = str(branch_name(parent_id) or "").strip()
+        else:
+            target_branch = str(getattr(project, "default_branch", "") or "").strip()
+        if not target_branch:
+            raise ValueError("landed epic validation target is unavailable")
+        target_ref = (
+            target_branch
+            if target_branch.startswith("origin/")
+            else f"origin/{target_branch}"
+        )
+        resolver = getattr(
+            self._project_store, "resolve_containing_audit_revision", None
+        )
+        if not callable(resolver):
+            raise ValueError(
+                "landed epic validation containment resolver is unavailable"
+            )
+        try:
+            selected_sha = resolver(
+                project_id,
+                target_revision=target_ref,
+                landing_revision=landing,
+            )
+        except Exception as exc:  # noqa: BLE001 - project stores are duck-typed
+            raise ValueError(str(exc)) from exc
+        return AuditRevisionBinding(target_ref, str(selected_sha or ""))
+
     # ------------------------------------------------------------------
     # Public API — request_transition
     # ------------------------------------------------------------------
@@ -1320,6 +1430,7 @@ class TerminalTransitionCoordinator:
         *,
         mutation_guard: Callable[[], str | None] | None = None,
         revision_binding: AuditRevisionBinding | None = None,
+        landing_revision: str | None = None,
         workflow_revision: str | None = None,
     ) -> TransitionResult:
         """Stage a terminal transition for *current_issue*.
@@ -1379,7 +1490,31 @@ class TerminalTransitionCoordinator:
             )
             if lifecycle_conflict is not None:
                 return TransitionResult(success=False, reason=lifecycle_conflict)
-            if revision_binding is not None:
+            selected_landing_revision = (
+                str(landing_revision or "").strip().lower() or None
+            )
+            selected_binding = revision_binding
+            if selected_landing_revision is not None:
+                if revision_binding is not None:
+                    return TransitionResult(
+                        success=False,
+                        reason=(
+                            "landed epic validation cannot accept a caller-selected "
+                            "validation binding"
+                        ),
+                    )
+                try:
+                    selected_binding = self._landed_epic_validation_binding(
+                        current_issue,
+                        requested_target,
+                        trigger_identity,
+                        project_id,
+                        mutation_guard,
+                        selected_landing_revision,
+                    )
+                except Exception as exc:  # noqa: BLE001 - fail closed before mutation
+                    return TransitionResult(success=False, reason=str(exc))
+            elif revision_binding is not None:
                 binding_conflict = self._composed_landing_binding_conflict(
                     current_issue,
                     requested_target,
@@ -1394,7 +1529,6 @@ class TerminalTransitionCoordinator:
             store = TerminalAuditMetadataStore(
                 tracker, self._project_store, project_id
             )
-            selected_binding = revision_binding
             if selected_binding is None:
                 try:
                     selected_binding = self._request_revision_binding(
@@ -1427,6 +1561,7 @@ class TerminalTransitionCoordinator:
                 project_id,
                 evidence_fingerprint,
                 revision_binding=selected_binding,
+                landing_revision=selected_landing_revision,
                 workflow_revision=workflow_revision,
                 ensure_validation_on_coalesce=True,
             )
@@ -1740,6 +1875,7 @@ class TerminalTransitionCoordinator:
                         == record.workflow_revision
                         and candidate.selected_ref == record.selected_ref
                         and candidate.selected_sha == record.selected_sha
+                        and candidate.landing_revision == record.landing_revision
                         and candidate.request_state
                         in (RequestState.PENDING, RequestState.IN_PROGRESS)
                     ),
@@ -1764,6 +1900,7 @@ class TerminalTransitionCoordinator:
                     == record.workflow_revision
                     and candidate.selected_ref == record.selected_ref
                     and candidate.selected_sha == record.selected_sha
+                    and candidate.landing_revision == record.landing_revision
                     and candidate.request_state
                     in (RequestState.COMPLETED, RequestState.SUPERSEDED)
                 ]
@@ -1783,6 +1920,7 @@ class TerminalTransitionCoordinator:
                         == record.workflow_revision
                         and candidate.selected_ref == record.selected_ref
                         and candidate.selected_sha == record.selected_sha
+                        and candidate.landing_revision == record.landing_revision
                         and candidate.request_state
                         in (RequestState.PENDING, RequestState.IN_PROGRESS)
                     ),
@@ -1863,6 +2001,7 @@ class TerminalTransitionCoordinator:
                     == record.workflow_revision
                     and candidate.selected_ref == record.selected_ref
                     and candidate.selected_sha == record.selected_sha
+                    and candidate.landing_revision == record.landing_revision
                     and candidate.request_state
                     in (RequestState.PENDING, RequestState.IN_PROGRESS)
                 ]
@@ -1889,6 +2028,7 @@ class TerminalTransitionCoordinator:
                     ),
                     selected_ref=record.selected_ref,
                     selected_sha=record.selected_sha,
+                    landing_revision=record.landing_revision,
                     audit_ids=[source.audit_id, *retired_ids],
                     kind="completed_workflow_recurrence",
                 )
@@ -2219,6 +2359,7 @@ class TerminalTransitionCoordinator:
                     workflow_revision=None,
                     selected_ref=source.selected_ref,
                     selected_sha=source.selected_sha,
+                    landing_revision=source.landing_revision,
                     audit_ids=[source.audit_id, *retired_ids],
                     kind="workflow_revision_migration",
                 )
@@ -2509,6 +2650,8 @@ class TerminalTransitionCoordinator:
                                 != fresh.workflow_revision
                                 or record.selected_ref != fresh.selected_ref
                                 or record.selected_sha != fresh.selected_sha
+                                or record.landing_revision
+                                != fresh.landing_revision
                             )
                             for record in chain
                         )
@@ -2532,6 +2675,7 @@ class TerminalTransitionCoordinator:
                         ),
                         "selected_ref": fresh.selected_ref,
                         "selected_sha": fresh.selected_sha,
+                        "landing_revision": fresh.landing_revision,
                         "source_generation": fresh.source_generation,
                         "actor": authorized_actor.to_dict(),
                         "reason": redact_terminal_audit_text(reason.strip()),
@@ -2563,6 +2707,7 @@ class TerminalTransitionCoordinator:
                     == authority.workflow_revision
                     and record.selected_ref == authority.selected_ref
                     and record.selected_sha == authority.selected_sha
+                    and record.landing_revision == authority.landing_revision
                     and record.request_state
                     in (RequestState.PENDING, RequestState.IN_PROGRESS)
                     for record in matching
@@ -2611,6 +2756,8 @@ class TerminalTransitionCoordinator:
                                 == authority.workflow_revision
                                 and record.selected_ref == authority.selected_ref
                                 and record.selected_sha == authority.selected_sha
+                                and record.landing_revision
+                                == authority.landing_revision
                                 and record.request_state
                                 == RequestState.SUPERSEDED
                                 and _is_intervening_recurrence_source(
@@ -2706,6 +2853,8 @@ class TerminalTransitionCoordinator:
                             != authority.selected_ref
                             or history_row.get("selected_sha")
                             != authority.selected_sha
+                            or history_row.get("landing_revision")
+                            != authority.landing_revision
                         ):
                             return doc
                     history_generation = history_row.get("source_generation")
@@ -2746,6 +2895,8 @@ class TerminalTransitionCoordinator:
                             == authority.workflow_revision
                             and record.selected_ref == authority.selected_ref
                             and record.selected_sha == authority.selected_sha
+                            and record.landing_revision
+                            == authority.landing_revision
                             and record.request_state == RequestState.SUPERSEDED
                             and _classified_audit_recovery_action(record)
                             == requested_action
@@ -2822,6 +2973,7 @@ class TerminalTransitionCoordinator:
                     now,
                     selected_ref=exhausted.selected_ref,
                     selected_sha=exhausted.selected_sha,
+                    landing_revision=exhausted.landing_revision,
                     workflow_revision=(
                         exhausted.workflow_revision
                     ),
@@ -3437,6 +3589,7 @@ class TerminalTransitionCoordinator:
         evidence_fingerprint: EvidenceFingerprint,
         *,
         revision_binding: AuditRevisionBinding | None = None,
+        landing_revision: str | None = None,
         workflow_revision: str | None = None,
         coalesce_pending_target: bool = False,
         ensure_validation_on_coalesce: bool = False,
@@ -3509,6 +3662,7 @@ class TerminalTransitionCoordinator:
                 return (
                     record.selected_ref == revision_binding.selected_ref
                     and record.selected_sha == revision_binding.selected_sha
+                    and record.landing_revision == landing_revision
                 )
 
             def _completion_authority_matches(
@@ -3599,6 +3753,7 @@ class TerminalTransitionCoordinator:
                 requested_target,
                 evidence_fingerprint,
                 revision_binding=revision_binding,
+                landing_revision=landing_revision,
                 workflow_revision=workflow_revision,
             ):
                 decision.early_result = TransitionResult(
@@ -3835,6 +3990,7 @@ class TerminalTransitionCoordinator:
                 evidence_fingerprint,
                 project_id,
                 revision_binding=revision_binding,
+                landing_revision=landing_revision,
                 workflow_revision=workflow_revision,
             )
             decision.new_entries = new_entries
@@ -4361,6 +4517,7 @@ class TerminalTransitionCoordinator:
                 or record.selected_sha is None
                 or launched_attempt.selected_ref != record.selected_ref
                 or launched_attempt.selected_sha != record.selected_sha
+                or launched_attempt.landing_revision != record.landing_revision
             ):
                 decision.outcome = ResultOutcome(
                     success=False,
@@ -4408,6 +4565,7 @@ class TerminalTransitionCoordinator:
                 if not any(
                     candidate.selected_ref == record.selected_ref
                     and candidate.selected_sha == record.selected_sha
+                    and candidate.landing_revision == record.landing_revision
                     for candidate in passed_done
                 ):
                     decision.outcome = ResultOutcome(
@@ -4476,6 +4634,7 @@ class TerminalTransitionCoordinator:
                         ),
                         selected_ref=existing.selected_ref,
                         selected_sha=existing.selected_sha,
+                        landing_revision=existing.landing_revision,
                         ended_at=(
                             now
                             if attempt.request_state == RequestState.COMPLETED
@@ -4489,6 +4648,7 @@ class TerminalTransitionCoordinator:
                         attempt,
                         selected_ref=record.selected_ref,
                         selected_sha=record.selected_sha,
+                        landing_revision=record.landing_revision,
                     )
                 )
             updated_record = replace(record, attempts=attempts, updated_at=now)
@@ -4573,6 +4733,7 @@ class TerminalTransitionCoordinator:
                     == target_record.workflow_revision
                     and r.selected_ref == target_record.selected_ref
                     and r.selected_sha == target_record.selected_sha
+                    and r.landing_revision == target_record.landing_revision
                     and r.request_state in (RequestState.PENDING, RequestState.IN_PROGRESS)
                 )
             ]
@@ -4598,6 +4759,7 @@ class TerminalTransitionCoordinator:
                     == target_record.workflow_revision
                     and r.selected_ref == target_record.selected_ref
                     and r.selected_sha == target_record.selected_sha
+                    and r.landing_revision == target_record.landing_revision
                     and r.request_state
                     in (RequestState.PENDING, RequestState.IN_PROGRESS)
                 ),
@@ -4625,6 +4787,7 @@ class TerminalTransitionCoordinator:
                 ),
                 selected_ref=target_record.selected_ref,
                 selected_sha=target_record.selected_sha,
+                landing_revision=target_record.landing_revision,
                 audit_ids=[
                     result.audit_id,
                     *decision.cancelled_audit_ids,
@@ -5168,6 +5331,7 @@ class TerminalTransitionCoordinator:
                     workflow_revision=override_record.workflow_revision,
                     selected_ref=override_record.selected_ref,
                     selected_sha=override_record.selected_sha,
+                    landing_revision=None,
                     audit_ids=retired_alert_audit_ids,
                     kind="override",
                 )
@@ -5731,6 +5895,7 @@ def _has_terminal_retirement(
     evidence_fingerprint: EvidenceFingerprint,
     *,
     revision_binding: AuditRevisionBinding | None = None,
+    landing_revision: str | None = None,
     workflow_revision: str | None = None,
 ) -> bool:
     """Check the durable applied-fingerprint fence used by reconciliation.
@@ -5758,6 +5923,7 @@ def _has_terminal_retirement(
             == (revision_binding.selected_ref if revision_binding else None)
             and row.get("selected_sha")
             == (revision_binding.selected_sha if revision_binding else None)
+            and row.get("landing_revision") == landing_revision
         ):
             if row.get("kind") != "result":
                 return True
@@ -5777,6 +5943,7 @@ def _has_terminal_retirement(
                 and record.evidence_fingerprint == evidence_fingerprint
                 and record.workflow_revision
                 == workflow_revision
+                and record.landing_revision == landing_revision
                 and (
                     revision_binding is None
                     or (
@@ -5858,6 +6025,7 @@ def _retired_audit_ids_for_result(
             == source.workflow_revision
             and row.get("selected_ref") == source.selected_ref
             and row.get("selected_sha") == source.selected_sha
+            and row.get("landing_revision") == source.landing_revision
         ):
             raw_ids = row.get("audit_ids", [])
             if isinstance(raw_ids, list):
@@ -5877,6 +6045,7 @@ def _record_terminal_retirement(
     workflow_revision: str | None = None,
     selected_ref: str | None = None,
     selected_sha: str | None = None,
+    landing_revision: str | None = None,
     audit_ids: list[str],
     kind: str,
     applied: bool = True,
@@ -5897,6 +6066,7 @@ def _record_terminal_retirement(
         "workflow_revision": workflow_revision,
         "selected_ref": selected_ref,
         "selected_sha": selected_sha,
+        "landing_revision": landing_revision,
     }
     matching = next(
         (
@@ -6138,6 +6308,7 @@ def _build_new_entries(
     project_id: str,
     *,
     revision_binding: AuditRevisionBinding | None = None,
+    landing_revision: str | None = None,
     workflow_revision: str | None = None,
 ) -> list[TerminalAuditRecord]:
     """Return the list of new :class:`~oompah.terminal_audit.TerminalAuditRecord` objects.
@@ -6172,6 +6343,7 @@ def _build_new_entries(
                 now,
                 selected_ref=selected_ref,
                 selected_sha=selected_sha,
+                landing_revision=landing_revision,
                 workflow_revision=workflow_revision,
                 source_generation=source_generation,
             )
@@ -6182,6 +6354,7 @@ def _build_new_entries(
             current_chain, project_id, issue.identifier,
             fingerprint, trigger, previous_state, now,
             revision_binding=revision_binding,
+            landing_revision=landing_revision,
             workflow_revision=workflow_revision,
             source_generation=source_generation,
         )
@@ -6198,6 +6371,7 @@ def _build_new_entries(
                 now,
                 selected_ref=selected_ref,
                 selected_sha=selected_sha,
+                landing_revision=landing_revision,
                 workflow_revision=workflow_revision,
                 source_generation=source_generation,
             )
@@ -6216,6 +6390,7 @@ def _build_merged_entries(
     now: str,
     *,
     revision_binding: AuditRevisionBinding | None = None,
+    landing_revision: str | None = None,
     workflow_revision: str | None = None,
     source_generation: int,
 ) -> list[TerminalAuditRecord]:
@@ -6239,6 +6414,7 @@ def _build_merged_entries(
             and r.evidence_fingerprint == fingerprint
             and r.workflow_revision
             == workflow_revision
+            and r.landing_revision == landing_revision
             and (
                 revision_binding is None
                 or (
@@ -6259,6 +6435,7 @@ def _build_merged_entries(
             and r.evidence_fingerprint == fingerprint
             and r.workflow_revision
             == workflow_revision
+            and r.landing_revision == landing_revision
             and (
                 revision_binding is None
                 or (
@@ -6286,6 +6463,7 @@ def _build_merged_entries(
                 now,
                 selected_ref=selected_ref,
                 selected_sha=selected_sha,
+                landing_revision=landing_revision,
                 workflow_revision=workflow_revision,
                 source_generation=source_generation,
             )
@@ -6302,6 +6480,7 @@ def _build_merged_entries(
             now,
             selected_ref=selected_ref,
             selected_sha=selected_sha,
+            landing_revision=landing_revision,
             workflow_revision=workflow_revision,
             source_generation=source_generation,
         )
@@ -6320,6 +6499,7 @@ def _make_record(
     *,
     selected_ref: str | None = None,
     selected_sha: str | None = None,
+    landing_revision: str | None = None,
     workflow_revision: str | None = None,
     source_generation: int = 1,
 ) -> TerminalAuditRecord:
@@ -6336,6 +6516,7 @@ def _make_record(
         created_at=created_at,
         selected_ref=selected_ref,
         selected_sha=selected_sha,
+        landing_revision=landing_revision,
         workflow_revision=workflow_revision,
         source_generation=source_generation,
     )
