@@ -1076,15 +1076,53 @@ app = FastAPI(title="oompah", version="0.1.0", lifespan=_lifespan)
 app.add_middleware(_BasicAuthMiddleware)
 
 
-def _restart_drain_blocks_mutation() -> bool:
-    """Return whether the old process is serving only observability traffic."""
+def _orchestrator_restart_drain_blocks_mutation(orch: Any) -> bool:
+    """Return whether one owner is in the retained restart-drain phase."""
 
-    orch = _orchestrator
     return bool(
         orch is not None
         and getattr(orch, "wants_restart", False) is True
         and getattr(orch, "_stopping", False) is True
     )
+
+
+def _restart_drain_blocks_mutation() -> bool:
+    """Return whether the old process is serving only observability traffic."""
+
+    return _orchestrator_restart_drain_blocks_mutation(_orchestrator)
+
+
+_READ_ONLY_RETAINED_WEBSOCKET_ACTIONS = frozenset(
+    {"ping", "refresh", "full_sync"}
+)
+_RESTART_DRAIN_CONSOLE_MESSAGE = (
+    "The current service instance is draining for restart; retry console "
+    "input after the replacement is healthy."
+)
+
+
+def _restart_drain_blocks_websocket_message(message: Mapping[str, Any]) -> bool:
+    """Fence every non-observability message on a retained WebSocket."""
+
+    if not _restart_drain_blocks_mutation():
+        return False
+    action = str(message.get("action") or "").strip()
+    return action not in _READ_ONLY_RETAINED_WEBSOCKET_ACTIONS
+
+
+def _console_turn_admission_error(orch: Any) -> str | None:
+    """Linearize a console provider turn against lifecycle restart admission."""
+
+    lock = getattr(orch, "_provider_admission_lock", None)
+    context = lock if lock is not None else contextlib.nullcontext()
+    with context:
+        # A session retained from a replaced owner must never launch through
+        # the new process's provider configuration.
+        if _orchestrator is not orch:
+            return "console provider admission owner changed"
+        if _orchestrator_restart_drain_blocks_mutation(orch):
+            return _RESTART_DRAIN_CONSOLE_MESSAGE
+    return None
 
 
 @app.middleware("http")
@@ -1785,6 +1823,9 @@ def _set_orchestrator_locked(orch: Orchestrator) -> None:
         role_store=orch.role_store,
         on_event_factory=_make_console_event_callback,
         workspace_resolver=_resolve_console_workspace,
+        turn_admission_factory=lambda _project_id: (
+            lambda: _console_turn_admission_error(orch)
+        ),
     )
 
 
@@ -5083,6 +5124,41 @@ async def _broadcast(msg: dict) -> None:
             _unregister_ws(ws)
 
 
+async def _reject_restart_drain_websocket_mutation(
+    ws: WebSocket,
+    message: Mapping[str, Any],
+) -> None:
+    """Return one retryable error without closing the retained connection."""
+
+    project_id = str(message.get("project_id") or "")
+    if str(message.get("type") or "") == "console_input":
+        await _send_ws(
+            ws,
+            {
+                "type": "console_event",
+                "project_id": project_id,
+                "event": {
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "kind": "error",
+                    "is_error": True,
+                    "code": "restart_draining",
+                    "retryable": True,
+                    "text": _RESTART_DRAIN_CONSOLE_MESSAGE,
+                },
+            },
+        )
+        return
+    await _send_ws(
+        ws,
+        {
+            "type": "mutation_rejected",
+            "code": "restart_draining",
+            "retryable": True,
+            "message": _RESTART_DRAIN_CONSOLE_MESSAGE,
+        },
+    )
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
     """WebSocket endpoint for real-time UI updates.
@@ -5120,6 +5196,9 @@ async def websocket_endpoint(ws: WebSocket):
             # Client can send "ping" to keep alive or "refresh" to request data
             try:
                 msg = json.loads(data)
+                if _restart_drain_blocks_websocket_message(msg):
+                    await _reject_restart_drain_websocket_mutation(ws, msg)
+                    continue
                 if msg.get("action") == "refresh":
                     # Browser requested full resync (detected gap or manual refresh)
                     _ws_sync_record_full_sync_request()
@@ -5278,6 +5357,9 @@ async def _handle_console_input(ws: WebSocket, msg: dict) -> None:
     text = str(msg.get("text") or "")
     if not project_id or not text.strip():
         return
+    if _restart_drain_blocks_websocket_message(msg):
+        await _reject_restart_drain_websocket_mutation(ws, msg)
+        return
     if _console_manager is None:
         await _send_ws(
             ws,
@@ -5334,12 +5416,22 @@ async def _handle_console_input(ws: WebSocket, msg: dict) -> None:
             },
         )
         return
+    # The lifecycle fence may close while project/session lookup runs.  This
+    # second message-level check prevents the direct handler path from
+    # enqueueing after that boundary; ConsoleSession independently rechecks
+    # queued turns and the ACP transport edge.
+    if _restart_drain_blocks_websocket_message(msg):
+        await _reject_restart_drain_websocket_mutation(ws, msg)
+        return
     # session.send() awaits the turn to completion. The serial queue
     # inside the session guarantees concurrent operator inputs from
     # multiple WS clients run one at a time.
     try:
         await session.send(text, attachments=attachments or None)
     except Exception as exc:
+        if _restart_drain_blocks_websocket_message(msg):
+            await _reject_restart_drain_websocket_mutation(ws, msg)
+            return
         # The session already records an internal ``error`` event on
         # most failure paths; only emit an out-of-band one here when
         # send itself raised (closed session, etc.).

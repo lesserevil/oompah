@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastapi import WebSocketDisconnect
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -195,6 +196,176 @@ async def test_mutations_are_unfenced_before_restart_cutover(
 
     assert response.status_code == 200
     downstream.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_restart_drain_rejects_console_input_before_session_send(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: retained WebSockets cannot start a new ACP turn."""
+
+    orchestrator = SimpleNamespace(wants_restart=True, _stopping=True)
+    manager = MagicMock()
+    session = MagicMock()
+    session.send = AsyncMock()
+    manager.get.return_value = session
+    send_ws = AsyncMock()
+    monkeypatch.setattr(server, "_orchestrator", orchestrator)
+    monkeypatch.setattr(server, "_console_manager", manager)
+    monkeypatch.setattr(server, "_send_ws", send_ws)
+
+    await server._handle_console_input(
+        MagicMock(),
+        {
+            "type": "console_input",
+            "project_id": "project-1",
+            "text": "start a new provider turn",
+        },
+    )
+
+    manager.get.assert_not_called()
+    session.send.assert_not_awaited()
+    rejection = send_ws.await_args.args[1]
+    assert rejection["type"] == "console_event"
+    assert rejection["event"]["code"] == "restart_draining"
+    assert rejection["event"]["retryable"] is True
+
+
+@pytest.mark.asyncio
+async def test_console_input_rechecks_drain_after_session_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A drain winning during lookup is fenced before queue admission."""
+
+    orchestrator = SimpleNamespace(
+        wants_restart=False,
+        _stopping=False,
+        project_store=SimpleNamespace(get=lambda _project_id: object()),
+    )
+    session = SimpleNamespace(send=AsyncMock())
+    manager = MagicMock()
+
+    def _start_drain(_project_id: str):
+        orchestrator.wants_restart = True
+        orchestrator._stopping = True
+        return session
+
+    manager.get.side_effect = _start_drain
+    send_ws = AsyncMock()
+    monkeypatch.setattr(server, "_orchestrator", orchestrator)
+    monkeypatch.setattr(server, "_console_manager", manager)
+    monkeypatch.setattr(server, "_send_ws", send_ws)
+
+    await server._handle_console_input(
+        MagicMock(),
+        {
+            "type": "console_input",
+            "project_id": "project-1",
+            "text": "race restart",
+        },
+    )
+
+    session.send.assert_not_awaited()
+    assert send_ws.await_args.args[1]["event"]["code"] == "restart_draining"
+
+
+def test_console_turn_admission_uses_exact_provider_lifecycle_fence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    orchestrator = SimpleNamespace(
+        wants_restart=False,
+        _stopping=False,
+        _provider_admission_lock=threading.RLock(),
+    )
+    monkeypatch.setattr(server, "_orchestrator", orchestrator)
+
+    assert server._console_turn_admission_error(orchestrator) is None
+    with orchestrator._provider_admission_lock:
+        orchestrator.wants_restart = True
+        orchestrator._stopping = True
+    assert "draining for restart" in str(
+        server._console_turn_admission_error(orchestrator)
+    )
+
+    monkeypatch.setattr(server, "_orchestrator", SimpleNamespace())
+    assert (
+        server._console_turn_admission_error(orchestrator)
+        == "console provider admission owner changed"
+    )
+
+
+@pytest.mark.asyncio
+async def test_retained_websocket_keeps_read_only_messages_during_drain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ping, refresh, and full_sync remain usable while mutations reject."""
+
+    class _WebSocket:
+        def __init__(self) -> None:
+            self.messages = iter(
+                (
+                    {"action": "ping"},
+                    {"action": "refresh"},
+                    {"action": "full_sync"},
+                    {
+                        "type": "console_input",
+                        "project_id": "project-1",
+                        "text": "must reject",
+                    },
+                )
+            )
+
+        async def accept(self) -> None:
+            return None
+
+        async def receive_text(self) -> str:
+            try:
+                return json.dumps(next(self.messages))
+            except StopIteration as exc:
+                raise WebSocketDisconnect() from exc
+
+    orchestrator = SimpleNamespace(wants_restart=True, _stopping=True)
+    ws = _WebSocket()
+    send_ws = AsyncMock()
+    broadcast = AsyncMock()
+    full_sync = AsyncMock()
+    console_input = AsyncMock()
+    monkeypatch.setattr(server, "_orchestrator", orchestrator)
+    monkeypatch.setattr(server, "_ws_clients", set())
+    monkeypatch.setattr(server, "_send_ws", send_ws)
+    monkeypatch.setattr(
+        server,
+        "_current_state_message",
+        MagicMock(return_value={"type": "state", "data": {}}),
+    )
+    monkeypatch.setattr(
+        server,
+        "_run_api_io",
+        AsyncMock(return_value=({"issues": []}, 1)),
+    )
+    monkeypatch.setattr(
+        server,
+        "_ensure_issues_snapshot_refresh",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(server, "broadcast_issues", broadcast)
+    monkeypatch.setattr(server, "_handle_full_sync", full_sync)
+    monkeypatch.setattr(server, "_handle_console_input", console_input)
+
+    await server.websocket_endpoint(ws)
+
+    sent = [call.args[1] for call in send_ws.await_args_list]
+    assert any(message.get("type") == "pong" for message in sent)
+    assert broadcast.await_count == 1
+    full_sync.assert_awaited_once_with(ws, orchestrator)
+    console_input.assert_not_awaited()
+    rejection = next(
+        message
+        for message in sent
+        if message.get("type") == "console_event"
+        and (message.get("event") or {}).get("code") == "restart_draining"
+    )
+    assert rejection["project_id"] == "project-1"
 
 
 @pytest.mark.asyncio
