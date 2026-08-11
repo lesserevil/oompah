@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T14:28:37.182011Z'
+updated_at: '2026-08-11T14:30:01.436176Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
@@ -129,12 +129,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1084
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: af52f77940943df05f61b8547b3b4536269fc3586a99771c764f30fb5a8edcce
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-2269b15dd52c
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: af52f77940943df05f61b8547b3b4536269fc3586a99771c764f30fb5a8edcce
+      created_at: '2026-08-11T14:29:51.712833+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-11T14:29:51.712833+00:00'
+      branch_key: OOMPAH-1084
+      selected_ref: cf3578ff00f5564a06ea31650553dca337280427
+      selected_sha: cf3578ff00f5564a06ea31650553dca337280427
     source_generation: 2
     requested_by:
       version: 1
@@ -145,6 +160,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-11T14:28:27.692253+00:00'
     selected_ref: cf3578ff00f5564a06ea31650553dca337280427
     selected_sha: cf3578ff00f5564a06ea31650553dca337280427
+    updated_at: '2026-08-11T14:29:51.712833+00:00'
   - version: 1
     audit_id: audit-76b589ad52aa
     project_id: proj-14849f1b
@@ -182,6 +198,21 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1084
     selected_ref: 15a2ee7c9b82cfefb49a00173c302c095f3ca46e
     selected_sha: 15a2ee7c9b82cfefb49a00173c302c095f3ca46e
+  - version: 1
+    attempt_id: attempt-2269b15dd52c
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: af52f77940943df05f61b8547b3b4536269fc3586a99771c764f30fb5a8edcce
+    created_at: '2026-08-11T14:29:51.712833+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-11T14:29:51.712833+00:00'
+    branch_key: OOMPAH-1084
+    selected_ref: cf3578ff00f5564a06ea31650553dca337280427
+    selected_sha: cf3578ff00f5564a06ea31650553dca337280427
 oompah.task_costs:
   total_input_tokens: 174
   total_output_tokens: 34
@@ -306,5 +337,15 @@ author: oompah
 created: 2026-08-11 14:28
 ---
 Automatic standalone delivery exhausted because of OOMPAH-1090: the exact cf3578ff canonical gate passed, but its long effect lost workflow authority before publication; four cached-pass retries each timed out at the 15-second terminal-staging bridge and revoked the detached exact operation before tracker mutation. Applying the supported terminal transition workaround now. The completion auditor must bind exact branch/review head cf3578ff00f5564a06ea31650553dca337280427, merged PR 821, and landed main merge 6a0f7210ad1f94dc48efe2131dbdacec915bd615; stale 15a2ee7 evidence remains invalid.
+---
+author: oompah
+created: 2026-08-11 14:29
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-11 14:30
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
