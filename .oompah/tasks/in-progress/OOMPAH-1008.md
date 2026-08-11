@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T01:18:23.370723Z'
-updated_at: '2026-08-11T02:29:22.354265Z'
+updated_at: '2026-08-11T03:05:30.450400Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,5 +48,10 @@ author: oompah
 created: 2026-08-11 02:29
 ---
 Implementation is committed and pushed at exact head 2401de12283a0810f5c27bacdb65b1666deea859. Quarantine persistence now has an independent environment-configured bounded deadline instead of inheriting a short adapter operation timeout; deterministic barrier coverage holds the store operation beyond the original 10ms budget while proving exact receipt checkpointing and no duplicate apply, and a separate regression preserves true lease-loss classification. Focused suites passed 213/213 serial and 213/213 xdist; the late-effect regression passed 20/20 repetitions; mutation scan 21/21, secret hooks, compile, and diff checks are green. Independent exact-head review is pending before protected integration.
+---
+author: oompah
+created: 2026-08-11 03:05
+---
+Independent review accepted the implementation. The review follow-up is committed and pushed at exact head 6590e3558; configuration and worker construction now reject NaN and positive/negative infinity so no non-finite persistence deadline can bypass the bounded quarantine contract. Focused config/worker validation passed 218 tests, and the combined four-fix branch passed 827 changed-path tests.
 ---
 <!-- COMMENTS:END -->

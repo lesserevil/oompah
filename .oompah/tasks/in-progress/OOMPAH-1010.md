@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T01:48:19.145541Z'
-updated_at: '2026-08-11T02:34:44.242521Z'
+updated_at: '2026-08-11T03:05:35.839669Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,5 +48,10 @@ author: oompah
 created: 2026-08-11 02:34
 ---
 Implementation is committed and pushed at exact head c71b7f57d500fefa9343c72b3c42fe2d62fa6582. Landed standalone/root and nested-epic reviews target Merged, while shared ordinary children target Done; unreadable or invalid parent topology fails closed across direct and merge-group webhooks, durable review recovery, and decision projection. Validation passed 1,317 unique focused tests plus a 68-test changed-path rerun, mutation scan 21/21, secret scan, compile, diff, and commit hooks. Independent exact-head review is active before protected integration.
+---
+author: oompah
+created: 2026-08-11 03:05
+---
+Independent re-review accepted exact head 65bf488993796b483ccf5351c0f80feac942b799. The follow-up closes the topology ABA window by re-resolving the terminal target from the freshly locked issue; direct and merge-group race regressions fail closed without staging an audit. The combined four-fix branch passed 827 changed-path tests.
 ---
 <!-- COMMENTS:END -->

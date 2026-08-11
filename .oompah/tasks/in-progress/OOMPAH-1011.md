@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T02:15:28.085531Z'
-updated_at: '2026-08-11T02:36:48.883350Z'
+updated_at: '2026-08-11T03:05:38.620408Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,10 @@ author: oompah
 created: 2026-08-11 02:36
 ---
 Independent-review correction is committed and pushed at exact head 092debf174fe4dd7521669690a79603ecf216eef. Removed the invalid global-published-generation equality from individual membership rows: bounded scans may carry an expected-but-unevaluated task's prior membership/cursor forward. Accepted==published authority, cursor/member equality, candidate/cursor job-generation equality, and required-cut CAS remain intact. New exact store regression publishes A/B in generation 1, publishes generation 2 after evaluating only A, proves B retains generation-1 membership/cursor and remains claimable under required generation 2. Validation: 419 adjacent tests passed; six exact allocation/acceptance/bounded-membership/race tests passed 120/120 over 20 xdist runs; mutation scan 21/21 and secret/diff/compile checks passed. Branch is clean and up to date with origin.
+---
+author: oompah
+created: 2026-08-11 03:05
+---
+Independent re-review accepted exact head 092debf174fe4dd7521669690a79603ecf216eef with no findings. Accepted/published authority remains the fast-admission fence, bounded carry-forward membership remains claimable, and a genuinely accepted newer generation still fences stale work. The combined four-fix branch passed 827 changed-path tests.
 ---
 <!-- COMMENTS:END -->

@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T01:46:41.855802Z'
-updated_at: '2026-08-11T02:32:06.730474Z'
+updated_at: '2026-08-11T03:05:33.265676Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,5 +48,10 @@ author: oompah
 created: 2026-08-11 02:32
 ---
 Implementation is committed and pushed at exact head 47e2777a8539baf66d4201d314a0a2868bf82137. Enforce-mode restart reconstruction now prioritizes the first accepted liveness publication; audit rollback/finalization/migration/health remain active while only fresh provider ownership is neutrally deferred. Healthy and off/shadow modes retain audit-first fairness. Exact-head validation passed 593 targeted tests, mutation scan 21/21, secret scan, compile, and diff checks. Independent review is active before protected integration.
+---
+author: oompah
+created: 2026-08-11 03:05
+---
+Independent re-review accepted exact head 43a0d794ae1ac5dde5fb0005a7455878caef9d46 with no findings. Recovery/finalization now precede potentially failing reconciliation, restart reconciliation suppresses ordinary worker admission, fresh audit launch remains ahead of continuation admission, and a real two-tick authority-CAS regression proves supersession then convergence with exactly one provider launch. The combined four-fix branch passed 827 changed-path tests.
 ---
 <!-- COMMENTS:END -->
