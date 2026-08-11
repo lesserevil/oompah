@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:22:55.237924Z'
-updated_at: '2026-08-11T14:48:14.889765Z'
+updated_at: '2026-08-11T14:59:56.937720Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,5 +58,10 @@ author: oompah
 created: 2026-08-11 14:48
 ---
 Rebased the reviewed implementation onto current origin/main fe9599111d478b8221a2949c878fecb61d558760 and pushed replacement exact head a6ae095fda9b07d3a113e44c74591387e73f6053. Post-rebase verification: 391 focused workflow/review/liveness tests passed; terminal-audit mutation scan 21/21; git diff --check clean. Awaiting fresh independent exact-head review before submission.
+---
+author: oompah
+created: 2026-08-11 14:59
+---
+Independent review found and repaired a TOCTOU in successor-generation retry authority. Successor eligibility and ordinary exhaustion handling previously performed separate current-exhaustion reads, so a concurrent replacement exhaustion could be evaluated under stale predecessor proof. Both decisions now consume one immutable tuple of frozen WorkflowJob rows, with a deterministic substitution regression proving only one authority read occurs and a later current-generation exhaustion cannot inherit the older proof. Replacement candidate pushed at exact head 6393f0b490c7b91b6783557fc2f44a08127f0fa7 (force-with-lease against a6ae095fda9b07d3a113e44c74591387e73f6053). Evidence: 392 focused review/work-decision/controller/runtime/liveness tests passed; terminal-audit mutation scan 21/21; git diff --check and py_compile clean; commit hooks and paranoid secret scans passed. Not submitted or merged; requires fresh independent exact-head review.
 ---
 <!-- COMMENTS:END -->
