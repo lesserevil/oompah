@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:17:03.737871Z'
-updated_at: '2026-08-11T16:10:48.699313Z'
+updated_at: '2026-08-11T16:14:03.974282Z'
 work_branch: OOMPAH-1088
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/826
@@ -54,6 +54,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1088
     digest: 00ce7af913aef7fc8da0e34dafa172c407ead38df18bade3ec38952a1356e967
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1088","audit-52eb958d31e4","attempt-e62a404c14b9"]': '2026-08-11T16:13:53.912471+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1088
+    target_state: Done
+    evidence_fingerprint: 00ce7af913aef7fc8da0e34dafa172c407ead38df18bade3ec38952a1356e967
+    workflow_revision: null
+    selected_ref: 59619d68f092fd5e6078599f2a6efcce555f52f9
+    selected_sha: 59619d68f092fd5e6078599f2a6efcce555f52f9
+    landing_revision: null
+    audit_ids:
+    - audit-52eb958d31e4
+    kind: result
+    applied: true
+    retired_at: '2026-08-11T16:13:53.912488+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1088
+    audit_id: audit-52eb958d31e4
+    attempt_id: attempt-e62a404c14b9
+    target_state: Done
+    evidence_fingerprint: 00ce7af913aef7fc8da0e34dafa172c407ead38df18bade3ec38952a1356e967
+    status: In Validation
+    audit_ids:
+    - audit-52eb958d31e4
+    kind: result
+    applied: true
+    created_at: '2026-08-11T16:13:53.912499+00:00'
+    applied_at: '2026-08-11T16:14:02.374339+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -61,7 +91,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1088
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -70,7 +100,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e62a404c14b9
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -82,6 +112,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1088
       selected_ref: 59619d68f092fd5e6078599f2a6efcce555f52f9
       selected_sha: 59619d68f092fd5e6078599f2a6efcce555f52f9
+      verdict: pass
+      completed_at: '2026-08-11T16:13:53.912272+00:00'
+      ended_at: '2026-08-11T16:13:53.912272+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -92,7 +125,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-11T16:08:37.144165+00:00'
     selected_ref: 59619d68f092fd5e6078599f2a6efcce555f52f9
     selected_sha: 59619d68f092fd5e6078599f2a6efcce555f52f9
-    updated_at: '2026-08-11T16:10:39.447182+00:00'
+    updated_at: '2026-08-11T16:13:53.912272+00:00'
   - version: 1
     audit_id: audit-fe6e7c8740ff
     project_id: proj-14849f1b
@@ -114,6 +147,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-52eb958d31e4
     selected_ref: 59619d68f092fd5e6078599f2a6efcce555f52f9
     selected_sha: 59619d68f092fd5e6078599f2a6efcce555f52f9
+    updated_at: '2026-08-11T16:13:53.912272+00:00'
+    eligible_at: '2026-08-11T16:13:53.912272+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e62a404c14b9
@@ -204,5 +239,34 @@ author: oompah
 created: 2026-08-11 16:10
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 16:14
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- implementation_features[0]: CrossLoopTaskLock with bounded async acquire
+- implementation_features[1]: SubmissionAuthorityBusyError returns retryable 503 instead of blocking
+- implementation_features[2]: Pre-provider retirement with durable structured evidence
+- implementation_features[3]: Budget rollback on pre-provider timeout
+- implementation_features[4]: Worker exit path removes RunningEntry and claims
+- implementation_features[5]: Direct owner claim idempotent convergence
+- implementation_features[6]: Non-blocking synchronous legacy lock polling
+- test_coverage[0]: test_cross_loop_task_lock_has_a_bounded_retryable_acquisition
+- test_coverage[1]: test_submission_authority_wait_is_bounded_and_releases_for_retry
+- test_coverage[2]: test_owner_claim_authority_wait_is_bounded_and_retryable
+- test_coverage[3]: test_pre_provider_evidence_timeout_releases_task_authority
+- test_coverage[4]: test_pre_provider_timeout_exits_without_ghost_and_authority_lanes_continue
+- test_coverage[5]: test_late_pre_provider_write_settles_before_successor_provider_contact
+- test_coverage[6]: test_cancelled_pre_provider_evidence_releases_task_authority
+- acceptance_criteria[0]: No indefinite API waits on orphaned task authority: VERIFIED
+- acceptance_criteria[1]: Zero-work graceful restart not held by retired handler: VERIFIED
+- acceptance_criteria[2]: Pre-provider ghosts self-retire with evidence: VERIFIED
+- acceptance_criteria[3]: Focused tests and mutation scan pass: VERIFIED
+- acceptance_criteria[4]: Full protected gate green: VERIFIED
+- quality_gate_status: make test passed in 181 seconds with authoritative_current evidence
 ---
 <!-- COMMENTS:END -->
