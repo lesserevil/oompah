@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1073
 type: bug
-status: In Progress
+status: In Review
 priority: 1
 title: Make Backlog direct-owner claims lifecycle-atomic in enforce mode
 parent: null
@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T08:21:18.898748Z'
-updated_at: '2026-08-11T08:21:43.941282Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
-review_head: null
+updated_at: '2026-08-11T09:33:55.259493Z'
+work_branch: OOMPAH-1073
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/813
+review_number: '813'
+review_head: 1732c3e65a53ffaac96c5670e02f1ec075004382
 merged_at: null
 oompah.create_once:
   version: 1
@@ -24,6 +24,11 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: direct-owner-backlog-illegal-edge-20260811
   request_fingerprint: aba69f23bc92b16499381e48a12f1fa34ba9d6019f4bdbacec64612ed885fb2a
+oompah.review_url: https://github.com/lesserevil/oompah/pull/813
+oompah.review_number: '813'
+oompah.work_branch: OOMPAH-1073
+oompah.target_branch: main
+oompah.review_head: 1732c3e65a53ffaac96c5670e02f1ec075004382
 ---
 ## Summary
 
@@ -43,3 +48,11 @@ Required tests and acceptance criteria: reproduce an owner-authenticated Backlog
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 09:33
+---
+Branch quality gate passed for `1732c3e65a53ffaac96c5670e02f1ec075004382` using `make test` in 169.7s. Review creation may proceed.
+---
+<!-- COMMENTS:END -->
