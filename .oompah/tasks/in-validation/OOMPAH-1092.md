@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:02:12.775197Z'
-updated_at: '2026-08-11T17:38:07.250972Z'
+updated_at: '2026-08-11T17:51:10.198754Z'
 work_branch: OOMPAH-1092
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/828
@@ -83,6 +83,29 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-11T17:37:43.165813+00:00'
     applied_at: '2026-08-11T17:37:50.544877+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-86ab7099fac7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1092
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 17602685e9446493caf47e87af8fdc62bd483b6d13205ae49dc654ca5e88d59a
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Operator audit under globally paused scheduling: independently accepted
+      exact a355a5ddd3dd006f1bdd2187cfe83b9333b9468a; 969 focused fairness, terminal-audit,
+      observability, scheduler and health checks passed; protected Python 3.11/3.12/3.13
+      CI passed; PR 828 merged as 2bdf2d942b44f15bbc4e896f03d967a163891868; exact
+      head is contained in current main.'
+    created_at: '2026-08-11T17:51:08.111199+00:00'
+    selected_ref: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
+    selected_sha: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
+    applied: false
   version: 1
   pending_chain:
   - version: 1
