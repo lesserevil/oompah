@@ -12,7 +12,7 @@ labels:
 - workflow-liveness
 assignee: null
 created_at: '2026-08-11T15:35:51.682286Z'
-updated_at: '2026-08-11T16:58:40.113076Z'
+updated_at: '2026-08-11T17:00:33.844600Z'
 work_branch: OOMPAH-1091
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/830
@@ -31,9 +31,13 @@ oompah.integration:
   attempts: 0
   mode: standalone
   task_branch: OOMPAH-1091
+  base_branch: main
+  base_sha: 3264da6780e35b10f759de8aade7b3509977bbb9
   head_sha: 66f40f54566a64b55957ce0a29846289992e2f3f
   submitted_at: '2026-08-11T16:46:45.273666+00:00'
-  updated_at: '2026-08-11T16:46:45.273666+00:00'
+  updated_at: '2026-08-11T17:00:32.011716+00:00'
+  wait_reason: review_generation_requeue
+  wait_generation: review:0ce00ed0b16b7fa74340aba3ed7f6b90ee5718b30ac503ba9778a410b33c4e2a
 oompah.work_branch: OOMPAH-1091
 oompah.review_url: https://github.com/lesserevil/oompah/pull/830
 oompah.review_number: '830'
