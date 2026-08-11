@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1012
 type: bug
-status: In Progress
+status: Merged
 priority: 1
 title: Validate landed epics on the current authoritative target head
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T02:41:11.512382Z'
-updated_at: '2026-08-11T03:14:02.680617Z'
+updated_at: '2026-08-11T08:09:18.899404Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,33 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: o940-landed-epic-current-target-audit
   request_fingerprint: 0adef301dabca05114c817278bc48a556f4dbd8bd838cad0aafd4a246b79b5e1
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-2f6f4aaac39d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1012
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ddef3478f6b42e85cd4a47b2362d49b8f8184e0a4691f0d4bfbe6438b2b64252
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Protected PR #806 and hosted Python 3.11/3.12/3.13 gates are green; deployed
+      build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 contains merge 62c3cda3ea602b614a3a3dfc92c66468b5c34a4b;
+      independent audit verified that every exact reviewed branch change is patch-equivalent
+      to or composition-equivalent with the protected merge and no unique branch changes
+      remain.'
+    created_at: '2026-08-11T08:09:14.555115+00:00'
+    selected_ref: origin/OOMPAH-1012
+    selected_sha: 616331ef871e875d1549842c3a33856d544bdd0d
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
