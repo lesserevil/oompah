@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:26:47.067526Z'
-updated_at: '2026-08-11T17:29:33.010644Z'
+updated_at: '2026-08-11T17:29:39.210722Z'
 work_branch: OOMPAH-1090
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/825
@@ -107,8 +107,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-58b6f417d9a3
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-11T17:29:28.334036+00:00'
+    applied_at: '2026-08-11T17:29:37.496098+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -382,5 +383,32 @@ author: oompah
 created: 2026-08-11 17:21
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 17:29
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- authoritative_gate.head: 6703b97115b0b7aff922deab2ead89119bc1d486
+- authoritative_gate.command: make test
+- authoritative_gate.duration_seconds: 180.78
+- authoritative_gate.result: passed
+- authoritative_gate.authority_current: true
+- code_changes[0]: tracker_revision_preserves_task() validates task-scoped changes only via publication_task_changes_since
+- code_changes[1]: _await_standalone_terminal_bridge() treats 10s timeout as liveness interval, retries until staging settles
+- code_changes[2]: workflow_local_authority_check added for concurrent-safe local checks without project fence
+- test_results.quality_gate_standalone_integration: 632 passed
+- test_results.project_lock: 73 passed
+- test_results.terminal_mutation_scan: 21/21 passed
+- acceptance_criteria[0]: gates_longer_than_lease_work
+- acceptance_criteria[1]: detached_staging_survives_bridge_timeout
+- acceptance_criteria[2]: OOMPAH_1084_recovery_completes
+- acceptance_criteria[3]: focused_workflow_tests_pass
+- acceptance_criteria[4]: terminal_mutation_scan_pass
+- acceptance_criteria[5]: protected_ci_green
+- review_status: independent review ACCEPTED on fc1220a; patch-equivalent rebased to current main
 ---
 <!-- COMMENTS:END -->
