@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1075
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep branch quality gates off restart reconciliation control ticks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:03:11.276660Z'
-updated_at: '2026-08-11T09:03:25.044350Z'
+updated_at: '2026-08-11T09:03:49.157859Z'
 work_branch: null
 target_branch: null
 review_url: null
