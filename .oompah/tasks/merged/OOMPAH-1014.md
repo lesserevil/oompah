@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1014
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Retire orphaned terminal-audit authority before workflow publication
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T04:35:54.427125Z'
-updated_at: '2026-08-11T06:30:16.175485Z'
+updated_at: '2026-08-11T07:41:28.842056Z'
 work_branch: OOMPAH-1014
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/807
@@ -51,6 +51,29 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1014
     digest: 2dcb32e584d369156740662bcc34b7bab0e63a26e2fb027fc908f989ac9c70d7
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-2920e727df03
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1014
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2dcb32e584d369156740662bcc34b7bab0e63a26e2fb027fc908f989ac9c70d7
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #807 is merged into protected main at 05ed11f22e5f0717e01a7234839e34872a60e86a;
+      the exact implementation head b7c5ab03f09d0bf994dfcbb04526f96f91d58979 passed
+      the complete Makefile gate and hosted multi-version CI, and the deployed successor
+      build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 completed startup recovery with
+      zero malformed or quarantined terminal-audit metadata.'
+    created_at: '2026-08-11T07:41:24.561246+00:00'
+    selected_ref: b7c5ab03f09d0bf994dfcbb04526f96f91d58979
+    selected_sha: b7c5ab03f09d0bf994dfcbb04526f96f91d58979
+    applied: false
   version: 1
   pending_chain:
   - version: 1
