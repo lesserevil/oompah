@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:54:01.877028Z'
-updated_at: '2026-08-11T15:01:12.484517Z'
+updated_at: '2026-08-11T15:01:26.873504Z'
 work_branch: OOMPAH-1086
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/823
@@ -223,13 +223,13 @@ oompah.terminal_audit:
     selected_ref: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
     selected_sha: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
 oompah.task_costs:
-  total_input_tokens: 330
-  total_output_tokens: 11004
+  total_input_tokens: 468
+  total_output_tokens: 17657
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 330
-      output_tokens: 11004
+      input_tokens: 468
+      output_tokens: 17657
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -238,6 +238,12 @@ oompah.task_costs:
     output_tokens: 11004
     cost_usd: 0.0
     recorded_at: '2026-08-11T14:45:19.610534+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 138
+    output_tokens: 6653
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T15:01:22.293337+00:00'
 ---
 ## Summary
 
@@ -357,5 +363,15 @@ Safe evidence:
 - independent_review: ACCEPTED with lifecycle fencing and comprehensive coverage verified
 - mutation_scan: 21/21 passed
 - implementation_changes: oompah/task_transition_service.py +362 lines, tests/test_task_transition_service.py +320 lines, tests/test_restart_api.py +205 lines
+---
+author: oompah
+created: 2026-08-11 15:01
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 40, Tool calls: 16
+- Tokens: 138 in / 6.7K out [6.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 25s
+- Log: OOMPAH-1086__20260811T145513Z.jsonl
 ---
 <!-- COMMENTS:END -->
