@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1095
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Publish direct-owner retirement before standalone delivery authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:44:31.960614Z'
-updated_at: '2026-08-11T18:35:48.364796Z'
+updated_at: '2026-08-11T18:37:35.365744Z'
 work_branch: OOMPAH-1095
 target_branch: null
 review_url: null
@@ -47,6 +47,30 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1095
     digest: c0d43355a6932b114bfefaa6baefb19c9b1a67a504f6b83b86cbbb2aea253ca7
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-8e4f8cad6433
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1095
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c0d43355a6932b114bfefaa6baefb19c9b1a67a504f6b83b86cbbb2aea253ca7
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Operator-directed manual completion while all Oompah schedulers are paused:
+      independent exact-head audit ACCEPT at 6e0a488ea8d1ad7aaf5b0c2d814de6058d2180a5;
+      671 focused tests, 80/80 critical race repetitions, and terminal audit scan
+      passed; protected GitHub CI succeeded on Python 3.11, 3.12, and 3.13; PR #831
+      merged as 8e72210725ce1cb548f64e7189cf49bc0b1fbde9; exact head is contained
+      in origin/main.'
+    created_at: '2026-08-11T18:37:30.768174+00:00'
+    selected_ref: cbca04ae99c93bc7edcf92270104c076b036b4c6
+    selected_sha: cbca04ae99c93bc7edcf92270104c076b036b4c6
+    applied: false
   version: 1
   pending_chain:
   - version: 1
