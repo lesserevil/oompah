@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T18:51:19.396631Z'
+updated_at: '2026-08-11T18:51:30.476629Z'
 work_branch: OOMPAH-1085
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/827
@@ -88,7 +88,23 @@ oompah.terminal_audit:
     created_at: '2026-08-11T18:51:12.722211+00:00'
     selected_ref: c2b0e1b10ea76129b8a59e041cde68948354e8cb
     selected_sha: c2b0e1b10ea76129b8a59e041cde68948354e8cb
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1085
+    target_state: Merged
+    evidence_fingerprint: fd89eced37fd44cb6db488b8886bb740da1d8953e6544046c0595ecd0aeb154e
+    workflow_revision: null
+    selected_ref: c2b0e1b10ea76129b8a59e041cde68948354e8cb
+    selected_sha: c2b0e1b10ea76129b8a59e041cde68948354e8cb
+    landing_revision: null
+    audit_ids:
+    - audit-5f8e310d908b
+    - audit-07ff4c62fc4a
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T18:51:27.723082+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -96,7 +112,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1085
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -130,13 +146,13 @@ oompah.terminal_audit:
     eligible_at: '2026-08-11T17:37:19.645047+00:00'
     selected_ref: c2b0e1b10ea76129b8a59e041cde68948354e8cb
     selected_sha: c2b0e1b10ea76129b8a59e041cde68948354e8cb
-    updated_at: '2026-08-11T17:46:55.922361+00:00'
+    updated_at: '2026-08-11T18:51:27.723030+00:00'
   - version: 1
     audit_id: audit-07ff4c62fc4a
     project_id: proj-14849f1b
     task_id: OOMPAH-1085
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -152,6 +168,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-5f8e310d908b
     selected_ref: c2b0e1b10ea76129b8a59e041cde68948354e8cb
     selected_sha: c2b0e1b10ea76129b8a59e041cde68948354e8cb
+    updated_at: '2026-08-11T18:51:27.723063+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fb07162a4c5a
@@ -491,5 +508,12 @@ author: oompah
 created: 2026-08-11 18:41
 ---
 ACCEPT exact head 574c3f98038f43cf506a7227ff8b0992f16a490b against base b7ad6d1c2ebd2dc2c5200459161866f4bcc23f46. Fresh independent review found no concrete defect. Active higher-priority candidates remain ahead of exact hints, while suspended candidates are excluded from the active blocking prefix; the production live-shape regression consumes the higher nonlaunchable observation and dispatches the lower exact successor in the same bounded cut. Internal budget/priority edges can cause at most one in-owner recheck, with no successor owner or repeated start/defer logging; capacity is recomputed after acquiring the shared audit lane and audit-spendable capacity subtracts current non-audit reservations. Exact-stage, branch-release, worker-exit, and resume edges remain external; an external edge arriving after the bounded recheck transfers to exactly one successor owner through the done callback with no owner overlap. Durable exact wakes remain for later external recovery when lifecycle/capacity blocks, and value-CAS retirement/idempotent release prevents stale or repeated exits from rearming scans. Verification: tests/test_terminal_audit_observability.py 111 passed; 10 additional repeated executions of the live-shape/internal-bound/reservation/external-handoff races passed; adjacent event-loop, quiesce, retirement, and module-boundary suites 205 passed; terminal-audit workflow/finalization suites 105 passed; terminal mutation scan passed 21/21; py_compile and diff-check clean. Branch is untouched, clean, and exact HEAD equals origin/OOMPAH-1085.
+---
+author: oompah
+created: 2026-08-11 18:51
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Operator-directed manual completion while all Oompah schedulers are paused: independent exact-head audit ACCEPT at 574c3f98038f43cf506a7227ff8b0992f16a490b; 421 focused and adjacent tests, 10 additional repeated live-shape/race runs, and terminal audit scan passed; protected GitHub CI succeeded on Python 3.11, 3.12, and 3.13; PR #834 merged as 28ce5b1b2dd461c2d6a2ba579b3adfc65e41cbbe; exact head is contained in origin/main.
 ---
 <!-- COMMENTS:END -->
