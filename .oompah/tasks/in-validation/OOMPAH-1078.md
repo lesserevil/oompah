@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1078
 type: task
-status: In Progress
+status: In Validation
 priority: null
 title: Prevent manual In Validation transitions from stranding terminal audits
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T10:13:51.547647Z'
-updated_at: '2026-08-11T10:26:02.006694Z'
+updated_at: '2026-08-11T10:50:03.917092Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,62 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: fb2a09ae-ea46-4667-bd75-8a9f367c2db3
   request_fingerprint: d17b7df2e7e113a319d6343a89d928aaeb0be8479b7cfddbb5a52132b5d87d97
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-18237c837d61
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1078
+    digest: fb7fe1d32d9e1c5ac12f5a590f2393ba9621958bcf9103d1c5f4b625aee929d0
+  - version: 1
+    audit_id: audit-4dfa2cf5c0b5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1078
+    digest: fb7fe1d32d9e1c5ac12f5a590f2393ba9621958bcf9103d1c5f4b625aee929d0
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-18237c837d61
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1078
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fb7fe1d32d9e1c5ac12f5a590f2393ba9621958bcf9103d1c5f4b625aee929d0
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-11T10:49:57.906153+00:00'
+    selected_ref: origin/OOMPAH-1078
+    selected_sha: 9c78b999f9b8eeddda14e2c783ea01a688543325
+  - version: 1
+    audit_id: audit-4dfa2cf5c0b5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1078
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fb7fe1d32d9e1c5ac12f5a590f2393ba9621958bcf9103d1c5f4b625aee929d0
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-11T10:49:57.906153+00:00'
+    selected_ref: origin/OOMPAH-1078
+    selected_sha: 9c78b999f9b8eeddda14e2c783ea01a688543325
+  attempt_history: []
 ---
 ## Summary
 
@@ -55,5 +111,10 @@ Output tail:
 ```text
 Candidate CI was not run because the submitted review branch tip is unavailable in the managed repository.
 ```
+---
+author: oompah
+created: 2026-08-11 10:50
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
