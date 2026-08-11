@@ -10181,6 +10181,82 @@ class Orchestrator:
             kwargs["current_issue"] = refreshed_request
             return await self.request_terminal_transition(**kwargs)
 
+    def _current_open_review_webhook_evidence(
+        self,
+        *,
+        expected_evidence_revision: tuple[str, ...],
+        project: Project,
+        tracker: TrackerProtocol,
+        provider: SCMProvider,
+        repo_slug: str,
+        identifier: str,
+        expected_review_id: str,
+        expected_source: str,
+        expected_target: str,
+        expected_head: str,
+    ) -> tuple[Issue | None, Any | None, str]:
+        """Refresh one exact task/review generation under task ownership."""
+
+        try:
+            invalidate = getattr(tracker, "invalidate_read_cache", None)
+            if callable(invalidate):
+                invalidate()
+            current = tracker.fetch_issue_detail(identifier)
+        except Exception as exc:  # noqa: BLE001 - webhook adoption fails closed
+            return None, None, f"current task evidence could not be refreshed: {exc}"
+        if not isinstance(current, Issue):
+            return None, None, "current task evidence is unavailable"
+        if (
+            self._standalone_delivery_evidence_revision(current)
+            != expected_evidence_revision
+        ):
+            return None, None, "task delivery or integration generation changed"
+        current_status = canonicalize_status(current.state)
+        if current_status in {MERGED, ARCHIVED}:
+            return None, None, f"task is already {current_status}"
+        if self._branch_for_issue(current, project) != expected_source:
+            return None, None, "webhook source branch no longer owns the task"
+        current_target = str(
+            current.target_branch or project.default_branch or ""
+        ).strip()
+        if current_target != expected_target:
+            return None, None, "webhook target branch no longer matches the task"
+
+        try:
+            review = provider.find_pr_for_branch(repo_slug, expected_source)
+        except Exception as exc:  # noqa: BLE001 - final forge CAS fails closed
+            return None, None, f"current review evidence could not be refreshed: {exc}"
+        if review is None:
+            return None, None, "current review evidence is unavailable"
+        current_review_id = str(getattr(review, "id", "") or "").strip()
+        current_review_state = str(
+            getattr(review, "state", "") or ""
+        ).strip().lower()
+        current_review_source = str(
+            getattr(review, "source_branch", "") or ""
+        ).strip()
+        current_review_target = str(
+            getattr(review, "target_branch", "") or ""
+        ).strip()
+        current_review_head = str(
+            getattr(review, "head_sha", "") or ""
+        ).strip().lower()
+        if (
+            current_review_id != expected_review_id
+            or current_review_state != "open"
+            or current_review_source != expected_source
+            or current_review_target != expected_target
+            or not current_review_head
+            or current_review_head != expected_head
+        ):
+            return None, None, "open review changed before webhook adoption"
+        integration_head = str(
+            getattr(getattr(current, "integration", None), "head_sha", "") or ""
+        ).strip().lower()
+        if integration_head and integration_head != expected_head:
+            return None, None, "review head does not match the accepted submission"
+        return current, review, ""
+
     def adopt_open_review_from_webhook(
         self,
         *,
@@ -10226,102 +10302,72 @@ class Orchestrator:
         ):
             return False, "open-review webhook lacks exact review identity or head"
 
-        with self.issue_transition_lock(issue_id).sync():
-            try:
-                invalidate = getattr(tracker, "invalidate_read_cache", None)
-                if callable(invalidate):
-                    invalidate()
-                current = tracker.fetch_issue_detail(identifier)
-            except Exception as exc:  # noqa: BLE001 - webhook adoption fails closed
-                return False, f"current task evidence could not be refreshed: {exc}"
-            if not isinstance(current, Issue):
-                return False, "current task evidence is unavailable"
-            if self._standalone_delivery_evidence_revision(
-                current
-            ) != self._standalone_delivery_evidence_revision(observed_issue):
-                return False, "task delivery or integration generation changed"
-            current_status = canonicalize_status(current.state)
-            if current_status in {MERGED, ARCHIVED}:
-                return False, f"task is already {current_status}"
-            if self._branch_for_issue(current, project) != expected_source:
-                return False, "webhook source branch no longer owns the task"
-            current_target = str(
-                current.target_branch or project.default_branch or ""
-            ).strip()
-            if current_target != expected_target:
-                return False, "webhook target branch no longer matches the task"
+        transition_lock = self.issue_transition_lock(issue_id)
+        with transition_lock.sync():
+            current, review, reason = self._current_open_review_webhook_evidence(
+                expected_evidence_revision=(
+                    self._standalone_delivery_evidence_revision(observed_issue)
+                ),
+                project=project,
+                tracker=tracker,
+                provider=provider,
+                repo_slug=repo_slug,
+                identifier=identifier,
+                expected_review_id=expected_review_id,
+                expected_source=expected_source,
+                expected_target=expected_target,
+                expected_head=expected_head,
+            )
+        if current is None or review is None:
+            return False, reason
+        gated_task_revision = self._standalone_delivery_evidence_revision(current)
+        gated_review_observation = self._standalone_review_observation(review)
 
-            try:
-                review = provider.find_pr_for_branch(repo_slug, expected_source)
-            except Exception as exc:  # noqa: BLE001 - final forge CAS fails closed
-                return False, f"current review evidence could not be refreshed: {exc}"
-            if review is None:
-                return False, "current review evidence is unavailable"
-            current_review_id = str(getattr(review, "id", "") or "").strip()
-            current_review_state = str(
-                getattr(review, "state", "") or ""
-            ).strip().lower()
-            current_review_source = str(
-                getattr(review, "source_branch", "") or ""
-            ).strip()
-            current_review_target = str(
-                getattr(review, "target_branch", "") or ""
-            ).strip()
-            current_review_head = str(
-                getattr(review, "head_sha", "") or ""
-            ).strip().lower()
-            if (
-                current_review_id != expected_review_id
-                or current_review_state != "open"
-                or current_review_source != expected_source
-                or current_review_target != expected_target
-                or not current_review_head
-                or current_review_head != expected_head
-            ):
-                return False, "open review changed before webhook adoption"
-            integration_head = str(
-                getattr(getattr(current, "integration", None), "head_sha", "") or ""
-            ).strip().lower()
-            if integration_head and integration_head != expected_head:
-                return False, "review head does not match the accepted submission"
+        # The exact-head gate may run for minutes. Never retain the shared task
+        # transition lock while waiting for its external process: liveness
+        # reconstruction, terminal audits, submit, and owner recovery must
+        # continue to make progress. The gate publication is already fenced by
+        # exact task/head authority, and the second lock scope below repeats
+        # the complete task+forge CAS before any metadata or status write.
+        if not self._review_quality_gate_passes(
+            project,
+            current,
+            expected_source,
+            expected_target,
+        ):
+            return (
+                False,
+                "branch quality gate did not pass for the exact review head",
+            )
 
-            # Gate the exact webhook-observed head before marking In Review.
-            # BranchQualityGate caches PASS by head SHA so an unchanged head
-            # reuses same-head evidence; a repaired CI-fix head runs the
-            # configured branch gate once.  Gate failure records a
-            # Needs CI Fix comment/status via _record_quality_gate_failure
-            # and preserves the open review for the next resubmission.
-            if not self._review_quality_gate_passes(
-                project,
-                current,
-                expected_source,
-                expected_target,
-            ):
-                return (
-                    False,
-                    "branch quality gate did not pass for the exact review head",
-                )
-
-            # The source branch is forge-owned and can advance while the
-            # local command runs.  Re-read the review before persisting any
-            # metadata so passing evidence for the prior head cannot adopt a
-            # replacement generation that arrived during the gate.
+        with transition_lock.sync():
             observed_review_generation = self._review_generation(str(project.id))
-            try:
-                gated_review = provider.find_pr_for_branch(
-                    repo_slug,
-                    expected_source,
+            gated_current, gated_review, reason = (
+                self._current_open_review_webhook_evidence(
+                    expected_evidence_revision=gated_task_revision,
+                    project=project,
+                    tracker=tracker,
+                    provider=provider,
+                    repo_slug=repo_slug,
+                    identifier=identifier,
+                    expected_review_id=expected_review_id,
+                    expected_source=expected_source,
+                    expected_target=expected_target,
+                    expected_head=expected_head,
                 )
-            except Exception as exc:  # noqa: BLE001 - final forge CAS fails closed
-                return False, f"gated review evidence could not be refreshed: {exc}"
-            if self._standalone_review_observation(
-                gated_review
-            ) != self._standalone_review_observation(review):
+            )
+            if gated_current is None or gated_review is None:
+                return False, reason
+            if (
+                self._standalone_review_observation(gated_review)
+                != gated_review_observation
+            ):
                 return False, "open review changed while branch quality gate ran"
 
             integration_revision = self._standalone_integration_generation_revision(
-                current
+                gated_current
             )
+            current_status = canonicalize_status(gated_current.state)
             with self._review_lifecycle_lock:
                 if not self._adopt_open_review_capacity(
                     project_id=str(project.id),
@@ -10346,6 +10392,7 @@ class Orchestrator:
                 ):
                     return False, "required review metadata could not be persisted"
                 try:
+                    invalidate = getattr(tracker, "invalidate_read_cache", None)
                     if callable(invalidate):
                         invalidate()
                     persisted = tracker.fetch_issue_detail(identifier)

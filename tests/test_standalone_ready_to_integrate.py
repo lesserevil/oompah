@@ -2736,6 +2736,150 @@ def test_exact_open_webhook_persists_metadata_before_in_review(harness):
     tracker.update_issue.assert_called_once_with(task.identifier, status=IN_REVIEW)
 
 
+def test_open_webhook_gate_does_not_hold_task_transition_lock(harness):
+    """A multi-minute review gate cannot block the task control plane."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    accepted_head = "7" * 40
+    task = _issue("TASK-OPEN-WEBHOOK-NONBLOCKING", branch="feature/nonblocking")
+    task.target_branch = project.default_branch
+    task.integration = IntegrationRecord(
+        state="ready",
+        task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        head_sha=accepted_head,
+        submitted_at="2026-08-11T08:58:00+00:00",
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    observed = copy.deepcopy(task)
+    provider.find_pr_for_branch.return_value = _review(
+        task.work_branch or "",
+        state="open",
+        review_id="719",
+        head_sha=accepted_head,
+    )
+    metadata_attributes = {
+        "oompah.review_url": "review_url",
+        "oompah.review_number": "review_number",
+        "oompah.work_branch": "work_branch",
+        "oompah.target_branch": "target_branch",
+        "oompah.review_head": "review_head",
+    }
+
+    def persist_metadata(_identifier, key, value) -> None:
+        setattr(task, metadata_attributes[key], value)
+
+    tracker.set_metadata_field.side_effect = persist_metadata
+    gate_started = threading.Event()
+    release_gate = threading.Event()
+
+    def blocked_gate(*_args, **_kwargs) -> bool:
+        gate_started.set()
+        assert release_gate.wait(timeout=5)
+        return True
+
+    gate.side_effect = blocked_gate
+    outcome: list[tuple[bool, str]] = []
+    worker = threading.Thread(
+        target=lambda: outcome.append(
+            orch.adopt_open_review_from_webhook(
+                observed_issue=observed,
+                project=project,
+                tracker=tracker,
+                provider=provider,
+                repo_slug="org/repo",
+                review_id="719",
+                review_url="https://github.com/org/repo/pull/719",
+                source_branch=task.work_branch or "",
+                target_branch=project.default_branch,
+                review_head=accepted_head,
+            )
+        )
+    )
+
+    worker.start()
+    assert gate_started.wait(timeout=2)
+    with orch.issue_transition_lock(task.id).sync(blocking=False) as acquired:
+        assert acquired is not None
+    release_gate.set()
+    worker.join(timeout=5)
+
+    assert not worker.is_alive()
+    assert outcome == [(True, "")]
+    assert task.state == IN_REVIEW
+
+
+def test_open_webhook_revalidates_task_after_unlocked_gate(harness):
+    """A replacement task generation wins while an exact-head gate runs."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    accepted_head = "8" * 40
+    replacement_head = "9" * 40
+    task = _issue("TASK-OPEN-WEBHOOK-GATE-RACE", branch="feature/gate-race")
+    task.target_branch = project.default_branch
+    task.integration = IntegrationRecord(
+        state="ready",
+        task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        head_sha=accepted_head,
+        submitted_at="2026-08-11T08:59:00+00:00",
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    observed = copy.deepcopy(task)
+    provider.find_pr_for_branch.return_value = _review(
+        task.work_branch or "",
+        state="open",
+        review_id="720",
+        head_sha=accepted_head,
+    )
+    gate_started = threading.Event()
+    release_gate = threading.Event()
+
+    def blocked_gate(*_args, **_kwargs) -> bool:
+        gate_started.set()
+        assert release_gate.wait(timeout=5)
+        return True
+
+    gate.side_effect = blocked_gate
+    outcome: list[tuple[bool, str]] = []
+    worker = threading.Thread(
+        target=lambda: outcome.append(
+            orch.adopt_open_review_from_webhook(
+                observed_issue=observed,
+                project=project,
+                tracker=tracker,
+                provider=provider,
+                repo_slug="org/repo",
+                review_id="720",
+                review_url="https://github.com/org/repo/pull/720",
+                source_branch=task.work_branch or "",
+                target_branch=project.default_branch,
+                review_head=accepted_head,
+            )
+        )
+    )
+
+    worker.start()
+    assert gate_started.wait(timeout=2)
+    with orch.issue_transition_lock(task.id).sync():
+        task.integration = IntegrationRecord(
+            state="ready",
+            task_branch=task.work_branch,
+            base_branch=project.default_branch,
+            head_sha=replacement_head,
+            submitted_at="2026-08-11T09:00:00+00:00",
+        )
+    release_gate.set()
+    worker.join(timeout=5)
+
+    assert not worker.is_alive()
+    assert outcome == [(False, "task delivery or integration generation changed")]
+    tracker.set_metadata_field.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    assert task.state == READY_TO_INTEGRATE
+    assert task.integration.head_sha == replacement_head
+
+
 def test_only_authoritative_reopen_webhook_clears_close_fence(harness):
     """A late opened event loses; an explicit reopened event may re-adopt."""
 
