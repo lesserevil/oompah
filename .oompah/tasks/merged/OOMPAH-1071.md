@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1071
 type: bug
-status: In Validation
+status: Merged
 priority: 2
 title: '[backend:checkpoint_queue] Checkpoint flush FAILED (reason=debounce); push_failures=1'
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T07:46:51.655974Z'
-updated_at: '2026-08-11T10:18:43.492052Z'
+updated_at: '2026-08-11T10:40:09.037892Z'
 work_branch: OOMPAH-1071
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/810
@@ -36,6 +36,25 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1071
     digest: b3794fef82fb6cf818092ed82ba5df16a5bcedef9c8a4934786f1f236ddcabea
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-1a451d9af712
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1071
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b3794fef82fb6cf818092ed82ba5df16a5bcedef9c8a4934786f1f236ddcabea
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-11T10:40:04.393414+00:00'
+    selected_ref: origin/OOMPAH-1071
+    selected_sha: 238736b06a9f3a915906dcb2444e70fd5edcc73a
+    applied: false
   version: 1
   pending_chain:
   - version: 1
