@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T15:59:32.770149Z'
+updated_at: '2026-08-11T16:12:51.170366Z'
 work_branch: OOMPAH-1085
 target_branch: null
 review_url: null
@@ -202,5 +202,10 @@ author: oompah
 created: 2026-08-11 15:59
 ---
 Final release-review blocker repaired at exact head 88b53c68dad8e6d21f875d75be03d2b097b93e18. Pre-provider auditor budget-reservation failure now releases its branch fence without self-rearming the currently owning continuation; the exact wake remains for a later external recovery signal or ordinary tick. Added a regression proving persistent failure causes one bounded scan/reservation/comment with zero same-owner rechecks, retains the exact wake, and a later recovery wake admits exactly once. Verification: 332 focused audit/liveness tests passed; 1203 adjacent audit/workflow/worker tests passed; terminal mutation scan 21/21; compile and diff checks clean. Branch force-with-lease replaced prior exact 33551916b891bcadb4c09f1dd2034a4ca27a5dd3 and is pushed. Ready for fresh independent exact-head review; not submitted or merged.
+---
+author: oompah
+created: 2026-08-11 16:12
+---
+Second final-review blocker repaired at exact head 2f8e960faf7dbc79dd1aa489703a8b8cbfba201d, rebased onto current main 3264da6780e35b10f759de8aade7b3509977bbb9. The real pre-provider budget-failure path now compensates through exact terminal-audit metadata rollback/defer and lifecycle-requeues the exact workflow lease without charging attempt or retry/backoff budget, while suppressing only the currently owning continuation rearm. The replacement regression runs the production audit lane without patching its owned implementation: one persistent budget failure leaves the exact wake pending, metadata Pending with zero attempts, and the durable workflow job Queued with attempts=0/retry_at=null/no lease; one later external recovery signal produces exactly one Running attempt/admission and a completed worker await with no orphan. Verification after rebase: 337 focused audit/liveness tests passed; 1206 adjacent audit/workflow/worker tests passed; terminal mutation scan 21/21; compile and diff checks clean. Branch force-with-lease replaced exact 88b53c68dad8e6d21f875d75be03d2b097b93e18 and is pushed. Ready for fresh independent exact-head review; not submitted or merged.
 ---
 <!-- COMMENTS:END -->
