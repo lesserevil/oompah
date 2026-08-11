@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T10:13:51.547647Z'
-updated_at: '2026-08-11T10:54:52.992991Z'
+updated_at: '2026-08-11T10:55:07.944249Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -144,6 +144,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1078
     selected_ref: origin/OOMPAH-1078
     selected_sha: 9c78b999f9b8eeddda14e2c783ea01a688543325
+oompah.task_costs:
+  total_input_tokens: 218
+  total_output_tokens: 6766
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 218
+      output_tokens: 6766
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 218
+    output_tokens: 6766
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T10:55:03.599740+00:00'
 ---
 ## Summary
 
@@ -205,5 +221,15 @@ Safe evidence:
 - key_changes.tests: test_task_transition_service.py::test_direct_in_validation_requires_atomic_coordinator_staging, test_state_branch_fetch_error.py::test_direct_validation_rejection_is_actionable_and_atomic
 - test_coverage: Direct rejection verified, idempotency tested, canonical path works, failure atomicity confirmed, restart liveness preserved
 - quality_gate: Protected workflow make test passed for sha 9c78b999f9b8eeddda14e2c783ea01a688543325
+---
+author: oompah
+created: 2026-08-11 10:55
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 58, Tool calls: 26
+- Tokens: 218 in / 6.8K out [7.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 11s
+- Log: OOMPAH-1078__20260811T105211Z.jsonl
 ---
 <!-- COMMENTS:END -->
