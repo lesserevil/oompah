@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1083
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Publish quality-gate lifecycle state before stale PID alerts escape
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:41:11.895675Z'
-updated_at: '2026-08-11T11:41:11.895675Z'
+updated_at: '2026-08-11T11:41:25.491752Z'
 work_branch: null
 target_branch: null
 review_url: null
