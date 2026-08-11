@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1089
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Regenerate current review jobs after stale-evidence exhaustion
 parent: null
@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:22:55.237924Z'
-updated_at: '2026-08-11T15:14:07.342603Z'
-work_branch: null
+updated_at: '2026-08-11T15:14:19.250448Z'
+work_branch: OOMPAH-1089
 target_branch: null
 review_url: null
 review_number: null
@@ -33,6 +33,7 @@ oompah.integration:
   head_sha: ae985020931e3c17f1e904921b34f65207bd85af
   submitted_at: '2026-08-11T15:14:03.387343+00:00'
   updated_at: '2026-08-11T15:14:03.387343+00:00'
+oompah.work_branch: OOMPAH-1089
 ---
 ## Summary
 
@@ -77,5 +78,10 @@ author: oompah
 created: 2026-08-11 15:14
 ---
 Rebased the independently ACCEPTED repair onto current origin/main 6449341d762d9c7645271b8479dfa406e648be54 and pushed replacement exact head ae985020931e3c17f1e904921b34f65207bd85af. git range-diff proves both commits patch-equivalent to the accepted 6393f0b490c7b91b6783557fc2f44a08127f0fa7 series; post-rebase 392 focused review/controller/runtime/liveness tests passed, terminal mutation scan 21/21, and diff check is clean. The accepted review verified the exhaustion TOCTOU is closed by one immutable row tuple and all exact identity/fail-closed paths remain bounded. Ready for canonical validation.
+---
+author: oompah
+created: 2026-08-11 15:14
+---
+Regenerate fresh exact review generations after stale-evidence exhaustion and bind successor proof to one immutable exhaustion snapshot.
 ---
 <!-- COMMENTS:END -->
