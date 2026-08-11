@@ -149,6 +149,11 @@ def _resolve_agent_session_cls() -> Any:
 
 
 AgentSessionFactory = Callable[..., Any]
+TurnAdmission = Callable[[], str | None]
+
+
+class ConsoleTurnAdmissionError(RuntimeError):
+    """A console turn lost lifecycle authority before provider contact."""
 
 
 def _default_agent_session_factory(**kwargs: Any) -> Any:
@@ -296,6 +301,7 @@ class ConsoleSession:
         *,
         workspace_path: str | None = None,
         queue_maxsize: int = _DEFAULT_QUEUE_MAXSIZE,
+        turn_admission: TurnAdmission | None = None,
     ) -> None:
         if not project_id:
             raise ValueError("ConsoleSession requires non-empty project_id")
@@ -309,6 +315,12 @@ class ConsoleSession:
         # code (server.py / manager) sets it; tests usually leave it
         # None when they're mocking AcpAgentSession.
         self.workspace_path = workspace_path
+        # Lifecycle admission is checked when a queued turn is selected, again
+        # before its ACP session is built, and once more at the backend's true
+        # transport edge.  A restart can therefore retain the WebSocket for
+        # observability without letting pre-existing queue entries start new
+        # provider work after the drain fence closes.
+        self._turn_admission = turn_admission
         # Backend + model role come from the meta sidecar if present.
         # First-time projects use DEFAULT_BACKEND / DEFAULT_MODEL_ROLE.
         meta = store.load_meta(project_id) if store else {}
@@ -507,6 +519,32 @@ class ConsoleSession:
             return
         self._runner_task = loop.create_task(self._run_forever())
 
+    def _turn_admission_error(self) -> str | None:
+        """Return a stable fail-closed reason for a disallowed provider turn."""
+
+        if self._turn_admission is None:
+            return None
+        try:
+            reason = self._turn_admission()
+        except Exception as exc:  # lifecycle authority must fail closed
+            logger.warning(
+                "ConsoleSession[%s] turn admission failed: %s",
+                self.project_id,
+                type(exc).__name__,
+            )
+            return "console provider admission is unavailable"
+        return str(reason or "").strip() or None
+
+    def _require_turn_admission(self) -> None:
+        reason = self._turn_admission_error()
+        if reason is not None:
+            raise ConsoleTurnAdmissionError(reason)
+
+    def _before_transport_contact(self) -> str | None:
+        """Revalidate restart authority at ACP's actual provider edge."""
+
+        return self._turn_admission_error()
+
     async def _run_forever(self) -> None:
         """Pull pending sends off the queue and process one at a time."""
         while not self._closed:
@@ -526,9 +564,18 @@ class ConsoleSession:
                 if item.done is not None and not item.done.done():
                     item.done.set_result(None)
                 continue
-            self._turn_active = True
             try:
+                self._require_turn_admission()
+                self._turn_active = True
                 await self._run_one_turn(item)
+            except ConsoleTurnAdmissionError as exc:
+                # Admission rejection is an expected lifecycle result, not a
+                # crashed turn. A rejection at dequeue persists nothing; a
+                # later transport-edge rejection may retain the already-safe
+                # operator transcript, but never creates provider contact.
+                # Let the originating WebSocket render the retryable error.
+                if item.done is not None and not item.done.done():
+                    item.done.set_exception(exc)
             except Exception as exc:  # pragma: no cover — runner safety net
                 logger.exception(
                     "ConsoleSession[%s] turn crashed: %s",
@@ -625,6 +672,12 @@ class ConsoleSession:
         elif provider is not None and getattr(provider, "default_model", None):
             model = provider.default_model
 
+        # Local transcript/provider resolution can take long enough for a
+        # restart to begin after dequeue.  Recheck before constructing any ACP
+        # session; AcpAgentSession receives one final callback for its actual
+        # transport boundary below.
+        self._require_turn_admission()
+
         # Step 4: build the AcpAgentSession. Pass ``history`` through
         # as a kwarg so the tests can mock the class and assert the
         # rehydrated structure. Production AcpAgentSession today does
@@ -642,6 +695,7 @@ class ConsoleSession:
                 backend_name=self._backend,
                 permission_mode=_DEFAULT_PERMISSION_MODE,
                 on_event=self._make_backend_event_callback(translator),
+                before_transport_contact=self._before_transport_contact,
             )
         except TypeError as exc:
             # AcpAgentSession may not accept ``history`` yet in
@@ -656,6 +710,7 @@ class ConsoleSession:
                         backend_name=self._backend,
                         permission_mode=_DEFAULT_PERMISSION_MODE,
                         on_event=self._make_backend_event_callback(translator),
+                        before_transport_contact=self._before_transport_contact,
                     )
                 except Exception as inner_exc:
                     self._record_error(
@@ -833,6 +888,7 @@ class ConsoleSessionManager:
         *,
         on_event_factory: OnEventFactory | None = None,
         workspace_resolver: Callable[[str], str | None] | None = None,
+        turn_admission_factory: Callable[[str], TurnAdmission] | None = None,
     ) -> None:
         self.store = store
         self.provider_store = provider_store
@@ -844,6 +900,7 @@ class ConsoleSessionManager:
         # sessions that know their checkout directory; tests typically
         # leave this None.
         self._workspace_resolver = workspace_resolver
+        self._turn_admission_factory = turn_admission_factory
         self._sessions: dict[str, ConsoleSession] = {}
         self._lock = threading.Lock()
 
@@ -883,6 +940,22 @@ class ConsoleSessionManager:
                         project_id, exc,
                     )
                     workspace_path = None
+            turn_admission: TurnAdmission | None = None
+            if self._turn_admission_factory is not None:
+                try:
+                    turn_admission = self._turn_admission_factory(project_id)
+                except Exception as exc:  # fail closed in the session callback
+                    logger.warning(
+                        "ConsoleSessionManager: turn_admission_factory raised "
+                        "for project_id %r: %s",
+                        project_id,
+                        exc,
+                    )
+
+                    def _unavailable_admission() -> str:
+                        return "console provider admission is unavailable"
+
+                    turn_admission = _unavailable_admission
             session = ConsoleSession(
                 project_id=project_id,
                 store=self.store,
@@ -890,6 +963,7 @@ class ConsoleSessionManager:
                 role_store=self.role_store,
                 on_event=on_event,
                 workspace_path=workspace_path,
+                turn_admission=turn_admission,
             )
             self._sessions[project_id] = session
             return session
@@ -950,8 +1024,10 @@ class ConsoleSessionManager:
 __all__ = [
     "ConsoleSession",
     "ConsoleSessionManager",
+    "ConsoleTurnAdmissionError",
     "DEFAULT_BACKEND",
     "DEFAULT_MODEL_ROLE",
     "OnEventFactory",
+    "TurnAdmission",
     "agent_session_factory",
 ]

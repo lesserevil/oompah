@@ -308,6 +308,80 @@ async def _await_fail_closed_orchestrator_stop(orchestrator: Any) -> None:
         return
 
 
+class _ListenerCutoverCoordinator:
+    """Prepare one process boundary before its HTTP listener is closed.
+
+    A restart request closes provider/workflow admission before it becomes
+    visible through ``wants_restart``.  The listener must nevertheless remain
+    available while the exact in-memory owners drain and transfer their
+    recovery authority.  Both supported ASGI entry points share this owner so
+    webhook transports stop only after the safe drain and duplicate lifespan
+    cleanup cannot execute the boundary twice.
+    """
+
+    def __init__(
+        self,
+        orchestrator: Any,
+        webhook_forwarder: Any,
+        gitlab_hook_manager: Any,
+    ) -> None:
+        self._orchestrator = orchestrator
+        self._webhook_forwarder = webhook_forwarder
+        self._gitlab_hook_manager = gitlab_hook_manager
+        self._lock = asyncio.Lock()
+        self._prepared = False
+
+    @property
+    def prepared(self) -> bool:
+        return self._prepared
+
+    async def prepare(self) -> None:
+        """Drain authority and transports while HTTP is still accepting."""
+
+        async with self._lock:
+            if self._prepared:
+                return
+            await _await_fail_closed_orchestrator_stop(self._orchestrator)
+            # These forward into this process's listener.  Stop them before
+            # listener cutover so their monitors never observe connection
+            # refusal and relaunch transports during a retained drain.
+            await self._webhook_forwarder.stop()
+            await self._gitlab_hook_manager.stop()
+            self._prepared = True
+
+
+async def _supervise_listener_cutover(
+    orchestrator: Any,
+    orch_thread: threading.Thread,
+    cutover: _ListenerCutoverCoordinator,
+    *,
+    close_listener: Callable[[bool], None],
+    poll_interval_seconds: float = 0.5,
+    unexpected_exit: Callable[[], None] | None = None,
+) -> None:
+    """Keep serving until restart/exit authority is durably drained.
+
+    ``close_listener`` receives whether the orchestrator requested an in-
+    process restart.  It is deliberately invoked only after ``prepare()`` so
+    Uvicorn's ``should_exit`` and Granian's supervisor signal share the same
+    two-phase ordering.
+    """
+
+    while orch_thread.is_alive() and not orchestrator.wants_restart:
+        # Runs on the HTTP loop, so stale-loop detection remains live even if
+        # the scheduler's loop is blocked by a third-party operation.
+        orchestrator.check_and_recover_dispatch_loop()
+        await asyncio.sleep(max(float(poll_interval_seconds), 0.0))
+
+    restart_requested = bool(orchestrator.wants_restart)
+    if not orch_thread.is_alive() and not restart_requested:
+        if unexpected_exit is not None:
+            unexpected_exit()
+
+    await cutover.prepare()
+    close_listener(restart_requested)
+
+
 def _task_priority_int(value: Any) -> int | None:
     """Normalize task priority values accepted by tracker-neutral APIs."""
     return normalize_priority_int(value)
@@ -501,30 +575,6 @@ async def _service_lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
         except _asyncio.CancelledError:
             pass
 
-    async def _supervise() -> None:
-        try:
-            while True:
-                await _asyncio.sleep(0.5)
-                if not orch_thread.is_alive():
-                    logger.error("Orchestrator thread exited unexpectedly")
-                    os.kill(os.getppid(), signal.SIGTERM)
-                    return
-                if services.orchestrator.wants_restart:
-                    logger.info(
-                        "Orchestrator wants restart; signalling Granian supervisor"
-                    )
-                    Path(_GRANIAN_RESTART_SENTINEL).touch()
-                    os.kill(os.getppid(), signal.SIGTERM)
-                    return
-                # Heartbeat check: detect and recover a stale dispatch loop
-                # (lesserevil/oompah#305). This runs on the server's own event
-                # loop so it fires even when the orchestrator's asyncio loop is
-                # stuck. Recovery sets wants_restart=True which is picked up
-                # on the very next iteration above.
-                services.orchestrator.check_and_recover_dispatch_loop()
-        except _asyncio.CancelledError:
-            pass
-
     def _run_orchestrator_thread() -> None:
         try:
             _asyncio.run(services.orchestrator.run())
@@ -539,15 +589,44 @@ async def _service_lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
         daemon=True,
     )
     orch_thread.start()
+    cutover = _ListenerCutoverCoordinator(
+        services.orchestrator,
+        services.webhook_forwarder,
+        services.gitlab_hook_manager,
+    )
+
+    def _close_granian_listener(restart_requested: bool) -> None:
+        if restart_requested:
+            logger.info(
+                "Orchestrator drained for restart; signalling Granian supervisor"
+            )
+            Path(_GRANIAN_RESTART_SENTINEL).touch()
+        os.kill(os.getppid(), signal.SIGTERM)
+
+    def _unexpected_orchestrator_exit() -> None:
+        logger.error("Orchestrator thread exited unexpectedly")
+
+    async def _supervise() -> None:
+        try:
+            await _supervise_listener_cutover(
+                services.orchestrator,
+                orch_thread,
+                cutover,
+                close_listener=_close_granian_listener,
+                unexpected_exit=_unexpected_orchestrator_exit,
+            )
+        except _asyncio.CancelledError:
+            pass
+
     supervise_task = _asyncio.create_task(_supervise())
 
     try:
         yield  # --- app is running ---
     finally:
-        # Shutdown: stop all background tasks.
-        await _await_fail_closed_orchestrator_stop(services.orchestrator)
-        await services.webhook_forwarder.stop()
-        await services.gitlab_hook_manager.stop()
+        # On a managed restart the supervisor has already prepared this exact
+        # boundary before signalling Granian.  External shutdown still uses
+        # the same idempotent fail-closed owner from the lifespan teardown.
+        await cutover.prepare()
         supervise_task.cancel()
         watch_task.cancel()
         try:
@@ -995,6 +1074,100 @@ class _BasicAuthMiddleware:
 
 app = FastAPI(title="oompah", version="0.1.0", lifespan=_lifespan)
 app.add_middleware(_BasicAuthMiddleware)
+
+
+def _orchestrator_restart_drain_blocks_mutation(orch: Any) -> bool:
+    """Return whether one owner is in the retained restart-drain phase."""
+
+    return bool(
+        orch is not None
+        and getattr(orch, "wants_restart", False) is True
+        and getattr(orch, "_stopping", False) is True
+    )
+
+
+def _restart_drain_blocks_mutation() -> bool:
+    """Return whether the old process is serving only observability traffic."""
+
+    return _orchestrator_restart_drain_blocks_mutation(_orchestrator)
+
+
+_READ_ONLY_RETAINED_WEBSOCKET_ACTIONS = frozenset(
+    {"ping", "refresh", "full_sync"}
+)
+_RESTART_DRAIN_CONSOLE_MESSAGE = (
+    "The current service instance is draining for restart; retry console "
+    "input after the replacement is healthy."
+)
+
+
+def _restart_drain_blocks_websocket_message(message: Mapping[str, Any]) -> bool:
+    """Fence every non-observability message on a retained WebSocket."""
+
+    if not _restart_drain_blocks_mutation():
+        return False
+    action = str(message.get("action") or "").strip()
+    return action not in _READ_ONLY_RETAINED_WEBSOCKET_ACTIONS
+
+
+def _console_turn_admission_error(orch: Any) -> str | None:
+    """Linearize a console provider turn against lifecycle restart admission."""
+
+    lock = getattr(orch, "_provider_admission_lock", None)
+    context = lock if lock is not None else contextlib.nullcontext()
+    with context:
+        # A session retained from a replaced owner must never launch through
+        # the new process's provider configuration.
+        if _orchestrator is not orch:
+            return "console provider admission owner changed"
+        if _orchestrator_restart_drain_blocks_mutation(orch):
+            return _RESTART_DRAIN_CONSOLE_MESSAGE
+    return None
+
+
+@app.middleware("http")
+async def _restart_drain_mutation_fence(request: Request, call_next):
+    """Reject new mutations while a retained restart drain owns authority.
+
+    Health, state, issue detail, static assets, and every other read-only HTTP
+    route remain served. Restart control remains reachable so an accepted-but-
+    dropped request can converge, and existing forge ingress remains healthy
+    until its transport is stopped at cutover. WebSockets bypass HTTP
+    middleware and therefore stay connected until that same boundary.
+    """
+
+    method = request.method.upper()
+    # Preserve the restart endpoint itself so a client whose accepted response
+    # was dropped can retry the exact idempotent request and observe the active
+    # transaction. Other lifecycle mutations stay behind the drain fence.
+    lifecycle_control = (
+        request.url.path.rstrip("/") == "/api/v1/orchestrator/restart"
+    )
+    # Keep already-installed forge transports healthy until the coordinator
+    # stops them at the real cutover. Their events may be durably observed,
+    # but the orchestrator's stopping/quiesce fence prevents dispatch or
+    # provider admission in the old process.
+    webhook_ingress = request.url.path.startswith("/api/v1/webhooks/")
+    if (
+        method not in {"GET", "HEAD", "OPTIONS"}
+        and not lifecycle_control
+        and not webhook_ingress
+        and _restart_drain_blocks_mutation()
+    ):
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "restart_draining",
+                    "message": (
+                        "The current service instance is draining for restart; "
+                        "retry the mutation after the replacement is healthy."
+                    ),
+                }
+            },
+            status_code=503,
+            headers={"Retry-After": "1"},
+        )
+    return await call_next(request)
 
 # Captured once when the service process imports the package.  The same
 # identity is reported by the standalone CLI installed from this revision.
@@ -1650,6 +1823,9 @@ def _set_orchestrator_locked(orch: Orchestrator) -> None:
         role_store=orch.role_store,
         on_event_factory=_make_console_event_callback,
         workspace_resolver=_resolve_console_workspace,
+        turn_admission_factory=lambda _project_id: (
+            lambda: _console_turn_admission_error(orch)
+        ),
     )
 
 
@@ -4948,6 +5124,41 @@ async def _broadcast(msg: dict) -> None:
             _unregister_ws(ws)
 
 
+async def _reject_restart_drain_websocket_mutation(
+    ws: WebSocket,
+    message: Mapping[str, Any],
+) -> None:
+    """Return one retryable error without closing the retained connection."""
+
+    project_id = str(message.get("project_id") or "")
+    if str(message.get("type") or "") == "console_input":
+        await _send_ws(
+            ws,
+            {
+                "type": "console_event",
+                "project_id": project_id,
+                "event": {
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "kind": "error",
+                    "is_error": True,
+                    "code": "restart_draining",
+                    "retryable": True,
+                    "text": _RESTART_DRAIN_CONSOLE_MESSAGE,
+                },
+            },
+        )
+        return
+    await _send_ws(
+        ws,
+        {
+            "type": "mutation_rejected",
+            "code": "restart_draining",
+            "retryable": True,
+            "message": _RESTART_DRAIN_CONSOLE_MESSAGE,
+        },
+    )
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
     """WebSocket endpoint for real-time UI updates.
@@ -4985,6 +5196,9 @@ async def websocket_endpoint(ws: WebSocket):
             # Client can send "ping" to keep alive or "refresh" to request data
             try:
                 msg = json.loads(data)
+                if _restart_drain_blocks_websocket_message(msg):
+                    await _reject_restart_drain_websocket_mutation(ws, msg)
+                    continue
                 if msg.get("action") == "refresh":
                     # Browser requested full resync (detected gap or manual refresh)
                     _ws_sync_record_full_sync_request()
@@ -5143,6 +5357,9 @@ async def _handle_console_input(ws: WebSocket, msg: dict) -> None:
     text = str(msg.get("text") or "")
     if not project_id or not text.strip():
         return
+    if _restart_drain_blocks_websocket_message(msg):
+        await _reject_restart_drain_websocket_mutation(ws, msg)
+        return
     if _console_manager is None:
         await _send_ws(
             ws,
@@ -5199,12 +5416,22 @@ async def _handle_console_input(ws: WebSocket, msg: dict) -> None:
             },
         )
         return
+    # The lifecycle fence may close while project/session lookup runs.  This
+    # second message-level check prevents the direct handler path from
+    # enqueueing after that boundary; ConsoleSession independently rechecks
+    # queued turns and the ACP transport edge.
+    if _restart_drain_blocks_websocket_message(msg):
+        await _reject_restart_drain_websocket_mutation(ws, msg)
+        return
     # session.send() awaits the turn to completion. The serial queue
     # inside the session guarantees concurrent operator inputs from
     # multiple WS clients run one at a time.
     try:
         await session.send(text, attachments=attachments or None)
     except Exception as exc:
+        if _restart_drain_blocks_websocket_message(msg):
+            await _reject_restart_drain_websocket_mutation(ws, msg)
+            return
         # The session already records an internal ``error`` event on
         # most failure paths; only emit an out-of-band one here when
         # send itself raised (closed session, etc.).

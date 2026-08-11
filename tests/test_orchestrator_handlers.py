@@ -1966,6 +1966,7 @@ class TestHandleAutoUpdate:
     def test_check_auto_update_fast_forwards_when_only_behind(self, tmp_path):
         """Behind-only main uses ff-only autostash pull."""
         orch = _make_orchestrator(tmp_path)
+        orch.request_lifecycle_publication = MagicMock()
         calls: list[list[str]] = []
 
         def fake_run(args, **kwargs):
@@ -1983,10 +1984,16 @@ class TestHandleAutoUpdate:
         assert ["git", "pull", "--rebase", "--autostash", "origin", "main"] not in calls
         assert orch._restart_requested is True
         assert orch._stopping is True
+        assert orch._quiesced is True
+        assert orch._dispatch_is_blocked() is True
+        orch.request_lifecycle_publication.assert_called_once_with(
+            expected_generation=orch._provider_admission_generation
+        )
 
     def test_check_auto_update_skips_restart_for_tracker_only_commits(self, tmp_path):
         """Task-tracker writes do not restart the service that wrote them."""
         orch = _make_orchestrator(tmp_path)
+        orch.request_lifecycle_publication = MagicMock()
         calls: list[list[str]] = []
 
         def fake_run(args, **kwargs):
@@ -2010,10 +2017,13 @@ class TestHandleAutoUpdate:
         assert ["git", "pull", "--rebase", "--autostash", "origin", "main"] not in calls
         assert orch._restart_requested is False
         assert orch._stopping is False
+        assert orch._quiesced is False
+        orch.request_lifecycle_publication.assert_not_called()
 
     def test_check_auto_update_restarts_for_non_tracker_commit(self, tmp_path):
         """A runtime code update still follows the normal restart path."""
         orch = _make_orchestrator(tmp_path)
+        orch.request_lifecycle_publication = MagicMock()
         calls: list[list[str]] = []
 
         def fake_run(args, **kwargs):
@@ -2032,10 +2042,16 @@ class TestHandleAutoUpdate:
         assert ["git", "pull", "--ff-only", "--autostash", "origin", "main"] in calls
         assert orch._restart_requested is True
         assert orch._stopping is True
+        assert orch._quiesced is True
+        assert orch._dispatch_is_blocked() is True
+        orch.request_lifecycle_publication.assert_called_once_with(
+            expected_generation=orch._provider_admission_generation
+        )
 
     def test_check_auto_update_rebases_when_local_branch_has_commits(self, tmp_path):
         """Diverged main rebases local commits instead of surfacing ff-only failure."""
         orch = _make_orchestrator(tmp_path)
+        orch.request_lifecycle_publication = MagicMock()
         calls: list[list[str]] = []
 
         def fake_run(args, **kwargs):
@@ -2054,10 +2070,15 @@ class TestHandleAutoUpdate:
         assert all(a.get("source") != "auto_update" for a in orch._alerts)
         assert orch._restart_requested is True
         assert orch._stopping is True
+        assert orch._quiesced is True
+        orch.request_lifecycle_publication.assert_called_once_with(
+            expected_generation=orch._provider_admission_generation
+        )
 
     def test_check_auto_update_aborts_failed_rebase_and_alerts(self, tmp_path):
         """Failed automatic rebase is aborted before the UI alert is recorded."""
         orch = _make_orchestrator(tmp_path)
+        orch.request_lifecycle_publication = MagicMock()
         calls: list[list[str]] = []
 
         def fake_run(args, **kwargs):
@@ -2080,6 +2101,8 @@ class TestHandleAutoUpdate:
         assert ["git", "rebase", "--abort"] in calls
         assert orch._restart_requested is False
         assert orch._stopping is False
+        assert orch._quiesced is False
+        orch.request_lifecycle_publication.assert_not_called()
         alerts = [a for a in orch._alerts if a.get("source") == "auto_update"]
         assert len(alerts) == 1
         assert "git pull --rebase returned error" in alerts[0]["message"]

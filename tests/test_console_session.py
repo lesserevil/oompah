@@ -55,6 +55,7 @@ import oompah.console as console_mod
 from oompah.console import (
     ConsoleSession,
     ConsoleSessionManager,
+    ConsoleTurnAdmissionError,
     DEFAULT_BACKEND,
     DEFAULT_MODEL_ROLE,
 )
@@ -609,3 +610,126 @@ async def test_switch_backend_rejects_unknown(
     )
     with pytest.raises(ValueError, match="Unknown backend"):
         await session.switch_backend("does-not-exist")
+
+
+@pytest.mark.asyncio
+async def test_restart_admission_rejects_input_queued_behind_active_turn(
+    store, provider_store, role_store,
+) -> None:
+    """A queued message cannot begin a provider turn after drain starts."""
+
+    drain = {"active": False}
+    release_first = asyncio.Event()
+    FakeAgentSession.wait_for = release_first
+    session = ConsoleSession(
+        project_id="proj-drain-queue",
+        store=store,
+        provider_store=provider_store,
+        role_store=role_store,
+        turn_admission=lambda: (
+            "restart draining" if drain["active"] else None
+        ),
+    )
+
+    first = asyncio.create_task(session.send("first admitted turn"))
+    for _ in range(100):
+        if FakeAgentSession.instances and session.get_meta()["turn_active"]:
+            break
+        await asyncio.sleep(0)
+    assert len(FakeAgentSession.instances) == 1
+
+    second = asyncio.create_task(session.send("queued after first"))
+    for _ in range(100):
+        if session.get_meta()["queue_size"] == 1:
+            break
+        await asyncio.sleep(0)
+    assert session.get_meta()["queue_size"] == 1
+
+    drain["active"] = True
+    release_first.set()
+    await asyncio.wait_for(first, timeout=1)
+    with pytest.raises(ConsoleTurnAdmissionError, match="restart draining"):
+        await asyncio.wait_for(second, timeout=1)
+
+    assert len(FakeAgentSession.instances) == 1
+    operator_inputs = [
+        row
+        for row in store.read_all("proj-drain-queue")
+        if row.get("kind") == "operator_input"
+    ]
+    assert [row["text"] for row in operator_inputs] == [
+        "first admitted turn"
+    ]
+    await session.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_restart_admission_is_rechecked_at_acp_transport_edge(
+    store,
+    provider_store,
+    role_store,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A drain beginning after ACP construction still prevents contact."""
+
+    drain = {"active": False}
+    contacts: list[str] = []
+
+    class _TransportCheckingSession:
+        def __init__(self, **kwargs: Any) -> None:
+            self.before_transport_contact = kwargs["before_transport_contact"]
+
+        async def run_task(self) -> str:
+            reason = self.before_transport_contact()
+            if reason is None:
+                contacts.append("provider-contact")
+                return "succeeded"
+            return f"rejected: {reason}"
+
+    def _factory(**kwargs: Any):
+        # Both dequeue and pre-construction checks have passed. Model restart
+        # winning in the exact gap before AcpAgentSession contacts transport.
+        drain["active"] = True
+        return _TransportCheckingSession(**kwargs)
+
+    monkeypatch.setattr(console_mod, "agent_session_factory", _factory)
+    session = ConsoleSession(
+        project_id="proj-drain-edge",
+        store=store,
+        provider_store=provider_store,
+        role_store=role_store,
+        turn_admission=lambda: (
+            "restart draining" if drain["active"] else None
+        ),
+    )
+
+    await session.send("race transport contact")
+
+    assert contacts == []
+    await session.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_manager_installs_project_turn_admission(
+    store,
+    provider_store,
+    role_store,
+) -> None:
+    admission_factory = MagicMock(
+        return_value=lambda: "restart draining"
+    )
+    manager = ConsoleSessionManager(
+        store=store,
+        provider_store=provider_store,
+        role_store=role_store,
+        turn_admission_factory=admission_factory,
+    )
+    session = manager.get("proj-managed-drain")
+
+    with pytest.raises(ConsoleTurnAdmissionError, match="restart draining"):
+        await session.send("must remain local")
+
+    admission_factory.assert_called_once_with("proj-managed-drain")
+    assert FakeAgentSession.instances == []
+    assert store.read_all("proj-managed-drain") == []
+    await manager.shutdown()
