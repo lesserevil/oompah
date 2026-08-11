@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T01:48:19.145541Z'
-updated_at: '2026-08-11T08:08:28.259030Z'
+updated_at: '2026-08-11T08:08:35.102928Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,7 +47,21 @@ oompah.terminal_audit:
     created_at: '2026-08-11T08:08:22.292114+00:00'
     selected_ref: origin/OOMPAH-1010
     selected_sha: 65bf488993796b483ccf5351c0f80feac942b799
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1010
+    target_state: Merged
+    evidence_fingerprint: 409fc64ab0a6f89cc30823d849b4a9557291a05248aecfb7da1034e75f85a19e
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1010
+    selected_sha: 65bf488993796b483ccf5351c0f80feac942b799
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T08:08:33.433179+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -80,5 +94,12 @@ author: oompah
 created: 2026-08-11 03:05
 ---
 Independent re-review accepted exact head 65bf488993796b483ccf5351c0f80feac942b799. The follow-up closes the topology ABA window by re-resolving the terminal target from the freshly locked issue; direct and merge-group race regressions fail closed without staging an audit. The combined four-fix branch passed 827 changed-path tests.
+---
+author: oompah
+created: 2026-08-11 08:08
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Protected PR #806 and hosted Python 3.11/3.12/3.13 gates are green; deployed build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 contains merge 62c3cda3ea602b614a3a3dfc92c66468b5c34a4b; independent audit verified that every exact reviewed branch change is patch-equivalent to or composition-equivalent with the protected merge and no unique branch changes remain.
 ---
 <!-- COMMENTS:END -->
