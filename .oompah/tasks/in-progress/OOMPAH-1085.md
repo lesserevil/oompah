@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T16:22:16.281518Z'
+updated_at: '2026-08-11T16:27:35.246969Z'
 work_branch: OOMPAH-1085
 target_branch: null
 review_url: null
@@ -31,9 +31,9 @@ oompah.integration:
   attempts: 0
   mode: standalone
   task_branch: OOMPAH-1085
-  head_sha: 7bd90702b13bfa876f49e5b4e5e27483997945b6
-  submitted_at: '2026-08-11T13:35:21.687037+00:00'
-  updated_at: '2026-08-11T13:35:21.687037+00:00'
+  head_sha: ed2cbbc4390f475ebb9bc30ed1a4fe5c210f624c
+  submitted_at: '2026-08-11T16:27:31.218611+00:00'
+  updated_at: '2026-08-11T16:27:31.218611+00:00'
 oompah.work_branch: OOMPAH-1085
 oompah.agent_run_id: 8edf6d56-a309-470c-aea6-203826fef15a
 oompah.work_contributors:
@@ -212,5 +212,10 @@ author: oompah
 created: 2026-08-11 16:22
 ---
 Third repair iteration pushed at exact head ed2cbbc4390f475ebb9bc30ed1a4fe5c210f624c, based on current origin/main 3264da6780e35b10f759de8aade7b3509977bbb9. Pre-admission compensation now restores terminal-audit metadata/workflow ownership without deleting financial authority when the reserve call itself fails before acquiring new capacity. Deterministic production-lane regression preloads a started, unreconciled $1.25 reservation, forces prior-spend reconciliation failure, and proves reservation identity/amount remain, estimated cost stays $0, metadata returns Pending with zero attempts, workflow returns Queued with zero attempts/no lease, and the exact wake stays pending. One later external recovery signal safely reconciles $1.25, creates a new $0.50 reservation, and admits exactly once. The existing later-failure path now positively proves a successfully acquired new reservation is still released. Verification: 337 focused tests passed; 1,206 adjacent audit/workflow tests passed; terminal scan 21/21 explicitly allowlisted; git diff/check and compile checks clean. Branch is pushed and up to date. Not submitted or merged; ready for fresh independent review.
+---
+author: oompah
+created: 2026-08-11 16:27
+---
+Fresh independent release review ACCEPTED exact head ed2cbbc4390f475ebb9bc30ed1a4fe5c210f624c. Reviewer verified exact key/audit-ID CAS wake indexing, one-owner bounded continuation with no capacity/budget self-loop, post-release capacity wake ordering, restart reconstruction/resume consumption, preservation and later reconciliation of prior started/unreconciled budget authority, and release of newly acquired reservations on later pre-admission failure. Independent evidence: 237 terminal-audit/submission/quiesce tests, 100 event-loop/provider-retirement tests, terminal mutation scan 21/21, and clean diff. Submitting the accepted exact head for canonical validation.
 ---
 <!-- COMMENTS:END -->
