@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1085
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Dispatch exact terminal-audit successors through a dedicated bounded continuation
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T16:51:33.226077Z'
+updated_at: '2026-08-11T16:54:22.155831Z'
 work_branch: OOMPAH-1085
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/827
