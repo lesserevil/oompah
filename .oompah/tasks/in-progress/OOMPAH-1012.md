@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T02:41:11.512382Z'
-updated_at: '2026-08-11T02:42:22.582766Z'
+updated_at: '2026-08-11T03:10:19.932212Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,5 +51,10 @@ author: oompah
 created: 2026-08-11 02:41
 ---
 Claimed for direct-owner repair from the failed natural OOMPAH-940 audit. Implementation must preserve the immutable landing revision while validating an exact current authoritative target descendant, fail closed on topology/ref races, and leave stale landed epic branches untouched.
+---
+author: oompah
+created: 2026-08-11 03:10
+---
+Implementation is committed and pushed at exact head 616331ef871e875d1549842c3a33856d544bdd0d. Terminal audits now preserve immutable landing_revision as containment authority while resolving selected_ref/selected_sha to the current authoritative root-main or nested-parent target under repository/project fencing, require ancestry before staging, bind both identities through durable workflow/restart/finalization paths, and preserve historical v1 serialization/hash behavior when landing_revision is absent. Focused validation passed 1,439 tests across quality gates, identity/dispatch/coordinator/store, durable enforcement/finalization/lifecycle, plus terminal mutation scan 21/21. Independent exact-head review is active; the one repository-wide gate remains reserved for the final combined head.
 ---
 <!-- COMMENTS:END -->
