@@ -44,6 +44,26 @@ _VALID_SERVER_BACKENDS = ("uvicorn", "granian")
 _SERVER_SUBCOMMANDS = {"server", "serve", "run"}
 
 
+def _uvicorn_config_kwargs(port: int) -> dict[str, object]:
+    """Return the shared Uvicorn configuration for either startup path.
+
+    Dashboard clients already own liveness through an application-level
+    ping/pong, freshness deadline, reconnect, and full-state backfill.  A
+    second protocol-level keepalive owner can race a closing/backpressured
+    connection inside ``websockets`` and emit ``keepalive_ping`` assertion
+    failures.  Disable that redundant owner while retaining Uvicorn's normal
+    WebSocket transport and the dashboard's bounded recovery contract.
+    """
+
+    return {
+        "host": "0.0.0.0",
+        "port": port,
+        "log_level": "info",
+        "access_log": False,
+        "ws_ping_interval": None,
+    }
+
+
 def _resolve_server_backend(cli_value: str | None) -> str:
     """Return the effective server backend, respecting CLI > env > default."""
     if cli_value is not None:
@@ -565,10 +585,7 @@ async def _run(
 
             uvi_config = _uvicorn.Config(
                 app,
-                host="0.0.0.0",
-                port=port,
-                log_level="info",
-                access_log=False,
+                **_uvicorn_config_kwargs(port),
             )
             server = _uvicorn.Server(uvi_config)
             server_task = asyncio.create_task(server.serve())
@@ -577,10 +594,7 @@ async def _run(
 
             uvi_config = uvicorn.Config(
                 app,
-                host="0.0.0.0",
-                port=port,
-                log_level="info",
-                access_log=False,
+                **_uvicorn_config_kwargs(port),
             )
             server = uvicorn.Server(uvi_config)
             server_task = asyncio.create_task(server.serve())
