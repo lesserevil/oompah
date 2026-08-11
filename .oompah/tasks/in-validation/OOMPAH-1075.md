@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1075
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Keep branch quality gates off restart reconciliation control ticks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:03:11.276660Z'
-updated_at: '2026-08-11T09:54:32.617274Z'
+updated_at: '2026-08-11T10:03:08.019337Z'
 work_branch: OOMPAH-1075
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/812
@@ -29,6 +29,62 @@ oompah.review_number: '812'
 oompah.work_branch: OOMPAH-1075
 oompah.target_branch: main
 oompah.review_head: 00c1df8fa52f409d7249b870204cebb51b350039
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-a600a072cf52
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1075
+    digest: d8e7b34a480fc806c23a0fb244242deb9abaa340af54de9c781cf4e200aa62c8
+  - version: 1
+    audit_id: audit-0432a06f3d32
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1075
+    digest: d8e7b34a480fc806c23a0fb244242deb9abaa340af54de9c781cf4e200aa62c8
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a600a072cf52
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1075
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d8e7b34a480fc806c23a0fb244242deb9abaa340af54de9c781cf4e200aa62c8
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T10:03:01.843740+00:00'
+    selected_ref: origin/OOMPAH-1075
+    selected_sha: d912a999d13d4fc739f4c14580b1facd94056382
+  - version: 1
+    audit_id: audit-0432a06f3d32
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1075
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d8e7b34a480fc806c23a0fb244242deb9abaa340af54de9c781cf4e200aa62c8
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T10:03:01.843740+00:00'
+    selected_ref: origin/OOMPAH-1075
+    selected_sha: d912a999d13d4fc739f4c14580b1facd94056382
+  attempt_history: []
 ---
 ## Summary
 
@@ -58,5 +114,10 @@ author: oompah
 created: 2026-08-11 09:54
 ---
 Final combined candidate is rebased onto deployed main 8496297f9 and pushed at exact head d912a999d13d4fc739f4c14580b1facd94056382. It includes the independently tracked OOMPAH-1077 deterministic heartbeat-test correction. Post-rebase focused validation: 481 workflow-worker/runtime/native-tracker/standalone tests passed; git diff check and worktree are clean. Independent exact-head review and protected matrix are running.
+---
+author: oompah
+created: 2026-08-11 10:03
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
