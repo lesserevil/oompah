@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T10:13:51.547647Z'
-updated_at: '2026-08-11T11:02:44.032936Z'
+updated_at: '2026-08-11T11:02:55.382016Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,6 +53,20 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-11T10:54:43.968546+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1078
+    target_state: Merged
+    evidence_fingerprint: fb7fe1d32d9e1c5ac12f5a590f2393ba9621958bcf9103d1c5f4b625aee929d0
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1078
+    selected_sha: 9c78b999f9b8eeddda14e2c783ea01a688543325
+    landing_revision: null
+    audit_ids:
+    - audit-18237c837d61
+    - audit-4dfa2cf5c0b5
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T11:02:52.309214+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1078
@@ -67,6 +81,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-11T10:54:43.968558+00:00'
     applied_at: '2026-08-11T10:54:51.496604+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-f0b9659034dd
@@ -90,7 +105,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T11:02:35.311460+00:00'
     selected_ref: origin/OOMPAH-1078
     selected_sha: 9c78b999f9b8eeddda14e2c783ea01a688543325
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -137,7 +152,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1078
     target_state: Merged
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -167,7 +182,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T10:49:57.906153+00:00'
     selected_ref: origin/OOMPAH-1078
     selected_sha: 9c78b999f9b8eeddda14e2c783ea01a688543325
-    updated_at: '2026-08-11T10:59:04.459674+00:00'
+    updated_at: '2026-08-11T11:02:52.309177+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-872e685ea279
@@ -296,5 +311,12 @@ author: oompah
 created: 2026-08-11 10:59
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 11:02
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Exact head 9c78b999f9b8eeddda14e2c783ea01a688543325 passed 530 author tests, 441 independent replacement-review tests with ACCEPT, protected Python 3.11/3.12/3.13 CI, and merged through PR 815 as 9ae083d39357d537bb91ce82b171ee85a82ac6a6. Deployed live canary returned the actionable coordinator-owned 409 for direct In Validation, preserved OOMPAH-1076 In Progress, and preserved its exact direct-owner claim.
 ---
 <!-- COMMENTS:END -->
