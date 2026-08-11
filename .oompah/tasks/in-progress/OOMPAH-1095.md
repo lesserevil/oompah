@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:44:31.960614Z'
-updated_at: '2026-08-11T17:21:48.875993Z'
+updated_at: '2026-08-11T17:22:01.158845Z'
 work_branch: OOMPAH-1095
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-08-11 17:21
 ---
 Fresh independent review ACCEPTED original exact 3ebd421b5a6b38b0940c0a568b9746f430dfff44: retirement-before-Ready proof covers TTL, restart, ABA replacement and concurrent delivery; 298 focused passes, production handoff/ABA 20/20, terminal scan 21/21. Rebased patch-equivalently (= range-diff) onto current main 2bdf2d942b44f15bbc4e896f03d967a163891868; new pushed exact cbca04ae99c93bc7edcf92270104c076b036b4c6. Post-rebase 438 focused changed-area tests and terminal scan 21/21 passed.
+---
+author: oompah
+created: 2026-08-11 17:22
+---
+Fix direct-owner retirement-before-delivery ordering with durable TTL/restart/ABA fencing; independently reviewed and post-rebase verified at cbca04ae99c93bc7edcf92270104c076b036b4c6.
 ---
 <!-- COMMENTS:END -->

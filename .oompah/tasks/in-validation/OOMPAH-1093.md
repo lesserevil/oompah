@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1093
 type: bug
-status: In Review
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] Orchestrator shutdown attempt failed; retaining process
   and retrying'
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:04:30.156611Z'
-updated_at: '2026-08-11T17:08:50.881361Z'
+updated_at: '2026-08-11T17:21:58.028591Z'
 work_branch: OOMPAH-1093
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/829
@@ -35,6 +35,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/829
 oompah.review_number: '829'
 oompah.target_branch: main
 oompah.review_head: 4c6de3f056fcec98fa1e0118e7fe683c76b71ceb
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-cab04fdebc43
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1093
+    digest: 7b902a87034bbeb8525abea1f341b4cbd1c8fbeb71b3cc8631931794b06af703
+  - version: 1
+    audit_id: audit-4715036950fd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1093
+    digest: 7b902a87034bbeb8525abea1f341b4cbd1c8fbeb71b3cc8631931794b06af703
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-cab04fdebc43
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1093
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7b902a87034bbeb8525abea1f341b4cbd1c8fbeb71b3cc8631931794b06af703
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T17:21:51.663675+00:00'
+    eligible_at: '2026-08-11T17:21:51.663675+00:00'
+    selected_ref: 4c6de3f056fcec98fa1e0118e7fe683c76b71ceb
+    selected_sha: 4c6de3f056fcec98fa1e0118e7fe683c76b71ceb
+  - version: 1
+    audit_id: audit-4715036950fd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1093
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7b902a87034bbeb8525abea1f341b4cbd1c8fbeb71b3cc8631931794b06af703
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T17:21:51.663675+00:00'
+    prerequisite_audit_id: audit-cab04fdebc43
+    selected_ref: 4c6de3f056fcec98fa1e0118e7fe683c76b71ceb
+    selected_sha: 4c6de3f056fcec98fa1e0118e7fe683c76b71ceb
+  attempt_history: []
 ---
 ## Summary
 
@@ -111,5 +169,10 @@ author: oompah
 created: 2026-08-11 17:07
 ---
 Branch quality gate passed for `4c6de3f056fcec98fa1e0118e7fe683c76b71ceb` using `make test` in 180.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 17:21
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
