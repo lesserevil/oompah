@@ -22578,6 +22578,34 @@ def _request_webhook_terminal_transition(
     )
 
 
+def _resolve_landed_review_terminal_target(
+    orch,
+    issue,
+    project,
+) -> TargetState:
+    """Resolve a forge landing to the task's immediate topology target.
+
+    Production Orchestrator instances expose the hierarchy-aware resolver.
+    Legacy embedders predate shared-epic target selection and retain their
+    historical Merged behavior.  A production resolution error propagates to
+    the webhook worker, which logs and retries through normal reconciliation
+    without staging an unsafe terminal audit.
+    """
+
+    resolver = _implemented_orchestrator_method(
+        orch,
+        "resolve_landed_review_terminal_target",
+    )
+    if resolver is None:
+        return TargetState.MERGED
+    target = TargetState.from_raw(resolver(issue, project.id))
+    if target not in {TargetState.DONE, TargetState.MERGED}:
+        raise ValueError(
+            f"landed review resolved unsupported terminal target {target.value}"
+        )
+    return target
+
+
 def _handle_authorized_status_label_event(orch, event, project) -> None:
     """Trust or reject an actor-authorized status label under intake gates."""
 
@@ -23378,10 +23406,15 @@ def _label_task_merged_from_merge_group(orch, event, project) -> None:
             )
             return
         if canonicalize_status(issue.state) != MERGED:
+            target = _resolve_landed_review_terminal_target(
+                orch,
+                issue,
+                project,
+            )
             result = _request_webhook_terminal_transition(
                 orch,
                 issue,
-                TargetState.MERGED,
+                target,
                 project,
                 event.author,
             )
@@ -23392,8 +23425,9 @@ def _label_task_merged_from_merge_group(orch, event, project) -> None:
                     result.reason,
                 )
             logger.info(
-                "merge_group: staged %s as Merged (head_ref=%r)",
+                "merge_group: staged %s as %s (head_ref=%r)",
                 issue.identifier,
+                target.value,
                 head_ref,
             )
     except Exception as exc:
@@ -23596,10 +23630,15 @@ def _label_task_merged_from_pr(orch, event, project) -> None:
             )
             return
         if canonicalize_status(issue.state) != MERGED:
+            target = _resolve_landed_review_terminal_target(
+                orch,
+                issue,
+                project,
+            )
             result = _request_webhook_terminal_transition(
                 orch,
                 issue,
-                TargetState.MERGED,
+                target,
                 project,
                 event.author,
             )
@@ -23610,8 +23649,10 @@ def _label_task_merged_from_pr(orch, event, project) -> None:
                     result.reason,
                 )
             logger.info(
-                "webhook: staged %s as Merged (PR #%s closed+merged, branch=%s)",
+                "webhook: staged %s as %s "
+                "(PR #%s closed+merged, branch=%s)",
                 issue.identifier,
+                target.value,
                 event.review_id,
                 source_branch,
             )

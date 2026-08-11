@@ -29,6 +29,7 @@ from oompah.review_workflow import (
 )
 from oompah.scm import detect_provider, extract_repo_slug
 from oompah.statuses import (
+    DONE,
     IN_REVIEW,
     IN_VALIDATION,
     MERGED,
@@ -38,6 +39,7 @@ from oompah.statuses import (
     READY_TO_INTEGRATE,
     canonicalize_status,
 )
+from oompah.terminal_audit import TargetState
 from oompah.task_transition_service import (
     TransitionAuthority,
     TransitionIntent,
@@ -219,7 +221,7 @@ class ProductionReviewWorkflowBackend:
         "review_conflict_repair": frozenset({NEEDS_REBASE}),
         "review_closed_repair": frozenset({OPEN}),
         "review_head_reconciliation": frozenset({READY_TO_INTEGRATE}),
-        "review_terminal_stage": frozenset({IN_VALIDATION, MERGED}),
+        "review_terminal_stage": frozenset({DONE, IN_VALIDATION, MERGED}),
     }
 
     def __init__(
@@ -703,6 +705,58 @@ class ProductionReviewWorkflowBackend:
             )
         return VerificationResult(True, dict(effect.receipt))
 
+    def _landed_review_terminal_status(self, issue: Issue) -> str:
+        """Resolve the immediate landed-review target without mock leakage."""
+
+        resolver = None
+        try:
+            resolver = vars(self.orchestrator).get(
+                "resolve_landed_review_terminal_target"
+            )
+        except TypeError:
+            pass
+        if not callable(resolver):
+            implemented = getattr(
+                type(self.orchestrator),
+                "resolve_landed_review_terminal_target",
+                None,
+            )
+            if callable(implemented):
+                resolver = implemented.__get__(
+                    self.orchestrator,
+                    type(self.orchestrator),
+                )
+        if resolver is None:
+            # Tracker-neutral embedders do not have hierarchy I/O. Preserve
+            # deterministic task-shape behavior while production uses the
+            # fail-closed Orchestrator resolver above.
+            return (
+                DONE
+                if _text(issue.parent_id)
+                and _text(issue.issue_type).lower() != "epic"
+                else MERGED
+            )
+        try:
+            target = TargetState.from_raw(resolver(issue, self.project_id))
+        except Exception as exc:
+            retryable = bool(getattr(exc, "retryable", False))
+            raise WorkflowActionError(
+                "review terminal target topology is unavailable",
+                category=(
+                    WorkflowFailureCategory.TRANSIENT
+                    if retryable
+                    else WorkflowFailureCategory.PERMANENT
+                ),
+                retryable=retryable,
+            ) from exc
+        if target not in {TargetState.DONE, TargetState.MERGED}:
+            raise WorkflowActionError(
+                "review terminal target topology returned an unsupported state",
+                category=WorkflowFailureCategory.POLICY,
+                retryable=False,
+            )
+        return target.value
+
     async def build_transition(
         self,
         context: WorkflowJobContext,
@@ -724,6 +778,7 @@ class ProductionReviewWorkflowBackend:
         exact_head = _text(issue_exact_head(issue)).lower()
         precondition_revision = None
         if context.job.action == "review_terminal_stage":
+            requested = self._landed_review_terminal_status(issue)
             precondition_revision = _text(
                 verification.receipt.get("evidence_revision")
             ) or None

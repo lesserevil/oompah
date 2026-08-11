@@ -15,7 +15,8 @@ from oompah.review_workflow_adapter import (
     build_review_workflow_handlers,
 )
 from oompah.scm import CIStatus, ReviewRequest
-from oompah.statuses import IN_REVIEW, IN_VALIDATION, NEEDS_CI_FIX
+from oompah.statuses import DONE, IN_REVIEW, IN_VALIDATION, MERGED, NEEDS_CI_FIX
+from oompah.terminal_audit import TargetState
 from oompah.task_transition_service import (
     TaskTransitionService,
     TerminalStageResult,
@@ -29,7 +30,11 @@ from oompah.workflow_facts import (
     LandingState,
     WorkflowFactCollector,
 )
-from oompah.workflow_jobs import WorkflowJobSpec, WorkflowJobStore
+from oompah.workflow_jobs import (
+    WorkflowFailureCategory,
+    WorkflowJobSpec,
+    WorkflowJobStore,
+)
 from oompah.workflow_worker import (
     DurableWorkflowWorker,
     EffectResult,
@@ -338,6 +343,7 @@ async def test_terminal_stage_forwards_fresh_landing_revision_to_transition_serv
         assert result.disposition is WorkflowRunDisposition.COMPLETED
         assert binding.tracker.task.state == IN_VALIDATION
         assert len(terminal_adapter.intents) == 1
+        assert terminal_adapter.intents[0].requested_status == MERGED
         assert (
             terminal_adapter.intents[0].precondition_revision
             == decision.evidence_revision
@@ -345,6 +351,134 @@ async def test_terminal_stage_forwards_fresh_landing_revision_to_transition_serv
         assert store.get(queued.job_id).result_transition is not None
     finally:
         journal.close()
+        capacity.close()
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_shared_child_terminal_stage_requests_done_without_merged_lane(
+    tmp_path, monkeypatch
+):
+    provider = Provider([review(state="merged", ci=CIStatus.PASSED)])
+    orchestrator, binding, store, capacity = composition(
+        tmp_path, monkeypatch, provider
+    )
+    parent = Issue(
+        id="EPIC-1",
+        identifier="EPIC-1",
+        title="Parent epic",
+        state=DONE,
+        issue_type="epic",
+        project_id="project-1",
+    )
+    binding.tracker.task = replace(
+        binding.tracker.task,
+        parent_id=parent.identifier,
+    )
+    target_calls = []
+
+    def resolve_target(issue, project_id):
+        target_calls.append((issue.identifier, project_id))
+        return TargetState.DONE
+
+    orchestrator.resolve_landed_review_terminal_target = resolve_target
+    binding.review_controller.collector.landing_collector = LandedCollector()
+    decision = binding.review_controller.evaluate((binding.tracker.task,)).tasks[
+        0
+    ].decision
+    queued = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation="shared-child-terminal-generation",
+            action="review_terminal_stage",
+            idempotency_key="shared-child-terminal",
+            expected_evidence_revision=decision.evidence_revision,
+        )
+    )
+    terminal_adapter = RecordingTerminalAdapter(binding.tracker)
+    journal = TransitionJournal(str(tmp_path / "shared-child-transitions.sqlite3"))
+    service = TaskTransitionService(
+        project_id="project-1",
+        tracker=binding.tracker,
+        journal=journal,
+        terminal_adapter=terminal_adapter,
+    )
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers=build_review_workflow_handlers(orchestrator, binding),
+        transition_services={"project-1": service},
+        worker_id="shared-child-terminal-worker",
+    )
+    try:
+        result = await worker.run_once()
+
+        assert result.disposition is WorkflowRunDisposition.COMPLETED
+        assert binding.tracker.task.state == IN_VALIDATION
+        assert target_calls == [("TASK-1", "project-1")]
+        assert len(terminal_adapter.intents) == 1
+        assert terminal_adapter.intents[0].requested_status == DONE
+        assert (
+            terminal_adapter.intents[0].precondition_revision
+            == decision.evidence_revision
+        )
+        assert store.get(queued.job_id).result_transition is not None
+    finally:
+        journal.close()
+        capacity.close()
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_stage_fails_closed_when_parent_topology_is_unavailable(
+    tmp_path, monkeypatch
+):
+    class RetryableTopologyError(RuntimeError):
+        retryable = True
+
+    provider = Provider([review(state="merged", ci=CIStatus.PASSED)])
+    orchestrator, binding, store, capacity = composition(
+        tmp_path, monkeypatch, provider
+    )
+    binding.tracker.task = replace(binding.tracker.task, parent_id="EPIC-1")
+
+    def unavailable_target(_issue, _project_id):
+        raise RetryableTopologyError("parent hierarchy unavailable")
+
+    orchestrator.resolve_landed_review_terminal_target = unavailable_target
+    backend = build_review_workflow_handlers(orchestrator, binding)[
+        "review_terminal_stage"
+    ].backend
+    queued = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation="topology-unavailable-generation",
+            action="review_terminal_stage",
+            idempotency_key="topology-unavailable",
+        )
+    )
+    context = WorkflowJobContext(
+        queued,
+        asyncio.Event(),
+        asyncio.Event(),
+    )
+    try:
+        with pytest.raises(
+            WorkflowActionError,
+            match="terminal target topology is unavailable",
+        ) as exc_info:
+            await backend.build_transition(
+                context,
+                VerificationResult(
+                    True,
+                    {"evidence_revision": "fresh-landing-revision"},
+                ),
+            )
+
+        assert exc_info.value.retryable is True
+        assert exc_info.value.category is WorkflowFailureCategory.TRANSIENT
+    finally:
         capacity.close()
         store.close()
 

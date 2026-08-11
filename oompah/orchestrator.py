@@ -37335,6 +37335,42 @@ class Orchestrator:
             return None
         return "shared"
 
+    def resolve_landed_review_terminal_target(
+        self,
+        issue: Issue,
+        project_id: str | None = None,
+    ) -> TargetState:
+        """Return the topology-valid terminal target for a landed review.
+
+        A standalone task or root epic owns its review landing and therefore
+        advances through the normal ``Merged`` audit chain.  A nested epic's
+        review similarly lands the epic itself on its immediate parent branch.
+        Ordinary shared-epic children are different: their accepted work is
+        complete at ``Done`` and the parent rollup remains the sole owner of
+        their later ``Merged`` transition.
+
+        A named parent must be authoritatively resolvable before either target
+        is returned.  Treating an unreadable nested hierarchy as top-level
+        would let a transient tracker failure manufacture a Merged audit.
+        """
+
+        effective_project_id = project_id or issue.project_id
+        parent_id = str(getattr(issue, "parent_id", None) or "").strip()
+        if not parent_id:
+            return TargetState.MERGED
+        if effective_project_id and not issue.project_id:
+            issue.project_id = effective_project_id
+        parent = self._resolve_parent_epic(issue, fail_closed=True)
+        if parent is None:
+            raise EpicTargetResolutionError(
+                issue.identifier,
+                parent_id,
+                "does not resolve to an epic rollup",
+            )
+        if (getattr(issue, "issue_type", "") or "").strip().lower() == "epic":
+            return TargetState.MERGED
+        return TargetState.DONE
+
     def _terminal_lifecycle_landing_evidence(
         self,
         issue: Issue,

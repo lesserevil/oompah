@@ -2069,6 +2069,145 @@ class TestWebhookMergedReconciliation:
         )
         mock_tracker.update_issue.assert_not_called()
 
+    def test_pr_merged_shared_child_stages_done_only(self, webhook_threads):
+        """A child-owned protected landing must not manufacture Merged work."""
+        from oompah.server import app, _api_cache
+
+        orch, _mock_tracker = self._make_orch_with_task(
+            "child-branch", "In Review"
+        )
+        orch.resolve_landed_review_terminal_target = MagicMock(
+            return_value=TargetState.DONE
+        )
+        orch.request_terminal_transition.return_value = TransitionResult(
+            success=True,
+            audit_id="audit-child-done",
+            audit_ids=["audit-child-done"],
+            queued_targets=[TargetState.DONE],
+        )
+
+        with patch("oompah.server._orchestrator", orch):
+            _api_cache.invalidate("reviews:all")
+            _api_cache.invalidate("issues:all")
+            client = TestClient(app)
+            resp = client.post(
+                "/api/v1/webhooks/github",
+                content=json.dumps(
+                    _github_pr_payload(
+                        action="closed",
+                        source="child-branch",
+                        merged=True,
+                    )
+                ),
+                headers={
+                    "X-GitHub-Event": "pull_request",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        webhook_threads.wait()
+        orch.request_terminal_transition.assert_awaited_once()
+        request = orch.request_terminal_transition.await_args.kwargs
+        assert request["requested_target"] is TargetState.DONE
+        assert (
+            TargetState.MERGED
+            not in orch.request_terminal_transition.return_value.queued_targets
+        )
+
+    def test_duplicate_shared_child_merge_webhook_reuses_done_target(
+        self, webhook_threads
+    ):
+        """Duplicate forge delivery cannot introduce a follow-on Merged lane."""
+        from oompah.server import app, _api_cache
+
+        orch, _mock_tracker = self._make_orch_with_task(
+            "child-branch", "In Review"
+        )
+        orch.resolve_landed_review_terminal_target = MagicMock(
+            return_value=TargetState.DONE
+        )
+        orch.request_terminal_transition.side_effect = (
+            TransitionResult(
+                success=True,
+                audit_id="audit-child-done",
+                audit_ids=["audit-child-done"],
+                queued_targets=[TargetState.DONE],
+            ),
+            TransitionResult(
+                success=True,
+                audit_id="audit-child-done",
+                audit_ids=["audit-child-done"],
+                queued_targets=[TargetState.DONE],
+                coalesced=True,
+            ),
+        )
+
+        with patch("oompah.server._orchestrator", orch):
+            _api_cache.invalidate("reviews:all")
+            _api_cache.invalidate("issues:all")
+            client = TestClient(app)
+            payload = _github_pr_payload(
+                action="closed",
+                source="child-branch",
+                merged=True,
+            )
+            responses = [
+                client.post(
+                    "/api/v1/webhooks/github",
+                    content=json.dumps(payload),
+                    headers={
+                        "X-GitHub-Event": "pull_request",
+                        "Content-Type": "application/json",
+                    },
+                )
+                for _ in range(2)
+            ]
+
+        assert [response.status_code for response in responses] == [200, 200]
+        webhook_threads.wait()
+        assert orch.request_terminal_transition.await_count == 2
+        assert {
+            call.kwargs["requested_target"]
+            for call in orch.request_terminal_transition.await_args_list
+        } == {TargetState.DONE}
+
+    def test_shared_child_topology_failure_stages_no_terminal_audit(
+        self, webhook_threads
+    ):
+        """Unreadable parent hierarchy fails closed in the webhook worker."""
+        from oompah.server import app, _api_cache
+
+        orch, _mock_tracker = self._make_orch_with_task(
+            "child-branch", "In Review"
+        )
+        orch.resolve_landed_review_terminal_target = MagicMock(
+            side_effect=RuntimeError("parent hierarchy unavailable")
+        )
+
+        with patch("oompah.server._orchestrator", orch):
+            _api_cache.invalidate("reviews:all")
+            _api_cache.invalidate("issues:all")
+            client = TestClient(app)
+            resp = client.post(
+                "/api/v1/webhooks/github",
+                content=json.dumps(
+                    _github_pr_payload(
+                        action="closed",
+                        source="child-branch",
+                        merged=True,
+                    )
+                ),
+                headers={
+                    "X-GitHub-Event": "pull_request",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        webhook_threads.wait()
+        orch.request_terminal_transition.assert_not_awaited()
+
     def test_merge_group_stages_task_merged(self, webhook_threads):
         """A successful merge_group webhook joins before checking staging."""
         from oompah.server import app, _api_cache
@@ -2104,6 +2243,56 @@ class TestWebhookMergedReconciliation:
             is TargetState.MERGED
         )
         mock_tracker.update_issue.assert_not_called()
+
+    def test_merge_group_shared_child_stages_done(self, webhook_threads):
+        """Merge-queue delivery uses the same shared-child target resolver."""
+        from oompah.server import app, _api_cache
+
+        orch, _mock_tracker = self._make_orch_with_task(
+            "child-branch", "In Review"
+        )
+        orch.resolve_landed_review_terminal_target = MagicMock(
+            return_value=TargetState.DONE
+        )
+        orch.request_terminal_transition.return_value = TransitionResult(
+            success=True,
+            audit_id="audit-child-done",
+            audit_ids=["audit-child-done"],
+            queued_targets=[TargetState.DONE],
+        )
+
+        with patch("oompah.server._orchestrator", orch):
+            _api_cache.invalidate("reviews:all")
+            _api_cache.invalidate("issues:all")
+            client = TestClient(app)
+            resp = client.post(
+                "/api/v1/webhooks/github",
+                content=json.dumps(
+                    {
+                        "action": "destroyed",
+                        "merge_group": {
+                            "head_ref": (
+                                "gh-readonly-queue/main/pr-42-child-branch"
+                            ),
+                            "base_ref": "main",
+                        },
+                        "repository": {"full_name": "org/repo"},
+                        "reason": "merged",
+                    }
+                ),
+                headers={
+                    "X-GitHub-Event": "merge_group",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        webhook_threads.wait()
+        orch.request_terminal_transition.assert_awaited_once()
+        assert (
+            orch.request_terminal_transition.await_args.kwargs["requested_target"]
+            is TargetState.DONE
+        )
 
     def test_background_exception_is_surfaced_by_completion_barrier(
         self, webhook_threads
