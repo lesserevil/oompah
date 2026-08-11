@@ -2649,7 +2649,7 @@ class TestTerminalWorktreeCleanup:
         instead of emitted as individual warnings (avoids warning floods)."""
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
-        
+
         # Override the project_store with one that can return categorized skip reasons
         class SkipTrackingStore(self.StaleCleanupStore):
             def cleanup_terminal_issue(
@@ -2667,20 +2667,20 @@ class TestTerminalWorktreeCleanup:
                 else:
                     # Epic task is removed
                     return True, None
-            
+
             def cleanup_stale_worktree_dirs(
                 self, project_id, limit=None, *, after=None, should_stop=None
             ):
                 return 0, 0, False, None
-            
+
             def cleanup_stale_local_branches(
                 self, project_id, limit=None, *, after=None, should_stop=None
             ):
                 return 0, 0, False, None
-        
+
         store = SkipTrackingStore([project])
         orch.project_store = store
-        
+
         tracker = MagicMock()
         # Simulate multiple child tasks that share epic branch (common case)
         tracker.fetch_issues_by_states.return_value = [
@@ -3879,7 +3879,8 @@ class TestTickDelegation:
         orch = _make_orchestrator(tmp_path)
         call_order: list[str] = []
 
-        async def fake_audit_lane():
+        async def fake_audit_lane(*, allow_new_launches: bool = True):
+            assert allow_new_launches is True
             call_order.append("terminal_audit")
             return {}
 
