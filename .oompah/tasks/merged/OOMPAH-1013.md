@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1013
 type: task
-status: In Progress
+status: Merged
 priority: null
 title: Prevent cross-priority starvation in bounded terminal-audit health scans
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T03:11:11.351608Z'
-updated_at: '2026-08-11T03:38:26.281917Z'
+updated_at: '2026-08-11T08:09:39.337104Z'
 work_branch: OOMPAH-1013
 target_branch: null
 review_url: null
@@ -34,6 +34,33 @@ oompah.integration:
   submitted_at: '2026-08-11T03:24:59.569845+00:00'
   updated_at: '2026-08-11T03:24:59.569845+00:00'
 oompah.work_branch: OOMPAH-1013
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-c4be13c271bc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1013
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 615350229177274e7f991b35e02543738bcd32329ebbceafabc9f98fc07de47b
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Protected PR #806 and hosted Python 3.11/3.12/3.13 gates are green; deployed
+      build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 contains merge 62c3cda3ea602b614a3a3dfc92c66468b5c34a4b;
+      independent audit verified that every exact reviewed branch change is patch-equivalent
+      to or composition-equivalent with the protected merge and no unique branch changes
+      remain.'
+    created_at: '2026-08-11T08:09:34.809166+00:00'
+    selected_ref: fe63e237ffbc342ac6a147d1143477d49128df5f
+    selected_sha: fe63e237ffbc342ac6a147d1143477d49128df5f
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
