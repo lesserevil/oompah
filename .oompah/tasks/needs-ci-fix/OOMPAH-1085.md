@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-1085
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Dispatch exact terminal-audit successors through a dedicated bounded continuation
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T13:41:03.042285Z'
+updated_at: '2026-08-11T13:41:15.893415Z'
 work_branch: OOMPAH-1085
 target_branch: null
 review_url: null
