@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1059
 type: bug
-status: Backlog
+status: Archived
 priority: 2
 title: '[backend:terminal_audit_enforcement] terminal-audit enforcement: inactive_status_override_records_malformed:proj-14849f1b:OOMPAH-487'
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T06:34:45.281694Z'
-updated_at: '2026-08-11T08:02:21.869022Z'
+updated_at: '2026-08-11T08:02:26.157667Z'
 work_branch: null
 target_branch: null
 review_url: null
