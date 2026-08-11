@@ -12,12 +12,12 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T17:16:16.744225Z'
+updated_at: '2026-08-11T17:16:57.783385Z'
 work_branch: OOMPAH-1085
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/827
 review_number: '827'
-review_head: ed2cbbc4390f475ebb9bc30ed1a4fe5c210f624c
+review_head: c2b0e1b10ea76129b8a59e041cde68948354e8cb
 merged_at: null
 oompah.create_once:
   version: 1
@@ -36,8 +36,6 @@ oompah.integration:
   head_sha: c2b0e1b10ea76129b8a59e041cde68948354e8cb
   submitted_at: '2026-08-11T16:27:31.218611+00:00'
   updated_at: '2026-08-11T17:04:23.935774+00:00'
-  wait_reason: review_generation_requeue
-  wait_generation: review:c935b488906ba0e47b62500bab93b91bbdb1f0bf4d235847da21bb992870d5c2
 oompah.work_branch: OOMPAH-1085
 oompah.agent_run_id: null
 oompah.work_contributors:
@@ -53,7 +51,7 @@ oompah.work_contributors:
 oompah.review_url: https://github.com/lesserevil/oompah/pull/827
 oompah.review_number: '827'
 oompah.target_branch: main
-oompah.review_head: ed2cbbc4390f475ebb9bc30ed1a4fe5c210f624c
+oompah.review_head: c2b0e1b10ea76129b8a59e041cde68948354e8cb
 ---
 ## Summary
 
