@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1074
 type: bug
-status: In Progress
+status: In Validation
 priority: 1
 title: Retire delayed epic auto-close jobs when terminal validation takes ownership
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T08:29:52.903666Z'
-updated_at: '2026-08-11T08:30:10.969310Z'
+updated_at: '2026-08-11T09:22:55.006227Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,62 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: oompah-940-delayed-auto-close-handoff-20260811
   request_fingerprint: 552ef6c524522e8d60300514186010a55f30d12a940d71c43b9c1fdad684f19f
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-5a49b825d935
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1074
+    digest: 30fe51448e83f6292669a2f9af4aab5521615db0e68c3d8bb933f5297c03daf8
+  - version: 1
+    audit_id: audit-e86ab0f4bbb6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1074
+    digest: 30fe51448e83f6292669a2f9af4aab5521615db0e68c3d8bb933f5297c03daf8
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-5a49b825d935
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1074
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 30fe51448e83f6292669a2f9af4aab5521615db0e68c3d8bb933f5297c03daf8
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-11T09:22:48.969987+00:00'
+    selected_ref: origin/OOMPAH-1074
+    selected_sha: 52e50a446eaef3abe4f2b9dc2ff732f98d9ad6a0
+  - version: 1
+    audit_id: audit-e86ab0f4bbb6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1074
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 30fe51448e83f6292669a2f9af4aab5521615db0e68c3d8bb933f5297c03daf8
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-11T09:22:48.969987+00:00'
+    selected_ref: origin/OOMPAH-1074
+    selected_sha: 52e50a446eaef3abe4f2b9dc2ff732f98d9ad6a0
+  attempt_history: []
 ---
 ## Summary
 
@@ -43,3 +99,11 @@ Required tests and acceptance criteria: reproduce staged terminal audit -> task 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 09:22
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+<!-- COMMENTS:END -->
