@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T10:43:32.317191Z'
-updated_at: '2026-08-11T11:23:53.510059Z'
+updated_at: '2026-08-11T11:24:03.318820Z'
 work_branch: OOMPAH-1079
 target_branch: null
 review_url: null
@@ -199,5 +199,15 @@ Duplicate error_watcher occurrence suppressed; this task already tracks the same
 Source: `backend:orchestrator`
 
 Message: Lifecycle state publication failed
+---
+author: oompah
+created: 2026-08-11 11:23
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-11 11:24
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
