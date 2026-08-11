@@ -12,7 +12,7 @@ labels:
 - workflow-liveness
 assignee: null
 created_at: '2026-08-11T15:35:51.682286Z'
-updated_at: '2026-08-11T15:36:17.583291Z'
+updated_at: '2026-08-11T15:52:18.754304Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,3 +38,11 @@ Live reproduction on OOMPAH-1085: the task is In Progress under a valid direct-o
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 15:52
+---
+Implementation is committed and pushed at exact head 423161adc09e447d172409e785f098323e5f45b5. Diagnosis: In Progress crash recovery treated retained accepted-submission metadata as current without revalidating the mutable remote task branch, so OOMPAH-1085 repeatedly rematerialized old-head validation jobs (7bd90702...) whose workflow generation could not match the live direct-owner assignment. Fix: stable remote branch/head revalidation parks unavailable, advanced, or racing accepted evidence; parked recovery suppresses lower-priority handoff/duplicate actions; exact recovered direct-owner validation carries the captured claim ID through TaskTransitionService; only an explicit verified current-head submit can materialize replacement validation. Regression coverage proves repeated reconcile retires the old lane at 0 required/0 materialized, restart does not resurrect it, exact resubmit creates one current 1/1 obligation, claim ABA/unavailable observations fail closed, and the exact claim transition commits once. Checks: 303 focused workflow/adapter/runtime tests passed; 90 owner-claim/submission tests passed; terminal status scan 21/21; diff and secret checks passed. Ready for independent exact-head review; not submitted or merged.
+---
+<!-- COMMENTS:END -->
