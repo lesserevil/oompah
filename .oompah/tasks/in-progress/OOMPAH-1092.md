@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:02:12.775197Z'
-updated_at: '2026-08-11T16:35:29.263715Z'
+updated_at: '2026-08-11T16:40:44.376053Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-08-11 16:35
 ---
 Implementation review-ready and pushed at exact head a355a5ddd3dd006f1bdd2187cfe83b9333b9468a on branch OOMPAH-1092. Scheduler now separates the scan-bounded observation corpus from the active operation budget, snapshots pause authority once per project-list read, excludes suspended work from active priority blockers, preserves the durable cursor/health cycle, and exposes active_operation_count plus observation_limit. Deterministic regression reproduces the live 9 higher-priority suspended + 1 lower-priority active shape under operation_limit=8: the active audit launches once in one lane cut, all 9 suspended audits remain visible, active operations=1, candidate_scan_complete=true, no continuation/spin, and no runtime overrun. Evidence in branch-local .venv: 945 focused/surrounding scheduler-health-restart tests passed in 23.85s; final direct scheduler/health rerun 137 passed in 3.51s; make terminal-audit-scan passed 21/21; git diff --check and commit secret hooks passed. An attempted complete gate was deliberately cancelled at 46% after detecting that its initial invocation had been pointed at the shared operator venv; it had no failures before cancellation and is not claimed as evidence. Work is pushed but intentionally not submitted pending independent exact-head review.
+---
+author: oompah
+created: 2026-08-11 16:40
+---
+Fresh independent review ACCEPTED exact head a355a5ddd3dd006f1bdd2187cfe83b9333b9468a. Reviewer independently reproduced one-cut dispatch for the live 9-suspended plus 1-active shape (1 dispatch, 1/8 active operations, 10 scanned, 9 suspended) and zero duplicate dispatch on the next cut; verified once-per-project suspension snapshots, fail-closed read errors, strict active priority/cursor/continuation semantics, and truthful bounded health metrics. Independent evidence: 545 terminal-audit tests, 252 observability/config tests, 172 scheduler/health tests, terminal mutation scan 21/21, clean diff. Holding submission only while OOMPAH-1085 owns the sole canonical validation slot; not merged.
 ---
 <!-- COMMENTS:END -->
