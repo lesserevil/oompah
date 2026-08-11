@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1081
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Reject or canonicalize terminal-audit target-state mismatches atomically
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:03:28.831065Z'
-updated_at: '2026-08-11T11:03:34.001351Z'
+updated_at: '2026-08-11T11:03:45.280635Z'
 work_branch: null
 target_branch: null
 review_url: null
