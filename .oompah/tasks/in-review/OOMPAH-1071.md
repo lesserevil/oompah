@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1071
 type: bug
-status: In Progress
+status: In Review
 priority: 2
 title: '[backend:checkpoint_queue] Checkpoint flush FAILED (reason=debounce); push_failures=1'
 parent: null
@@ -11,13 +11,18 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T07:46:51.655974Z'
-updated_at: '2026-08-11T08:21:03.498146Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
-review_head: null
+updated_at: '2026-08-11T09:01:31.645143Z'
+work_branch: OOMPAH-1071
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/810
+review_number: '810'
+review_head: baa287e4e01ff9b42a91f00af2bc91051eff277a
 merged_at: null
+oompah.review_url: https://github.com/lesserevil/oompah/pull/810
+oompah.review_number: '810'
+oompah.work_branch: OOMPAH-1071
+oompah.target_branch: main
+oompah.review_head: baa287e4e01ff9b42a91f00af2bc91051eff277a
 ---
 ## Summary
 
@@ -58,3 +63,11 @@ The operation in `backend:checkpoint_queue` should complete successfully, or deg
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 09:01
+---
+Branch quality gate passed for `baa287e4e01ff9b42a91f00af2bc91051eff277a` using `make test` in 167.8s. Review creation may proceed.
+---
+<!-- COMMENTS:END -->
