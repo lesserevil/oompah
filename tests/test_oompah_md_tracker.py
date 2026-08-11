@@ -87,6 +87,12 @@ def test_publication_revision_is_shared_and_constant_time(tmp_path):
     before = tracker.get_publication_revision()
     tracker.invalidate_read_cache()
 
+    assert tracker.get_publication_revision() == before
+    assert replacement.get_publication_revision() == before
+
+    issue = tracker.create_issue("Advance publication authority")
+
+    assert issue.identifier
     assert tracker.get_publication_revision() == before + 1
     assert replacement.get_publication_revision() == before + 1
 

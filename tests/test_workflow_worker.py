@@ -14,10 +14,11 @@ from oompah.task_transition_service import (
 )
 from oompah.workflow_jobs import (
     WorkflowFailureCategory,
+    WorkflowJob,
+    WorkflowJobLeaseLost,
     WorkflowJobSpec,
     WorkflowJobState,
     WorkflowJobStore,
-    WorkflowJobLeaseLost,
 )
 from oompah.workflow_worker import (
     DurableWorkflowWorker,
@@ -925,31 +926,84 @@ async def test_lost_lease_fences_worker_before_post_effect_checkpoint(store, clo
 
 
 @pytest.mark.asyncio
-async def test_heartbeat_renews_lease_during_long_effect(tmp_path):
-    store = WorkflowJobStore(str(tmp_path / "real-clock.sqlite3"), clock=time.time)
-    try:
-        queued = store.enqueue(job_spec())
-        handler = ScriptedHandler()
-        handler.delay_operation = "apply"
-        handler.delay_seconds = 0.15
+async def test_heartbeat_renews_lease_during_long_effect(store, clock, monkeypatch):
+    queued = store.enqueue(job_spec())
+    handler = ScriptedHandler()
+    handler.delay_operation = "apply"
+    handler.started = asyncio.Event()
+    handler.release = asyncio.Event()
+    renewals_observed = asyncio.Event()
+    event_loop = asyncio.get_running_loop()
+    original_renew = store.renew
+    renewal_count = 0
+    renewal_tokens: list[str] = []
+    initial_lease_expires_at: float | None = None
+    renewal_lock = threading.Lock()
 
-        result = await worker(
+    def observed_renew(
+        job_id: str,
+        lease_token: str,
+        *,
+        lease_seconds: float,
+        now: float | None = None,
+    ) -> WorkflowJob:
+        nonlocal initial_lease_expires_at, renewal_count
+        with renewal_lock:
+            if initial_lease_expires_at is None:
+                initial_lease_expires_at = store.get(job_id).lease_expires_at
+        clock.advance(0.05)
+        renewed = original_renew(
+            job_id,
+            lease_token,
+            lease_seconds=lease_seconds,
+            now=now,
+        )
+        with renewal_lock:
+            renewal_count += 1
+            renewal_tokens.append(lease_token)
+            if renewal_count >= 2:
+                event_loop.call_soon_threadsafe(renewals_observed.set)
+        return renewed
+
+    monkeypatch.setattr(store, "renew", observed_renew)
+
+    invocation = asyncio.create_task(
+        worker(
             store,
             handler,
             lease_seconds=0.08,
-            heartbeat_seconds=0.02,
+            heartbeat_seconds=0.01,
             operation_timeout_seconds=1,
         ).run_once()
+    )
+    try:
+        await asyncio.wait_for(handler.started.wait(), timeout=1)
+        await asyncio.wait_for(renewals_observed.wait(), timeout=1)
 
-        assert result.disposition is WorkflowRunDisposition.COMPLETED
-        renewals = [
-            event
-            for event in store.events(queued.job_id)
-            if event.event_type == "renewed"
-        ]
-        assert len(renewals) >= 2
+        assert invocation.done() is False
+        assert handler.external_applied is False
+        leased = store.get(queued.job_id)
+        assert leased.lease_token is not None
+        assert store.owns_live_lease(leased.job_id, leased.lease_token) is True
+        with renewal_lock:
+            observed_tokens = tuple(renewal_tokens)
+            observed_initial_expiry = initial_lease_expires_at
+        assert observed_initial_expiry is not None
+        assert clock.now > observed_initial_expiry
+        assert len(observed_tokens) >= 2
+        assert set(observed_tokens) == {leased.lease_token}
     finally:
-        store.close()
+        handler.release.set()
+        result = await asyncio.wait_for(invocation, timeout=1)
+
+    assert result.disposition is WorkflowRunDisposition.COMPLETED
+    assert handler.apply_calls == 1
+    renewals = [
+        event
+        for event in store.events(queued.job_id)
+        if event.event_type == "renewed"
+    ]
+    assert len(renewals) >= 2
 
 
 @pytest.mark.asyncio

@@ -423,6 +423,39 @@ class TestStateBranchTrackerIntegration:
             after_checkpoint.split(":", 1)[0]
         )
 
+    def test_defensive_cache_refresh_does_not_advance_task_authority(
+        self, state_branch_repo: tuple[Path, str]
+    ) -> None:
+        """A read-only refresh cannot supersede a workflow publication cut."""
+
+        repo, state_branch = state_branch_repo
+        tracker = _make_tracker(
+            repo,
+            state_branch_enabled=True,
+            state_branch_name=state_branch,
+            git_sync=True,
+        )
+        issue = tracker.create_issue("Read-only cache refresh")
+        tracker.flush_checkpoint(reason="seed-cache-refresh")
+        before = tracker.get_state_branch_generation()
+        publication_before = tracker.get_publication_revision()
+        changes: list[str] = []
+        tracker.add_read_change_callback(lambda: changes.append("changed"))
+
+        tracker.invalidate_read_cache()
+        refreshed = tracker.fetch_issue_detail(issue.identifier)
+
+        assert refreshed is not None
+        assert changes == []
+        assert tracker.get_state_branch_generation() == before
+        assert tracker.get_publication_revision() == publication_before
+
+        tracker.update_issue(issue.identifier, status=IN_PROGRESS)
+
+        assert changes == ["changed"]
+        assert tracker.get_state_branch_generation() != before
+        assert tracker.get_publication_revision() == publication_before + 1
+
     def test_terminal_metadata_generation_delta_is_exactly_task_scoped(
         self, state_branch_repo: tuple[Path, str]
     ) -> None:

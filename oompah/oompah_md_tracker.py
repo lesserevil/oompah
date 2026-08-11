@@ -898,7 +898,7 @@ class OompahMarkdownTracker:
             _write_markdown(path, meta, body)
             if parent:
                 self._add_child_to_parent(parent, identifier)
-            self.invalidate_read_cache()
+            self._invalidate_after_mutation()
             self._commit_and_push(f"Create oompah task {identifier}")
         created = self.fetch_issue_detail(identifier)
         if not created:
@@ -1054,7 +1054,7 @@ class OompahMarkdownTracker:
             _write_markdown(path, meta, body)
             if normalized_parent:
                 self._add_child_to_parent(normalized_parent, identifier)
-            self.invalidate_read_cache()
+            self._invalidate_after_mutation()
             self._commit_and_push(f"Create oompah task {identifier}")
             record = self._read_record_uncached(identifier)
             if record is None:
@@ -1094,7 +1094,7 @@ class OompahMarkdownTracker:
                     raise TrackerError(
                         f"Cannot move native task {path} to {new_path}: {exc}"
                     ) from exc
-            self.invalidate_read_cache()
+            self._invalidate_after_mutation()
             self._commit_and_push(f"Update oompah task {meta['id']}")
         # Mandatory flush for terminal/In Review transitions (design § 5.3).
         # Called OUTSIDE _write_lock to avoid nested-lock deadlock with
@@ -1146,7 +1146,7 @@ class OompahMarkdownTracker:
             )
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, body)
-            self.invalidate_read_cache()
+            self._invalidate_after_mutation()
             self._commit_and_push(f"Comment on oompah task {meta['id']}")
         return {"author": comment_author, "text": comment_text}
 
@@ -1167,7 +1167,7 @@ class OompahMarkdownTracker:
             child_meta["updated_at"] = _now_iso()
             _write_markdown(Path(child["path"]), child_meta, str(child["body"]))
             self._add_child_to_parent(parent_id, str(child_meta["id"]))
-            self.invalidate_read_cache()
+            self._invalidate_after_mutation()
             self._commit_and_push(f"Link oompah task {child_meta['id']} to parent")
 
     def add_dependency(self, blocked_id: str, blocker_id: str) -> None:
@@ -1181,7 +1181,7 @@ class OompahMarkdownTracker:
             meta["blocked_by"] = deps
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, str(rec["body"]))
-            self.invalidate_read_cache()
+            self._invalidate_after_mutation()
             self._commit_and_push(f"Add dependency to oompah task {meta['id']}")
 
     def remove_dependency(self, blocked_id: str, blocker_id: str) -> None:
@@ -1199,7 +1199,7 @@ class OompahMarkdownTracker:
             meta["blocked_by"] = deps
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, str(rec["body"]))
-            self.invalidate_read_cache()
+            self._invalidate_after_mutation()
             self._commit_and_push(f"Remove dependency from oompah task {meta['id']}")
 
     def add_start_dependency(self, blocked_id: str, blocker_id: str) -> None:
@@ -1220,7 +1220,7 @@ class OompahMarkdownTracker:
             meta["oompah.start_blocked_by"] = deps
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, str(rec["body"]))
-            self.invalidate_read_cache()
+            self._invalidate_after_mutation()
             self._commit_and_push(
                 f"Add hard-start dependency to oompah task {meta['id']}"
             )
@@ -1246,7 +1246,7 @@ class OompahMarkdownTracker:
             meta["oompah.start_blocked_by"] = deps
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, str(rec["body"]))
-            self.invalidate_read_cache()
+            self._invalidate_after_mutation()
             self._commit_and_push(
                 f"Remove hard-start dependency from oompah task {meta['id']}"
             )
@@ -1274,7 +1274,7 @@ class OompahMarkdownTracker:
             meta["oompah.attachments"] = list(attachments)
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, str(rec["body"]))
-            self.invalidate_read_cache()
+            self._invalidate_after_mutation()
             self._commit_and_push(f"Update attachments for oompah task {meta['id']}")
 
     def get_metadata(self, identifier: str) -> dict[str, object]:
@@ -1332,7 +1332,7 @@ class OompahMarkdownTracker:
                 meta[compat_key] = value
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, str(rec["body"]))
-            self.invalidate_read_cache(
+            self._invalidate_after_mutation(
                 task_id=identifier,
                 authority_kind=(
                     "terminal_audit" if key == "oompah.terminal_audit" else None
@@ -1363,7 +1363,7 @@ class OompahMarkdownTracker:
             meta = dict(rec["meta"])
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, body)
-            self.invalidate_read_cache()
+            self._invalidate_after_mutation()
             self._commit_and_push(f"Normalize native oompah task {meta['id']}")
 
     def write_and_commit_ledger_file(
@@ -1431,14 +1431,32 @@ class OompahMarkdownTracker:
 
     def invalidate_read_cache(
         self,
+    ) -> None:
+        """Discard this instance's cached reads without claiming a mutation.
+
+        Callers use this boundary to force a fresh observation before making a
+        decision.  A refresh is not itself task authority: treating it as one
+        makes a long workflow snapshot invalidate itself whenever a fact
+        collector, API request, or proof path performs a defensive re-read.
+        Native mutation methods use :meth:`_invalidate_after_mutation` so
+        sibling tracker instances still observe every actual write.
+        """
+
+        with self._write_lock:
+            self._clear_read_cache_local()
+
+    def _invalidate_after_mutation(
+        self,
         *,
         task_id: str | None = None,
         authority_kind: str | None = None,
     ) -> int:
-        # A task mutation may have been performed by another tracker instance
-        # for the same repository.  Advancing a shared generation prevents this
-        # instance from returning a record whose cached path was just moved to
-        # another status directory.
+        """Invalidate every sibling cache and advance task authority."""
+
+        # A task mutation may be observed by another tracker instance for the
+        # same repository. Advancing a shared generation prevents that instance
+        # from returning a record whose cached path was just moved to another
+        # status directory.
         # Reads hold the same repository lock while pairing their records with
         # the dependency-status index.  Advance authority and clear this
         # instance's related caches atomically with respect to that pair so an
@@ -1451,7 +1469,7 @@ class OompahMarkdownTracker:
                 authority_kind=authority_kind,
             )
             self._clear_read_cache_local()
-        # Invalidation occurs after the mutation has been written to the
+        # Mutation invalidation occurs after the write has reached the
         # authoritative worktree and before the mutation is returned to the
         # caller, so server-side snapshots are invalidated synchronously. Keep
         # callbacks outside the repository lock because they may read through
