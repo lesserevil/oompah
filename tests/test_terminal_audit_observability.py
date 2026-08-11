@@ -1063,8 +1063,8 @@ async def test_paused_and_restart_deferred_audit_then_resume_restores_dispatch(
 ) -> None:
     """Periodic health retains paused work and resume admits its launch."""
     project_store = MagicMock()
-    project_store.list_all.return_value = []
-    project = SimpleNamespace(paused=True)
+    project = SimpleNamespace(id="project-a", paused=True)
+    project_store.list_all.return_value = [project]
     project_store.get.return_value = project
     orchestrator = Orchestrator(
         ServiceConfig(
@@ -1517,7 +1517,7 @@ def test_audit_candidate_window_interleaves_projects_within_priority(
 
 
 @pytest.mark.asyncio
-async def test_audit_operation_budget_rotates_and_completes_health_cycle(
+async def test_dispatch_ineligible_observations_do_not_spend_operation_budget(
     tmp_path: Path,
 ) -> None:
     project_store = MagicMock()
@@ -1575,11 +1575,6 @@ async def test_audit_operation_budget_rotates_and_completes_health_cycle(
             ) as continuation,
         ):
             await orchestrator._dispatch_audit_lane()
-            assert orchestrator._audit_health.scan_complete is False
-            assert orchestrator._audit_metrics["budget_reason"] == "operation_limit"
-            await orchestrator._dispatch_audit_lane()
-            assert orchestrator._audit_health.scan_complete is False
-            await orchestrator._dispatch_audit_lane()
 
         assert reads == [
             "TASK-0",
@@ -1587,9 +1582,10 @@ async def test_audit_operation_budget_rotates_and_completes_health_cycle(
             "TASK-2",
             "TASK-3",
             "TASK-4",
-            "TASK-0",
         ]
-        assert continuation.call_count == 2
+        assert continuation.call_count == 0
+        assert orchestrator._audit_metrics["active_operation_count"] == 0
+        assert orchestrator._audit_metrics["scanned_candidate_count"] == 5
         assert orchestrator._audit_health.scan_complete is True
         assert orchestrator._audit_metrics["candidate_scan_complete"] is True
         assert orchestrator._audit_metrics["health_cycle_candidate_count"] == 5
@@ -1599,7 +1595,7 @@ async def test_audit_operation_budget_rotates_and_completes_health_cycle(
 
 
 @pytest.mark.asyncio
-async def test_audit_health_rotation_reaches_lower_priority_past_operation_cap(
+async def test_ineligible_high_priority_observations_do_not_defer_lower_health(
     tmp_path: Path,
 ) -> None:
     project_store = MagicMock()
@@ -1669,23 +1665,179 @@ async def test_audit_health_rotation_reaches_lower_priority_past_operation_cap(
             ) as continuation,
         ):
             await orchestrator._dispatch_audit_lane()
-            assert reads == [f"HIGH-{index}" for index in range(8)]
-            assert orchestrator._audit_health.scan_complete is False
 
-            await orchestrator._dispatch_audit_lane()
-
-        assert len(reads) == 16
-        assert reads[8] == "LOW-0"
-        assert reads[9:] == [f"HIGH-{index}" for index in range(7)]
+        assert reads == [f"HIGH-{index}" for index in range(8)] + ["LOW-0"]
         assert orchestrator._audit_health.scan_complete is True
         assert orchestrator._audit_health.scan_error_count == 0
         assert orchestrator._audit_metrics["candidate_scan_complete"] is True
+        assert orchestrator._audit_metrics["active_operation_count"] == 0
         assert orchestrator._audit_metrics["priority_revisit"] is False
-        continuation.assert_called_once_with()
+        continuation.assert_not_called()
         assert not any(
             str(alert.get("source", "")).endswith("action_required")
             for alert in orchestrator._alerts
         )
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+@pytest.mark.asyncio
+async def test_paused_candidates_above_operation_limit_cannot_starve_active_audit(
+    tmp_path: Path,
+) -> None:
+    """The live 9-suspended-plus-1-active shape launches in one lane cut."""
+
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    projects = {
+        f"paused-{index}": SimpleNamespace(
+            id=f"paused-{index}",
+            paused=True,
+        )
+        for index in range(9)
+    }
+    projects["active"] = SimpleNamespace(id="active", paused=False)
+    project_store.list_all.return_value = list(projects.values())
+    project_store.get.side_effect = projects.get
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            audit_lane_scan_limit=32,
+            audit_lane_operation_limit=8,
+            audit_lane_dispatch_limit=1,
+            audit_lane_max_runtime_seconds=30,
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    created_at = datetime(2026, 8, 11, tzinfo=timezone.utc)
+    paused = tuple(
+        Issue(
+            id=f"paused-{index}",
+            identifier=f"PAUSED-{index}",
+            title="Suspended terminal audit",
+            state="In Validation",
+            project_id=f"paused-{index}",
+            priority=100,
+            branch_name=f"paused-{index}",
+            created_at=created_at + timedelta(seconds=index),
+        )
+        for index in range(9)
+    )
+    active = Issue(
+        id="active",
+        identifier="ACTIVE-0",
+        title="Active terminal audit",
+        state="In Validation",
+        project_id="active",
+        priority=0,
+        branch_name="active-0",
+        created_at=created_at + timedelta(seconds=9),
+    )
+    candidates = paused + (active,)
+    records = {
+        issue.identifier: TerminalAuditRecord(
+            audit_id=f"audit-{issue.identifier.lower()}",
+            project_id=str(issue.project_id),
+            task_id=issue.identifier,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=EvidenceFingerprint(
+                f"{index + 1:064x}"
+            ),
+            request_state=RequestState.PENDING,
+            created_at=created_at.isoformat(),
+        )
+        for index, issue in enumerate(candidates)
+    }
+    store = MagicMock()
+    store.read.side_effect = lambda identifier: SimpleNamespace(
+        pending_chain=[records[identifier]],
+        is_quarantined=False,
+        unknown_fields={},
+    )
+    selector = MagicMock()
+    selector.select_candidates.return_value = (
+        [Candidate(provider_id="provider-a", model="model-a")],
+        None,
+    )
+    tracker = MagicMock()
+    tracker.get_metadata.return_value = {}
+    launches: list[str] = []
+
+    async def _dispatch(issue: Issue, **_kwargs) -> bool:
+        launches.append(issue.identifier)
+        return True
+
+    try:
+        with (
+            patch.object(
+                orchestrator,
+                "_available_slots",
+                side_effect=lambda: 0 if launches else 1,
+            ),
+            patch.object(orchestrator, "_dispatch_is_blocked", return_value=False),
+            patch.object(
+                orchestrator,
+                "_fetch_audit_candidates",
+                return_value=_AuditCandidateScan(candidates),
+            ),
+            patch.object(orchestrator, "_audit_store", return_value=store),
+            patch.object(
+                orchestrator,
+                "_bind_audit_record_revision",
+                side_effect=lambda _issue, record: record,
+            ),
+            patch.object(
+                orchestrator,
+                "_prepare_audit_selector",
+                new=AsyncMock(return_value=(selector, None)),
+            ),
+            patch.object(
+                orchestrator,
+                "_terminal_audit_validation_configuration_error",
+                return_value=None,
+            ),
+            patch.object(orchestrator, "_audit_branch_busy", return_value=False),
+            patch.object(orchestrator, "_tracker_for_issue", return_value=tracker),
+            patch.object(orchestrator, "_audit_update_record", return_value=True),
+            patch.object(
+                orchestrator,
+                "_claim_terminal_audit_attempt",
+                new=AsyncMock(
+                    return_value=SimpleNamespace(
+                        job_id=1,
+                        lease_token="lease-active",
+                    )
+                ),
+            ),
+            patch.object(
+                orchestrator,
+                "_dispatch",
+                new=AsyncMock(side_effect=_dispatch),
+            ),
+            patch.object(
+                orchestrator,
+                "_request_audit_lane_continuation",
+                return_value=True,
+            ) as continuation,
+        ):
+            await orchestrator._dispatch_audit_lane()
+            await orchestrator._dispatch_audit_lane()
+
+        assert launches == ["ACTIVE-0"]
+        assert orchestrator._audit_metrics["active_operation_count"] == 1
+        assert orchestrator._audit_metrics["active_operation_count"] <= 8
+        assert orchestrator._audit_metrics["scanned_candidate_count"] == 10
+        assert orchestrator._audit_metrics["candidate_scan_complete"] is True
+        assert orchestrator._audit_health.suspended_count == 9
+        assert orchestrator._audit_health.suspended_project_ids == tuple(
+            f"paused-{index}" for index in range(9)
+        )
+        assert orchestrator._audit_metrics["runtime_overrun_ms"] == 0
+        continuation.assert_not_called()
     finally:
         orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
@@ -1759,17 +1911,20 @@ async def test_audit_health_rotation_resets_when_candidate_corpus_changes(
             ),
         ):
             await orchestrator._dispatch_audit_lane()
-            assert orchestrator._audit_metrics["health_cycle_seen_count"] == 2
+            assert orchestrator._audit_metrics["health_cycle_seen_count"] == 3
 
             current_corpus["value"] = changed_corpus
             await orchestrator._dispatch_audit_lane()
-            assert orchestrator._audit_health.scan_complete is False
-            assert orchestrator._audit_metrics["health_cycle_seen_count"] == 2
+            assert orchestrator._audit_health.scan_complete is True
+            assert orchestrator._audit_metrics["health_cycle_seen_count"] == 3
 
             await orchestrator._dispatch_audit_lane()
 
         assert reads == [
             "TASK-A",
+            "TASK-B",
+            "TASK-C",
+            "TASK-D",
             "TASK-B",
             "TASK-C",
             "TASK-D",
