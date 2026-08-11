@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:45:59.661224Z'
-updated_at: '2026-08-11T10:05:21.909154Z'
+updated_at: '2026-08-11T10:14:01.253275Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,29 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: ba8cb63b-b18c-47c9-a649-ff62bff38df3
   request_fingerprint: 8717186aaf2588a4b6febd726286b9fd9ad8279083d60b757222210d206c14a4
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-70d3e2b7ecda
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1077
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 47978ac9237e1409a73867143159e56cc1b715abbeec7b11394e17ab357ee60d
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-11T10:13:59.682515+00:00'
+    selected_ref: origin/main
+    selected_sha: 4be80277a97a06a0de2165406f3c87e351b85780
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
