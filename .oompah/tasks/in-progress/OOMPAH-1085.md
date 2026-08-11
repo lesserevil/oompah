@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T16:12:51.170366Z'
+updated_at: '2026-08-11T16:22:16.281518Z'
 work_branch: OOMPAH-1085
 target_branch: null
 review_url: null
@@ -207,5 +207,10 @@ author: oompah
 created: 2026-08-11 16:12
 ---
 Second final-review blocker repaired at exact head 2f8e960faf7dbc79dd1aa489703a8b8cbfba201d, rebased onto current main 3264da6780e35b10f759de8aade7b3509977bbb9. The real pre-provider budget-failure path now compensates through exact terminal-audit metadata rollback/defer and lifecycle-requeues the exact workflow lease without charging attempt or retry/backoff budget, while suppressing only the currently owning continuation rearm. The replacement regression runs the production audit lane without patching its owned implementation: one persistent budget failure leaves the exact wake pending, metadata Pending with zero attempts, and the durable workflow job Queued with attempts=0/retry_at=null/no lease; one later external recovery signal produces exactly one Running attempt/admission and a completed worker await with no orphan. Verification after rebase: 337 focused audit/liveness tests passed; 1206 adjacent audit/workflow/worker tests passed; terminal mutation scan 21/21; compile and diff checks clean. Branch force-with-lease replaced exact 88b53c68dad8e6d21f875d75be03d2b097b93e18 and is pushed. Ready for fresh independent exact-head review; not submitted or merged.
+---
+author: oompah
+created: 2026-08-11 16:22
+---
+Third repair iteration pushed at exact head ed2cbbc4390f475ebb9bc30ed1a4fe5c210f624c, based on current origin/main 3264da6780e35b10f759de8aade7b3509977bbb9. Pre-admission compensation now restores terminal-audit metadata/workflow ownership without deleting financial authority when the reserve call itself fails before acquiring new capacity. Deterministic production-lane regression preloads a started, unreconciled $1.25 reservation, forces prior-spend reconciliation failure, and proves reservation identity/amount remain, estimated cost stays $0, metadata returns Pending with zero attempts, workflow returns Queued with zero attempts/no lease, and the exact wake stays pending. One later external recovery signal safely reconciles $1.25, creates a new $0.50 reservation, and admits exactly once. The existing later-failure path now positively proves a successfully acquired new reservation is still released. Verification: 337 focused tests passed; 1,206 adjacent audit/workflow tests passed; terminal scan 21/21 explicitly allowlisted; git diff/check and compile checks clean. Branch is pushed and up to date. Not submitted or merged; ready for fresh independent review.
 ---
 <!-- COMMENTS:END -->
