@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1007
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Fence completed terminal-audit recurrence to current workflow completion authority
 parent: OOMPAH-940
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T23:19:04.544332Z'
-updated_at: '2026-08-11T01:24:19.196864Z'
+updated_at: '2026-08-11T01:33:04.329613Z'
 work_branch: OOMPAH-1007
 target_branch: main
 review_url: null
@@ -38,6 +38,62 @@ oompah.integration:
   submitted_at: '2026-08-11T01:23:58.775600+00:00'
   updated_at: '2026-08-11T01:23:58.775600+00:00'
 oompah.work_branch: OOMPAH-1007
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-dba0f81ba987
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1007
+    digest: 3eccdcb99e54d6089fea2f8a211fc54b9bbe27b419e0d5811424a2a2fbbd6fa5
+  - version: 1
+    audit_id: audit-62db90029594
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1007
+    digest: 3eccdcb99e54d6089fea2f8a211fc54b9bbe27b419e0d5811424a2a2fbbd6fa5
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-dba0f81ba987
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1007
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3eccdcb99e54d6089fea2f8a211fc54b9bbe27b419e0d5811424a2a2fbbd6fa5
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T01:32:57.984953+00:00'
+    selected_ref: 5e46c8a06c3d8e98eeb0f4b5f9896d5c0ad67654
+    selected_sha: 5e46c8a06c3d8e98eeb0f4b5f9896d5c0ad67654
+  - version: 1
+    audit_id: audit-62db90029594
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1007
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3eccdcb99e54d6089fea2f8a211fc54b9bbe27b419e0d5811424a2a2fbbd6fa5
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T01:32:57.984953+00:00'
+    selected_ref: 5e46c8a06c3d8e98eeb0f4b5f9896d5c0ad67654
+    selected_sha: 5e46c8a06c3d8e98eeb0f4b5f9896d5c0ad67654
+  attempt_history: []
 ---
 ## Summary
 
@@ -94,5 +150,10 @@ author: oompah
 created: 2026-08-11 01:24
 ---
 Implemented exact workflow-revision/ref/SHA fencing for terminal audits, restart-safe legacy migration, CAS-safe binding promotion, bounded payload convergence, and review-runtime authority propagation. PR #805; focused and security checks pass. OOMPAH-1008 tracks an unrelated full-suite timing flake.
+---
+author: oompah
+created: 2026-08-11 01:33
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
