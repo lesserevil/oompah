@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T04:35:54.427125Z'
-updated_at: '2026-08-11T07:41:28.842056Z'
+updated_at: '2026-08-11T07:41:41.668225Z'
 work_branch: OOMPAH-1014
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/807
@@ -73,7 +73,23 @@ oompah.terminal_audit:
     created_at: '2026-08-11T07:41:24.561246+00:00'
     selected_ref: b7c5ab03f09d0bf994dfcbb04526f96f91d58979
     selected_sha: b7c5ab03f09d0bf994dfcbb04526f96f91d58979
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1014
+    target_state: Merged
+    evidence_fingerprint: 2dcb32e584d369156740662bcc34b7bab0e63a26e2fb027fc908f989ac9c70d7
+    workflow_revision: null
+    selected_ref: b7c5ab03f09d0bf994dfcbb04526f96f91d58979
+    selected_sha: b7c5ab03f09d0bf994dfcbb04526f96f91d58979
+    landing_revision: null
+    audit_ids:
+    - audit-76c562467fa5
+    - audit-53b3a4c0d528
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T07:41:34.462698+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -81,7 +97,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1014
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -96,12 +112,13 @@ oompah.terminal_audit:
     created_at: '2026-08-11T06:30:10.124774+00:00'
     selected_ref: b7c5ab03f09d0bf994dfcbb04526f96f91d58979
     selected_sha: b7c5ab03f09d0bf994dfcbb04526f96f91d58979
+    updated_at: '2026-08-11T07:41:34.462651+00:00'
   - version: 1
     audit_id: audit-53b3a4c0d528
     project_id: proj-14849f1b
     task_id: OOMPAH-1014
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -116,6 +133,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T06:30:10.124774+00:00'
     selected_ref: b7c5ab03f09d0bf994dfcbb04526f96f91d58979
     selected_sha: b7c5ab03f09d0bf994dfcbb04526f96f91d58979
+    updated_at: '2026-08-11T07:41:34.462681+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -146,5 +164,17 @@ author: oompah
 created: 2026-08-11 06:30
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-11 07:41
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #807 is merged into protected main at 05ed11f22e5f0717e01a7234839e34872a60e86a; the exact implementation head b7c5ab03f09d0bf994dfcbb04526f96f91d58979 passed the complete Makefile gate and hosted multi-version CI, and the deployed successor build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 completed startup recovery with zero malformed or quarantined terminal-audit metadata.
+---
+author: oompah
+created: 2026-08-11 07:41
+---
+Merged and deployed. Startup recovery is healthy on 5e2288c47738; the obsolete Done/Merged audit chain is retired by this owner-authorized terminal disposition.
 ---
 <!-- COMMENTS:END -->
