@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1087
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Prevent redundant WebSocket keepalive races during dashboard reconnects
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T13:38:34.915522Z'
-updated_at: '2026-08-11T13:52:21.259679Z'
+updated_at: '2026-08-11T13:52:28.449104Z'
 work_branch: OOMPAH-1087
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/822
