@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:03:11.276660Z'
-updated_at: '2026-08-11T10:03:08.019337Z'
+updated_at: '2026-08-11T10:41:14.352215Z'
 work_branch: OOMPAH-1075
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/812
@@ -42,6 +42,31 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1075
     digest: d8e7b34a480fc806c23a0fb244242deb9abaa340af54de9c781cf4e200aa62c8
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-3f2df10e876f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1075
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d8e7b34a480fc806c23a0fb244242deb9abaa340af54de9c781cf4e200aa62c8
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner completion using exact protected delivery evidence. Final
+      combined head d912a999d13d4fc739f4c14580b1facd94056382 is contained in protected
+      PR #812 merge 4be80277a; Python 3.11/3.12/3.13 checks passed; independent exact-head
+      review accepted the gate-lock, cache-authority, runtime-CAS, O1073 interaction,
+      and deterministic heartbeat behavior; 481 affected tests plus repeated adversarial
+      tests passed. The local gate covered earlier head 00c1df8fa, so a terminal full-suite
+      rerun would be redundant.'
+    created_at: '2026-08-11T10:41:11.763355+00:00'
+    selected_ref: origin/OOMPAH-1075
+    selected_sha: d912a999d13d4fc739f4c14580b1facd94056382
+    applied: false
   version: 1
   pending_chain:
   - version: 1

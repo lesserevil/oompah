@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T08:29:52.903666Z'
-updated_at: '2026-08-11T10:40:59.900324Z'
+updated_at: '2026-08-11T10:41:07.121504Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,7 +59,23 @@ oompah.terminal_audit:
     created_at: '2026-08-11T10:40:54.586470+00:00'
     selected_ref: origin/OOMPAH-1074
     selected_sha: 52e50a446eaef3abe4f2b9dc2ff732f98d9ad6a0
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1074
+    target_state: Merged
+    evidence_fingerprint: 30fe51448e83f6292669a2f9af4aab5521615db0e68c3d8bb933f5297c03daf8
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1074
+    selected_sha: 52e50a446eaef3abe4f2b9dc2ff732f98d9ad6a0
+    landing_revision: null
+    audit_ids:
+    - audit-5a49b825d935
+    - audit-e86ab0f4bbb6
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T10:41:05.407767+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -67,7 +83,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1074
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -82,12 +98,13 @@ oompah.terminal_audit:
     created_at: '2026-08-11T09:22:48.969987+00:00'
     selected_ref: origin/OOMPAH-1074
     selected_sha: 52e50a446eaef3abe4f2b9dc2ff732f98d9ad6a0
+    updated_at: '2026-08-11T10:41:05.407717+00:00'
   - version: 1
     audit_id: audit-e86ab0f4bbb6
     project_id: proj-14849f1b
     task_id: OOMPAH-1074
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -102,6 +119,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T09:22:48.969987+00:00'
     selected_ref: origin/OOMPAH-1074
     selected_sha: 52e50a446eaef3abe4f2b9dc2ff732f98d9ad6a0
+    updated_at: '2026-08-11T10:41:05.407749+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -128,5 +146,12 @@ author: oompah
 created: 2026-08-11 09:22
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-11 10:41
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Project-owner completion using exact protected delivery evidence. Final head 52e50a is contained in protected PR #811 merge e53434b41; Python 3.11/3.12/3.13 checks passed; independent exact-head review accepted the delayed epic-auto-close retirement fix and 582 focused tests passed. No additional terminal full-suite rerun is needed.
 ---
 <!-- COMMENTS:END -->
