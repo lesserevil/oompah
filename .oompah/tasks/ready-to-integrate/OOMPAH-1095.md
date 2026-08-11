@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:44:31.960614Z'
-updated_at: '2026-08-11T17:24:04.667822Z'
+updated_at: '2026-08-11T18:19:10.022397Z'
 work_branch: OOMPAH-1095
 target_branch: null
 review_url: null
@@ -61,5 +61,10 @@ author: oompah
 created: 2026-08-11 17:22
 ---
 Fix direct-owner retirement-before-delivery ordering with durable TTL/restart/ABA fencing; independently reviewed and post-rebase verified at cbca04ae99c93bc7edcf92270104c076b036b4c6.
+---
+author: oompah
+created: 2026-08-11 18:19
+---
+Independent exact-head review ACCEPT: PR #831 head 6e0a488ea8d1ad7aaf5b0c2d814de6058d2180a5. Reviewed the combined generic mutation/retirement commit lane: the generic workflow guard re-proves status/version, exact accepted head, originating job, branch and authoritative remote before any owner mutation; the exact retirement guard then persists only the captured claim generation under the same project RLock before the Ready tracker write. Persistence failure rolls back and retries fail closed; marker retries are idempotent; stale remote/head/owner-generation and ABA replacement claims are rejected without marking or retiring the replacement. Retirement-pending authority survives TTL/restart, is published before Ready becomes observable, blocks standalone/shared integration materialization, and exact revocation removal wakes exactly one delivery generation. No blocking findings. Review evidence at this exact head: 671 focused owner-claim/task-transition/decision/integration/runtime/duplicate-preflight tests passed; 8 critical remote-head/ABA/restart/revocation/publication races passed 10 consecutive runs (80/80); explicit pre-effect tracker failure retry converged from retry_wait to one completed Ready transition with the same pending claim generation; terminal mutation scan passed 21/21; diff check clean; PR CI passes on Python 3.11, 3.12, and 3.13. Worktree remained clean. No submission or merge performed.
 ---
 <!-- COMMENTS:END -->
