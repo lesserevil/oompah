@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:26:47.067526Z'
-updated_at: '2026-08-11T14:47:59.515626Z'
+updated_at: '2026-08-11T14:52:15.001436Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,5 +53,10 @@ author: oompah
 created: 2026-08-11 14:47
 ---
 Implemented the exact-authority repair in the task worktree. Gate publication now uses a bounded project mutation journal to accept only journal-proven changes to other tasks; same-task, active, unscoped, overflowed, or unreadable deltas still fail closed. The synchronous terminal bridge now treats its 10-second timeout as a liveness observation interval and retains the workflow owner until shielded exact staging settles, so retries cannot revoke their own in-flight tracker CAS. Added focused project-journal, external-tracker concurrency, same-task cancellation, and long terminal-staging ownership tests. Verification so far: 558 quality-gate/standalone/integration-workflow tests passed, 73 project-lock/provenance tests passed, and terminal mutation scan passed 21/21. Preparing final branch checks and commit; not submitted.
+---
+author: oompah
+created: 2026-08-11 14:52
+---
+Implementation is committed and pushed at exact head 1cede601022304b70c36201a5b2b27fe8163148b on origin/OOMPAH-1090. Final focused verification: 632 affected quality-gate, standalone-delivery, integration-workflow, project-lock, and provenance tests passed; 28 adjacent workflow/tracker publication tests passed; 32 architecture/duplicate-name checks passed; terminal mutation scan passed 21/21; commit secret hooks passed. Exact behavior: completed changes to unrelated tasks no longer discard a current standalone gate result; gated-task and finish-dependency changes, active mutations, unscoped deltas, incomplete journals, and journal overflow still reject publication. Terminal bridge timeouts now report liveness while retaining the admitted workflow owner until exact staging settles. Branch is ready for independent review; intentionally not submitted or merged.
 ---
 <!-- COMMENTS:END -->
