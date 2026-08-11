@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T10:43:32.317191Z'
-updated_at: '2026-08-11T11:25:12.867739Z'
+updated_at: '2026-08-11T11:25:25.177149Z'
 work_branch: OOMPAH-1079
 target_branch: null
 review_url: null
@@ -65,7 +65,23 @@ oompah.terminal_audit:
     created_at: '2026-08-11T11:25:08.400810+00:00'
     selected_ref: d54b92a0c5067aad11df0094d6f3cff5e1b28068
     selected_sha: d54b92a0c5067aad11df0094d6f3cff5e1b28068
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1079
+    target_state: Merged
+    evidence_fingerprint: 5402ae5f9530247b9bc7e3a4281e9c1b97fd16d5d9498afae5b2e1ad7a868bb2
+    workflow_revision: null
+    selected_ref: d54b92a0c5067aad11df0094d6f3cff5e1b28068
+    selected_sha: d54b92a0c5067aad11df0094d6f3cff5e1b28068
+    landing_revision: null
+    audit_ids:
+    - audit-bb55a2f9eeb7
+    - audit-9dc17c2a55b9
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T11:25:17.066482+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -73,7 +89,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1079
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -103,13 +119,13 @@ oompah.terminal_audit:
     created_at: '2026-08-11T11:18:45.072100+00:00'
     selected_ref: d54b92a0c5067aad11df0094d6f3cff5e1b28068
     selected_sha: d54b92a0c5067aad11df0094d6f3cff5e1b28068
-    updated_at: '2026-08-11T11:23:49.397922+00:00'
+    updated_at: '2026-08-11T11:25:17.066434+00:00'
   - version: 1
     audit_id: audit-9dc17c2a55b9
     project_id: proj-14849f1b
     task_id: OOMPAH-1079
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -124,6 +140,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T11:18:45.072100+00:00'
     selected_ref: d54b92a0c5067aad11df0094d6f3cff5e1b28068
     selected_sha: d54b92a0c5067aad11df0094d6f3cff5e1b28068
+    updated_at: '2026-08-11T11:25:17.066463+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4029f01084b4
@@ -140,6 +157,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1079
     selected_ref: d54b92a0c5067aad11df0094d6f3cff5e1b28068
     selected_sha: d54b92a0c5067aad11df0094d6f3cff5e1b28068
+oompah.task_costs:
+  total_input_tokens: 120
+  total_output_tokens: 18
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 120
+      output_tokens: 18
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 120
+    output_tokens: 18
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T11:25:22.026347+00:00'
 ---
 ## Summary
 
@@ -234,5 +267,22 @@ author: oompah
 created: 2026-08-11 11:24
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 11:25
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Exact head d54b92a0c5067aad11df0094d6f3cff5e1b28068 passed 144 affected tests, terminal mutation scan, independent adversarial ACCEPT including forced timeout/event-loop/retry/store-close probe, protected Python 3.11/3.12/3.13 CI, and merged through PR 817 as 28ef3e709377381416908787ea92eb82ea7d4098. The deterministic regression proves lifecycle publication worker drain completes before SQLite-backed stores close; final deployed restart recurrence check remains part of the overall rollout canary.
+---
+author: oompah
+created: 2026-08-11 11:25
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 7
+- Tokens: 120 in / 18 out [138 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 25s
+- Log: OOMPAH-1079__20260811T112408Z.jsonl
 ---
 <!-- COMMENTS:END -->
