@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1129
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: Record authenticated actor provenance for orchestrator and project pause changes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T22:38:43.861744Z'
-updated_at: '2026-08-11T22:38:43.861744Z'
+updated_at: '2026-08-11T23:18:07.450873Z'
 work_branch: null
 target_branch: null
 review_url: null
