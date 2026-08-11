@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1084
 type: task
-status: In Validation
+status: Needs CI Fix
 priority: null
 title: Propagate synchronized open-review heads into exact gate and merge authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T13:55:07.314248Z'
+updated_at: '2026-08-11T13:58:33.544688Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
@@ -194,5 +194,10 @@ author: oompah
 created: 2026-08-11 13:55
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 13:58
+---
+Operator safety intervention: the live terminal auditor was bound to stale revision 15a2ee7c9b82cfefb49a00173c302c095f3ca46e even though PR #821 merged exact reviewed head cf3578ff00f5564a06ea31650553dca337280427 (merge 6a0f7210). Revoking this terminal attempt before it can authorize stale-head evidence. After deploying the merged exact-head synchronization fix, the task will be re-evaluated against the actual merged review head; no stale audit result will be accepted.
 ---
 <!-- COMMENTS:END -->
