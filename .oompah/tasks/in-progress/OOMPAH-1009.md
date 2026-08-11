@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T01:46:41.855802Z'
-updated_at: '2026-08-11T02:17:01.394109Z'
+updated_at: '2026-08-11T02:32:06.730474Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,5 +43,10 @@ author: oompah
 created: 2026-08-11 02:16
 ---
 Claimed for direct-owner implementation in the current systemic workflow recovery program. Work will be isolated on this task branch, covered by focused regression tests, independently reviewed, fully gated, pushed, and submitted through the protected delivery path.
+---
+author: oompah
+created: 2026-08-11 02:32
+---
+Implementation is committed and pushed at exact head 47e2777a8539baf66d4201d314a0a2868bf82137. Enforce-mode restart reconstruction now prioritizes the first accepted liveness publication; audit rollback/finalization/migration/health remain active while only fresh provider ownership is neutrally deferred. Healthy and off/shadow modes retain audit-first fairness. Exact-head validation passed 593 targeted tests, mutation scan 21/21, secret scan, compile, and diff checks. Independent review is active before protected integration.
 ---
 <!-- COMMENTS:END -->
