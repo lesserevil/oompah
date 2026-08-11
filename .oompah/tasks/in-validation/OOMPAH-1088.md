@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:17:03.737871Z'
-updated_at: '2026-08-11T16:14:03.974282Z'
+updated_at: '2026-08-11T16:14:17.019664Z'
 work_branch: OOMPAH-1088
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/826
@@ -165,6 +165,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1088
     selected_ref: 59619d68f092fd5e6078599f2a6efcce555f52f9
     selected_sha: 59619d68f092fd5e6078599f2a6efcce555f52f9
+oompah.task_costs:
+  total_input_tokens: 218
+  total_output_tokens: 8058
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 218
+      output_tokens: 8058
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 218
+    output_tokens: 8058
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T16:14:13.771974+00:00'
 ---
 ## Summary
 
@@ -268,5 +284,15 @@ Safe evidence:
 - acceptance_criteria[3]: Focused tests and mutation scan pass: VERIFIED
 - acceptance_criteria[4]: Full protected gate green: VERIFIED
 - quality_gate_status: make test passed in 181 seconds with authoritative_current evidence
+---
+author: oompah
+created: 2026-08-11 16:14
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 59, Tool calls: 26
+- Tokens: 218 in / 8.1K out [8.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 31s
+- Log: OOMPAH-1088__20260811T161057Z.jsonl
 ---
 <!-- COMMENTS:END -->
