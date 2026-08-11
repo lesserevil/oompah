@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:04:30.156611Z'
-updated_at: '2026-08-11T16:09:38.737000Z'
+updated_at: '2026-08-11T16:16:30.540130Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,5 +65,10 @@ author: oompah
 created: 2026-08-11 16:09
 ---
 Live reproduction during normal make restart at 2026-08-11T16:04Z: shutdown quiesced while a terminal auditor was between durable claim/worktree preparation and provider admission. Orchestrator._drain_background_work raised RuntimeError('lifecycle publication snapshot did not drain; refusing to close lifecycle stores'); stop_until_safe retained the process and its next attempt succeeded, then os.execv completed. The interrupted auditor lease recovered as abandoned/retry_wait. Repair scope: make the graceful shutdown publication drain converge deterministically when terminal-audit/provider admission loses the quiesce race, without reporting a backend error for a safely retryable internal drain; retain fail-closed refusal to close stores while true writers remain. Add a deterministic barrier regression around audit claim/provider-admission versus quiesce, prove bounded retry reaches a fully published snapshot and clean shutdown with no orphan workflow lease/attempt/worktree, and preserve error reporting when progress is genuinely impossible.
+---
+author: oompah
+created: 2026-08-11 16:16
+---
+Implemented and pushed exact head 8031e7f74b6836ec0480fb3065961995fbfa28a8 (based current main 3264da678). Added LifecyclePublicationDrainPending so direct background drain remains fail-closed, while stop() classifies an already-revoked snapshot worker's bounded join timeout as safely retained authority and returns False for stop_until_safe's retry instead of logging an error. Deterministic regression blocks a real lifecycle snapshot beyond the join timeout, proves stores remain open, no 'shutdown attempt failed' error is emitted, then release causes bounded retry, clean store close, and completed shutdown. Checks: 33 restart API tests + 110 event-loop/resource/granian tests passed; terminal mutation scan 21/21; diff/secret hooks clean. Awaiting independent exact-head review; not submitted.
 ---
 <!-- COMMENTS:END -->
