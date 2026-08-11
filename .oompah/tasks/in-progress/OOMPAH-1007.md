@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T23:19:04.544332Z'
-updated_at: '2026-08-11T00:07:04.773995Z'
+updated_at: '2026-08-11T00:41:41.244583Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,10 @@ author: oompah
 created: 2026-08-11 00:07
 ---
 Combined patch milestone: workflow_revision is now a bounded, secret-safe durable identity; evidence-drift restaging, dispatch duplicate selection, Done-to-Merged prerequisites, completed recurrence, rearm proofs, overrides, retirement rows, workflow jobs, and stale callback/CAS paths all require the exact fingerprint + workflow revision + selected ref/SHA authority. Rearm proof schema v2 retains restart compatibility for legacy v1 records only when workflow_revision is absent. Regression gates are green: 603 focused tests, 1,530 broader workflow/audit integration tests (2 expected xfails), terminal mutation scan 20/20, and git diff check. Independent final review and the complete Makefile gate are still in progress.
+---
+author: oompah
+created: 2026-08-11 00:41
+---
+Final hardening milestone: adversarial review exposed and the branch now fixes four upgrade-path blockers: pre-cutover workflow records migrate through a durable restart-safe intent instead of deadlocking; oversized launch checkpoints consume a redacted bounded retry budget; unbound audit jobs atomically acquire exact ref/SHA authority without replaying completed legacy results; and review-terminal staging forwards freshly verified completion authority. The combined current regression set is green (839 audit/transition tests plus 376 review/integration/runtime tests), the terminal mutation scan passes 21/21 after documenting the exact coordinator migration boundary, secret scan passes, and git diff is clean. A fresh independent whole-diff review is running before the one authoritative full make test gate.
 ---
 <!-- COMMENTS:END -->
