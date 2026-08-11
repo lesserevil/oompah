@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T13:38:34.915522Z'
-updated_at: '2026-08-11T15:03:56.385806Z'
+updated_at: '2026-08-11T15:08:10.046266Z'
 work_branch: OOMPAH-1087
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/822
@@ -53,6 +53,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1087
     digest: 65d3490e8857ef5aee77ccd04ee5c566d4c2ad143af3efedc0517229668b8801
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1087","audit-a15f97a02624","attempt-94a80f55ed5d"]': '2026-08-11T15:07:59.999370+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1087
+    target_state: Done
+    evidence_fingerprint: 65d3490e8857ef5aee77ccd04ee5c566d4c2ad143af3efedc0517229668b8801
+    workflow_revision: null
+    selected_ref: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
+    selected_sha: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
+    landing_revision: null
+    audit_ids:
+    - audit-a15f97a02624
+    kind: result
+    applied: true
+    retired_at: '2026-08-11T15:07:59.999386+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1087
+    audit_id: audit-a15f97a02624
+    attempt_id: attempt-94a80f55ed5d
+    target_state: Done
+    evidence_fingerprint: 65d3490e8857ef5aee77ccd04ee5c566d4c2ad143af3efedc0517229668b8801
+    status: In Validation
+    audit_ids:
+    - audit-a15f97a02624
+    kind: result
+    applied: true
+    created_at: '2026-08-11T15:07:59.999397+00:00'
+    applied_at: '2026-08-11T15:08:08.436395+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -60,7 +90,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1087
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -69,7 +99,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-94a80f55ed5d
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -81,6 +111,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1087
       selected_ref: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
       selected_sha: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
+      verdict: pass
+      completed_at: '2026-08-11T15:07:59.999188+00:00'
+      ended_at: '2026-08-11T15:07:59.999188+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -91,7 +124,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-11T15:02:58.783392+00:00'
     selected_ref: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
     selected_sha: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
-    updated_at: '2026-08-11T15:03:46.787924+00:00'
+    updated_at: '2026-08-11T15:07:59.999188+00:00'
   - version: 1
     audit_id: audit-08766b832596
     project_id: proj-14849f1b
@@ -113,6 +146,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-a15f97a02624
     selected_ref: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
     selected_sha: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
+    updated_at: '2026-08-11T15:07:59.999188+00:00'
+    eligible_at: '2026-08-11T15:07:59.999188+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-94a80f55ed5d
@@ -196,5 +231,28 @@ author: oompah
 created: 2026-08-11 15:03
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 15:08
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- changes: oompah/__main__.py (30+/8-) + tests/test_uvicorn_websocket_keepalive.py (36+ new)
+- shared_config_function: _uvicorn_config_kwargs(port) sets ws_ping_interval=None
+- startup_paths[0]: Granian fallback: line ~588 uses **_uvicorn_config_kwargs(port)
+- startup_paths[1]: Default Uvicorn: line ~597 uses **_uvicorn_config_kwargs(port)
+- test_coverage[0]: test_uvicorn_protocol_keepalive_is_disabled_for_application_heartbeat: ws_ping_interval=None verified
+- test_coverage[1]: test_both_embedded_uvicorn_paths_share_one_keepalive_configuration: exactly 2 calls, no hardcoded alternatives
+- test_coverage[2]: test_dashboard_websocket_liveness.py: 16 tests for heartbeat/reconnect/backfill
+- test_coverage[3]: test_ws_fault_injection.py: test_disconnect_reconnect_recovery validates reconnect
+- preserved[0]: Application ping/pong heartbeat
+- preserved[1]: Stale socket closure (30s timeout)
+- preserved[2]: Reconnect with bounded backoff
+- preserved[3]: Full-sync backfill on epoch/sequence changes
+- preserved[4]: Client isolation and graceful shutdown
+- quality_gate: make test PASSED (185.8s) for exact head 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
 ---
 <!-- COMMENTS:END -->
