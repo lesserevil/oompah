@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T06:32:07.629123Z'
-updated_at: '2026-08-11T07:51:22.199154Z'
+updated_at: '2026-08-11T07:51:27.613358Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,21 @@ oompah.terminal_audit:
       is deployed at 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 and paused recovery
       is healthy; this task owns no distinct implementation work.
     created_at: '2026-08-11T07:51:14.814832+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1031
+    target_state: Archived
+    evidence_fingerprint: af0d7ec7759bfc9499e4a19a3bb44992ae2059b0c9536a3a9f317a032f8fa497
+    workflow_revision: null
+    selected_ref: null
+    selected_sha: null
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T07:51:26.079181+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -82,3 +96,13 @@ The operation in `backend:terminal_audit_enforcement` should complete successful
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 07:51
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Erroneous auto-file duplicate from the 2026-08-11 05ed11f22 malformed-ledger startup flood; OOMPAH-1015 is the canonical incident. The compatibility repair is deployed at 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 and paused recovery is healthy; this task owns no distinct implementation work.
+---
+<!-- COMMENTS:END -->
