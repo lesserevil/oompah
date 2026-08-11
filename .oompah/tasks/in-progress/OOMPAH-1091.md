@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1091
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Stop stale accepted-validation recovery after repaired branch advances
 parent: null
@@ -12,7 +12,7 @@ labels:
 - workflow-liveness
 assignee: null
 created_at: '2026-08-11T15:35:51.682286Z'
-updated_at: '2026-08-11T15:35:51.682286Z'
+updated_at: '2026-08-11T15:36:17.583291Z'
 work_branch: null
 target_branch: null
 review_url: null
