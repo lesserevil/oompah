@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T12:44:46.874602Z'
-updated_at: '2026-08-10T01:13:49.163226Z'
+updated_at: '2026-08-11T06:34:37.131198Z'
 work_branch: OOMPAH-958
 target_branch: null
 review_url: null
@@ -170,7 +170,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-958
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -185,12 +185,13 @@ oompah.terminal_audit:
     created_at: '2026-08-10T00:28:19.098433+00:00'
     selected_ref: 44c2e40d0940f0c8f5edd859141b1b042eafd411
     selected_sha: 44c2e40d0940f0c8f5edd859141b1b042eafd411
+    updated_at: '2026-08-11T06:34:35.562020+00:00'
   - version: 1
     audit_id: audit-8ef40261b8d8
     project_id: proj-14849f1b
     task_id: OOMPAH-958
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -205,6 +206,7 @@ oompah.terminal_audit:
     created_at: '2026-08-10T00:28:19.098433+00:00'
     selected_ref: 44c2e40d0940f0c8f5edd859141b1b042eafd411
     selected_sha: 44c2e40d0940f0c8f5edd859141b1b042eafd411
+    updated_at: '2026-08-11T06:34:35.562020+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-aa9e85abcb71
