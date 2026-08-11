@@ -799,6 +799,70 @@ async def test_background_drain_rejects_undrained_lifecycle_callbacks():
     orchestrator._drain_scheduled_terminations.assert_not_awaited()
 
 
+@pytest.mark.asyncio
+async def test_background_drain_waits_for_snapshot_before_closing_stores(
+    tmp_path,
+    monkeypatch,
+):
+    """A snapshot worker cannot read an owned store after it has closed."""
+
+    orch = _real_orchestrator(tmp_path)
+    snapshot_started = threading.Event()
+    release_snapshot = threading.Event()
+    snapshot_read_store = threading.Event()
+    worker_drain_started = threading.Event()
+    close_started = threading.Event()
+    snapshot_errors: list[BaseException] = []
+    original_worker_drain = orch._drain_lifecycle_publication_worker
+    original_close = orch._close_owned_persistent_stores
+
+    def _blocked_snapshot() -> dict[str, bool]:
+        snapshot_started.set()
+        assert release_snapshot.wait(timeout=3)
+        try:
+            orch.workflow_job_store.health_snapshot()
+        except BaseException as exc:
+            snapshot_errors.append(exc)
+        else:
+            snapshot_read_store.set()
+        return {"paused": True}
+
+    def _tracked_close() -> None:
+        close_started.set()
+        original_close()
+
+    async def _tracked_worker_drain() -> bool:
+        worker_drain_started.set()
+        return await original_worker_drain()
+
+    monkeypatch.setattr(orch, "get_snapshot", _blocked_snapshot)
+    monkeypatch.setattr(
+        orch,
+        "_drain_lifecycle_publication_worker",
+        _tracked_worker_drain,
+    )
+    monkeypatch.setattr(orch, "_close_owned_persistent_stores", _tracked_close)
+
+    assert orch.request_lifecycle_publication(expected_generation=0)
+    assert snapshot_started.wait(timeout=1)
+    drain_task = asyncio.create_task(orch._drain_background_work())
+    try:
+        assert await asyncio.to_thread(worker_drain_started.wait, 1)
+        assert drain_task.done() is False
+        assert close_started.is_set() is False
+
+        release_snapshot.set()
+        await asyncio.wait_for(asyncio.shield(drain_task), timeout=2)
+    finally:
+        release_snapshot.set()
+        if not drain_task.done():
+            await asyncio.wait_for(asyncio.shield(drain_task), timeout=2)
+
+    assert snapshot_errors == []
+    assert snapshot_read_store.is_set() is True
+    assert close_started.is_set() is True
+
+
 def test_replacement_revokes_snapshot_after_permit_before_every_sink(
     tmp_path,
     monkeypatch,

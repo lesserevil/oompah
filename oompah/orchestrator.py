@@ -2224,6 +2224,11 @@ class Orchestrator:
         self._lifecycle_publication_running = False
         self._lifecycle_publication_pending_generation: int | None = None
         self._lifecycle_publication_thread: threading.Thread | None = None
+        # Shutdown revokes publication authority without waiting for a worker
+        # that may be blocked while building a snapshot.  Final teardown must
+        # retain that worker until it has stopped reading orchestrator-owned
+        # stores, however, so those stores cannot close underneath it.
+        self._lifecycle_publication_retired_thread: threading.Thread | None = None
         self._lifecycle_publication_source = LifecyclePublicationSource(self)
         self._lifecycle_publication_closing = False
         self._lifecycle_publication_drain_timeout_s = 1.0
@@ -14169,6 +14174,17 @@ class Orchestrator:
             if shutdown_publications() is False:
                 raise RuntimeError(
                     "lifecycle publication callbacks did not drain; "
+                    "refusing to close lifecycle stores"
+                )
+        drain_publication_worker = getattr(
+            self,
+            "_drain_lifecycle_publication_worker",
+            None,
+        )
+        if callable(drain_publication_worker):
+            if await drain_publication_worker() is False:
+                raise RuntimeError(
+                    "lifecycle publication snapshot did not drain; "
                     "refusing to close lifecycle stores"
                 )
         await self._drain_scheduled_terminations()
@@ -70646,6 +70662,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             return False
 
         with self._lifecycle_publication_lock:
+            worker = self._lifecycle_publication_thread
+            if worker is not None and worker.is_alive():
+                self._lifecycle_publication_retired_thread = worker
             self._lifecycle_publication_closed = True
             self._lifecycle_publication_closing = False
             self._lifecycle_publication_epoch += 1
@@ -70653,6 +70672,26 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             self._lifecycle_publication_thread = None
             self._lifecycle_publication_running = False
         source.deactivate()
+        return True
+
+    async def _drain_lifecycle_publication_worker(self) -> bool:
+        """Wait boundedly for a retired snapshot worker before store teardown."""
+
+        with self._lifecycle_publication_lock:
+            worker = self._lifecycle_publication_retired_thread
+        if worker is None:
+            return True
+        if worker is threading.current_thread():
+            return False
+
+        timeout = max(float(self._lifecycle_publication_drain_timeout_s), 0.0)
+        await asyncio.to_thread(worker.join, timeout)
+        if worker.is_alive():
+            return False
+
+        with self._lifecycle_publication_lock:
+            if self._lifecycle_publication_retired_thread is worker:
+                self._lifecycle_publication_retired_thread = None
         return True
 
     def _notify_state_only(self) -> None:
