@@ -145,7 +145,9 @@ class TestProjectWriteLockApi:
         assert store.advance_terminal_authority_revision("proj-a", "TASK-1") == 1
         assert store.advance_terminal_authority_revision("proj-a", "TASK-2") == 2
         assert store.advance_workflow_authority_revision("proj-a") == 1
-        assert store.advance_tracker_authority_revision("proj-a") == 1
+        assert store.advance_tracker_authority_revision(
+            "proj-a", ("TASK-1",)
+        ) == 1
 
         assert store.terminal_authority_revision("proj-a") == 2
         assert store.terminal_authority_changes_since("proj-a", 0) == (
@@ -158,15 +160,23 @@ class TestProjectWriteLockApi:
         )
         assert store.workflow_authority_revision("proj-a") == 1
         assert store.tracker_authority_revision("proj-a") == 1
+        assert store.tracker_authority_changes_since("proj-a", 0) == (
+            1,
+            frozenset({"TASK-1"}),
+        )
         assert store.terminal_authority_revision("proj-b") == 0
         assert store.workflow_authority_revision("proj-b") == 0
         assert store.tracker_authority_revision("proj-b") == 0
 
-        token = store.admit_tracker_authority_mutation("proj-a")
+        token = store.admit_tracker_authority_mutation("proj-a", ("TASK-2",))
         assert store.tracker_authority_revision("proj-a") == 2
         assert store.tracker_publication_revision("proj-a") is None
         assert store.finalize_tracker_authority_mutation("proj-a", token) == 3
         assert store.tracker_publication_revision("proj-a") == 3
+        assert store.tracker_authority_changes_since("proj-a", 1) == (
+            3,
+            frozenset({"TASK-2"}),
+        )
 
         first = store.admit_tracker_authority_mutation("proj-a")
         second = store.admit_tracker_authority_mutation("proj-a")
@@ -175,6 +185,7 @@ class TestProjectWriteLockApi:
         assert store.tracker_publication_revision("proj-a") is None
         assert store.finalize_tracker_authority_mutation("proj-a", second) == 7
         assert store.tracker_publication_revision("proj-a") == 7
+        assert store.tracker_authority_changes_since("proj-a", 3) == (7, None)
 
     def test_unscoped_terminal_authority_change_fails_closed(self, tmp_path):
         store = _make_store(tmp_path)
