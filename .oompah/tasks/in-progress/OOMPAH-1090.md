@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:26:47.067526Z'
-updated_at: '2026-08-11T14:34:49.538361Z'
+updated_at: '2026-08-11T14:47:59.515626Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,5 +48,10 @@ author: oompah
 created: 2026-08-11 14:34
 ---
 Further live diagnosis: workflow lease heartbeats did renew every 10 seconds throughout the 176.7-second gate, so lease expiry was not the first revoker. Gate result publication performs a multi-second tracker/project/SCM preflight and then rejects if the tracker-wide publication revision changed; unrelated task mutations during that window can discard an otherwise exact same-task pass. After the cached pass, the synchronous terminal bridge returns false at its fixed 10-second timeout while the shielded coroutine continues. The workflow effect then schedules a retry and its local authority becomes false, so the detached operation later fails its exact tracker CAS; each replacement attempt repeats this loop. The fix must use task-scoped evidence rather than unrelated global revision churn for publication and must keep the admitted workflow generation alive until shielded terminal staging completes or is explicitly superseded.
+---
+author: oompah
+created: 2026-08-11 14:47
+---
+Implemented the exact-authority repair in the task worktree. Gate publication now uses a bounded project mutation journal to accept only journal-proven changes to other tasks; same-task, active, unscoped, overflowed, or unreadable deltas still fail closed. The synchronous terminal bridge now treats its 10-second timeout as a liveness observation interval and retains the workflow owner until shielded exact staging settles, so retries cannot revoke their own in-flight tracker CAS. Added focused project-journal, external-tracker concurrency, same-task cancellation, and long terminal-staging ownership tests. Verification so far: 558 quality-gate/standalone/integration-workflow tests passed, 73 project-lock/provenance tests passed, and terminal mutation scan passed 21/21. Preparing final branch checks and commit; not submitted.
 ---
 <!-- COMMENTS:END -->
