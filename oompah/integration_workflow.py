@@ -917,6 +917,8 @@ class IntegrationLandingRequestResolver:
         source_candidates: Sequence[object],
         target: str,
         revision_candidates: Sequence[object],
+        authoritative_issues: Mapping[str, Issue] | None = None,
+        authoritative_children: Mapping[str, Sequence[Issue]] | None = None,
     ) -> LandingFact | None:
         """Return one current parent-owned landing proof for ``task``.
 
@@ -936,13 +938,23 @@ class IntegrationLandingRequestResolver:
             or self.workflow_store is None
         ):
             return None
-        fetch = getattr(self.tracker, "fetch_issue_detail", None)
-        fetch_children = getattr(self.tracker, "fetch_children", None)
-        if not callable(fetch) or not callable(fetch_children):
-            return None
         try:
-            parent = fetch(parent_id)
-            children = tuple(fetch_children(parent_id))
+            if authoritative_issues is not None:
+                parent = authoritative_issues.get(
+                    parent_id
+                ) or authoritative_issues.get(parent_id.casefold())
+                children = tuple(
+                    (authoritative_children or {}).get(
+                        parent_id.casefold(), ()
+                    )
+                )
+            else:
+                fetch = getattr(self.tracker, "fetch_issue_detail", None)
+                fetch_children = getattr(self.tracker, "fetch_children", None)
+                if not callable(fetch) or not callable(fetch_children):
+                    return None
+                parent = fetch(parent_id)
+                children = tuple(fetch_children(parent_id))
         except Exception:  # noqa: BLE001 - tracker evidence boundary
             return None
         parent_identity = str(
@@ -1061,15 +1073,25 @@ class IntegrationLandingRequestResolver:
             return None
         return fact
 
-    def _parent_target(self, task: Issue) -> tuple[str, str | None]:
+    def _parent_target(
+        self,
+        task: Issue,
+        *,
+        authoritative_issues: Mapping[str, Issue] | None = None,
+    ) -> tuple[str, str | None]:
         parent_id = str(task.parent_id or "").strip()
         if not parent_id:
             return "", None
         trusted_revision = None
         fetch = getattr(self.tracker, "fetch_issue_detail", None)
-        if callable(fetch):
+        if authoritative_issues is not None or callable(fetch):
             try:
-                parent = fetch(parent_id)
+                if authoritative_issues is not None:
+                    parent = authoritative_issues.get(
+                        parent_id
+                    ) or authoritative_issues.get(parent_id.casefold())
+                else:
+                    parent = fetch(parent_id)
             except Exception:  # noqa: BLE001 - tracker evidence boundary
                 parent = None
             parent_identity = str(
@@ -1116,7 +1138,12 @@ class IntegrationLandingRequestResolver:
         return str(getattr(project, "default_branch", "") or "").strip()
 
     def __call__(
-        self, task: Issue, *, include_ready: bool = False
+        self,
+        task: Issue,
+        *,
+        include_ready: bool = False,
+        authoritative_issues: Mapping[str, Issue] | None = None,
+        authoritative_children: Mapping[str, Sequence[Issue]] | None = None,
     ) -> tuple[LandingRequest, ...]:
         value = self._record_value(task)
         row = self._queue_row(task)
@@ -1167,14 +1194,20 @@ class IntegrationLandingRequestResolver:
         trusted_target_revision = None
         if not target:
             if str(task.parent_id or "").strip():
-                target, trusted_target_revision = self._parent_target(task)
+                target, trusted_target_revision = self._parent_target(
+                    task,
+                    authoritative_issues=authoritative_issues,
+                )
             else:
                 target = self._default_target(task)
         elif str(task.parent_id or "").strip():
             # The recorded branch remains the target authority, but a final
             # parent's exact accepted head can preserve that target generation
             # after the mutable container ref has been pruned.
-            _parent_branch, trusted_target_revision = self._parent_target(task)
+            _parent_branch, trusted_target_revision = self._parent_target(
+                task,
+                authoritative_issues=authoritative_issues,
+            )
         parent_landing = self._parent_scoped_child_landing(
             task,
             source_candidates=(
@@ -1184,6 +1217,8 @@ class IntegrationLandingRequestResolver:
             ),
             target=target,
             revision_candidates=(record_revision, queue_revision),
+            authoritative_issues=authoritative_issues,
+            authoritative_children=authoritative_children,
         )
         if parent_landing is not None:
             source = parent_landing.source
@@ -1244,10 +1279,23 @@ class IntegrationWorkflowController:
         return IntegrationLandingRequestResolver()(task)
 
     def landing_requests_for(
-        self, task: Issue, *, include_ready: bool = False
+        self,
+        task: Issue,
+        *,
+        include_ready: bool = False,
+        authoritative_issues: Mapping[str, Issue] | None = None,
+        authoritative_children: Mapping[str, Sequence[Issue]] | None = None,
     ) -> tuple[LandingRequest, ...]:
+        resolver = self.landing_request_resolver
         requests = tuple(
-            self.landing_request_resolver(task, include_ready=include_ready)
+            resolver(
+                task,
+                include_ready=include_ready,
+                authoritative_issues=authoritative_issues,
+                authoritative_children=authoritative_children,
+            )
+            if isinstance(resolver, IntegrationLandingRequestResolver)
+            else resolver(task, include_ready=include_ready)
         )
         if not requests:
             return ()
@@ -1350,7 +1398,11 @@ class IntegrationWorkflowController:
             default_requests = (
                 ()
                 if direct_epic_maintenance_handoff_ready(task)
-                else self.landing_requests_for(task)
+                else self.landing_requests_for(
+                    task,
+                    authoritative_issues=authoritative_issues,
+                    authoritative_children=authoritative_children,
+                )
             )
             task_requests = tuple(
                 requests.get(
@@ -1381,7 +1433,10 @@ class IntegrationWorkflowController:
                 # source/target policy, then recollect: the fact collector
                 # still requires an exact provenance/request tuple match.
                 owner_requests = self.landing_requests_for(
-                    task, include_ready=True
+                    task,
+                    include_ready=True,
+                    authoritative_issues=authoritative_issues,
+                    authoritative_children=authoritative_children,
                 )
                 if owner_requests:
                     task_requests = owner_requests

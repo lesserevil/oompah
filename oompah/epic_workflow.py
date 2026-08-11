@@ -419,14 +419,33 @@ class EpicFactCollector:
             "actor_source": str(raw["actor_source"]).strip(),
         }
 
-    def _graph(self, root: Issue) -> EpicGraph:
+    @staticmethod
+    def _authoritative_issue(
+        issues: Mapping[str, Issue] | None,
+        identifier: str,
+    ) -> Issue | None:
+        if issues is None:
+            return None
+        return issues.get(identifier) or issues.get(identifier.casefold())
+
+    def _graph(
+        self,
+        root: Issue,
+        *,
+        authoritative_issues: Mapping[str, Issue] | None = None,
+        authoritative_children: Mapping[str, Sequence[Issue]] | None = None,
+    ) -> EpicGraph:
         direct: list[Mapping[str, Any]] = []
         seen: set[str] = {root.identifier}
         cycle: str | None = None
         parent = None
         parent_id = str(root.parent_id or "").strip() or None
         if parent_id:
-            parent = self.tracker.fetch_issue_detail(parent_id)
+            parent = (
+                self._authoritative_issue(authoritative_issues, parent_id)
+                if authoritative_issues is not None
+                else self.tracker.fetch_issue_detail(parent_id)
+            )
             if parent is None:
                 raise EpicTargetResolutionError(
                     f"parent {parent_id} for {root.identifier} is unavailable"
@@ -442,7 +461,11 @@ class EpicFactCollector:
 
         def visit(parent: Issue, ancestors: tuple[str, ...]) -> None:
             nonlocal cycle
-            children = self.tracker.fetch_children(parent.identifier)
+            children = (
+                authoritative_children.get(parent.identifier.casefold(), ())
+                if authoritative_children is not None
+                else self.tracker.fetch_children(parent.identifier)
+            )
             for child in children:
                 if child.project_id and str(child.project_id) != self.project_id:
                     continue
@@ -560,11 +583,17 @@ class EpicFactCollector:
         *,
         prior_landings: Mapping[Any, LandingFact] | None = None,
         epic_revision: str | None = None,
+        authoritative_issues: Mapping[str, Issue] | None = None,
+        authoritative_children: Mapping[str, Sequence[Issue]] | None = None,
     ) -> WorkflowFacts:
         if self.cooperative_checkpoint is not None:
             self.cooperative_checkpoint()
         task_id = _required_text(task_id, "task_id")
-        root = self.tracker.fetch_issue_detail(task_id)
+        root = (
+            self._authoritative_issue(authoritative_issues, task_id)
+            if authoritative_issues is not None
+            else self.tracker.fetch_issue_detail(task_id)
+        )
         if root is None:
             collector = WorkflowFactCollector(
                 project_id=self.project_id,
@@ -573,9 +602,17 @@ class EpicFactCollector:
                 clock=self.clock,
                 cooperative_checkpoint=self.cooperative_checkpoint,
             )
-            return collector.collect(task_id)
+            return collector.collect(
+                task_id,
+                authoritative_issues=authoritative_issues,
+                authoritative_children=authoritative_children,
+            )
         try:
-            graph = self._graph(root)
+            graph = self._graph(
+                root,
+                authoritative_issues=authoritative_issues,
+                authoritative_children=authoritative_children,
+            )
         except Exception as exc:  # noqa: BLE001 - evidence boundary
 
             def failed(_current: Issue, error: Exception = exc) -> Any:
@@ -589,7 +626,11 @@ class EpicFactCollector:
                 clock=self.clock,
                 cooperative_checkpoint=self.cooperative_checkpoint,
             )
-            return base.collect(task_id)
+            return base.collect(
+                task_id,
+                authoritative_issues=authoritative_issues,
+                authoritative_children=authoritative_children,
+            )
         requested_epic_revision = _exact_head(epic_revision) or _revision(root)
         requests = [
             LandingRequest(
@@ -643,7 +684,12 @@ class EpicFactCollector:
             clock=self.clock,
             cooperative_checkpoint=self.cooperative_checkpoint,
         )
-        return base.collect(task_id, landing_requests=tuple(requests))
+        return base.collect(
+            task_id,
+            landing_requests=tuple(requests),
+            authoritative_issues=authoritative_issues,
+            authoritative_children=authoritative_children,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -717,6 +763,8 @@ class EpicWorkflowController:
         *,
         persist_evidence: bool = True,
         liveness_slo_seconds: Mapping[str, int] | None = None,
+        authoritative_issues: Mapping[str, Issue] | None = None,
+        authoritative_children: Mapping[str, Sequence[Issue]] | None = None,
     ) -> EpicDecisionBatch:
         # Select from actionable epics before applying the decision bound.
         # Terminal rows are stable and would otherwise permanently occupy the
@@ -760,7 +808,12 @@ class EpicWorkflowController:
                     continue
                 if landing.durable:
                     prior[(landing.source, landing.target)] = landing
-            facts = self.collector.collect(task.identifier, prior_landings=prior)
+            facts = self.collector.collect(
+                task.identifier,
+                prior_landings=prior,
+                authoritative_issues=authoritative_issues,
+                authoritative_children=authoritative_children,
+            )
             for landing in facts.landings:
                 if landing.durable:
                     self._landings[(landing.source, landing.target)] = landing

@@ -1825,6 +1825,53 @@ def test_each_epic_decision_contains_only_its_direct_children(tmp_path):
     assert [item["identifier"] for item in mid_children] == ["LEAF"]
 
 
+def test_controller_uses_authoritative_graph_indexes_without_tracker_fanout(
+    tmp_path,
+):
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    mid = issue("MID", state=IN_PROGRESS, issue_type="epic", parent_id="TOP")
+    leaf = issue("LEAF", state=OPEN, parent_id="MID", work_branch="leaf")
+
+    class NoFanoutTracker(Tracker):
+        def fetch_issue_detail(self, _identifier):
+            raise AssertionError("authoritative epic root must not be refetched")
+
+        def fetch_children(self, _identifier):
+            raise AssertionError("authoritative child index must be reused")
+
+    tracker = NoFanoutTracker([top, mid, leaf])
+    store = WorkflowJobStore(str(tmp_path / "indexed-epics.sqlite3"))
+    controller = EpicWorkflowController(
+        collector=EpicFactCollector(project_id="project-1", tracker=tracker),
+        store=store,
+    )
+    authoritative_issues = {
+        item.identifier.casefold(): item for item in (top, mid, leaf)
+    }
+    authoritative_children = {
+        "top": (mid,),
+        "mid": (leaf,),
+    }
+
+    batch = controller.evaluate(
+        (top, mid),
+        persist_evidence=False,
+        authoritative_issues=authoritative_issues,
+        authoritative_children=authoritative_children,
+    )
+
+    facts_by_task = {item.task.identifier: item.facts for item in batch.tasks}
+    assert [
+        child["identifier"]
+        for child in facts_by_task["TOP"].fact("containment").value["children"]
+    ] == ["MID"]
+    assert [
+        child["identifier"]
+        for child in facts_by_task["MID"].fact("containment").value["children"]
+    ] == ["LEAF"]
+    store.close()
+
+
 def test_post_landed_child_rollup_uses_exact_standalone_target_route():
     top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
     leaf = issue("LEAF", state=DONE, parent_id="TOP", work_branch="leaf")

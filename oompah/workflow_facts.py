@@ -9,7 +9,9 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import threading
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
@@ -76,6 +78,32 @@ class GitLandingCollector:
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self.command_timeout_seconds = max(float(command_timeout_seconds), 0.1)
         self._target_refresher = target_refresher
+        self._observation_state = threading.local()
+
+    @contextmanager
+    def observation_scope(self):
+        """Share exact target observations within one reconciliation attempt.
+
+        Runtime reconciliation evaluates tasks serially from one
+        generation-bound tracker cut. Re-fetching the same remote target for
+        every task adds latency without creating a more coherent authority
+        cut. The cache is thread-local and scoped to one world attempt so
+        concurrent workers and later reconciliations still refresh their own
+        target evidence.
+        """
+
+        previous = getattr(self._observation_state, "target_evidence", None)
+        self._observation_state.target_evidence = {}
+        try:
+            yield
+        finally:
+            if previous is None:
+                try:
+                    del self._observation_state.target_evidence
+                except AttributeError:
+                    pass
+            else:
+                self._observation_state.target_evidence = previous
 
     def _run(self, *args: str) -> subprocess.CompletedProcess[str]:
         command = ["git", *args]
@@ -179,26 +207,43 @@ class GitLandingCollector:
         means that authoritative refresh is disabled (off/shadow mode).
         """
 
+        scoped_target_evidence = getattr(
+            self._observation_state, "target_evidence", None
+        )
         target_evidence: dict[str, tuple[str | None, str | None] | None] = {}
         for request in requests:
             if not request.authoritative_target or self._target_refresher is None:
                 continue
             if request.target in target_evidence:
                 continue
+            if (
+                scoped_target_evidence is not None
+                and request.target in scoped_target_evidence
+            ):
+                target_evidence[request.target] = scoped_target_evidence[
+                    request.target
+                ]
+                continue
             try:
                 revision = self._target_refresher(request.target)
                 if revision is None:
                     target_evidence[request.target] = None
-                    continue
-                normalized = str(revision).strip().lower()
-                if not _GIT_REVISION_RE.fullmatch(normalized):
-                    raise ValueError("target refresh returned an invalid revision")
-                target_evidence[request.target] = (normalized, None)
+                else:
+                    normalized = str(revision).strip().lower()
+                    if not _GIT_REVISION_RE.fullmatch(normalized):
+                        raise ValueError(
+                            "target refresh returned an invalid revision"
+                        )
+                    target_evidence[request.target] = (normalized, None)
             except Exception as exc:  # noqa: BLE001 - remote evidence boundary
                 target_evidence[request.target] = (
                     None,
                     f"target_refresh_{type(exc).__name__.lower()}",
                 )
+            if scoped_target_evidence is not None:
+                scoped_target_evidence[request.target] = target_evidence[
+                    request.target
+                ]
         return tuple(
             self._collect(request, target_evidence.get(request.target))
             for request in requests
@@ -220,7 +265,13 @@ class GitLandingCollector:
         # Resolve the live ref first. Callers identify mutable epic sources
         # whose persisted review head is only fallback evidence after pruning;
         # exact child revisions keep their immutable requested identity.
-        live_revision, live_error = self._resolve(source)
+        if request.prefer_live_source or requested_revision is None:
+            live_revision, live_error = self._resolve(source)
+        else:
+            # An exact immutable revision is the requested authority and the
+            # live mutable ref is deliberately ignored below. Avoid three
+            # redundant rev-parse subprocesses before verifying that object.
+            live_revision, live_error = None, None
         if request.prefer_live_source and live_revision is not None:
             source_revision = live_revision
             source_error = live_error
