@@ -20,6 +20,7 @@ from oompah.error_watcher import (
     _priority_for_level,
 )
 from oompah.models import Issue
+from oompah.terminal_audit_enforcement import TerminalAuditEnforcement
 
 
 # ---------------------------------------------------------------------------
@@ -633,6 +634,128 @@ class TestReportErrorWithErrorClass:
         # error_class appears in the structured metadata footer
         assert "error_class: tracker_timeout" in description
         assert "oompah task list --project proj" in description
+
+
+class TestTerminalAuditEnforcementErrorAggregation:
+    @staticmethod
+    def _enforcer() -> TerminalAuditEnforcement:
+        return TerminalAuditEnforcement(load_state=lambda: {})
+
+    @staticmethod
+    def _tracker() -> MagicMock:
+        tracker = MagicMock()
+        tracker.fetch_all_issues.return_value = []
+        created = MagicMock()
+        created.identifier = "OOMPAH-ERROR"
+        tracker.create_issue.return_value = created
+        return tracker
+
+    def test_startup_burst_is_bounded_by_diagnostic_class(self):
+        tracker = self._tracker()
+        watcher = ErrorWatcher(tracker)
+        enforcer = self._enforcer()
+        watcher.install_log_handler("oompah.terminal_audit_enforcement")
+        try:
+            for task_number in range(400, 431):
+                enforcer._error(
+                    "pre_recovery_finalization_metadata_malformed:"
+                    f"proj-14849f1b:OOMPAH-{task_number}"
+                )
+            for task_number in range(500, 525):
+                enforcer._error(
+                    "inactive_status_override_records_malformed:"
+                    f"proj-14849f1b:OOMPAH-{task_number}"
+                )
+        finally:
+            watcher.uninstall_log_handler("oompah.terminal_audit_enforcement")
+
+        assert len(enforcer.errors) == 56
+        assert tracker.fetch_all_issues.call_count == 2
+        assert tracker.create_issue.call_count == 2
+        descriptions = [
+            call.kwargs["description"]
+            for call in tracker.create_issue.call_args_list
+        ]
+        assert any(
+            "error_class: terminal_audit_enforcement."
+            "pre_recovery_finalization_metadata_malformed" in description
+            for description in descriptions
+        )
+        assert any(
+            "error_class: terminal_audit_enforcement."
+            "inactive_status_override_records_malformed" in description
+            for description in descriptions
+        )
+
+    def test_fresh_watcher_reuses_nonterminal_diagnostic_class_tasks(self):
+        tracker = self._tracker()
+        source = "backend:terminal_audit_enforcement"
+        messages_and_classes = [
+            (
+                "terminal-audit enforcement: "
+                "pre_recovery_finalization_metadata_malformed:"
+                "proj-14849f1b:OOMPAH-415",
+                "terminal_audit_enforcement."
+                "pre_recovery_finalization_metadata_malformed",
+            ),
+            (
+                "terminal-audit enforcement: "
+                "inactive_status_override_records_malformed:"
+                "proj-14849f1b:OOMPAH-489",
+                "terminal_audit_enforcement."
+                "inactive_status_override_records_malformed",
+            ),
+        ]
+        existing_watcher = ErrorWatcher(tracker)
+        tracker.fetch_all_issues.return_value = [
+            Issue(
+                id=f"error-{index}",
+                identifier=f"OOMPAH-ERROR-{index}",
+                title=f"[{source}] {message}",
+                description=(
+                    "*Auto-filed by oompah error_watcher*\n"
+                    "- dedup_fingerprint: "
+                    f"{existing_watcher._fingerprint(source, message, error_class=error_class)}"
+                ),
+                state="Backlog",
+            )
+            for index, (message, error_class) in enumerate(
+                messages_and_classes, start=1
+            )
+        ]
+
+        fresh_watcher = ErrorWatcher(tracker)
+        enforcer = self._enforcer()
+        fresh_watcher.install_log_handler("oompah.terminal_audit_enforcement")
+        try:
+            enforcer._error(
+                "pre_recovery_finalization_metadata_malformed:"
+                "proj-other:OOMPAH-900"
+            )
+            enforcer._error(
+                "inactive_status_override_records_malformed:"
+                "proj-other:OOMPAH-901"
+            )
+        finally:
+            fresh_watcher.uninstall_log_handler(
+                "oompah.terminal_audit_enforcement"
+            )
+
+        tracker.create_issue.assert_not_called()
+        assert tracker.fetch_all_issues.call_count == 2
+        assert tracker.add_comment.call_count == 2
+
+    def test_unrelated_freeform_errors_remain_distinct(self):
+        tracker = self._tracker()
+        watcher = ErrorWatcher(tracker)
+
+        watcher.report_error("backend:terminal_audit_enforcement", "disk full")
+        watcher.report_error(
+            "backend:terminal_audit_enforcement", "permission denied"
+        )
+
+        assert tracker.fetch_all_issues.call_count == 2
+        assert tracker.create_issue.call_count == 2
 
 
 class TestTaskLoggingHandlerErrorClass:

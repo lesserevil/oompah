@@ -1292,6 +1292,40 @@ def test_corrupt_service_state_fails_closed_and_is_observable(tmp_path, caplog):
     assert state_path.read_text() == "not-json"
 
 
+def test_structured_errors_emit_stable_namespaced_error_classes(tmp_path, caplog):
+    enforcer = _enforcer(tmp_path)
+    first_code = (
+        "pre_recovery_finalization_metadata_malformed:project-a:TASK-1"
+    )
+    second_code = (
+        "pre_recovery_finalization_metadata_malformed:project-b:TASK-2"
+    )
+    distinct_code = (
+        "inactive_status_override_records_malformed:project-a:TASK-1"
+    )
+
+    with caplog.at_level(logging.ERROR, logger="oompah.terminal_audit_enforcement"):
+        enforcer._error(first_code)
+        enforcer._error(second_code, RuntimeError("metadata unavailable"))
+        enforcer._error(distinct_code)
+
+    records = [
+        record
+        for record in caplog.records
+        if record.name == "oompah.terminal_audit_enforcement"
+    ]
+    assert [record.error_class for record in records] == [
+        "terminal_audit_enforcement.pre_recovery_finalization_metadata_malformed",
+        "terminal_audit_enforcement.pre_recovery_finalization_metadata_malformed",
+        "terminal_audit_enforcement.inactive_status_override_records_malformed",
+    ]
+    assert enforcer.errors == [first_code, second_code, distinct_code]
+    assert first_code in records[0].getMessage()
+    assert second_code in records[1].getMessage()
+    assert "(RuntimeError)" in records[1].getMessage()
+    assert distinct_code in records[2].getMessage()
+
+
 def test_corrupt_enforcement_entry_is_replaced_with_quarantine_record(tmp_path, caplog):
     state_path = tmp_path / "service_state.json"
     state_path.write_text(json.dumps({SERVICE_STATE_KEY: {"version": 999}}))
