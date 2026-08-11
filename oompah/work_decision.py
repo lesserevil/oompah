@@ -266,6 +266,7 @@ class PermittedAction(str, Enum):
     ROLLUP_CHILDREN = "rollup_children"
     INVESTIGATE_DUPLICATE = "investigate_duplicate"
     REFRESH_LANDING = "refresh_landing"
+    REQUEST_DONE = "request_done"
     REQUEST_MERGED = "request_merged"
 
 
@@ -893,6 +894,17 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             and (not expected_head or item.revision == expected_head)
         )
 
+    landed_review_status = (
+        DONE
+        if task.parent_id and task.issue_type.strip().lower() != "epic"
+        else MERGED
+    )
+    landed_review_action = (
+        PermittedAction.REQUEST_DONE
+        if landed_review_status == DONE
+        else PermittedAction.REQUEST_MERGED
+    )
+
     if state in {"missing", "not_found", "none"} or value.get("present") is False:
         landed = exact_landings()
         if landed:
@@ -902,9 +914,9 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
                 disposition=TaskDisposition.TERMINAL,
                 reason_code="terminal.immediate_target_landing_proven",
                 owner=WorkflowOwner.REVIEW_MONITOR,
-                actions=(PermittedAction.REQUEST_MERGED,),
+                actions=(landed_review_action,),
                 durable_jobs=("review_terminal_stage",),
-                recommended_status=MERGED,
+                recommended_status=landed_review_status,
             )
         if bool(value.get("source_deleted")):
             return _decision(
@@ -949,9 +961,9 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
                 disposition=TaskDisposition.TERMINAL,
                 reason_code="terminal.immediate_target_landing_proven",
                 owner=WorkflowOwner.REVIEW_MONITOR,
-                actions=(PermittedAction.REQUEST_MERGED,),
+                actions=(landed_review_action,),
                 durable_jobs=("review_terminal_stage",),
-                recommended_status=MERGED,
+                recommended_status=landed_review_status,
             )
         return _decision(
             task,

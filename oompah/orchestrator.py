@@ -2573,6 +2573,7 @@ class Orchestrator:
             "budget_reason": None,
             "budget_deferred": False,
             "continuation_requested": False,
+            "restart_publication_deferred_count": 0,
             "runtime_overrun_ms": 0.0,
             "health_cycle_seen_count": 0,
             "health_cycle_candidate_count": 0,
@@ -10048,6 +10049,9 @@ class Orchestrator:
         events replace an already-visible terminal state with In Validation.
         """
 
+        resolve_landed_review_target = bool(
+            kwargs.pop("resolve_landed_review_target", False)
+        )
         current_issue = kwargs.get("current_issue")
         issue_id = str(
             getattr(current_issue, "id", "")
@@ -10108,6 +10112,35 @@ class Orchestrator:
                         "terminal staging"
                     ),
                 )
+            if resolve_landed_review_target:
+                try:
+                    requested_target = self.resolve_landed_review_terminal_target(
+                        fresh_issue,
+                        effective_project_id,
+                    )
+                except Exception as exc:  # noqa: BLE001 - topology fails closed
+                    logger.warning(
+                        "Rejected landed-review terminal request for %s: current "
+                        "task topology could not be resolved: %s",
+                        identifier,
+                        exc,
+                    )
+                    return TransitionResult(
+                        success=False,
+                        reason="current task topology could not be resolved",
+                    )
+                observed_target = TargetState.from_raw(
+                    kwargs.get("requested_target")
+                )
+                if requested_target is not observed_target:
+                    logger.info(
+                        "Refreshed landed-review terminal target for %s under "
+                        "ownership: %s -> %s",
+                        identifier,
+                        observed_target.value,
+                        requested_target.value,
+                    )
+                kwargs["requested_target"] = requested_target
             refreshed_request = replace(
                 fresh_issue,
                 state=getattr(current_issue, "state", fresh_issue.state),
@@ -15541,6 +15574,61 @@ class Orchestrator:
             "publication_rejection": publication.rejection,
         }
 
+    async def _run_terminal_audit_tick_phase(
+        self,
+        *,
+        allow_new_launches: bool,
+    ) -> dict[str, float]:
+        """Run audit recovery/health, admitting providers only when authorized."""
+
+        terminal_audit_interval = max(
+            1.0, self.config.full_sync_interval_ms / 1000.0
+        )
+        if (
+            self._terminal_audit_started
+            and self._monotonic_clock() - self._terminal_audit_last_scan
+            >= terminal_audit_interval
+        ):
+            await asyncio.get_running_loop().run_in_executor(
+                self._tick_pool, self._run_terminal_audit_enforcement
+            )
+        return await self._dispatch_audit_lane(
+            allow_new_launches=allow_new_launches
+        )
+
+    async def _run_restart_reconstruction_tick(
+        self,
+        runtime: Any,
+    ) -> tuple[dict[str, Any], dict[str, float], bool]:
+        """Publish restart liveness between audit recovery and fresh launches."""
+
+        audit_metrics = await self._run_terminal_audit_tick_phase(
+            allow_new_launches=False
+        )
+        report = await runtime.reconcile_async(admit_workers=False)
+        continuation_requested = self._request_runtime_report_continuation(
+            report
+        )
+        publication_pending = bool(
+            getattr(runtime, "restart_reconstruction_pending", False)
+        )
+        if publication_pending or report.get("requires_reconcile") is True:
+            return report, audit_metrics, continuation_requested
+
+        audit_metrics = await self._run_terminal_audit_tick_phase(
+            allow_new_launches=True
+        )
+        admission = await runtime.continue_admission_async()
+        report["post_restart_admission"] = admission
+        worker_report = admission.get("worker")
+        if isinstance(worker_report, Mapping):
+            report["worker"] = worker_report
+        continuation_requested = bool(
+            self._request_runtime_report_continuation(admission)
+            or continuation_requested
+        )
+        return report, audit_metrics, continuation_requested
+
     async def _run_durable_workflow_tick(self, *, started_at: float) -> None:
         """Run the sole production lifecycle path.
 
@@ -15562,26 +15650,25 @@ class Orchestrator:
             self._notify_observers()
             return
 
-        terminal_audit_interval = max(
-            1.0, self.config.full_sync_interval_ms / 1000.0
-        )
-        if (
-            self._terminal_audit_started
-            and self._monotonic_clock() - self._terminal_audit_last_scan
-            >= terminal_audit_interval
-        ):
-            await asyncio.get_running_loop().run_in_executor(
-                self._tick_pool, self._run_terminal_audit_enforcement
-            )
-
         if not runtime.started:
             await runtime.start()
-        audit_metrics = await self._dispatch_audit_lane()
-        report = await runtime.reconcile_async()
-
-        reconcile_continuation_requested = (
-            self._request_runtime_report_continuation(report)
+        reconstruction_pending = bool(
+            getattr(runtime, "restart_reconstruction_pending", False)
         )
+        if reconstruction_pending:
+            (
+                report,
+                audit_metrics,
+                reconcile_continuation_requested,
+            ) = await self._run_restart_reconstruction_tick(runtime)
+        else:
+            audit_metrics = await self._run_terminal_audit_tick_phase(
+                allow_new_launches=True
+            )
+            report = await runtime.reconcile_async()
+            reconcile_continuation_requested = (
+                self._request_runtime_report_continuation(report)
+            )
 
         worker_report = report.get("worker")
         batch_saturated = bool(
@@ -16280,11 +16367,13 @@ class Orchestrator:
                     existing,
                     selected_ref=None,
                     selected_sha=None,
+                    landing_revision=None,
                 )
                 requested_without_binding = replace(
                     record,
                     selected_ref=None,
                     selected_sha=None,
+                    landing_revision=None,
                 )
                 if existing_without_binding != requested_without_binding:
                     return document
@@ -16293,10 +16382,12 @@ class Orchestrator:
                         existing,
                         selected_ref=record.selected_ref,
                         selected_sha=record.selected_sha,
+                        landing_revision=record.landing_revision,
                     )
                 elif (
                     existing.selected_ref == record.selected_ref
                     and existing.selected_sha == record.selected_sha
+                    and existing.landing_revision == record.landing_revision
                 ):
                     promoted = existing
                 else:
@@ -16314,6 +16405,7 @@ class Orchestrator:
             binding_matches = (
                 existing.selected_ref == record.selected_ref
                 and existing.selected_sha == record.selected_sha
+                and existing.landing_revision == record.landing_revision
             )
             if (
                 existing.project_id != record.project_id
@@ -17183,6 +17275,7 @@ class Orchestrator:
                 and raw.get("workflow_revision") == record.workflow_revision
                 and raw.get("selected_ref") == record.selected_ref
                 and raw.get("selected_sha") == record.selected_sha
+                and raw.get("landing_revision") == record.landing_revision
             )
             legacy_identity = bool(
                 version == 1 and record.workflow_revision is None
@@ -17245,6 +17338,7 @@ class Orchestrator:
                         "workflow_revision",
                         "selected_ref",
                         "selected_sha",
+                        "landing_revision",
                         "source_generation",
                         "authorized_at",
                     )
@@ -17298,6 +17392,15 @@ class Orchestrator:
             selected_sha=(
                 str(
                     (getattr(job, "payload", None) or {}).get("selected_sha")
+                    or ""
+                ).strip()
+                or None
+            ),
+            landing_revision=(
+                str(
+                    (getattr(job, "payload", None) or {}).get(
+                        "landing_revision"
+                    )
                     or ""
                 ).strip()
                 or None
@@ -17467,6 +17570,15 @@ class Orchestrator:
             selected_sha=(
                 str(
                     (getattr(job, "payload", None) or {}).get("selected_sha")
+                    or ""
+                ).strip()
+                or None
+            ),
+            landing_revision=(
+                str(
+                    (getattr(job, "payload", None) or {}).get(
+                        "landing_revision"
+                    )
                     or ""
                 ).strip()
                 or None
@@ -18182,19 +18294,22 @@ class Orchestrator:
     def _audit_candidate_cursor_key(issue: Issue) -> str:
         return f"{str(issue.project_id or 'legacy')}\x1f{issue.identifier}"
 
-    def _audit_candidate_window(
+    def _audit_candidate_priority(self, issue: Issue) -> int:
+        return (
+            self.config.audit_priority
+            if issue.priority is None
+            else int(issue.priority)
+        )
+
+    def _audit_candidates_in_priority_order(
         self,
         candidates: Sequence[Issue],
-    ) -> tuple[list[Issue], bool]:
-        """Return one priority-preserving, project-fair restart-safe window."""
+    ) -> list[Issue]:
+        """Return the strict-priority, project-fair candidate order."""
 
         priorities: dict[int, dict[str, list[Issue]]] = {}
         for issue in candidates:
-            priority = (
-                self.config.audit_priority
-                if issue.priority is None
-                else int(issue.priority)
-            )
+            priority = self._audit_candidate_priority(issue)
             project_id = str(issue.project_id or "legacy")
             priorities.setdefault(priority, {}).setdefault(
                 project_id, []
@@ -18231,6 +18346,16 @@ class Orchestrator:
                 if not appended:
                     break
 
+        return ordered
+
+    def _audit_dispatch_candidate_order(
+        self,
+        candidates: Sequence[Issue],
+    ) -> list[Issue]:
+        """Return strict-priority dispatch order with same-priority rotation."""
+
+        ordered = self._audit_candidates_in_priority_order(candidates)
+
         cursor = str(
             getattr(self, "_maintenance_cursors", {}).get("audit_lane") or ""
         )
@@ -18245,20 +18370,11 @@ class Orchestrator:
             )
             if cursor_index is not None:
                 cursor_issue = ordered[cursor_index]
-                cursor_priority = (
-                    self.config.audit_priority
-                    if cursor_issue.priority is None
-                    else int(cursor_issue.priority)
-                )
+                cursor_priority = self._audit_candidate_priority(cursor_issue)
                 priority_positions = [
                     index
                     for index, issue in enumerate(ordered)
-                    if (
-                        self.config.audit_priority
-                        if issue.priority is None
-                        else int(issue.priority)
-                    )
-                    == cursor_priority
+                    if self._audit_candidate_priority(issue) == cursor_priority
                 ]
                 priority_group = [ordered[index] for index in priority_positions]
                 group_cursor_index = priority_positions.index(cursor_index)
@@ -18270,6 +18386,42 @@ class Orchestrator:
                     priority_positions, priority_group, strict=True
                 ):
                     ordered[index] = issue
+        return ordered
+
+    def _audit_candidate_window(
+        self,
+        candidates: Sequence[Issue],
+    ) -> tuple[list[Issue], bool]:
+        """Return one priority-preserving, project-fair restart-safe window."""
+
+        ordered = self._audit_dispatch_candidate_order(candidates)
+        limit = self.config.audit_lane_scan_limit
+        truncated = limit > 0 and len(ordered) > limit
+        if not truncated:
+            return ordered, False
+        return ordered[:limit], True
+
+    def _audit_health_candidate_window(
+        self,
+        candidates: Sequence[Issue],
+    ) -> tuple[list[Issue], bool]:
+        """Return a globally rotating window for bounded health observation."""
+
+        ordered = self._audit_candidates_in_priority_order(candidates)
+        cursor = str(
+            getattr(self, "_maintenance_cursors", {}).get("audit_lane") or ""
+        )
+        if cursor:
+            cursor_index = next(
+                (
+                    index
+                    for index, issue in enumerate(ordered)
+                    if self._audit_candidate_cursor_key(issue) == cursor
+                ),
+                None,
+            )
+            if cursor_index is not None:
+                ordered = ordered[cursor_index + 1 :] + ordered[: cursor_index + 1]
         limit = self.config.audit_lane_scan_limit
         truncated = limit > 0 and len(ordered) > limit
         if not truncated:
@@ -18383,6 +18535,7 @@ class Orchestrator:
         self,
         *,
         reserved_non_audit_slots: int = 0,
+        allow_new_launches: bool = True,
     ) -> dict[str, float]:
         """Dispatch one bounded, capacity-fenced terminal-audit window."""
 
@@ -18405,6 +18558,7 @@ class Orchestrator:
         )
         deadline = started + runtime_budget_seconds
         metrics = self._audit_metrics
+        metrics["restart_publication_deferred_count"] = 0
         self._refresh_terminal_audit_validation_configuration_alerts()
         # Rollback-pending launches retain their branch fence across outages
         # and restarts.  Retry those exact CAS operations before normal lane
@@ -18453,9 +18607,27 @@ class Orchestrator:
             self._tick_pool, self._fetch_audit_candidates
         )
         discovered_candidate_count = len(candidate_scan.candidates)
-        candidates, truncated = self._audit_candidate_window(
+        health_candidates, truncated = self._audit_health_candidate_window(
             candidate_scan.candidates
         )
+        health_window = health_candidates[:operation_limit]
+        operation_truncated = len(health_candidates) > len(health_window)
+        candidates = health_window
+        health_window_keys = {
+            self._audit_candidate_cursor_key(issue) for issue in health_window
+        }
+        launch_eligible_priorities = {
+            priority
+            for priority in {
+                self._audit_candidate_priority(issue)
+                for issue in candidate_scan.candidates
+            }
+            if all(
+                self._audit_candidate_cursor_key(issue) in health_window_keys
+                for issue in candidate_scan.candidates
+                if self._audit_candidate_priority(issue) > priority
+            )
+        }
         # Candidate discovery is current lane telemetry.  ``pending_count`` is
         # reserved for the authoritative TerminalAuditHealth generation and
         # can intentionally retain last-complete facts during a partial scan.
@@ -18469,27 +18641,27 @@ class Orchestrator:
         observations: list[AuditHealthObservation] = []
         _audit_scan_error_count: int = 0
         processed_candidate_count = 0
+        processed_candidate_keys: set[str] = set()
+        priority_order_deferred_keys: list[str] = []
         last_processed_cursor: str | None = None
-        budget_exhausted = False
-        budget_reason: str | None = None
+        budget_exhausted = operation_truncated
+        budget_reason: str | None = (
+            "operation_limit" if operation_truncated else None
+        )
+        restart_publication_deferred_count = 0
         selector_cache: dict[
             tuple[str, int],
             tuple[AuditorCandidateSelector | None, str | None],
         ] = {}
 
         for issue in candidates:
-            if processed_candidate_count >= operation_limit:
-                budget_exhausted = True
-                budget_reason = "operation_limit"
-                break
             if monotonic() >= deadline:
                 budget_exhausted = True
                 budget_reason = "runtime_limit"
                 break
             processed_candidate_count += 1
             cursor = self._audit_candidate_cursor_key(issue)
-            last_processed_cursor = cursor
-            metrics["cursor"] = cursor
+            processed_candidate_keys.add(cursor)
             project_suspended = self._is_project_paused(issue.project_id)
             if not project_suspended and self._dispatch_is_blocked(issue):
                 continue
@@ -18567,6 +18739,23 @@ class Orchestrator:
                             configuration_error=False,
                             suspended=True,
                         )
+                    continue
+                # The bounded health window rotates across the complete
+                # corpus, but launch work remains strict-priority.  A lower
+                # priority candidate is health-only while any higher-priority
+                # candidate is outside this operation-bounded slice.
+                priority = self._audit_candidate_priority(issue)
+                if priority not in launch_eligible_priorities:
+                    continue
+                higher_priority_pending_in_slice = any(
+                    self._audit_candidate_cursor_key(candidate)
+                    not in processed_candidate_keys
+                    for candidate in candidate_scan.candidates
+                    if self._audit_candidate_priority(candidate) > priority
+                )
+                if higher_priority_pending_in_slice:
+                    if record is not None and not validation_configuration_error:
+                        priority_order_deferred_keys.append(cursor)
                     continue
                 missing_workflow_revision = bool(
                     record is not None
@@ -19147,6 +19336,14 @@ class Orchestrator:
                     )
                     continue
 
+                if not allow_new_launches:
+                    # Recovery, finalization, migration, and health scanning
+                    # remain live while restart reconstruction is pending. Do
+                    # not publish a fresh attempt or lease until the first
+                    # complete workflow world cut has committed.
+                    restart_publication_deferred_count += 1
+                    continue
+
                 persisted = lane.persist_plan(record, plan)
                 attempt = persisted.attempts[-1]
                 # Claim the generic workflow lease before publishing
@@ -19243,9 +19440,17 @@ class Orchestrator:
                 metrics["last_error"] = f"{type(exc).__name__}: {exc}"
                 logger.exception("Audit dispatch failed for %s", issue.identifier)
 
+        # Advance only across the contiguous health-order prefix that this
+        # tick actually observed.  Dispatch processing may reorder that slice
+        # by priority, so using loop order here would skip unseen candidates
+        # after a runtime timeout.
+        for issue in health_window:
+            cursor = self._audit_candidate_cursor_key(issue)
+            if cursor not in processed_candidate_keys:
+                break
+            last_processed_cursor = cursor
         if last_processed_cursor is not None:
-            self._set_maintenance_cursor("audit_lane", last_processed_cursor)
-
+            metrics["cursor"] = last_processed_cursor
         metrics["in_progress_count"] = sum(
             1 for entry in self._running_values_snapshot() if entry.is_auditor
         )
@@ -19300,6 +19505,26 @@ class Orchestrator:
                 and not transaction_incomplete
             ),
         )
+        priority_revisit = bool(
+            scan_complete
+            and candidate_scan.scan_complete
+            and scan_error_count == 0
+            and priority_order_deferred_keys
+            and len(processed_candidate_keys) == len(health_window_keys)
+            and _audit_slots_available() > 0
+            and dispatched < dispatch_limit
+        )
+        if priority_revisit:
+            strict_order = self._audit_candidates_in_priority_order(
+                candidate_scan.candidates
+            )
+            if strict_order:
+                last_processed_cursor = self._audit_candidate_cursor_key(
+                    strict_order[-1]
+                )
+                metrics["cursor"] = last_processed_cursor
+        if last_processed_cursor is not None:
+            self._set_maintenance_cursor("audit_lane", last_processed_cursor)
         budget_deferred = bool(
             not scan_complete
             and scan_error_count == 0
@@ -19310,7 +19535,8 @@ class Orchestrator:
             )
         )
         continuation_requested = bool(
-            budget_deferred and self._request_audit_lane_continuation()
+            (budget_deferred or priority_revisit)
+            and self._request_audit_lane_continuation()
         )
         metrics["scanned_candidate_count"] = processed_candidate_count
         metrics["candidate_scan_complete"] = scan_complete
@@ -19319,7 +19545,11 @@ class Orchestrator:
         metrics["budget_exhausted"] = budget_exhausted
         metrics["budget_reason"] = budget_reason
         metrics["budget_deferred"] = budget_deferred
+        metrics["priority_revisit"] = priority_revisit
         metrics["continuation_requested"] = continuation_requested
+        metrics["restart_publication_deferred_count"] = (
+            restart_publication_deferred_count
+        )
         metrics["health_cycle_seen_count"] = (
             len(getattr(self, "_audit_health_cycle_observations", {}))
             if not scan_complete
@@ -33214,31 +33444,52 @@ class Orchestrator:
                 return False
 
             integration = getattr(issue, "integration", None)
-            if (
+            landed_validation = bool(target.landing_revision)
+            if not landed_validation and (
                 str(getattr(integration, "state", "") or "").casefold()
                 == "integrated"
             ):
                 return False
-            head_sha = str(
-                issue_exact_head(issue)
-                or getattr(issue, "source_sha", "")
-                or ""
-            ).strip().lower()
-            work_branch = str(
-                getattr(integration, "task_branch", "")
-                or getattr(issue, "source_branch", "")
-                or getattr(issue, "work_branch", "")
-                or getattr(issue, "branch_name", "")
-                or ""
-            ).strip()
-            target_branch = str(
-                getattr(integration, "base_branch", "")
-                or getattr(issue, "target_branch", "")
-                or project.default_branch
-                or ""
-            ).strip()
+            if landed_validation:
+                (
+                    head_sha,
+                    work_branch,
+                    target_branch,
+                    _repo_identity,
+                    staged_attempt_identity,
+                ) = self._terminal_audit_quality_gate_identity(
+                    issue,
+                    project,
+                    target,
+                    tracker,
+                )
+                if not staged_attempt_identity:
+                    return False
+            else:
+                head_sha = str(
+                    issue_exact_head(issue)
+                    or getattr(issue, "source_sha", "")
+                    or ""
+                ).strip().lower()
+                work_branch = str(
+                    getattr(integration, "task_branch", "")
+                    or getattr(issue, "source_branch", "")
+                    or getattr(issue, "work_branch", "")
+                    or getattr(issue, "branch_name", "")
+                    or ""
+                ).strip()
+                target_branch = str(
+                    getattr(integration, "base_branch", "")
+                    or getattr(issue, "target_branch", "")
+                    or project.default_branch
+                    or ""
+                ).strip()
             workspace_head = self._worktree_head(str(workspace_path)).lower()
-            branch_head = self._quality_gate_branch_head(project, work_branch).lower()
+            branch_head = (
+                head_sha
+                if landed_validation
+                else self._quality_gate_branch_head(project, work_branch).lower()
+            )
             if not head_sha or branch_head != head_sha:
                 return False
             detached = subprocess.run(
@@ -33333,7 +33584,12 @@ class Orchestrator:
         accepted_head, work_branch, target_branch, repo_identity = (
             self._terminal_audit_issue_quality_gate_identity(issue, project)
         )
-        if accepted_head:
+        landing_revision = str(target.landing_revision or "").strip().lower()
+        if landing_revision and accepted_head and accepted_head != landing_revision:
+            raise ValueError(
+                "terminal audit landing revision conflicts with the accepted exact head"
+            )
+        if accepted_head and not landing_revision:
             if target.selected_sha and target.selected_sha != accepted_head:
                 raise ValueError(
                     "terminal audit revision conflicts with the accepted exact head"
@@ -33376,6 +33632,7 @@ class Orchestrator:
             != str(target.previous_state or "")
             or record.selected_ref != target.selected_ref
             or record.selected_sha != target.selected_sha
+            or record.landing_revision != target.landing_revision
         ):
             raise ValueError("durable terminal audit identity is stale")
 
@@ -33398,16 +33655,26 @@ class Orchestrator:
             or attempt.evidence_fingerprint != target_fingerprint
             or attempt.selected_ref != target.selected_ref
             or attempt.selected_sha != target.selected_sha
+            or attempt.landing_revision != target.landing_revision
             or attempt.verdict is not None
             or attempt.failure_classification is not None
             or not branch_key
         ):
             raise ValueError("durable terminal audit attempt identity is stale")
 
+        validation_target = target_branch
+        if landing_revision:
+            validation_target = str(target.selected_ref or "").strip()
+            if validation_target.startswith("refs/remotes/origin/"):
+                validation_target = validation_target.removeprefix(
+                    "refs/remotes/origin/"
+                )
+            elif validation_target.startswith("origin/"):
+                validation_target = validation_target.removeprefix("origin/")
         return (
             target.selected_sha,
             branch_key,
-            target_branch,
+            validation_target or target_branch,
             repo_identity,
             True,
         )
@@ -33742,6 +34009,7 @@ class Orchestrator:
                 "evidence_fingerprint",
                 "selected_ref",
                 "selected_sha",
+                "landing_revision",
             )
         )
 
@@ -37334,6 +37602,42 @@ class Orchestrator:
         if self._resolve_parent_epic(issue) is None:
             return None
         return "shared"
+
+    def resolve_landed_review_terminal_target(
+        self,
+        issue: Issue,
+        project_id: str | None = None,
+    ) -> TargetState:
+        """Return the topology-valid terminal target for a landed review.
+
+        A standalone task or root epic owns its review landing and therefore
+        advances through the normal ``Merged`` audit chain.  A nested epic's
+        review similarly lands the epic itself on its immediate parent branch.
+        Ordinary shared-epic children are different: their accepted work is
+        complete at ``Done`` and the parent rollup remains the sole owner of
+        their later ``Merged`` transition.
+
+        A named parent must be authoritatively resolvable before either target
+        is returned.  Treating an unreadable nested hierarchy as top-level
+        would let a transient tracker failure manufacture a Merged audit.
+        """
+
+        effective_project_id = project_id or issue.project_id
+        parent_id = str(getattr(issue, "parent_id", None) or "").strip()
+        if not parent_id:
+            return TargetState.MERGED
+        if effective_project_id and not issue.project_id:
+            issue.project_id = effective_project_id
+        parent = self._resolve_parent_epic(issue, fail_closed=True)
+        if parent is None:
+            raise EpicTargetResolutionError(
+                issue.identifier,
+                parent_id,
+                "does not resolve to an epic rollup",
+            )
+        if (getattr(issue, "issue_type", "") or "").strip().lower() == "epic":
+            return TargetState.MERGED
+        return TargetState.DONE
 
     def _terminal_lifecycle_landing_evidence(
         self,

@@ -560,13 +560,28 @@ class CoordinatorTerminalAdapter:
             fields["workflow_revision"] = (
                 intent.precondition_revision
             )
-        if (
+        landed_epic_validation = bool(
+            intent.requested_status == MERGED
+            and intent.reason_code == "terminal.immediate_target_landing_proven"
+            and intent.authority is TransitionAuthority.ORCHESTRATOR
+            and str(getattr(issue, "issue_type", "") or "").strip().lower()
+            == "epic"
+            and intent.exact_head is not None
+            and intent.precondition_revision is not None
+            and self._mutation_guard is not None
+        )
+        if landed_epic_validation:
+            # The immutable landing head authorizes containment.  The
+            # coordinator resolves the current immediate-target head under
+            # the project mutation fence and binds the audit workspace there.
+            fields["landing_revision"] = intent.exact_head
+        elif (
             _guarded_landing_revision_lane(intent, issue) is not None
             and self._mutation_guard is not None
         ):
-            # A composed child or landed root epic no longer owns a mutable
-            # task head.  Its guarded workflow intent carries the immutable
-            # immediate-target landing SHA, which must bind the audit itself.
+            # A composed child no longer owns a mutable task head. Its guarded
+            # workflow intent carries the immutable immediate-target landing
+            # SHA, which must bind the audit itself.
             fields["revision_binding"] = AuditRevisionBinding(
                 intent.exact_head,
                 intent.exact_head,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import os
 import re
 from dataclasses import dataclass, field
@@ -1144,9 +1145,13 @@ class ServiceConfig:
     # leaves a background mutation running after the API response.
     terminal_control_lock_timeout_seconds: float = 5.0
     # A synchronous adapter which remains live after its operation timeout
-    # retains a non-expiring durable quarantine.  Wait this additional bounded
-    # interval for a late result before requesting one coalesced service
-    # recycle; startup recovers only the exact marked runtime owner.
+    # retains a non-expiring durable quarantine. Quarantine persistence has
+    # its own store-operation deadline so a short adapter timeout cannot also
+    # starve the authority fence under load.
+    workflow_quarantine_persist_timeout_seconds: float = 5.0
+    # Wait this additional bounded interval for a late result before requesting
+    # one coalesced service recycle; startup recovers only the exact marked
+    # runtime owner.
     workflow_quarantine_recycle_seconds: float = 60.0
     # Multi-process service split (TASK-469.5.1).
     # When set, the scheduler process publishes state/issues snapshots to this
@@ -1445,6 +1450,16 @@ class ServiceConfig:
         )
         self.terminal_control_lock_timeout_seconds = max(
             float(self.terminal_control_lock_timeout_seconds), 0.1
+        )
+        quarantine_persist_timeout = float(
+            self.workflow_quarantine_persist_timeout_seconds
+        )
+        if not math.isfinite(quarantine_persist_timeout):
+            raise ValueError(
+                "workflow_quarantine_persist_timeout_seconds must be finite"
+            )
+        self.workflow_quarantine_persist_timeout_seconds = max(
+            quarantine_persist_timeout, 0.1
         )
         self.workflow_quarantine_recycle_seconds = max(
             float(self.workflow_quarantine_recycle_seconds), 0.1
@@ -2027,6 +2042,9 @@ class ServiceConfig:
             ),
             terminal_control_lock_timeout_seconds=_env_float(
                 "OOMPAH_TERMINAL_CONTROL_LOCK_TIMEOUT_SECONDS", None, 5.0
+            ),
+            workflow_quarantine_persist_timeout_seconds=_env_float(
+                "OOMPAH_WORKFLOW_QUARANTINE_PERSIST_TIMEOUT_SECONDS", None, 5.0
             ),
             workflow_quarantine_recycle_seconds=_env_float(
                 "OOMPAH_WORKFLOW_QUARANTINE_RECYCLE_SECONDS", None, 60.0

@@ -1062,6 +1062,7 @@ class AuditAttempt:
     next_retry_at: str | None = None
     selected_ref: str | None = None
     selected_sha: str | None = None
+    landing_revision: str | None = None
     origin: AuditAttemptOrigin | None = None
 
     def __post_init__(self) -> None:
@@ -1086,7 +1087,7 @@ class AuditAttempt:
         for name in (
             "provider_id", "model", "started_at", "ended_at", "failure_reason",
             "branch_key", "session_id", "next_retry_at", "selected_ref",
-            "selected_sha",
+            "selected_sha", "landing_revision",
         ):
             value = getattr(self, name)
             if value is not None and not isinstance(value, str):
@@ -1099,6 +1100,17 @@ class AuditAttempt:
         if binding is not None:
             self.selected_ref = binding.selected_ref
             self.selected_sha = binding.selected_sha
+        if self.landing_revision is not None:
+            landing_revision = self.landing_revision.strip().lower()
+            if not _is_valid_sha(landing_revision):
+                raise ValueError(
+                    "AuditAttempt.landing_revision must be a full Git object ID"
+                )
+            if binding is None:
+                raise ValueError(
+                    "AuditAttempt.landing_revision requires a revision binding"
+                )
+            self.landing_revision = landing_revision
         if (
             isinstance(self.candidate_rotation_count, bool)
             or not isinstance(self.candidate_rotation_count, int)
@@ -1139,7 +1151,7 @@ class AuditAttempt:
         for key in (
             "provider_id", "model", "started_at", "ended_at", "failure_reason",
             "branch_key", "session_id", "next_retry_at", "selected_ref",
-            "selected_sha",
+            "selected_sha", "landing_revision",
         ):
             value = getattr(self, key)
             if value is not None:
@@ -1192,6 +1204,9 @@ class AuditAttempt:
             next_retry_at=_optional_string(data, "next_retry_at", cls.__name__),
             selected_ref=_optional_string(data, "selected_ref", cls.__name__),
             selected_sha=_optional_string(data, "selected_sha", cls.__name__),
+            landing_revision=_optional_string(
+                data, "landing_revision", cls.__name__
+            ),
         )
 
 
@@ -1212,6 +1227,7 @@ class TerminalAuditRecord:
     updated_at: str | None = None
     selected_ref: str | None = None
     selected_sha: str | None = None
+    landing_revision: str | None = None
     workflow_revision: str | None = None
     source_generation: int = 1
 
@@ -1244,6 +1260,19 @@ class TerminalAuditRecord:
         if binding is not None:
             self.selected_ref = binding.selected_ref
             self.selected_sha = binding.selected_sha
+        if self.landing_revision is not None:
+            landing_revision = self.landing_revision.strip().lower()
+            if not _is_valid_sha(landing_revision):
+                raise ValueError(
+                    "TerminalAuditRecord.landing_revision must be a full Git "
+                    "object ID"
+                )
+            if binding is None:
+                raise ValueError(
+                    "TerminalAuditRecord.landing_revision requires a revision "
+                    "binding"
+                )
+            self.landing_revision = landing_revision
         self.workflow_revision = _optional_workflow_revision(
             self.workflow_revision,
             self.__class__.__name__,
@@ -1292,6 +1321,8 @@ class TerminalAuditRecord:
         if self.selected_ref is not None:
             result["selected_ref"] = self.selected_ref
             result["selected_sha"] = self.selected_sha
+        if self.landing_revision is not None:
+            result["landing_revision"] = self.landing_revision
         if self.workflow_revision is not None:
             result["workflow_revision"] = (
                 self.workflow_revision
@@ -1327,6 +1358,9 @@ class TerminalAuditRecord:
             updated_at=_optional_string(data, "updated_at", cls.__name__),
             selected_ref=_optional_string(data, "selected_ref", cls.__name__),
             selected_sha=_optional_string(data, "selected_sha", cls.__name__),
+            landing_revision=_optional_string(
+                data, "landing_revision", cls.__name__
+            ),
             workflow_revision=_optional_string(
                 data,
                 "workflow_revision",

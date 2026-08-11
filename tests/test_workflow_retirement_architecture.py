@@ -65,9 +65,15 @@ def _self_attributes(method) -> set[str]:
 
 def test_durable_tick_cannot_call_retired_lifecycle_owners() -> None:
     calls = _self_calls(Orchestrator._run_durable_workflow_tick)
+    audit_calls = _self_calls(Orchestrator._run_terminal_audit_tick_phase)
+    restart_calls = _self_calls(Orchestrator._run_restart_reconstruction_tick)
 
     assert calls.isdisjoint(_RETIRED_LIFECYCLE_CALLS)
-    assert "_dispatch_audit_lane" in calls
+    assert "_run_terminal_audit_tick_phase" in calls
+    assert "_run_restart_reconstruction_tick" in calls
+    assert audit_calls.isdisjoint(_RETIRED_LIFECYCLE_CALLS)
+    assert restart_calls.isdisjoint(_RETIRED_LIFECYCLE_CALLS)
+    assert "_dispatch_audit_lane" in audit_calls
     assert "_run_non_lifecycle_housekeeping" in _self_attributes(
         Orchestrator._run_durable_workflow_tick
     )
@@ -312,6 +318,7 @@ def test_superseded_publication_requests_one_full_reconcile_tick() -> None:
                 "reconcile_reason": "publication_authority_changed",
             }
         ),
+        restart_reconstruction_pending=True,
     )
     orchestrator = object.__new__(Orchestrator)
     orchestrator.workflow_runtime = runtime
@@ -342,12 +349,163 @@ def test_superseded_publication_requests_one_full_reconcile_tick() -> None:
         reason="publication_authority_changed"
     )
     orchestrator._request_workflow_batch_continuation.assert_not_called()
+    runtime.reconcile_async.assert_awaited_once_with(admit_workers=False)
+    orchestrator._dispatch_audit_lane.assert_awaited_once_with(
+        allow_new_launches=False
+    )
     assert (
         orchestrator._last_tick_metrics[
             "workflow_reconcile_continuation_requested"
         ]
         is True
     )
+
+
+def test_restart_audit_recovery_precedes_reconcile_exception() -> None:
+    order: list[str] = []
+
+    async def reconcile_async(*, admit_workers):
+        assert admit_workers is False
+        order.append("reconcile")
+        raise RuntimeError("source scan failed")
+
+    runtime = SimpleNamespace(
+        mode="enforce",
+        started=True,
+        worker=SimpleNamespace(accepting=True),
+        start=AsyncMock(),
+        reconcile_async=AsyncMock(side_effect=reconcile_async),
+        restart_reconstruction_pending=True,
+    )
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.workflow_runtime = runtime
+    orchestrator.config = SimpleNamespace(full_sync_interval_ms=30_000)
+    orchestrator._terminal_audit_started = False
+    orchestrator._terminal_audit_last_scan = 0.0
+    orchestrator._dispatch_audit_lane = AsyncMock(
+        side_effect=lambda **kwargs: order.append(
+            "audit_recovery"
+            if kwargs["allow_new_launches"] is False
+            else "audit_launch"
+        )
+        or {"audit_dispatch": 0.0, "audit_scan": 0.0}
+    )
+
+    with (
+        patch("oompah.orchestrator.validate_dispatch_config", return_value=[]),
+        pytest.raises(RuntimeError, match="source scan failed"),
+    ):
+        asyncio.run(orchestrator._run_durable_workflow_tick(started_at=0.0))
+
+    assert order == ["audit_recovery", "reconcile"]
+    orchestrator._dispatch_audit_lane.assert_awaited_once_with(
+        allow_new_launches=False
+    )
+
+
+def test_restart_reconstruction_publishes_before_auditor_tracker_write() -> None:
+    """A multi-minute-equivalent first scan owns publication before launch."""
+
+    logical_clock = {"seconds": 0.0}
+    tracker_authority = {"revision": 1}
+    scan_started: asyncio.Event
+    writer_tasks: list[asyncio.Task[None]] = []
+    order: list[str] = []
+    audit_owned = {"value": False}
+    runtime = SimpleNamespace(
+        mode="enforce",
+        started=True,
+        worker=SimpleNamespace(accepting=True),
+        start=AsyncMock(),
+        restart_reconstruction_pending=True,
+        continue_admission_async=AsyncMock(
+            side_effect=lambda: order.append("workflow_admission")
+            or {"worker": {}, "requires_reconcile": False}
+        ),
+    )
+
+    async def reconcile_async(*, admit_workers):
+        assert admit_workers is False
+        order.append("reconcile_started")
+        observed_revision = tracker_authority["revision"]
+        scan_started.set()
+        logical_clock["seconds"] = 200.0
+        await asyncio.sleep(0)
+        if tracker_authority["revision"] != observed_revision:
+            order.append("publication_superseded")
+            return {
+                "requires_reconcile": True,
+                "reconcile_reason": "publication_authority_changed",
+            }
+        runtime.restart_reconstruction_pending = False
+        order.append("publication_committed")
+        return {"liveness": {"status": "healthy"}, "worker": {}}
+
+    runtime.reconcile_async = AsyncMock(side_effect=reconcile_async)
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.workflow_runtime = runtime
+    orchestrator.config = SimpleNamespace(full_sync_interval_ms=30_000)
+    orchestrator._terminal_audit_started = False
+    orchestrator._terminal_audit_last_scan = 0.0
+    orchestrator._monotonic_clock = lambda: logical_clock["seconds"]
+    orchestrator._request_workflow_batch_continuation = Mock(return_value=True)
+    orchestrator._maintenance_future = None
+    orchestrator._run_non_lifecycle_housekeeping = Mock()
+    orchestrator._notify_observers = Mock()
+    orchestrator._handle_auto_update = AsyncMock()
+    orchestrator._tick_pool = ThreadPoolExecutor(max_workers=1)
+
+    async def audit_phase(*, allow_new_launches):
+        if not allow_new_launches:
+            order.append("audit_recovery")
+            return {"audit_dispatch": 0.0, "audit_scan": 0.0}
+        if audit_owned["value"]:
+            order.append("audit_observed_running")
+            return {"audit_dispatch": 0.0, "audit_scan": 0.0}
+        audit_owned["value"] = True
+        order.append("audit_launch")
+
+        async def auditor_write() -> None:
+            await scan_started.wait()
+            tracker_authority["revision"] += 1
+            order.append("auditor_tracker_write")
+
+        writer_tasks.append(asyncio.create_task(auditor_write()))
+        await asyncio.sleep(0)
+        return {"audit_dispatch": 0.0, "audit_scan": 0.0}
+
+    orchestrator._dispatch_audit_lane = AsyncMock(side_effect=audit_phase)
+
+    async def scenario() -> None:
+        nonlocal scan_started
+        scan_started = asyncio.Event()
+        with patch(
+            "oompah.orchestrator.validate_dispatch_config", return_value=[]
+        ):
+            await orchestrator._run_durable_workflow_tick(started_at=0.0)
+        await asyncio.gather(*writer_tasks)
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True)
+
+    assert order == [
+        "audit_recovery",
+        "reconcile_started",
+        "publication_committed",
+        "audit_launch",
+        "auditor_tracker_write",
+        "workflow_admission",
+    ]
+    assert logical_clock["seconds"] < 300.0
+    assert tracker_authority["revision"] == 2
+    assert runtime.reconcile_async.await_count == 1
+    runtime.reconcile_async.assert_awaited_once_with(admit_workers=False)
+    runtime.continue_admission_async.assert_awaited_once_with()
+    assert orchestrator._last_tick_metrics["workflow_runtime"]["liveness"] == {
+        "status": "healthy"
+    }
 
 
 def test_workflow_batch_continuation_wakes_independent_admission_lane() -> None:
@@ -456,11 +614,14 @@ def test_workflow_reconcile_continuation_respects_shutdown_fences(
 
 @pytest.mark.parametrize("mode", ["off", "shadow", "enforce"])
 def test_installed_runtime_never_transfers_authority_to_legacy_modes(mode: str) -> None:
+    order: list[str] = []
     runtime = SimpleNamespace(
         mode=mode,
         started=True,
         start=AsyncMock(),
-        reconcile_async=AsyncMock(return_value={"mode": mode}),
+        reconcile_async=AsyncMock(
+            side_effect=lambda: order.append("reconcile") or {"mode": mode}
+        ),
     )
     orchestrator = object.__new__(Orchestrator)
     orchestrator.workflow_runtime = runtime
@@ -468,7 +629,9 @@ def test_installed_runtime_never_transfers_authority_to_legacy_modes(mode: str) 
     orchestrator._terminal_audit_started = False
     orchestrator._terminal_audit_last_scan = 0.0
     orchestrator._monotonic_clock = Mock(side_effect=[10.0, 10.01])
-    orchestrator._dispatch_audit_lane = AsyncMock(return_value={"pending": 0})
+    orchestrator._dispatch_audit_lane = AsyncMock(
+        side_effect=lambda **_kwargs: order.append("audit") or {"pending": 0}
+    )
     orchestrator._maintenance_future = None
     orchestrator._run_non_lifecycle_housekeeping = Mock()
     orchestrator._notify_observers = Mock()
@@ -485,6 +648,9 @@ def test_installed_runtime_never_transfers_authority_to_legacy_modes(mode: str) 
 
     runtime.start.assert_not_awaited()
     runtime.reconcile_async.assert_awaited_once_with()
-    orchestrator._dispatch_audit_lane.assert_awaited_once_with()
+    orchestrator._dispatch_audit_lane.assert_awaited_once_with(
+        allow_new_launches=True
+    )
+    assert order == ["audit", "reconcile"]
     orchestrator._run_non_lifecycle_housekeeping.assert_called_once_with()
     orchestrator._handle_auto_update.assert_awaited_once_with()

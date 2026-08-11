@@ -188,6 +188,51 @@ def test_advanced_revision_binding_cannot_reuse_completed_audit(durable):
     assert store.get(prior_job.job_id).state is WorkflowJobState.COMPLETED
 
 
+def test_landed_epic_target_advance_changes_durable_restart_identity(durable):
+    workflow, store, _clock = durable
+    landing = "9" * 40
+    prior = replace(
+        record(
+            audit_id="audit-landed-prior",
+            workflow_revision="epic-completion-authority-v1",
+        ),
+        selected_ref="origin/main",
+        selected_sha="a" * 40,
+        landing_revision=landing,
+    )
+    advanced = replace(
+        prior,
+        audit_id="audit-landed-advanced",
+        selected_sha="b" * 40,
+        source_generation=2,
+    )
+
+    prior_job = workflow.ensure(prior)
+    running = workflow.start(
+        prior,
+        attempt_id="attempt-landed-prior",
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert running is not None
+    store.complete(running.job_id, running.lease_token)
+
+    advanced_job = workflow.ensure(advanced)
+
+    assert advanced_job.job_id != prior_job.job_id
+    assert advanced_job.generation != prior_job.generation
+    assert advanced_job.idempotency_key != prior_job.idempotency_key
+    assert advanced_job.payload == {
+        "workflow_revision": "epic-completion-authority-v1",
+        "selected_ref": "origin/main",
+        "selected_sha": "b" * 40,
+        "landing_revision": landing,
+    }
+    restored = TerminalAuditRecord.from_dict(advanced.to_dict())
+    assert restored == advanced
+    assert workflow.generation(restored) == advanced_job.generation
+    assert workflow.idempotency_key(restored) == advanced_job.idempotency_key
+
+
 def test_restart_cannot_reuse_completed_job_after_revision_rebind(tmp_path):
     path = str(tmp_path / "workflow.sqlite3")
     prior_store = WorkflowJobStore(path)

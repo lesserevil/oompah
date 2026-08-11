@@ -591,6 +591,182 @@ def test_headless_root_epic_landing_revision_binds_terminal_audit() -> None:
     assert project_store.resolve_calls == [revision]
 
 
+def test_landed_root_epic_target_advance_aba_never_reuses_stale_audit() -> None:
+    landing = "3" * 40
+    first_target = "4" * 40
+    advanced_target = "5" * 40
+
+    class ContainingStore(_RevisionLockStore):
+        def __init__(self) -> None:
+            super().__init__({})
+            self.target_heads = [first_target, advanced_target, first_target]
+            self.containment_calls: list[tuple[str, str]] = []
+
+        def resolve_containing_audit_revision(
+            self,
+            project_id: str,
+            *,
+            target_revision: str,
+            landing_revision: str,
+        ) -> str:
+            assert project_id == PROJECT_ID
+            self.containment_calls.append((target_revision, landing_revision))
+            return self.target_heads.pop(0)
+
+    tracker = _MemoryTracker()
+    store = ContainingStore()
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=store,
+        post_comments=False,
+    )
+    issue = Issue(
+        id="OOMPAH-940",
+        identifier="OOMPAH-940",
+        title="Systemic workflow program",
+        state="In Progress",
+        issue_type="epic",
+        project_id=PROJECT_ID,
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, PROJECT_ID)
+    trigger = ContributorIdentity("oompah", "orchestrator")
+
+    first = _run(
+        coordinator.request_transition(
+            issue,
+            TargetState.MERGED,
+            trigger,
+            PROJECT_ID,
+            fingerprint,
+            mutation_guard=lambda: None,
+            landing_revision=landing,
+            workflow_revision="epic-evidence-1",
+        )
+    )
+    advanced = _run(
+        coordinator.request_transition(
+            issue,
+            TargetState.MERGED,
+            trigger,
+            PROJECT_ID,
+            fingerprint,
+            mutation_guard=lambda: None,
+            landing_revision=landing,
+            workflow_revision="epic-evidence-1",
+        )
+    )
+    returned = _run(
+        coordinator.request_transition(
+            issue,
+            TargetState.MERGED,
+            trigger,
+            PROJECT_ID,
+            fingerprint,
+            mutation_guard=lambda: None,
+            landing_revision=landing,
+            workflow_revision="epic-evidence-1",
+        )
+    )
+    document = TerminalAuditMetadataStore(
+        tracker, store, PROJECT_ID
+    ).read(issue.identifier)
+    current = [
+        record
+        for record in document.pending_chain
+        if record.request_state in {RequestState.PENDING, RequestState.IN_PROGRESS}
+    ]
+
+    assert first.success
+    assert advanced.success
+    assert not advanced.coalesced
+    assert returned.success
+    assert not returned.coalesced
+    assert {record.selected_ref for record in current} == {"origin/main"}
+    assert {record.selected_sha for record in current} == {first_target}
+    assert {record.landing_revision for record in current} == {landing}
+    assert {record.source_generation for record in current} == {3}
+    assert store.containment_calls == [
+        ("origin/main", landing),
+        ("origin/main", landing),
+        ("origin/main", landing),
+    ]
+
+
+def test_landed_nested_epic_routes_validation_to_parent_branch() -> None:
+    landing = "6" * 40
+    target = "7" * 40
+    parent = Issue(
+        id="PARENT-1",
+        identifier="PARENT-1",
+        title="Parent epic",
+        state="In Progress",
+        issue_type="epic",
+        project_id=PROJECT_ID,
+    )
+
+    class NestedTracker(_MemoryTracker):
+        def fetch_issue_detail(self, identifier: str) -> Issue | None:
+            if identifier == parent.identifier:
+                return copy.deepcopy(parent)
+            if identifier == issue.identifier:
+                return copy.deepcopy(issue)
+            return None
+
+    class NestedStore(_RevisionLockStore):
+        def __init__(self) -> None:
+            super().__init__({})
+            self.call: tuple[str, str] | None = None
+
+        @staticmethod
+        def epic_branch_name(identifier: str) -> str:
+            return f"epic-{identifier}"
+
+        def resolve_containing_audit_revision(
+            self,
+            project_id: str,
+            *,
+            target_revision: str,
+            landing_revision: str,
+        ) -> str:
+            assert project_id == PROJECT_ID
+            self.call = (target_revision, landing_revision)
+            return target
+
+    tracker = NestedTracker()
+    store = NestedStore()
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=store,
+        post_comments=False,
+    )
+    issue = Issue(
+        id="CHILD-EPIC",
+        identifier="CHILD-EPIC",
+        title="Nested epic",
+        state="Done",
+        issue_type="epic",
+        project_id=PROJECT_ID,
+        parent_id=parent.identifier,
+        head_sha=landing,
+    )
+
+    result = _run(
+        coordinator.request_transition(
+            issue,
+            TargetState.MERGED,
+            ContributorIdentity("oompah", "orchestrator"),
+            PROJECT_ID,
+            compute_issue_evidence_fingerprint(issue, PROJECT_ID),
+            mutation_guard=lambda: None,
+            landing_revision=landing,
+            workflow_revision="nested-evidence-1",
+        )
+    )
+
+    assert result.success
+    assert store.call == ("origin/epic-PARENT-1", landing)
+
+
 @pytest.mark.parametrize(
     ("mutation", "reason"),
     (

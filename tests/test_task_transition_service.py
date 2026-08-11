@@ -1059,6 +1059,14 @@ async def test_headless_root_epic_stages_through_real_terminal_boundary(tmp_path
                 raise ValueError("terminal audit revision is unavailable")
             return self.revision
 
+        def resolve_containing_audit_revision(
+            self, project_id, *, target_revision, landing_revision
+        ):
+            assert project_id == "project-1"
+            assert target_revision == "origin/main"
+            assert landing_revision == self.revision
+            return self.revision
+
     revision = "b" * 40
     issue = _issue(
         state="In Progress",
@@ -1538,9 +1546,8 @@ async def test_coordinator_adapter_binds_headless_root_epic_landing_revision():
     ).stage(intent, issue)
 
     assert result.success
-    binding = coordinator.kwargs["revision_binding"]
-    assert binding.selected_ref == "b" * 40
-    assert binding.selected_sha == "b" * 40
+    assert coordinator.kwargs["landing_revision"] == "b" * 40
+    assert "revision_binding" not in coordinator.kwargs
     assert (
         coordinator.kwargs["workflow_revision"]
         == "landing-evidence-revision"

@@ -8,6 +8,7 @@ testable without starting an agent or a tracker server.
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
@@ -144,6 +145,7 @@ def _same_completion_authority(
         and left.workflow_revision == right.workflow_revision
         and left.selected_ref == right.selected_ref
         and left.selected_sha == right.selected_sha
+        and left.landing_revision == right.landing_revision
     )
 
 
@@ -182,6 +184,7 @@ class AuditDispatchPlan:
     previous_state: str | None = None
     selected_ref: str | None = None
     selected_sha: str | None = None
+    landing_revision: str | None = None
     # The generic workflow ledger owns the launch lease.  These fields are
     # populated only after the durable job has been claimed and the attempt
     # metadata CAS has accepted that exact ownership.
@@ -197,6 +200,17 @@ class AuditDispatchPlan:
             binding = AuditRevisionBinding(self.selected_ref, self.selected_sha or "")
             object.__setattr__(self, "selected_ref", binding.selected_ref)
             object.__setattr__(self, "selected_sha", binding.selected_sha)
+        if self.landing_revision is not None:
+            landing_revision = str(self.landing_revision).strip().lower()
+            if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", landing_revision):
+                raise ValueError(
+                    "AuditDispatchPlan landing_revision must be a full Git object ID"
+                )
+            if self.selected_ref is None:
+                raise ValueError(
+                    "AuditDispatchPlan landing_revision requires a revision binding"
+                )
+            object.__setattr__(self, "landing_revision", landing_revision)
 
 
 @dataclass(frozen=True)
@@ -569,6 +583,7 @@ class AuditorDispatchLane:
                 previous_state=record.previous_state,
                 selected_ref=record.selected_ref,
                 selected_sha=record.selected_sha,
+                landing_revision=record.landing_revision,
             ),
             None,
         )
@@ -607,6 +622,7 @@ class AuditorDispatchLane:
             next_retry_at=retry_after,
             selected_ref=record.selected_ref,
             selected_sha=record.selected_sha,
+            landing_revision=record.landing_revision,
         )
         return replace(
             record,
@@ -631,6 +647,7 @@ class AuditorDispatchLane:
         if (
             plan.selected_ref != record.selected_ref
             or plan.selected_sha != record.selected_sha
+            or plan.landing_revision != record.landing_revision
         ):
             raise ValueError("dispatch plan revision binding does not match its audit")
         attempt = AuditAttempt(
@@ -646,6 +663,7 @@ class AuditorDispatchLane:
             branch_key=plan.branch_key,
             selected_ref=plan.selected_ref,
             selected_sha=plan.selected_sha,
+            landing_revision=plan.landing_revision,
         )
         return replace(
             record,

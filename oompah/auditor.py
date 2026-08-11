@@ -535,10 +535,10 @@ def _credential_match_is_placeholder(match: re.Match[str], text: str) -> bool:
 
 def _redact_credential_patterns(text: str, field_name: str) -> tuple[str, list[str]]:
     """Redact credential-like patterns in free-text fields.
-    
+
     Returns a tuple of (redacted_text, redaction_notes) where redaction_notes
     lists what was redacted for auditor feedback.
-    
+
     The redaction is deterministic: the same input always produces the same
     output, enabling idempotent resubmission. Redaction uses descriptive markers
     like [REDACTED-github-token] so the auditor can understand what was normalized.
@@ -714,6 +714,7 @@ class AuditorTargetContract:
     previous_state: str | None = None
     selected_ref: str | None = None
     selected_sha: str | None = None
+    landing_revision: str | None = None
 
     def __post_init__(self) -> None:
         for field_name in ("audit_id", "task_id", "project_id", "evidence_fingerprint"):
@@ -753,6 +754,21 @@ class AuditorTargetContract:
                     )
             object.__setattr__(self, "selected_ref", selected_ref)
             object.__setattr__(self, "selected_sha", selected_sha)
+        if self.landing_revision is not None:
+            if not isinstance(self.landing_revision, str):
+                raise ValueError(
+                    "auditor target landing_revision must be a string or null"
+                )
+            landing_revision = self.landing_revision.strip().lower()
+            if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", landing_revision):
+                raise ValueError(
+                    "auditor target landing_revision must be a full Git object ID"
+                )
+            if self.selected_ref is None:
+                raise ValueError(
+                    "auditor target landing_revision requires a revision binding"
+                )
+            object.__setattr__(self, "landing_revision", landing_revision)
 
     @property
     def requested_target(self) -> str:
@@ -776,6 +792,8 @@ class AuditorTargetContract:
         if self.selected_ref is not None:
             result["selected_ref"] = self.selected_ref
             result["selected_sha"] = self.selected_sha
+        if self.landing_revision is not None:
+            result["landing_revision"] = self.landing_revision
         return result
 
 
@@ -843,6 +861,7 @@ def auditor_target_contract(target: Any, *, task_id: str = "", project_id: str =
         ),
         selected_ref=optional_string("selected_ref"),
         selected_sha=optional_string("selected_sha"),
+        landing_revision=optional_string("landing_revision"),
     )
 
 
@@ -898,6 +917,7 @@ def pending_auditor_target(
                         previous_state=target.previous_state,
                         selected_ref=target.selected_ref,
                         selected_sha=target.selected_sha,
+                        landing_revision=target.landing_revision,
                     )
                 return target
             except ValueError:
@@ -1288,18 +1308,18 @@ _GIT_SUBCOMMAND_CAPABILITIES = {
 
 def _is_safe_git_rev_list_command(command: str) -> bool:
     """Validate git rev-list as a safe read-only inspection command.
-    
+
     Returns True if the command is a git rev-list with only read-only flags
     and valid revision/range operands (no shell escapes or redirects).
     """
     tokens = _auditor_shell_tokens(command)
     if not tokens or len(tokens) < 2:
         return False
-    
+
     # Check that the first token is "git" and second is "rev-list"
     if tokens[0].lower() != "git" or tokens[1].lower() != "rev-list":
         return False
-    
+
     # Extract flags and operands
     flags = set()
     operands = []
@@ -1324,7 +1344,7 @@ def _is_safe_git_rev_list_command(command: str) -> bool:
             # Non-flag tokens are operands (revision specs or ranges)
             operands.append(token)
         i += 1
-    
+
     # Check that all flags are in the allowed set
     allowed_flags = _GIT_SUBCOMMAND_CAPABILITIES.get("rev-list", {}).get("safe_flags", set())
     for flag in flags:
@@ -1332,7 +1352,7 @@ def _is_safe_git_rev_list_command(command: str) -> bool:
         base_flag = flag.rstrip("=")
         if not any(base_flag == af or base_flag in af for af in allowed_flags):
             return False
-    
+
     # Validate operands are safe revision specs (no shell escapes)
     for operand in operands:
         # Valid revision specs look like:
@@ -1346,7 +1366,7 @@ def _is_safe_git_rev_list_command(command: str) -> bool:
             # Allow special characters used in git ranges and refs
             if not re.match(r"^[A-Za-z0-9_./+@=,:\-^~*]+$", operand):
                 return False
-    
+
     return True
 
 
@@ -1622,13 +1642,13 @@ def _get_auditor_validation_targets(
     project: Any = None,
 ) -> list[str]:
     """Return the list of approved validation targets for an auditor.
-    
+
     When project_id is provided, looks up the project's auditor_validation_targets
     configuration. Falls back to the default list when:
     - project_id is None
     - the project is not found
     - the project's auditor_validation_targets is empty
-    
+
     Default targets are: ['test', 'test-serial', 'check-secrets']
     """
     default_targets = list(DEFAULT_AUDITOR_VALIDATION_TARGETS)
@@ -1646,7 +1666,7 @@ def _get_auditor_validation_targets(
 
     if not project_id:
         return default_targets
-    
+
     try:
         from oompah.projects import ProjectStore
         store = ProjectStore()
@@ -1656,28 +1676,28 @@ def _get_auditor_validation_targets(
     except Exception:
         # If we can't load the project, fall back to defaults
         pass
-    
+
     return default_targets
 
 
 def _build_auditor_command_regex(validation_targets: list[str] | None = None) -> re.Pattern:
     """Build a compiled regex for auditor command validation.
-    
+
     Generates a regex that allows:
     - Read-only file/git inspection commands (pwd, ls, grep, git status, etc.)
     - Python testing with pytest/unittest
     - Make targets from the provided validation_targets list
     - Other safe tools like ruff, mypy, black --check, npm test, etc.
     - oompah task view
-    
+
     When validation_targets is None, uses the default list.
     """
     if validation_targets is None:
         validation_targets = _get_auditor_validation_targets()
-    
+
     # Escape each target for use in regex (they should be simple alphanumeric-dash)
     make_targets = "|".join(re.escape(target) for target in validation_targets)
-    
+
     pattern_str = (
         r"^(?:"
         r"(?:pwd|ls|find|head|tail|cat|file|stat|readlink|rg|grep|git\s+"
@@ -1691,7 +1711,7 @@ def _build_auditor_command_regex(validation_targets: list[str] | None = None) ->
         r"|(?:oompah\s+task\s+view)\b.*$"
         r")"
     )
-    
+
     return re.compile(pattern_str, re.IGNORECASE)
 
 
@@ -1702,21 +1722,21 @@ def check_auditor_command(
     project: Any = None,
 ) -> str | None:
     """Return a denial for commands outside the read/test allowlist.
-    
+
     Denials are classified as recoverable (contract mismatch) or fatal (security
     violation). Recoverable denials do not consume the auditor's policy budget.
-    
+
     Security violations checked first (always fatal):
     - Path escapes (absolute paths, parent traversal, /home, etc.)
     - Credential file access (.env, .git/config, private keys, etc.)
     - State-changing mutations (rm, git commit/push, etc.)
     - File redirection to write/append files (>, >>)
     - Process control (eval, xargs, etc.)
-    
+
     Contract mismatches checked after security:
     - Unapproved Make targets are fatal authority violations
     - Compound read-only syntax (pipes, semicolons) without mutations
-    
+
     Parameters
     ----------
     command : str
@@ -1727,7 +1747,7 @@ def check_auditor_command(
     """
 
     normalized = str(command or "").strip()
-    
+
     # Security checks: HIGH-SEVERITY violations always fatal, checked first
     # before contract validation to prevent bypassing security via contract mismatches.
     if _AUDITOR_PATH_ESCAPE_RE.search(normalized):
@@ -1748,14 +1768,14 @@ def check_auditor_command(
     # contract mismatch.
     if _is_read_only_inspection_command(normalized):
         return _recoverable_read_only_denial()
-    
+
     # Check for state-changing mutations and dangerous constructs that must be
     # denied regardless of contract configuration
     if _AUDITOR_COMMAND_MUTATION_RE.search(normalized):
         has_state_change = _AUDITOR_STATE_CHANGE_RE.search(normalized)
         has_file_redirection = _AUDITOR_FILE_REDIRECTION_RE.search(normalized)
         has_compound = _AUDITOR_COMPOUND_RE.search(normalized)
-        
+
         # If it's a compound read-only shell pipeline without state changes or
         # file redirection, it's unsupported syntax but not a security violation.
         # This will be fatal or recoverable depending on contract matching below.
@@ -1770,14 +1790,14 @@ def check_auditor_command(
                 "or change state",
                 reason="auditor_mutating_shell_command",
             )
-    
+
     # Build the contract regex based on project configuration
     validation_targets = _get_auditor_validation_targets(
         project_id,
         project=project,
     )
     command_regex = _build_auditor_command_regex(validation_targets)
-    
+
     # Special validation for git rev-list: ensure only safe flags are used.
     # This must happen regardless of contract matching because the contract
     # allows "git rev-list" but only with safe flags and operands.
@@ -1805,18 +1825,18 @@ def check_auditor_command(
         if not _is_safe_git_rev_list_command(normalized):
             # git rev-list with unsupported flags: recoverable (still read-only)
             return _recoverable_read_only_denial()
-    
+
     # Contract validation: check if command matches the project's validation targets
     if not normalized or not command_regex.fullmatch(normalized):
         # Command is outside the validation contract.
         # Only return recoverable for specific safe patterns to avoid passing through
         # dangerous constructs that the mutation regex might miss (e.g., system() inside
         # awk strings). For everything else, return fatal.
-        
+
         tokens = _auditor_shell_tokens(normalized)
         if tokens:
             first_token = tokens[0].lower()
-            
+
             # A Makefile target is executable project code. A target outside
             # the server-issued allowlist is an authority violation, even when
             # its name sounds read-only.
@@ -1830,7 +1850,7 @@ def check_auditor_command(
                     f"[reason={AUDITOR_UNAPPROVED_VALIDATION_TARGET_REASON}]",
                     reason=AUDITOR_UNAPPROVED_VALIDATION_TARGET_REASON,
                 )
-            
+
             # Compound read-only pipeline outside contract: recoverable, suggest splitting
             if _AUDITOR_COMPOUND_RE.search(normalized):
                 return AuditorCommandDenial(
@@ -1841,14 +1861,14 @@ def check_auditor_command(
                     recoverable=True,
                     reason=AUDITOR_READ_ONLY_SYNTAX_REASON,
                 )
-        
+
         # For everything else outside the contract: deny with fatal
         # (conservative approach to avoid passing through dangerous constructs)
         return (
             "Error: auditor capability policy permits only read-only repository "
             "inspection and configured test commands; command denied"
         )
-    
+
     # Command matches contract: check for unsupported read-only syntax
     # (This is the same check as before, but only for contract-matching commands)
     if _AUDITOR_COMMAND_MUTATION_RE.search(normalized):
@@ -1865,7 +1885,7 @@ def check_auditor_command(
                 recoverable=True,
                 reason=AUDITOR_READ_ONLY_SYNTAX_REASON,
             )
-    
+
     return None
 
 

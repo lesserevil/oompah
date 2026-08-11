@@ -24,6 +24,7 @@ from oompah.review_workflow import (
 )
 from oompah.review_capacity import ReviewCapacityStore
 from oompah.statuses import (
+    DONE,
     IN_REVIEW,
     IN_VALIDATION,
     MERGED,
@@ -62,7 +63,7 @@ from oompah.workflow_worker import (
     RevalidationResult,
     WorkflowRunDisposition,
 )
-from oompah.work_decision import evaluate_task
+from oompah.work_decision import PermittedAction, evaluate_task
 
 NOW = "2026-08-04T12:00:00+00:00"
 HEAD = "a" * 40
@@ -126,7 +127,10 @@ def facts(task: Issue, review_value, *, landings=()):
             ),
             FactDomain.CONTAINMENT: FactObservation.known(
                 FactDomain.CONTAINMENT,
-                {"parent_id": None, "children": []},
+                {
+                    "parent_id": task.parent_id,
+                    "children": [],
+                },
                 observed_at=NOW,
                 source="tracker",
             ),
@@ -201,11 +205,33 @@ def test_merged_review_requires_positive_landing_fact_before_terminal_transition
     task = issue()
     decision = evaluate_task(
         task,
-        facts(task, {"state": "merged", "review_id": "7"}, landings=(landing(),)),
+        facts(
+            task,
+            {"state": "merged", "review_id": "7"},
+            landings=(landing(),),
+        ),
     )
 
     assert decision.disposition is TaskDisposition.TERMINAL
     assert decision.recommended_status == MERGED
+    assert decision.reason_code == "terminal.immediate_target_landing_proven"
+    assert decision.durable_jobs == ("review_terminal_stage",)
+
+
+def test_merged_review_for_shared_child_targets_done_until_parent_rollup():
+    task = issue(parent_id="EPIC-1")
+    decision = evaluate_task(
+        task,
+        facts(
+            task,
+            {"state": "merged", "review_id": "7"},
+            landings=(landing(),),
+        ),
+    )
+
+    assert decision.disposition is TaskDisposition.TERMINAL
+    assert decision.recommended_status == DONE
+    assert decision.permitted_actions == (PermittedAction.REQUEST_DONE,)
     assert decision.reason_code == "terminal.immediate_target_landing_proven"
     assert decision.durable_jobs == ("review_terminal_stage",)
 
@@ -224,6 +250,23 @@ def test_deleted_source_after_merge_uses_landing_fact_for_terminal_transition():
     assert decision.disposition is TaskDisposition.TERMINAL
     assert decision.reason_code == "terminal.immediate_target_landing_proven"
     assert decision.recommended_status == MERGED
+
+
+def test_deleted_shared_child_source_targets_done_after_landing():
+    task = issue(parent_id="EPIC-1")
+    decision = evaluate_task(
+        task,
+        facts(
+            task,
+            {"state": "missing", "source_deleted": True, "review_id": "7"},
+            landings=(landing(),),
+        ),
+    )
+
+    assert decision.disposition is TaskDisposition.TERMINAL
+    assert decision.recommended_status == DONE
+    assert decision.permitted_actions == (PermittedAction.REQUEST_DONE,)
+    assert decision.durable_jobs == ("review_terminal_stage",)
 
 
 def test_deleted_branch_after_merge_uses_real_exact_git_landing(tmp_path):

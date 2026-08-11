@@ -1824,7 +1824,15 @@ class WorkflowJobStore:
     def published_snapshot_generation_is_current(
         self, snapshot_generation: int
     ) -> bool:
-        """Return whether one generation is the exact published authority cut."""
+        """Return whether one generation is the accepted published authority.
+
+        Allocation captures intent to build a newer world snapshot, but does
+        not authorize that snapshot or mutate its membership/cursors.  The
+        existing published cut therefore remains admissible until the newer
+        generation is accepted.  Acceptance and claims share the authority
+        transaction, so once acceptance advances this predicate fences the
+        old cut before any replacement authority can be staged.
+        """
 
         if isinstance(snapshot_generation, bool) or int(snapshot_generation) < 1:
             raise ValueError("snapshot_generation must be a positive integer")
@@ -1833,8 +1841,6 @@ class WorkflowJobStore:
             row = self._conn.execute(
                 """
                 SELECT
-                    MAX(CASE WHEN key = 'workflow_snapshot_generation'
-                             THEN CAST(value AS INTEGER) ELSE 0 END) AS allocated,
                     MAX(CASE WHEN key = 'workflow_snapshot_accepted_generation'
                              THEN CAST(value AS INTEGER) ELSE 0 END) AS accepted,
                     MAX(CASE WHEN key = 'workflow_snapshot_published_generation'
@@ -1845,8 +1851,7 @@ class WorkflowJobStore:
         if row is None:
             return False
         return (
-            int(row["allocated"] or 0)
-            == int(row["accepted"] or 0)
+            int(row["accepted"] or 0)
             == int(row["published"] or 0)
             == generation
         )
@@ -5493,10 +5498,6 @@ class WorkflowJobStore:
             "AND cursor.job_generation = candidate.generation "
             "AND cursor.materialized_job_generation = candidate.generation) "
             "AND (SELECT CAST(value AS INTEGER) FROM schema_meta "
-            "WHERE key = 'workflow_snapshot_generation') = "
-            "(SELECT CAST(value AS INTEGER) FROM schema_meta "
-            "WHERE key = 'workflow_snapshot_accepted_generation') "
-            "AND (SELECT CAST(value AS INTEGER) FROM schema_meta "
             "WHERE key = 'workflow_snapshot_accepted_generation') = "
             "(SELECT CAST(value AS INTEGER) FROM schema_meta "
             "WHERE key = 'workflow_snapshot_published_generation'))) ",
@@ -5549,10 +5550,10 @@ class WorkflowJobStore:
             # A fast admission continuation is authorized by one exact,
             # already-published world snapshot.  Bind the claim itself to
             # that cut, rather than relying on a check before entering this
-            # transaction: another process may allocate/publish a replacement
-            # generation between those two operations.
+            # transaction: another process may accept/publish a replacement
+            # generation between those two operations.  Mere allocation is
+            # not authority and leaves the accepted published cut admissible.
             for key in (
-                "workflow_snapshot_generation",
                 "workflow_snapshot_accepted_generation",
                 "workflow_snapshot_published_generation",
             ):

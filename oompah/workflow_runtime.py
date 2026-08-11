@@ -486,6 +486,7 @@ class WorkflowRuntime:
         transition_observer: Callable[[Any], None] | None = None,
         effect_completion_observer: Callable[[Any], None] | None = None,
         quarantine_recycle_observer: Callable[[Any], Any] | None = None,
+        quarantine_persist_timeout_seconds: float = 5,
         quarantine_recycle_seconds: float = 60,
         liveness_controller: UniversalTotalityLivenessController | None = None,
         persist_liveness_state: Callable[[Mapping[str, Any]], None] | None = None,
@@ -690,6 +691,7 @@ class WorkflowRuntime:
                 for project_id, binding in self.project_bindings.items()
             },
             worker_id=runtime_owner,
+            quarantine_persist_timeout_seconds=quarantine_persist_timeout_seconds,
             quarantine_recycle_seconds=quarantine_recycle_seconds,
             phase_observer=self.record_event,
             quarantine_recycle_observer=quarantine_recycle_observer,
@@ -1731,6 +1733,13 @@ class WorkflowRuntime:
             transition_observer=transition_observer,
             effect_completion_observer=effect_completion_observer,
             quarantine_recycle_observer=quarantine_recycle_observer,
+            quarantine_persist_timeout_seconds=float(
+                getattr(
+                    orchestrator.config,
+                    "workflow_quarantine_persist_timeout_seconds",
+                    5,
+                )
+            ),
             quarantine_recycle_seconds=float(
                 getattr(
                     orchestrator.config,
@@ -1770,6 +1779,23 @@ class WorkflowRuntime:
     @property
     def enforce(self) -> bool:
         return self.mode == "enforce"
+
+    @property
+    def restart_reconstruction_pending(self) -> bool:
+        """Whether enforce mode still owes its first authoritative world cut."""
+
+        if not self.enforce or self.liveness_controller is None:
+            return False
+        try:
+            return bool(
+                self.liveness_controller.liveness_snapshot()
+                .restart_reconstruction_pending
+            )
+        except Exception:  # noqa: BLE001 - launch admission must fail closed
+            logger.exception(
+                "Workflow restart reconstruction authority is unavailable"
+            )
+            return True
 
     def _bind_policy_epoch(self, policy_epoch: str) -> None:
         """Bind universal and owning schedulers to one semantic policy cut."""
@@ -4283,14 +4309,18 @@ class WorkflowRuntime:
             self._last_reconcile = report
         return report
 
-    async def reconcile_async(self) -> dict[str, Any]:
+    async def reconcile_async(
+        self,
+        *,
+        admit_workers: bool = True,
+    ) -> dict[str, Any]:
         """Async form used by the orchestrator's event-driven scheduler."""
 
         if not self._admit_reconcile():
             return {"mode": self.mode, "skipped": True}
         try:
             operation = asyncio.create_task(
-                self._run_owned_reconcile_async(),
+                self._run_owned_reconcile_async(admit_workers=admit_workers),
                 name="workflow-runtime-reconcile",
             )
         except BaseException:
@@ -4317,10 +4347,14 @@ class WorkflowRuntime:
             # cannot cover that pre-start state.
             self._release_reconcile()
 
-    async def _run_owned_reconcile_async(self) -> dict[str, Any]:
+    async def _run_owned_reconcile_async(
+        self,
+        *,
+        admit_workers: bool,
+    ) -> dict[str, Any]:
         """Retain reconcile authority until the actual operation finishes."""
 
-        return await self._reconcile_async_once()
+        return await self._reconcile_async_once(admit_workers=admit_workers)
 
     async def _run_sync_reconcile_async(self) -> dict[str, Any]:
         """Keep a cancelled event-loop task fenced until its thread exits."""
@@ -4560,7 +4594,11 @@ class WorkflowRuntime:
         finally:
             self._release_reconcile()
 
-    async def _reconcile_async_once(self) -> dict[str, Any]:
+    async def _reconcile_async_once(
+        self,
+        *,
+        admit_workers: bool = True,
+    ) -> dict[str, Any]:
         """Run one admitted reconciliation without nested ownership."""
 
         if self.mode != "off" and self._topology_source is not None:
@@ -4648,14 +4686,25 @@ class WorkflowRuntime:
                 admission_cut = self._refresh_admission_cut(
                     report, runnable_projects
                 )
-                report["worker"] = await self._run_due(
-                    runnable_projects,
-                    required_snapshot_generation=(
-                        admission_cut.snapshot_generation
-                        if admission_cut is not None
-                        else None
-                    ),
-                )
+                if admit_workers:
+                    report["worker"] = await self._run_due(
+                        runnable_projects,
+                        required_snapshot_generation=(
+                            admission_cut.snapshot_generation
+                            if admission_cut is not None
+                            else None
+                        ),
+                    )
+                else:
+                    report["worker"] = {
+                        "skipped": True,
+                        "reason": (
+                            "workflow worker admission deferred until the "
+                            "restart audit-priority boundary"
+                        ),
+                        "projects": runnable_projects,
+                        "batch_saturated": False,
+                    }
                 if failed_projects:
                     report["worker"]["failed_projects"] = failed_projects
             with self._lock:
