@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:45:59.661224Z'
-updated_at: '2026-08-11T10:14:05.835381Z'
+updated_at: '2026-08-11T10:14:11.716845Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +43,21 @@ oompah.terminal_audit:
     created_at: '2026-08-11T10:13:59.682515+00:00'
     selected_ref: origin/main
     selected_sha: 4be80277a97a06a0de2165406f3c87e351b85780
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1077
+    target_state: Merged
+    evidence_fingerprint: 47978ac9237e1409a73867143159e56cc1b715abbeec7b11394e17ab357ee60d
+    workflow_revision: null
+    selected_ref: origin/main
+    selected_sha: 4be80277a97a06a0de2165406f3c87e351b85780
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T10:14:10.085187+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -74,5 +88,12 @@ author: oompah
 created: 2026-08-11 10:05
 ---
 Merged as commit d912a999d within protected PR #812 / merge 4be80277a; exact-head independent review and Python 3.11/3.12/3.13 gates passed.
+---
+author: oompah
+created: 2026-08-11 10:14
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: [REDACTED]
 ---
 <!-- COMMENTS:END -->
