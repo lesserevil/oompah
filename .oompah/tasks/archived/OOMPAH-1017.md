@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T06:31:42.662111Z'
-updated_at: '2026-08-11T07:45:55.798152Z'
+updated_at: '2026-08-11T07:46:04.539647Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -104,5 +104,10 @@ created: 2026-08-11 07:45
 Override by oompah-cli: terminal transition to Archived applied by project owner.
 
 Reason: Erroneous auto-file duplicate from the 2026-08-11 05ed11f22 malformed-ledger startup flood; OOMPAH-1015 is the canonical incident. The compatibility repair is deployed at 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 and paused recovery is healthy; this task owns no distinct implementation work.
+---
+author: oompah
+created: 2026-08-11 07:46
+---
+Archived duplicate startup-flood symptom; canonical incident is OOMPAH-1015.
 ---
 <!-- COMMENTS:END -->
