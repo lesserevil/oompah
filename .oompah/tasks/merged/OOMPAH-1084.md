@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T14:40:17.369750Z'
+updated_at: '2026-08-11T14:40:35.706956Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
@@ -309,13 +309,13 @@ oompah.terminal_audit:
     selected_ref: cf3578ff00f5564a06ea31650553dca337280427
     selected_sha: cf3578ff00f5564a06ea31650553dca337280427
 oompah.task_costs:
-  total_input_tokens: 496
-  total_output_tokens: 10247
+  total_input_tokens: 754
+  total_output_tokens: 20374
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 496
-      output_tokens: 10247
+      input_tokens: 754
+      output_tokens: 20374
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -330,6 +330,12 @@ oompah.task_costs:
     output_tokens: 10213
     cost_usd: 0.0
     recorded_at: '2026-08-11T14:33:56.038929+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 258
+    output_tokens: 10127
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T14:40:32.225643+00:00'
 oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
@@ -507,5 +513,15 @@ Safe evidence:
 - test_coverage: test_scm.py GitHub/GitLab propagation; test_standalone_ready_to_integrate.py 99+ tests for A→B→C late-race, base-only advance, restart, fork validation
 - requirements_all_met: exact head SHA propagated, source/target identity, head_changed detection, stale authority revoked, A+draft→B works, A→B→C handled, fork validation, repeated polls idempotent, restart-safe durable marker, GitHub/GitLab validation preserved
 - quality_gate: make test passed 176.67s on cf3578ff; 788 changed-module tests + 298 adjacent tests passed; terminal mutation scan 21/21 green
+---
+author: oompah
+created: 2026-08-11 14:40
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 70, Tool calls: 31
+- Tokens: 258 in / 10.1K out [10.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 32s
+- Log: OOMPAH-1084__20260811T143610Z.jsonl
 ---
 <!-- COMMENTS:END -->
