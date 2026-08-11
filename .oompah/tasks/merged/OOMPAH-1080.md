@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:00:26.321021Z'
-updated_at: '2026-08-11T11:56:24.739044Z'
+updated_at: '2026-08-11T11:56:34.032778Z'
 work_branch: OOMPAH-1080
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/818
@@ -106,8 +106,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-a2ff6b47d77f
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-11T11:56:17.491911+00:00'
+    applied_at: '2026-08-11T11:56:31.260809+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -321,5 +322,32 @@ author: oompah
 created: 2026-08-11 11:50
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 11:56
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- commit: eabbcdaceabad696070014a6fa166c8d1334f46a
+- new_method: _terminal_audit_ordinary_review_identity with 14 validation checks
+- validation_points: integration type, review_id digit, target/previous state, attempt_id, head/base SHA match, branch containment, integration state/mode, SHA format, authority staleness
+- positive_test: test_terminal_audit_launch_imports_ordinary_merged_pr_exact_head_gate PASSED
+- forge_mismatch_tests: review mismatch and base mismatch PASSED
+- race_condition_tests: review mutation and base mutation PASSED
+- durability_test: test_terminal_audit_ordinary_protected_import_survives_restart_and_revocation PASSED
+- optimization_test: test_terminal_audit_launch_ordinary_pass_never_queries_protected_workflow PASSED
+- edge_case_test: test_terminal_audit_quality_gate_rejects_conflicting_ordinary_and_bound_heads PASSED
+- recovery_pr_test: test_terminal_audit_launch_imports_exact_protected_workflow_without_review_metadata PASSED
+- quality_gate_command: make test
+- quality_gate_result: passed
+- test_count: 294 quality-gate tests plus terminal scan
+- duration_seconds: 196.75
+- authority_current: true
+- code_review: ACCEPTED (2026-08-11 11:35)
+- branch_status: local and remote in-sync
+- requirements: exact validation, fail-closed, 14+ checks, race detection, no aggregate CI fallback
 ---
 <!-- COMMENTS:END -->
