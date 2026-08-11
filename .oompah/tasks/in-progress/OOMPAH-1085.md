@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T13:09:58.919205Z'
+updated_at: '2026-08-11T13:18:27.575731Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-08-11 13:09
 ---
 Implemented the dedicated single-flight terminal-audit continuation lane on branch OOMPAH-1085. Exact wakes now bypass serialized full-world reconciliation, share one audit scan lock with ordinary ticks, retain pause/restart authority, and re-arm on WORKER_EXIT capacity release. Added blocked-durable-reconcile, active-wake coalescing, capacity handoff, pause/unpause, restart reconstruction, stale-hint, one-owner, failure-observability, and latency coverage. Focused terminal-audit suites pass (141); broader adjacent audit/event/quiesce suites pass (708 and 238); terminal mutation scan passes 21/21. The full project gate is running. After it completes I will compose current origin/main (OOMPAH-1083), rerun combined focused checks and the final gate, then push and submit.
+---
+author: oompah
+created: 2026-08-11 13:18
+---
+Additional production evidence on the pre-fix path: the OOMPAH-1083 Done audit PASS was accepted at 13:12:30 UTC, its worker/worktree and branch fence retired by 13:12:42, but the exact Merged successor did not begin dispatch until 13:13:43. The roughly 61-second post-retirement gap confirms the remaining delay was the generic full-tick wake path, not provider capacity or same-branch authority.
 ---
 <!-- COMMENTS:END -->

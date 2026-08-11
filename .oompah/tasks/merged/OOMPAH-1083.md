@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:41:11.895675Z'
-updated_at: '2026-08-11T13:18:16.999220Z'
+updated_at: '2026-08-11T13:18:33.768577Z'
 work_branch: OOMPAH-1083
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/820
@@ -107,8 +107,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-c104759340b1
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-11T13:18:12.437664+00:00'
+    applied_at: '2026-08-11T13:18:22.613832+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -224,13 +225,13 @@ oompah.terminal_audit:
     selected_ref: be48003555fed724a752512d73fd70d5c72b2795
     selected_sha: be48003555fed724a752512d73fd70d5c72b2795
 oompah.task_costs:
-  total_input_tokens: 234
-  total_output_tokens: 6908
+  total_input_tokens: 676
+  total_output_tokens: 18623
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 234
-      output_tokens: 6908
+      input_tokens: 676
+      output_tokens: 18623
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -239,6 +240,12 @@ oompah.task_costs:
     output_tokens: 6908
     cost_usd: 0.0
     recorded_at: '2026-08-11T13:12:35.658531+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 442
+    output_tokens: 11715
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T13:18:32.117880+00:00'
 ---
 ## Summary
 
@@ -339,5 +346,25 @@ author: oompah
 created: 2026-08-11 13:13
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 13:18
+---
+Audit PASS — Merged
+
+OOMPAH-1083 completion audit PASS. Quality-gate lifecycle publication implemented with exact registration/removal edges, stale snapshot sanitization suppressing PID-backed running assertions, PID-reuse fencing via registration tokens, callback isolation, and all terminal paths covered. Independent review accepted be48003555fed724a752512d73fd70d5c72b2795. Branch gate passed make test in 175.97s with 394 focused + 46 adjacent tests.
+
+Safe evidence:
+- gate_status: passed
+- duration_seconds: 175.97
+- lifecycle_publication: implemented
+- stale_snapshot_sanitization: implemented
+- pid_reuse_fencing: implemented
+- callback_isolation: implemented
+- concurrent_owners: verified
+- independent_review: accepted
+- terminal_paths: all_covered
+- test_count: 440_total_tests
+- acceptance_criteria: all_met
 ---
 <!-- COMMENTS:END -->
