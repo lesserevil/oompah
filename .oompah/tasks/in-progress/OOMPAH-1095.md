@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:44:31.960614Z'
-updated_at: '2026-08-11T16:45:14.134471Z'
+updated_at: '2026-08-11T17:09:56.779010Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Triggered by: OOMPAH-1085 and OOMPAH-950. Live all-enforce reproduction on 2026-
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 17:09
+---
+Implementation complete and pushed on branch OOMPAH-1095 at 3ebd421b5a6b38b0940c0a568b9746f430dfff44. The validation_submission commit lane now durably marks the exact direct-owner generation retirement-pending under the same project lock before publishing Ready; tracker-write failure/retry retains the fence, replacement-claim ABA fails closed, and retirement markers survive TTL expiry/restart until exact revocation. Workflow fact composition preserves that marker over a completed durable submission, and Ready integration remains jobless until authority_revocation removes it; the next reconciliation materializes exactly one delivery. Ordinary worker submissions without owner_claim_id remain unchanged. Verification: 755 focused owner/transition/decision/runtime/integration/workflow tests passed; the four deterministic Ready/revocation/persistence/ABA race tests passed 10/10 repeated runs; terminal mutation scan 21/21; compileall and git diff --check passed. A redundant full 20,068-test run was stopped after 1,726 passes to avoid I/O contention; the canonical submission gate should run once at submission. Per handoff instruction, task was not submitted or merged.
+---
+<!-- COMMENTS:END -->
