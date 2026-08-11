@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T15:23:21.897174Z'
+updated_at: '2026-08-11T15:59:32.770149Z'
 work_branch: OOMPAH-1085
 target_branch: null
 review_url: null
@@ -197,5 +197,10 @@ author: oompah
 created: 2026-08-11 15:23
 ---
 Fresh fairness repair is pushed at exact head dcb52a5110f91cab5b6b732f5378ba13fb6a4d27, rebased on origin/main 6449341d762d9c7645271b8479dfa406e648be54. The dedicated terminal-audit owner now recomputes non-audit capacity reservation only after acquiring the shared audit lane lock, so runnable implementation proof published while the continuation waits cannot be missed. It preserves both the ordinary dispatcher's exact ready hint and runtime-published WorkDecision provider readiness, while excluding non-provider implementation control jobs. Deterministic races prove max_agents=1 keeps the implementation turn and max_agents=4 with a configured two-slot reserve launches only into the two unreserved slots. Verification: 246 focused audit/event/architecture tests passed; 912 adjacent terminal coordinator/enforcement/workflow/runtime/decision tests passed; terminal mutation scan 21/21; compileall and git diff checks clean. Branch is pushed and clean; awaiting fresh independent exact-head review. Do not submit or merge yet.
+---
+author: oompah
+created: 2026-08-11 15:59
+---
+Final release-review blocker repaired at exact head 88b53c68dad8e6d21f875d75be03d2b097b93e18. Pre-provider auditor budget-reservation failure now releases its branch fence without self-rearming the currently owning continuation; the exact wake remains for a later external recovery signal or ordinary tick. Added a regression proving persistent failure causes one bounded scan/reservation/comment with zero same-owner rechecks, retains the exact wake, and a later recovery wake admits exactly once. Verification: 332 focused audit/liveness tests passed; 1203 adjacent audit/workflow/worker tests passed; terminal mutation scan 21/21; compile and diff checks clean. Branch force-with-lease replaced prior exact 33551916b891bcadb4c09f1dd2034a4ca27a5dd3 and is pushed. Ready for fresh independent exact-head review; not submitted or merged.
 ---
 <!-- COMMENTS:END -->
