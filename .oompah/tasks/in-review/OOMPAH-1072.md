@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1072
 type: bug
-status: In Progress
+status: In Review
 priority: 1
 title: Aggregate structured terminal-enforcement errors by stable diagnostic class
 parent: null
@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T08:11:28.178710Z'
-updated_at: '2026-08-11T08:20:59.382521Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
-review_head: null
+updated_at: '2026-08-11T08:27:02.820516Z'
+work_branch: OOMPAH-1072
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/809
+review_number: '809'
+review_head: 4da80c799a785da5112eec35773025224e6f1d3c
 merged_at: null
 oompah.create_once:
   version: 1
@@ -24,6 +24,11 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: oompah-1015-terminal-enforcement-error-class-20260811
   request_fingerprint: 9a96a455c48226019ec01857992ed13ccb8f9c92ac8092a9644b9b38ba3c01ec
+oompah.review_url: https://github.com/lesserevil/oompah/pull/809
+oompah.review_number: '809'
+oompah.work_branch: OOMPAH-1072
+oompah.target_branch: main
+oompah.review_head: 4da80c799a785da5112eec35773025224e6f1d3c
 ---
 ## Summary
 
@@ -43,3 +48,11 @@ Required tests and acceptance criteria: same diagnostic prefix with different pr
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 08:26
+---
+Branch quality gate passed for `4da80c799a785da5112eec35773025224e6f1d3c` using `make test` in 171.3s. Review creation may proceed.
+---
+<!-- COMMENTS:END -->
