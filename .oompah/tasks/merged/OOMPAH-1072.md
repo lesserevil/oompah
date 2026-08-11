@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1072
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Aggregate structured terminal-enforcement errors by stable diagnostic class
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T08:11:28.178710Z'
-updated_at: '2026-08-11T10:43:25.187572Z'
+updated_at: '2026-08-11T11:02:24.186021Z'
 work_branch: OOMPAH-1072
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/809
@@ -72,6 +72,30 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-11T10:43:03.960549+00:00'
     applied_at: '2026-08-11T10:43:11.331644+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6748b960edb0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1072
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 43f2ef7389581c89fbf3b0d8956fe3787efa5637914147b2245dc54cc1b5aa8c
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: In-flight finalization workaround. Audit audit-00d5d7755c13 returned PASS
+      at exact head 4da80c799a785da5112eec35773025224e6f1d3c with the recorded 171.3s
+      make test gate and complete safe evidence, but submitted target_state Done against
+      the task requested terminal state Merged; the API accepted it with applied_status
+      In Validation and failed to finalize across restart. Apply the original requested
+      Merged state while the target-mismatch bug is filed.
+    created_at: '2026-08-11T11:02:19.636591+00:00'
+    selected_ref: origin/OOMPAH-1072
+    selected_sha: 4da80c799a785da5112eec35773025224e6f1d3c
+    applied: false
   version: 1
   pending_chain:
   - version: 1
