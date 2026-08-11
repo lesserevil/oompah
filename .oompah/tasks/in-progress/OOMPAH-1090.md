@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:26:47.067526Z'
-updated_at: '2026-08-11T14:27:14.178019Z'
+updated_at: '2026-08-11T14:27:55.424571Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,3 +37,11 @@ Live incident: OOMPAH-1084 was exactly resubmitted at accepted merged head cf357
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 14:27
+---
+Direct owner claimed from live OOMPAH-1084 recovery. Evidence: standalone_delivery workflow-job-05cb980d332b404abbdc4b30515eced9 admitted exact cf3578ff, the roughly 190-second canonical gate passed but its outcome was discarded after the short workflow authority expired, and the cached-pass retry then exceeded the 15-second terminal-staging bridge while its detached operation still owned the task. Worktree is prepared from deployed main 6a0f7210; implementation will preserve exact cancellation while separating admitted long effects from short outer waits.
+---
+<!-- COMMENTS:END -->
