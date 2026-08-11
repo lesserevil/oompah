@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1086
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Make transition-journal teardown deterministic after concurrent API use
 parent: null
@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:54:01.877028Z'
-updated_at: '2026-08-11T13:57:43.048931Z'
+updated_at: '2026-08-11T13:58:00.494626Z'
 work_branch: OOMPAH-1086
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/823
 review_number: '823'
-review_head: null
+review_head: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
 merged_at: null
 oompah.create_once:
   version: 1
@@ -36,6 +36,8 @@ oompah.integration:
 oompah.work_branch: OOMPAH-1086
 oompah.review_url: https://github.com/lesserevil/oompah/pull/823
 oompah.review_number: '823'
+oompah.target_branch: main
+oompah.review_head: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
 ---
 ## Summary
 
