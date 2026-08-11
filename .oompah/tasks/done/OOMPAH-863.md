@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-10T01:12:52.372177Z'
+updated_at: '2026-08-11T06:33:39.179876Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -226,7 +226,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-863
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -241,12 +241,13 @@ oompah.terminal_audit:
     created_at: '2026-08-09T23:57:17.028443+00:00'
     selected_ref: dab5702e5a9527bed25a4b2cb65714a1f0fdac52
     selected_sha: dab5702e5a9527bed25a4b2cb65714a1f0fdac52
+    updated_at: '2026-08-11T06:33:37.436799+00:00'
   - version: 1
     audit_id: audit-4af49612ef75
     project_id: proj-14849f1b
     task_id: OOMPAH-863
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -261,6 +262,7 @@ oompah.terminal_audit:
     created_at: '2026-08-09T23:57:17.028443+00:00'
     selected_ref: dab5702e5a9527bed25a4b2cb65714a1f0fdac52
     selected_sha: dab5702e5a9527bed25a4b2cb65714a1f0fdac52
+    updated_at: '2026-08-11T06:33:37.436799+00:00'
   attempt_history: []
 ---
 ## Summary
