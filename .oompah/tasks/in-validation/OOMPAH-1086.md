@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:54:01.877028Z'
-updated_at: '2026-08-11T14:40:20.553388Z'
+updated_at: '2026-08-11T14:45:07.650111Z'
 work_branch: OOMPAH-1086
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/823
@@ -51,6 +51,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1086
     digest: 588a16591a0399be10c987aa0f882b7068dba2fce6b8a5d7a87e034d93924fa8
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1086","audit-38105e77a9ca","attempt-eccc2ca5124c"]': '2026-08-11T14:44:57.087523+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1086
+    target_state: Done
+    evidence_fingerprint: 588a16591a0399be10c987aa0f882b7068dba2fce6b8a5d7a87e034d93924fa8
+    workflow_revision: null
+    selected_ref: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
+    selected_sha: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
+    landing_revision: null
+    audit_ids:
+    - audit-38105e77a9ca
+    kind: result
+    applied: true
+    retired_at: '2026-08-11T14:44:57.087539+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1086
+    audit_id: audit-38105e77a9ca
+    attempt_id: attempt-eccc2ca5124c
+    target_state: Done
+    evidence_fingerprint: 588a16591a0399be10c987aa0f882b7068dba2fce6b8a5d7a87e034d93924fa8
+    status: In Validation
+    audit_ids:
+    - audit-38105e77a9ca
+    kind: result
+    applied: true
+    created_at: '2026-08-11T14:44:57.087549+00:00'
+    applied_at: '2026-08-11T14:45:05.887690+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -58,7 +88,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1086
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -67,7 +97,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-eccc2ca5124c
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -79,6 +109,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1086
       selected_ref: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
       selected_sha: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
+      verdict: pass
+      completed_at: '2026-08-11T14:44:57.087336+00:00'
+      ended_at: '2026-08-11T14:44:57.087336+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -89,7 +122,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-11T14:38:26.100049+00:00'
     selected_ref: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
     selected_sha: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
-    updated_at: '2026-08-11T14:39:55.694358+00:00'
+    updated_at: '2026-08-11T14:44:57.087336+00:00'
   - version: 1
     audit_id: audit-90733bffbafa
     project_id: proj-14849f1b
@@ -111,6 +144,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-38105e77a9ca
     selected_ref: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
     selected_sha: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
+    updated_at: '2026-08-11T14:44:57.087336+00:00'
+    eligible_at: '2026-08-11T14:44:57.087336+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-eccc2ca5124c
@@ -184,5 +219,30 @@ author: oompah
 created: 2026-08-11 14:40
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 14:45
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- authoritative_gate: make test PASSED 186.32s
+- commit_sha: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
+- implementation_files[0]: oompah/task_transition_service.py (+180 lines lifecycle management)
+- implementation_files[1]: tests/test_task_transition_service.py (+138 lines regression tests)
+- implementation_files[2]: tests/test_restart_api.py (+97 lines production drain test)
+- regression_tests[0]: test_journal_close_drains_admitted_transition_saga (line 135)
+- regression_tests[1]: test_journal_close_drains_direct_use_and_fences_late_callers (line 214)
+- regression_tests[2]: test_background_drain_waits_for_admitted_transition_saga (line 920)
+- key_mechanisms[0]: _lifecycle_condition: Condition variable for synchronization
+- key_mechanisms[1]: _active_uses: Counter tracking all active journal operations
+- key_mechanisms[2]: _active_transition_leases: Set of saga lease objects
+- key_mechanisms[3]: _closing: Flag fences new operations
+- key_mechanisms[4]: _closed: Flag ensures idempotent close
+- key_mechanisms[5]: ContextVar: Propagates lease to asyncio.to_thread contexts
+- review_evidence: Fresh independent review ACCEPTED. Reviewer verified lifecycle fencing, active-use accounting, saga lease propagation, stale ContextVar rejection, close fence/drain/idempotency, comprehensive saga/direct-reader coverage, and cancellation safety.
+- mutation_scan: 21/21 passed
 ---
 <!-- COMMENTS:END -->
