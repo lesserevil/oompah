@@ -2478,7 +2478,11 @@ class TaskTransitionService:
                             outcome,
                         )
                         return outcome
-                elif self._mutation_guard is not None:
+                elif (
+                    self._mutation_guard is not None
+                    and intent.reason_code
+                    == "implementation.validation_submission"
+                ):
                     (
                         guarded_issue,
                         commit_conflict,

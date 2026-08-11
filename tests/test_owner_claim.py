@@ -1416,7 +1416,24 @@ def test_expired_or_released_claim_returns_task_to_existing_recovery(tmp_path):
         ttl_hours=-1,
     )
 
-    orch._reset_orphaned_in_progress([issue])
+    def bounded_orphan_reset() -> None:
+        failures: list[BaseException] = []
+
+        def reset() -> None:
+            try:
+                orch._reset_orphaned_in_progress([issue])
+            except BaseException as exc:
+                failures.append(exc)
+
+        watchdog = threading.Thread(target=reset)
+        watchdog.start()
+        watchdog.join(timeout=3)
+        assert not watchdog.is_alive(), (
+            "orphan watchdog deadlocked while holding the project RLock"
+        )
+        assert failures == []
+
+    bounded_orphan_reset()
 
     tracker.update_issue.assert_called_once_with(issue.identifier, status="Open")
     assert orch._owner_claim_for_issue(issue.id, issue.project_id) is None
@@ -1432,7 +1449,7 @@ def test_expired_or_released_claim_returns_task_to_existing_recovery(tmp_path):
         owner_login="alice",
     )
     assert orch.release_owner_claim(issue_id=issue.id, project_id=issue.project_id)
-    orch._reset_orphaned_in_progress([issue])
+    bounded_orphan_reset()
     tracker.update_issue.assert_called_once_with(issue.identifier, status="Open")
 
 
