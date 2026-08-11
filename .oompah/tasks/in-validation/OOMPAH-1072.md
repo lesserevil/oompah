@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1072
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Aggregate structured terminal-enforcement errors by stable diagnostic class
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T08:11:28.178710Z'
-updated_at: '2026-08-11T08:27:02.820516Z'
+updated_at: '2026-08-11T08:56:18.916648Z'
 work_branch: OOMPAH-1072
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/809
@@ -29,6 +29,62 @@ oompah.review_number: '809'
 oompah.work_branch: OOMPAH-1072
 oompah.target_branch: main
 oompah.review_head: 4da80c799a785da5112eec35773025224e6f1d3c
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-00d5d7755c13
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1072
+    digest: 43f2ef7389581c89fbf3b0d8956fe3787efa5637914147b2245dc54cc1b5aa8c
+  - version: 1
+    audit_id: audit-078f5a8faba5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1072
+    digest: 43f2ef7389581c89fbf3b0d8956fe3787efa5637914147b2245dc54cc1b5aa8c
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-00d5d7755c13
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1072
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 43f2ef7389581c89fbf3b0d8956fe3787efa5637914147b2245dc54cc1b5aa8c
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T08:56:12.618014+00:00'
+    selected_ref: origin/OOMPAH-1072
+    selected_sha: 4da80c799a785da5112eec35773025224e6f1d3c
+  - version: 1
+    audit_id: audit-078f5a8faba5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1072
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 43f2ef7389581c89fbf3b0d8956fe3787efa5637914147b2245dc54cc1b5aa8c
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T08:56:12.618014+00:00'
+    selected_ref: origin/OOMPAH-1072
+    selected_sha: 4da80c799a785da5112eec35773025224e6f1d3c
+  attempt_history: []
 ---
 ## Summary
 
@@ -54,5 +110,10 @@ author: oompah
 created: 2026-08-11 08:26
 ---
 Branch quality gate passed for `4da80c799a785da5112eec35773025224e6f1d3c` using `make test` in 171.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 08:56
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
