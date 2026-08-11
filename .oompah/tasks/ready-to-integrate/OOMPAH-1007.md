@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1007
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Fence completed terminal-audit recurrence to current workflow completion authority
 parent: OOMPAH-940
@@ -11,9 +11,9 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T23:19:04.544332Z'
-updated_at: '2026-08-11T01:23:55.172031Z'
-work_branch: null
-target_branch: null
+updated_at: '2026-08-11T01:24:19.196864Z'
+work_branch: OOMPAH-1007
+target_branch: main
 review_url: null
 review_number: null
 review_head: null
@@ -24,6 +24,20 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 9dc1401e-893a-4d78-b780-e075b80e6ca4
   request_fingerprint: c095f7baf028623fb2e3b627aeb5c1d76005844bc667a2b87478b4a5a96db285
+oompah.target_branch: main
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  post_landed_parent_id: OOMPAH-940
+  task_branch: OOMPAH-1007
+  base_branch: main
+  base_sha: 74e68a020357615c81cf7c7b5cff808763dc34d3
+  head_sha: 5e46c8a06c3d8e98eeb0f4b5f9896d5c0ad67654
+  submitted_at: '2026-08-11T01:23:58.775600+00:00'
+  updated_at: '2026-08-11T01:23:58.775600+00:00'
+oompah.work_branch: OOMPAH-1007
 ---
 ## Summary
 
@@ -75,5 +89,10 @@ author: oompah
 created: 2026-08-11 01:23
 ---
 Implementation pushed at 5e46c8a06 and PR #805 opened. Final evidence: 1,238 focused tests passed after integration hardening; exact authority/race regressions passed; mutation scan 21/21 allowlisted; paranoid secret scan and commit hooks passed. Full make test completed with 19,729 passed, 7 skipped, 2 xfailed and one unrelated load-sensitive late-effect quarantine timeout; that test passed 20/20 isolated and follow-up OOMPAH-1008 tracks making it deterministic. Protected PR CI is now authoritative for the review-ready head.
+---
+author: oompah
+created: 2026-08-11 01:24
+---
+Implemented exact workflow-revision/ref/SHA fencing for terminal audits, restart-safe legacy migration, CAS-safe binding promotion, bounded payload convergence, and review-runtime authority propagation. PR #805; focused and security checks pass. OOMPAH-1008 tracks an unrelated full-suite timing flake.
 ---
 <!-- COMMENTS:END -->
