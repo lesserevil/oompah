@@ -2643,8 +2643,10 @@ def test_revoked_retained_calls_preserve_fence_and_reserved_owner_control(
     store.close()
 
 
-def test_reserved_control_admission_bypasses_inflight_world_cut(tmp_path):
-    """An imperative owner claim cannot wait behind a corpus reconciliation."""
+def test_reserved_control_admission_uses_published_cut_during_inflight_scan(
+    tmp_path,
+):
+    """An imperative owner claim cannot wait behind source collection."""
 
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     tracker = NativeTracker([])
@@ -2707,15 +2709,20 @@ def test_reserved_control_admission_bypasses_inflight_world_cut(tmp_path):
         finally:
             release_reconcile.set()
         await asyncio.wait_for(reconcile, 2)
-        return admission, completed
+        return (
+            admission,
+            completed,
+            initial["projects"]["project-1"]["snapshot"]["generation"],
+        )
 
     try:
-        admission, completed = asyncio.run(exercise())
+        admission, completed, published_generation = asyncio.run(exercise())
     finally:
         release_reconcile.set()
 
-    assert admission["reason"] == "workflow admission cut is stale"
-    assert admission["requires_reconcile"] is True
+    assert admission["admission_only"] is True
+    assert admission["requires_reconcile"] is False
+    assert admission["snapshot_generation"] == published_generation
     assert admission["worker"]["scheduled"] == 1
     assert admission["worker"]["active_lanes"]["shared"] == 0
     assert completed.state is WorkflowJobState.COMPLETED
@@ -3326,13 +3333,65 @@ def test_fast_admission_rejects_stale_snapshot_without_claiming(tmp_path):
             idempotency_key="stale-fast-cut",
         )
     )
-    assert store.allocate_snapshot_generation() > generation
+    replacement = store.allocate_snapshot_generation()
+    assert replacement > generation
+    assert store.accept_snapshot_generation(replacement)
 
     report = asyncio.run(runtime.continue_admission_async())
 
     assert report["requires_reconcile"] is True
     assert report["reason"] == "workflow admission cut is stale"
     assert store.get(job.job_id).state is WorkflowJobState.QUEUED
+    runtime.close()
+    store.close()
+
+
+def test_fast_admission_uses_published_cut_during_unaccepted_scan_allocation(
+    tmp_path,
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+    )
+
+    async def exercise():
+        await runtime.start()
+        first = await runtime.reconcile_async()
+        generation = first["projects"]["project-1"]["snapshot"]["generation"]
+        job = store.enqueue(
+            WorkflowJobSpec(
+                project_id="project-1",
+                task_id="CURRENT-PUBLISHED-CUT",
+                generation="current-published-cut",
+                action="review_refresh",
+                idempotency_key="current-published-cut",
+            )
+        )
+        replacement = store.allocate_snapshot_generation()
+        assert replacement > generation
+        assert store.published_snapshot_generation_is_current(generation)
+
+        report = await runtime.continue_admission_async()
+        await wait_for_runtime_effects(runtime)
+        return generation, replacement, job, report
+
+    generation, replacement, job, report = asyncio.run(exercise())
+
+    assert report["requires_reconcile"] is False
+    assert report["snapshot_generation"] == generation
+    assert report["worker"]["scheduled"] == 1
+    assert store.get(job.job_id).state is WorkflowJobState.COMPLETED
+    health = store.health_snapshot()
+    assert health["captured_snapshot_generation"] == replacement
+    assert health["accepted_snapshot_generation"] == generation
+    assert health["published_snapshot_generation"] == generation
+    assert runtime.health_snapshot()["worker"]["retained"] == 0
     runtime.close()
     store.close()
 
@@ -3659,6 +3718,190 @@ def test_superseded_effect_wake_claims_next_current_durable_job(tmp_path):
         WorkflowRunDisposition.COMPLETED,
     ]
     assert len(admission_wakes) == 2
+    assert runtime.health_snapshot()["worker"]["retained"] == 0
+    runtime.close()
+    store.close()
+
+
+def test_unaccepted_scan_allocation_does_not_stall_same_task_successor(
+    tmp_path,
+):
+    """A slow captured scan cannot revoke the accepted published queue."""
+
+    class BlockingTracker(NativeTracker):
+        def __init__(self):
+            super().__init__([])
+            self.scan_entered = threading.Event()
+            self.release_scan = threading.Event()
+
+        def fetch_all_issues_with_generation(self):
+            self.scan_entered.set()
+            assert self.release_scan.wait(2), "replacement scan was not released"
+            return super().fetch_all_issues_with_generation()
+
+    project_id = "project-1"
+    task_id = "CURRENT-EPIC"
+    store = WorkflowJobStore(str(tmp_path / "allocated-scan.sqlite3"))
+    tracker = BlockingTracker()
+    binding, journal = make_binding(tmp_path, tracker, store)
+    retained = store.enqueue(
+        WorkflowJobSpec(
+            project_id=project_id,
+            task_id=task_id,
+            generation="obsolete-event-generation",
+            action="review_refresh",
+            idempotency_key="obsolete-same-task-event",
+            priority=0,
+        )
+    )
+    published_generation = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(published_generation)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=published_generation,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_id),),
+    ).accepted
+    cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="current-managed-decision",
+        snapshot_generation=published_generation,
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=published_generation,
+        job_generation=cursor.job_generation,
+        specs=(
+            WorkflowJobSpec(
+                project_id=project_id,
+                task_id=task_id,
+                generation=cursor.job_generation,
+                action="review_refresh",
+                idempotency_key="current-same-task-decision",
+                priority=1,
+            ),
+        ),
+    ).accepted
+    successor = next(
+        job
+        for job in store.list_jobs(task_id=task_id)
+        if job.workflow_managed
+    )
+    assert store.publish_snapshot_generation(
+        published_generation, lambda: None
+    )[0]
+
+    runtime = WorkflowRuntime(
+        project_bindings={project_id: binding},
+        store=store,
+        journals={project_id: journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        max_concurrent=2,
+        control_reserved_slots=1,
+    )
+    runtime._refresh_admission_cut(
+        {
+            "projects": {
+                project_id: {
+                    "snapshot": {
+                        "generation": published_generation,
+                        "published": True,
+                    }
+                }
+            }
+        },
+        (project_id,),
+    )
+    retained_started = asyncio.Event()
+    release_retained = asyncio.Event()
+    successor_claimed = asyncio.Event()
+    successor_completed = asyncio.Event()
+    completion_wakes = []
+
+    async def execute_claimed(job):
+        if job.job_id == retained.job_id:
+            retained_started.set()
+            await release_retained.wait()
+            superseded = store.supersede(
+                job.job_id,
+                generation=job.generation,
+                replacement_generation=successor.generation,
+                reason="obsolete event finished after current decision published",
+            )
+            return WorkflowRunResult(
+                WorkflowRunDisposition.SUPERSEDED,
+                superseded.job_id,
+                superseded.state,
+                "obsolete same-task event superseded",
+                superseded.attempts,
+            )
+        assert job.job_id == successor.job_id
+        successor_claimed.set()
+        completed = store.complete(job.job_id, str(job.lease_token or ""))
+        successor_completed.set()
+        return WorkflowRunResult(
+            WorkflowRunDisposition.COMPLETED,
+            completed.job_id,
+            completed.state,
+            "current same-task decision completed",
+            completed.attempts,
+        )
+
+    runtime.worker.execute_claimed = execute_claimed
+
+    def completion_wake(_result):
+        completion_wakes.append(
+            asyncio.create_task(runtime.continue_admission_async())
+        )
+
+    runtime._effect_completion_observer = completion_wake
+
+    async def exercise():
+        await runtime.start()
+        first_admission = await runtime.continue_admission_async()
+        await asyncio.wait_for(retained_started.wait(), 1)
+        replacement_scan = asyncio.create_task(runtime.reconcile_async())
+        assert await asyncio.to_thread(tracker.scan_entered.wait, 1)
+        captured_generation = store.health_snapshot()[
+            "captured_snapshot_generation"
+        ]
+        assert captured_generation > published_generation
+        assert store.health_snapshot()["accepted_snapshot_generation"] == (
+            published_generation
+        )
+
+        # Model a genuine external tracker write while source collection is
+        # blocked. It must still supersede the replacement scan, independently
+        # of admission continuing from the previously accepted published cut.
+        tracker.publication_revision += 1
+        release_retained.set()
+        await asyncio.wait_for(successor_claimed.wait(), 1)
+        await asyncio.wait_for(successor_completed.wait(), 1)
+        assert replacement_scan.done() is False
+        tracker.release_scan.set()
+        replacement_report = await asyncio.wait_for(replacement_scan, 2)
+        for wake in tuple(completion_wakes):
+            await asyncio.wait_for(asyncio.shield(wake), 1)
+        return first_admission, replacement_report, captured_generation
+
+    first_admission, replacement_report, captured_generation = asyncio.run(
+        exercise()
+    )
+
+    assert first_admission["worker"]["scheduled"] == 1
+    assert store.get(retained.job_id).state is WorkflowJobState.SUPERSEDED
+    assert store.get(successor.job_id).state is WorkflowJobState.COMPLETED
+    assert replacement_report["requires_reconcile"] is True
+    assert replacement_report["projects"][project_id] == {
+        "publication_superseded": True,
+        "reason": "tracker authority changed during source collection",
+    }
+    health = store.health_snapshot()
+    assert health["captured_snapshot_generation"] == captured_generation
+    assert health["accepted_snapshot_generation"] == published_generation
+    assert health["published_snapshot_generation"] == published_generation
     assert runtime.health_snapshot()["worker"]["retained"] == 0
     runtime.close()
     store.close()

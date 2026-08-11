@@ -3581,7 +3581,7 @@ def test_commit_error_after_durable_marker_does_not_rollback_coherent_publicatio
     assert store.health_snapshot()["published_snapshot_generation"] == generation
 
 
-def test_claim_is_atomically_bound_to_required_published_snapshot(store):
+def test_claim_is_atomically_bound_to_required_accepted_published_snapshot(store):
     generation = store.allocate_snapshot_generation()
     assert store.accept_snapshot_generation(generation)
     published, _ = store.publish_snapshot_generation(generation, lambda: None)
@@ -3595,6 +3595,12 @@ def test_claim_is_atomically_bound_to_required_published_snapshot(store):
     second = store.enqueue(spec(key="snapshot-second", task="SNAPSHOT-SECOND"))
     replacement = store.allocate_snapshot_generation()
     assert replacement > generation
+    assert store.published_snapshot_generation_is_current(generation)
+    assert store.has_claimable(
+        required_snapshot_generation=generation,
+        task_id="SNAPSHOT-SECOND",
+    )
+    assert store.accept_snapshot_generation(replacement)
     assert not store.published_snapshot_generation_is_current(generation)
     assert not store.has_claimable(
         required_snapshot_generation=generation,
