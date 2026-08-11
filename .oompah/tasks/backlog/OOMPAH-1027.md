@@ -11,13 +11,37 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T06:32:00.748570Z'
-updated_at: '2026-08-11T06:32:00.748570Z'
+updated_at: '2026-08-11T07:49:22.055359Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f5fc48b6e6ed
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1027
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 558d3587e481f2762534d1daea83408523fbf8026fe7d0c856551dbd3415c025
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Erroneous auto-file duplicate from the 2026-08-11 05ed11f22 malformed-ledger
+      startup flood; OOMPAH-1015 is the canonical incident. The compatibility repair
+      is deployed at 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 and paused recovery
+      is healthy; this task owns no distinct implementation work.
+    created_at: '2026-08-11T07:49:20.531416+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
