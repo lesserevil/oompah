@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:41:07.342509Z'
-updated_at: '2026-08-11T09:42:03.104376Z'
+updated_at: '2026-08-11T09:47:44.336349Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Live regression observed 2026-08-11 after the OOMPAH-1075 cache-generation corre
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 09:47
+---
+Design checkpoint: the dominant 1,878-task cost is generic containment scanning the full authoritative issue map per task, compounded by collecting generic liveness facts before overwriting them with owning-domain facts. Implementing a per-project child index plus collect-only-missing liveness facts. Concurrent ordinary tracker mutations will use exact scoped change journaling to retry only the affected project before snapshot/effect acceptance, followed by a stable-project-preserving correction sweep; ambiguous or dependency-sensitive authority remains fail-closed. Adding phase/correction telemetry and deterministic large-corpus/concurrent-mutation coverage while preserving OOMPAH-969 admission isolation, OOMPAH-974 cooperative control, and OOMPAH-986 terminal-audit proofs.
+---
+<!-- COMMENTS:END -->
