@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T03:11:11.351608Z'
-updated_at: '2026-08-11T03:29:19.612954Z'
+updated_at: '2026-08-11T03:30:36.014167Z'
 work_branch: OOMPAH-1013
 target_branch: null
 review_url: null
@@ -66,5 +66,10 @@ author: oompah
 created: 2026-08-11 03:29
 ---
 Independent review BLOCKED fe63e237f on a mixed-priority runtime-partial livelock: launch-priority reordering could repeatedly read HIGH-0 while the health cursor waited for an earlier LOW item, leaving seen_count stuck. Rework is directly owner-claimed in Needs CI Fix; an exact regression reproduces repeated runtime_limit ticks and the repair will keep health reads in fair traversal order while applying a separate launch-eligibility fence.
+---
+author: oompah
+created: 2026-08-11 03:30
+---
+Addressed review BLOCK at follow-up head 2b2384f043a3ad6b6106019efab3875acae73b50. Runtime-partial health scans now process the durable traversal order and separately fence lower-priority launches until higher candidates have been considered. Exact regression proves the first partial tick advances LOW with no launch, then the next tick completes health and launches HIGH before LOW. Focused suite: 78 passed; terminal mutation scan: 21/21 allowlisted.
 ---
 <!-- COMMENTS:END -->
