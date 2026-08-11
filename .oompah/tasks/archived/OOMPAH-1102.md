@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T20:53:59.261829Z'
-updated_at: '2026-08-11T22:41:40.499430Z'
+updated_at: '2026-08-11T22:41:46.910182Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,7 +37,21 @@ oompah.terminal_audit:
       defects OOMPAH-1127 and OOMPAH-1128 after recovering and publishing the affected
       Trickle state history.
     created_at: '2026-08-11T22:41:34.165212+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1102
+    target_state: Archived
+    evidence_fingerprint: 39a740f4c25be7d9f8de288c0a5822673563917e23a4a47bd8ebad03487ff8d9
+    workflow_revision: null
+    selected_ref: null
+    selected_sha: null
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T22:41:44.947823+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -81,3 +95,13 @@ The operation in `backend:checkpoint_queue` should complete successfully, or deg
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 22:41
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Operator consolidation of an auto-filed retry artifact into canonical defects OOMPAH-1127 and OOMPAH-1128 after recovering and publishing the affected Trickle state history.
+---
+<!-- COMMENTS:END -->
