@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T13:38:34.915522Z'
-updated_at: '2026-08-11T15:08:10.046266Z'
+updated_at: '2026-08-11T15:08:21.202475Z'
 work_branch: OOMPAH-1087
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/822
@@ -164,6 +164,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1087
     selected_ref: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
     selected_sha: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
+oompah.task_costs:
+  total_input_tokens: 266
+  total_output_tokens: 10415
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 266
+      output_tokens: 10415
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 266
+    output_tokens: 10415
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T15:08:15.551969+00:00'
 ---
 ## Summary
 
@@ -254,5 +270,15 @@ Safe evidence:
 - preserved[3]: Full-sync backfill on epoch/sequence changes
 - preserved[4]: Client isolation and graceful shutdown
 - quality_gate: make test PASSED (185.8s) for exact head 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
+---
+author: oompah
+created: 2026-08-11 15:08
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 74, Tool calls: 32
+- Tokens: 266 in / 10.4K out [10.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 26s
+- Log: OOMPAH-1087__20260811T150404Z.jsonl
 ---
 <!-- COMMENTS:END -->
