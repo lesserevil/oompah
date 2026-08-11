@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:34:25.712698Z'
-updated_at: '2026-08-11T17:23:25.706629Z'
+updated_at: '2026-08-11T17:28:31.396256Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,10 @@ author: oompah
 created: 2026-08-11 17:23
 ---
 Second rejection repair pushed at exact head a8e0c10db484680bc584d272a9903d229bd9576f. The setup guard now treats the explicit service runtime, the explicit service checkout's conventional .venv, and any Git-derived primary .venv as additive protected targets, so a falsified cross-repository OOMPAH_SERVICE_VENV cannot erase the service checkout runtime boundary. Added a real unrelated-repository Make regression proving uv is not invoked and the service editable mapping remains unchanged. A different explicit service checkout cannot be rejected solely because it differs from the task repo's Git primary: that difference is required for legitimate cross-repo workers, so additive independent targets are the safest available proof. Verification: 115 focused setup/client-auth/quality-gate tests passed; terminal mutation scan passed 21/21; diff check clean. Branch is clean and pushed; exact head matches origin.
+---
+author: oompah
+created: 2026-08-11 17:28
+---
+Fresh independent exact-head review ACCEPTED a8e0c10db484680bc584d272a9903d229bd9576f. Reviewer inspected all three commits and reproduced both prior bypasses through real Make paths: forged linked-worktree markers and correct cross-repo checkout plus forged service-venv both fail before uv and preserve the service editable mapping; legitimate task-private runtime still works. Evidence: 7 exact repair/shape tests, 121 broader focused tests, 30 repeated security/concurrency executions, compile/diff checks, terminal scan 21/21; remote exact and worktree clean.
 ---
 <!-- COMMENTS:END -->
