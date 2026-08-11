@@ -5537,7 +5537,7 @@ class Orchestrator:
                     "Ignoring malformed persisted owner claim %r: %s", key, exc
                 )
                 continue
-            if claim.expires_at <= restored_at:
+            if claim.expires_at <= restored_at and not claim.retirement_pending:
                 expired[self._owner_claim_key(claim.project_id, claim.issue_id)] = (
                     claim
                 )
@@ -5573,7 +5573,11 @@ class Orchestrator:
         with self._owner_claims_lock:
             key = self._owner_claim_key(project_id, issue_id)
             claim = self.state.owner_claims.get(key)
-            if claim is None or claim.expires_at > time.time():
+            if (
+                claim is None
+                or claim.retirement_pending
+                or claim.expires_at > time.time()
+            ):
                 return claim
             del self.state.owner_claims[key]
             if not self._persist_owner_claims_locked():
@@ -5603,7 +5607,7 @@ class Orchestrator:
             expired = {
                 key: claim
                 for key, claim in self.state.owner_claims.items()
-                if claim.expires_at <= checked_at
+                if claim.expires_at <= checked_at and not claim.retirement_pending
             }
             for key in expired:
                 del self.state.owner_claims[key]
@@ -5637,7 +5641,10 @@ class Orchestrator:
 
         claim = self._owner_claim_for_issue(issue_id, project_id)
         checked_at = time.time() if now is None else now
-        return bool(claim is not None and claim.expires_at > checked_at)
+        return bool(
+            claim is not None
+            and (claim.retirement_pending or claim.expires_at > checked_at)
+        )
 
     def _direct_owner_claim_transition_conflict(
         self,
@@ -5722,8 +5729,6 @@ class Orchestrator:
             return None
         if current_claim is None:
             return "validation submission owner claim is missing"
-        if current_claim.retirement_pending:
-            return "validation submission owner claim is retiring"
         if current_claim.claim_id != captured_claim_id:
             return "validation submission owner claim changed"
         if intent.evidence_generation != captured_claim_id:
@@ -5735,6 +5740,70 @@ class Orchestrator:
             return "validation submission owner project changed"
         if str(current_claim.issue_id or "") != str(issue.id):
             return "validation submission owner task changed"
+        return None
+
+    def _direct_owner_submission_transition_conflict(
+        self,
+        intent: TransitionIntent,
+        issue: Issue,
+    ) -> str | None:
+        """Persist the captured direct-owner retirement before Ready commits.
+
+        ``TaskTransitionService`` invokes this callback while holding the same
+        project write lock as the tracker status mutation.  The immutable
+        originating workflow job supplies the exact claim generation; ordinary
+        worker submissions have no claim id and remain unchanged.  Returning a
+        stable conflict fences an ABA replacement without releasing it.
+        """
+
+        if (
+            intent.reason_code != "implementation.validation_submission"
+            or canonicalize_status(intent.expected_status) != IN_PROGRESS
+            or canonicalize_status(intent.requested_status) != READY_TO_INTEGRATE
+        ):
+            return None
+        try:
+            submission = self.workflow_job_store.get(intent.originating_job)
+        except Exception as exc:
+            raise RuntimeError(
+                "direct-owner submission retirement job is unavailable"
+            ) from exc
+        if str(getattr(submission, "action", "") or "") != "validation_submission":
+            return "transition.owner_retirement_job_mismatch"
+        payload = submission.payload or {}
+        claim_id = str(payload.get("owner_claim_id") or "").strip()
+        if not claim_id:
+            return None
+        claim = self._live_owner_claim_for_issue_locked(
+            issue.id,
+            intent.project_id,
+        )
+        if claim is None:
+            # An already completed exact revocation satisfies the prerequisite.
+            return None
+        if claim.claim_id != claim_id:
+            return "transition.owner_retirement_generation_mismatch"
+        expected_owner = str(payload.get("owner_login") or "").strip()
+        if expected_owner and claim.owner_login != expected_owner:
+            return "transition.owner_claim_actor_mismatch"
+        if str(claim.project_id or "") != intent.project_id:
+            return "transition.owner_claim_project_mismatch"
+        if str(claim.issue_id or "") != str(issue.id):
+            return "transition.owner_claim_task_mismatch"
+        if not self.mark_owner_claim_retirement_pending(
+            issue_id=issue.id,
+            project_id=intent.project_id,
+            expected_claim_id=claim_id,
+        ):
+            current = self._live_owner_claim_for_issue_locked(
+                issue.id,
+                intent.project_id,
+            )
+            if current is None:
+                return None
+            if current.claim_id != claim_id:
+                return "transition.owner_retirement_generation_mismatch"
+            return "transition.owner_retirement_persistence_failed"
         return None
 
     def _scheduler_owns_project_issue(
@@ -5797,7 +5866,7 @@ class Orchestrator:
             claim = self.state.owner_claims.get(key)
             if claim is None:
                 return None
-            if claim.expires_at > checked_at:
+            if claim.retirement_pending or claim.expires_at > checked_at:
                 return claim
             del self.state.owner_claims[key]
             if not self._persist_owner_claims_locked():
@@ -6207,7 +6276,7 @@ class Orchestrator:
 
         by_project: dict[str | None, list[OwnerClaim]] = {}
         for claim in claims:
-            if claim.expires_at > time.time():
+            if claim.retirement_pending or claim.expires_at > time.time():
                 by_project.setdefault(claim.project_id, []).append(claim)
 
         reconciled = 0
@@ -11258,6 +11327,12 @@ class Orchestrator:
                         and hasattr(self, "project_store")
                         else None
                     ),
+                    direct_owner_retirement_guard=(
+                        self._direct_owner_submission_transition_conflict
+                        if project_id is not None
+                        and hasattr(self, "project_store")
+                        else None
+                    ),
                 )
                 self._task_transition_services[service_project_id] = service
             elif service.tracker is not tracker:
@@ -15102,6 +15177,20 @@ class Orchestrator:
         def implementation_authority(current: Issue) -> dict[str, Any]:
             if canonicalize_status(current.state) == DUPLICATE_CANDIDATE:
                 return {"lease_expires_at": None}
+            claim = self._owner_claim_for_issue(current.id, current.project_id)
+            if claim is not None and claim.retirement_pending:
+                # Retirement is an ordering fence, not a renewable lease.  It
+                # remains authoritative even when the original claim TTL has
+                # elapsed so a restart cannot publish integration before the
+                # exact revocation effect retires the captured generation.
+                return {
+                    "owner_id": claim.owner_login,
+                    "generation": claim.claim_id,
+                    "ownership_source": "direct_owner",
+                    "lease_expires_at": None,
+                    "retirement_pending": True,
+                    "state": "retirement_pending",
+                }
             durable = active_durable_job(
                 current,
                 {"implementation_dispatch", "implementation_recovery"},
@@ -15122,19 +15211,24 @@ class Orchestrator:
                     "actively_working": True,
                     "active_job_id": active_job_id,
                 }
-            claim = self._owner_claim_for_issue(current.id, current.project_id)
-            if (
-                claim is not None
-                and not claim.retirement_pending
-                and claim.expires_at > time.time()
-            ):
+            if claim is not None and claim.expires_at > time.time():
                 return {
                     "owner_id": claim.owner_login,
                     "generation": claim.claim_id,
                     "ownership_source": "direct_owner",
-                    "lease_expires_at": datetime.fromtimestamp(
-                        claim.expires_at, tz=timezone.utc
-                    ).isoformat(),
+                    "lease_expires_at": (
+                        None
+                        if claim.retirement_pending
+                        else datetime.fromtimestamp(
+                            claim.expires_at, tz=timezone.utc
+                        ).isoformat()
+                    ),
+                    "retirement_pending": claim.retirement_pending,
+                    "state": (
+                        "retirement_pending"
+                        if claim.retirement_pending
+                        else "active"
+                    ),
                 }
             return {"lease_expires_at": None}
 
@@ -15718,7 +15812,11 @@ class Orchestrator:
         running = self._workflow_shadow_running_entry(issue)
         owner_claim = self._owner_claim_for_issue(issue.id, issue.project_id)
         live_owner_claim = bool(
-            owner_claim is not None and owner_claim.expires_at > time.time()
+            owner_claim is not None
+            and (
+                owner_claim.retirement_pending
+                or owner_claim.expires_at > time.time()
+            )
         )
 
         if status in {OPEN, NEEDS_CI_FIX, NEEDS_REBASE}:

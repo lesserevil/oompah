@@ -948,6 +948,50 @@ async def test_backlog_direct_claim_reproves_exact_live_authority_at_commit(
 
 
 @pytest.mark.asyncio
+async def test_validation_submission_retirement_failure_blocks_ready_commit(
+    tmp_path,
+):
+    issue = _issue(
+        state="In Progress",
+        integration=IntegrationRecord(
+            state="ready",
+            mode="standalone",
+            task_branch="task-1",
+            head_sha="a" * 40,
+        ),
+    )
+    tracker = FakeTracker(issue)
+    commit_lock = threading.RLock()
+
+    def fail_retirement(_intent, _issue):
+        raise OSError("owner claim store unavailable")
+
+    service = _service(
+        tmp_path,
+        tracker,
+        direct_owner_write_lock=lambda: commit_lock,
+        direct_owner_retirement_guard=fail_retirement,
+    )
+    intent = _intent(
+        issue,
+        requested_status="Ready to Integrate",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="implementation.validation_submission",
+        idempotency_key="validation-retirement-failure",
+        originating_job="validation-job",
+        exact_head="a" * 40,
+    )
+
+    outcome = await service.execute(intent)
+
+    assert outcome.disposition is TransitionDisposition.RETRYABLE
+    assert outcome.reason_code == "transition.owner_retirement_persistence_failed"
+    assert outcome.retryable is True
+    assert tracker.issue.state == "In Progress"
+    assert tracker.updates == []
+
+
+@pytest.mark.asyncio
 async def test_direct_maintenance_can_request_terminal_audit_from_open(tmp_path):
     maintenance = _issue(
         title="Rebase epic-EPIC-1 onto main",

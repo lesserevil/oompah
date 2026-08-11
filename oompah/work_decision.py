@@ -120,6 +120,7 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "integration.live_claim_precedes_history",
         "integration.landing_proven",
         "integration.landing_unproven",
+        "integration.owner_retirement_pending",
         "integration.queued",
         "integration.required_base_missing",
         "integration.retry_scheduled",
@@ -1223,6 +1224,61 @@ def _integration_decision(
     finish: tuple[UnmetPrerequisite, ...],
     hard_start: tuple[UnmetPrerequisite, ...],
 ) -> WorkDecision:
+    implementation = facts.fact(FactDomain.IMPLEMENTATION_AUTHORITY)
+    implementation_value = (
+        _mapping(implementation.value)
+        if implementation.state is FactState.KNOWN
+        else None
+    )
+    if implementation.state is FactState.ERROR or (
+        implementation.state is FactState.KNOWN
+        and implementation_value is None
+    ):
+        # Once direct-owner retirement participates in the integration handoff,
+        # an authority-read failure cannot be interpreted as proof that no claim
+        # exists. Keep the integration lane jobless until a clean fact cut.
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.RETRY_SCHEDULED,
+            reason_code=(
+                f"evidence.{FactDomain.IMPLEMENTATION_AUTHORITY.value}_"
+                f"{implementation.state.value}"
+            ),
+            owner=WorkflowOwner.INTEGRATOR,
+            prerequisites=(
+                UnmetPrerequisite(
+                    f"evidence.{implementation.state.value}",
+                    FactDomain.IMPLEMENTATION_AUTHORITY.value,
+                    implementation.error_code,
+                ),
+            ),
+            actions=(PermittedAction.CLAIM_INTEGRATION,),
+            alert=AlertSeverity.INFO,
+        )
+    if (
+        implementation_value is not None
+        and implementation_value.get("ownership_source") == "direct_owner"
+        and str(implementation_value.get("generation") or "").strip()
+    ):
+        # Ready is only an integration handoff after the captured direct-owner
+        # generation has disappeared.  A persisted retirement marker is not a
+        # release: keeping this decision jobless prevents a standalone/shared
+        # gate from materializing while the exact revocation event completes.
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.OWNED,
+            reason_code="integration.owner_retirement_pending",
+            owner=WorkflowOwner.DIRECT_OWNER,
+            prerequisites=(
+                UnmetPrerequisite(
+                    "integration.owner_retirement_pending",
+                    str(implementation_value.get("generation")),
+                ),
+            ),
+            actions=(PermittedAction.CONTINUE_IMPLEMENTATION,),
+        )
     integration = facts.fact(FactDomain.INTEGRATION)
     value = (
         _mapping(integration.value) if integration.state is FactState.KNOWN else None
