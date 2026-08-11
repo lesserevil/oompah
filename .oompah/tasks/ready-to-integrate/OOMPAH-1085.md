@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1085
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Dispatch exact terminal-audit successors through a dedicated bounded continuation
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T17:18:27.239368Z'
+updated_at: '2026-08-11T17:23:02.576121Z'
 work_branch: OOMPAH-1085
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/827
@@ -296,5 +296,10 @@ author: oompah
 created: 2026-08-11 17:18
 ---
 Rebased accepted exact c2b0e1b10ea76129b8a59e041cde68948354e8cb onto merged OOMPAH-1092/main 2bdf2d942b44f15bbc4e896f03d967a163891868; resolved one adjacent-method conflict by retaining both fairness suspension snapshot and exact-successor absent-wake reconciliation. New exact 9e46db3abecbd9a94d66c46d300b7f69aa208034 is pushed remote-exact. Range-diff preserves 7/8 commits patch-equivalently; the one changed commit contains only the conflict composition. Post-resolution: 338 combined audit/lifecycle tests passed, Python 3.11 exact-successor race 25/25, merged fairness regression passed, terminal scan 21/21. Fresh independent review required for the new exact.
+---
+author: oompah
+created: 2026-08-11 17:23
+---
+Fresh independent review ACCEPTED rebased exact 9e46db3abecbd9a94d66c46d300b7f69aa208034 against main 2bdf2d942b44f15bbc4e896f03d967a163891868. Reviewer verified the conflict composition retains both OOMPAH-1092 suspension/fairness ordering and OOMPAH-1085 exact absent-wake reconciliation/CAS retirement. Evidence: 338 focused changed-area tests, 12 targeted intersection tests, 75 repeated race executions, diff check, and terminal scan 21/21 all passed; remote exact and worktree clean.
 ---
 <!-- COMMENTS:END -->
