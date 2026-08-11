@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:04:30.156611Z'
-updated_at: '2026-08-11T16:06:19.491479Z'
+updated_at: '2026-08-11T16:09:38.737000Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,3 +59,11 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 16:09
+---
+Live reproduction during normal make restart at 2026-08-11T16:04Z: shutdown quiesced while a terminal auditor was between durable claim/worktree preparation and provider admission. Orchestrator._drain_background_work raised RuntimeError('lifecycle publication snapshot did not drain; refusing to close lifecycle stores'); stop_until_safe retained the process and its next attempt succeeded, then os.execv completed. The interrupted auditor lease recovered as abandoned/retry_wait. Repair scope: make the graceful shutdown publication drain converge deterministically when terminal-audit/provider admission loses the quiesce race, without reporting a backend error for a safely retryable internal drain; retain fail-closed refusal to close stores while true writers remain. Add a deterministic barrier regression around audit claim/provider-admission versus quiesce, prove bounded retry reaches a fully published snapshot and clean shutdown with no orphan workflow lease/attempt/worktree, and preserve error reporting when progress is genuinely impossible.
+---
+<!-- COMMENTS:END -->
