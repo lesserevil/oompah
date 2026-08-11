@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T10:13:51.547647Z'
-updated_at: '2026-08-11T10:51:58.576317Z'
+updated_at: '2026-08-11T10:54:52.992991Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,6 +37,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1078
     digest: fb7fe1d32d9e1c5ac12f5a590f2393ba9621958bcf9103d1c5f4b625aee929d0
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1078","audit-18237c837d61","attempt-872e685ea279"]': '2026-08-11T10:54:43.968523+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1078
+    target_state: Done
+    evidence_fingerprint: fb7fe1d32d9e1c5ac12f5a590f2393ba9621958bcf9103d1c5f4b625aee929d0
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1078
+    selected_sha: 9c78b999f9b8eeddda14e2c783ea01a688543325
+    landing_revision: null
+    audit_ids:
+    - audit-18237c837d61
+    kind: result
+    applied: true
+    retired_at: '2026-08-11T10:54:43.968546+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1078
+    audit_id: audit-18237c837d61
+    attempt_id: attempt-872e685ea279
+    target_state: Done
+    evidence_fingerprint: fb7fe1d32d9e1c5ac12f5a590f2393ba9621958bcf9103d1c5f4b625aee929d0
+    status: In Validation
+    audit_ids:
+    - audit-18237c837d61
+    kind: result
+    applied: true
+    created_at: '2026-08-11T10:54:43.968558+00:00'
+    applied_at: '2026-08-11T10:54:51.496604+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -44,7 +74,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1078
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -53,7 +83,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-872e685ea279
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -65,6 +95,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1078
       selected_ref: origin/OOMPAH-1078
       selected_sha: 9c78b999f9b8eeddda14e2c783ea01a688543325
+      verdict: pass
+      completed_at: '2026-08-11T10:54:43.968336+00:00'
+      ended_at: '2026-08-11T10:54:43.968336+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -74,7 +107,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T10:49:57.906153+00:00'
     selected_ref: origin/OOMPAH-1078
     selected_sha: 9c78b999f9b8eeddda14e2c783ea01a688543325
-    updated_at: '2026-08-11T10:51:43.940389+00:00'
+    updated_at: '2026-08-11T10:54:43.968336+00:00'
   - version: 1
     audit_id: audit-4dfa2cf5c0b5
     project_id: proj-14849f1b
@@ -157,5 +190,20 @@ author: oompah
 created: 2026-08-11 10:51
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 10:54
+---
+Audit PASS — Done
+
+Implementation prevents manual In Validation transitions from stranding terminal audits. Direct In Validation transitions are rejected with actionable error message, atomically forcing use of terminal-audit coordinator path. All required tests pass: direct rejection with idempotency verified, canonical staging path works correctly, failure atomicity preserved, restart liveness maintained. Authoritative quality gate already passed for exact head sha.
+
+Safe evidence:
+- implementation_strategy: Reject direct In Validation transitions with reason_code transition.audit_staging_required, preserving idempotency while forcing atomic coordinator staging
+- key_changes.task_transition_service.py: Direct In Validation rejection at lines 1775-1792
+- key_changes.server.py: Actionable error message handling for audit_staging_required
+- key_changes.tests: test_task_transition_service.py::test_direct_in_validation_requires_atomic_coordinator_staging, test_state_branch_fetch_error.py::test_direct_validation_rejection_is_actionable_and_atomic
+- test_coverage: Direct rejection verified, idempotency tested, canonical path works, failure atomicity confirmed, restart liveness preserved
+- quality_gate: Protected workflow make test passed for sha 9c78b999f9b8eeddda14e2c783ea01a688543325
 ---
 <!-- COMMENTS:END -->
