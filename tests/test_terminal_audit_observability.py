@@ -1583,7 +1583,8 @@ async def test_audit_health_rotation_reaches_lower_priority_past_operation_cap(
             await orchestrator._dispatch_audit_lane()
 
         assert len(reads) == 16
-        assert reads[-1] == "LOW-0"
+        assert reads[8] == "LOW-0"
+        assert reads[9:] == [f"HIGH-{index}" for index in range(7)]
         assert orchestrator._audit_health.scan_complete is True
         assert orchestrator._audit_health.scan_error_count == 0
         assert orchestrator._audit_metrics["candidate_scan_complete"] is True
@@ -1690,7 +1691,7 @@ async def test_audit_health_rotation_resets_when_candidate_corpus_changes(
 
 
 @pytest.mark.asyncio
-async def test_globally_rotated_health_window_preserves_dispatch_priority(
+async def test_runtime_partial_mixed_priority_health_progress_preserves_dispatch_order(
     tmp_path: Path,
 ) -> None:
     project_store = MagicMock()
@@ -1705,7 +1706,7 @@ async def test_globally_rotated_health_window_preserves_dispatch_priority(
             audit_lane_scan_limit=2,
             audit_lane_operation_limit=2,
             audit_lane_dispatch_limit=2,
-            audit_lane_max_runtime_seconds=30,
+            audit_lane_max_runtime_seconds=1,
             duplicate_preflight_max_agents=0,
         ),
         str(tmp_path / "WORKFLOW.md"),
@@ -1748,11 +1749,19 @@ async def test_globally_rotated_health_window_preserves_dispatch_priority(
         for issue in (high, low)
     }
     store = MagicMock()
-    store.read.side_effect = lambda identifier: SimpleNamespace(
-        pending_chain=[records[identifier]],
-        is_quarantined=False,
-        unknown_fields={},
-    )
+    clock = {"value": 0.0, "expire_on_low": True}
+
+    def _read(identifier: str):
+        if identifier == low.identifier and clock["expire_on_low"]:
+            clock["value"] += 1.1
+            clock["expire_on_low"] = False
+        return SimpleNamespace(
+            pending_chain=[records[identifier]],
+            is_quarantined=False,
+            unknown_fields={},
+        )
+
+    store.read.side_effect = _read
     selector = MagicMock()
     selector.select_candidates.return_value = (
         [Candidate(provider_id="provider-a", model="model-a")],
@@ -1770,6 +1779,7 @@ async def test_globally_rotated_health_window_preserves_dispatch_priority(
         "audit_lane",
         orchestrator._audit_candidate_cursor_key(high),
     )
+    orchestrator._monotonic_clock = lambda: clock["value"]
     try:
         with (
             patch.object(orchestrator, "_available_slots", return_value=2),
@@ -1804,11 +1814,24 @@ async def test_globally_rotated_health_window_preserves_dispatch_priority(
                 "_dispatch",
                 new=AsyncMock(side_effect=_dispatch),
             ),
+            patch.object(
+                orchestrator,
+                "_request_audit_lane_continuation",
+                return_value=True,
+            ) as continuation,
         ):
+            await orchestrator._dispatch_audit_lane()
+            assert dispatch_order == []
+            assert orchestrator._audit_health.scan_complete is False
+            assert orchestrator._audit_metrics["health_cycle_seen_count"] == 1
+            assert orchestrator._audit_metrics["cursor"].endswith("TASK-LOW")
+
             await orchestrator._dispatch_audit_lane()
 
         assert dispatch_order == ["TASK-HIGH", "TASK-LOW"]
         assert orchestrator._audit_metrics["last_dispatched_count"] == 2
+        assert orchestrator._audit_health.scan_complete is True
+        continuation.assert_called_once_with()
     finally:
         orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)

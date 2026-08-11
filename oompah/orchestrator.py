@@ -18612,19 +18612,7 @@ class Orchestrator:
         )
         health_window = health_candidates[:operation_limit]
         operation_truncated = len(health_candidates) > len(health_window)
-        dispatch_order = self._audit_dispatch_candidate_order(
-            candidate_scan.candidates
-        )
-        dispatch_rank = {
-            self._audit_candidate_cursor_key(issue): index
-            for index, issue in enumerate(dispatch_order)
-        }
-        candidates = sorted(
-            health_window,
-            key=lambda issue: dispatch_rank[
-                self._audit_candidate_cursor_key(issue)
-            ],
-        )
+        candidates = health_window
         health_window_keys = {
             self._audit_candidate_cursor_key(issue) for issue in health_window
         }
@@ -18758,6 +18746,13 @@ class Orchestrator:
                 if (
                     self._audit_candidate_priority(issue)
                     not in launch_eligible_priorities
+                    or any(
+                        self._audit_candidate_cursor_key(candidate)
+                        not in processed_candidate_keys
+                        for candidate in candidate_scan.candidates
+                        if self._audit_candidate_priority(candidate)
+                        > self._audit_candidate_priority(issue)
+                    )
                 ):
                     continue
                 missing_workflow_revision = bool(
