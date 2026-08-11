@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import shlex
 import subprocess
 import threading
 import time
@@ -42,6 +43,7 @@ from oompah.provenance_suppression import (
     authorize_new_revision,
     mark_provenance_only,
 )
+from oompah.quality_gate import BranchQualityGate
 from oompah.review_workflow import ReviewWorkflowController
 from oompah.terminal_audit import (
     ContributorIdentity,
@@ -135,6 +137,48 @@ class NativeTracker:
         ]
 
 
+class ScopedMutationTracker(NativeTracker):
+    """Generation-bound tracker double with an exact per-task change journal."""
+
+    def __init__(self, issues: list[Issue]):
+        super().__init__(issues)
+        self._generation = 1
+        self._changes: dict[int, str] = {}
+        self._refresh_generation()
+
+    def _refresh_generation(self):
+        self.authority_generation = f"test-native:{self._generation}"
+        self.publication_revision = self._generation
+
+    def mutate(self, identifier: str, *, state: str | None = None):
+        current = self.issues[identifier]
+        self.issues[identifier] = replace(
+            current,
+            state=state or current.state,
+            title=f"{current.title} generation {self._generation + 1}",
+        )
+        self._generation += 1
+        self._changes[self._generation] = identifier
+        self._refresh_generation()
+
+    def task_authority_changes_between(self, expected: str, current: str):
+        try:
+            expected_generation = int(expected.rsplit(":", 1)[1])
+            current_generation = int(current.rsplit(":", 1)[1])
+        except (IndexError, ValueError):
+            return None
+        if current_generation < expected_generation:
+            return None
+        return frozenset(
+            self._changes[generation]
+            for generation in range(expected_generation + 1, current_generation + 1)
+            if generation in self._changes
+        )
+
+    def terminal_metadata_changes_between(self, _expected: str, _current: str):
+        return None
+
+
 def make_issue(
     identifier: str,
     state: str = "In Review",
@@ -212,6 +256,16 @@ def make_binding(
         tracker_publication_revision_source=(
             tracker.get_publication_revision
             if callable(getattr(tracker, "get_publication_revision", None))
+            else None
+        ),
+        tracker_authority_changes_source=(
+            tracker.task_authority_changes_between
+            if callable(getattr(tracker, "task_authority_changes_between", None))
+            else None
+        ),
+        tracker_terminal_authority_changes_source=(
+            tracker.terminal_metadata_changes_between
+            if callable(getattr(tracker, "terminal_metadata_changes_between", None))
             else None
         ),
     )
@@ -1435,7 +1489,17 @@ def test_state_branch_diff_preflight_keeps_project_controls_responsive(tmp_path)
     task = make_issue("TASK-DIFF-PREFLIGHT", state="Backlog")
     store = WorkflowJobStore(str(tmp_path / "jobs-diff-preflight.sqlite3"))
     tracker = NativeTracker([task])
-    tracker.get_state_branch_generation = lambda: "native-head:2"
+    tracker.authority_generation = "native-head:2"
+    generation_reads = 0
+
+    def current_generation():
+        nonlocal generation_reads
+        generation_reads += 1
+        # The two project checkpoints see the generation-bound corpus cut;
+        # the final publication preflight observes the concurrent change.
+        return "native-head:2" if generation_reads <= 2 else "native-head:3"
+
+    tracker.get_state_branch_generation = current_generation
     binding, journal = make_binding(tmp_path, tracker, store)
     project_lock = threading.RLock()
     binding.terminal_audit_publication_lock = lambda: project_lock
@@ -2068,6 +2132,13 @@ def test_scoped_unrelated_active_audit_status_churn_keeps_review_publishable(
         return frozenset({audit_task.identifier})
 
     binding.tracker_terminal_authority_changes_source = diff_tracker_authority
+    binding.tracker_authority_changes_source = (
+        lambda expected, current: (
+            frozenset()
+            if expected == current
+            else frozenset({audit_task.identifier})
+        )
+    )
     proof_calls = []
 
     def prove_lane(decision, value, action):
@@ -5487,6 +5558,299 @@ def test_runtime_injects_policy_seconds_into_every_owner_controller(tmp_path):
     store.close()
 
 
+@pytest.mark.timeout(20)
+def test_large_corpus_restart_publishes_complete_snapshot_with_phase_telemetry(
+    tmp_path,
+):
+    task_count = 1_878
+    store = WorkflowJobStore(str(tmp_path / "large-restart.sqlite3"))
+    tracker = NativeTracker(
+        [make_issue(f"TASK-LARGE-{index:04d}", state="Backlog") for index in range(task_count)]
+    )
+    binding, journal = make_binding(tmp_path, tracker, store)
+    controller = UniversalTotalityLivenessController(
+        store=store,
+        liveness_max_task_records=2_000,
+    )
+    controller.restore_liveness_state(None)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert report["projects"]["project-1"]["issues"] == task_count
+    assert report["projects"]["project-1"]["snapshot"]["published"] is True
+    assert report["liveness"]["scan_complete"] is True
+    assert runtime.restart_reconstruction_pending is False
+    phases = report["reconciliation_phases"]
+    assert phases["total_seconds"] < 120
+    assert set(phases["seconds"]) >= {
+        "issue_loading",
+        "issue_index",
+        "liveness_facts",
+        "authority_correction",
+        "snapshot_publication",
+    }
+    assert phases["projects"]["project-1"]["liveness_facts"] > 0
+    runtime.close()
+    store.close()
+
+
+@pytest.mark.timeout(20)
+def test_repeated_scoped_mutations_converge_and_keep_control_responsive(tmp_path):
+    tasks = [
+        make_issue("TASK-GATED", state="In Review"),
+        *[
+            make_issue(f"TASK-MUTATION-{index:02d}", state="Backlog")
+            for index in range(32)
+        ],
+    ]
+    store = WorkflowJobStore(str(tmp_path / "scoped-retry.sqlite3"))
+    tracker = ScopedMutationTracker(tasks)
+    binding, journal = make_binding(tmp_path, tracker, store)
+    mutation_count = 20
+    mutation_ids = iter(
+        tuple(
+            f"TASK-MUTATION-{index % 4:02d}"
+            for index in range(mutation_count)
+        )
+    )
+    gated_calls = 0
+
+    def mutate_during_collection(issue):
+        nonlocal gated_calls
+        if issue.identifier != "TASK-GATED":
+            return {"version": 1}
+        gated_calls += 1
+        mutation_id = next(mutation_ids, None)
+        if mutation_id is not None:
+            tracker.mutate(mutation_id)
+        return {"version": tracker._generation}
+
+    binding.collector.sources[FactDomain.CONFIG] = mutate_during_collection
+    original_checkpoint = binding.collector.cooperative_checkpoint
+
+    def slow_cooperative_scan():
+        time.sleep(0.001)
+        assert original_checkpoint is not None
+        original_checkpoint()
+
+    binding.collector.cooperative_checkpoint = slow_cooperative_scan
+
+    old_generation = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(old_generation)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=old_generation,
+        authoritative_project_ids=("project-1",),
+        expected_identities=(("project-1", "TASK-OLD-CUT"),),
+    ).accepted
+    old_cursor = store.activate_schedule(
+        project_id="project-1",
+        task_id="TASK-OLD-CUT",
+        decision_revision="old-admissible-decision",
+        snapshot_generation=old_generation,
+    )
+    old_spec = WorkflowJobSpec(
+        project_id="project-1",
+        task_id="TASK-OLD-CUT",
+        generation=old_cursor.job_generation,
+        action="review_refresh",
+        idempotency_key="old-admissible-job",
+    )
+    old_job = store.enqueue(old_spec)
+    assert store.reconcile_schedule(
+        project_id="project-1",
+        task_id="TASK-OLD-CUT",
+        snapshot_generation=old_generation,
+        job_generation=old_cursor.job_generation,
+        specs=(old_spec,),
+    ).accepted
+    assert store.publish_snapshot_generation(old_generation, lambda: None)[0]
+
+    controller = UniversalTotalityLivenessController(
+        store=store,
+        liveness_max_task_records=64,
+    )
+    controller.restore_liveness_state(None)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+    runtime._refresh_admission_cut(
+        {
+            "projects": {
+                "project-1": {
+                    "snapshot": {
+                        "generation": old_generation,
+                        "published": True,
+                    }
+                }
+            }
+        },
+        ("project-1",),
+    )
+    stale_claimed = threading.Event()
+    original_execute_claimed = runtime.worker.execute_claimed
+
+    async def record_claim(job):
+        if job.job_id == old_job.job_id:
+            stale_claimed.set()
+        return await original_execute_claimed(job)
+
+    runtime.worker.execute_claimed = record_claim
+
+    gate_repo = tmp_path / "gate-repo"
+    gate_repo.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=gate_repo, check=True)
+    subprocess.run(["git", "config", "user.name", "oompah"], cwd=gate_repo, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "oompah@example.invalid"],
+        cwd=gate_repo,
+        check=True,
+    )
+    (gate_repo / "Makefile").write_text("test:\n\t@true\n", encoding="utf-8")
+    subprocess.run(["git", "add", "Makefile"], cwd=gate_repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "gate baseline"], cwd=gate_repo, check=True)
+    safety_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=gate_repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    subprocess.run(["git", "checkout", "-q", "-b", "work"], cwd=gate_repo, check=True)
+    gate_started = tmp_path / "gate-started"
+    gate_release = tmp_path / "gate-release"
+    gate = BranchQualityGate(
+        str(tmp_path / "quality-gate.json"),
+        safety_head=safety_head,
+        sandbox_launcher=lambda command, _snapshot, _root: [
+            "/bin/sh",
+            "-c",
+            command,
+        ],
+    )
+    gate_results = []
+
+    def run_gate():
+        gate_results.append(
+            gate.run(
+                repo_path=str(gate_repo),
+                repo_identity="https://example.invalid/oompah/gate",
+                target_branch="main",
+                work_branch="work",
+                command=(
+                    f"touch {shlex.quote(str(gate_started))}; "
+                    f"while [ ! -f {shlex.quote(str(gate_release))} ]; do "
+                    "sleep 0.01; done"
+                ),
+            )
+        )
+
+    gate_thread = threading.Thread(target=run_gate, daemon=True)
+    gate_thread.start()
+    gate_start_deadline = time.monotonic() + 5
+    while not gate_started.exists() and time.monotonic() < gate_start_deadline:
+        time.sleep(0.01)
+    assert gate_started.exists(), "independent branch quality gate did not start"
+
+    async def exercise():
+        await runtime.start()
+        reconcile = asyncio.create_task(runtime.reconcile_async())
+        try:
+            await asyncio.sleep(0.02)
+            assert runtime.health_snapshot()["mode"] == "enforce"
+            assert runtime.restart_reconstruction_pending is True
+            assert runtime.health_snapshot()["worker"]["retained"] == 0
+            assert store.get(old_job.job_id).state is WorkflowJobState.QUEUED
+            assert stale_claimed.is_set() is False
+            return await asyncio.wait_for(reconcile, 10)
+        finally:
+            await asyncio.gather(reconcile, return_exceptions=True)
+
+    try:
+        report = asyncio.run(exercise())
+        assert gate_thread.is_alive()
+        assert gate_release.exists() is False
+    finally:
+        gate_release.write_text("release\n", encoding="utf-8")
+        gate_thread.join(timeout=5)
+        BranchQualityGate.cleanup_active_processes()
+
+    assert report["projects"]["project-1"]["snapshot"]["published"] is True
+    assert report["projects"]["project-1"]["authority_corrections"] == mutation_count
+    assert runtime.restart_reconstruction_pending is False
+    assert gated_calls >= mutation_count + 1
+    assert stale_claimed.is_set() is False
+    assert store.get(old_job.job_id).state is WorkflowJobState.SUPERSEDED
+    assert len(gate_results) == 1 and gate_results[0].passed
+    health = controller.liveness_snapshot()
+    assert health.total_nonterminal_count == len(tasks)
+    assert health.tracked_task_count == len(tasks)
+    jobs = store.list_jobs(limit=1_000)
+    assert len({job.job_id for job in jobs}) == len(jobs)
+    runtime.close()
+    store.close()
+
+
+def test_final_preflight_scoped_mutation_retries_before_effect_publication(tmp_path):
+    task = make_issue("TASK-FINAL-BARRIER", state="Backlog")
+    store = WorkflowJobStore(str(tmp_path / "final-barrier.sqlite3"))
+    tracker = ScopedMutationTracker([task])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    controller = UniversalTotalityLivenessController(store=store)
+    controller.restore_liveness_state(None)
+    observed_titles: list[str] = []
+    binding.collector.sources[FactDomain.CONFIG] = lambda issue: (
+        observed_titles.append(issue.title) or {"version": tracker._generation}
+    )
+    original_publish = store.publish_snapshot_generation
+    publication_calls = 0
+
+    def mutate_at_final_barrier(generation, publish, **kwargs):
+        nonlocal publication_calls
+        publication_calls += 1
+        if publication_calls <= 3:
+            tracker.mutate(task.identifier)
+        return original_publish(generation, publish, **kwargs)
+
+    store.publish_snapshot_generation = mutate_at_final_barrier
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert publication_calls == 4
+    assert report["projects"]["project-1"]["snapshot"]["published"] is True
+    assert report["reconciliation_phases"]["scoped_publication_retries"] == 3
+    assert observed_titles[-1].endswith("generation 4")
+    assert runtime.restart_reconstruction_pending is False
+    assert store.list_jobs(limit=100) == ()
+    runtime.close()
+    store.close()
+
+
 def test_enforce_runtime_owns_liveness_restart_reconstruction(tmp_path):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     tracker = NativeTracker([])
@@ -5529,6 +5893,40 @@ def test_enforce_runtime_owns_liveness_restart_reconstruction(tmp_path):
     assert persisted[-1]["accepted_snapshot_generation"] == (
         second_health.snapshot_generation
     )
+    runtime.close()
+    store.close()
+
+
+def test_overdue_restart_still_allows_stable_base_scan_to_publish(tmp_path):
+    current = [datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)]
+    store = WorkflowJobStore(str(tmp_path / "overdue-restart.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-OVERDUE", state="Backlog")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    controller = UniversalTotalityLivenessController(
+        store=store,
+        clock=lambda: current[0],
+    )
+    controller.restore_liveness_state(None)
+    current[0] = current[0].replace(minute=3)
+    assert controller.liveness_snapshot().status == "restart_overdue"
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+
+    assert report["projects"]["project-1"]["snapshot"]["published"] is True
+    assert report["reconciliation_phases"][
+        "historical_restart_deadline_seconds_remaining"
+    ] < 0
+    assert runtime.restart_reconstruction_pending is False
     runtime.close()
     store.close()
 

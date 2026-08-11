@@ -913,6 +913,7 @@ class WorkflowFactCollector:
         *,
         landing_requests: Sequence[LandingRequest] = (),
         authoritative_issues: Mapping[str, Issue] | None = None,
+        authoritative_children: Mapping[str, Sequence[Issue]] | None = None,
     ) -> WorkflowFacts:
         if self.cooperative_checkpoint is not None:
             self.cooperative_checkpoint()
@@ -986,6 +987,12 @@ class WorkflowFactCollector:
             try:
                 children = (
                     list(
+                        authoritative_children.get(
+                            issue.identifier.casefold(), ()
+                        )
+                    )
+                    if authoritative_children is not None
+                    else list(
                         {
                             child.identifier: child
                             for child in authoritative_issues.values()

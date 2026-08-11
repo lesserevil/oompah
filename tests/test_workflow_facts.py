@@ -761,6 +761,42 @@ def test_collector_resolves_stateless_dependencies_from_authoritative_corpus():
     assert dependencies.value["hard_start"][0]["status"] == "Open"
 
 
+def test_collector_uses_preindexed_authoritative_children_without_corpus_scan():
+    task = _issue(blocked_by=[], start_blocked_by=[])
+    child = _issue(
+        id="TASK-CHILD",
+        identifier="TASK-CHILD",
+        parent_id=task.identifier,
+        state="Open",
+        blocked_by=[],
+        start_blocked_by=[],
+    )
+
+    class NoValuesAuthority(dict):
+        def values(self):
+            raise AssertionError("containment performed a full-corpus scan")
+
+    facts = WorkflowFactCollector(
+        project_id="project-1",
+        tracker=FakeTracker(None),
+        clock=lambda: NOW,
+    ).collect(
+        task.identifier,
+        authoritative_issues=NoValuesAuthority({task.identifier: task}),
+        authoritative_children={task.identifier.casefold(): (child,)},
+    )
+
+    containment = facts.fact(FactDomain.CONTAINMENT)
+    assert containment.state is FactState.KNOWN
+    assert tuple(dict(item) for item in containment.value["children"]) == (
+        {
+            "identifier": child.identifier,
+            "status": "Open",
+            "issue_type": child.issue_type,
+        },
+    )
+
+
 @pytest.mark.parametrize(
     ("corpus", "error_code"),
     (
