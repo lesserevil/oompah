@@ -5536,6 +5536,31 @@ class Orchestrator:
         checked_at = time.time() if now is None else now
         return bool(claim is not None and claim.expires_at > checked_at)
 
+    def _direct_owner_claim_transition_conflict(
+        self,
+        intent: TransitionIntent,
+        issue: Issue,
+    ) -> str | None:
+        """Validate one exact direct-owner lease under the project write lock."""
+
+        claim = self._live_owner_claim_for_issue_locked(
+            issue.id,
+            intent.project_id,
+        )
+        if claim is None:
+            return "transition.owner_claim_missing"
+        if claim.retirement_pending:
+            return "transition.owner_claim_retiring"
+        if str(claim.claim_id or "") != str(intent.evidence_generation or ""):
+            return "transition.owner_claim_generation_mismatch"
+        if str(claim.owner_login or "") != intent.actor:
+            return "transition.owner_claim_actor_mismatch"
+        if str(claim.project_id or "") != intent.project_id:
+            return "transition.owner_claim_project_mismatch"
+        if str(claim.issue_id or "") != str(issue.id):
+            return "transition.owner_claim_task_mismatch"
+        return None
+
     def _scheduler_owns_project_issue(
         self,
         issue_id: str,
@@ -10947,6 +10972,20 @@ class Orchestrator:
                     terminal_adapter=(
                         self._task_transition_terminal_adapter
                         if project_id is not None
+                        else None
+                    ),
+                    direct_owner_write_lock=(
+                        lambda: self.project_store.project_write_lock(
+                            service_project_id
+                        )
+                        if project_id is not None
+                        and hasattr(self, "project_store")
+                        else None
+                    ),
+                    direct_owner_claim_guard=(
+                        self._direct_owner_claim_transition_conflict
+                        if project_id is not None
+                        and hasattr(self, "project_store")
                         else None
                     ),
                 )

@@ -20,7 +20,9 @@ import sqlite3
 import threading
 from collections.abc import Mapping
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Any
 
 from oompah.duplicate_screening import (
@@ -857,6 +859,13 @@ class OrchestratorImplementationEffects:
                     category=WorkflowFailureCategory.POLICY,
                     retryable=False,
                 )
+            durable_issue_id = _text(payload.get("issue_id"))
+            if durable_issue_id and durable_issue_id != _text(issue.id):
+                raise WorkflowActionError(
+                    "direct-owner claim task identity changed",
+                    category=WorkflowFailureCategory.STALE_EVIDENCE,
+                    retryable=False,
+                )
             self.orchestrator._cancel_retry_for_issue(
                 issue_id=issue.id,
                 identifier=issue.identifier,
@@ -1410,24 +1419,148 @@ class ProductionImplementationWorkflowBackend:
                 )
         if current == canonicalize_status(requested):
             return None
+        actor = "oompah"
+        authority = TransitionAuthority.ORCHESTRATOR
+        evidence_generation = context.job.generation
+        if action is ImplementationAction.DIRECT_OWNER_CLAIM:
+            actor = _text(payload.get("owner_id"))
+            evidence_generation = _text(payload.get("claim_id"))
+            if not actor:
+                raise WorkflowActionError(
+                    "direct-owner transition has no owner identity",
+                    category=WorkflowFailureCategory.POLICY,
+                    retryable=False,
+                )
+            if not evidence_generation:
+                raise WorkflowActionError(
+                    "direct-owner transition has no durable claim identity",
+                    category=WorkflowFailureCategory.POLICY,
+                    retryable=False,
+                )
+            authority = TransitionAuthority.PROJECT_OWNER
         return TransitionIntent(
             project_id=context.job.project_id,
             task_id=context.job.task_id,
             expected_status=issue.state,
             expected_version=issue_authority_version(issue),
             requested_status=requested,
-            actor="oompah",
-            authority=TransitionAuthority.ORCHESTRATOR,
+            actor=actor,
+            authority=authority,
             reason_code=f"implementation.{action.value}",
             idempotency_key=f"{context.job.idempotency_key}:transition",
             originating_job=context.job.job_id,
-            evidence_generation=context.job.generation,
+            evidence_generation=evidence_generation,
             exact_head=(
                 context.job.expected_head_sha
                 if _HEAD_RE.fullmatch(_text(context.job.expected_head_sha).lower())
                 else None
             ),
         )
+
+    async def compensate_transition_failure(
+        self,
+        context: WorkflowJobContext,
+        failure: TransitionOutcome | WorkflowActionError,
+    ) -> Mapping[str, Any] | None:
+        """Release only the direct-owner claim whose transition failed."""
+
+        if (
+            ImplementationAction(context.job.action)
+            is not ImplementationAction.DIRECT_OWNER_CLAIM
+        ):
+            return None
+        payload = context.job.payload or {}
+        claim_id = _text(payload.get("claim_id"))
+        owner_id = _text(payload.get("owner_id"))
+        if not claim_id or not owner_id:
+            raise WorkflowActionError(
+                "direct-owner compensation is missing durable claim identity",
+                category=WorkflowFailureCategory.POLICY,
+                retryable=False,
+            )
+        issue = None
+        issue_id = _text(payload.get("issue_id"))
+        if not issue_id:
+            issue = await asyncio.to_thread(
+                self.effects._issue,
+                context.job.task_id,
+            )
+            issue_id = _text(issue.id)
+        if not issue_id:
+            raise WorkflowActionError(
+                "direct-owner compensation is missing durable task identity",
+                category=WorkflowFailureCategory.POLICY,
+                retryable=False,
+            )
+        try:
+            released = await asyncio.to_thread(
+                self.effects.orchestrator.release_owner_claim,
+                issue_id=issue_id,
+                project_id=self.effects.project_id,
+                expected_claim_id=claim_id,
+            )
+            current = await asyncio.to_thread(
+                self.effects.orchestrator._owner_claim_for_issue,
+                issue_id,
+                self.effects.project_id,
+            )
+        except Exception as exc:
+            raise WorkflowActionError(
+                f"direct-owner transition compensation failed: {exc}",
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            ) from exc
+        if _text(getattr(current, "claim_id", None)) == claim_id:
+            raise WorkflowActionError(
+                "direct-owner transition compensation did not release the exact claim",
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            )
+        receipt = await asyncio.to_thread(self.effects.receipts.get, context)
+        if receipt is None:
+            if issue is None:
+                try:
+                    issue = await asyncio.to_thread(
+                        self.effects._issue,
+                        context.job.task_id,
+                    )
+                except Exception:  # tracker object may be permanently absent
+                    issue = SimpleNamespace(
+                        work_branch=None,
+                        branch_name=None,
+                        head_sha=None,
+                        review_head=None,
+                        integration=None,
+                    )
+            receipt = self.effects._disposition(
+                context,
+                issue=issue,
+                owner_id=owner_id,
+            )
+        revoked = replace(
+            receipt,
+            state=ImplementationState.REVOKED,
+            lease_expires_at=None,
+            authority_revision=None,
+        )
+        notify = getattr(self.effects.orchestrator, "_notify_state_only", None)
+        if released and callable(notify):
+            await asyncio.to_thread(notify)
+        reason_code = (
+            failure.reason_code
+            if isinstance(failure, TransitionOutcome)
+            else f"workflow.{failure.category.value}"
+        )
+        return {
+            "kind": "direct_owner_claim_released",
+            "claim_id": claim_id,
+            "owner_id": owner_id,
+            "released": bool(released),
+            "replacement_claim_id": _text(getattr(current, "claim_id", None))
+            or None,
+            "reason_code": reason_code,
+            "disposition": revoked.to_dict(),
+        }
 
     async def finalize_transition(
         self,
@@ -1518,6 +1651,7 @@ def build_implementation_workflow_handlers(
             )
             payload = {
                 "owner_id": claim.owner_login,
+                "issue_id": issue.id,
                 "claim_id": claim.claim_id,
                 "expected_status": issue.state,
                 "work_branch": _text(issue.work_branch or issue.branch_name),

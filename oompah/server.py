@@ -13830,6 +13830,7 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
             action=ImplementationAction.DIRECT_OWNER_CLAIM,
             payload={
                 "owner_id": owner_login,
+                "issue_id": issue.id,
                 "claim_id": uuid.uuid4().hex,
                 "ttl_hours": ttl_hours or orch.config.owner_claim_ttl_hours,
                 "expected_status": issue.state,

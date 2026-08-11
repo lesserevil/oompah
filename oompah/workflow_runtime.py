@@ -1286,6 +1286,11 @@ class WorkflowRuntime:
                 write_lock=lambda _project_id=project_id: (
                     project_store.project_write_lock(_project_id)
                 ),
+                direct_owner_claim_guard=getattr(
+                    orchestrator,
+                    "_direct_owner_claim_transition_conflict",
+                    None,
+                ),
             )
 
             def terminal_audit_proof_source(

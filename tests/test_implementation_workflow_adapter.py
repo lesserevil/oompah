@@ -34,6 +34,7 @@ from oompah.models import Issue, OwnerClaim
 from oompah.oompah_md_tracker import OompahMarkdownTracker
 from oompah.orchestrator import Orchestrator
 from oompah.statuses import (
+    BACKLOG,
     DUPLICATE_CANDIDATE,
     IN_PROGRESS,
     NEEDS_HUMAN,
@@ -41,6 +42,8 @@ from oompah.statuses import (
     READY_TO_INTEGRATE,
 )
 from oompah.task_transition_service import (
+    TaskTransitionService,
+    TransitionAuthority,
     TransitionDisposition,
     TransitionJournal,
     TransitionOutcome,
@@ -204,6 +207,7 @@ def make_context(
     payload=None,
     head=HEAD_A,
     evidence=None,
+    max_attempts=5,
 ):
     store = WorkflowJobStore(str(tmp_path / f"{project}-{generation}.sqlite3"))
     job = store.enqueue(
@@ -216,6 +220,7 @@ def make_context(
             payload=payload,
             expected_evidence_revision=evidence,
             expected_head_sha=head,
+            max_attempts=max_attempts,
         )
     )
     return store, WorkflowJobContext(job, asyncio.Event(), asyncio.Event())
@@ -339,6 +344,412 @@ async def test_start_dispatches_exact_generation_without_direct_status_write(tmp
     assert tracker.status_writes == []
     assert transition.requested_status == IN_PROGRESS
     effects.receipts.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("install_replacement", [False, True])
+async def test_direct_owner_transition_rejection_compensates_exact_claim(
+    tmp_path,
+    install_replacement,
+):
+    issue = make_issue(status=BACKLOG)
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    jobs, _context = make_context(
+        tmp_path,
+        generation="owner-claim-generation",
+        action=ImplementationAction.DIRECT_OWNER_CLAIM,
+        evidence=issue_authority_version(issue),
+        payload={
+            "owner_id": "project-owner",
+            "claim_id": "claim-rejected-transition",
+            "expected_status": BACKLOG,
+        },
+    )
+    orch.workflow_job_store.close()
+    orch.workflow_job_store = jobs
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    captured = []
+
+    class RejectingTransitionService:
+        async def execute(self, intent):
+            captured.append(intent)
+            if install_replacement:
+                orch.grant_owner_claim(
+                    issue_id=issue.id,
+                    project_id="project-a",
+                    owner_login="replacement-owner",
+                    claim_id="replacement-claim",
+                )
+            return TransitionOutcome(
+                transition_id="rejected-owner-transition",
+                project_id="project-a",
+                task_id=issue.identifier,
+                disposition=TransitionDisposition.REJECTED,
+                reason_code="transition.test_permanent_rejection",
+                observed_status=issue.state,
+                observed_version=issue_authority_version(issue),
+                requested_status=IN_PROGRESS,
+            )
+
+    worker = DurableWorkflowWorker(
+        store=jobs,
+        handlers={
+            ImplementationAction.DIRECT_OWNER_CLAIM.value: (
+                ImplementationWorkflowHandler(
+                    ProductionImplementationWorkflowBackend(effects)
+                )
+            )
+        },
+        transition_services={"project-a": RejectingTransitionService()},
+        worker_id="owner-claim-compensation-worker",
+    )
+
+    result = await worker.run_once()
+
+    assert result.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    assert captured[0].actor == "project-owner"
+    assert captured[0].authority is TransitionAuthority.PROJECT_OWNER
+    current = orch._owner_claim_for_issue(issue.id, "project-a")
+    if install_replacement:
+        assert current is not None
+        assert current.claim_id == "replacement-claim"
+        assert current.owner_login == "replacement-owner"
+    else:
+        assert current is None
+    durable = jobs.get(result.job_id)
+    assert durable.state is WorkflowJobState.EXHAUSTED
+    compensation = durable.checkpoint["transition_compensation"]
+    assert compensation["claim_id"] == "claim-rejected-transition"
+    assert compensation["replacement_claim_id"] == (
+        "replacement-claim" if install_replacement else None
+    )
+    compensated = ImplementationDisposition.from_dict(
+        durable.checkpoint["verification"]["disposition"]
+    )
+    assert compensated.state is ImplementationState.REVOKED
+    assert compensated.owner_id == "project-owner"
+    effects.receipts.close()
+    jobs.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("install_replacement", [False, True])
+async def test_missing_task_transition_compensates_durable_owner_identity(
+    tmp_path,
+    install_replacement,
+):
+    issue = make_issue(status=BACKLOG)
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    claim_id = "claim-before-task-disappears"
+    jobs, _context = make_context(
+        tmp_path,
+        generation="owner-missing-task",
+        action=ImplementationAction.DIRECT_OWNER_CLAIM,
+        evidence=issue_authority_version(issue),
+        payload={
+            "owner_id": "project-owner",
+            "issue_id": issue.id,
+            "claim_id": claim_id,
+            "expected_status": BACKLOG,
+        },
+    )
+    orch.workflow_job_store.close()
+    orch.workflow_job_store = jobs
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    journal = TransitionJournal(str(tmp_path / "missing-task-transitions.sqlite3"))
+    transition_service = TaskTransitionService(
+        project_id="project-a",
+        tracker=tracker,
+        journal=journal,
+    )
+
+    def remove_task_after_effect(phase, _job):
+        if phase != "transition_intent":
+            return
+        assert tracker.issues.pop(issue.identifier) is issue
+        if install_replacement:
+            orch.grant_owner_claim(
+                issue_id=issue.id,
+                project_id="project-a",
+                owner_login="replacement-owner",
+                claim_id="replacement-after-task-disappears",
+            )
+
+    worker = DurableWorkflowWorker(
+        store=jobs,
+        handlers={
+            ImplementationAction.DIRECT_OWNER_CLAIM.value: (
+                ImplementationWorkflowHandler(
+                    ProductionImplementationWorkflowBackend(effects)
+                )
+            )
+        },
+        transition_services={"project-a": transition_service},
+        worker_id="missing-owner-task-compensation-worker",
+        phase_observer=remove_task_after_effect,
+    )
+
+    result = await worker.run_once()
+
+    assert result.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    current = orch._owner_claim_for_issue(issue.id, "project-a")
+    if install_replacement:
+        assert current is not None
+        assert current.claim_id == "replacement-after-task-disappears"
+        assert current.owner_login == "replacement-owner"
+    else:
+        assert current is None
+    durable = jobs.get(result.job_id)
+    assert durable.state is WorkflowJobState.EXHAUSTED
+    compensation = durable.checkpoint["transition_compensation"]
+    assert compensation["claim_id"] == claim_id
+    assert compensation["reason_code"] == "transition.task_missing"
+    assert compensation["released"] is (not install_replacement)
+    assert compensation["replacement_claim_id"] == (
+        "replacement-after-task-disappears" if install_replacement else None
+    )
+    revoked = ImplementationDisposition.from_dict(
+        durable.checkpoint["verification"]["disposition"]
+    )
+    assert revoked.state is ImplementationState.REVOKED
+    assert tracker.status_writes == []
+    effects.receipts.close()
+    journal.close()
+    jobs.close()
+
+
+@pytest.mark.asyncio
+async def test_direct_owner_compensation_is_terminal_restart_barrier(tmp_path):
+    issue = make_issue(status=BACKLOG)
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    path = tmp_path / "project-a-owner-compensation-restart.sqlite3"
+    jobs, _context = make_context(
+        tmp_path,
+        generation="owner-compensation-restart",
+        action=ImplementationAction.DIRECT_OWNER_CLAIM,
+        evidence=issue_authority_version(issue),
+        payload={
+            "owner_id": "project-owner",
+            "claim_id": "claim-compensated-before-crash",
+            "expected_status": BACKLOG,
+        },
+    )
+    assert jobs.path == str(path)
+    orch.workflow_job_store.close()
+    orch.workflow_job_store = jobs
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    transition_calls = 0
+
+    class RejectingTransitionService:
+        async def execute(self, intent):
+            nonlocal transition_calls
+            transition_calls += 1
+            return TransitionOutcome(
+                transition_id="compensated-restart-transition",
+                project_id="project-a",
+                task_id=issue.identifier,
+                disposition=TransitionDisposition.REJECTED,
+                reason_code="transition.test_permanent_rejection",
+                observed_status=issue.state,
+                observed_version=issue_authority_version(issue),
+                requested_status=IN_PROGRESS,
+            )
+
+    class ProcessDeath(BaseException):
+        pass
+
+    def crash_after_compensation(phase, _job):
+        if phase == "transition_compensated":
+            raise ProcessDeath(phase)
+
+    handler = ImplementationWorkflowHandler(
+        ProductionImplementationWorkflowBackend(effects)
+    )
+    first = DurableWorkflowWorker(
+        store=jobs,
+        handlers={ImplementationAction.DIRECT_OWNER_CLAIM.value: handler},
+        transition_services={"project-a": RejectingTransitionService()},
+        worker_id="owner-compensation-crash-worker",
+        phase_observer=crash_after_compensation,
+    )
+
+    with pytest.raises(ProcessDeath):
+        await first.run_once()
+
+    abandoned = jobs.list_jobs(states=[WorkflowJobState.RUNNING])
+    assert len(abandoned) == 1
+    job_id = abandoned[0].job_id
+    assert abandoned[0].phase == "transition_compensated"
+    assert orch._owner_claim_for_issue(issue.id, "project-a") is None
+    jobs.close()
+
+    reopened = WorkflowJobStore(str(path))
+    orch.workflow_job_store = reopened
+    assert reopened.recover_abandoned() == 1
+
+    class MustNotReplayTransitionService:
+        async def execute(self, _intent):
+            raise AssertionError("compensated transition intent was replayed")
+
+    restarted = DurableWorkflowWorker(
+        store=reopened,
+        handlers={ImplementationAction.DIRECT_OWNER_CLAIM.value: handler},
+        transition_services={"project-a": MustNotReplayTransitionService()},
+        worker_id="owner-compensation-restart-worker",
+    )
+
+    result = await restarted.run_once()
+
+    assert result.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    durable = reopened.get(job_id)
+    assert durable.state is WorkflowJobState.EXHAUSTED
+    assert durable.phase == "transition_compensated"
+    assert durable.checkpoint["transition_compensation"]["claim_id"] == (
+        "claim-compensated-before-crash"
+    )
+    assert transition_calls == 1
+    assert tracker.status_writes == []
+    effects.receipts.close()
+    reopened.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure_kind", ["permanent", "retry_exhausted", "plain"])
+async def test_direct_owner_terminal_transition_failure_compensates_claim(
+    tmp_path,
+    failure_kind,
+):
+    issue = make_issue(status=BACKLOG)
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    jobs, _context = make_context(
+        tmp_path,
+        generation=f"owner-terminal-{failure_kind}",
+        action=ImplementationAction.DIRECT_OWNER_CLAIM,
+        evidence=issue_authority_version(issue),
+        payload={
+            "owner_id": "project-owner",
+            "claim_id": f"claim-terminal-{failure_kind}",
+            "expected_status": BACKLOG,
+        },
+        max_attempts=1,
+    )
+    orch.workflow_job_store.close()
+    orch.workflow_job_store = jobs
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    class FailingTransitionService:
+        async def execute(self, _intent):
+            if failure_kind == "permanent":
+                orch.grant_owner_claim(
+                    issue_id=issue.id,
+                    project_id="project-a",
+                    owner_login="replacement-owner",
+                    claim_id="replacement-after-permanent-failure",
+                )
+                raise WorkflowActionError(
+                    "permanent transition failure",
+                    category="permanent",
+                    retryable=False,
+                )
+            if failure_kind == "retry_exhausted":
+                raise WorkflowActionError(
+                    "retryable transition exhausted",
+                    category="transient",
+                    retryable=True,
+                )
+            raise RuntimeError("untyped transition failure")
+
+    worker = DurableWorkflowWorker(
+        store=jobs,
+        handlers={
+            ImplementationAction.DIRECT_OWNER_CLAIM.value: (
+                ImplementationWorkflowHandler(
+                    ProductionImplementationWorkflowBackend(effects)
+                )
+            )
+        },
+        transition_services={"project-a": FailingTransitionService()},
+        worker_id=f"owner-terminal-{failure_kind}-worker",
+    )
+
+    result = await worker.run_once()
+
+    assert result.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    durable = jobs.get(result.job_id)
+    assert durable.state is WorkflowJobState.EXHAUSTED
+    compensation = durable.checkpoint["transition_compensation"]
+    assert compensation["claim_id"] == f"claim-terminal-{failure_kind}"
+    assert compensation["settlement"] == "exhausted"
+    current = orch._owner_claim_for_issue(issue.id, "project-a")
+    if failure_kind == "permanent":
+        assert current is not None
+        assert current.claim_id == "replacement-after-permanent-failure"
+    else:
+        assert current is None
+    assert tracker.status_writes == []
+    effects.receipts.close()
+    jobs.close()
+
+
+@pytest.mark.asyncio
+async def test_direct_owner_retryable_transition_keeps_claim_before_exhaustion(
+    tmp_path,
+):
+    issue = make_issue(status=BACKLOG)
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    jobs, _context = make_context(
+        tmp_path,
+        generation="owner-retry-preserves-claim",
+        action=ImplementationAction.DIRECT_OWNER_CLAIM,
+        evidence=issue_authority_version(issue),
+        payload={
+            "owner_id": "project-owner",
+            "claim_id": "claim-preserved-for-retry",
+            "expected_status": BACKLOG,
+        },
+        max_attempts=2,
+    )
+    orch.workflow_job_store.close()
+    orch.workflow_job_store = jobs
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    class RetryableTransitionService:
+        async def execute(self, _intent):
+            raise WorkflowActionError(
+                "temporary transition failure",
+                category="transient",
+                retryable=True,
+            )
+
+    worker = DurableWorkflowWorker(
+        store=jobs,
+        handlers={
+            ImplementationAction.DIRECT_OWNER_CLAIM.value: (
+                ImplementationWorkflowHandler(
+                    ProductionImplementationWorkflowBackend(effects)
+                )
+            )
+        },
+        transition_services={"project-a": RetryableTransitionService()},
+        worker_id="owner-retry-preserves-claim-worker",
+    )
+
+    result = await worker.run_once()
+
+    assert result.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+    durable = jobs.get(result.job_id)
+    assert durable.state is WorkflowJobState.RETRY_WAIT
+    assert "transition_compensation" not in (durable.checkpoint or {})
+    current = orch._owner_claim_for_issue(issue.id, "project-a")
+    assert current is not None
+    assert current.claim_id == "claim-preserved-for-retry"
+    effects.receipts.close()
+    jobs.close()
 
 
 @pytest.mark.asyncio
@@ -1317,6 +1728,7 @@ def test_enforce_bootstrap_preserves_preclaims_and_revokes_inactive_claims(tmp_p
         call.kwargs["task_id"]: call.kwargs for call in schedule_event.call_args_list
     }
     assert scheduled["OPEN-1"]["action"] is ImplementationAction.DIRECT_OWNER_CLAIM
+    assert scheduled["OPEN-1"]["payload"]["issue_id"] == "project-a:OPEN-1"
     assert (
         scheduled["ACTIVE-1"]["action"]
         is ImplementationAction.DIRECT_OWNER_CLAIM
