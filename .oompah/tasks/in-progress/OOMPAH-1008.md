@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1008
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: Make late-effect quarantine deterministic under full-suite load
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T01:18:23.370723Z'
-updated_at: '2026-08-11T02:20:03.736008Z'
+updated_at: '2026-08-11T02:20:13.304931Z'
 work_branch: null
 target_branch: null
 review_url: null
