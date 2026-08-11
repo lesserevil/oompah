@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:44:31.960614Z'
-updated_at: '2026-08-11T17:21:12.399250Z'
-work_branch: null
+updated_at: '2026-08-11T17:21:48.875993Z'
+work_branch: OOMPAH-1095
 target_branch: null
 review_url: null
 review_number: null
@@ -24,6 +24,16 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: b5767d40-1f84-4b3b-835a-59b403777c8e
   request_fingerprint: 12f1c9a13937c9bccaeeaf80a5aacffdadae0ff9d4dea50d227cc26eac5ec01b
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1095
+  head_sha: cbca04ae99c93bc7edcf92270104c076b036b4c6
+  submitted_at: '2026-08-11T17:21:35.917981+00:00'
+  updated_at: '2026-08-11T17:21:35.917981+00:00'
+oompah.work_branch: OOMPAH-1095
 ---
 ## Summary
 
