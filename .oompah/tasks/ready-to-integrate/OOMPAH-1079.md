@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1079
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 2
 title: '[backend:orchestrator] Lifecycle state publication failed'
 parent: null
@@ -11,13 +11,23 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T10:43:32.317191Z'
-updated_at: '2026-08-11T11:10:27.229307Z'
-work_branch: null
+updated_at: '2026-08-11T11:12:43.324570Z'
+work_branch: OOMPAH-1079
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1079
+  head_sha: d54b92a0c5067aad11df0094d6f3cff5e1b28068
+  submitted_at: '2026-08-11T11:12:30.936161+00:00'
+  updated_at: '2026-08-11T11:12:30.936161+00:00'
+oompah.work_branch: OOMPAH-1079
 ---
 ## Summary
 
@@ -83,5 +93,10 @@ Output tail:
 ```text
 Candidate CI was not run because the submitted review branch tip is unavailable in the managed repository.
 ```
+---
+author: oompah
+created: 2026-08-11 11:12
+---
+Fix lifecycle publication teardown race; exact head d54b92a0c5067aad11df0094d6f3cff5e1b28068, 144 affected tests and terminal mutation scan passed.
 ---
 <!-- COMMENTS:END -->
