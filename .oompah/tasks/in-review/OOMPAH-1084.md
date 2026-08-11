@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T12:56:53.414905Z'
+updated_at: '2026-08-11T13:33:20.930373Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
@@ -75,5 +75,10 @@ author: oompah
 created: 2026-08-11 12:56
 ---
 Repaired the independent-review blockers and pushed exact head 1260f6ee368ef7402fb637e81a08ec79436e20cd. A production-shaped A→B checkpoint→C sequence now schedules the fresh C reconciliation and converges to Ready to Integrate at exact C; malformed or non-ready intermediate authority still fails closed. GitLab list/find/get projections now claim same-repository source identity only when both source_project_id and target_project_id are present and equal; missing-ID and fork regressions cover fail-closed behavior. Post-commit checks: 117 adapter/standalone passed; 380 SCM/GitLab-flow passed. Earlier adjacent checks also passed: 295 review/worker/transition/standalone, 155 GitLab/merge-queue, 168 orchestrator review/merge. PR #821 is draft and CI is running. Because the reviewed head changed, 1260f6ee3 requires fresh independent review; no approval or merge performed.
+---
+author: oompah
+created: 2026-08-11 13:33
+---
+Replacement exact head 575e6c358573ec1f103ea782e9168a57587da735 is pushed on origin/OOMPAH-1084, rebased directly on deployed main fe06a0ff1e0e2a2430a1190121df790595040998. It closes all three fresh-review blockers: durable base-generation synchronization forces a new gate even for the same head; active review adoption requires positive exact source and target repository identity; and Ready-to-Integrate recovery checkpoints a PR/MR that advances after verification but before tracker transition, then re-gates and adopts only the latest exact head/base. The replacement path is restricted to a valid marker for the same tracked review, so a newer independent accepted submission cannot be overwritten by stale review history. Deterministic B-to-C late-race, restart, base-only, missing-ID, fork, unmarked-submission, and cache-bypass regressions are included. Post-head evidence: standalone Ready suite 99 passed; review workflow adapter 28 passed; review/work-decision adjacent suites 215 passed; SCM/GitLab/integration suites 410 passed; provider/server GitLab suites 103 passed; full quality-gate suite 309 passed; terminal task-status mutation scan passed. Pre-commit secret and safety hooks passed. This exact head requires another independent review; no self-approval or merge was performed.
 ---
 <!-- COMMENTS:END -->
