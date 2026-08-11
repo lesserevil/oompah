@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1084
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Propagate synchronized open-review heads into exact gate and merge authority
 parent: null
@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T12:41:11.871935Z'
-work_branch: null
+updated_at: '2026-08-11T12:42:13.063005Z'
+work_branch: OOMPAH-1084
 target_branch: null
 review_url: null
 review_number: null
@@ -24,6 +24,16 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: cf39693e-0c40-4a0f-b906-d1d9f0f32091
   request_fingerprint: 0c291c7dc884f23ab6ff6da8a48bacb3bb0abc28b37aa4ba995855e97b708aa2
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1084
+  head_sha: 15a2ee7c9b82cfefb49a00173c302c095f3ca46e
+  submitted_at: '2026-08-11T12:41:57.981846+00:00'
+  updated_at: '2026-08-11T12:41:57.981846+00:00'
+oompah.work_branch: OOMPAH-1084
 ---
 ## Summary
 
@@ -41,5 +51,10 @@ author: oompah
 created: 2026-08-11 12:41
 ---
 Implemented exact review generation reconciliation on branch OOMPAH-1084 after rebasing onto main d9e1c7ae6. GitHub/GitLab observations now propagate head/base/repository identity; synchronized head changes replace standalone integration authority and requeue through Ready to Integrate; review merges re-observe and use forge expected-head CAS. Focused review/provider/standalone suite: 478 passed; terminal task-status scan passed. Preparing final commit and submission.
+---
+author: oompah
+created: 2026-08-11 12:42
+---
+Propagated exact PR/MR head, base, and repository identity; made synchronized review heads durably replace stale standalone integration authority and requeue through exact Ready-to-Integrate gating/adoption; fenced merge execution with fresh observations and forge atomic expected-head CAS; added restart, repeat, fork/base/source/PR, B-to-C, API/race, provider propagation, and production-shaped regating/readoption coverage. Focused suites: 478 passed; terminal-audit scan passed. Commit 15a2ee7c9b82cfefb49a00173c302c095f3ca46e pushed to origin/OOMPAH-1084.
 ---
 <!-- COMMENTS:END -->
