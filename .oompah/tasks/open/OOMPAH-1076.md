@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1076
 type: task
-status: Merged
+status: Open
 priority: null
 title: Bound large-corpus workflow reconciliation within restart SLO
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:41:07.342509Z'
-updated_at: '2026-08-11T10:52:29.323100Z'
+updated_at: '2026-08-11T10:52:44.850972Z'
 work_branch: OOMPAH-1076
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/814
@@ -84,12 +84,12 @@ oompah.terminal_audit:
   oompah.terminal_audit_result_intents: []
   oompah.terminal_provenance_suppression:
     version: 1
-    suppressed: true
-    authority_generation: 0
+    suppressed: false
+    authority_generation: 1
     reason: Retain merged revision 1 as provenance while authorizing the live-canary
       follow-up revision on the same task.
     marked_at: '2026-08-11T10:52:27.705720+00:00'
-    updated_at: '2026-08-11T10:52:27.705720+00:00'
+    updated_at: '2026-08-11T10:52:43.230728+00:00'
     history:
     - kind: mark
       actor:
@@ -100,6 +100,16 @@ oompah.terminal_audit:
         follow-up revision on the same task.
       recorded_at: '2026-08-11T10:52:27.705720+00:00'
       authority_generation: 0
+    - kind: revise
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Deployed revision 1 improved generic containment but the live 1,882-issue
+        canary still took 130.1 seconds of reconciliation phases; continue with revision
+        2 targeting measured integration=100.37s and epic=27.25s.
+      recorded_at: '2026-08-11T10:52:43.230728+00:00'
+      authority_generation: 1
     actor:
       version: 1
       identity: oompah-cli
