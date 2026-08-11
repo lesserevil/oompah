@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T17:02:56.364420Z'
+updated_at: '2026-08-11T17:04:25.797050Z'
 work_branch: OOMPAH-1085
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/827
@@ -33,11 +33,11 @@ oompah.integration:
   task_branch: OOMPAH-1085
   base_branch: main
   base_sha: 3264da6780e35b10f759de8aade7b3509977bbb9
-  head_sha: ed2cbbc4390f475ebb9bc30ed1a4fe5c210f624c
+  head_sha: c2b0e1b10ea76129b8a59e041cde68948354e8cb
   submitted_at: '2026-08-11T16:27:31.218611+00:00'
-  updated_at: '2026-08-11T16:44:45.683939+00:00'
+  updated_at: '2026-08-11T17:04:23.935774+00:00'
   wait_reason: review_generation_requeue
-  wait_generation: review:42f7c816f7229a73b07c4436f7bebc5f21bb96a0e45f54bab891fbe3350d752d
+  wait_generation: review:c935b488906ba0e47b62500bab93b91bbdb1f0bf4d235847da21bb992870d5c2
 oompah.work_branch: OOMPAH-1085
 oompah.agent_run_id: null
 oompah.work_contributors:
