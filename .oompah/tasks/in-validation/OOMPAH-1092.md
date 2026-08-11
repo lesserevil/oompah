@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:02:12.775197Z'
-updated_at: '2026-08-11T17:28:25.471721Z'
+updated_at: '2026-08-11T17:37:52.447648Z'
 work_branch: OOMPAH-1092
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/828
@@ -53,6 +53,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1092
     digest: 17602685e9446493caf47e87af8fdc62bd483b6d13205ae49dc654ca5e88d59a
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1092","audit-e2e2f80707ad","attempt-c657832cd0a5"]': '2026-08-11T17:37:43.165789+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1092
+    target_state: Done
+    evidence_fingerprint: 17602685e9446493caf47e87af8fdc62bd483b6d13205ae49dc654ca5e88d59a
+    workflow_revision: null
+    selected_ref: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
+    selected_sha: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
+    landing_revision: null
+    audit_ids:
+    - audit-e2e2f80707ad
+    kind: result
+    applied: true
+    retired_at: '2026-08-11T17:37:43.165803+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1092
+    audit_id: audit-e2e2f80707ad
+    attempt_id: attempt-c657832cd0a5
+    target_state: Done
+    evidence_fingerprint: 17602685e9446493caf47e87af8fdc62bd483b6d13205ae49dc654ca5e88d59a
+    status: In Validation
+    audit_ids:
+    - audit-e2e2f80707ad
+    kind: result
+    applied: true
+    created_at: '2026-08-11T17:37:43.165813+00:00'
+    applied_at: '2026-08-11T17:37:50.544877+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -60,7 +90,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1092
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -69,7 +99,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c657832cd0a5
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -81,6 +111,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1092
       selected_ref: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
       selected_sha: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
+      verdict: pass
+      completed_at: '2026-08-11T17:37:43.165591+00:00'
+      ended_at: '2026-08-11T17:37:43.165591+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -91,7 +124,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-11T17:09:25.284230+00:00'
     selected_ref: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
     selected_sha: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
-    updated_at: '2026-08-11T17:28:09.416497+00:00'
+    updated_at: '2026-08-11T17:37:43.165591+00:00'
   - version: 1
     audit_id: audit-592cc86088a4
     project_id: proj-14849f1b
@@ -113,6 +146,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-e2e2f80707ad
     selected_ref: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
     selected_sha: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
+    updated_at: '2026-08-11T17:37:43.165591+00:00'
+    eligible_at: '2026-08-11T17:37:43.165591+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-c657832cd0a5
@@ -189,5 +224,26 @@ author: oompah
 created: 2026-08-11 17:28
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 17:37
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- implementation_changes.orchestrator_observation_limit: Lines 19170-19174: observation_limit calculated from audit_lane_scan_limit or defaults to operation_limit; used to bound health_window independently
+- implementation_changes.active_operation_accounting: Lines 19214,19366,19380: active_operation_count tracked separately; incremented only for active work; gated by operation_limit check; defers candidates when budget exhausted
+- implementation_changes.pause_authority_snapshot: Lines 18960-18964: project pause state snapshotted once per lane cut; mapped to candidates for consistent ordering per project
+- implementation_changes.scan_complete_logic: Line 19046: scan_complete = authoritative and len(accumulated) == len(candidate_keys); remains false until complete cycle
+- implementation_changes.metrics_exposure: Lines 20163-20164: active_operation_count and observation_limit both exposed in health metrics
+- test_coverage.regression_test: test_terminal_audit_observability.py:1520 test_dispatch_ineligible_observations_do_not_spend_operation_budget reproduces 9-suspended + 1-active, verifies active launches in one cut with active_operations=1
+- test_coverage.focused_tests: 945 scheduler-health-restart tests passed; 137 direct scheduler/health rerun; 21/21 mutation scan
+- test_coverage.quality_gate: make test passed 181.73s; clean diff; independent review ACCEPTED exact head a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
+- acceptance_criteria_met.suspended_no_starve: active_operation_count budget independent from observation_limit prevents suspended work from starving active dispatch
+- acceptance_criteria_met.operation_bounds: operation_limit gating confirmed; observation_limit protects full corpus scan within bounded cost
+- acceptance_criteria_met.scan_complete_truth: calculated only after full cycles; remains false on incomplete observations
+- acceptance_criteria_met.no_regressions: duplicate launch prevented by durable cursor; continuation coalescing confirmed no spin
 ---
 <!-- COMMENTS:END -->

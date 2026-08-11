@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1091
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Stop stale accepted-validation recovery after repaired branch advances
 parent: null
@@ -12,7 +12,7 @@ labels:
 - workflow-liveness
 assignee: null
 created_at: '2026-08-11T15:35:51.682286Z'
-updated_at: '2026-08-11T17:24:07.728164Z'
+updated_at: '2026-08-11T17:37:40.428597Z'
 work_branch: OOMPAH-1091
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/830
@@ -41,6 +41,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/830
 oompah.review_number: '830'
 oompah.target_branch: main
 oompah.review_head: 66f40f54566a64b55957ce0a29846289992e2f3f
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-525e070b511b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1091
+    digest: 8c4484bec1ff7527ef6a8e2ebb88ddfe197868882da6fa68d5531b65773debdc
+  - version: 1
+    audit_id: audit-b06217123a35
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1091
+    digest: 8c4484bec1ff7527ef6a8e2ebb88ddfe197868882da6fa68d5531b65773debdc
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-525e070b511b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1091
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8c4484bec1ff7527ef6a8e2ebb88ddfe197868882da6fa68d5531b65773debdc
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T17:37:34.030318+00:00'
+    eligible_at: '2026-08-11T17:37:34.030318+00:00'
+    selected_ref: 66f40f54566a64b55957ce0a29846289992e2f3f
+    selected_sha: 66f40f54566a64b55957ce0a29846289992e2f3f
+  - version: 1
+    audit_id: audit-b06217123a35
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1091
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8c4484bec1ff7527ef6a8e2ebb88ddfe197868882da6fa68d5531b65773debdc
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T17:37:34.030318+00:00'
+    prerequisite_audit_id: audit-525e070b511b
+    selected_ref: 66f40f54566a64b55957ce0a29846289992e2f3f
+    selected_sha: 66f40f54566a64b55957ce0a29846289992e2f3f
+  attempt_history: []
 ---
 ## Summary
 
@@ -85,5 +143,10 @@ author: oompah
 created: 2026-08-11 17:12
 ---
 Branch quality gate passed for `66f40f54566a64b55957ce0a29846289992e2f3f` using `make test` in 178.6s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 17:37
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
