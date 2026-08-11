@@ -18294,19 +18294,22 @@ class Orchestrator:
     def _audit_candidate_cursor_key(issue: Issue) -> str:
         return f"{str(issue.project_id or 'legacy')}\x1f{issue.identifier}"
 
-    def _audit_candidate_window(
+    def _audit_candidate_priority(self, issue: Issue) -> int:
+        return (
+            self.config.audit_priority
+            if issue.priority is None
+            else int(issue.priority)
+        )
+
+    def _audit_candidates_in_priority_order(
         self,
         candidates: Sequence[Issue],
-    ) -> tuple[list[Issue], bool]:
-        """Return one priority-preserving, project-fair restart-safe window."""
+    ) -> list[Issue]:
+        """Return the strict-priority, project-fair candidate order."""
 
         priorities: dict[int, dict[str, list[Issue]]] = {}
         for issue in candidates:
-            priority = (
-                self.config.audit_priority
-                if issue.priority is None
-                else int(issue.priority)
-            )
+            priority = self._audit_candidate_priority(issue)
             project_id = str(issue.project_id or "legacy")
             priorities.setdefault(priority, {}).setdefault(
                 project_id, []
@@ -18343,6 +18346,16 @@ class Orchestrator:
                 if not appended:
                     break
 
+        return ordered
+
+    def _audit_dispatch_candidate_order(
+        self,
+        candidates: Sequence[Issue],
+    ) -> list[Issue]:
+        """Return strict-priority dispatch order with same-priority rotation."""
+
+        ordered = self._audit_candidates_in_priority_order(candidates)
+
         cursor = str(
             getattr(self, "_maintenance_cursors", {}).get("audit_lane") or ""
         )
@@ -18357,20 +18370,11 @@ class Orchestrator:
             )
             if cursor_index is not None:
                 cursor_issue = ordered[cursor_index]
-                cursor_priority = (
-                    self.config.audit_priority
-                    if cursor_issue.priority is None
-                    else int(cursor_issue.priority)
-                )
+                cursor_priority = self._audit_candidate_priority(cursor_issue)
                 priority_positions = [
                     index
                     for index, issue in enumerate(ordered)
-                    if (
-                        self.config.audit_priority
-                        if issue.priority is None
-                        else int(issue.priority)
-                    )
-                    == cursor_priority
+                    if self._audit_candidate_priority(issue) == cursor_priority
                 ]
                 priority_group = [ordered[index] for index in priority_positions]
                 group_cursor_index = priority_positions.index(cursor_index)
@@ -18382,6 +18386,42 @@ class Orchestrator:
                     priority_positions, priority_group, strict=True
                 ):
                     ordered[index] = issue
+        return ordered
+
+    def _audit_candidate_window(
+        self,
+        candidates: Sequence[Issue],
+    ) -> tuple[list[Issue], bool]:
+        """Return one priority-preserving, project-fair restart-safe window."""
+
+        ordered = self._audit_dispatch_candidate_order(candidates)
+        limit = self.config.audit_lane_scan_limit
+        truncated = limit > 0 and len(ordered) > limit
+        if not truncated:
+            return ordered, False
+        return ordered[:limit], True
+
+    def _audit_health_candidate_window(
+        self,
+        candidates: Sequence[Issue],
+    ) -> tuple[list[Issue], bool]:
+        """Return a globally rotating window for bounded health observation."""
+
+        ordered = self._audit_candidates_in_priority_order(candidates)
+        cursor = str(
+            getattr(self, "_maintenance_cursors", {}).get("audit_lane") or ""
+        )
+        if cursor:
+            cursor_index = next(
+                (
+                    index
+                    for index, issue in enumerate(ordered)
+                    if self._audit_candidate_cursor_key(issue) == cursor
+                ),
+                None,
+            )
+            if cursor_index is not None:
+                ordered = ordered[cursor_index + 1 :] + ordered[: cursor_index + 1]
         limit = self.config.audit_lane_scan_limit
         truncated = limit > 0 and len(ordered) > limit
         if not truncated:
@@ -18567,9 +18607,39 @@ class Orchestrator:
             self._tick_pool, self._fetch_audit_candidates
         )
         discovered_candidate_count = len(candidate_scan.candidates)
-        candidates, truncated = self._audit_candidate_window(
+        health_candidates, truncated = self._audit_health_candidate_window(
             candidate_scan.candidates
         )
+        health_window = health_candidates[:operation_limit]
+        operation_truncated = len(health_candidates) > len(health_window)
+        dispatch_order = self._audit_dispatch_candidate_order(
+            candidate_scan.candidates
+        )
+        dispatch_rank = {
+            self._audit_candidate_cursor_key(issue): index
+            for index, issue in enumerate(dispatch_order)
+        }
+        candidates = sorted(
+            health_window,
+            key=lambda issue: dispatch_rank[
+                self._audit_candidate_cursor_key(issue)
+            ],
+        )
+        health_window_keys = {
+            self._audit_candidate_cursor_key(issue) for issue in health_window
+        }
+        launch_eligible_priorities = {
+            priority
+            for priority in {
+                self._audit_candidate_priority(issue)
+                for issue in candidate_scan.candidates
+            }
+            if all(
+                self._audit_candidate_cursor_key(issue) in health_window_keys
+                for issue in candidate_scan.candidates
+                if self._audit_candidate_priority(issue) > priority
+            )
+        }
         # Candidate discovery is current lane telemetry.  ``pending_count`` is
         # reserved for the authoritative TerminalAuditHealth generation and
         # can intentionally retain last-complete facts during a partial scan.
@@ -18583,9 +18653,12 @@ class Orchestrator:
         observations: list[AuditHealthObservation] = []
         _audit_scan_error_count: int = 0
         processed_candidate_count = 0
+        processed_candidate_keys: set[str] = set()
         last_processed_cursor: str | None = None
-        budget_exhausted = False
-        budget_reason: str | None = None
+        budget_exhausted = operation_truncated
+        budget_reason: str | None = (
+            "operation_limit" if operation_truncated else None
+        )
         restart_publication_deferred_count = 0
         selector_cache: dict[
             tuple[str, int],
@@ -18593,18 +18666,13 @@ class Orchestrator:
         ] = {}
 
         for issue in candidates:
-            if processed_candidate_count >= operation_limit:
-                budget_exhausted = True
-                budget_reason = "operation_limit"
-                break
             if monotonic() >= deadline:
                 budget_exhausted = True
                 budget_reason = "runtime_limit"
                 break
             processed_candidate_count += 1
             cursor = self._audit_candidate_cursor_key(issue)
-            last_processed_cursor = cursor
-            metrics["cursor"] = cursor
+            processed_candidate_keys.add(cursor)
             project_suspended = self._is_project_paused(issue.project_id)
             if not project_suspended and self._dispatch_is_blocked(issue):
                 continue
@@ -18682,6 +18750,15 @@ class Orchestrator:
                             configuration_error=False,
                             suspended=True,
                         )
+                    continue
+                # The bounded health window rotates across the complete
+                # corpus, but launch work remains strict-priority.  A lower
+                # priority candidate is health-only while any higher-priority
+                # candidate is outside this operation-bounded slice.
+                if (
+                    self._audit_candidate_priority(issue)
+                    not in launch_eligible_priorities
+                ):
                     continue
                 missing_workflow_revision = bool(
                     record is not None
@@ -19366,6 +19443,17 @@ class Orchestrator:
                 metrics["last_error"] = f"{type(exc).__name__}: {exc}"
                 logger.exception("Audit dispatch failed for %s", issue.identifier)
 
+        # Advance only across the contiguous health-order prefix that this
+        # tick actually observed.  Dispatch processing may reorder that slice
+        # by priority, so using loop order here would skip unseen candidates
+        # after a runtime timeout.
+        for issue in health_window:
+            cursor = self._audit_candidate_cursor_key(issue)
+            if cursor not in processed_candidate_keys:
+                break
+            last_processed_cursor = cursor
+        if last_processed_cursor is not None:
+            metrics["cursor"] = last_processed_cursor
         if last_processed_cursor is not None:
             self._set_maintenance_cursor("audit_lane", last_processed_cursor)
 
