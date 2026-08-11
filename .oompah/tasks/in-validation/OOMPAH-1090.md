@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1090
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Keep standalone delivery authority alive across long gates and terminal staging
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:26:47.067526Z'
-updated_at: '2026-08-11T15:58:20.115684Z'
+updated_at: '2026-08-11T16:00:54.622272Z'
 work_branch: OOMPAH-1090
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/825
@@ -40,6 +40,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/825
 oompah.review_number: '825'
 oompah.target_branch: main
 oompah.review_head: 6703b97115b0b7aff922deab2ead89119bc1d486
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-7b88cfff3a93
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1090
+    digest: f1dcbc7148b1ce4b91fd1c48148a4476eb358ca5ba2ce69d59109a8bcfbc9555
+  - version: 1
+    audit_id: audit-58b6f417d9a3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1090
+    digest: f1dcbc7148b1ce4b91fd1c48148a4476eb358ca5ba2ce69d59109a8bcfbc9555
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-7b88cfff3a93
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1090
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f1dcbc7148b1ce4b91fd1c48148a4476eb358ca5ba2ce69d59109a8bcfbc9555
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T16:00:47.346773+00:00'
+    eligible_at: '2026-08-11T16:00:47.346773+00:00'
+    selected_ref: 6703b97115b0b7aff922deab2ead89119bc1d486
+    selected_sha: 6703b97115b0b7aff922deab2ead89119bc1d486
+  - version: 1
+    audit_id: audit-58b6f417d9a3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1090
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f1dcbc7148b1ce4b91fd1c48148a4476eb358ca5ba2ce69d59109a8bcfbc9555
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T16:00:47.346773+00:00'
+    prerequisite_audit_id: audit-7b88cfff3a93
+    selected_ref: 6703b97115b0b7aff922deab2ead89119bc1d486
+    selected_sha: 6703b97115b0b7aff922deab2ead89119bc1d486
+  attempt_history: []
 ---
 ## Summary
 
@@ -114,5 +172,10 @@ author: oompah
 created: 2026-08-11 15:57
 ---
 Branch quality gate passed for `6703b97115b0b7aff922deab2ead89119bc1d486` using `make test` in 180.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 16:00
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
