@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1082
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Wake and age chained terminal-audit stages only after prerequisites become
   eligible
@@ -12,8 +12,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:08:16.081490Z'
-updated_at: '2026-08-11T11:08:23.721192Z'
-work_branch: null
+updated_at: '2026-08-11T11:30:29.914051Z'
+work_branch: OOMPAH-1082
 target_branch: null
 review_url: null
 review_number: null
@@ -25,6 +25,16 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 874ac2f5-239e-4a7e-9442-06875ae3cd57
   request_fingerprint: 598acece51eff7c2be5431e6f95b016bb819341113c8f2b0b2f3fd89a5d1c05d
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1082
+  head_sha: a2d82ab7009cdba0bb325296d26d73568906a593
+  submitted_at: '2026-08-11T11:30:18.399366+00:00'
+  updated_at: '2026-08-11T11:30:18.399366+00:00'
+oompah.work_branch: OOMPAH-1082
 ---
 ## Summary
 
@@ -36,3 +46,11 @@ Triggered by: OOMPAH-1072. Live evidence: Merged was requested and the coordinat
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 11:30
+---
+Make chained terminal-audit successor eligibility durable and restart-safe, wake the exact successor after prerequisite PASS, and age only eligible stages at a2d82ab7009cdba0bb325296d26d73568906a593; 496 focused and 915 adjacent tests plus terminal scan pass.
+---
+<!-- COMMENTS:END -->
