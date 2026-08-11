@@ -5989,6 +5989,78 @@ def test_runtime_liveness_fails_closed_for_unmaterialized_owner_recovery(tmp_pat
     store.close()
 
 
+def test_direct_validation_attempt_cannot_strand_terminal_audit_liveness(tmp_path):
+    class MutableNativeTracker(NativeTracker):
+        def __init__(self, issues):
+            super().__init__(issues)
+            self.updates = []
+
+        def update_issue(self, identifier, **fields):
+            self.updates.append((identifier, dict(fields)))
+            current = self.issues[identifier]
+            self.issues[identifier] = replace(current, state=fields["status"])
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    task = make_issue("TASK-NAKED-VALIDATION", state="In Progress")
+    task.assignment_id = "generation-1"
+    tracker = MutableNativeTracker([task])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    direct = TransitionIntent(
+        project_id="project-1",
+        task_id=task.identifier,
+        expected_status=task.state,
+        expected_version=issue_authority_version(task),
+        requested_status="In Validation",
+        actor="api",
+        authority=TransitionAuthority.API,
+        reason_code="api.status_updated",
+        idempotency_key="naked-validation-runtime",
+        originating_job="api:naked-validation-runtime",
+        evidence_generation=task.assignment_id,
+        exact_head="a" * 40,
+    )
+
+    outcome = asyncio.run(binding.transition_service.execute(direct))
+
+    assert outcome.reason_code == "transition.audit_staging_required"
+    assert tracker.issues[task.identifier].state == "In Progress"
+    assert tracker.updates == []
+
+    controller = UniversalTotalityLivenessController(store=store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+    asyncio.run(runtime.start())
+    runtime.reconcile()
+    first = controller.liveness_snapshot()
+    projection = runtime.projections()[0]
+
+    assert projection["status"] == "In Progress"
+    assert projection["durable_jobs"] == ["implementation_recovery"]
+    assert first.required_recovery_count == 1
+    assert first.materialized_recovery_count == 0
+    assert not [
+        job
+        for job in store.list_jobs(task_id=task.identifier)
+        if job.action == "terminal_audit"
+    ]
+
+    runtime.reconcile()
+    converged = controller.liveness_snapshot()
+    assert converged.scan_complete
+    assert converged.reconciliation_complete
+    assert converged.required_recovery_count == 1
+    assert converged.materialized_recovery_count == 1
+    runtime.close()
+    store.close()
+
+
 def test_runtime_reactivates_fact_submission_superseded_by_owner_event(tmp_path):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     task = make_issue("TASK-SUBMISSION-REARM", state="In Progress")

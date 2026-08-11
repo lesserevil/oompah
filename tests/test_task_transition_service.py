@@ -884,6 +884,55 @@ async def test_terminal_request_may_enter_audit_via_validation_edge(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_direct_in_validation_requires_atomic_coordinator_staging(tmp_path):
+    issue = _issue(state="In Progress")
+    tracker = FakeTracker(issue)
+    adapter = FakeTerminalAdapter(tracker)
+    service = _service(tmp_path, tracker, terminal_adapter=adapter)
+    direct = _intent(
+        issue,
+        requested_status="In Validation",
+        actor="api",
+        authority=TransitionAuthority.API,
+        reason_code="api.status_updated",
+        exact_head="a" * 40,
+    )
+
+    rejected = await service.execute(direct)
+    replayed = await service.execute(direct)
+
+    assert rejected.disposition is TransitionDisposition.REJECTED
+    assert rejected.reason_code == "transition.audit_staging_required"
+    assert replayed.disposition is TransitionDisposition.REJECTED
+    assert replayed.reason_code == rejected.reason_code
+    assert replayed.replayed
+    assert tracker.issue.state == "In Progress"
+    assert tracker.updates == []
+    assert adapter.calls == 0
+    assert [
+        event.phase for event in service.journal.events(rejected.transition_id)
+    ] == [TransitionPhase.REQUESTED, TransitionPhase.REJECTED]
+
+    # Rejection releases the exact task claim.  A canonical terminal-target
+    # request can immediately acquire it and use the one coordinator staging
+    # path; no special direct-In-Validation recovery lane is needed.
+    staged = await service.execute(
+        replace(
+            direct,
+            requested_status="Done",
+            reason_code="terminal.operator_requested",
+            idempotency_key="job-1:terminal-target",
+        )
+    )
+
+    assert staged.disposition is TransitionDisposition.STAGED
+    assert staged.applied_status == "In Validation"
+    assert tracker.issue.state == "In Validation"
+    assert tracker.updates == []
+    assert adapter.calls == 1
+
+
+@pytest.mark.asyncio
 async def test_in_progress_requires_an_implementation_generation(tmp_path):
     tracker = FakeTracker(_issue())
     service = _service(tmp_path, tracker)

@@ -2005,6 +2005,85 @@ class TestTaskHandoffEndpoint:
         orch._cancel_retry_for_issue.assert_not_called()
         orch.terminal_transition_coordinator.request_transition.assert_not_called()
 
+    def test_scoped_direct_validation_status_and_label_are_rejected(self):
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        issue = Issue(
+            id="issue-validation-bypass",
+            identifier="TASK-1",
+            title="Task",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.return_value = None
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"set-status", "add-label"},
+        )
+
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        old_broadcast = server.broadcast_issues
+        server._orchestrator = orch
+        server._http_credentials = None
+        server.broadcast_issues = AsyncMock()
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                headers = {TASK_HANDOFF_HEADER: token}
+                responses = [
+                    client.post(
+                        "/api/v1/task-handoff",
+                        headers=headers,
+                        json={
+                            "action": "set-status",
+                            "project_id": "proj-a",
+                            "identifier": "TASK-1",
+                            "status": "In Validation",
+                        },
+                    ),
+                    client.post(
+                        "/api/v1/task-handoff",
+                        headers=headers,
+                        json={
+                            "action": "add-label",
+                            "project_id": "proj-a",
+                            "identifier": "TASK-1",
+                            "label": "oompah:status:in-validation",
+                        },
+                    ),
+                ]
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            server.broadcast_issues = old_broadcast
+
+        assert [response.status_code for response in responses] == [409, 409]
+        for response in responses:
+            assert response.json()["error"] == {
+                "code": "transition_rejected",
+                "message": (
+                    "In Validation is owned by the terminal-audit coordinator and "
+                    "cannot be set directly. Request Done, Merged, or Archived "
+                    "instead (or use `oompah task submit` for completed work) so "
+                    "Oompah stages the audit atomically."
+                ),
+                "reason": "transition.audit_staging_required",
+            }
+        tracker.update_issue.assert_not_called()
+        tracker.add_label.assert_not_called()
+        orch._schedule_implementation_workflow_event.assert_not_called()
+        orch.terminal_transition_coordinator.request_transition.assert_not_called()
+
     def test_authenticated_worker_can_comment_and_transition_own_task(self):
         from fastapi.testclient import TestClient
 
