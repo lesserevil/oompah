@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:54:01.877028Z'
-updated_at: '2026-08-11T12:54:18.185086Z'
+updated_at: '2026-08-11T13:02:02.000453Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Protected Python 3.12 CI for PR 820 / exact OOMPAH-1083 head be48003555fed724a75
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 13:02
+---
+Deterministic reproduction confirmed a real ownership race independent of CI slowdown: TaskTransitionService.execute can durably begin, block on tracker I/O between journal calls, and concurrent TransitionJournal.close() closes the connection; when the admitted transition resumes its next append raises sqlite3.ProgrammingError ('Cannot operate on a closed database'). Fixing the journal/service admission boundary so close rejects new transition sagas and drains already-admitted sagas before SQLite close; regression will prove effect completion, durable final event, idempotent close, and rejection after retirement.
+---
+<!-- COMMENTS:END -->
