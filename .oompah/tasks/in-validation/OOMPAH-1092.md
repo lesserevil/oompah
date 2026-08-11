@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1092
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Do not let suspended terminal audits starve active dispatch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:02:12.775197Z'
-updated_at: '2026-08-11T17:04:10.789145Z'
+updated_at: '2026-08-11T17:09:31.904912Z'
 work_branch: OOMPAH-1092
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/828
@@ -40,6 +40,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/828
 oompah.review_number: '828'
 oompah.target_branch: main
 oompah.review_head: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-e2e2f80707ad
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1092
+    digest: 17602685e9446493caf47e87af8fdc62bd483b6d13205ae49dc654ca5e88d59a
+  - version: 1
+    audit_id: audit-592cc86088a4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1092
+    digest: 17602685e9446493caf47e87af8fdc62bd483b6d13205ae49dc654ca5e88d59a
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e2e2f80707ad
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1092
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 17602685e9446493caf47e87af8fdc62bd483b6d13205ae49dc654ca5e88d59a
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T17:09:25.284230+00:00'
+    eligible_at: '2026-08-11T17:09:25.284230+00:00'
+    selected_ref: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
+    selected_sha: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
+  - version: 1
+    audit_id: audit-592cc86088a4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1092
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 17602685e9446493caf47e87af8fdc62bd483b6d13205ae49dc654ca5e88d59a
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T17:09:25.284230+00:00'
+    prerequisite_audit_id: audit-e2e2f80707ad
+    selected_ref: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
+    selected_sha: a355a5ddd3dd006f1bdd2187cfe83b9333b9468a
+  attempt_history: []
 ---
 ## Summary
 
@@ -85,5 +143,10 @@ author: oompah
 created: 2026-08-11 17:02
 ---
 Branch quality gate passed for `a355a5ddd3dd006f1bdd2187cfe83b9333b9468a` using `make test` in 181.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 17:09
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
