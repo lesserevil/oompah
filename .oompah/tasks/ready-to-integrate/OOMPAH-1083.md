@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1083
 type: task
-status: In Review
+status: Ready to Integrate
 priority: null
 title: Publish quality-gate lifecycle state before stale PID alerts escape
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:41:11.895675Z'
-updated_at: '2026-08-11T12:09:51.261516Z'
+updated_at: '2026-08-11T12:24:40.887151Z'
 work_branch: OOMPAH-1083
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/820
@@ -30,9 +30,11 @@ oompah.integration:
   attempts: 0
   mode: standalone
   task_branch: OOMPAH-1083
-  head_sha: bf823293fc6dc2417a0438a9ead7c54c84732163
-  submitted_at: '2026-08-11T12:03:46.177272+00:00'
-  updated_at: '2026-08-11T12:03:46.177272+00:00'
+  base_branch: main
+  base_sha: 712309b8179036474e40c5fd26f7d2b3c2a4b9b0
+  head_sha: be48003555fed724a752512d73fd70d5c72b2795
+  submitted_at: '2026-08-11T12:24:29.350965+00:00'
+  updated_at: '2026-08-11T12:24:29.350965+00:00'
 oompah.work_branch: OOMPAH-1083
 oompah.review_url: https://github.com/lesserevil/oompah/pull/820
 oompah.review_number: '820'
@@ -65,5 +67,10 @@ author: oompah
 created: 2026-08-11 12:09
 ---
 Independent exact-head review BLOCKED bf823293fc6dc2417a0438a9ead7c54c84732163. Production-shaped IPC repro aged kv.updated_at by 60s; api_state discarded updated_at, no stale marker was derived, and dead PID/running gate assertions remained. Explicit stale sanitization also left top-level/health quality_gates.status=running. A numeric-PID-only cleanup path can remove/signal a replacement registration after PID reuse. Author is fixing authoritative IPC-age derivation, complete stale running-state reconciliation, and exact registration/process identity CAS with regressions; this head will not merge.
+---
+author: oompah
+created: 2026-08-11 12:24
+---
+Publish exact quality-gate lifecycle state and sanitize aged IPC projections at be48003555fed724a752512d73fd70d5c72b2795; exact process/token PID-reuse fencing, 394 focused and 46 adjacent tests, mutation and secret scans pass.
 ---
 <!-- COMMENTS:END -->
