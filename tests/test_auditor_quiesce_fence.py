@@ -372,6 +372,95 @@ async def test_worker_task_creation_failure_restores_exact_unadmitted_audit(
 
 
 @pytest.mark.asyncio
+async def test_budget_failure_retains_exact_wake_without_self_rearm_storm(
+    tmp_path,
+) -> None:
+    """Persistent pre-provider budget failure waits for an external wake."""
+
+    orch = _orchestrator(tmp_path)
+    loop = asyncio.get_running_loop()
+    orch._dispatch_loop = loop
+    orch.state.max_concurrent_agents = 1
+    issue = _issue()
+    plan = _plan()
+    store = _persisted_store(plan)
+    wake_key = (issue.project_id or "legacy", issue.identifier)
+    orch._record_terminal_audit_stage_wake(
+        project_id=wake_key[0],
+        task_id=wake_key[1],
+        audit_id=plan.audit_id,
+    )
+    recovery_enabled = False
+    scan_count = 0
+
+    async def _owned_scan(**_kwargs) -> dict[str, float]:
+        nonlocal scan_count
+        scan_count += 1
+        if not recovery_enabled and scan_count > 1:
+            pytest.fail(
+                "pre-provider budget failure self-rearmed the active audit owner"
+            )
+        orch._audit_branch_claims[plan.branch_key] = plan.attempt_id
+        admitted = await orch._dispatch(issue, 0, auditor_plan=plan)
+        if admitted:
+            orch._retire_terminal_audit_stage_wake(
+                project_id=wake_key[0],
+                task_id=wake_key[1],
+                expected_audit_id=plan.audit_id,
+                reason="test_dispatch",
+            )
+        return {}
+
+    tracker = _tracker(issue)
+    budget_reservation = MagicMock(
+        side_effect=lambda *_args, **_kwargs: (
+            None if recovery_enabled else "budget store unavailable"
+        )
+    )
+    with (
+        patch.object(orch, "_tracker_for_issue", return_value=tracker),
+        patch.object(orch, "_audit_store", return_value=store),
+        patch.object(orch, "_reserve_audit_budget_capacity", budget_reservation),
+        patch.object(orch, "_dispatch_audit_lane_owned", side_effect=_owned_scan),
+        patch.object(orch, "_run_worker", new_callable=AsyncMock) as worker,
+        patch.object(orch, "_post_comment") as post_comment,
+    ):
+        orch._wake_terminal_audit_continuation_lane_on_loop()
+        failed_owner = orch._terminal_audit_continuation_future
+        assert failed_owner is not None
+        await asyncio.wait_for(failed_owner, timeout=1)
+        await asyncio.sleep(0)
+
+        assert scan_count == 1
+        assert budget_reservation.call_count == 1
+        assert post_comment.call_count == 1
+        assert orch._audit_metrics["continuation_recheck_count"] == 0
+        assert orch._terminal_audit_stage_wakes_snapshot() == {
+            wake_key: plan.audit_id
+        }
+        assert plan.branch_key not in orch._audit_branch_claims
+        assert issue.id not in orch.state.running
+        worker.assert_not_awaited()
+
+        # A later durable budget-recovery signal owns exactly one new turn.
+        recovery_enabled = True
+        orch._wake_terminal_audit_continuation_lane()
+        recovered_owner = orch._terminal_audit_continuation_future
+        assert recovered_owner is not None
+        await asyncio.wait_for(recovered_owner, timeout=1)
+        entry = orch.state.running[issue.id]
+        assert entry.worker_task is not None
+        await asyncio.wait_for(entry.worker_task, timeout=1)
+
+    assert scan_count == 2
+    assert budget_reservation.call_count == 2
+    assert orch._terminal_audit_stage_wakes_snapshot() == {}
+    assert issue.id in orch.state.running
+    worker.assert_awaited_once()
+    orch._remove_running_entry_and_claims(issue.id, entry)
+
+
+@pytest.mark.asyncio
 async def test_worker_task_creation_cancelled_error_rolls_back_before_reraising(
     tmp_path,
 ) -> None:

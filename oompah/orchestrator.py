@@ -58325,6 +58325,13 @@ class Orchestrator:
                     self._release_audit_branch_claim(
                         auditor_plan.branch_key,
                         auditor_plan.attempt_id,
+                        # The audit lane that acquired this pre-provider fence
+                        # still owns the current bounded scan.  Re-arming that
+                        # same owner here turns a persistent budget-store
+                        # failure into an immediate retry/exhaustion storm.
+                        # Retain the exact successor wake for the next durable
+                        # budget-recovery signal or ordinary scheduler tick.
+                        rearm_terminal_audit=False,
                     )
                     self._post_comment(
                         issue.identifier,
