@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T03:11:11.351608Z'
-updated_at: '2026-08-11T03:30:36.014167Z'
+updated_at: '2026-08-11T03:37:12.698707Z'
 work_branch: OOMPAH-1013
 target_branch: null
 review_url: null
@@ -71,5 +71,10 @@ author: oompah
 created: 2026-08-11 03:30
 ---
 Addressed review BLOCK at follow-up head 2b2384f043a3ad6b6106019efab3875acae73b50. Runtime-partial health scans now process the durable traversal order and separately fence lower-priority launches until higher candidates have been considered. Exact regression proves the first partial tick advances LOW with no launch, then the next tick completes health and launches HIGH before LOW. Focused suite: 78 passed; terminal mutation scan: 21/21 allowlisted.
+---
+author: oompah
+created: 2026-08-11 03:37
+---
+Addressed the second review BLOCK at 4e5621853df5e27b9b6cc54ef069de4c50922ad0. A fully observed slice now queues one cursor-rebased priority revisit when a lower pending audit was deferred only because in-slice higher candidates had not yet been examined and capacity remains. Higher candidates outside the slice do not create this continuation. Regression proves HIGH/no-record then LOW/pending launches LOW on the next continuation instead of idling. Focused suite: 79 passed; mutation scan: 21/21.
 ---
 <!-- COMMENTS:END -->
