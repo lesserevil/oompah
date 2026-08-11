@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T17:34:07.685347Z'
-updated_at: '2026-08-11T17:55:44.925598Z'
+updated_at: '2026-08-11T18:16:52.819215Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-08-11 17:55
 ---
 Implementation complete and pushed at exact head 172544459fd704612cefebe23d79e6aa8bdb0680 on branch OOMPAH-1097, rebased onto current origin/main. Added one idempotent listener-cutover coordinator shared by Uvicorn and Granian: restart now fences workflow/provider admission and unsafe HTTP mutations; keeps health, state, WebSocket, read-only HTTP, and forge ingress served while retained workflow/standalone authority drains fail-closed; stops webhook transports before closing the listener; then triggers Uvicorn should_exit or the Granian supervisor signal. Deterministic active-gate tests prove no early listener close, exact webhook/GitLab ordering, Uvicorn/Granian parity, read/mutation behavior, abnormal-exit behavior, and idempotent cleanup. Post-rebase evidence: 181 restart/webhook tests passed; 147 lifecycle/auto-update tests passed; 622 auth/webhook/WebSocket tests passed; 137 process/e2e tests passed; terminal status scan 21/21; py_compile and git show --check passed. Full gate deliberately not run per handoff. Awaiting independent exact-head review; task intentionally remains In Progress and is not submitted.
+---
+author: oompah
+created: 2026-08-11 18:16
+---
+REJECT exact head 172544459fd704612cefebe23d79e6aa8bdb0680 against base b948150a808d80c331769fba8ae2a39e9a102a47. Concrete restart provider-fence defect: server.py:1090-1118 fences only HTTP middleware while intentionally retaining WebSockets. The retained /ws loop at server.py:5117-5149 continues accepting console_input, and _handle_console_input at server.py:5321-5341 creates/gets a ConsoleSession and awaits session.send without checking restart drain state or acquiring the orchestrator provider-admission fence. A direct exact-head probe with wants_restart=True and _stopping=True confirmed _restart_drain_blocks_mutation() was true while console_input still invoked session.send. This permits a new ACP provider turn after safe-stop authority has begun/finished, racing listener closure and process re-exec, violating the task acceptance requirement that no new provider launches occur throughout drain and undermining exact two-phase cutover. Retaining WebSocket observability is fine, but mutating WS message types must be rejected during restart drain or console provider authority must join the cutover drain/fence. Existing new tests cover connection retention only and miss this path. Other evidence: 317 focused restart/API/quiesce/webhook/WebSocket/console tests passed; 13 new/auto-update tests passed; terminal status scan passed 21/21; py_compile, diff-check, branch exactness clean. Branch left untouched.
 ---
 <!-- COMMENTS:END -->
