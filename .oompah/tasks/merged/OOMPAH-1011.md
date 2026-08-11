@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1011
 type: bug
-status: In Progress
+status: Merged
 priority: 1
 title: Do not fence published workflow admission on an unaccepted scan allocation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T02:15:28.085531Z'
-updated_at: '2026-08-11T03:05:38.620408Z'
+updated_at: '2026-08-11T08:08:57.082822Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,33 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: o1005-allocated-generation-admission
   request_fingerprint: e552e67c522a324a094c1ec5dc6006b6e8a6623e56450ab0445998e2b5220988
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-2eb34bf84e66
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1011
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0b65e996ef714b3a14b488b428392e31f91606c952f2eb197f87728b2d0791c8
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Protected PR #806 and hosted Python 3.11/3.12/3.13 gates are green; deployed
+      build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 contains merge 62c3cda3ea602b614a3a3dfc92c66468b5c34a4b;
+      independent audit verified that every exact reviewed branch change is patch-equivalent
+      to or composition-equivalent with the protected merge and no unique branch changes
+      remain.'
+    created_at: '2026-08-11T08:08:50.082032+00:00'
+    selected_ref: origin/OOMPAH-1011
+    selected_sha: 092debf174fe4dd7521669690a79603ecf216eef
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
