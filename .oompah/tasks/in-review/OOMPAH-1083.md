@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:41:11.895675Z'
-updated_at: '2026-08-11T12:55:56.852304Z'
+updated_at: '2026-08-11T12:58:25.971414Z'
 work_branch: OOMPAH-1083
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/820
@@ -82,5 +82,10 @@ author: oompah
 created: 2026-08-11 12:55
 ---
 Protected CI Python 3.12 passed all 19,945 test bodies but hit a load-sensitive autouse teardown timeout while closing TransitionJournal; 3.11 and 3.13 are green. Exact-head Python 3.12 focused test passed 10/10 locally, independent diagnosis found no OOMPAH-1083 regression, and only the failed 3.12 matrix cell is rerunning as job 93785370387. Filed and directly claimed OOMPAH-1086 to make the observed cleanup boundary deterministic rather than hiding the race.
+---
+author: oompah
+created: 2026-08-11 12:58
+---
+Independent exact-head adversarial review ACCEPTED be48003555fed724a752512d73fd70d5c72b2795 after the prior bf823 authority was revoked. Reviewer verified the focused lifecycle/PID-reuse cases (17), alert/IPC slice (56), and all 21 terminal-mutation scan entries. Current main composition was also verified clean with 29 combined tests; merge remains gated only on the protected Python 3.12 rerun.
 ---
 <!-- COMMENTS:END -->
