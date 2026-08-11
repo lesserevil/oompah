@@ -800,7 +800,17 @@ class TerminalAuditEnforcement:
         if code not in self.errors:
             self.errors.append(code)
         detail = f" ({type(exc).__name__})" if exc is not None else ""
-        logger.error("terminal-audit enforcement: %s%s", code, detail)
+        diagnostic_name = code.partition(":")[0]
+        logger.error(
+            "terminal-audit enforcement: %s%s",
+            code,
+            detail,
+            extra={
+                "error_class": (
+                    f"terminal_audit_enforcement.{diagnostic_name}"
+                )
+            },
+        )
 
     def _load_enforcement_state(self, root: Mapping[str, Any]) -> TerminalAuditEnforcementState | None:
         raw = root.get(SERVICE_STATE_KEY)
