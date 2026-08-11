@@ -94,11 +94,17 @@ def _make_setup(
     *,
     environment: dict[str, str],
     task_venv_argument: str | None = None,
+    service_checkout_argument: str | None = None,
+    service_venv_argument: str | None = None,
     target: str = "setup",
 ) -> subprocess.CompletedProcess[str]:
     command = ["/usr/bin/make", "--no-print-directory"]
     if task_venv_argument is not None:
         command.append(f"OOMPAH_TASK_VENV={task_venv_argument}")
+    if service_checkout_argument is not None:
+        command.append(f"OOMPAH_SERVICE_CHECKOUT={service_checkout_argument}")
+    if service_venv_argument is not None:
+        command.append(f"OOMPAH_SERVICE_VENV={service_venv_argument}")
     command.append(target)
     return subprocess.run(
         command,
@@ -299,6 +305,47 @@ def test_task_worktree_rejects_explicit_absolute_service_venv(tmp_path):
 
     assert result.returncode != 0
     assert "resolves to the live service virtualenv" in result.stderr
+    assert not uv_called.exists()
+    assert editable_path.read_text(encoding="utf-8").strip() == str(service)
+
+
+def test_task_worktree_rejects_falsified_command_line_service_markers(tmp_path):
+    """Make overrides cannot erase Git-derived service runtime authority."""
+    service, task = _linked_setup_checkouts(tmp_path, "task")
+    service_venv, editable_path = _editable_test_venv(service, service)
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    uv_called = tmp_path / "uv-called"
+    (fake_bin / "uv").write_text(
+        "#!/bin/sh\n"
+        f"touch {shlex.quote(str(uv_called))}\n"
+        f"printf '%s\\n' {shlex.quote(str(task))} > "
+        f"{shlex.quote(str(editable_path))}\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "uv").chmod(0o755)
+    environment = _non_gate_environment(fake_bin)
+    false_service_venv = task / ".oompah" / "task-venv"
+
+    false_checkout = _make_setup(
+        task,
+        environment=environment,
+        task_venv_argument=str(service_venv),
+        service_checkout_argument=str(task),
+        service_venv_argument=str(false_service_venv),
+    )
+    false_venv = _make_setup(
+        task,
+        environment=environment,
+        task_venv_argument=str(service_venv),
+        service_checkout_argument=str(service),
+        service_venv_argument=str(false_service_venv),
+    )
+
+    assert false_checkout.returncode != 0
+    assert "conflicts with Git-derived primary checkout" in false_checkout.stderr
+    assert false_venv.returncode != 0
+    assert "resolves to the live service virtualenv" in false_venv.stderr
     assert not uv_called.exists()
     assert editable_path.read_text(encoding="utf-8").strip() == str(service)
 

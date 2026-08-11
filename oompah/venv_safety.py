@@ -32,13 +32,18 @@ class WorktreeVenvContext:
 
     checkout: Path
     git_common_dir: Path | None
+    git_primary_checkout: Path
     service_checkout: Path
     requested_venv: Path
     service_venv: Path
+    protected_service_venvs: tuple[Path, ...]
 
     @property
     def is_service_checkout(self) -> bool:
-        return _same_path(self.checkout, self.service_checkout)
+        return _same_path(
+            self.checkout,
+            self.git_primary_checkout,
+        ) and _same_path(self.checkout, self.service_checkout)
 
 
 def _same_path(left: Path, right: Path) -> bool:
@@ -106,16 +111,37 @@ def resolve_worktree_venv_context(
                 f"Git common metadata {common_dir} does not identify a primary checkout"
             )
         derived_service_checkout = common_dir.parent.resolve(strict=False)
-    service_checkout_path = (
+    explicit_service_checkout = (
         Path(service_checkout).expanduser().resolve(strict=False)
         if str(service_checkout or "").strip()
-        else derived_service_checkout
+        else None
     )
+    is_linked_worktree = not _same_path(checkout_path, derived_service_checkout)
+    if (
+        is_linked_worktree
+        and explicit_service_checkout is not None
+        and not _same_path(explicit_service_checkout, derived_service_checkout)
+    ):
+        raise VenvSafetyError(
+            "service checkout marker conflicts with Git-derived primary checkout: "
+            f"marker={explicit_service_checkout}, primary={derived_service_checkout}"
+        )
+    service_checkout_path = explicit_service_checkout or derived_service_checkout
     service_venv_path = (
         Path(service_venv).expanduser().resolve(strict=False)
         if str(service_venv or "").strip()
         else service_checkout_path / ".venv"
     )
+    protected_service_venvs = [service_venv_path]
+    derived_service_venv = derived_service_checkout / ".venv"
+    if is_linked_worktree and not any(
+        _same_path(derived_service_venv, protected)
+        for protected in protected_service_venvs
+    ):
+        # An explicit service-venv marker can protect a non-conventional
+        # operator runtime, but it cannot erase the conventional runtime
+        # belonging to this linked worktree's Git primary checkout.
+        protected_service_venvs.append(derived_service_venv)
     requested_path = Path(requested_venv).expanduser()
     if not requested_path.is_absolute():
         requested_path = checkout_path / requested_path
@@ -123,9 +149,11 @@ def resolve_worktree_venv_context(
     return WorktreeVenvContext(
         checkout=checkout_path,
         git_common_dir=common_dir,
+        git_primary_checkout=derived_service_checkout,
         service_checkout=service_checkout_path,
         requested_venv=requested_path,
         service_venv=service_venv_path,
+        protected_service_venvs=tuple(protected_service_venvs),
     )
 
 
@@ -134,11 +162,12 @@ def validate_worktree_venv_target(context: WorktreeVenvContext) -> None:
 
     if context.is_service_checkout:
         return
-    if _same_path(context.requested_venv, context.service_venv):
-        raise VenvSafetyError(
-            "task worktree virtualenv resolves to the live service virtualenv "
-            f"{context.service_venv}; use {context.checkout / '.oompah' / 'task-venv'}"
-        )
+    for protected in context.protected_service_venvs:
+        if _same_path(context.requested_venv, protected):
+            raise VenvSafetyError(
+                "task worktree virtualenv resolves to the live service virtualenv "
+                f"{protected}; use {context.checkout / '.oompah' / 'task-venv'}"
+            )
 
 
 def _setup_lock_path(context: WorktreeVenvContext) -> Path | None:
@@ -163,9 +192,13 @@ def worktree_venv_lock(
     context = WorktreeVenvContext(
         checkout=checkout_path,
         git_common_dir=common_dir,
+        git_primary_checkout=common_dir.parent.resolve(strict=False),
         service_checkout=common_dir.parent.resolve(strict=False),
         requested_venv=checkout_path / ".venv",
         service_venv=common_dir.parent.resolve(strict=False) / ".venv",
+        protected_service_venvs=(
+            common_dir.parent.resolve(strict=False) / ".venv",
+        ),
     )
     lock_path = _setup_lock_path(context)
     assert lock_path is not None
@@ -238,11 +271,14 @@ def _validate_real_venv(context: WorktreeVenvContext) -> Path:
             f"{requested} interpreter resolves to {prefix or 'unavailable'}, "
             f"not the requested runtime {requested}; refusing to run uv"
         )
-    if not context.is_service_checkout and _same_path(prefix, context.service_venv):
-        raise VenvSafetyError(
-            "task worktree interpreter resolves to the live service virtualenv; "
-            f"use {context.checkout / '.oompah' / 'task-venv'}"
-        )
+    if not context.is_service_checkout:
+        for protected in context.protected_service_venvs:
+            if _same_path(prefix, protected):
+                raise VenvSafetyError(
+                    "task worktree interpreter resolves to the live service "
+                    "virtualenv; "
+                    f"use {context.checkout / '.oompah' / 'task-venv'}"
+                )
     return interpreter
 
 
