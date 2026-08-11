@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1094
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Reject task-worktree attempts to reuse the live service virtualenv
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:34:25.712698Z'
-updated_at: '2026-08-11T16:34:25.712698Z'
+updated_at: '2026-08-11T16:35:09.355637Z'
 work_branch: null
 target_branch: null
 review_url: null
