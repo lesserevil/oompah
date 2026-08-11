@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1086
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Make transition-journal teardown deterministic after concurrent API use
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:54:01.877028Z'
-updated_at: '2026-08-11T14:55:03.800526Z'
+updated_at: '2026-08-11T15:01:06.214959Z'
 work_branch: OOMPAH-1086
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/823
@@ -53,6 +53,7 @@ oompah.terminal_audit:
     digest: 588a16591a0399be10c987aa0f882b7068dba2fce6b8a5d7a87e034d93924fa8
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1086","audit-38105e77a9ca","attempt-eccc2ca5124c"]': '2026-08-11T14:44:57.087523+00:00'
+    '["proj-14849f1b","OOMPAH-1086","audit-90733bffbafa","attempt-d06f7cd232ec"]': '2026-08-11T15:01:01.614205+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1086
@@ -67,6 +68,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-11T14:44:57.087539+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1086
+    target_state: Merged
+    evidence_fingerprint: 588a16591a0399be10c987aa0f882b7068dba2fce6b8a5d7a87e034d93924fa8
+    workflow_revision: null
+    selected_ref: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
+    selected_sha: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
+    landing_revision: null
+    audit_ids:
+    - audit-90733bffbafa
+    kind: result
+    applied: true
+    retired_at: '2026-08-11T15:01:01.614224+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1086
@@ -81,6 +95,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-11T14:44:57.087549+00:00'
     applied_at: '2026-08-11T14:45:05.887690+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1086
+    audit_id: audit-90733bffbafa
+    attempt_id: attempt-d06f7cd232ec
+    target_state: Merged
+    evidence_fingerprint: 588a16591a0399be10c987aa0f882b7068dba2fce6b8a5d7a87e034d93924fa8
+    status: Merged
+    audit_ids:
+    - audit-90733bffbafa
+    kind: result
+    applied: false
+    created_at: '2026-08-11T15:01:01.614243+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -128,7 +154,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1086
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -137,7 +163,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-d06f7cd232ec
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -149,6 +175,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1086
       selected_ref: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
       selected_sha: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
+      verdict: pass
+      completed_at: '2026-08-11T15:01:01.614064+00:00'
+      ended_at: '2026-08-11T15:01:01.614064+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -159,7 +188,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-38105e77a9ca
     selected_ref: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
     selected_sha: 6dedb86fa1b6e4b310482bd5c5c1d2931c82981f
-    updated_at: '2026-08-11T14:54:54.404124+00:00'
+    updated_at: '2026-08-11T15:01:01.614064+00:00'
     eligible_at: '2026-08-11T14:44:57.087336+00:00'
   attempt_history:
   - version: 1
