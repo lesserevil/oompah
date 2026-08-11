@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T01:46:41.855802Z'
-updated_at: '2026-08-11T02:15:39.010248Z'
+updated_at: '2026-08-11T02:16:14.963443Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,3 +37,11 @@ Live reproduction on deployed main f9060c80e after graceful restart: workflow li
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 02:16
+---
+Claimed for direct-owner implementation in the current systemic workflow recovery program. Work will be isolated on this task branch, covered by focused regression tests, independently reviewed, fully gated, pushed, and submitted through the protected delivery path.
+---
+<!-- COMMENTS:END -->

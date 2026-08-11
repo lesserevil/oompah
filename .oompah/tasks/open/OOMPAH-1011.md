@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T02:15:28.085531Z'
-updated_at: '2026-08-11T02:15:42.447828Z'
+updated_at: '2026-08-11T02:16:18.240396Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,3 +45,11 @@ Acceptance: allocated-but-unaccepted scans cannot starve current queued durable 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 02:16
+---
+Claimed for direct-owner implementation in the current systemic workflow recovery program. Work will be isolated on this task branch, covered by focused regression tests, independently reviewed, fully gated, pushed, and submitted through the protected delivery path.
+---
+<!-- COMMENTS:END -->

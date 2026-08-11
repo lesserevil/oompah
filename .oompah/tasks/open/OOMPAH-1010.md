@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T01:48:19.145541Z'
-updated_at: '2026-08-11T02:15:45.413779Z'
+updated_at: '2026-08-11T02:16:19.838437Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,3 +37,11 @@ Live reproduction after PR #805 merged OOMPAH-1007 directly to main: the forge w
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 02:16
+---
+Claimed for direct-owner implementation in the current systemic workflow recovery program. Work will be isolated on this task branch, covered by focused regression tests, independently reviewed, fully gated, pushed, and submitted through the protected delivery path.
+---
+<!-- COMMENTS:END -->
