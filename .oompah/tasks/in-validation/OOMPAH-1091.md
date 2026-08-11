@@ -12,7 +12,7 @@ labels:
 - workflow-liveness
 assignee: null
 created_at: '2026-08-11T15:35:51.682286Z'
-updated_at: '2026-08-11T17:40:55.418363Z'
+updated_at: '2026-08-11T17:43:49.432513Z'
 work_branch: OOMPAH-1091
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/830
@@ -54,6 +54,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1091
     digest: 8c4484bec1ff7527ef6a8e2ebb88ddfe197868882da6fa68d5531b65773debdc
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1091","audit-525e070b511b","attempt-3f9d5e6bdd17"]': '2026-08-11T17:43:40.168676+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1091
+    target_state: Done
+    evidence_fingerprint: 8c4484bec1ff7527ef6a8e2ebb88ddfe197868882da6fa68d5531b65773debdc
+    workflow_revision: null
+    selected_ref: 66f40f54566a64b55957ce0a29846289992e2f3f
+    selected_sha: 66f40f54566a64b55957ce0a29846289992e2f3f
+    landing_revision: null
+    audit_ids:
+    - audit-525e070b511b
+    kind: result
+    applied: true
+    retired_at: '2026-08-11T17:43:40.168692+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1091
+    audit_id: audit-525e070b511b
+    attempt_id: attempt-3f9d5e6bdd17
+    target_state: Done
+    evidence_fingerprint: 8c4484bec1ff7527ef6a8e2ebb88ddfe197868882da6fa68d5531b65773debdc
+    status: In Validation
+    audit_ids:
+    - audit-525e070b511b
+    kind: result
+    applied: true
+    created_at: '2026-08-11T17:43:40.168702+00:00'
+    applied_at: '2026-08-11T17:43:47.752999+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -61,7 +91,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1091
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -70,7 +100,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-3f9d5e6bdd17
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -82,6 +112,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1091
       selected_ref: 66f40f54566a64b55957ce0a29846289992e2f3f
       selected_sha: 66f40f54566a64b55957ce0a29846289992e2f3f
+      verdict: pass
+      completed_at: '2026-08-11T17:43:40.168466+00:00'
+      ended_at: '2026-08-11T17:43:40.168466+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -92,7 +125,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-11T17:37:34.030318+00:00'
     selected_ref: 66f40f54566a64b55957ce0a29846289992e2f3f
     selected_sha: 66f40f54566a64b55957ce0a29846289992e2f3f
-    updated_at: '2026-08-11T17:40:40.858440+00:00'
+    updated_at: '2026-08-11T17:43:40.168466+00:00'
   - version: 1
     audit_id: audit-b06217123a35
     project_id: proj-14849f1b
@@ -114,6 +147,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-525e070b511b
     selected_ref: 66f40f54566a64b55957ce0a29846289992e2f3f
     selected_sha: 66f40f54566a64b55957ce0a29846289992e2f3f
+    updated_at: '2026-08-11T17:43:40.168466+00:00'
+    eligible_at: '2026-08-11T17:43:40.168466+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3f9d5e6bdd17
@@ -189,5 +224,34 @@ author: oompah
 created: 2026-08-11 17:40
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 17:43
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- root_cause: In Progress crash recovery treated retained accepted-submission metadata as current without revalidating mutable remote task branch
+- fix_components.remote_branch_revalidation: orchestrator.py:14620-14632 observes live remote head, detects advance
+- fix_components.recovery_parking: returns False with accepted_submission_branch_advanced reason code
+- fix_components.commit_time_guard: orchestrator.py:5610-5681 _validation_submission_transition_conflict re-reads submission origin, remote head, owner-claim under project write lock
+- fix_components.fail_closed: transition.stale_precondition returned on remote or claim race before commit
+- test_coverage.branch_advance_parking: test_direct_owner_branch_advance_parks_stale_submission_recovery
+- test_coverage.claim_identity_preservation: test_direct_owner_exact_submission_recovery_carries_claim_identity
+- test_coverage.toctou_rejection: test_materialized_validation_fails_closed_when_remote_advances_before_commit
+- test_coverage.fail_closed_behaviors: test_direct_owner_submission_recovery_fails_closed_on_remote_or_claim_race
+- acceptance_criteria.no_stale_old_head_regeneration: parked recovery suppresses validation_submission creation
+- acceptance_criteria.no_current_head_fabrication: explicit verified current-head submit required
+- acceptance_criteria.exact_resubmit_convergence: captured claim_id in payload prevents duplicate creation
+- acceptance_criteria.recovery_count_agreement: single recovery lifecycle demonstrated in tests
+- acceptance_criteria.health_not_degraded: recovery state tracking prevents generation-mismatch loops
+- acceptance_criteria.fail_closed_concurrent_changes: precommit barrier + project write lock prevents interleaving
+- gate_evidence.command: make test
+- gate_evidence.duration_seconds: 178.58
+- gate_evidence.result: passed
+- gate_evidence.status: passed
+- gate_evidence.authority_current: true
 ---
 <!-- COMMENTS:END -->
