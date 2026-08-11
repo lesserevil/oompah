@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:08:16.081490Z'
-updated_at: '2026-08-11T11:55:51.156124Z'
+updated_at: '2026-08-11T12:08:13.698611Z'
 work_branch: OOMPAH-1082
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/819
@@ -76,5 +76,10 @@ author: oompah
 created: 2026-08-11 11:55
 ---
 Fresh exact-head review BLOCKED ae1389772b9bbe7f8cb72cf3e882239bd54d85d3 on a recovery-chain deadlock: failed/exhausted Done -> owner rearm appends a new Done audit but leaves the pending Merged successor bound to the superseded failed prerequisite. The fresh Done PASS then cannot stamp/wake Merged, which remains pending forever with eligible_at=None. Author is adding atomic exact successor rebinding on rearm plus ambiguity/stale/cross-authority/restart regressions; this head will not merge.
+---
+author: oompah
+created: 2026-08-11 12:08
+---
+Independent exact-head re-review ACCEPT for 4af4260085204071f14689771609658fb52329e1. Production reproducer confirms exhausted Done gen7 -> fresh owner rearm gen8 atomically rebinds the same Merged record while ineligible; restart replay coalesces; fresh Done PASS stamps and dispatches that exact Merged. Wrong fingerprint/workflow/ref/SHA/landing/generation/eligibility/attempt state fails closed with byte-identical metadata and no tracker write. Independent combined suite: 808 passed; terminal mutation scan 21/21; diff check clean.
 ---
 <!-- COMMENTS:END -->
