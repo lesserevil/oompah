@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:41:07.342509Z'
-updated_at: '2026-08-11T11:25:00.610448Z'
+updated_at: '2026-08-11T11:25:05.453454Z'
 work_branch: OOMPAH-1076
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/816
@@ -373,13 +373,13 @@ oompah.terminal_audit:
     selected_ref: a9bdbfdeedca4c5181851d01312cfbfc1159567d
     selected_sha: a9bdbfdeedca4c5181851d01312cfbfc1159567d
 oompah.task_costs:
-  total_input_tokens: 1120
-  total_output_tokens: 11336
+  total_input_tokens: 1278
+  total_output_tokens: 11373
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1120
-      output_tokens: 11336
+      input_tokens: 1278
+      output_tokens: 11373
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -394,6 +394,12 @@ oompah.task_costs:
     output_tokens: 11125
     cost_usd: 0.0
     recorded_at: '2026-08-11T11:21:12.883414+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 158
+    output_tokens: 37
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T11:24:58.961183+00:00'
 oompah.integration:
   version: 2
   state: ready

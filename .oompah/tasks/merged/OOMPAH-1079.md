@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1079
 type: bug
-status: In Validation
+status: Merged
 priority: 2
 title: '[backend:orchestrator] Lifecycle state publication failed'
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T10:43:32.317191Z'
-updated_at: '2026-08-11T11:24:03.318820Z'
+updated_at: '2026-08-11T11:25:12.867739Z'
 work_branch: OOMPAH-1079
 target_branch: null
 review_url: null
@@ -41,6 +41,31 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1079
     digest: 5402ae5f9530247b9bc7e3a4281e9c1b97fd16d5d9498afae5b2e1ad7a868bb2
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-298c5ee8a9b5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1079
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5402ae5f9530247b9bc7e3a4281e9c1b97fd16d5d9498afae5b2e1ad7a868bb2
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Exact head d54b92a0c5067aad11df0094d6f3cff5e1b28068 passed 144 affected
+      tests, terminal mutation scan, independent adversarial ACCEPT including forced
+      timeout/event-loop/retry/store-close probe, protected Python 3.11/3.12/3.13
+      CI, and merged through PR 817 as 28ef3e709377381416908787ea92eb82ea7d4098. The
+      deterministic regression proves lifecycle publication worker drain completes
+      before SQLite-backed stores close; final deployed restart recurrence check remains
+      part of the overall rollout canary.
+    created_at: '2026-08-11T11:25:08.400810+00:00'
+    selected_ref: d54b92a0c5067aad11df0094d6f3cff5e1b28068
+    selected_sha: d54b92a0c5067aad11df0094d6f3cff5e1b28068
+    applied: false
   version: 1
   pending_chain:
   - version: 1
