@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T17:04:25.797050Z'
+updated_at: '2026-08-11T17:16:16.744225Z'
 work_branch: OOMPAH-1085
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/827
@@ -288,5 +288,10 @@ author: oompah
 created: 2026-08-11 17:02
 ---
 Protected Python 3.11 synchronization repair is pushed at exact head c2b0e1b10ea76129b8a59e041cde68948354e8cb, replacing ed2cbbc4390f475ebb9bc30ed1a4fe5c210f624c with an exact lease and remaining based on origin/main 3264da6780e35b10f759de8aade7b3509977bbb9. The blocked-durable-reconcile acceptance regression now barriers the first continuation owner immediately after its zero-capacity observation. While that owner is held, the exact running-entry CAS releases the worker slot and is proven to coalesce one recheck into the same owner; releasing the barrier then produces the second audit scan and exact successor claim while the unrelated world reconciliation is still blocked. This removes the Python-version callback-timing assumption without weakening the production acceptance proof. Python 3.11 evidence from branch-local .venv-py311: exact regression 50 consecutive passes; complete terminal-audit observability module 105 passed; branch-focused audit/event/retirement/submission/finalization/observability set 337 passed. Terminal mutation scan passed 21/21; diff and secret hooks clean. Branch is pushed and clean. Not submitted or merged; requires fresh independent exact-head review.
+---
+author: oompah
+created: 2026-08-11 17:16
+---
+Branch quality gate passed for `c2b0e1b10ea76129b8a59e041cde68948354e8cb` using `make test` in 178.0s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
