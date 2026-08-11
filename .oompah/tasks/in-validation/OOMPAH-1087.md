@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1087
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Prevent redundant WebSocket keepalive races during dashboard reconnects
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T13:38:34.915522Z'
-updated_at: '2026-08-11T14:59:37.656421Z'
+updated_at: '2026-08-11T15:03:08.161784Z'
 work_branch: OOMPAH-1087
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/822
@@ -40,6 +40,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/822
 oompah.review_number: '822'
 oompah.target_branch: main
 oompah.review_head: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-a15f97a02624
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1087
+    digest: 65d3490e8857ef5aee77ccd04ee5c566d4c2ad143af3efedc0517229668b8801
+  - version: 1
+    audit_id: audit-08766b832596
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1087
+    digest: 65d3490e8857ef5aee77ccd04ee5c566d4c2ad143af3efedc0517229668b8801
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a15f97a02624
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1087
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 65d3490e8857ef5aee77ccd04ee5c566d4c2ad143af3efedc0517229668b8801
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T15:02:58.783392+00:00'
+    eligible_at: '2026-08-11T15:02:58.783392+00:00'
+    selected_ref: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
+    selected_sha: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
+  - version: 1
+    audit_id: audit-08766b832596
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1087
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 65d3490e8857ef5aee77ccd04ee5c566d4c2ad143af3efedc0517229668b8801
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T15:02:58.783392+00:00'
+    prerequisite_audit_id: audit-a15f97a02624
+    selected_ref: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
+    selected_sha: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
+  attempt_history: []
 ---
 ## Summary
 
@@ -92,5 +150,10 @@ author: oompah
 created: 2026-08-11 14:58
 ---
 Branch quality gate passed for `0cf8f1586ddf6b48bd2315dd0b53234e36fdc061` using `make test` in 185.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 15:03
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
