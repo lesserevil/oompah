@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1085
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Dispatch exact terminal-audit successors through a dedicated bounded continuation
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T18:41:05.455591Z'
+updated_at: '2026-08-11T18:51:19.396631Z'
 work_branch: OOMPAH-1085
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/827
@@ -65,6 +65,30 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1085
     digest: fd89eced37fd44cb6db488b8886bb740da1d8953e6544046c0595ecd0aeb154e
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-e95072308804
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1085
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fd89eced37fd44cb6db488b8886bb740da1d8953e6544046c0595ecd0aeb154e
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Operator-directed manual completion while all Oompah schedulers are paused:
+      independent exact-head audit ACCEPT at 574c3f98038f43cf506a7227ff8b0992f16a490b;
+      421 focused and adjacent tests, 10 additional repeated live-shape/race runs,
+      and terminal audit scan passed; protected GitHub CI succeeded on Python 3.11,
+      3.12, and 3.13; PR #834 merged as 28ce5b1b2dd461c2d6a2ba579b3adfc65e41cbbe;
+      exact head is contained in origin/main.'
+    created_at: '2026-08-11T18:51:12.722211+00:00'
+    selected_ref: c2b0e1b10ea76129b8a59e041cde68948354e8cb
+    selected_sha: c2b0e1b10ea76129b8a59e041cde68948354e8cb
+    applied: false
   version: 1
   pending_chain:
   - version: 1
