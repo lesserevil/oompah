@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1085
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Dispatch exact terminal-audit successors through a dedicated bounded continuation
 parent: null
@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T13:35:25.728961Z'
-work_branch: null
+updated_at: '2026-08-11T13:35:37.410321Z'
+work_branch: OOMPAH-1085
 target_branch: null
 review_url: null
 review_number: null
@@ -33,6 +33,7 @@ oompah.integration:
   head_sha: 7bd90702b13bfa876f49e5b4e5e27483997945b6
   submitted_at: '2026-08-11T13:35:21.687037+00:00'
   updated_at: '2026-08-11T13:35:21.687037+00:00'
+oompah.work_branch: OOMPAH-1085
 ---
 ## Summary
 
@@ -60,5 +61,10 @@ author: oompah
 created: 2026-08-11 13:35
 ---
 Review-ready head 7bd90702b13bfa876f49e5b4e5e27483997945b6 is pushed on OOMPAH-1085, based exactly on origin/main fe06a0ff1. Post-rebase verification: 238 focused orchestrator/audit/event/pause tests passed; 1,102 adjacent terminal-audit/quiesce/quality-gate/server tests passed; focused terminal suite 141 passed; terminal mutation scan 21/21; paranoid secret scan passed. A duplicate manual full gate was stopped at 9,467 passed, 7 skipped, 2 xfailed, zero failures so the server can own the single canonical exact-head branch gate. Production acceptance context includes both the 116.409-second OOMPAH-1082 delay and the later roughly 61-second OOMPAH-1083 post-retirement delay on the pre-fix generic path.
+---
+author: oompah
+created: 2026-08-11 13:35
+---
+Implemented and pushed a dedicated coalesced single-flight terminal-audit continuation lane at 7bd90702b. Exact successor wakes now bypass unrelated full-world reconciliation while preserving shared audit ownership, workflow CAS authority, branch/capacity/pause/restart fences, and emitting claim/dispatch latency telemetry. Added production blocked-reconcile and race/lifecycle regression coverage; focused and adjacent verification is green. Ready for the server-owned exact-head branch gate and independent terminal audits.
 ---
 <!-- COMMENTS:END -->
