@@ -669,6 +669,7 @@ class ResultOutcome:
     posted_comment: bool = False
     idempotent: bool = False
     advanced_target: TargetState | None = None
+    advanced_audit_id: str | None = None
     cancelled_audit_ids: list[str] = field(default_factory=list)
     reason: str | None = None
 
@@ -708,6 +709,7 @@ class _ResultDecision:
         "comment_text",
         "audit_id",
         "advanced_target",
+        "advanced_audit_id",
         "applied_attempt",
         "keep_in_validation",
         "cancelled_audit_ids",
@@ -719,6 +721,7 @@ class _ResultDecision:
         self.comment_text: str | None = None
         self.audit_id: str | None = None
         self.advanced_target: TargetState | None = None
+        self.advanced_audit_id: str | None = None
         self.applied_attempt: bool = False
         self.keep_in_validation: bool = False
         self.cancelled_audit_ids: list[str] = []
@@ -4770,9 +4773,25 @@ class TerminalTransitionCoordinator:
                 ),
                 None,
             )
-            decision.advanced_target = (
-                next_pending.target_state if next_pending is not None else None
-            )
+            if action.kind == "pass" and next_pending is not None:
+                # Eligibility is committed in the same metadata CAS as the
+                # prerequisite PASS.  A process may die before the scheduler
+                # wake, but restart recovery can now distinguish the newly
+                # eligible stage from time it spent durably blocked.
+                next_index = chain.index(next_pending)
+                prerequisite_audit_id = (
+                    next_pending.prerequisite_audit_id
+                    or target_record.audit_id
+                )
+                next_pending = replace(
+                    next_pending,
+                    eligible_at=next_pending.eligible_at or now,
+                    prerequisite_audit_id=prerequisite_audit_id,
+                    updated_at=now,
+                )
+                chain[next_index] = next_pending
+                decision.advanced_target = next_pending.target_state
+                decision.advanced_audit_id = next_pending.audit_id
 
             new_unknown = _record_applied_attempt(
                 doc,
@@ -4922,6 +4941,7 @@ class TerminalTransitionCoordinator:
             applied_status=applied_status,
             posted_comment=posted,
             advanced_target=decision.advanced_target,
+            advanced_audit_id=decision.advanced_audit_id,
             cancelled_audit_ids=decision.cancelled_audit_ids,
         )
 
@@ -6523,6 +6543,8 @@ def _build_merged_entries(
             )
         )
 
+    prerequisite = completed_done or active_done or entries[0]
+
     entries.append(
         _make_record(
             project_id,
@@ -6537,6 +6559,8 @@ def _build_merged_entries(
             landing_revision=landing_revision,
             workflow_revision=workflow_revision,
             source_generation=source_generation,
+            eligible_at=(now if completed_done is not None else None),
+            prerequisite_audit_id=prerequisite.audit_id,
         )
     )
     return entries
@@ -6556,6 +6580,8 @@ def _make_record(
     landing_revision: str | None = None,
     workflow_revision: str | None = None,
     source_generation: int = 1,
+    eligible_at: str | None = None,
+    prerequisite_audit_id: str | None = None,
 ) -> TerminalAuditRecord:
     """Create a new :class:`~oompah.terminal_audit.TerminalAuditRecord` in ``PENDING`` state."""
     return TerminalAuditRecord(
@@ -6568,6 +6594,12 @@ def _make_record(
         requested_by=trigger,
         previous_state=previous_state,
         created_at=created_at,
+        eligible_at=(
+            eligible_at
+            if eligible_at is not None or prerequisite_audit_id is not None
+            else created_at
+        ),
+        prerequisite_audit_id=prerequisite_audit_id,
         selected_ref=selected_ref,
         selected_sha=selected_sha,
         landing_revision=landing_revision,

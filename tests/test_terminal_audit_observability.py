@@ -35,6 +35,7 @@ from oompah.terminal_audit import (
 from oompah.terminal_audit_health import (
     HEALTH_ALERT_PREFIX,
     AuditHealthObservation,
+    build_terminal_audit_health,
 )
 from oompah.terminal_audit_metadata import (
     METADATA_KEY,
@@ -155,6 +156,52 @@ def test_lifecycle_metrics_and_oldest_age_are_deterministic() -> None:
     assert snapshot["grandfathered"] == 1
     assert snapshot["no_independent_candidate"] == 1
     assert snapshot["last_successful_audit_at"] == now.isoformat()
+
+
+def test_pending_age_starts_when_chained_stage_becomes_eligible() -> None:
+    now = datetime(2026, 8, 11, 12, tzinfo=timezone.utc)
+    record = TerminalAuditRecord(
+        audit_id="audit-merged",
+        project_id="project-a",
+        task_id="TASK-CHAIN",
+        target_state=TargetState.MERGED,
+        evidence_fingerprint=EvidenceFingerprint("e" * 64),
+        request_state=RequestState.PENDING,
+        created_at=(now - timedelta(hours=3)).isoformat(),
+        eligible_at=(now - timedelta(seconds=30)).isoformat(),
+        prerequisite_audit_id="audit-done",
+    )
+
+    health = build_terminal_audit_health(
+        [record], now=now, stale_after_seconds=60
+    )
+
+    assert health.pending_count == 1
+    assert health.oldest_pending_age_seconds == 30
+    assert health.stale_pending_count == 0
+
+
+def test_blocked_chained_stage_has_no_pending_age() -> None:
+    now = datetime(2026, 8, 11, 12, tzinfo=timezone.utc)
+    record = TerminalAuditRecord(
+        audit_id="audit-merged",
+        project_id="project-a",
+        task_id="TASK-CHAIN",
+        target_state=TargetState.MERGED,
+        evidence_fingerprint=EvidenceFingerprint("e" * 64),
+        request_state=RequestState.PENDING,
+        created_at=(now - timedelta(hours=3)).isoformat(),
+        eligible_at=None,
+        prerequisite_audit_id="audit-done",
+    )
+
+    health = build_terminal_audit_health(
+        [record], now=now, stale_after_seconds=60
+    )
+
+    assert health.pending_count == 1
+    assert health.oldest_pending_age_seconds is None
+    assert health.stale_pending_count == 0
 
 
 def test_control_lock_metrics_persist_restore_and_shape() -> None:
@@ -1381,6 +1428,51 @@ def test_mixed_priority_health_cursor_rotates_durably_across_restart(
         restarted._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
+def test_exact_successor_wake_enters_next_bounded_audit_window(
+    tmp_path: Path,
+) -> None:
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    orchestrator = Orchestrator(
+        ServiceConfig(
+            workspace_root=str(tmp_path / "workspace"),
+            audit_lane_scan_limit=2,
+            duplicate_preflight_max_agents=0,
+        ),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    candidates = tuple(
+        Issue(
+            id=f"issue-{index}",
+            identifier=f"TASK-{index}",
+            title="Pending audit",
+            state="In Validation",
+            project_id="project-a",
+            priority=0,
+            created_at=datetime(2026, 8, 11, tzinfo=timezone.utc)
+            + timedelta(seconds=index),
+        )
+        for index in range(4)
+    )
+    try:
+        orchestrator._eligible_audit_stage_wakes[(
+            "project-a",
+            "TASK-3",
+        )] = "audit-merged"
+
+        window, truncated = orchestrator._audit_health_candidate_window(
+            candidates
+        )
+
+        assert truncated is True
+        assert [issue.identifier for issue in window] == ["TASK-3", "TASK-0"]
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
 def test_audit_candidate_window_interleaves_projects_within_priority(
     tmp_path: Path,
 ) -> None:
@@ -2293,6 +2385,23 @@ def test_audit_budget_continuation_posts_coalescible_refresh() -> None:
     event = orchestrator._post_event.call_args.args[0]
     assert event.event_type is DispatchEventType.REFRESH_REQUESTED
     assert event.payload == {"reason": "terminal_audit_budget_deferred"}
+
+
+def test_next_audit_stage_registers_exact_wake_before_requesting_refresh() -> None:
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator._eligible_audit_stage_wakes = {}
+    orchestrator._request_audit_lane_continuation = Mock(return_value=True)
+
+    assert orchestrator._request_next_audit_stage(
+        project_id="project-a",
+        task_id="TASK-1",
+        audit_id="audit-merged",
+    ) is True
+
+    assert orchestrator._eligible_audit_stage_wakes == {
+        ("project-a", "TASK-1"): "audit-merged"
+    }
+    orchestrator._request_audit_lane_continuation.assert_called_once_with()
 
 
 @pytest.mark.parametrize(

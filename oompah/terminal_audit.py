@@ -1225,6 +1225,12 @@ class TerminalAuditRecord:
     previous_state: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
+    # A chained request can be persisted before it is dispatchable.  Keep the
+    # request timestamp for provenance, but start scheduling/health age only
+    # when its exact prerequisite has completed.  Legacy records omit both
+    # fields and retain their historical immediately-eligible behaviour.
+    eligible_at: str | None = None
+    prerequisite_audit_id: str | None = None
     selected_ref: str | None = None
     selected_sha: str | None = None
     landing_revision: str | None = None
@@ -1251,6 +1257,25 @@ class TerminalAuditRecord:
         ):
             raise TypeError(
                 "TerminalAuditRecord.requested_by must be ContributorIdentity or null"
+            )
+        for name in (
+            "previous_state",
+            "created_at",
+            "updated_at",
+            "eligible_at",
+            "prerequisite_audit_id",
+        ):
+            value = getattr(self, name)
+            if value is not None and not isinstance(value, str):
+                raise TypeError(
+                    f"TerminalAuditRecord.{name} must be a string or null"
+                )
+        if (
+            self.prerequisite_audit_id is not None
+            and not self.prerequisite_audit_id.strip()
+        ):
+            raise ValueError(
+                "TerminalAuditRecord.prerequisite_audit_id must be non-empty"
             )
         binding = _validate_optional_revision_binding(
             self.selected_ref,
@@ -1318,6 +1343,10 @@ class TerminalAuditRecord:
             result["created_at"] = self.created_at
         if self.updated_at is not None:
             result["updated_at"] = self.updated_at
+        if self.eligible_at is not None:
+            result["eligible_at"] = self.eligible_at
+        if self.prerequisite_audit_id is not None:
+            result["prerequisite_audit_id"] = self.prerequisite_audit_id
         if self.selected_ref is not None:
             result["selected_ref"] = self.selected_ref
             result["selected_sha"] = self.selected_sha
@@ -1356,6 +1385,12 @@ class TerminalAuditRecord:
             previous_state=_optional_string(data, "previous_state", cls.__name__),
             created_at=_optional_string(data, "created_at", cls.__name__),
             updated_at=_optional_string(data, "updated_at", cls.__name__),
+            eligible_at=_optional_string(data, "eligible_at", cls.__name__),
+            prerequisite_audit_id=_optional_string(
+                data,
+                "prerequisite_audit_id",
+                cls.__name__,
+            ),
             selected_ref=_optional_string(data, "selected_ref", cls.__name__),
             selected_sha=_optional_string(data, "selected_sha", cls.__name__),
             landing_revision=_optional_string(

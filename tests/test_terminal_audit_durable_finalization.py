@@ -188,6 +188,7 @@ def _orchestrator(
     orchestrator._audit_rollback_lock = threading.RLock()
     orchestrator._pending_audit_rollbacks = {}
     orchestrator._maintenance_cursors = {}
+    orchestrator._eligible_audit_stage_wakes = {}
     # The fixture bypasses Orchestrator.__init__, so model the service-state
     # transaction lock required by durable maintenance cursor updates.
     orchestrator._state_io_lock = threading.RLock()
@@ -211,7 +212,182 @@ def _orchestrator(
     orchestrator._tracker_for_project = lambda _project_id: tracker
     orchestrator._tracker_for_issue = lambda _issue: tracker
     orchestrator._record_audit_outcome_ownership = MagicMock()
+    orchestrator._request_audit_lane_continuation = MagicMock(return_value=True)
     return orchestrator
+
+
+def test_successor_wake_is_published_only_after_current_job_closes() -> None:
+    orchestrator = Orchestrator.__new__(Orchestrator)
+    calls: list[str] = []
+    orchestrator._finish_terminal_audit_workflow = MagicMock(
+        side_effect=lambda *_args: calls.append("closed") or True
+    )
+    orchestrator._record_audit_outcome_ownership = MagicMock(
+        side_effect=lambda *_args: calls.append("owned")
+    )
+    orchestrator._request_next_audit_stage = MagicMock(
+        side_effect=lambda **_kwargs: calls.append("wake") or True
+    )
+    issue = Issue(
+        id=TASK_ID,
+        identifier=TASK_ID,
+        title="chained audit",
+        state=IN_VALIDATION,
+        project_id=PROJECT_ID,
+    )
+    outcome = ResultOutcome(
+        success=True,
+        audit_id="audit-done",
+        applied_status=IN_VALIDATION,
+        advanced_target=TargetState.MERGED,
+        advanced_audit_id="audit-merged",
+    )
+
+    assert orchestrator._finish_and_wake_terminal_audit_workflow(
+        issue, SimpleNamespace(), outcome, SimpleNamespace()
+    )
+
+    assert calls == ["closed", "owned", "wake"]
+    orchestrator._request_next_audit_stage.assert_called_once_with(
+        project_id=PROJECT_ID,
+        task_id=TASK_ID,
+        audit_id="audit-merged",
+    )
+
+
+def test_done_pass_successor_converges_after_crash_before_wake(tmp_path) -> None:
+    """Persisted eligibility makes the exact queued Merged job restart-safe."""
+
+    tracker = _Tracker()
+    locks = _RevisionProjectLocks()
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=locks,
+        post_comments=False,
+    )
+    fingerprint = compute_issue_evidence_fingerprint(
+        tracker.fetch_issue_detail(TASK_ID), PROJECT_ID
+    )
+    staged = asyncio.run(
+        coordinator.request_transition(
+            tracker.fetch_issue_detail(TASK_ID),
+            TargetState.MERGED,
+            ContributorIdentity("review-webhook", "oompah"),
+            PROJECT_ID,
+            fingerprint,
+        )
+    )
+    assert staged.success
+    assert tracker.status == IN_VALIDATION
+    metadata = TerminalAuditMetadataStore(tracker, locks, PROJECT_ID)
+    done, merged = metadata.read(TASK_ID).pending_chain
+    assert done.eligible_at == done.created_at
+    assert merged.eligible_at is None
+    assert merged.prerequisite_audit_id == done.audit_id
+
+    db_path = str(tmp_path / "workflow.sqlite3")
+    store = WorkflowJobStore(db_path)
+    workflow = TerminalAuditWorkflow(store)
+    merged_job = workflow.ensure(merged)
+    attempt = AuditAttempt(
+        attempt_id="attempt-done",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        provider_id="provider-a",
+        model="model-a",
+        selected_ref=done.selected_ref,
+        selected_sha=done.selected_sha,
+        landing_revision=done.landing_revision,
+        created_at="2026-08-11T10:40:00+00:00",
+        started_at="2026-08-11T10:40:00+00:00",
+    )
+    launched_done = replace(
+        done,
+        request_state=RequestState.IN_PROGRESS,
+        attempts=[attempt],
+    )
+    metadata.update(
+        TASK_ID,
+        lambda document: replace(
+            document,
+            pending_chain=[launched_done, merged],
+        ),
+    )
+    running = workflow.start(
+        launched_done,
+        attempt_id=attempt.attempt_id,
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert running is not None
+    result = _result(launched_done, attempt.attempt_id)
+    finalizing = workflow.mark_finalizing(
+        running,
+        launched_done,
+        result=result,
+        attempt_id=attempt.attempt_id,
+        lease_token=running.lease_token,
+    )
+    outcome = asyncio.run(
+        coordinator.apply_audit_result(
+            tracker.fetch_issue_detail(TASK_ID),
+            result,
+            PROJECT_ID,
+        )
+    )
+    assert outcome.success
+    assert outcome.advanced_target is TargetState.MERGED
+    assert outcome.advanced_audit_id == merged.audit_id
+    orchestrator = _orchestrator(tracker, coordinator, store, workflow)
+    assert orchestrator._finish_terminal_audit_workflow(
+        tracker.fetch_issue_detail(TASK_ID),
+        result,
+        outcome,
+        finalizing,
+    )
+    eligible_merged = next(
+        record
+        for record in metadata.read(TASK_ID).pending_chain
+        if record.audit_id == merged.audit_id
+    )
+    assert eligible_merged.eligible_at is not None
+    assert store.get(merged_job.job_id).attempts == 0
+    store.close()
+
+    # Simulate death after result/job completion but before the in-memory
+    # successor wake.  Startup metadata recovery reconstructs that exact hint
+    # and the pre-existing semantic job remains the claim target.
+    reopened_store = WorkflowJobStore(db_path)
+    reopened_workflow = TerminalAuditWorkflow(reopened_store)
+    enforcement = TerminalAuditEnforcement(
+        str(tmp_path / "service-state.json"),
+        terminal_states=(DONE, MERGED, "Archived"),
+        project_store=locks,
+    )
+    enforcement.recover_pending_audits([(PROJECT_ID, tracker)])
+    restarted = _orchestrator(
+        tracker,
+        coordinator,
+        reopened_store,
+        reopened_workflow,
+    )
+    restarted._terminal_audit_enforcement = enforcement
+    restarted._maintenance_status = {}
+    restarted._eligible_audit_stage_wakes = {}
+    restarted._sync_terminal_audit_workflow_jobs()
+
+    assert restarted._eligible_audit_stage_wakes == {
+        (PROJECT_ID, TASK_ID): eligible_merged.audit_id
+    }
+    next_job = reopened_workflow.start(
+        eligible_merged,
+        attempt_id="attempt-merged",
+        candidate=Candidate("provider-b", "model-b"),
+    )
+    assert next_job is not None
+    assert next_job.job_id == merged_job.job_id
+    assert next_job.attempts == 1
+    reopened_store.close()
 
 
 def test_completed_recurrence_is_coordinator_resolved_without_rearm(

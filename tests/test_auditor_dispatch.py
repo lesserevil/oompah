@@ -220,6 +220,39 @@ def test_merged_dispatch_requires_exact_completed_done_pass() -> None:
     ) == merged
 
 
+def test_explicitly_blocked_merged_stage_is_not_dispatchable() -> None:
+    done = _record()
+    passed_done = replace(
+        done,
+        request_state=RequestState.COMPLETED,
+        attempts=[
+            AuditAttempt(
+                attempt_id="attempt-passed-done",
+                target_state=TargetState.DONE,
+                evidence_fingerprint=done.evidence_fingerprint,
+                request_state=RequestState.COMPLETED,
+                verdict=Verdict.PASS,
+            )
+        ],
+    )
+    blocked = replace(
+        _record(),
+        audit_id="audit-merged-blocked",
+        target_state=TargetState.MERGED,
+        prerequisite_audit_id=passed_done.audit_id,
+        eligible_at=None,
+    )
+
+    assert (
+        AuditorDispatchLane.pending_record(
+            [passed_done, blocked],
+            project_id="project-1",
+            task_id="TASK-1",
+        )
+        is None
+    )
+
+
 @pytest.mark.parametrize(
     ("done_authority", "merged_authority"),
     [

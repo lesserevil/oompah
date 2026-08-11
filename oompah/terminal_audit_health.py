@@ -61,7 +61,19 @@ def _timestamp(value: datetime) -> str:
 
 
 def _record_created_at(record: TerminalAuditRecord) -> datetime | None:
-    """Return the oldest trustworthy timestamp for a pending request."""
+    """Return the stage eligibility boundary for pending-age accounting.
+
+    New chained records explicitly distinguish creation from eligibility.  A
+    null eligibility timestamp with a prerequisite means the stage is still
+    blocked and therefore has no backlog age.  Legacy records did not encode
+    that distinction, so they retain the previous oldest-timestamp fallback.
+    """
+
+    eligible = _parse_timestamp(record.eligible_at)
+    if eligible is not None:
+        return eligible
+    if record.prerequisite_audit_id is not None:
+        return None
     candidates: list[datetime] = []
     for attr in (record.created_at, record.updated_at):
         parsed = _parse_timestamp(attr)

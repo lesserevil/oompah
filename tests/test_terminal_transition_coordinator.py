@@ -1624,6 +1624,11 @@ class TestMergedChain:
         assert doc.pending_chain[1].target_state == TargetState.MERGED
         for record in doc.pending_chain:
             assert record.request_state == RequestState.PENDING
+        done, merged = doc.pending_chain
+        assert done.eligible_at == done.created_at
+        assert done.prerequisite_audit_id is None
+        assert merged.eligible_at is None
+        assert merged.prerequisite_audit_id == done.audit_id
 
     def test_direct_merged_cannot_skip_completion_auditing(self) -> None:
         """Even a direct Merged request must produce a Done audit first."""
@@ -5933,8 +5938,19 @@ class TestApplyPassChainedTargets:
 
         assert outcome.success is True
         assert outcome.advanced_target == TargetState.MERGED
+        assert outcome.advanced_audit_id == chain[1].audit_id
         assert outcome.applied_status == IN_VALIDATION
         assert tracker.current_status(TASK_ID) == IN_VALIDATION
+        stored = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        successor = next(
+            record
+            for record in stored.pending_chain
+            if record.audit_id == chain[1].audit_id
+        )
+        assert successor.prerequisite_audit_id == chain[0].audit_id
+        assert successor.eligible_at is not None
 
     def test_pass_on_final_chain_item_reaches_terminal_state(self) -> None:
         tracker = _MemoryTracker()

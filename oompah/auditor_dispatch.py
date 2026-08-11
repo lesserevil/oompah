@@ -280,6 +280,10 @@ class AuditorDispatchLane:
             in (RequestState.PENDING, RequestState.IN_PROGRESS)
             and record.project_id == project_id
             and record.task_id == task_id
+            and not (
+                record.prerequisite_audit_id is not None
+                and record.eligible_at is None
+            )
         ]
         if not active:
             return None
