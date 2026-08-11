@@ -1011,7 +1011,7 @@ def test_partial_health_scan_keeps_one_generation_of_facts_and_alerts(
 
 
 @pytest.mark.asyncio
-async def test_paused_audit_is_suspended_then_resume_restores_dispatch(
+async def test_paused_and_restart_deferred_audit_then_resume_restores_dispatch(
     tmp_path: Path,
 ) -> None:
     """Periodic health retains paused work and resume admits its launch."""
@@ -1132,14 +1132,31 @@ async def test_paused_audit_is_suspended_then_resume_restores_dispatch(
             assert orchestrator._dispatch.await_count == 0
 
             project.paused = False
+            deferred = await orchestrator._dispatch_audit_lane(
+                allow_new_launches=False
+            )
+
+            assert deferred["audit_dispatch"] >= 0
+            assert orchestrator._prepare_audit_selector.await_count == 1
+            assert orchestrator._dispatch.await_count == 0
+            assert update_record.call_count == 0
+            assert orchestrator._audit_health.pending_count == 1
+            assert (
+                orchestrator._audit_metrics[
+                    "restart_publication_deferred_count"
+                ]
+                == 1
+            )
+
             result = await orchestrator._dispatch_audit_lane()
 
-            assert orchestrator._prepare_audit_selector.await_count == 1
+            assert orchestrator._prepare_audit_selector.await_count == 2
             assert orchestrator._dispatch.await_count == 1
 
         assert result["audit_dispatch"] >= 0
         assert launch_state["completed"] is True
         assert orchestrator._audit_metrics["last_dispatched_count"] == 1
+        assert orchestrator._audit_metrics["restart_publication_deferred_count"] == 0
         assert update_record.call_count == 1
         persisted = update_record.call_args.args[2]
         assert persisted.request_state == RequestState.IN_PROGRESS

@@ -5255,6 +5255,7 @@ def test_enforce_runtime_owns_liveness_restart_reconstruction(tmp_path):
 
     asyncio.run(runtime.start())
     assert controller.liveness_snapshot().restart_reconstruction_pending
+    assert runtime.restart_reconstruction_pending
 
     first = runtime.reconcile()
     first_health = controller.liveness_snapshot()
@@ -5263,6 +5264,7 @@ def test_enforce_runtime_owns_liveness_restart_reconstruction(tmp_path):
 
     assert first["liveness"]["scan_complete"] is True
     assert first_health.restart_reconstruction_pending is False
+    assert not runtime.restart_reconstruction_pending
     assert first_health.scan_complete and first_health.healthy
     assert second["liveness"]["snapshot_generation"] > first["liveness"][
         "snapshot_generation"
@@ -5277,6 +5279,27 @@ def test_enforce_runtime_owns_liveness_restart_reconstruction(tmp_path):
     )
     runtime.close()
     store.close()
+
+
+@pytest.mark.parametrize("mode", ("off", "shadow"))
+def test_non_enforce_runtime_never_fences_audits_for_liveness_restore(mode):
+    runtime = object.__new__(WorkflowRuntime)
+    runtime.mode = mode
+    runtime.liveness_controller = MagicMock()
+
+    assert runtime.restart_reconstruction_pending is False
+    runtime.liveness_controller.liveness_snapshot.assert_not_called()
+
+
+def test_restart_reconstruction_admission_fails_closed_on_health_read_error():
+    runtime = object.__new__(WorkflowRuntime)
+    runtime.mode = "enforce"
+    runtime.liveness_controller = MagicMock()
+    runtime.liveness_controller.liveness_snapshot.side_effect = RuntimeError(
+        "unavailable"
+    )
+
+    assert runtime.restart_reconstruction_pending is True
 
 
 def test_runtime_liveness_fails_closed_for_unmaterialized_owner_recovery(tmp_path):

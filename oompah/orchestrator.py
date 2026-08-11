@@ -2573,6 +2573,7 @@ class Orchestrator:
             "budget_reason": None,
             "budget_deferred": False,
             "continuation_requested": False,
+            "restart_publication_deferred_count": 0,
             "runtime_overrun_ms": 0.0,
             "health_cycle_seen_count": 0,
             "health_cycle_candidate_count": 0,
@@ -15573,6 +15574,28 @@ class Orchestrator:
             "publication_rejection": publication.rejection,
         }
 
+    async def _run_terminal_audit_tick_phase(
+        self,
+        *,
+        allow_new_launches: bool,
+    ) -> dict[str, float]:
+        """Run audit recovery/health, admitting providers only when authorized."""
+
+        terminal_audit_interval = max(
+            1.0, self.config.full_sync_interval_ms / 1000.0
+        )
+        if (
+            self._terminal_audit_started
+            and self._monotonic_clock() - self._terminal_audit_last_scan
+            >= terminal_audit_interval
+        ):
+            await asyncio.get_running_loop().run_in_executor(
+                self._tick_pool, self._run_terminal_audit_enforcement
+            )
+        return await self._dispatch_audit_lane(
+            allow_new_launches=allow_new_launches
+        )
+
     async def _run_durable_workflow_tick(self, *, started_at: float) -> None:
         """Run the sole production lifecycle path.
 
@@ -15594,26 +15617,28 @@ class Orchestrator:
             self._notify_observers()
             return
 
-        terminal_audit_interval = max(
-            1.0, self.config.full_sync_interval_ms / 1000.0
-        )
-        if (
-            self._terminal_audit_started
-            and self._monotonic_clock() - self._terminal_audit_last_scan
-            >= terminal_audit_interval
-        ):
-            await asyncio.get_running_loop().run_in_executor(
-                self._tick_pool, self._run_terminal_audit_enforcement
-            )
-
         if not runtime.started:
             await runtime.start()
-        audit_metrics = await self._dispatch_audit_lane()
+        reconstruction_pending = bool(
+            getattr(runtime, "restart_reconstruction_pending", False)
+        )
+        audit_metrics: dict[str, float] | None = None
+        if not reconstruction_pending:
+            audit_metrics = await self._run_terminal_audit_tick_phase(
+                allow_new_launches=True
+            )
         report = await runtime.reconcile_async()
 
         reconcile_continuation_requested = (
             self._request_runtime_report_continuation(report)
         )
+        if reconstruction_pending:
+            audit_metrics = await self._run_terminal_audit_tick_phase(
+                allow_new_launches=not bool(
+                    getattr(runtime, "restart_reconstruction_pending", False)
+                )
+            )
+        assert audit_metrics is not None
 
         worker_report = report.get("worker")
         batch_saturated = bool(
@@ -18415,6 +18440,7 @@ class Orchestrator:
         self,
         *,
         reserved_non_audit_slots: int = 0,
+        allow_new_launches: bool = True,
     ) -> dict[str, float]:
         """Dispatch one bounded, capacity-fenced terminal-audit window."""
 
@@ -18437,6 +18463,7 @@ class Orchestrator:
         )
         deadline = started + runtime_budget_seconds
         metrics = self._audit_metrics
+        metrics["restart_publication_deferred_count"] = 0
         self._refresh_terminal_audit_validation_configuration_alerts()
         # Rollback-pending launches retain their branch fence across outages
         # and restarts.  Retry those exact CAS operations before normal lane
@@ -18504,6 +18531,7 @@ class Orchestrator:
         last_processed_cursor: str | None = None
         budget_exhausted = False
         budget_reason: str | None = None
+        restart_publication_deferred_count = 0
         selector_cache: dict[
             tuple[str, int],
             tuple[AuditorCandidateSelector | None, str | None],
@@ -19179,6 +19207,14 @@ class Orchestrator:
                     )
                     continue
 
+                if not allow_new_launches:
+                    # Recovery, finalization, migration, and health scanning
+                    # remain live while restart reconstruction is pending. Do
+                    # not publish a fresh attempt or lease until the first
+                    # complete workflow world cut has committed.
+                    restart_publication_deferred_count += 1
+                    continue
+
                 persisted = lane.persist_plan(record, plan)
                 attempt = persisted.attempts[-1]
                 # Claim the generic workflow lease before publishing
@@ -19352,6 +19388,9 @@ class Orchestrator:
         metrics["budget_reason"] = budget_reason
         metrics["budget_deferred"] = budget_deferred
         metrics["continuation_requested"] = continuation_requested
+        metrics["restart_publication_deferred_count"] = (
+            restart_publication_deferred_count
+        )
         metrics["health_cycle_seen_count"] = (
             len(getattr(self, "_audit_health_cycle_observations", {}))
             if not scan_complete

@@ -3503,7 +3503,9 @@ def test_completed_result_finalization_is_preserved_during_worker_exit(tmp_path)
 
 def test_finalization_replay_precedes_pause_and_capacity_gates() -> None:
     orchestrator = Orchestrator.__new__(Orchestrator)
-    orchestrator._audit_metrics = _test_audit_metrics()
+    orchestrator._audit_metrics = _test_audit_metrics(
+        restart_publication_deferred_count=3
+    )
     orchestrator._tick_pool = None
     orchestrator._audit_rollback_persistence_failed = False
     orchestrator._audit_rollback_lock = threading.RLock()
@@ -3514,8 +3516,11 @@ def test_finalization_replay_precedes_pause_and_capacity_gates() -> None:
     orchestrator._dispatch_is_blocked = MagicMock(return_value=True)
     orchestrator._is_rate_limited = MagicMock(return_value=False)
 
-    result = asyncio.run(orchestrator._dispatch_audit_lane())
+    result = asyncio.run(
+        orchestrator._dispatch_audit_lane(allow_new_launches=False)
+    )
 
     assert result == {"audit_dispatch": 0.0, "audit_scan": 0.0}
     orchestrator._replay_terminal_audit_finalizations.assert_awaited_once()
     assert orchestrator._audit_metrics["finalizations_replayed"] == 1
+    assert orchestrator._audit_metrics["restart_publication_deferred_count"] == 0

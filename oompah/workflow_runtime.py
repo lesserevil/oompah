@@ -1780,6 +1780,23 @@ class WorkflowRuntime:
     def enforce(self) -> bool:
         return self.mode == "enforce"
 
+    @property
+    def restart_reconstruction_pending(self) -> bool:
+        """Whether enforce mode still owes its first authoritative world cut."""
+
+        if not self.enforce or self.liveness_controller is None:
+            return False
+        try:
+            return bool(
+                self.liveness_controller.liveness_snapshot()
+                .restart_reconstruction_pending
+            )
+        except Exception:  # noqa: BLE001 - launch admission must fail closed
+            logger.exception(
+                "Workflow restart reconstruction authority is unavailable"
+            )
+            return True
+
     def _bind_policy_epoch(self, policy_epoch: str) -> None:
         """Bind universal and owning schedulers to one semantic policy cut."""
 
