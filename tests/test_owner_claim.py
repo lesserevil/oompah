@@ -566,6 +566,7 @@ def test_production_validation_job_hands_standalone_owner_to_ready_workflow(
         head_sha=head,
     )
     tracker.fetch_issue_detail.return_value = issue
+    orch.project_store.remote_branch_head = MagicMock(return_value=head)
     claim = orch.grant_owner_claim(
         issue_id=issue.id,
         project_id=issue.project_id,
@@ -647,6 +648,7 @@ def test_validation_restart_replays_precommit_intent_and_retires_exact_claim(
         head_sha=head,
     )
     tracker.fetch_issue_detail.return_value = issue
+    orch.project_store.remote_branch_head = MagicMock(return_value=head)
     claim = orch.grant_owner_claim(
         issue_id=issue.id,
         project_id=issue.project_id,

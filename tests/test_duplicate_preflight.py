@@ -46,8 +46,18 @@ from oompah.statuses import (
     DUPLICATE_CANDIDATE,
     NEEDS_HUMAN,
     OPEN,
+    READY_TO_INTEGRATE,
+)
+from oompah.task_transition_service import (
+    TaskTransitionService,
+    TransitionAuthority,
+    TransitionDisposition,
+    TransitionIntent,
+    TransitionJournal,
+    issue_authority_version,
 )
 from oompah.workflow_facts import FactDomain
+from oompah.workflow_jobs import WorkflowJobSpec, WorkflowJobStore
 
 
 def _issue(
@@ -712,6 +722,214 @@ def test_direct_owner_submission_recovery_fails_closed_on_remote_or_claim_race()
         "accepted_submission_claim_changed"
     )
     assert "implementation_pending_action" not in racing_config
+
+
+def _accepted_validation_commit_fixture(tmp_path):
+    head = "a" * 40
+    issue = _issue(state="In Progress")
+    issue.head_sha = head
+    issue.assignment_id = "direct-owner-generation"
+    issue.integration = IntegrationRecord(
+        state="ready",
+        head_sha=head,
+        task_branch="TASK-1",
+        base_branch="main",
+        base_sha="b" * 40,
+    )
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    project_lock = threading.RLock()
+    orch.project_store.project_write_lock.side_effect = lambda _project_id: (
+        project_lock
+    )
+    remote = {"head": head}
+    orch.project_store.remote_branch_head.side_effect = (
+        lambda _project_id, _branch: remote["head"]
+    )
+    claim = _install_owner_claim(orch, issue)
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    orch.workflow_job_store = store
+    job = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id=issue.identifier,
+            generation="accepted-fact-generation",
+            action="validation_submission",
+            idempotency_key="accepted-validation",
+            expected_evidence_revision=issue_authority_version(
+                tracker.fetch_issue_detail(issue.identifier)
+            ),
+            expected_head_sha=head,
+            payload={
+                "owner_claim_id": claim.claim_id,
+                "owner_login": claim.owner_login,
+                "work_branch": issue.identifier,
+                "head_sha": head,
+            },
+        )
+    )
+    current = tracker.fetch_issue_detail(issue.identifier)
+    intent = TransitionIntent(
+        project_id="project-1",
+        task_id=issue.identifier,
+        expected_status=current.state,
+        expected_version=issue_authority_version(current),
+        requested_status=READY_TO_INTEGRATE,
+        actor="oompah",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="implementation.validation_submission",
+        idempotency_key=f"{job.idempotency_key}:transition",
+        originating_job=job.job_id,
+        evidence_generation=claim.claim_id,
+        exact_head=head,
+    )
+    journal = TransitionJournal(str(tmp_path / "transitions.sqlite3"))
+    service = TaskTransitionService(
+        project_id="project-1",
+        tracker=tracker,
+        journal=journal,
+        mutation_write_lock=lambda: project_lock,
+        mutation_guard=orch._validation_submission_transition_conflict,
+    )
+    return orch, tracker, store, journal, service, intent, remote, claim
+
+
+def _install_precommit_barrier(service):
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    commit = service._commit_guarded_update
+
+    async def blocked_commit(intent):
+        entered.set()
+        await release.wait()
+        return await commit(intent)
+
+    service._commit_guarded_update = blocked_commit
+    return entered, release
+
+
+def test_materialized_validation_fails_closed_when_remote_advances_before_commit(
+    tmp_path,
+):
+    (
+        _orch_instance,
+        tracker,
+        store,
+        journal,
+        service,
+        intent,
+        remote,
+        _claim,
+    ) = _accepted_validation_commit_fixture(tmp_path)
+
+    async def race():
+        entered, release = _install_precommit_barrier(service)
+        transition = asyncio.create_task(service.execute(intent))
+        await entered.wait()
+        remote["head"] = "c" * 40
+        release.set()
+        return await transition
+
+    outcome = asyncio.run(race())
+
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == "transition.stale_precondition"
+    assert outcome.details["detail"] == "validation submission remote head changed"
+    assert tracker.fetch_issue_detail(intent.task_id).state == "In Progress"
+    assert tracker.status_updates == []
+
+    # Replaying the stale intent after restart remains rejected, while a new
+    # exact-head submission can converge through its own immutable identity.
+    journal.close()
+    reopened = TransitionJournal(str(tmp_path / "transitions.sqlite3"))
+    replay_service = TaskTransitionService(
+        project_id="project-1",
+        tracker=tracker,
+        journal=reopened,
+        mutation_write_lock=service._mutation_write_lock,
+        mutation_guard=service._mutation_guard,
+    )
+    replay = asyncio.run(replay_service.execute(intent))
+    assert replay.disposition is TransitionDisposition.REJECTED
+    assert replay.replayed
+
+    current_head = remote["head"]
+    with tracker._lock:
+        current = tracker.issues[intent.task_id]
+        current.head_sha = current_head
+        current.integration = replace(current.integration, head_sha=current_head)
+    current = tracker.fetch_issue_detail(intent.task_id)
+    resubmission = store.enqueue(
+        WorkflowJobSpec(
+            project_id=intent.project_id,
+            task_id=intent.task_id,
+            generation="accepted-current-generation",
+            action="validation_submission",
+            idempotency_key="accepted-validation-current",
+            expected_evidence_revision=issue_authority_version(current),
+            expected_head_sha=current_head,
+            payload={
+                "owner_claim_id": intent.evidence_generation,
+                "owner_login": "project-owner",
+                "work_branch": intent.task_id,
+                "head_sha": current_head,
+            },
+        )
+    )
+    resubmit_intent = replace(
+        intent,
+        expected_version=issue_authority_version(current),
+        idempotency_key=f"{resubmission.idempotency_key}:transition",
+        originating_job=resubmission.job_id,
+        exact_head=current_head,
+    )
+    converged = asyncio.run(replay_service.execute(resubmit_intent))
+    assert converged.disposition is TransitionDisposition.APPLIED
+    assert tracker.fetch_issue_detail(intent.task_id).state == READY_TO_INTEGRATE
+    store.close()
+    reopened.close()
+
+
+def test_materialized_validation_fails_closed_on_owner_claim_aba_before_commit(
+    tmp_path,
+):
+    (
+        orch,
+        tracker,
+        store,
+        journal,
+        service,
+        intent,
+        _remote,
+        claim,
+    ) = _accepted_validation_commit_fixture(tmp_path)
+
+    async def race():
+        entered, release = _install_precommit_barrier(service)
+        transition = asyncio.create_task(service.execute(intent))
+        await entered.wait()
+        orch._persist_owner_claims_locked = MagicMock(return_value=True)
+        orch._advance_owner_claim_authority = MagicMock()
+        replacement = orch.grant_owner_claim(
+            issue_id=claim.issue_id,
+            project_id=claim.project_id,
+            claim_id="replacement-owner-generation",
+            owner_login="replacement-owner",
+        )
+        assert replacement.claim_id != claim.claim_id
+        orch._persist_owner_claims_locked.assert_called_once_with()
+        release.set()
+        return await transition
+
+    outcome = asyncio.run(race())
+
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == "transition.stale_precondition"
+    assert outcome.details["detail"] == "validation submission owner claim changed"
+    assert tracker.fetch_issue_detail(intent.task_id).state == "In Progress"
+    assert tracker.status_updates == []
+    store.close()
+    journal.close()
 
 
 def test_workflow_source_recovers_trusted_focus_handoff_after_restart():

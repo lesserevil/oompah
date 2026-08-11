@@ -5607,6 +5607,79 @@ class Orchestrator:
             return "transition.owner_claim_task_mismatch"
         return None
 
+    def _validation_submission_transition_conflict(
+        self,
+        intent: TransitionIntent,
+        issue: Issue,
+    ) -> str | None:
+        """Re-prove accepted-head and direct-owner authority at status commit.
+
+        The task transition service invokes this while holding the project's
+        write lock.  Consequently Oompah's ref publication and owner-claim
+        mutations cannot interleave between these live reads and the tracker
+        update that promotes the task to Ready to Integrate.
+        """
+
+        if intent.reason_code != "implementation.validation_submission":
+            return None
+        if intent.authority is not TransitionAuthority.ORCHESTRATOR:
+            return "validation submission requires orchestrator authority"
+        try:
+            submission = self.workflow_job_store.get(intent.originating_job)
+        except Exception:  # noqa: BLE001 - durable origin must fail closed
+            return "validation submission origin is unavailable"
+        if (
+            submission.action != "validation_submission"
+            or submission.project_id != intent.project_id
+            or submission.task_id != intent.task_id
+        ):
+            return "validation submission origin changed"
+        expected_head = str(submission.expected_head_sha or "").strip().lower()
+        if not expected_head or expected_head != str(intent.exact_head or ""):
+            return "validation submission head authority changed"
+        payload = submission.payload or {}
+        branch = str(accepted_submission_branch(issue) or "").strip()
+        captured_branch = str(payload.get("work_branch") or "").strip()
+        if not branch or (captured_branch and captured_branch != branch):
+            return "validation submission branch authority changed"
+        try:
+            remote_head = str(
+                self.project_store.remote_branch_head(intent.project_id, branch)
+                or ""
+            ).strip().lower()
+        except Exception:  # noqa: BLE001 - remote authority must fail closed
+            return "validation submission remote head is unavailable"
+        if remote_head != expected_head:
+            return "validation submission remote head changed"
+
+        captured_claim_id = str(payload.get("owner_claim_id") or "").strip()
+        current_claim = self._live_owner_claim_for_issue_locked(
+            issue.id,
+            intent.project_id,
+        )
+        if not captured_claim_id:
+            if submission.generation != intent.evidence_generation:
+                return "validation submission generation changed"
+            if current_claim is not None:
+                return "validation submission owner authority changed"
+            return None
+        if current_claim is None:
+            return "validation submission owner claim is missing"
+        if current_claim.retirement_pending:
+            return "validation submission owner claim is retiring"
+        if current_claim.claim_id != captured_claim_id:
+            return "validation submission owner claim changed"
+        if intent.evidence_generation != captured_claim_id:
+            return "validation submission owner generation changed"
+        captured_owner = str(payload.get("owner_login") or "").strip()
+        if captured_owner and current_claim.owner_login != captured_owner:
+            return "validation submission owner identity changed"
+        if str(current_claim.project_id or "") != intent.project_id:
+            return "validation submission owner project changed"
+        if str(current_claim.issue_id or "") != str(issue.id):
+            return "validation submission owner task changed"
+        return None
+
     def _scheduler_owns_project_issue(
         self,
         issue_id: str,
@@ -11078,6 +11151,20 @@ class Orchestrator:
                     terminal_adapter=(
                         self._task_transition_terminal_adapter
                         if project_id is not None
+                        else None
+                    ),
+                    mutation_write_lock=(
+                        lambda: self.project_store.project_write_lock(
+                            service_project_id
+                        )
+                        if project_id is not None
+                        and hasattr(self, "project_store")
+                        else None
+                    ),
+                    mutation_guard=(
+                        self._validation_submission_transition_conflict
+                        if project_id is not None
+                        and hasattr(self, "project_store")
                         else None
                     ),
                     direct_owner_write_lock=(

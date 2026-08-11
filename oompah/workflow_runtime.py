@@ -1115,6 +1115,15 @@ class WorkflowRuntime:
                     )
                 if issue_authority_version(guarded_issue) != intent.expected_version:
                     return "task transition authority changed"
+                if guarded_reason == "implementation.validation_submission":
+                    validation_guard = getattr(
+                        orchestrator,
+                        "_validation_submission_transition_conflict",
+                        None,
+                    )
+                    if not callable(validation_guard):
+                        return "validation submission authority is unavailable"
+                    return validation_guard(intent, guarded_issue)
                 if not intent.precondition_revision or guarded_reason not in {
                     "terminal.immediate_target_landing_proven",
                     "epic.rebase_target_superseded",
@@ -1315,6 +1324,7 @@ class WorkflowRuntime:
                 write_lock=lambda _project_id=project_id: (
                     project_store.project_write_lock(_project_id)
                 ),
+                mutation_guard=workflow_transition_guard,
                 direct_owner_claim_guard=getattr(
                     orchestrator,
                     "_direct_owner_claim_transition_conflict",
