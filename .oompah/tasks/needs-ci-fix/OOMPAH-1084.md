@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T14:03:41.581289Z'
+updated_at: '2026-08-11T14:03:50.305288Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
@@ -145,6 +145,16 @@ oompah.task_costs:
     cost_usd: 0.0
     recorded_at: '2026-08-11T13:58:46.920435+00:00'
 oompah.agent_run_id: 1890867f-29b7-4af4-a249-b39102b15c33
+oompah.work_contributors:
+  runs:
+  - run_id: 5bf6b3e5cf5e4df8bfadee8d1a8ed651--contributor-1e03bff0a496
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: devops
+    source_branch: OOMPAH-1084
+    source_sha: null
+    completed_at: ''
 ---
 ## Summary
 
