@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1091
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Stop stale accepted-validation recovery after repaired branch advances
 parent: null
@@ -12,7 +12,7 @@ labels:
 - workflow-liveness
 assignee: null
 created_at: '2026-08-11T15:35:51.682286Z'
-updated_at: '2026-08-11T17:12:56.867981Z'
+updated_at: '2026-08-11T17:24:07.728164Z'
 work_branch: OOMPAH-1091
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/830
