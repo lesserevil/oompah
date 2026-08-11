@@ -407,6 +407,41 @@ def test_service_runtime_marker_protects_across_repository_boundaries(tmp_path):
     assert editable_path.read_text(encoding="utf-8").strip() == str(service)
 
 
+def test_cross_repo_falsified_service_venv_cannot_erase_checkout_runtime(tmp_path):
+    """A service checkout marker protects its conventional venv additively."""
+    service = tmp_path / "service"
+    task = tmp_path / "unrelated-task"
+    _copy_setup_surface(service)
+    _copy_setup_surface(task)
+    (service / ".git").mkdir()
+    (task / ".git").mkdir()
+    service_venv, editable_path = _editable_test_venv(service, service)
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    uv_called = tmp_path / "uv-called"
+    (fake_bin / "uv").write_text(
+        "#!/bin/sh\n"
+        f"touch {shlex.quote(str(uv_called))}\n"
+        f"printf '%s\\n' {shlex.quote(str(task))} > "
+        f"{shlex.quote(str(editable_path))}\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "uv").chmod(0o755)
+
+    result = _make_setup(
+        task,
+        environment=_non_gate_environment(fake_bin),
+        task_venv_argument=str(service_venv),
+        service_checkout_argument=str(service),
+        service_venv_argument=str(task / ".oompah" / "falsified-service-venv"),
+    )
+
+    assert result.returncode != 0
+    assert "resolves to the live service virtualenv" in result.stderr
+    assert not uv_called.exists()
+    assert editable_path.read_text(encoding="utf-8").strip() == str(service)
+
+
 def test_task_worktree_rejects_relative_and_symlink_service_venv_aliases(tmp_path):
     """Lexical aliases are compared by resolution and filesystem identity."""
     service, task = _linked_setup_checkouts(tmp_path, "task")

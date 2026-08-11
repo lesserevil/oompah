@@ -133,6 +133,17 @@ def resolve_worktree_venv_context(
         else service_checkout_path / ".venv"
     )
     protected_service_venvs = [service_venv_path]
+    conventional_service_venv = service_checkout_path / ".venv"
+    if not any(
+        _same_path(conventional_service_venv, protected)
+        for protected in protected_service_venvs
+    ):
+        # The explicit marker may name a non-conventional operator runtime,
+        # but it is additive authority: it cannot erase the conventional
+        # runtime belonging to the separately identified service checkout.
+        # This matters for task workspaces in unrelated repositories, where
+        # Git has no shared common directory from which to rediscover it.
+        protected_service_venvs.append(conventional_service_venv)
     derived_service_venv = derived_service_checkout / ".venv"
     if is_linked_worktree and not any(
         _same_path(derived_service_venv, protected)
