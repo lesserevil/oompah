@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:04:30.156611Z'
-updated_at: '2026-08-11T17:51:34.428730Z'
+updated_at: '2026-08-11T17:51:40.383244Z'
 work_branch: OOMPAH-1093
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/829
@@ -64,6 +64,20 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-11T17:36:20.656024+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1093
+    target_state: Merged
+    evidence_fingerprint: 7b902a87034bbeb8525abea1f341b4cbd1c8fbeb71b3cc8631931794b06af703
+    workflow_revision: null
+    selected_ref: 4c6de3f056fcec98fa1e0118e7fe683c76b71ceb
+    selected_sha: 4c6de3f056fcec98fa1e0118e7fe683c76b71ceb
+    landing_revision: null
+    audit_ids:
+    - audit-cab04fdebc43
+    - audit-4715036950fd
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T17:51:38.692490+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1093
@@ -78,6 +92,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-11T17:36:20.656034+00:00'
     applied_at: '2026-08-11T17:36:28.486424+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-21b3fa0c2cab
@@ -100,7 +115,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T17:51:26.691773+00:00'
     selected_ref: 4c6de3f056fcec98fa1e0118e7fe683c76b71ceb
     selected_sha: 4c6de3f056fcec98fa1e0118e7fe683c76b71ceb
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -148,7 +163,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1093
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -164,7 +179,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-cab04fdebc43
     selected_ref: 4c6de3f056fcec98fa1e0118e7fe683c76b71ceb
     selected_sha: 4c6de3f056fcec98fa1e0118e7fe683c76b71ceb
-    updated_at: '2026-08-11T17:36:20.655853+00:00'
+    updated_at: '2026-08-11T17:51:38.692447+00:00'
     eligible_at: '2026-08-11T17:36:20.655853+00:00'
   attempt_history:
   - version: 1
@@ -314,5 +329,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 10m 12s
 - Log: OOMPAH-1093__20260811T172658Z.jsonl
+---
+author: oompah
+created: 2026-08-11 17:51
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Operator audit under globally paused scheduling: independently accepted exact 4c6de3f056fcec98fa1e0118e7fe683c76b71ceb; 144 focused restart, lifecycle, event and IPC checks passed; protected Python 3.11/3.12/3.13 CI passed; PR 829 merged as 2d373679dece7b8b7fff5b67ff97c0e9648ac560; exact head is contained in current main.
 ---
 <!-- COMMENTS:END -->
