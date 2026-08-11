@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-10T23:19:04.544332Z'
-updated_at: '2026-08-10T23:48:43.660774Z'
+updated_at: '2026-08-11T00:07:04.773995Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-08-10 23:48
 ---
 Implementation milestone: the durable audit record and workflow ledger now bind the mutation-revalidated workflow revision, same-evidence authority advances create a fresh audit generation, recurrence/result/rearm/override paths require exact revision and repository binding, and legacy workflow recurrences without a revision fail closed. The production-shaped restart regression (old completed CI failure at revision A, same root evidence at revision B) launches a fresh auditor instead of replaying Needs CI Fix. Focused suite: 485 passed; broader terminal/workflow checks and independent review are in progress.
+---
+author: oompah
+created: 2026-08-11 00:07
+---
+Combined patch milestone: workflow_revision is now a bounded, secret-safe durable identity; evidence-drift restaging, dispatch duplicate selection, Done-to-Merged prerequisites, completed recurrence, rearm proofs, overrides, retirement rows, workflow jobs, and stale callback/CAS paths all require the exact fingerprint + workflow revision + selected ref/SHA authority. Rearm proof schema v2 retains restart compatibility for legacy v1 records only when workflow_revision is absent. Regression gates are green: 603 focused tests, 1,530 broader workflow/audit integration tests (2 expected xfails), terminal mutation scan 20/20, and git diff check. Independent final review and the complete Makefile gate are still in progress.
 ---
 <!-- COMMENTS:END -->
