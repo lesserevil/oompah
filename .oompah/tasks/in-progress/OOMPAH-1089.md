@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:22:55.237924Z'
-updated_at: '2026-08-11T14:23:24.805185Z'
+updated_at: '2026-08-11T14:42:24.622310Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,5 +43,10 @@ author: oompah
 created: 2026-08-11 14:23
 ---
 Direct owner claimed from the live OOMPAH-1086 and OOMPAH-1087 evidence. OOMPAH-1086 review_merge job workflow-job-6f277655ecc4449db3147f82222169b0 exhausted at effect_pending on its first stale-evidence observation despite PR 823 being open, exact-head green, current-main mergeable, and independently accepted. Repair is starting from deployed main 6a0f7210 with generation-scoped stale-evidence regeneration tests.
+---
+author: oompah
+created: 2026-08-11 14:42
+---
+Live evidence confirmed both OOMPAH-1086 and OOMPAH-1087 review_merge jobs exhausted at effect_pending after one stale_evidence refusal. OOMPAH-1086's accepted integration record lacked base_branch/base_sha while the fresh PR 823 observation supplied a complete exact same-repository identity, so selection reached merge but the strict effect correctly refused it. Repair now routes missing accepted base identity through exact head/base reconciliation, supersedes an old merge effect when the second observation or forge CAS proves a valid newer review generation, and rearms stale exhaustion only for a complete non-forked non-conflicting current review identity. Wrong repositories/source/base, conflicts, missing reviews, and provider errors stay fail-closed. Green so far: 387 review/runtime/liveness tests, 74 architecture/churn tests, terminal mutation scan 21/21, production Ruff and py_compile.
 ---
 <!-- COMMENTS:END -->
