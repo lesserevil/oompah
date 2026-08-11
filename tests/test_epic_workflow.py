@@ -30,7 +30,7 @@ from oompah.orchestrator import (
 )
 from oompah.statuses import DONE, IN_PROGRESS, OPEN
 from oompah.workflow_contract import TaskDisposition
-from oompah.statuses import ARCHIVED, IN_REVIEW, MERGED
+from oompah.statuses import ARCHIVED, IN_REVIEW, IN_VALIDATION, MERGED
 from oompah.task_transition_service import (
     TransitionDisposition,
     TransitionOutcome,
@@ -861,12 +861,278 @@ async def test_auto_close_durable_fallback_is_only_for_headless_root_in_progress
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("state", "current"),
+    (
+        (IN_PROGRESS, True),
+        (DONE, True),
+        (IN_REVIEW, False),
+        (IN_VALIDATION, False),
+    ),
+)
+async def test_auto_close_requires_a_current_terminal_rollup_source_state(
+    state,
+    current,
+):
+    top = issue("TOP", state=state, issue_type="epic")
+    top.review_head = "a" * 40
+    backend, _effects = auto_close_backend([auto_close_snapshot(top)])
+
+    result = await backend.revalidate(auto_close_context())
+
+    assert result.current is current
+
+
+@pytest.mark.asyncio
+async def test_staged_auto_close_supersedes_delayed_copy_after_restart(tmp_path):
+    database = tmp_path / "jobs.sqlite3"
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    top.review_head = "a" * 40
+    effects = RecordingEpicEffects()
+    transitions = RecordingTransitionService()
+
+    async def stage_terminal_validation(intent):
+        transitions.intents.append(intent)
+        top.state = IN_VALIDATION
+        return TransitionOutcome(
+            transition_id="transition-staged",
+            project_id=intent.project_id,
+            task_id=intent.task_id,
+            disposition=TransitionDisposition.STAGED,
+            reason_code="transition.terminal_staged",
+            observed_status=IN_VALIDATION,
+            observed_version=intent.expected_version,
+            requested_status=intent.requested_status,
+            applied_status=IN_VALIDATION,
+            audit_id="audit-1",
+        )
+
+    transitions.execute = stage_terminal_validation
+    store = WorkflowJobStore(str(database))
+    controller = EpicWorkflowController(
+        collector=SimpleNamespace(project_id="project-1"),
+        store=store,
+    )
+    first = controller.schedule_action(
+        task_id="TOP",
+        action=EpicAction.AUTO_CLOSE,
+        generation="auto-close-before-validation",
+        expected_evidence_revision="evidence-before-validation",
+        expected_head_sha="a" * 40,
+    )
+    backend = ProductionEpicWorkflowBackend(
+        controller=controller,
+        tracker=MagicMock(),
+        effects=effects,
+    )
+    backend._fresh_snapshot = MagicMock(  # type: ignore[method-assign]
+        side_effect=lambda _context: auto_close_snapshot(
+            top,
+            evidence_revision=(
+                "evidence-before-validation"
+                if top.state == IN_PROGRESS
+                else "evidence-in-validation"
+            ),
+        )
+    )
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers={
+            EpicAction.AUTO_CLOSE.value: EpicWorkflowHandler(backend),
+        },
+        transition_services={"project-1": transitions},
+        worker_id="epic-worker-before-restart",
+    )
+
+    staged = await worker.run_once()
+
+    assert staged.disposition is WorkflowRunDisposition.COMPLETED
+    completed = store.get(first.job_id)
+    assert completed.result_transition["disposition"] == "staged"
+    assert top.state == IN_VALIDATION
+    assert effects.apply_calls == 1
+    assert len(transitions.intents) == 1
+
+    delayed = controller.schedule_action(
+        task_id="TOP",
+        action=EpicAction.AUTO_CLOSE,
+        generation="auto-close-delayed-after-validation",
+        expected_evidence_revision="evidence-in-validation",
+        expected_head_sha="a" * 40,
+    )
+    audit = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TOP",
+            generation="terminal-audit-in-validation",
+            action="terminal_audit",
+            idempotency_key="terminal-audit:TOP:in-validation",
+            scheduling_lane="terminal-audit:Merged",
+        )
+    )
+    store.close()
+
+    restarted_store = WorkflowJobStore(str(database))
+    restarted_controller = EpicWorkflowController(
+        collector=SimpleNamespace(project_id="project-1"),
+        store=restarted_store,
+    )
+    restarted_backend = ProductionEpicWorkflowBackend(
+        controller=restarted_controller,
+        tracker=MagicMock(),
+        effects=effects,
+    )
+    restarted_backend._fresh_snapshot = MagicMock(  # type: ignore[method-assign]
+        side_effect=lambda _context: auto_close_snapshot(
+            top,
+            evidence_revision="evidence-in-validation",
+        )
+    )
+    restarted_worker = DurableWorkflowWorker(
+        store=restarted_store,
+        handlers={
+            EpicAction.AUTO_CLOSE.value: EpicWorkflowHandler(restarted_backend),
+        },
+        transition_services={"project-1": transitions},
+        worker_id="epic-worker-after-restart",
+    )
+
+    superseded = await restarted_worker.run_once()
+
+    assert superseded.disposition is WorkflowRunDisposition.SUPERSEDED
+    assert restarted_store.get(delayed.job_id).state is WorkflowJobState.SUPERSEDED
+    assert restarted_store.get(audit.job_id).state is WorkflowJobState.QUEUED
+    assert effects.apply_calls == 1
+    assert len(transitions.intents) == 1
+    restarted_store.close()
+
+
+@pytest.mark.asyncio
+async def test_auto_close_status_race_is_fenced_before_external_effect(tmp_path):
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    top.review_head = "a" * 40
+    effects = RecordingEpicEffects()
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = EpicWorkflowController(
+        collector=SimpleNamespace(project_id="project-1"),
+        store=store,
+    )
+    queued = controller.schedule_action(
+        task_id="TOP",
+        action=EpicAction.AUTO_CLOSE,
+        generation="auto-close-status-race",
+        expected_evidence_revision="status-race-evidence",
+        expected_head_sha="a" * 40,
+    )
+    backend = ProductionEpicWorkflowBackend(
+        controller=controller,
+        tracker=MagicMock(),
+        effects=effects,
+    )
+    backend._fresh_snapshot = MagicMock(  # type: ignore[method-assign]
+        side_effect=lambda _context: auto_close_snapshot(
+            top,
+            evidence_revision="status-race-evidence",
+        )
+    )
+
+    def advance_after_revalidation(phase, _job):
+        if phase == "revalidated":
+            top.state = IN_VALIDATION
+
+    transitions = RecordingTransitionService()
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers={
+            EpicAction.AUTO_CLOSE.value: EpicWorkflowHandler(backend),
+        },
+        transition_services={"project-1": transitions},
+        worker_id="epic-worker",
+        phase_observer=advance_after_revalidation,
+    )
+
+    result = await worker.run_once()
+
+    assert result.disposition is WorkflowRunDisposition.SUPERSEDED
+    assert store.get(queued.job_id).state is WorkflowJobState.SUPERSEDED
+    assert effects.apply_calls == 0
+    assert transitions.intents == []
+    store.close()
+
+
+@pytest.mark.asyncio
+async def test_current_auto_close_preserves_real_transition_rejection(tmp_path):
+    top = issue("TOP", state=DONE, issue_type="epic")
+    top.review_head = "a" * 40
+    effects = RecordingEpicEffects()
+    transitions = RecordingTransitionService()
+
+    async def reject_transition(intent):
+        transitions.intents.append(intent)
+        return TransitionOutcome(
+            transition_id="transition-rejected",
+            project_id=intent.project_id,
+            task_id=intent.task_id,
+            disposition=TransitionDisposition.REJECTED,
+            reason_code="transition.terminal_rejected",
+            observed_status=DONE,
+            observed_version=intent.expected_version,
+            requested_status=intent.requested_status,
+        )
+
+    transitions.execute = reject_transition
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = EpicWorkflowController(
+        collector=SimpleNamespace(project_id="project-1"),
+        store=store,
+    )
+    queued = controller.schedule_action(
+        task_id="TOP",
+        action=EpicAction.AUTO_CLOSE,
+        generation="auto-close-current-rejection",
+        expected_evidence_revision="current-rejection-evidence",
+        expected_head_sha="a" * 40,
+        max_attempts=1,
+    )
+    backend = ProductionEpicWorkflowBackend(
+        controller=controller,
+        tracker=MagicMock(),
+        effects=effects,
+    )
+    backend._fresh_snapshot = MagicMock(  # type: ignore[method-assign]
+        side_effect=lambda _context: auto_close_snapshot(
+            top,
+            evidence_revision="current-rejection-evidence",
+        )
+    )
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers={
+            EpicAction.AUTO_CLOSE.value: EpicWorkflowHandler(backend),
+        },
+        transition_services={"project-1": transitions},
+        worker_id="epic-worker",
+    )
+
+    result = await worker.run_once()
+
+    assert result.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    exhausted = store.get(queued.job_id)
+    assert exhausted.state is WorkflowJobState.EXHAUSTED
+    assert exhausted.failure_category.value == "policy"
+    assert "transition.terminal_rejected" in exhausted.last_error
+    assert effects.apply_calls == 1
+    assert len(transitions.intents) == 1
+    store.close()
+
+
+@pytest.mark.asyncio
 async def test_auto_close_uses_persisted_review_head_as_terminal_cas(tmp_path):
     make_git_fixture(tmp_path)
     git(tmp_path, "checkout", "main")
     git(tmp_path, "merge", "--ff-only", "epic-TOP")
     exact_head = git(tmp_path, "rev-parse", "epic-TOP")
-    top = issue("TOP", state=IN_REVIEW, issue_type="epic")
+    top = issue("TOP", state=DONE, issue_type="epic")
     top.review_head = exact_head
     leaf = issue("LEAF", state=DONE, parent_id="TOP", work_branch="leaf")
     tracker = Tracker([top, leaf])
@@ -913,7 +1179,7 @@ async def test_auto_close_rejects_stale_review_head_until_exact_landing_is_synce
     git(tmp_path, "checkout", "main")
     git(tmp_path, "merge", "--ff-only", "epic-TOP")
     landing_head = git(tmp_path, "rev-parse", "epic-TOP")
-    top = issue("TOP", state=IN_REVIEW, issue_type="epic")
+    top = issue("TOP", state=DONE, issue_type="epic")
     top.review_head = "f" * 40
     leaf = issue("LEAF", state=DONE, parent_id="TOP", work_branch="leaf")
     tracker = Tracker([top, leaf])
@@ -972,7 +1238,7 @@ async def test_queued_auto_close_rechecks_current_children(tmp_path, child_chang
     git(tmp_path, "checkout", "main")
     git(tmp_path, "merge", "--ff-only", "epic-TOP")
     landing_head = git(tmp_path, "rev-parse", "epic-TOP")
-    top = issue("TOP", state=IN_REVIEW, issue_type="epic")
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
     top.review_head = landing_head
     leaf = issue("LEAF", state=DONE, parent_id="TOP", work_branch="leaf")
     tracker = Tracker([top, leaf])

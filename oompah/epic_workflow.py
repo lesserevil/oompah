@@ -1266,6 +1266,16 @@ class ProductionEpicWorkflowBackend:
         payload: Mapping[str, Any],
     ) -> bool:
         if action is EpicAction.AUTO_CLOSE:
+            # A successful auto-close transition may stage terminal validation
+            # instead of applying Merged immediately.  From that point onward
+            # the terminal-audit workflow owns lifecycle progress, so a
+            # delayed event-lane copy must not replay the external retirement
+            # effect or ask the coordinator to terminalize the epic again.
+            # Keep this source-state fence aligned with
+            # TerminalTransitionCoordinator._landed_epic_validation_binding.
+            status = canonicalize_status(snapshot.epic.state)
+            if status not in {IN_PROGRESS, DONE}:
+                return False
             authority = cls._auto_close_landing_authority(snapshot)
             mutable_head = _exact_head(issue_exact_head(snapshot.epic))
             if mutable_head is not None:
@@ -1279,7 +1289,7 @@ class ProductionEpicWorkflowBackend:
                     and str(snapshot.epic.issue_type or "").strip().lower()
                     == "epic"
                     and not str(snapshot.epic.parent_id or "").strip()
-                    and canonicalize_status(snapshot.epic.state) == IN_PROGRESS
+                    and status == IN_PROGRESS
                 )
             return bool(
                 action.value in snapshot.decision.durable_jobs
