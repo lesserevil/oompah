@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T10:13:51.547647Z'
-updated_at: '2026-08-11T10:55:07.944249Z'
+updated_at: '2026-08-11T10:59:12.834271Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -113,12 +113,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1078
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: fb7fe1d32d9e1c5ac12f5a590f2393ba9621958bcf9103d1c5f4b625aee929d0
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-9200cf05e7dd
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: fb7fe1d32d9e1c5ac12f5a590f2393ba9621958bcf9103d1c5f4b625aee929d0
+      created_at: '2026-08-11T10:59:04.459674+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-11T10:59:04.459674+00:00'
+      branch_key: OOMPAH-1078
+      selected_ref: origin/OOMPAH-1078
+      selected_sha: 9c78b999f9b8eeddda14e2c783ea01a688543325
     source_generation: 1
     requested_by:
       version: 1
@@ -128,6 +143,7 @@ oompah.terminal_audit:
     created_at: '2026-08-11T10:49:57.906153+00:00'
     selected_ref: origin/OOMPAH-1078
     selected_sha: 9c78b999f9b8eeddda14e2c783ea01a688543325
+    updated_at: '2026-08-11T10:59:04.459674+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-872e685ea279
@@ -141,6 +157,21 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: haiku
     started_at: '2026-08-11T10:51:43.940389+00:00'
+    branch_key: OOMPAH-1078
+    selected_ref: origin/OOMPAH-1078
+    selected_sha: 9c78b999f9b8eeddda14e2c783ea01a688543325
+  - version: 1
+    attempt_id: attempt-9200cf05e7dd
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fb7fe1d32d9e1c5ac12f5a590f2393ba9621958bcf9103d1c5f4b625aee929d0
+    created_at: '2026-08-11T10:59:04.459674+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-11T10:59:04.459674+00:00'
     branch_key: OOMPAH-1078
     selected_ref: origin/OOMPAH-1078
     selected_sha: 9c78b999f9b8eeddda14e2c783ea01a688543325
@@ -231,5 +262,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 11s
 - Log: OOMPAH-1078__20260811T105211Z.jsonl
+---
+author: oompah
+created: 2026-08-11 10:59
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-11 10:59
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
