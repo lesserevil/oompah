@@ -18,8 +18,17 @@ from oompah import server
 from oompah.config import ServiceConfig
 from oompah.events import EventType
 from oompah.ipc import OrchestratorIPC
+from oompah.models import Issue
 from oompah.orchestrator import Orchestrator
 from oompah.server import app
+from oompah.task_transition_service import (
+    TransitionAuthority,
+    TransitionDisposition,
+    TransitionIntent,
+    TransitionJournal,
+    TransitionPhase,
+    issue_authority_version,
+)
 
 
 _SERVER_STATE_CACHE_FIELDS = (
@@ -905,6 +914,94 @@ async def test_background_drain_waits_for_snapshot_before_closing_stores(
     assert snapshot_errors == []
     assert snapshot_read_store.is_set() is True
     assert close_started.is_set() is True
+
+
+@pytest.mark.asyncio
+async def test_background_drain_waits_for_admitted_transition_saga(
+    tmp_path,
+    monkeypatch,
+):
+    """Graceful close preserves an API-style transition between journal writes."""
+
+    orch = _real_orchestrator(tmp_path)
+    issue = Issue(
+        id="TASK-1",
+        identifier="TASK-1",
+        title="Test",
+        state="Open",
+        project_id="project-1",
+        assignment_id="generation-1",
+        work_branch="TASK-1",
+        target_branch="main",
+        head_sha="a" * 40,
+    )
+    tracker_entered = threading.Event()
+    release_tracker = threading.Event()
+    close_started = threading.Event()
+
+    class BlockingTracker:
+        def fetch_issue_detail(self, _identifier):
+            tracker_entered.set()
+            assert release_tracker.wait(timeout=3)
+            return issue
+
+        def update_issue(self, _identifier, **fields):
+            issue.state = fields["status"]
+
+    tracker = BlockingTracker()
+    service = orch._task_transition_service("project-1", tracker)
+    intent = TransitionIntent(
+        project_id="project-1",
+        task_id=issue.identifier,
+        expected_status=issue.state,
+        expected_version=issue_authority_version(issue),
+        requested_status="In Progress",
+        actor="worker",
+        authority=TransitionAuthority.WORKER,
+        reason_code="dispatch.eligible",
+        idempotency_key="restart-api-transition",
+        originating_job="restart-api-transition",
+        evidence_generation="generation-1",
+    )
+    original_close = orch._close_owned_persistent_stores
+
+    def tracked_close() -> None:
+        close_started.set()
+        original_close()
+
+    monkeypatch.setattr(orch, "_close_owned_persistent_stores", tracked_close)
+    transition = asyncio.create_task(service.execute(intent))
+    assert await asyncio.to_thread(tracker_entered.wait, 1)
+    drain = asyncio.create_task(orch._drain_background_work())
+    try:
+        assert await asyncio.to_thread(close_started.wait, 1)
+        await asyncio.sleep(0.05)
+        assert drain.done() is False
+
+        release_tracker.set()
+        outcome = await transition
+        await asyncio.wait_for(asyncio.shield(drain), timeout=2)
+    finally:
+        release_tracker.set()
+        if not drain.done():
+            await asyncio.wait_for(asyncio.shield(drain), timeout=2)
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert issue.state == "In Progress"
+    assert all(
+        not thread.is_alive()
+        for pool in (orch._tick_pool, orch._refresh_pool)
+        for thread in getattr(pool, "_threads", ())
+    )
+
+    reopened = TransitionJournal(orch.task_transition_journal.path)
+    try:
+        assert (
+            reopened.events(outcome.transition_id)[-1].phase
+            is TransitionPhase.APPLIED
+        )
+    finally:
+        reopened.close()
 
 
 def test_replacement_revokes_snapshot_after_permit_before_every_sink(
