@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:22:55.237924Z'
-updated_at: '2026-08-11T14:44:42.995838Z'
+updated_at: '2026-08-11T14:48:14.889765Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,5 +53,10 @@ author: oompah
 created: 2026-08-11 14:44
 ---
 Implementation candidate pushed at exact head e8c8d052c3d28b0eb764f8d1b293227c7f10f72e. The repair enriches missing accepted base identity through exact review_head_reconciliation; turns synchronize/base/CAS changes seen after revalidation into durable supersession instead of stale_evidence exhaustion; and lets a published complete same-repository successor generation retire only prior stale-review exhaustion. Exact identity checks remain required for review ID, task/source/target branches, repository equality, accepted standalone authority, and 40/64-hex head/base. Invalid fork/source/target/base, conflict, missing-review, and provider-error cases remain bounded/actionable with zero forge merge writes. Evidence: 393 review/workflow/runtime/liveness tests green, 74 architecture/churn tests green, mutation scan 21/21, production Ruff/py_compile, diff check, paranoid secrets, and commit hooks. Awaiting independent exact-head review; not submitted or merged.
+---
+author: oompah
+created: 2026-08-11 14:48
+---
+Rebased the reviewed implementation onto current origin/main fe9599111d478b8221a2949c878fecb61d558760 and pushed replacement exact head a6ae095fda9b07d3a113e44c74591387e73f6053. Post-rebase verification: 391 focused workflow/review/liveness tests passed; terminal-audit mutation scan 21/21; git diff --check clean. Awaiting fresh independent exact-head review before submission.
 ---
 <!-- COMMENTS:END -->
