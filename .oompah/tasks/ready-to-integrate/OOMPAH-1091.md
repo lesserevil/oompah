@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1091
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Stop stale accepted-validation recovery after repaired branch advances
 parent: null
@@ -12,7 +12,7 @@ labels:
 - workflow-liveness
 assignee: null
 created_at: '2026-08-11T15:35:51.682286Z'
-updated_at: '2026-08-11T16:46:56.165002Z'
+updated_at: '2026-08-11T16:47:05.285839Z'
 work_branch: OOMPAH-1091
 target_branch: null
 review_url: null
@@ -64,5 +64,10 @@ author: oompah
 created: 2026-08-11 16:46
 ---
 Fresh independent review ACCEPTED replacement exact head 9596e809554d9232b9049621a0858a515c890026. Reviewer verified the prior real ProjectStore RLock watchdog deadlock is closed by limiting guarded off-thread commit authority to implementation.validation_submission, while exact live remote-head and owner-claim ABA checks remain fail-closed at the commit boundary. Independent evidence: 518 candidate tests, 524 clean-current-main merge tests, six deterministic remote/claim/restart/RLock probes, terminal mutation scan 21/21, clean diff. Rebased the exact three-commit series onto current origin/main 3264da678 with git range-diff proving all three commits patch-equivalent, yielding current head 66f40f54566a64b55957ce0a29846289992e2f3f; reran all eight changed race/restart/RLock nodes successfully, pushed with exact force-with-lease. Submitting current-base head.
+---
+author: oompah
+created: 2026-08-11 16:47
+---
+Stop stale accepted-validation recovery after remote or owner authority advances; revalidate exact authority at commit and avoid watchdog cross-thread project-lock reentry.
 ---
 <!-- COMMENTS:END -->
