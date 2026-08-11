@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1012
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Validate landed epics on the current authoritative target head
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T02:41:11.512382Z'
-updated_at: '2026-08-11T02:41:49.765804Z'
+updated_at: '2026-08-11T02:42:22.582766Z'
 work_branch: null
 target_branch: null
 review_url: null
