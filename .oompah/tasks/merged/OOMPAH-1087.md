@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T13:38:34.915522Z'
-updated_at: '2026-08-11T15:15:46.128309Z'
+updated_at: '2026-08-11T15:15:59.010082Z'
 work_branch: OOMPAH-1087
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/822
@@ -225,13 +225,13 @@ oompah.terminal_audit:
     selected_ref: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
     selected_sha: 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
 oompah.task_costs:
-  total_input_tokens: 266
-  total_output_tokens: 10415
+  total_input_tokens: 492
+  total_output_tokens: 17596
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 266
-      output_tokens: 10415
+      input_tokens: 492
+      output_tokens: 17596
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -240,6 +240,12 @@ oompah.task_costs:
     output_tokens: 10415
     cost_usd: 0.0
     recorded_at: '2026-08-11T15:08:15.551969+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 226
+    output_tokens: 7181
+    cost_usd: 0.0
+    recorded_at: '2026-08-11T15:15:55.600129+00:00'
 ---
 ## Summary
 
@@ -373,5 +379,15 @@ Safe evidence:
 - preserved_features[3]: Full-sync backfill on epoch/sequence changes
 - preserved_features[4]: Client isolation and graceful shutdown
 - quality_gate: make test PASSED in 185.8s for 0cf8f1586ddf6b48bd2315dd0b53234e36fdc061
+---
+author: oompah
+created: 2026-08-11 15:15
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 67, Tool calls: 27
+- Tokens: 226 in / 7.2K out [7.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 32s
+- Log: OOMPAH-1087__20260811T151242Z.jsonl
 ---
 <!-- COMMENTS:END -->
