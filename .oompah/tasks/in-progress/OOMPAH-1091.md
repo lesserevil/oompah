@@ -12,8 +12,8 @@ labels:
 - workflow-liveness
 assignee: null
 created_at: '2026-08-11T15:35:51.682286Z'
-updated_at: '2026-08-11T16:46:49.792838Z'
-work_branch: null
+updated_at: '2026-08-11T16:46:56.165002Z'
+work_branch: OOMPAH-1091
 target_branch: null
 review_url: null
 review_number: null
@@ -34,6 +34,7 @@ oompah.integration:
   head_sha: 66f40f54566a64b55957ce0a29846289992e2f3f
   submitted_at: '2026-08-11T16:46:45.273666+00:00'
   updated_at: '2026-08-11T16:46:45.273666+00:00'
+oompah.work_branch: OOMPAH-1091
 ---
 ## Summary
 
