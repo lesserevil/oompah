@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1013
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Prevent cross-priority starvation in bounded terminal-audit health scans
 parent: null
@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T03:11:11.351608Z'
-updated_at: '2026-08-11T03:24:25.942895Z'
-work_branch: null
+updated_at: '2026-08-11T03:25:11.795444Z'
+work_branch: OOMPAH-1013
 target_branch: null
 review_url: null
 review_number: null
@@ -24,6 +24,16 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 1811b247-76cb-42e8-a581-6332fedb32d7
   request_fingerprint: a83e0074173ca57ca5cdc39b2a729c1c44644e24bed7a062c8e971c58bde77a3
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1013
+  head_sha: fe63e237ffbc342ac6a147d1143477d49128df5f
+  submitted_at: '2026-08-11T03:24:59.569845+00:00'
+  updated_at: '2026-08-11T03:24:59.569845+00:00'
+oompah.work_branch: OOMPAH-1013
 ---
 ## Summary
 
@@ -46,5 +56,10 @@ author: oompah
 created: 2026-08-11 03:24
 ---
 Implemented the bounded-fair terminal-audit health traversal while preserving strict-priority launch order. Added regressions for mixed-priority operation caps, restart durability, candidate-corpus reset, and actual dispatch ordering. Focused observability suite: 78 passed. Terminal mutation scan: 21/21 allowlisted.
+---
+author: oompah
+created: 2026-08-11 03:25
+---
+Implemented globally fair bounded terminal-audit health traversal while preserving strict-priority launch ordering. Added mixed-priority operation-cap, restart, corpus-reset, and actual dispatch-order regressions. Focused suite 78 passed; terminal mutation scan passed 21/21. Pushed fe63e237ffbc342ac6a147d1143477d49128df5f.
 ---
 <!-- COMMENTS:END -->
