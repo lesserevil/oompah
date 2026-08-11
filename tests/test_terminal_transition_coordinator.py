@@ -28,6 +28,7 @@ from oompah.terminal_audit import (
     AuditRevisionBinding,
     ContributorIdentity,
     EvidenceFingerprint,
+    OverrideRecord,
     RequestState,
     TargetState,
     TerminalAuditRecord,
@@ -3053,6 +3054,265 @@ class TestOwnerOverrides:
             tracker, _LockStore(), PROJECT_ID
         ).read(TASK_ID)
         assert len(stored.unknown_fields["oompah.terminal_override_records"]) == 1
+
+    def test_legacy_override_replay_requires_fresh_owner_authority(self) -> None:
+        tracker = _MemoryTracker()
+        fingerprint = _fingerprint()
+        legacy = OverrideRecord(
+            override_id="override-before-replay-markers",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint,
+            authorized_by=ContributorIdentity("project-owner", "github"),
+            reason="Owner approved before replay markers existed.",
+        ).to_dict()
+        assert "applied" not in legacy
+        tracker.set_metadata_field(
+            TASK_ID,
+            METADATA_KEY,
+            TerminalAuditMetadata(
+                unknown_fields={
+                    "oompah.terminal_override_records": [legacy],
+                },
+            ).to_dict(),
+        )
+        tracker.update_issue(TASK_ID, status="Open")
+        tracker.update_calls.clear()
+        coordinator = _coordinator(tracker, post_comments=False)
+        project = SimpleNamespace(
+            tracker_owner="project-owner",
+            status_actor_login=None,
+            status_label_authorized_logins=["project-owner"],
+        )
+
+        unauthorized = _run(
+            coordinator.override_transition(
+                _issue("Open"),
+                TargetState.DONE,
+                ContributorIdentity("not-owner", "github"),
+                PROJECT_ID,
+                fingerprint,
+                "Attempt to reuse owner history.",
+                project,
+            )
+        )
+
+        assert unauthorized.success is False
+        assert unauthorized.error_code is OverrideRejection.UNAUTHORIZED_ACTOR
+        assert tracker.current_status(TASK_ID) == "Open"
+        assert tracker.update_calls == []
+
+        replay = _run(
+            coordinator.override_transition(
+                _issue("Open"),
+                TargetState.DONE,
+                ContributorIdentity("project-owner", "github"),
+                PROJECT_ID,
+                fingerprint,
+                "Owner reaffirms the exact historical decision.",
+                project,
+            )
+        )
+
+        assert replay.success is True
+        assert replay.idempotent is True
+        assert replay.override_id == legacy["override_id"]
+        assert tracker.current_status(TASK_ID) == DONE
+        assert tracker.update_calls == [(TASK_ID, {"status": DONE})]
+
+    def test_retired_override_requires_a_fresh_authority_record(self) -> None:
+        tracker = _MemoryTracker()
+        fingerprint = _fingerprint()
+        retired = OverrideRecord(
+            override_id="override-retired",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint,
+            authorized_by=ContributorIdentity("former-owner", "github"),
+            reason="Historical authority that was later retired.",
+        ).to_dict()
+        retired.update(
+            {
+                "applied": True,
+                "retired_at": "2026-08-01T00:00:00+00:00",
+                "retired_reason": "evidence_mismatch",
+            }
+        )
+        tracker.set_metadata_field(
+            TASK_ID,
+            METADATA_KEY,
+            TerminalAuditMetadata(
+                unknown_fields={
+                    "oompah.terminal_override_records": [retired],
+                },
+            ).to_dict(),
+        )
+        tracker.update_issue(TASK_ID, status="Open")
+        tracker.update_calls.clear()
+        coordinator = _coordinator(tracker, post_comments=False)
+        owner = ContributorIdentity("project-owner", "github")
+        project = SimpleNamespace(
+            tracker_owner="project-owner",
+            status_actor_login=None,
+            status_label_authorized_logins=["project-owner"],
+        )
+
+        result = _run(
+            coordinator.override_transition(
+                _issue("Open"),
+                TargetState.DONE,
+                owner,
+                PROJECT_ID,
+                fingerprint,
+                "Current owner makes a fresh terminal decision.",
+                project,
+            )
+        )
+
+        assert result.success is True
+        assert result.idempotent is False
+        assert result.override_id != retired["override_id"]
+        assert tracker.current_status(TASK_ID) == DONE
+        stored = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        overrides = stored.unknown_fields["oompah.terminal_override_records"]
+        assert len(overrides) == 2
+        assert overrides[0] == retired
+        assert overrides[1]["authorized_by"] == owner.to_dict()
+        assert overrides[1]["reason"] == "Current owner makes a fresh terminal decision."
+        assert overrides[1]["applied"] is True
+
+    def test_unapplied_override_blocks_a_newer_owner_decision_until_recovery(
+        self,
+    ) -> None:
+        tracker = _MemoryTracker()
+        fingerprint = _fingerprint()
+        unfinished = OverrideRecord(
+            override_id="override-unfinished-archive",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.ARCHIVED,
+            evidence_fingerprint=fingerprint,
+            authorized_by=ContributorIdentity("project-owner", "github"),
+            reason="Archive transaction interrupted before finalization.",
+        ).to_dict()
+        unfinished["applied"] = False
+        original = TerminalAuditMetadata(
+            unknown_fields={
+                "oompah.terminal_override_records": [unfinished],
+            },
+        ).to_dict()
+        tracker.set_metadata_field(TASK_ID, METADATA_KEY, original)
+        tracker.update_issue(TASK_ID, status="Open")
+        tracker.update_calls.clear()
+        coordinator = _coordinator(tracker, post_comments=False)
+        project = SimpleNamespace(
+            tracker_owner="project-owner",
+            status_actor_login=None,
+            status_label_authorized_logins=["project-owner"],
+        )
+
+        result = _run(
+            coordinator.override_transition(
+                _issue("Open"),
+                TargetState.DONE,
+                ContributorIdentity("project-owner", "github"),
+                PROJECT_ID,
+                fingerprint,
+                "Newer decision must wait for ordered recovery.",
+                project,
+            )
+        )
+
+        assert result.success is False
+        assert result.error_code is OverrideRejection.FINALIZATION_PENDING
+        assert tracker.current_status(TASK_ID) == "Open"
+        assert tracker.update_calls == []
+        assert tracker.get_metadata(TASK_ID)[METADATA_KEY] == original
+
+    @pytest.mark.parametrize(
+        "malformed_kind",
+        [
+            "partial",
+            "applied_non_boolean",
+            "lifecycle_non_boolean",
+            "matching_then_malformed",
+        ],
+    )
+    def test_malformed_override_ledger_cannot_authorize_idempotent_repair(
+        self,
+        malformed_kind: str,
+    ) -> None:
+        tracker = _MemoryTracker()
+        fingerprint = _fingerprint()
+        if malformed_kind == "partial":
+            malformed: dict[str, Any] = {
+                "project_id": PROJECT_ID,
+                "task_id": TASK_ID,
+                "target_state": TargetState.DONE.value,
+                "evidence_fingerprint": fingerprint.to_dict(),
+            }
+        else:
+            malformed = OverrideRecord(
+                override_id="override-invalid-marker",
+                project_id=PROJECT_ID,
+                task_id=TASK_ID,
+                target_state=TargetState.DONE,
+                evidence_fingerprint=fingerprint,
+                authorized_by=ContributorIdentity("project-owner", "github"),
+                reason="Structurally valid except for its replay marker.",
+            ).to_dict()
+            if malformed_kind == "applied_non_boolean":
+                malformed["applied"] = "true"
+            elif malformed_kind == "lifecycle_non_boolean":
+                malformed["lifecycle_reconciled"] = 0
+        override_rows = [malformed]
+        if malformed_kind == "matching_then_malformed":
+            matching = OverrideRecord(
+                override_id="override-valid-matching-legacy",
+                project_id=PROJECT_ID,
+                task_id=TASK_ID,
+                target_state=TargetState.DONE,
+                evidence_fingerprint=fingerprint,
+                authorized_by=ContributorIdentity("project-owner", "github"),
+                reason="Valid matching row must not mask a malformed sibling.",
+            ).to_dict()
+            override_rows = [matching, {}]
+        original = TerminalAuditMetadata(
+            unknown_fields={
+                "oompah.terminal_override_records": override_rows,
+            },
+        ).to_dict()
+        tracker.set_metadata_field(TASK_ID, METADATA_KEY, original)
+        tracker.update_issue(TASK_ID, status="Open")
+        tracker.update_calls.clear()
+        coordinator = _coordinator(tracker, post_comments=False)
+        project = SimpleNamespace(
+            tracker_owner="project-owner",
+            status_actor_login=None,
+            status_label_authorized_logins=["project-owner"],
+        )
+
+        result = _run(
+            coordinator.override_transition(
+                _issue("Open"),
+                TargetState.DONE,
+                ContributorIdentity("project-owner", "github"),
+                PROJECT_ID,
+                fingerprint,
+                "Owner requested a new terminal decision.",
+                project,
+            )
+        )
+
+        assert result.success is False
+        assert result.error_code is OverrideRejection.METADATA_QUARANTINED
+        assert tracker.current_status(TASK_ID) == "Open"
+        assert tracker.update_calls == []
+        assert tracker.get_metadata(TASK_ID)[METADATA_KEY] == original
 
 
 # ---------------------------------------------------------------------------

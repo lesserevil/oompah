@@ -498,6 +498,7 @@ class OverrideRejection:
     STATUS_UPDATE_FAILED = "status_update_failed"
     DELIVERY_MUTATION_IN_PROGRESS = "delivery_mutation_in_progress"
     LIFECYCLE_INCOMPATIBLE = "lifecycle_incompatible"
+    FINALIZATION_PENDING = "finalization_pending"
 
 
 @dataclass
@@ -4996,119 +4997,168 @@ class TerminalTransitionCoordinator:
         # durable and therefore works after a service restart as well as for
         # two API/ACP callers racing the same owner action.
         raw_overrides = document.unknown_fields.get(_OVERRIDE_RECORDS_KEY, [])
-        if isinstance(raw_overrides, list):
-            for raw_override in raw_overrides:
-                if not isinstance(raw_override, Mapping):
-                    continue
-                if raw_override.get("applied", True) is False:
-                    continue
-                if raw_override.get("lifecycle_reconciled", False):
-                    # A legacy incompatible Merged override remains in the
-                    # audit ledger for history, but must never replay its
-                    # structurally impossible status after repair.
-                    continue
-                if (
-                    raw_override.get("project_id") == project_id
-                    and raw_override.get("task_id") == identifier
-                    and raw_override.get("target_state") == requested_target.value
-                    and _raw_fingerprint_digest(raw_override) == evidence_fingerprint.digest
-                    and (
-                        current_record_for_target is None
-                        or (
-                            raw_override.get("workflow_revision")
-                            == current_record_for_target.workflow_revision
-                            and raw_override.get("selected_ref")
-                            == current_record_for_target.selected_ref
-                            and raw_override.get("selected_sha")
-                            == current_record_for_target.selected_sha
-                        )
-                    )
-                ):
-                    # Idempotency acknowledges the same terminal decision; it
-                    # must not bless a tracker state that a stale recovery
-                    # writer regressed afterward.  Re-read under the caller's
-                    # per-task ownership fence and repair the recorded target
-                    # before reporting success.  This is intentionally the
-                    # same authorized, persisted override rather than a new
-                    # audit decision or override record.
-                    lookup_ids = list(
-                        dict.fromkeys(
-                            str(value)
-                            for value in (
-                                getattr(current_issue, "id", None),
-                                identifier,
-                            )
-                            if value
-                        )
-                    )
-                    latest_issue = current_issue
-                    try:
-                        snapshots = tracker.fetch_issue_states_by_ids(lookup_ids)
-                        latest_issue = next(
-                            (
-                                candidate
-                                for candidate in snapshots
-                                if str(getattr(candidate, "id", "")) in lookup_ids
-                                or str(getattr(candidate, "identifier", ""))
-                                in lookup_ids
-                            ),
-                            current_issue,
-                        )
-                    except Exception:
-                        # The API supplied a freshly read issue.  Reapplying an
-                        # already-authorized terminal target remains safe if a
-                        # tracker cannot provide a second optimized snapshot.
-                        logger.warning(
-                            "Could not refresh tracker state while replaying "
-                            "owner override for %s; using request snapshot",
-                            identifier,
-                            exc_info=True,
-                        )
+        validated_overrides: list[tuple[Mapping[str, Any], OverrideRecord]] = []
+        if not isinstance(raw_overrides, list):
+            return OverrideResult(
+                success=False,
+                reason="terminal-audit override metadata is malformed",
+                error_code=OverrideRejection.METADATA_QUARANTINED,
+            )
+        for raw_override in raw_overrides:
+            if not isinstance(raw_override, Mapping) or any(
+                marker in raw_override
+                and not isinstance(raw_override.get(marker), bool)
+                for marker in ("applied", "lifecycle_reconciled")
+            ):
+                return OverrideResult(
+                    success=False,
+                    reason="terminal-audit override metadata is malformed",
+                    error_code=OverrideRejection.METADATA_QUARANTINED,
+                )
+            try:
+                persisted_override = OverrideRecord.from_dict(raw_override)
+            except (TypeError, ValueError):
+                return OverrideResult(
+                    success=False,
+                    reason="terminal-audit override metadata is malformed",
+                    error_code=OverrideRejection.METADATA_QUARANTINED,
+                )
+            validated_overrides.append((raw_override, persisted_override))
 
-                    target_status = _target_state_to_status(requested_target)
-                    if canonicalize_status(
-                        getattr(latest_issue, "state", "") or ""
-                    ) != canonicalize_status(target_status):
-                        if not self._revoke_delivery_for_terminal_transition(
-                            project_id, identifier
-                        ):
-                            return OverrideResult(
-                                success=False,
-                                override_id=str(raw_override.get("override_id")),
-                                reason="delivery mutation in progress",
-                                error_code=(
-                                    OverrideRejection.DELIVERY_MUTATION_IN_PROGRESS
-                                ),
-                            )
-                        try:
-                            # TERMINAL-AUDIT-ALLOW OOMPAH-704: repair tracker
-                            # state regressed after a persisted owner override.
-                            tracker.update_issue(identifier, status=target_status)
-                        except Exception:
-                            logger.exception(
-                                "Failed to restore idempotent override status %r "
-                                "for %s",
-                                target_status,
-                                identifier,
-                            )
-                            return OverrideResult(
-                                success=False,
-                                override_id=str(raw_override.get("override_id")),
-                                reason="failed to restore overridden tracker status",
-                                error_code=OverrideRejection.STATUS_UPDATE_FAILED,
-                            )
-                    return OverrideResult(
-                        success=True,
-                        override_id=str(raw_override.get("override_id")),
-                        applied_status=target_status,
-                        idempotent=True,
-                        retired_alert_audit_ids=[
-                            item.audit_id
-                            for item in document.pending_chain
-                            if item.project_id == project_id
-                            and item.task_id == identifier
-                        ],
+        if any(
+            raw_override.get("applied") is False
+            for raw_override, _persisted_override in validated_overrides
+        ):
+            # An explicit false marker is an in-flight durable transaction,
+            # not historical authority.  Appending a newer owner decision
+            # before recovery finishes could let the older transaction replay
+            # afterward and overwrite the newer target.  Fail closed so the
+            # existing recovery owner can finish the ordered write first.
+            return OverrideResult(
+                success=False,
+                reason="terminal-audit override finalization is pending",
+                error_code=OverrideRejection.FINALIZATION_PENDING,
+            )
+
+        for raw_override, persisted_override in validated_overrides:
+            if any(
+                bool(raw_override.get(marker))
+                for marker in (
+                    "retired_at",
+                    "retired_reason",
+                    "retired_by_reconciliation",
+                    "retired_by_override",
+                    "retired_by_lifecycle",
+                    "lifecycle_retired",
+                    "lifecycle_reconciled",
+                    "superseded",
+                    "superseded_at",
+                    "superseded_by",
+                )
+            ):
+                # Retired and superseded rows remain in the immutable audit
+                # ledger for history, but no longer carry current replay
+                # authority.  A fresh owner request creates a fresh record.
+                continue
+            if (
+                persisted_override.project_id == project_id
+                and persisted_override.task_id == identifier
+                and persisted_override.target_state == requested_target
+                and persisted_override.evidence_fingerprint == evidence_fingerprint
+                and (
+                    current_record_for_target is None
+                    or (
+                        persisted_override.workflow_revision
+                        == current_record_for_target.workflow_revision
+                        and persisted_override.selected_ref
+                        == current_record_for_target.selected_ref
+                        and persisted_override.selected_sha
+                        == current_record_for_target.selected_sha
                     )
+                )
+            ):
+                # Idempotency acknowledges the same terminal decision; it
+                # must not bless a tracker state that a stale recovery
+                # writer regressed afterward.  Re-read under the caller's
+                # per-task ownership fence and repair the recorded target
+                # before reporting success.  This is intentionally the
+                # same authorized, persisted override rather than a new
+                # audit decision or override record.
+                lookup_ids = list(
+                    dict.fromkeys(
+                        str(value)
+                        for value in (
+                            getattr(current_issue, "id", None),
+                            identifier,
+                        )
+                        if value
+                    )
+                )
+                latest_issue = current_issue
+                try:
+                    snapshots = tracker.fetch_issue_states_by_ids(lookup_ids)
+                    latest_issue = next(
+                        (
+                            candidate
+                            for candidate in snapshots
+                            if str(getattr(candidate, "id", "")) in lookup_ids
+                            or str(getattr(candidate, "identifier", "")) in lookup_ids
+                        ),
+                        current_issue,
+                    )
+                except Exception:
+                    # The API supplied a freshly read issue.  Reapplying an
+                    # already-authorized terminal target remains safe if a
+                    # tracker cannot provide a second optimized snapshot.
+                    logger.warning(
+                        "Could not refresh tracker state while replaying "
+                        "owner override for %s; using request snapshot",
+                        identifier,
+                        exc_info=True,
+                    )
+
+                target_status = _target_state_to_status(requested_target)
+                if canonicalize_status(
+                    getattr(latest_issue, "state", "") or ""
+                ) != canonicalize_status(target_status):
+                    if not self._revoke_delivery_for_terminal_transition(
+                        project_id, identifier
+                    ):
+                        return OverrideResult(
+                            success=False,
+                            override_id=persisted_override.override_id,
+                            reason="delivery mutation in progress",
+                            error_code=(
+                                OverrideRejection.DELIVERY_MUTATION_IN_PROGRESS
+                            ),
+                        )
+                    try:
+                        # TERMINAL-AUDIT-ALLOW OOMPAH-704: repair tracker
+                        # state regressed after a persisted owner override.
+                        tracker.update_issue(identifier, status=target_status)
+                    except Exception:
+                        logger.exception(
+                            "Failed to restore idempotent override status %r for %s",
+                            target_status,
+                            identifier,
+                        )
+                        return OverrideResult(
+                            success=False,
+                            override_id=persisted_override.override_id,
+                            reason="failed to restore overridden tracker status",
+                            error_code=OverrideRejection.STATUS_UPDATE_FAILED,
+                        )
+                return OverrideResult(
+                    success=True,
+                    override_id=persisted_override.override_id,
+                    applied_status=target_status,
+                    idempotent=True,
+                    retired_alert_audit_ids=[
+                        item.audit_id
+                        for item in document.pending_chain
+                        if item.project_id == project_id and item.task_id == identifier
+                    ],
+                )
 
         # Check if the fingerprint matches the current active record for the
         # requested target. The "active" record is the one that is not
