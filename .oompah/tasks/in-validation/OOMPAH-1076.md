@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1076
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Bound large-corpus workflow reconciliation within restart SLO
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:41:07.342509Z'
-updated_at: '2026-08-11T10:22:45.607629Z'
+updated_at: '2026-08-11T10:28:39.079335Z'
 work_branch: OOMPAH-1076
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/814
@@ -29,6 +29,62 @@ oompah.review_number: '814'
 oompah.work_branch: OOMPAH-1076
 oompah.target_branch: main
 oompah.review_head: 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-7fe3fcb0020d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1076
+    digest: 4fd9146b1adbf6f8266e43f47ed727692028607cb9faa9ec688515281b35d70b
+  - version: 1
+    audit_id: audit-a27fa4e3d94b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1076
+    digest: 4fd9146b1adbf6f8266e43f47ed727692028607cb9faa9ec688515281b35d70b
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-7fe3fcb0020d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1076
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4fd9146b1adbf6f8266e43f47ed727692028607cb9faa9ec688515281b35d70b
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T10:28:32.737789+00:00'
+    selected_ref: origin/OOMPAH-1076
+    selected_sha: 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
+  - version: 1
+    audit_id: audit-a27fa4e3d94b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1076
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4fd9146b1adbf6f8266e43f47ed727692028607cb9faa9ec688515281b35d70b
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T10:28:32.737789+00:00'
+    selected_ref: origin/OOMPAH-1076
+    selected_sha: 6bfbd416cd2934cd4a2d04959567e8a50e0f0a35
+  attempt_history: []
 ---
 ## Summary
 
@@ -51,5 +107,10 @@ author: oompah
 created: 2026-08-11 10:22
 ---
 Branch quality gate passed for `6bfbd416cd2934cd4a2d04959567e8a50e0f0a35` using `make test` in 170.2s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 10:28
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
