@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1078
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Prevent manual In Validation transitions from stranding terminal audits
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T10:13:51.547647Z'
-updated_at: '2026-08-11T10:13:55.014538Z'
+updated_at: '2026-08-11T10:14:26.139769Z'
 work_branch: null
 target_branch: null
 review_url: null
