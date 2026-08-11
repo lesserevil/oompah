@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T22:38:37.996985Z'
-updated_at: '2026-08-11T22:38:37.996985Z'
+updated_at: '2026-08-11T22:58:56.696214Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,3 +53,11 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 22:58
+---
+Post-cutover live verification found an additional project-wide deadlock: exhausted audits for TRICKLE-99, TRICKLE-114, and TRICKLE-115 cannot refresh evidence and repeatedly supersede durable workflow publication, blocking 16 unrelated Open tasks. This distinct recovery/publication starvation defect is tracked by OOMPAH-1130. A normal service restart reproduced the condition.
+---
+<!-- COMMENTS:END -->
