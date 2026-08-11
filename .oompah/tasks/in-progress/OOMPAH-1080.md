@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1080
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Import trusted protected ordinary-PR exact-head gates before terminal-audit
   dispatch
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:00:26.321021Z'
-updated_at: '2026-08-11T11:00:26.321021Z'
+updated_at: '2026-08-11T11:00:45.277643Z'
 work_branch: null
 target_branch: null
 review_url: null
