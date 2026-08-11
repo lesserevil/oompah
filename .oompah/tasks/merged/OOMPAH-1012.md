@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T02:41:11.512382Z'
-updated_at: '2026-08-11T08:09:18.899404Z'
+updated_at: '2026-08-11T08:09:24.617921Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,7 +47,21 @@ oompah.terminal_audit:
     created_at: '2026-08-11T08:09:14.555115+00:00'
     selected_ref: origin/OOMPAH-1012
     selected_sha: 616331ef871e875d1549842c3a33856d544bdd0d
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1012
+    target_state: Merged
+    evidence_fingerprint: ddef3478f6b42e85cd4a47b2362d49b8f8184e0a4691f0d4bfbe6438b2b64252
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1012
+    selected_sha: 616331ef871e875d1549842c3a33856d544bdd0d
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T08:09:23.153577+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -88,5 +102,12 @@ author: oompah
 created: 2026-08-11 03:14
 ---
 Independent exact-head review ACCEPTED 616331ef871e875d1549842c3a33856d544bdd0d with no authority/security findings. The reviewer verified separate immutable landing witness/current validation SHA, root/nested resolution under the project fence, fail-closed ancestry refresh, propagation through record/attempt/workflow generation/idempotency/restart/checkpoint/dispatch/quality-gate identity, unchanged serialization/hash for old rows, and unchanged ordinary/non-epic routing. Six exact authority/ABA/restart tests also passed. The commit is composed into recovery head ca8382818, where all 1,707 changed-path tests pass.
+---
+author: oompah
+created: 2026-08-11 08:09
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Protected PR #806 and hosted Python 3.11/3.12/3.13 gates are green; deployed build 5e2288c47738bcf8b441d0f6f71bbc2ab878ac17 contains merge 62c3cda3ea602b614a3a3dfc92c66468b5c34a4b; independent audit verified that every exact reviewed branch change is patch-equivalent to or composition-equivalent with the protected merge and no unique branch changes remain.
 ---
 <!-- COMMENTS:END -->
