@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1093
 type: bug
-status: Backlog
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Orchestrator shutdown attempt failed; retaining process
   and retrying'
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T16:04:30.156611Z'
-updated_at: '2026-08-11T16:04:30.156611Z'
+updated_at: '2026-08-11T16:06:19.491479Z'
 work_branch: null
 target_branch: null
 review_url: null
