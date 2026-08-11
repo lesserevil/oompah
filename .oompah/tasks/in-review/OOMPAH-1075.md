@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1075
 type: bug
-status: In Progress
+status: In Review
 priority: 1
 title: Keep branch quality gates off restart reconciliation control ticks
 parent: null
@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T09:03:11.276660Z'
-updated_at: '2026-08-11T09:23:18.289729Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
-review_head: null
+updated_at: '2026-08-11T09:28:55.906289Z'
+work_branch: OOMPAH-1075
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/812
+review_number: '812'
+review_head: 00c1df8fa52f409d7249b870204cebb51b350039
 merged_at: null
 oompah.create_once:
   version: 1
@@ -24,6 +24,11 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: restart-quality-gate-control-plane-hol-20260811
   request_fingerprint: 482c48aeb6292612f79b0753dd7f1ffca72997a6a0b26b9b9b97e64ee766532b
+oompah.review_url: https://github.com/lesserevil/oompah/pull/812
+oompah.review_number: '812'
+oompah.work_branch: OOMPAH-1075
+oompah.target_branch: main
+oompah.review_head: 00c1df8fa52f409d7249b870204cebb51b350039
 ---
 ## Summary
 
@@ -43,5 +48,10 @@ author: oompah
 created: 2026-08-11 09:23
 ---
 Refined live diagnosis after a quiet-window reproduction: releasing the long exact-head quality gate from the task transition lock fixes one head-of-line blocker, but a second deterministic self-supersession remained. Read-only reconciliation/API proof paths call invalidate_read_cache() defensively; the native tracker incorrectly treated that refresh as a task mutation, advanced its publication authority, and notified server caches. An epic fact refresh therefore invalidated the same snapshot being built even when no task changed. The branch now separates read-only cache refresh from mutation invalidation, retains shared authority advancement/callbacks for every native write, and adds regression coverage proving refreshes do not advance state/publication generations while real writes do. It also closes the independent-review status-only race before any review capacity or metadata write.
+---
+author: oompah
+created: 2026-08-11 09:28
+---
+Branch quality gate passed for `00c1df8fa52f409d7249b870204cebb51b350039` using `make test` in 170.3s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
