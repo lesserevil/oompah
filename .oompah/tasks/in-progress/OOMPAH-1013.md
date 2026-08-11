@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T03:11:11.351608Z'
-updated_at: '2026-08-11T03:37:12.698707Z'
+updated_at: '2026-08-11T03:38:26.281917Z'
 work_branch: OOMPAH-1013
 target_branch: null
 review_url: null
@@ -76,5 +76,10 @@ author: oompah
 created: 2026-08-11 03:37
 ---
 Addressed the second review BLOCK at 4e5621853df5e27b9b6cc54ef069de4c50922ad0. A fully observed slice now queues one cursor-rebased priority revisit when a lower pending audit was deferred only because in-slice higher candidates had not yet been examined and capacity remains. Higher candidates outside the slice do not create this continuation. Regression proves HIGH/no-record then LOW/pending launches LOW on the next continuation instead of idling. Focused suite: 79 passed; mutation scan: 21/21.
+---
+author: oompah
+created: 2026-08-11 03:38
+---
+Independent re-review ACCEPTED exact head 4e5621853df5e27b9b6cc54ef069de4c50922ad0. The reviewer reproduced and cleared both adversarial cases: runtime-partial mixed-priority health now advances and completes; a pending lower-priority audit gets a one-shot cursor revisit and launches after higher-priority work proves non-launchable. Higher candidates outside the bounded slice do not trigger a revisit loop. Three exact adversarial tests and 79 focused observability tests pass. The complete repair series is composed at recovery head 80ad800a6, where all 1,712 changed-path tests pass.
 ---
 <!-- COMMENTS:END -->
