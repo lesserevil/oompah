@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:18:01.834270Z'
-updated_at: '2026-08-11T14:40:11.023635Z'
+updated_at: '2026-08-11T14:40:17.369750Z'
 work_branch: OOMPAH-1084
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/821
@@ -117,8 +117,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-76b589ad52aa
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-11T14:40:04.741329+00:00'
+    applied_at: '2026-08-11T14:40:15.563705+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -492,5 +493,19 @@ author: oompah
 created: 2026-08-11 14:36
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 14:40
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- merge_verified: cf3578ff in main via PR #821, merge commit 6a0f7210ad1f94dc48efe2131dbdacec915bd615
+- implementation: ReviewRequest.head_sha/base_sha/source_repository/target_repository; work_decision.py head_changed detection (lines 855-902); review_generation_requeue_marker() restart checkpoint
+- test_coverage: test_scm.py GitHub/GitLab propagation; test_standalone_ready_to_integrate.py 99+ tests for A→B→C late-race, base-only advance, restart, fork validation
+- requirements_all_met: exact head SHA propagated, source/target identity, head_changed detection, stale authority revoked, A+draft→B works, A→B→C handled, fork validation, repeated polls idempotent, restart-safe durable marker, GitHub/GitLab validation preserved
+- quality_gate: make test passed 176.67s on cf3578ff; 788 changed-module tests + 298 adjacent tests passed; terminal mutation scan 21/21 green
 ---
 <!-- COMMENTS:END -->

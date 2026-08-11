@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:54:01.877028Z'
-updated_at: '2026-08-11T14:40:01.300553Z'
+updated_at: '2026-08-11T14:40:20.553388Z'
 work_branch: OOMPAH-1086
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/823
@@ -179,5 +179,10 @@ author: oompah
 created: 2026-08-11 14:40
 ---
 Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-11 14:40
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
