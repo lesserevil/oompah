@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:08:16.081490Z'
-updated_at: '2026-08-11T12:43:02.125032Z'
+updated_at: '2026-08-11T12:43:08.092952Z'
 work_branch: OOMPAH-1082
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/819
@@ -108,8 +108,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-a54c56f04b36
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-11T12:42:57.469505+00:00'
+    applied_at: '2026-08-11T12:43:06.435448+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -352,5 +353,31 @@ author: oompah
 created: 2026-08-11 12:39
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-11 12:43
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- implementation.eligible_at_field: terminal_audit.py line 1232 defines durable stage eligibility boundary
+- implementation.prerequisite_audit_id_field: terminal_audit.py line 1233 defines exact prerequisite binding
+- implementation.successor_wake: terminal_transition_coordinator.py lines 4943-4945 set eligible_at=now and prerequisite_audit_id
+- implementation.audit_lane_continuation: orchestrator.py lines 11859-11860 trigger bounded continuation immediately after wake
+- implementation.aging_correct: terminal_audit_health.py lines 72-76 use eligible_at for pending age, return None for blocked stages
+- implementation.exact_prerequisite_enforcement: auditor_dispatch.py and terminal_transition_coordinator.py validate prerequisite_audit_id matches
+- implementation.owner_rearm_rebinding: terminal_transition_coordinator.py lines 3068-3070 atomically rebind successors with allowed_prerequisite_ids set to exhausted.audit_id or None
+- implementation.restart_recovery: Fields persist across restart, records reconstruct eligibility state
+- test_coverage.done_merged_chain: test_pass_on_done_wakes_its_exact_merged_successor verifies wake mechanism
+- test_coverage.chain_progression: test_pass_on_done_keeps_issue_in_validation_until_merged verifies blocking until predecessor passes
+- test_coverage.combined_tests: 808 passed per prior auditor
+- test_coverage.adjacent_tests: 915 passed per prior auditor
+- test_coverage.mutation_scan: 21/21 passed per prior auditor
+- quality_gate.command: make test
+- quality_gate.duration_seconds: 179.74
+- quality_gate.status: passed
+- quality_gate.head_sha: 4af4260085204071f14689771609658fb52329e1
 ---
 <!-- COMMENTS:END -->
