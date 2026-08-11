@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T13:18:27.575731Z'
+updated_at: '2026-08-11T13:35:25.728961Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,15 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 878c6a42-3053-4e28-9139-8645e8b04dc0
   request_fingerprint: 8824c8446f415f1a94222b85e22a48381259f92dbe2560f42f2a306bb103013a
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1085
+  head_sha: 7bd90702b13bfa876f49e5b4e5e27483997945b6
+  submitted_at: '2026-08-11T13:35:21.687037+00:00'
+  updated_at: '2026-08-11T13:35:21.687037+00:00'
 ---
 ## Summary
 
@@ -46,5 +55,10 @@ author: oompah
 created: 2026-08-11 13:18
 ---
 Additional production evidence on the pre-fix path: the OOMPAH-1083 Done audit PASS was accepted at 13:12:30 UTC, its worker/worktree and branch fence retired by 13:12:42, but the exact Merged successor did not begin dispatch until 13:13:43. The roughly 61-second post-retirement gap confirms the remaining delay was the generic full-tick wake path, not provider capacity or same-branch authority.
+---
+author: oompah
+created: 2026-08-11 13:35
+---
+Review-ready head 7bd90702b13bfa876f49e5b4e5e27483997945b6 is pushed on OOMPAH-1085, based exactly on origin/main fe06a0ff1. Post-rebase verification: 238 focused orchestrator/audit/event/pause tests passed; 1,102 adjacent terminal-audit/quiesce/quality-gate/server tests passed; focused terminal suite 141 passed; terminal mutation scan 21/21; paranoid secret scan passed. A duplicate manual full gate was stopped at 9,467 passed, 7 skipped, 2 xfailed, zero failures so the server can own the single canonical exact-head branch gate. Production acceptance context includes both the 116.409-second OOMPAH-1082 delay and the later roughly 61-second OOMPAH-1083 post-retirement delay on the pre-fix generic path.
 ---
 <!-- COMMENTS:END -->
