@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T02:41:11.512382Z'
-updated_at: '2026-08-11T02:41:40.699677Z'
+updated_at: '2026-08-11T02:41:49.765804Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,3 +45,11 @@ Required tests: reproduce a landed epic branch at A, advance main with an accept
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 02:41
+---
+Claimed for direct-owner repair from the failed natural OOMPAH-940 audit. Implementation must preserve the immutable landing revision while validating an exact current authoritative target descendant, fail closed on topology/ref races, and leave stale landed epic branches untouched.
+---
+<!-- COMMENTS:END -->
