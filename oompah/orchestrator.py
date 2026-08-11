@@ -2572,6 +2572,12 @@ class Orchestrator:
         self._terminal_audit_continuation_recheck_requested = False
         self._terminal_audit_continuation_wake_pending = False
         self._terminal_audit_lane_lock = asyncio.Lock()
+        # The ordinary dispatcher publishes whether its exact candidate cut
+        # contains runnable implementation work.  A dedicated audit wake can
+        # race that dispatcher after the audit phase releases its lane lock;
+        # retaining the proof here keeps the continuation from spending the
+        # implementation slots that the same tick just reserved.
+        self._terminal_audit_non_audit_ready_hint = False
         # Provider tool handlers can discover a chained successor from a
         # worker thread while the scheduler loop is retiring an older hint.
         # Production mutations are marshalled to the scheduler loop; this
@@ -2656,6 +2662,7 @@ class Orchestrator:
             "continuation_last_claim_at": None,
             "continuation_last_dispatch_at": None,
             "continuation_last_dispatch_latency_seconds": None,
+            "continuation_reserved_non_audit_slots": 0,
             "continuation_absent_retirement_count": 0,
             "continuation_absent_recheck_error_count": 0,
             "continuation_absent_recheck_deferred_count": 0,
@@ -12141,7 +12148,16 @@ class Orchestrator:
                 len(self._terminal_audit_stage_wakes_snapshot()),
             )
             try:
-                await self._dispatch_audit_lane(allow_new_launches=True)
+                await self._dispatch_audit_lane(
+                    # Recompute only after acquiring the shared audit lock.
+                    # An ordinary dispatcher can publish runnable work while
+                    # this continuation is queued behind its audit phase.
+                    allow_new_launches=True,
+                )
+                if isinstance(metrics, dict):
+                    metrics["continuation_reserved_non_audit_slots"] = int(
+                        metrics.get("reserved_non_audit_slots", 0) or 0
+                    )
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001 - durable metadata survives
@@ -16205,7 +16221,7 @@ class Orchestrator:
                 self._tick_pool, self._run_terminal_audit_enforcement
             )
         return await self._dispatch_audit_lane(
-            allow_new_launches=allow_new_launches
+            allow_new_launches=allow_new_launches,
         )
 
     async def _run_restart_reconstruction_tick(
@@ -19547,10 +19563,55 @@ class Orchestrator:
         )
         return min(configured, available, total - 1)
 
+    @staticmethod
+    def _decision_has_runnable_implementation_provider(
+        decision: WorkDecision,
+    ) -> bool:
+        """Return whether one published decision proves provider work ready."""
+
+        provider_jobs = {
+            "implementation_start",
+            "implementation_recovery",
+            "duplicate_screening",
+            "focus_handoff",
+        }
+        return bool(
+            decision.disposition
+            in {TaskDisposition.RUNNABLE, TaskDisposition.RETRY_SCHEDULED}
+            and provider_jobs.intersection(decision.durable_jobs)
+        )
+
+    def _terminal_audit_continuation_reserved_slots(self) -> int:
+        """Recompute the non-audit reservation for a dedicated audit turn.
+
+        The legacy dispatcher publishes its exact selection result before it
+        releases the audit lane.  Runtime-bound production also publishes
+        immutable WorkDecisions before durable admission.  Either proof is
+        sufficient to preserve the same implementation reservation while an
+        unrelated full-world reconciliation is still in flight.
+        """
+
+        non_audit_ready = bool(
+            getattr(self, "_terminal_audit_non_audit_ready_hint", False)
+        )
+        lock = getattr(self, "_work_decisions_lock", None)
+        decisions = getattr(self, "_work_decisions", {})
+        if lock is not None:
+            with lock:
+                decision_snapshot = tuple(decisions.values())
+        else:
+            decision_snapshot = tuple(decisions.values())
+        non_audit_ready = non_audit_ready or any(
+            self._decision_has_runnable_implementation_provider(decision)
+            for decision in decision_snapshot
+            if isinstance(decision, WorkDecision)
+        )
+        return self._audit_lane_reserved_slots(non_audit_ready=non_audit_ready)
+
     async def _dispatch_audit_lane(
         self,
         *,
-        reserved_non_audit_slots: int = 0,
+        reserved_non_audit_slots: int | None = None,
         allow_new_launches: bool = True,
     ) -> dict[str, float]:
         """Serialize ordinary and dedicated terminal-audit lane owners."""
@@ -19562,6 +19623,13 @@ class Orchestrator:
             lock = asyncio.Lock()
             self._terminal_audit_lane_lock = lock
         async with lock:
+            if reserved_non_audit_slots is None:
+                reserved_non_audit_slots = (
+                    self._terminal_audit_continuation_reserved_slots()
+                )
+            metrics = getattr(self, "_audit_metrics", None)
+            if isinstance(metrics, dict):
+                metrics["reserved_non_audit_slots"] = reserved_non_audit_slots
             return await self._dispatch_audit_lane_owned(
                 reserved_non_audit_slots=reserved_non_audit_slots,
                 allow_new_launches=allow_new_launches,
@@ -20829,6 +20897,10 @@ class Orchestrator:
         ready = await _timed(
             "select_dispatchable", self._select_dispatchable, candidates
         )
+        # Publish the exact selection proof before the audit phase yields its
+        # shared lane lock. A dedicated successor task can otherwise run in
+        # the gap before the normal-dispatch loop and steal this reservation.
+        self._terminal_audit_non_audit_ready_hint = bool(ready)
         metrics["selection"] = getattr(self, "_last_selection_metrics", {})
         metrics["ready_count"] = len(ready)
         now = datetime.now(timezone.utc)
@@ -20877,6 +20949,7 @@ class Orchestrator:
                 break
             await self._dispatch(issue, attempt=None)
             dispatched += 1
+        self._terminal_audit_non_audit_ready_hint = dispatched < len(ready)
         timings["normal_dispatch"] = (time.monotonic() - _t_dispatch) * 1000
         metrics["dispatched_count"] = dispatched
         if self.state.max_concurrent_agents == 1 and ready:

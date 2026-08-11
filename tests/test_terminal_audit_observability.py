@@ -51,6 +51,8 @@ from oompah.terminal_audit_observability import (
     TerminalAuditMetrics,
     threshold_conditions,
 )
+from oompah.workflow_contract import TaskDisposition, WorkflowOwner
+from oompah.work_decision import PermittedAction, WorkDecision
 
 
 class _Clock:
@@ -2909,6 +2911,148 @@ def _dedicated_audit_lane_host(
     orchestrator._audit_metrics = {}
     orchestrator._available_slots = Mock(return_value=1)
     return orchestrator
+
+
+def _runnable_implementation_decision(task_id: str) -> WorkDecision:
+    return WorkDecision(
+        project_id="project-a",
+        task_id=task_id,
+        status="Open",
+        disposition=TaskDisposition.RUNNABLE,
+        reason_code="dispatch.eligible",
+        responsible_owner=WorkflowOwner.DISPATCHER,
+        unmet_prerequisites=(),
+        evidence_revision=f"evidence-{task_id}",
+        next_reassessment_at=None,
+        permitted_actions=(PermittedAction.CLAIM_IMPLEMENTATION,),
+        action_required=False,
+        alert_level="info",
+        durable_jobs=("implementation_start",),
+    )
+
+
+@pytest.mark.parametrize(
+    "job",
+    ("direct_owner_claim", "validation_submission", "implementation_retry"),
+)
+def test_audit_reservation_ignores_non_provider_implementation_jobs(job: str) -> None:
+    decision = replace(
+        _runnable_implementation_decision("TASK-CONTROL"),
+        disposition=TaskDisposition.RETRY_SCHEDULED,
+        durable_jobs=(job,),
+        decision_revision=None,
+    )
+
+    assert not Orchestrator._decision_has_runnable_implementation_provider(
+        decision
+    )
+
+
+@pytest.mark.asyncio
+async def test_one_slot_continuation_rechecks_implementation_reservation_after_lock(
+) -> None:
+    """A late ordinary-selection proof wins the single free slot."""
+
+    loop = asyncio.get_running_loop()
+    orchestrator = _dedicated_audit_lane_host(loop)
+    orchestrator.state = SimpleNamespace(max_concurrent_agents=1)
+    orchestrator._available_slots.return_value = 1
+    orchestrator._record_terminal_audit_stage_wake(
+        project_id="project-a",
+        task_id="TASK-AUDIT",
+        audit_id="audit-merged",
+    )
+    observed_reservations: list[int] = []
+
+    async def _owned_scan(**kwargs) -> dict[str, float]:
+        reserved = int(kwargs["reserved_non_audit_slots"])
+        observed_reservations.append(reserved)
+        if orchestrator._available_slots() - reserved > 0:
+            orchestrator._retire_terminal_audit_stage_wake(
+                project_id="project-a",
+                task_id="TASK-AUDIT",
+                expected_audit_id="audit-merged",
+                reason="test_dispatch",
+            )
+        return {}
+
+    orchestrator._dispatch_audit_lane_owned = AsyncMock(side_effect=_owned_scan)
+    await orchestrator._terminal_audit_lane_lock.acquire()
+    orchestrator._wake_terminal_audit_continuation_lane_on_loop()
+    owner = orchestrator._terminal_audit_continuation_future
+    assert owner is not None
+    await asyncio.sleep(0)
+
+    # The ordinary dispatcher proves implementation work after the dedicated
+    # task was scheduled but before it can own the shared audit lane.
+    orchestrator._terminal_audit_non_audit_ready_hint = True
+    orchestrator._terminal_audit_lane_lock.release()
+    await asyncio.wait_for(owner, timeout=1)
+
+    assert observed_reservations == [1]
+    assert orchestrator._terminal_audit_stage_wakes_snapshot() == {
+        ("project-a", "TASK-AUDIT"): "audit-merged"
+    }
+    assert orchestrator._audit_metrics[
+        "continuation_reserved_non_audit_slots"
+    ] == 1
+
+
+@pytest.mark.asyncio
+async def test_multi_slot_continuation_preserves_configured_implementation_reserve(
+) -> None:
+    """Published runtime work keeps every configured non-audit slot."""
+
+    loop = asyncio.get_running_loop()
+    orchestrator = _dedicated_audit_lane_host(loop)
+    orchestrator.config.audit_non_audit_reserved_slots = 2
+    orchestrator.state = SimpleNamespace(max_concurrent_agents=4)
+    orchestrator._available_slots.return_value = 4
+    orchestrator._work_decisions_lock = threading.RLock()
+    orchestrator._work_decisions = {}
+    for index in range(4):
+        orchestrator._record_terminal_audit_stage_wake(
+            project_id="project-a",
+            task_id=f"TASK-AUDIT-{index}",
+            audit_id=f"audit-{index}",
+        )
+    observed_reservations: list[int] = []
+
+    async def _owned_scan(**kwargs) -> dict[str, float]:
+        reserved = int(kwargs["reserved_non_audit_slots"])
+        observed_reservations.append(reserved)
+        launch_budget = orchestrator._available_slots() - reserved
+        for (project_id, task_id), audit_id in list(
+            orchestrator._terminal_audit_stage_wakes_snapshot().items()
+        )[:launch_budget]:
+            orchestrator._retire_terminal_audit_stage_wake(
+                project_id=project_id,
+                task_id=task_id,
+                expected_audit_id=audit_id,
+                reason="test_dispatch",
+            )
+        return {}
+
+    orchestrator._dispatch_audit_lane_owned = AsyncMock(side_effect=_owned_scan)
+    await orchestrator._terminal_audit_lane_lock.acquire()
+    orchestrator._wake_terminal_audit_continuation_lane_on_loop()
+    owner = orchestrator._terminal_audit_continuation_future
+    assert owner is not None
+    await asyncio.sleep(0)
+
+    with orchestrator._work_decisions_lock:
+        decision = _runnable_implementation_decision("TASK-WORK")
+        orchestrator._work_decisions[(decision.project_id, decision.task_id)] = (
+            decision
+        )
+    orchestrator._terminal_audit_lane_lock.release()
+    await asyncio.wait_for(owner, timeout=1)
+
+    assert observed_reservations == [2]
+    assert len(orchestrator._terminal_audit_stage_wakes_snapshot()) == 2
+    assert orchestrator._audit_metrics[
+        "continuation_reserved_non_audit_slots"
+    ] == 2
 
 
 @pytest.mark.asyncio
