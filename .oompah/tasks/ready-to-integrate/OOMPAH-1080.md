@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:00:26.321021Z'
-updated_at: '2026-08-11T11:27:37.537825Z'
+updated_at: '2026-08-11T11:35:17.288082Z'
 work_branch: OOMPAH-1080
 target_branch: null
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-08-11 11:27
 ---
 Generalize strict protected exact-head gate import from recovery PRs to ordinary merged PRs at eabbcdaceabad696070014a6fa166c8d1334f46a; 294 focused quality-gate tests and terminal scan pass.
+---
+author: oompah
+created: 2026-08-11 11:35
+---
+Independent exact-head review ACCEPT for eabbcdaceabad696070014a6fa166c8d1334f46a. Reviewer verified remote/head identity, ordinary and recovery protected-evidence boundaries, provider/job/attempt/app/workflow/tree trust binding, replay and revocation behavior, and no aggregate-CI fallback. Independent tests: 294 quality-gate tests and 12 strict protected-workflow provider tests passed.
 ---
 <!-- COMMENTS:END -->
