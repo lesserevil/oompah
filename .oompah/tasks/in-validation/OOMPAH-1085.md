@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1085
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Dispatch exact terminal-audit successors through a dedicated bounded continuation
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-11T12:49:48.293345Z'
-updated_at: '2026-08-11T17:23:02.576121Z'
+updated_at: '2026-08-11T17:37:26.184648Z'
 work_branch: OOMPAH-1085
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/827
@@ -52,6 +52,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/827
 oompah.review_number: '827'
 oompah.target_branch: main
 oompah.review_head: c2b0e1b10ea76129b8a59e041cde68948354e8cb
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-5f8e310d908b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1085
+    digest: fd89eced37fd44cb6db488b8886bb740da1d8953e6544046c0595ecd0aeb154e
+  - version: 1
+    audit_id: audit-07ff4c62fc4a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1085
+    digest: fd89eced37fd44cb6db488b8886bb740da1d8953e6544046c0595ecd0aeb154e
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-5f8e310d908b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1085
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fd89eced37fd44cb6db488b8886bb740da1d8953e6544046c0595ecd0aeb154e
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T17:37:19.645047+00:00'
+    eligible_at: '2026-08-11T17:37:19.645047+00:00'
+    selected_ref: c2b0e1b10ea76129b8a59e041cde68948354e8cb
+    selected_sha: c2b0e1b10ea76129b8a59e041cde68948354e8cb
+  - version: 1
+    audit_id: audit-07ff4c62fc4a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1085
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fd89eced37fd44cb6db488b8886bb740da1d8953e6544046c0595ecd0aeb154e
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-11T17:37:19.645047+00:00'
+    prerequisite_audit_id: audit-5f8e310d908b
+    selected_ref: c2b0e1b10ea76129b8a59e041cde68948354e8cb
+    selected_sha: c2b0e1b10ea76129b8a59e041cde68948354e8cb
+  attempt_history: []
 ---
 ## Summary
 
@@ -301,5 +359,10 @@ author: oompah
 created: 2026-08-11 17:23
 ---
 Fresh independent review ACCEPTED rebased exact 9e46db3abecbd9a94d66c46d300b7f69aa208034 against main 2bdf2d942b44f15bbc4e896f03d967a163891868. Reviewer verified the conflict composition retains both OOMPAH-1092 suspension/fairness ordering and OOMPAH-1085 exact absent-wake reconciliation/CAS retirement. Evidence: 338 focused changed-area tests, 12 targeted intersection tests, 75 repeated race executions, diff check, and terminal scan 21/21 all passed; remote exact and worktree clean.
+---
+author: oompah
+created: 2026-08-11 17:37
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
