@@ -632,6 +632,12 @@ class BranchQualityGate:
     _active_generations: dict[int, str | None] = {}
     _active_owners: dict[int, QualityGateOwner | None] = {}
     _active_snapshots: dict[int, Path] = {}
+    _active_registration_tokens: dict[int, object | None] = {}
+    # The active-process registry is process-wide, so retain the callback
+    # beside its exact pid.  Class-level cancellation can then publish the
+    # removal through the gate instance that registered it without guessing
+    # which orchestrator owns another concurrent gate.
+    _active_state_callbacks: dict[int, Callable[[], None]] = {}
     _active_gate_root_identities: dict[str, tuple[int, int]] = {}
     _deferred_gate_cleanups: dict[
         str,
@@ -681,6 +687,7 @@ class BranchQualityGate:
         safety_head: str = _OOMPAH_652_SAFETY_HEAD,
         sandbox_launcher: Callable[[str, str, Path], list[str]] | None = None,
         validation_lease: ValidationResourceLease | None = None,
+        active_state_changed: Callable[[], None] | None = None,
     ) -> None:
         self.state_path = Path(state_path)
         self.timeout_seconds = max(int(timeout_seconds), 1)
@@ -691,9 +698,104 @@ class BranchQualityGate:
         # the fourth, server-owned trusted-home capability.
         self._sandbox_launcher = sandbox_launcher
         self.validation_lease = validation_lease
+        self._active_state_changed = active_state_changed
         self._lock = threading.Lock()
         self._key_locks: dict[str, _KeyLockEntry] = {}
         self._scavenge_stale_gate_roots()
+
+    @staticmethod
+    def _notify_active_state_changed(
+        callbacks: tuple[Callable[[], None], ...],
+    ) -> None:
+        """Invoke registry listeners without affecting gate execution."""
+
+        for callback in callbacks:
+            try:
+                callback()
+            except Exception:  # noqa: BLE001 - advisory publication is isolated
+                logger.exception("Quality gate active-state callback failed")
+
+    @classmethod
+    def _remove_active_process_locked(
+        cls,
+        pid: int,
+        *,
+        expected_process: subprocess.Popen[str],
+        expected_registration_token: object | None,
+    ) -> Callable[[], None] | None:
+        """CAS-remove one exact registry row while holding the process lock."""
+
+        if (
+            cls._active_processes.get(pid) is not expected_process
+            or cls._active_registration_tokens.get(pid)
+            is not expected_registration_token
+        ):
+            return None
+        cls._active_processes.pop(pid, None)
+        cls._active_generations.pop(pid, None)
+        cls._active_owners.pop(pid, None)
+        cls._active_snapshots.pop(pid, None)
+        cls._active_registration_tokens.pop(pid, None)
+        callback = cls._active_state_callbacks.pop(pid, None)
+        return callback
+
+    @classmethod
+    def _register_active_process_locked(
+        cls,
+        process: subprocess.Popen[str],
+        *,
+        generation: str | None,
+        owner: QualityGateOwner | None,
+        snapshot: Path,
+        callback: Callable[[], None] | None,
+        registration_token: object,
+    ) -> tuple[Callable[[], None], ...]:
+        """Register one process and return displaced/new edge callbacks."""
+
+        callbacks: list[Callable[[], None]] = []
+        if process.pid in cls._active_processes:
+            displaced = cls._active_state_callbacks.get(process.pid)
+            if displaced is not None:
+                callbacks.append(displaced)
+        cls._active_processes[process.pid] = process
+        cls._active_generations[process.pid] = generation
+        cls._active_owners[process.pid] = owner
+        cls._active_snapshots[process.pid] = snapshot
+        cls._active_registration_tokens[process.pid] = registration_token
+        if callback is not None:
+            cls._active_state_callbacks[process.pid] = callback
+            callbacks.append(callback)
+        else:
+            cls._active_state_callbacks.pop(process.pid, None)
+        return tuple(callbacks)
+
+    @classmethod
+    def _signal_active_process_group(
+        cls,
+        pid: int,
+        process: subprocess.Popen[str],
+        registration_token: object | None,
+        signal_number: int,
+    ) -> bool:
+        """Signal only while *pid* still names the selected registration."""
+
+        with cls._processes_lock:
+            if (
+                cls._active_processes.get(pid) is not process
+                or cls._active_registration_tokens.get(pid)
+                is not registration_token
+            ):
+                return False
+            try:
+                return_code = process.poll()
+            except (AttributeError, OSError, ValueError):
+                # A registry entry without verifiable Popen liveness is not
+                # authority to signal a numeric PID that may have been reused.
+                return False
+            if return_code is not None:
+                return False
+            os.killpg(pid, signal_number)
+            return True
 
     @classmethod
     def _terminate_active_processes(
@@ -714,7 +816,7 @@ class BranchQualityGate:
         """
         with cls._processes_lock:
             processes = [
-                (pid, process)
+                (pid, process, cls._active_registration_tokens.get(pid))
                 for pid, process in cls._active_processes.items()
                 if (generation is None and owner is None)
                 or (
@@ -740,7 +842,7 @@ class BranchQualityGate:
                         if active_owner is not None
                     ],
                 )
-            for _pid, process in processes:
+            for _pid, process, _registration_token in processes:
                 # The run thread uses this marker to return a non-cached
                 # interruption instead of recording a false CI failure.
                 setattr(process, "_oompah_interrupted", True)
@@ -764,10 +866,15 @@ class BranchQualityGate:
                 cls._mark_generation_cancelled_locked(generation)
 
         terminated_count = 0
-        for pid, process in processes:
+        for pid, process, registration_token in processes:
             try:
-                os.killpg(pid, signal.SIGTERM)
-                terminated_count += 1
+                if cls._signal_active_process_group(
+                    pid,
+                    process,
+                    registration_token,
+                    signal.SIGTERM,
+                ):
+                    terminated_count += 1
             except ProcessLookupError:
                 pass
             except OSError as exc:
@@ -780,7 +887,12 @@ class BranchQualityGate:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 try:
-                    os.killpg(pid, signal.SIGKILL)
+                    cls._signal_active_process_group(
+                        pid,
+                        process,
+                        registration_token,
+                        signal.SIGKILL,
+                    )
                 except ProcessLookupError:
                     pass
                 except OSError as exc:
@@ -797,10 +909,13 @@ class BranchQualityGate:
                         pid,
                     )
             with cls._processes_lock:
-                cls._active_processes.pop(pid, None)
-                cls._active_generations.pop(pid, None)
-                cls._active_owners.pop(pid, None)
-                cls._active_snapshots.pop(pid, None)
+                callback = cls._remove_active_process_locked(
+                    pid,
+                    expected_process=process,
+                    expected_registration_token=registration_token,
+                )
+            if callback is not None:
+                cls._notify_active_state_changed((callback,))
 
         if terminated_count:
             logger.info(
@@ -5787,6 +5902,7 @@ class BranchQualityGate:
 
             started = time.monotonic()
             process: subprocess.Popen[str] | None = None
+            registration_token: object | None = None
             run_root: Path | None = None
             trusted_home_root: Path | None = None
             snapshot: Path | None = None
@@ -5946,10 +6062,15 @@ class BranchQualityGate:
                 with self._processes_lock:
                     if owned_generation is None:
                         owned_generation = f"pid:{process.pid}"
-                    self._active_processes[process.pid] = process
-                    self._active_generations[process.pid] = owned_generation
-                    self._active_owners[process.pid] = owned_owner
-                    self._active_snapshots[process.pid] = snapshot
+                    registration_token = object()
+                    active_state_callbacks = self._register_active_process_locked(
+                        process,
+                        generation=owned_generation,
+                        owner=owned_owner,
+                        snapshot=snapshot,
+                        callback=self._active_state_changed,
+                        registration_token=registration_token,
+                    )
                     # Check tombstone under the same lock that cancel_generation
                     # uses to add to _cancelled_generations and mark _interrupted.
                     post_spawn_cancelled = (
@@ -5969,11 +6090,18 @@ class BranchQualityGate:
                             ),
                         )
 
+                self._notify_active_state_changed(active_state_callbacks)
+
                 if post_spawn_cancelled:
                     # Kill the just-spawned process; the normal flow will
                     # see _oompah_interrupted=True and return interrupted.
                     try:
-                        os.killpg(process.pid, signal.SIGTERM)
+                        self._signal_active_process_group(
+                            process.pid,
+                            process,
+                            registration_token,
+                            signal.SIGTERM,
+                        )
                     except (ProcessLookupError, OSError):
                         pass
 
@@ -6002,7 +6130,6 @@ class BranchQualityGate:
                 ].decode("utf-8", errors="replace")
                 with self._processes_lock:
                     interrupted = bool(getattr(process, "_oompah_interrupted", False))
-                    self._active_processes.pop(process.pid, None)
                 cancellation = _lease_cancellation()
                 interrupted = interrupted or cancellation is not None
                 return_code = process.returncode
@@ -6098,7 +6225,13 @@ class BranchQualityGate:
             except subprocess.TimeoutExpired as exc:
                 assert process is not None
                 try:
-                    os.killpg(process.pid, signal.SIGKILL)
+                    if registration_token is not None:
+                        self._signal_active_process_group(
+                            process.pid,
+                            process,
+                            registration_token,
+                            signal.SIGKILL,
+                        )
                 except OSError:
                     pass
                 stdout, stderr = process.communicate()
@@ -6113,7 +6246,6 @@ class BranchQualityGate:
                 )
                 with self._processes_lock:
                     interrupted = bool(getattr(process, "_oompah_interrupted", False))
-                    self._active_processes.pop(process.pid, None)
                 cancellation = _lease_cancellation()
                 interrupted = interrupted or cancellation is not None
                 return_code = process.returncode
@@ -6188,12 +6320,15 @@ class BranchQualityGate:
                 monitor_stop.set()
                 if monitor is not None and monitor is not threading.current_thread():
                     monitor.join(timeout=1)
-                if process is not None:
+                if process is not None and registration_token is not None:
                     with self._processes_lock:
-                        self._active_processes.pop(process.pid, None)
-                        self._active_generations.pop(process.pid, None)
-                        self._active_owners.pop(process.pid, None)
-                        self._active_snapshots.pop(process.pid, None)
+                        callback = self._remove_active_process_locked(
+                            process.pid,
+                            expected_process=process,
+                            expected_registration_token=registration_token,
+                        )
+                    if callback is not None:
+                        self._notify_active_state_changed((callback,))
                 if validation_handle is not None:
                     validation_handle.release()
                 # A cancelled generation remains fenced until every caller

@@ -1888,6 +1888,7 @@ class Orchestrator:
             os.path.join(_state_dir, "quality_gates.json"),
             timeout_seconds=config.quality_gate_timeout_seconds,
             validation_lease=self.validation_resource_lease,
+            active_state_changed=self._quality_gate_active_state_changed,
             **(
                 {"safety_head": config.quality_gate_safety_head}
                 if config.quality_gate_safety_head
@@ -2215,9 +2216,11 @@ class Orchestrator:
         self._provider_admission_generation = 0
         # Lifecycle snapshots are advisory publication, never transition
         # authority. One owned worker builds a snapshot at a time and one
-        # latest-generation request is coalesced behind it. Shutdown advances
-        # the publication epoch and cancels queued work, so a snapshot blocked
-        # in an old orchestrator becomes inert when it eventually unwinds.
+        # latest request is coalesced behind it, including a same-generation
+        # state edge that may have happened after the running snapshot's cut.
+        # Shutdown advances the publication epoch and cancels queued work, so
+        # a snapshot blocked in an old orchestrator becomes inert when it
+        # eventually unwinds.
         self._lifecycle_publication_lock = threading.RLock()
         self._lifecycle_publication_epoch = 0
         self._lifecycle_publication_closed = False
@@ -69589,6 +69592,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 continue
         return stats
 
+    def _quality_gate_active_state_changed(self) -> None:
+        """Publish an advisory snapshot after an exact gate registry edge."""
+
+        self.request_lifecycle_publication()
+
     def _quality_gate_state_snapshot(self) -> dict[str, Any]:
         """Return gate ownership and lifecycle state for dashboard/API use."""
         active = BranchQualityGate.active_state()
@@ -70766,7 +70774,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     return
                 pending = self._lifecycle_publication_pending_generation
                 self._lifecycle_publication_pending_generation = None
-                if pending is None or pending == expected_generation:
+                if pending is None:
                     self._lifecycle_publication_running = False
                     self._lifecycle_publication_thread = None
                     return

@@ -142,3 +142,94 @@ def test_server_response_boundary_reprojects_cached_alerts() -> None:
     alert = enriched["alerts"][0]
     assert "\n" not in alert["message"]
     assert alert["diagnostic"] == "cached line one\ncached line two"
+
+
+def test_stale_server_snapshot_withholds_pid_backed_gate_activity(
+    monkeypatch,
+) -> None:
+    from oompah import server
+
+    running_gate = {
+        "pid": 1234,
+        "status": "running",
+        "project_id": "project-1",
+        "task_id": "OOMPAH-1083",
+        "head_sha": "a" * 40,
+    }
+    quality_gates = {"status": "running", "active": [running_gate], "recent": []}
+    snapshot = {
+        "state_snapshot_stale": True,
+        "quality_gates": quality_gates,
+        "health": {"quality_gates": quality_gates},
+        "alerts": [
+            {
+                "source": f"quality_gate:project-1:OOMPAH-1083:{'a' * 40}",
+                "severity": "info",
+                "action_required": False,
+                "recovery_state": "running",
+                "active": True,
+                "summary": "Branch quality gate is running for OOMPAH-1083",
+            },
+            {
+                "source": f"quality_gate:project-1:OOMPAH-1082:{'b' * 40}",
+                "severity": "warning",
+                "action_required": True,
+                "recovery_state": "failed",
+                "active": True,
+                "summary": "Branch quality gate failed for OOMPAH-1082",
+            },
+        ],
+    }
+
+    enriched = server._enrich_state_snapshot(snapshot)
+
+    assert enriched["quality_gates"]["active"] == []
+    assert enriched["quality_gates"]["status"] == "snapshot_stale"
+    assert enriched["quality_gates"]["stale_active_count"] == 1
+    assert enriched["quality_gates"]["active_snapshot_stale"] is True
+    assert enriched["health"]["quality_gates"]["active"] == []
+    assert enriched["health"]["quality_gates"]["status"] == "snapshot_stale"
+    assert [alert["recovery_state"] for alert in enriched["alerts"]] == ["failed"]
+    assert enriched["global_alerts"] == []
+    # Enrichment is shared by REST/WebSocket but must not corrupt their shared
+    # cached source or the revision/sequence cut that owns it.
+    assert snapshot["quality_gates"]["active"] == [running_gate]
+    assert snapshot["health"]["quality_gates"]["active"] == [running_gate]
+
+    monkeypatch.setattr(
+        server,
+        "_read_state_snapshot_with_revision",
+        lambda *, allow_stale: (snapshot, 73),
+    )
+    message = server._current_state_message()
+    assert message["type"] == "state"
+    assert message["state_revision"] == 73
+    assert message["data"]["quality_gates"]["active"] == []
+
+
+def test_stale_empty_gate_summary_cannot_remain_running() -> None:
+    from oompah import server
+
+    quality_gates = {"status": "running", "active": [], "recent": []}
+    snapshot = {
+        "quality_gates": quality_gates,
+        "health": {"quality_gates": quality_gates, "other": {"status": "failed"}},
+        "alerts": [],
+    }
+
+    enriched = server._enrich_state_snapshot(
+        snapshot,
+        snapshot_updated_at=100.0,
+        now_monotonic=100.0 + server._STATE_SNAPSHOT_MAX_AGE_S + 1.0,
+    )
+
+    assert enriched["state_snapshot_stale"] is True
+    assert enriched["quality_gates"] == {
+        "status": "snapshot_stale",
+        "active": [],
+        "recent": [],
+    }
+    assert enriched["health"]["quality_gates"]["status"] == "snapshot_stale"
+    assert enriched["health"]["other"] == {"status": "failed"}
+    assert snapshot["quality_gates"]["status"] == "running"
+    assert snapshot["health"]["quality_gates"]["status"] == "running"

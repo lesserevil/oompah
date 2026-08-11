@@ -636,12 +636,59 @@ def test_orchestrator_no_ipc_when_path_unset(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_api_state_reads_from_ipc_when_no_orchestrator(tmp_path, monkeypatch):
-    """api_state() should return the IPC snapshot when _orchestrator is None."""
+    """API-only state derives stale gate safety from the IPC write age."""
     from oompah import server as server_module
 
     db_path = str(tmp_path / "server_ipc.db")
     test_ipc = OrchestratorIPC(db_path)
-    test_ipc.publish_state({"paused": True, "counts": {"running": 0}})
+    running_alert = {
+        "source": "quality_gate:project-1:OOMPAH-1083:abc123",
+        "severity": "info",
+        "action_required": False,
+        "recovery_state": "running",
+        "active": True,
+        "summary": "Branch quality gate is running for OOMPAH-1083",
+    }
+    unrelated_alert = {
+        "source": "unrelated:durable-failure",
+        "severity": "warning",
+        "action_required": True,
+        "recovery_state": "failed",
+        "active": True,
+        "summary": "An unrelated durable failure remains actionable",
+    }
+    quality_gates = {
+        "status": "running",
+        "active": [
+            {
+                "pid": 4242,
+                "status": "running",
+                "project_id": "project-1",
+                "task_id": "OOMPAH-1083",
+            }
+        ],
+    }
+    test_ipc.publish_state(
+        {
+            "paused": True,
+            "counts": {"running": 0},
+            "quality_gates": quality_gates,
+            "health": {
+                "quality_gates": quality_gates,
+                "terminal_audit": {"status": "healthy"},
+            },
+            "alerts": [running_alert, unrelated_alert],
+        }
+    )
+    stale_updated_at = (
+        time.monotonic() - server_module._STATE_SNAPSHOT_MAX_AGE_S - 30
+    )
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE kv SET updated_at = ? WHERE key = 'state'",
+            (stale_updated_at,),
+        )
+        conn.commit()
 
     original_orch = server_module._orchestrator
     original_ipc = server_module._ipc
@@ -655,6 +702,24 @@ async def test_api_state_reads_from_ipc_when_no_orchestrator(tmp_path, monkeypat
 
         assert data.get("paused") is True
         assert "api_metrics" in data
+        assert data["state_snapshot_stale"] is True
+        assert (
+            data["state_snapshot_age_seconds"]
+            >= server_module._STATE_SNAPSHOT_MAX_AGE_S
+        )
+        assert data["quality_gates"]["active"] == []
+        assert data["quality_gates"]["stale_active_count"] == 1
+        assert data["quality_gates"]["status"] == "snapshot_stale"
+        assert data["health"]["quality_gates"]["active"] == []
+        assert data["health"]["quality_gates"]["status"] == "snapshot_stale"
+        assert data["health"]["terminal_audit"] == {"status": "healthy"}
+        assert [alert["source"] for alert in data["alerts"]] == [
+            unrelated_alert["source"]
+        ]
+        stored, _ = test_ipc.read_state()
+        assert stored is not None
+        assert "state_snapshot_stale" not in stored
+        assert stored["quality_gates"]["active"][0]["pid"] == 4242
     finally:
         server_module._orchestrator = original_orch
         server_module._ipc = original_ipc
