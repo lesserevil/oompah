@@ -1274,7 +1274,7 @@ class ProductionEpicWorkflowBackend:
             # Keep this source-state fence aligned with
             # TerminalTransitionCoordinator._landed_epic_validation_binding.
             status = canonicalize_status(snapshot.epic.state)
-            if status not in {IN_PROGRESS, DONE}:
+            if status not in {IN_PROGRESS, IN_REVIEW, DONE}:
                 return False
             authority = cls._auto_close_landing_authority(snapshot)
             mutable_head = _exact_head(issue_exact_head(snapshot.epic))

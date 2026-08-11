@@ -1338,7 +1338,11 @@ class TerminalTransitionCoordinator:
             )
         if str(getattr(issue, "issue_type", "") or "").strip().lower() != "epic":
             raise ValueError("landed epic validation requires an epic task")
-        if canonicalize_status(issue.state) not in {IN_PROGRESS, DONE}:
+        if canonicalize_status(issue.state) not in {
+            IN_PROGRESS,
+            IN_REVIEW,
+            DONE,
+        }:
             raise ValueError(
                 "landed epic validation requires a current rollup state"
             )
