@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1089
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Regenerate current review jobs after stale-evidence exhaustion
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:22:55.237924Z'
-updated_at: '2026-08-11T15:23:31.977388Z'
+updated_at: '2026-08-11T15:35:22.463352Z'
 work_branch: OOMPAH-1089
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/824
@@ -38,6 +38,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/824
 oompah.review_number: '824'
 oompah.target_branch: main
 oompah.review_head: ae985020931e3c17f1e904921b34f65207bd85af
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-22603e70f558
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1089
+    digest: 0c6a9b4e3b82298ec68113d40ce0c1335e5e7b05c1d4cec01bf5c52bb99e7472
+  - version: 1
+    audit_id: audit-a1299b687c8f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1089
+    digest: 0c6a9b4e3b82298ec68113d40ce0c1335e5e7b05c1d4cec01bf5c52bb99e7472
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-22603e70f558
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1089
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0c6a9b4e3b82298ec68113d40ce0c1335e5e7b05c1d4cec01bf5c52bb99e7472
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T15:35:15.992180+00:00'
+    eligible_at: '2026-08-11T15:35:15.992180+00:00'
+    selected_ref: ae985020931e3c17f1e904921b34f65207bd85af
+    selected_sha: ae985020931e3c17f1e904921b34f65207bd85af
+  - version: 1
+    audit_id: audit-a1299b687c8f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1089
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0c6a9b4e3b82298ec68113d40ce0c1335e5e7b05c1d4cec01bf5c52bb99e7472
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-11T15:35:15.992180+00:00'
+    prerequisite_audit_id: audit-22603e70f558
+    selected_ref: ae985020931e3c17f1e904921b34f65207bd85af
+    selected_sha: ae985020931e3c17f1e904921b34f65207bd85af
+  attempt_history: []
 ---
 ## Summary
 
@@ -92,5 +150,10 @@ author: oompah
 created: 2026-08-11 15:20
 ---
 Branch quality gate passed for `ae985020931e3c17f1e904921b34f65207bd85af` using `make test` in 181.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-11 15:35
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
