@@ -1575,19 +1575,6 @@ async def test_complete_empty_scan_retires_authoritatively_absent_exact_wake(
             "continuation_absent_retirement_count"
         ] == 1
         authority.assert_called_once_with("project-a", "TASK-ABSENT")
-
-        with patch.object(
-            orchestrator,
-            "_wake_terminal_audit_continuation_lane",
-        ) as wake:
-            for issue_id in ("worker-1", "worker-2", "worker-3"):
-                orchestrator._wake_terminal_audit_lane_for_event(
-                    DispatchEvent(
-                        event_type=DispatchEventType.WORKER_EXIT,
-                        issue_id=issue_id,
-                    )
-                )
-        wake.assert_not_called()
     finally:
         orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
@@ -3056,6 +3043,138 @@ async def test_multi_slot_continuation_preserves_configured_implementation_reser
 
 
 @pytest.mark.asyncio
+async def test_exact_capacity_release_rearms_once_after_identity_cas() -> None:
+    """Only the exact running-entry removal publishes the capacity edge."""
+
+    loop = asyncio.get_running_loop()
+    orchestrator = _dedicated_audit_lane_host(loop)
+    entry = object()
+    replacement = object()
+    orchestrator.state = SimpleNamespace(
+        max_concurrent_agents=1,
+        running={"worker": entry},
+    )
+    orchestrator._retry_authority_lock = threading.RLock()
+    orchestrator._available_slots.side_effect = lambda: max(
+        orchestrator.state.max_concurrent_agents
+        - len(orchestrator.state.running),
+        0,
+    )
+    orchestrator._record_terminal_audit_stage_wake(
+        project_id="project-a",
+        task_id="TASK-AUDIT",
+        audit_id="audit-merged",
+    )
+    dispatched = asyncio.Event()
+    scans = 0
+
+    async def _scan(**_kwargs) -> dict[str, float]:
+        nonlocal scans
+        scans += 1
+        if orchestrator._available_slots() > 0:
+            orchestrator._retire_terminal_audit_stage_wake(
+                project_id="project-a",
+                task_id="TASK-AUDIT",
+                expected_audit_id="audit-merged",
+                reason="test_dispatch",
+            )
+            dispatched.set()
+        return {}
+
+    orchestrator._dispatch_audit_lane = AsyncMock(side_effect=_scan)
+    orchestrator._wake_terminal_audit_continuation_lane_on_loop()
+    first_owner = orchestrator._terminal_audit_continuation_future
+    assert first_owner is not None
+    await asyncio.wait_for(first_owner, timeout=1)
+    assert scans == 1
+    assert not dispatched.is_set()
+
+    assert orchestrator._remove_running_entry("worker", replacement) is False
+    await asyncio.sleep(0)
+    assert scans == 1
+
+    assert orchestrator._remove_running_entry("worker", entry) is True
+    await asyncio.wait_for(dispatched.wait(), timeout=1)
+    await asyncio.sleep(0)
+    assert scans == 2
+
+    # Duplicate/stale retirements cannot produce follow-up scans, and an
+    # already-retired exact wake makes every later capacity release a no-op.
+    assert orchestrator._remove_running_entry("worker", entry) is False
+    orchestrator.state.running["other"] = object()
+    assert orchestrator._remove_running_entry("other") is True
+    await asyncio.sleep(0)
+    assert scans == 2
+
+
+@pytest.mark.asyncio
+async def test_branch_fence_release_rearms_after_early_slot_wake() -> None:
+    """A slot wake that precedes auditor branch release cannot strand work."""
+
+    loop = asyncio.get_running_loop()
+    orchestrator = _dedicated_audit_lane_host(loop)
+    entry = object()
+    orchestrator.state = SimpleNamespace(
+        max_concurrent_agents=1,
+        running={"done-auditor": entry},
+    )
+    orchestrator._retry_authority_lock = threading.RLock()
+    orchestrator._available_slots.side_effect = lambda: max(
+        orchestrator.state.max_concurrent_agents
+        - len(orchestrator.state.running),
+        0,
+    )
+    orchestrator._audit_branch_claims = {"shared-branch": "attempt-done"}
+    orchestrator._record_terminal_audit_stage_wake(
+        project_id="project-a",
+        task_id="TASK-AUDIT",
+        audit_id="audit-merged",
+    )
+    dispatched = asyncio.Event()
+
+    async def _scan(**_kwargs) -> dict[str, float]:
+        if (
+            orchestrator._available_slots() > 0
+            and "shared-branch" not in orchestrator._audit_branch_claims
+        ):
+            orchestrator._retire_terminal_audit_stage_wake(
+                project_id="project-a",
+                task_id="TASK-AUDIT",
+                expected_audit_id="audit-merged",
+                reason="test_dispatch",
+            )
+            dispatched.set()
+        return {}
+
+    orchestrator._dispatch_audit_lane = AsyncMock(side_effect=_scan)
+    orchestrator._wake_terminal_audit_continuation_lane_on_loop()
+    first_owner = orchestrator._terminal_audit_continuation_future
+    assert first_owner is not None
+    await asyncio.wait_for(first_owner, timeout=1)
+    assert orchestrator._dispatch_audit_lane.await_count == 1
+
+    assert orchestrator._remove_running_entry("done-auditor", entry) is True
+    slot_owner = orchestrator._terminal_audit_continuation_future
+    assert slot_owner is not None
+    await asyncio.wait_for(slot_owner, timeout=1)
+    assert orchestrator._dispatch_audit_lane.await_count == 2
+    assert not dispatched.is_set()
+
+    assert orchestrator._release_audit_branch_claim(
+        "shared-branch", "attempt-done"
+    ) is True
+    await asyncio.wait_for(dispatched.wait(), timeout=1)
+    await asyncio.sleep(0)
+    assert orchestrator._dispatch_audit_lane.await_count == 3
+
+    assert orchestrator._release_audit_branch_claim(
+        "shared-branch", "attempt-done"
+    ) is False
+    await asyncio.sleep(0)
+    assert orchestrator._dispatch_audit_lane.await_count == 3
+
+
+@pytest.mark.asyncio
 async def test_worker_thread_successor_registration_is_owned_by_scheduler_loop() -> None:
     loop = asyncio.get_running_loop()
     orchestrator = _dedicated_audit_lane_host(loop)
@@ -3095,6 +3214,20 @@ async def test_worker_thread_successor_registration_is_owned_by_scheduler_loop()
     }
 
 
+def test_closed_scheduler_race_retains_capacity_release_wake() -> None:
+    orchestrator = object.__new__(Orchestrator)
+    loop = MagicMock()
+    loop.is_running.return_value = True
+    loop.call_soon_threadsafe.side_effect = RuntimeError("loop closed")
+    orchestrator._dispatch_loop = loop
+    orchestrator._terminal_audit_continuation_wake_pending = False
+
+    with patch.object(orchestrator, "_running_loop", return_value=None):
+        orchestrator._wake_terminal_audit_continuation_lane()
+
+    assert orchestrator._terminal_audit_continuation_wake_pending is True
+
+
 @pytest.mark.asyncio
 async def test_exact_successor_dispatch_bypasses_blocked_durable_reconcile() -> None:
     """Reproduce the live OOMPAH-1082 full-world tick race."""
@@ -3105,7 +3238,12 @@ async def test_exact_successor_dispatch_bypasses_blocked_durable_reconcile() -> 
     release_reconcile = asyncio.Event()
     capacity_deferred = asyncio.Event()
     successor_claimed = asyncio.Event()
-    capacity = {"available": False}
+    done_auditor = object()
+    orchestrator.state = SimpleNamespace(
+        max_concurrent_agents=1,
+        running={"done-auditor": done_auditor},
+    )
+    orchestrator._retry_authority_lock = threading.RLock()
 
     async def _reconcile_async() -> dict:
         reconcile_started.set()
@@ -3122,10 +3260,14 @@ async def test_exact_successor_dispatch_bypasses_blocked_durable_reconcile() -> 
     orchestrator._handle_auto_update = AsyncMock()
     orchestrator._finish_terminal_audit_workflow = Mock(return_value=True)
     orchestrator._record_audit_outcome_ownership = Mock()
-    orchestrator._available_slots.side_effect = lambda: int(capacity["available"])
+    orchestrator._available_slots.side_effect = lambda: max(
+        orchestrator.state.max_concurrent_agents
+        - len(orchestrator.state.running),
+        0,
+    )
 
     async def _audit_scan(**_kwargs) -> dict[str, float]:
-        if not capacity["available"]:
+        if orchestrator._available_slots() <= 0:
             capacity_deferred.set()
             return {}
         orchestrator._eligible_audit_stage_wakes.pop(
@@ -3167,17 +3309,12 @@ async def test_exact_successor_dispatch_bypasses_blocked_durable_reconcile() -> 
     assert not successor_claimed.is_set()
     assert not release_reconcile.is_set()
 
-    # The Done auditor now retires and releases its only slot. WORKER_EXIT is
-    # a direct dedicated-lane edge even though the unrelated world cut remains
-    # blocked.
-    capacity["available"] = True
-    orchestrator._post_event(
-        DispatchEvent(
-            event_type=DispatchEventType.WORKER_EXIT,
-            issue_id="done-worker",
-            payload={"auditor": True},
-        )
-    )
+    # The Done auditor now retires and releases its only slot. The exact
+    # capacity CAS is a direct dedicated-lane edge even though the unrelated
+    # world cut remains blocked; no generic event or full sync is required.
+    assert orchestrator._remove_running_entry(
+        "done-auditor", done_auditor
+    ) is True
     await asyncio.wait_for(successor_claimed.wait(), timeout=1)
     assert not release_reconcile.is_set()
 

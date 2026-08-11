@@ -10684,7 +10684,8 @@ class Orchestrator:
             if current is None or (expected is not None and current is not expected):
                 return False
             self.state.running.pop(issue_id, None)
-            return True
+        self._wake_terminal_audit_lane_after_capacity_release()
+        return True
 
     def _remove_running_entry_and_claims(
         self,
@@ -10699,7 +10700,21 @@ class Orchestrator:
             self.state.running.pop(issue_id, None)
             self.state.claimed.discard(issue_id)
             self.state.claimed_issues.pop(issue_id, None)
-            return True
+        self._wake_terminal_audit_lane_after_capacity_release()
+        return True
+
+    def _wake_terminal_audit_lane_after_capacity_release(self) -> None:
+        """Re-arm exact audit work after an authoritative slot release.
+
+        Running-entry removal and exact auditor branch-fence release are the
+        capacity linearization points.  Call this outside their authority
+        locks so scheduler-loop callbacks cannot reverse lock order.  The
+        dedicated lane coalesces repeated releases, and an empty exact-wake
+        index is a strict no-op.
+        """
+
+        if self._terminal_audit_stage_wakes_snapshot():
+            self._wake_terminal_audit_continuation_lane()
 
     def _worker_authority_current(
         self,
@@ -12121,9 +12136,15 @@ class Orchestrator:
             self._terminal_audit_continuation_wake_pending = True
             return
         if self._running_loop() is not loop:
-            loop.call_soon_threadsafe(
-                self._wake_terminal_audit_continuation_lane_on_loop
-            )
+            try:
+                loop.call_soon_threadsafe(
+                    self._wake_terminal_audit_continuation_lane_on_loop
+                )
+            except (RuntimeError, ValueError):
+                # The scheduler loop closed after the liveness observation.
+                # Durable metadata remains authoritative across restart; keep
+                # one in-process edge for any still-live replacement loop.
+                self._terminal_audit_continuation_wake_pending = True
             return
         self._wake_terminal_audit_continuation_lane_on_loop()
 
@@ -14142,19 +14163,6 @@ class Orchestrator:
     def _post_event(self, event: DispatchEvent) -> None:
         """Put an event onto the dispatch queue (thread-safe, non-blocking)."""
         WORKFLOW_EVENT_INTAKE.post(self, event)
-        self._wake_terminal_audit_lane_for_event(event)
-
-    def _wake_terminal_audit_lane_for_event(self, event: DispatchEvent) -> None:
-        """Translate a capacity-release event into an exact audit wake."""
-
-        # Capacity can be the only reason an exact chained audit wake remains
-        # pending. Worker retirement is therefore a direct continuation edge,
-        # not merely a request for another full-world reconciliation.
-        if (
-            event.event_type is DispatchEventType.WORKER_EXIT
-            and self._terminal_audit_stage_wakes_snapshot()
-        ):
-            self._wake_terminal_audit_continuation_lane()
 
     def stop_threadsafe(self):
         """Schedule fail-closed shutdown on the orchestrator loop."""
@@ -17676,9 +17684,16 @@ class Orchestrator:
         if not attempt_id:
             return
         changed = False
+        branch_released = False
         with self._audit_rollback_lock:
             changed = self._pending_audit_rollbacks.pop(attempt_id, None) is not None
-            self._release_audit_branch_claim(branch_key, attempt_id)
+            branch_released = self._release_audit_branch_claim(
+                branch_key,
+                attempt_id,
+                rearm_terminal_audit=False,
+            )
+        if branch_released:
+            self._wake_terminal_audit_lane_after_capacity_release()
         if changed and not self._persist_pending_audit_rollbacks():
             logger.error(
                 "Could not persist completion of deferred audit rollback attempt=%s",
@@ -18644,6 +18659,8 @@ class Orchestrator:
         self,
         branch_key: str | None,
         attempt_id: str | None,
+        *,
+        rearm_terminal_audit: bool = True,
     ) -> bool:
         """Release an audit branch fence only when *attempt_id* still owns it."""
 
@@ -18652,6 +18669,8 @@ class Orchestrator:
         if self._audit_branch_claims.get(branch_key) != attempt_id:
             return False
         self._audit_branch_claims.pop(branch_key, None)
+        if rearm_terminal_audit:
+            self._wake_terminal_audit_lane_after_capacity_release()
         return True
 
     def _audit_selector(
@@ -70806,6 +70825,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         self._release_audit_branch_claim(
                             entry.branch_key,
                             entry.audit_attempt_id,
+                            rearm_terminal_audit=False,
                         )
                     # The exact entry is no longer published. Clear the transient
                     # fence only as the last part of this non-yielding retirement
@@ -70825,6 +70845,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         )
                         if coordinator is not None:
                             coordinator.retry_satisfied = retry_token is not None
+
+            self._wake_terminal_audit_lane_after_capacity_release()
 
             elapsed = (datetime.now(timezone.utc) - entry.started_at).total_seconds()
             self.state.agent_totals.seconds_running += elapsed

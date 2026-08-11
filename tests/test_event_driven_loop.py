@@ -333,7 +333,7 @@ class TestPostEvent:
         orch._post_event(evt)
         assert orch._dispatch_queue.qsize() == 1
 
-    def test_event_intake_delegates_terminal_audit_capacity_wake(self, tmp_path):
+    def test_worker_event_does_not_duplicate_capacity_release_wake(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         evt = DispatchEvent(
             event_type=DispatchEventType.WORKER_EXIT,
@@ -341,12 +341,12 @@ class TestPostEvent:
         )
         with patch.object(
             orch,
-            "_wake_terminal_audit_lane_for_event",
+            "_wake_terminal_audit_continuation_lane",
         ) as wake:
             orch._post_event(evt)
 
         assert orch._dispatch_queue.qsize() == 1
-        wake.assert_called_once_with(evt)
+        wake.assert_not_called()
 
     def test_event_retrieved_in_order(self, tmp_path):
         orch = _make_orchestrator(tmp_path)

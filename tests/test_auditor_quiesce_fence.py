@@ -1271,6 +1271,8 @@ async def test_provider_task_creation_failure_rolls_back_published_audit(
     orch.state.claimed.add(issue.id)
     orch.state.claimed_issues[issue.id] = issue
     orch._audit_branch_claims[plan.branch_key] = plan.attempt_id
+    orch._dispatch_loop = asyncio.get_running_loop()
+    orch.state.max_concurrent_agents = 1
     _record_queued_metric(orch, plan)
     orch._terminal_audit_metrics.record_running(
         issue.project_id,
@@ -1278,25 +1280,61 @@ async def test_provider_task_creation_failure_rolls_back_published_audit(
         plan.audit_id,
         attempts=1,
     )
+    orch._record_terminal_audit_stage_wake(
+        project_id=issue.project_id or "legacy",
+        task_id="AUDIT-WAKE",
+        audit_id="audit-successor",
+    )
+    dispatched = asyncio.Event()
+
+    async def _scan(**_kwargs) -> dict[str, float]:
+        if orch._available_slots() > 0:
+            orch._retire_terminal_audit_stage_wake(
+                project_id=issue.project_id or "legacy",
+                task_id="AUDIT-WAKE",
+                expected_audit_id="audit-successor",
+                reason="test_dispatch",
+            )
+            dispatched.set()
+        return {}
 
     async def _must_not_start() -> None:
         raise AssertionError("provider transport started")
 
     assert orch._provider_launch_blocked(issue, entry.run_id) is False
+    real_create_task = asyncio.create_task
+
+    def _reject_provider_task(coroutine, **kwargs):
+        if str(kwargs.get("name") or "").startswith("provider-start-"):
+            raise RuntimeError("event loop rejected provider task")
+        return real_create_task(coroutine, **kwargs)
+
     with (
         patch.object(orch, "_audit_store", return_value=store),
+        patch.object(orch, "_dispatch_audit_lane", side_effect=_scan) as scan,
         patch(
             "oompah.orchestrator.asyncio.create_task",
-            side_effect=RuntimeError("event loop rejected provider task"),
+            side_effect=_reject_provider_task,
         ),
     ):
+        orch._wake_terminal_audit_continuation_lane_on_loop()
+        first_owner = orch._terminal_audit_continuation_future
+        assert first_owner is not None
+        await asyncio.wait_for(first_owner, timeout=1)
+        assert scan.await_count == 1
+        assert not dispatched.is_set()
+
         provider_task = orch._publish_provider_start(
             issue,
             entry.run_id,
             _must_not_start,
         )
+        await asyncio.wait_for(dispatched.wait(), timeout=1)
+        await asyncio.sleep(0)
 
     assert provider_task is None
+    assert scan.await_count == 2
+    assert orch._terminal_audit_stage_wakes_snapshot() == {}
     assert issue.id not in orch.state.running
     assert issue.id not in orch.state.claimed
     assert plan.branch_key not in orch._audit_branch_claims
