@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1089
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Regenerate current review jobs after stale-evidence exhaustion
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T14:22:55.237924Z'
-updated_at: '2026-08-11T14:22:55.237924Z'
+updated_at: '2026-08-11T14:23:06.233877Z'
 work_branch: null
 target_branch: null
 review_url: null
