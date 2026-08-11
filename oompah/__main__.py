@@ -481,7 +481,8 @@ async def _run(
     from oompah.bootstrap import StartupError, setup_services
     from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
     from oompah.server import (
-        _await_fail_closed_orchestrator_stop,
+        _ListenerCutoverCoordinator,
+        _supervise_listener_cutover,
         app,
         set_api_event_loop,
         set_gitlab_hook_manager,
@@ -553,15 +554,6 @@ async def _run(
     )
     orch_thread.start()
 
-    async def _supervise_orchestrator() -> None:
-        while orch_thread.is_alive() and not orchestrator.wants_restart:
-            # Runs on the HTTP loop, so stale-loop detection remains live even
-            # if the scheduler's loop is blocked by a third-party operation.
-            orchestrator.check_and_recover_dispatch_loop()
-            await asyncio.sleep(0.5)
-        if server is not None:
-            server.should_exit = True
-
     # Start HTTP server if port configured
     server = None
     server_task = None
@@ -599,7 +591,24 @@ async def _run(
             server = uvicorn.Server(uvi_config)
             server_task = asyncio.create_task(server.serve())
 
-    supervise_task = asyncio.create_task(_supervise_orchestrator())
+    cutover = _ListenerCutoverCoordinator(
+        orchestrator,
+        webhook_forwarder,
+        gitlab_hook_manager,
+    )
+
+    def _close_uvicorn_listener(_restart_requested: bool) -> None:
+        if server is not None:
+            server.should_exit = True
+
+    supervise_task = asyncio.create_task(
+        _supervise_listener_cutover(
+            orchestrator,
+            orch_thread,
+            cutover,
+            close_listener=_close_uvicorn_listener,
+        )
+    )
 
     try:
         # Uvicorn owns process signals.  When no HTTP port is configured,
@@ -612,12 +621,10 @@ async def _run(
         pass
     finally:
         wants_restart = orchestrator.wants_restart
-        # Re-exec/exit is forbidden while a setup-only runtime is the sole
-        # in-memory rollback owner.  The shared process-boundary helper shields
-        # and retries shutdown until that authority is durable.
-        await _await_fail_closed_orchestrator_stop(orchestrator)
-        await webhook_forwarder.stop()
-        await gitlab_hook_manager.stop()
+        # Managed restart already prepared this boundary before Uvicorn was
+        # asked to stop. External shutdown reaches the same idempotent owner
+        # here after the listener's signal-driven teardown has begun.
+        await cutover.prepare()
         watch_task.cancel()
         supervise_task.cancel()
         if server:

@@ -30531,10 +30531,19 @@ class Orchestrator:
 
             # Trigger graceful restart
             with self._provider_admission_lock:
+                # Auto-update bypasses the API graceful-restart claim path.
+                # Publish the same admission fence atomically with restart so
+                # no new workflow/provider owner can appear while the HTTP
+                # listener remains available for the retained safe drain.
+                self._quiesced = True
                 self._restart_requested = True
                 self._stopping = True
                 self._arm_safe_stop_acknowledgement_locked()
                 self._provider_admission_generation += 1
+                restart_generation = self._provider_admission_generation
+            self.request_lifecycle_publication(
+                expected_generation=restart_generation
+            )
         except (subprocess.TimeoutExpired, OSError, ValueError) as exc:
             msg = f"Auto-update failed: {exc}"
             logger.debug("Auto-update check failed: %s", exc)
