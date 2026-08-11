@@ -341,15 +341,22 @@ async def test_worker_task_creation_failure_restores_exact_unadmitted_audit(
     """A failed final create_task cannot retain claims or consume retry budget."""
 
     orch = _orchestrator(tmp_path)
+    orch.config.budget_limit = 10.0
     issue = _issue()
     plan = _plan()
     store = _persisted_store(plan)
+    reservation_key = orch._audit_reservation_key_for_issue(issue)
     orch._audit_branch_claims[plan.branch_key] = plan.attempt_id
     _record_queued_metric(orch, plan)
 
     with (
         patch.object(orch, "_tracker_for_issue", return_value=_tracker(issue)),
         patch.object(orch, "_audit_store", return_value=store),
+        patch.object(
+            orch,
+            "_projected_auditor_cost",
+            return_value=(0.5, None),
+        ),
         patch.object(orch, "_run_worker", new_callable=AsyncMock) as worker,
         patch(
             "oompah.orchestrator.asyncio.create_task",
@@ -363,6 +370,7 @@ async def test_worker_task_creation_failure_restores_exact_unadmitted_audit(
     assert issue.id not in orch.state.running
     assert issue.id not in orch.state.claimed
     assert plan.branch_key not in orch._audit_branch_claims
+    assert reservation_key not in orch._audit_budget_reservations
     record = store.document.pending_chain[0]
     assert record.request_state == RequestState.PENDING
     assert record.attempts == []
@@ -382,6 +390,7 @@ async def test_budget_failure_retains_exact_wake_without_self_rearm_storm(
     loop = asyncio.get_running_loop()
     orch._dispatch_loop = loop
     orch.state.max_concurrent_agents = 1
+    orch.config.budget_limit = 10.0
     issue = _issue()
     plan = _plan()
     record = TerminalAuditRecord(
@@ -410,11 +419,34 @@ async def test_budget_failure_retains_exact_wake_without_self_rearm_storm(
     tracker.get_metadata.return_value = {}
     selector = MagicMock()
     selector.select_candidates.return_value = ([plan.candidate], None)
-    budget_reservation = MagicMock(
-        side_effect=lambda *_args, **_kwargs: (
-            None if recovery_enabled else "budget store unavailable"
-        )
+    reservation_key = orch._audit_reservation_key_for_issue(issue)
+    prior_reservation = {
+        "amount_usd": 1.25,
+        "provider_id": plan.candidate.provider_id,
+        "model": plan.candidate.model,
+        "project_id": issue.project_id,
+        "task_id": issue.identifier,
+        "issue_id": issue.id,
+        "reserved_at": "2026-08-11T16:00:00+00:00",
+        "audit_started": True,
+        "spend_reconciled": False,
+        "reconciled_at": "",
+        "authority_scope": "managed-audit-budget",
+        "authority_version": 2,
+    }
+    orch._audit_budget_reservations[reservation_key] = copy.deepcopy(
+        prior_reservation
     )
+    assert orch._save_state(
+        audit_budget_reservations=orch._audit_budget_reservations
+    )
+    real_reconcile = orch._reconcile_audit_budget_spend
+
+    def _reconcile(*args, **kwargs) -> bool:
+        if not recovery_enabled:
+            return False
+        return real_reconcile(*args, **kwargs)
+
     with (
         patch.object(orch, "_tracker_for_issue", return_value=tracker),
         patch.object(orch, "_audit_store", return_value=store),
@@ -440,7 +472,21 @@ async def test_budget_failure_retains_exact_wake_without_self_rearm_storm(
             "_terminal_audit_validation_configuration_error",
             return_value=None,
         ),
-        patch.object(orch, "_reserve_audit_budget_capacity", budget_reservation),
+        patch.object(
+            orch,
+            "_reconcile_audit_budget_spend",
+            side_effect=_reconcile,
+        ) as reconcile_spend,
+        patch.object(
+            orch,
+            "_projected_auditor_cost",
+            return_value=(0.5, None),
+        ),
+        patch.object(
+            orch,
+            "_reserve_audit_budget_capacity",
+            wraps=orch._reserve_audit_budget_capacity,
+        ) as budget_reservation,
         patch.object(orch, "_run_worker", new_callable=AsyncMock) as worker,
         patch.object(orch, "_post_comment") as post_comment,
     ):
@@ -459,6 +505,9 @@ async def test_budget_failure_retains_exact_wake_without_self_rearm_storm(
         assert plan.branch_key not in orch._audit_branch_claims
         assert issue.id not in orch.state.running
         worker.assert_not_awaited()
+        assert orch._audit_budget_reservations[reservation_key] == prior_reservation
+        assert orch.state.agent_totals.estimated_cost == 0.0
+        assert reconcile_spend.call_count == 1
         restored = store.document.pending_chain[0]
         assert restored.request_state is RequestState.PENDING
         assert restored.attempts == []
@@ -481,6 +530,7 @@ async def test_budget_failure_retains_exact_wake_without_self_rearm_storm(
         await asyncio.wait_for(entry.worker_task, timeout=1)
 
     assert budget_reservation.call_count == 2
+    assert reconcile_spend.call_count == 2
     assert orch._terminal_audit_stage_wakes_snapshot() == {}
     assert issue.id in orch.state.running
     worker.assert_awaited_once()
@@ -493,6 +543,10 @@ async def test_budget_failure_retains_exact_wake_without_self_rearm_storm(
     assert running_job.state is WorkflowJobState.RUNNING
     assert running_job.attempts == 1
     assert running_job.retry_at is None
+    replacement_reservation = orch._audit_budget_reservations[reservation_key]
+    assert replacement_reservation["amount_usd"] == 0.5
+    assert replacement_reservation["audit_started"] is False
+    assert orch.state.agent_totals.estimated_cost == 1.25
     orch._remove_running_entry_and_claims(issue.id, entry)
 
 

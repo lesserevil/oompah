@@ -57372,6 +57372,7 @@ class Orchestrator:
             *,
             transition_locked: bool = False,
             rearm_terminal_audit: bool = True,
+            release_audit_budget_reservation: bool = True,
         ) -> None:
             """Release exact pre-start ownership, including durable audits."""
 
@@ -57442,7 +57443,10 @@ class Orchestrator:
                     reason=reason,
                     rearm_terminal_audit=rearm_terminal_audit,
                 )
-                if rollback_outcome is UnadmittedAuditRollbackOutcome.RESTORED:
+                if (
+                    rollback_outcome is UnadmittedAuditRollbackOutcome.RESTORED
+                    and release_audit_budget_reservation
+                ):
                     reservation_key = self._audit_reservation_key_for_issue(issue)
                     if not self._release_audit_budget_reservation(reservation_key):
                         logger.error(
@@ -57509,6 +57513,7 @@ class Orchestrator:
             *,
             transition_locked: bool = False,
             rearm_terminal_audit: bool = True,
+            release_audit_budget_reservation: bool = True,
         ) -> None:
             """Finish compensation even when the losing dispatcher is cancelled."""
 
@@ -57517,6 +57522,9 @@ class Orchestrator:
                     reason,
                     transition_locked=transition_locked,
                     rearm_terminal_audit=rearm_terminal_audit,
+                    release_audit_budget_reservation=(
+                        release_audit_budget_reservation
+                    ),
                 ),
                 name=f"admission-compensation-{issue.identifier}",
             )
@@ -58378,6 +58386,13 @@ class Orchestrator:
                         # a later durable recovery signal or ordinary tick owns
                         # the next attempt.
                         rearm_terminal_audit=False,
+                        # A reserve call can fail because a prior started
+                        # projection could not be reconciled. This admission
+                        # did not acquire that financial authority and must
+                        # not delete it while rolling back metadata/workflow
+                        # ownership. Successful reserve paths retain the
+                        # default release-on-later-admission-failure behavior.
+                        release_audit_budget_reservation=False,
                     )
                     self._post_comment(
                         issue.identifier,
