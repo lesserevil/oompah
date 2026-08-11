@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1083
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Publish quality-gate lifecycle state before stale PID alerts escape
 parent: null
@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T11:41:11.895675Z'
-updated_at: '2026-08-11T11:41:48.958647Z'
-work_branch: null
+updated_at: '2026-08-11T12:03:59.205946Z'
+work_branch: OOMPAH-1083
 target_branch: null
 review_url: null
 review_number: null
@@ -24,6 +24,16 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 5df42b13-d647-40d8-bf16-ea593024a893
   request_fingerprint: 875facd4bb649c5339eb1993dd3053f79d20a2988f2f3839d2fd52d61ce85c19
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1083
+  head_sha: bf823293fc6dc2417a0438a9ead7c54c84732163
+  submitted_at: '2026-08-11T12:03:46.177272+00:00'
+  updated_at: '2026-08-11T12:03:46.177272+00:00'
+oompah.work_branch: OOMPAH-1083
 ---
 ## Summary
 
@@ -35,3 +45,11 @@ Triggered by live OOMPAH-1080/OOMPAH-1082 integration evidence on 2026-08-11. Th
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 12:03
+---
+Published exact quality-gate registration/removal edges through non-blocking coalesced lifecycle state, retained same-generation updates missed by in-flight snapshots, and suppressed stale PID-backed running assertions across REST/IPC/WebSocket views. Covered pass, failure, timeout, cancellation, runner/callback exceptions, concurrent owners, A-to-B replacement revision advancement, alert deduplication, and IPC parity.
+---
+<!-- COMMENTS:END -->
