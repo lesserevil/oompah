@@ -33,7 +33,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-09T09:08:16.594615Z'
-updated_at: '2026-08-11T03:04:56.193796Z'
+updated_at: '2026-08-11T03:06:23.190697Z'
 work_branch: epic-OOMPAH-940
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/757
@@ -642,5 +642,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 30s
 - Log: OOMPAH-940__20260811T030333Z.jsonl
+---
+author: oompah
+created: 2026-08-11 03:06
+---
+The deployed pre-OOMPAH-1012 workflow re-staged another audit on stale landing head 2dd74be2 at 03:03 UTC. The supported Needs CI Fix transition revoked that audit and the server terminated its provider/full-gate process; no direct database or task-file edit was used. OOMPAH-940 is intentionally fenced from another stale audit until OOMPAH-1012 is protected, deployed, and can re-stage validation on the current authoritative target head.
 ---
 <!-- COMMENTS:END -->
