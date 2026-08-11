@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T21:14:56.744892Z'
-updated_at: '2026-08-11T22:50:56.885208Z'
+updated_at: '2026-08-11T22:51:09.660502Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,7 +37,21 @@ oompah.terminal_audit:
       defects OOMPAH-1127 and OOMPAH-1128 after recovering and publishing the affected
       Trickle state history.
     created_at: '2026-08-11T22:50:52.060422+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1125
+    target_state: Archived
+    evidence_fingerprint: c4bc1c68c3e1a9d3cd973fe335c88d12a665a5dc9be68bb1c0859f4840879458
+    workflow_revision: null
+    selected_ref: null
+    selected_sha: null
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-11T22:51:01.097346+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -81,3 +95,18 @@ The operation in `backend:checkpoint_queue` should complete successfully, or deg
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-11 22:51
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Operator consolidation of an auto-filed retry artifact into canonical defects OOMPAH-1127 and OOMPAH-1128 after recovering and publishing the affected Trickle state history.
+---
+author: oompah
+created: 2026-08-11 22:51
+---
+Archived as a duplicate retry artifact. The stale checkpoint-writer/credential-authority defect is tracked by OOMPAH-1127 and the auto-filing deduplication defect by OOMPAH-1128. The affected state history was recovered and fast-forwarded to GitLab at d6b89313f65b8b018a254e23cfb4510482338479.
+---
+<!-- COMMENTS:END -->
