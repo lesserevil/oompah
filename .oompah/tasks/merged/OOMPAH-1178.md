@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:56:01.307393Z'
-updated_at: '2026-08-12T20:02:26.874548Z'
+updated_at: '2026-08-12T20:02:38.119048Z'
 work_branch: OOMPAH-1178
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/837
@@ -65,7 +65,23 @@ oompah.terminal_audit:
     created_at: '2026-08-12T20:02:22.339971+00:00'
     selected_ref: origin/OOMPAH-1178
     selected_sha: f1902e64d2cdef014e84a8cb1c58896ca1e40f35
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1178
+    target_state: Merged
+    evidence_fingerprint: 8c6fcb07f9ab40113d4cc90d8a0c5119374a976b47c0c7215c05f6490b549791
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1178
+    selected_sha: f1902e64d2cdef014e84a8cb1c58896ca1e40f35
+    landing_revision: null
+    audit_ids:
+    - audit-041365d47abb
+    - audit-ff6ce97a0895
+    kind: override
+    applied: true
+    retired_at: '2026-08-12T20:02:31.823945+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -73,7 +89,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1178
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -89,12 +105,13 @@ oompah.terminal_audit:
     eligible_at: '2026-08-12T19:57:06.162756+00:00'
     selected_ref: origin/OOMPAH-1178
     selected_sha: f1902e64d2cdef014e84a8cb1c58896ca1e40f35
+    updated_at: '2026-08-12T20:02:31.823896+00:00'
   - version: 1
     audit_id: audit-ff6ce97a0895
     project_id: proj-14849f1b
     task_id: OOMPAH-1178
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -110,6 +127,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-041365d47abb
     selected_ref: origin/OOMPAH-1178
     selected_sha: f1902e64d2cdef014e84a8cb1c58896ca1e40f35
+    updated_at: '2026-08-12T20:02:31.823926+00:00'
   attempt_history: []
 oompah.lifecycle_revision: 1
 ---
@@ -156,5 +174,17 @@ author: oompah
 created: 2026-08-12 19:57
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-12 20:02
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Direct-owner completion verified in merged PR #837 at 00db66b58: transactional batch task updates and whole-column UI moves are implemented; focused suites passed 1,893 and 911 tests and full Python 3.11/3.12/3.13 CI passed.
+---
+author: oompah
+created: 2026-08-12 20:02
+---
+Completed by merged PR #837 (00db66b58). Native Markdown supports atomic, idempotent, crash-recoverable batch transitions with exact revisions and coalesced publication; the dashboard sends one accessible whole-column operation.
 ---
 <!-- COMMENTS:END -->
