@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-11T22:58:51.766509Z'
-updated_at: '2026-08-12T20:01:39.448860Z'
+updated_at: '2026-08-12T20:01:45.293203Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,7 +46,21 @@ oompah.terminal_audit:
     created_at: '2026-08-12T20:01:33.311807+00:00'
     selected_ref: origin/OOMPAH-1130
     selected_sha: b8a77e4d094a94ebb1b814606c15ac6aa4e94b1f
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1130
+    target_state: Merged
+    evidence_fingerprint: b6e3b04ce17604dc5f7f3c5d7c1dc358dd00fc904d3cc24a2ee01b2c5f0905e0
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1130
+    selected_sha: b8a77e4d094a94ebb1b814606c15ac6aa4e94b1f
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-12T20:01:43.654361+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -94,5 +108,12 @@ author: oompah
 created: 2026-08-12 01:52
 ---
 Implemented and deployed commit 5503ae15e on PR #836. Regression coverage: 338 terminal-transition/recovery tests pass. Live verification: Trickle workflow snapshot generation 5225 published successfully, three workflow worker lanes became active, and stale terminal-audit transport failures fell from 3 to 0. Oompah remains paused; only Trickle is resumed. Awaiting protected-branch CI/merge while I continue the remaining directly owned blockers.
+---
+author: oompah
+created: 2026-08-12 20:01
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Direct-owner completion verified in merged PR #836 at a6a983171: exhausted-audit recovery no longer churns terminal authority or starves unrelated workflow publication; full CI passed.
 ---
 <!-- COMMENTS:END -->
