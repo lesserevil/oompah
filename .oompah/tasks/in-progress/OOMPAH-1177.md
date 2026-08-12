@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:54:19.893858Z'
-updated_at: '2026-08-12T17:41:27.253635Z'
+updated_at: '2026-08-12T17:48:39.579946Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,3 +45,11 @@ Acceptance criteria: no provider can remain active for a task whose exact durabl
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-12 17:48
+---
+Direct implementation committed and pushed on branch OOMPAH-1177 at exact head 6ce5745fa2a73f182521e01855f5b36e351abfe5. Dispatch now fails closed when the shared run-ID claim cannot be persisted/read, when post-status evidence cannot be refreshed, when the durable status remains Open, or when a replacement assignment wins. Compensation restores the prior dispatchable state and no worker/provider is constructed. Regression coverage replaces the former explicit fail-open test and adds stale-Open plus assignment-ABA cases. Verification: 105 broad dispatch/retry tests passed; focused exact suite 88 passed; terminal mutation scan 21/21; diff and secret hooks clean. Full branch gate will run with the combined review-ready program.
+---
+<!-- COMMENTS:END -->
