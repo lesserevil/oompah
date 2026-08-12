@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:19:53.793903Z'
-updated_at: '2026-08-12T23:20:09.535168Z'
+updated_at: '2026-08-12T23:20:28.142733Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,3 +36,11 @@ Fix a scheduler deadlock in the durable workflow restart boundary. When reconcil
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-12 23:20
+---
+Live reproduction on build 81c63ce5: Trickle generation 6315 reported implementation truncated=false with 17/17 schedules materialized, integration truncated=true with 0/2 schedules materialized, epic truncated=true with 1/3 schedules materialized, liveness scan_complete=false, and worker admission deferred. workflow_reconcile_continuation_requested remained false. Trickle was paused before implementing the hotfix; all other projects were already paused.
+---
+<!-- COMMENTS:END -->
