@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1133
 type: bug
-status: In Progress
+status: Archived
 priority: 2
 title: '[backend:checkpoint_queue] Checkpoint flush FAILED (reason=debounce); push_failures=3'
 parent: null
@@ -12,13 +12,38 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T01:43:46.324060Z'
-updated_at: '2026-08-12T17:37:07.073515Z'
+updated_at: '2026-08-12T20:14:05.830513Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-bc153c998c78
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1133
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b98f0f5166aeb21a80fb32ab40c4d195a9d181321726058cd0a899c05b040c4f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Historical auto-filed checkpoint occurrence consolidated into completed
+      roots OOMPAH-1127 and OOMPAH-1128. PR #836 at a6a983171 fenced stale checkpoint
+      writers and stabilized retry incident identity with a passing full CI matrix;
+      this occurrence requires no independent implementation.'
+    created_at: '2026-08-12T20:13:57.637704+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
