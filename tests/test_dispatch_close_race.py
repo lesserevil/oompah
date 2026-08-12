@@ -663,7 +663,7 @@ class TestGitHubClaimRunIdProtocol:
         _bind_status_tracker(mock_tracker, fresh)
         mock_tracker.set_metadata_field.side_effect = RuntimeError("network error")
 
-        run_worker = MagicMock(return_value=asyncio.sleep(0))
+        run_worker = AsyncMock(return_value=None)
         with (
             patch.object(orch, "_tracker_for_issue", return_value=mock_tracker),
             patch.object(orch, "_run_worker", new=run_worker),
@@ -718,6 +718,96 @@ class TestGitHubClaimRunIdProtocol:
         ):
             event_loop.run_until_complete(orch._dispatch(issue, attempt=None))
 
+        assert issue.id not in orch.state.running
+        assert issue.id not in orch.state.claimed
+        run_worker.assert_not_called()
+
+    def test_workflow_managed_start_publishes_before_status_transition(
+        self, tmp_path, event_loop
+    ):
+        """The durable workflow owns the later Open -> In Progress write."""
+
+        orch = _make_orchestrator(tmp_path)
+        issue = _github_issue(state="Open", project_id="proj-1")
+        before = _github_issue(state="Open", project_id="proj-1")
+        claimed = _github_issue(state="Open", project_id="proj-1")
+        captured: dict[str, str] = {}
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_states_by_ids.side_effect = [
+            [before],
+            [claimed],
+        ]
+        mock_tracker.set_metadata_field.side_effect = (
+            lambda _identifier, _key, value: captured.update(run_id=value)
+        )
+        mock_tracker.get_metadata.side_effect = lambda _identifier: {
+            "oompah.agent_run_id": captured.get("run_id")
+        }
+        run_worker = AsyncMock(return_value=None)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=mock_tracker),
+            patch.object(orch, "_run_worker", new=run_worker),
+        ):
+            admitted = event_loop.run_until_complete(
+                orch._dispatch(
+                    issue,
+                    attempt=None,
+                    workflow_generation="workflow-generation",
+                    status_managed_by_workflow=True,
+                )
+            )
+
+        assert admitted is True
+        assert issue.id in orch.state.running
+        assert orch.state.running[issue.id].issue.state == "Open"
+        assert orch.state.running[issue.id].authority_generation == (
+            "workflow-generation"
+        )
+        mock_tracker.update_issue.assert_not_called()
+
+        entry = orch.state.running[issue.id]
+        event_loop.run_until_complete(entry.worker_task)
+
+    def test_workflow_managed_start_rejects_external_status_race(
+        self, tmp_path, event_loop
+    ):
+        """A workflow-owned transition does not authorize another source state."""
+
+        orch = _make_orchestrator(tmp_path)
+        issue = _github_issue(state="Open", project_id="proj-1")
+        before = _github_issue(state="Open", project_id="proj-1")
+        replaced = _github_issue(state="Backlog", project_id="proj-1")
+        captured: dict[str, str] = {}
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_states_by_ids.side_effect = [
+            [before],
+            [replaced],
+        ]
+        mock_tracker.set_metadata_field.side_effect = (
+            lambda _identifier, _key, value: captured.update(run_id=value)
+        )
+        mock_tracker.get_metadata.side_effect = lambda _identifier: {
+            "oompah.agent_run_id": captured.get("run_id")
+        }
+        run_worker = AsyncMock(return_value=None)
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=mock_tracker),
+            patch.object(orch, "_run_worker", new=run_worker),
+        ):
+            admitted = event_loop.run_until_complete(
+                orch._dispatch(
+                    issue,
+                    attempt=None,
+                    workflow_generation="workflow-generation",
+                    status_managed_by_workflow=True,
+                )
+            )
+
+        assert admitted is False
         assert issue.id not in orch.state.running
         assert issue.id not in orch.state.claimed
         run_worker.assert_not_called()

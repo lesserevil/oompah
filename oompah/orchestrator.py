@@ -59068,9 +59068,22 @@ class Orchestrator:
                     )
                     return False
                 if implementation_dispatch:
+                    accepted_post_statuses = {
+                        _state_key(implementation_intended_status)
+                    }
+                    if status_managed_by_workflow:
+                        # The durable workflow publishes the exact runtime
+                        # generation first, verifies its receipt, and only
+                        # then commits Open -> In Progress through its
+                        # journaled transition.  Requiring In Progress here
+                        # makes that ordering impossible.  Accept the exact
+                        # source state for this pre-transition publication;
+                        # retaining In Progress also makes replay after an
+                        # already-applied transition idempotent.
+                        accepted_post_statuses.add(_state_key(issue.state))
                     post_status_mismatch = (
                         _state_key(running_issue.state)
-                        != _state_key(implementation_intended_status)
+                        not in accepted_post_statuses
                     )
                     post_assignment_mismatch = bool(
                         claimed_assignment_id
