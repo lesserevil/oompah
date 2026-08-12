@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T22:25:20.676127Z'
-updated_at: '2026-08-12T22:25:20.676127Z'
+updated_at: '2026-08-12T22:25:42.265142Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Bug found while deploying OOMPAH-1189. A managed project may retain a legacy HTT
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-12 22:25
+---
+Direct owner recovery implementation is committed and pushed on hotfix/canonical-remote-userinfo at 5900dd8d. Focused canonical-remote tests pass (3 passed). The recovery build started successfully at this revision; all projects remain paused pending merge and final deployment.
+---
+<!-- COMMENTS:END -->
