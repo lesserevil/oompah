@@ -7,7 +7,7 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
-from typing import Callable, Protocol, runtime_checkable
+from typing import Any, Callable, Protocol, runtime_checkable
 
 from oompah.models import Issue
 
@@ -57,6 +57,33 @@ class TrackerError(Exception):
 
 class CreateOnceConflictError(TrackerError):
     """One durable creation key was reused for incompatible task data."""
+
+
+class BatchUpdateError(TrackerError):
+    """A batch mutation was rejected before it could commit."""
+
+    def __init__(self, code: str, message: str, *, rejections: list[dict] | None = None):
+        super().__init__(message)
+        self.code = str(code)
+        self.rejections = list(rejections or [])
+
+
+class BatchIdempotencyConflictError(BatchUpdateError):
+    """One batch idempotency key was reused for different immutable work."""
+
+    def __init__(self, message: str):
+        super().__init__("idempotency_conflict", message)
+
+
+class BatchPreconditionError(BatchUpdateError):
+    """At least one member of an atomic batch failed its compare-and-swap."""
+
+    def __init__(self, rejections: list[dict]):
+        super().__init__(
+            "batch_precondition_failed",
+            "One or more batch members was rejected; no task was updated.",
+            rejections=rejections,
+        )
 
 
 class TrackerAuthError(TrackerError):
@@ -162,6 +189,7 @@ class TrackerProtocol(Protocol):
     """Common interface that every oompah tracker adapter must satisfy."""
 
     supports_atomic_create_once: bool
+    supports_atomic_batch_updates: bool
 
     def fetch_candidate_issues(self) -> list[Issue]:
         """Return issues in active dispatchable states, sorted for dispatch."""
@@ -246,6 +274,36 @@ class TrackerProtocol(Protocol):
 
     def update_issue(self, identifier: str, **fields: str) -> None:
         """Update one or more fields on an existing issue."""
+        ...
+
+    def batch_update_issues(
+        self,
+        updates: list[dict[str, Any]],
+        *,
+        project_id: str,
+        actor: str,
+        idempotency_key: str,
+        request_hash: str,
+        operation: dict[str, Any] | None = None,
+    ) -> dict:
+        """Atomically compare-and-swap an ordered set of task updates.
+
+        Adapters must advertise support only when the complete batch and its
+        idempotency receipt share one durable commit boundary.  Unsupported
+        adapters fail closed at the API boundary; callers must never emulate
+        this operation with a loop of independent ``update_issue`` calls.
+        """
+        ...
+
+    def batch_update_receipt(
+        self,
+        identifier: str,
+        *,
+        project_id: str,
+        idempotency_key: str,
+        request_hash: str,
+    ) -> dict | None:
+        """Return an exact committed batch replay, or ``None`` when unseen."""
         ...
 
     def close_issue(self, identifier: str, *, reason: str | None = None) -> None:

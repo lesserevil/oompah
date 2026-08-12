@@ -69,6 +69,7 @@ from oompah.statuses import (
     status_key,
 )
 from oompah.tracker import (
+    BatchUpdateError,
     TrackerAuthError,
     TrackerError,
     TrackerTimeoutError,
@@ -1457,6 +1458,34 @@ class GitHubIssueTracker:
     """
 
     supports_atomic_create_once = False
+    supports_atomic_batch_updates = False
+
+    def batch_update_issues(
+        self,
+        updates: list[dict[str, Any]],
+        *,
+        project_id: str,
+        actor: str,
+        idempotency_key: str,
+        request_hash: str,
+        operation: dict[str, Any] | None = None,
+    ) -> dict:
+        """Fail closed because GitHub cannot atomically update several issues."""
+        raise BatchUpdateError(
+            "atomic_batch_unsupported",
+            "GitHub Issues does not support atomic batch task updates.",
+        )
+
+    def batch_update_receipt(
+        self,
+        identifier: str,
+        *,
+        project_id: str,
+        idempotency_key: str,
+        request_hash: str,
+    ) -> dict | None:
+        """Return no receipt because this adapter cannot commit atomic batches."""
+        return None
 
     def __init__(
         self,

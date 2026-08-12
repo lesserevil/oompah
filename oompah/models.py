@@ -272,6 +272,10 @@ class Issue:
     description: str | None = None
     priority: int | None = None
     state: str = ""
+    # Monotonic tracker-owned lifecycle generation. Native task storage bumps
+    # this on every status change so compare-and-swap evidence cannot suffer
+    # an ABA collision when a task leaves and later returns to the same state.
+    lifecycle_revision: int | None = None
     branch_name: str | None = None
     # Target branch for this issue's work. When None, uses project's default_branch.
     # This allows issues to target branches other than the project default (e.g.,

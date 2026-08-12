@@ -160,6 +160,7 @@ def issue_authority_version(issue: Issue) -> str:
             if str(label).strip().lower() in {"merge-conflict", "ci-fix"}
         ),
         "status": canonicalize_status(issue.state),
+        "lifecycle_revision": getattr(issue, "lifecycle_revision", None),
         "assignment_id": _optional_text(getattr(issue, "assignment_id", None)),
         "head_sha": _optional_text(getattr(issue, "head_sha", None)),
         "review_number": _optional_text(getattr(issue, "review_number", None)),
@@ -1088,6 +1089,30 @@ class TransitionJournal:
                 intent,
                 lease_ttl_seconds=lease_ttl_seconds,
             )
+
+    def active_claims_for_tasks(
+        self,
+        project_id: str,
+        task_ids: Iterable[str],
+    ) -> frozenset[str]:
+        """Return requested task IDs with a live durable transition owner."""
+
+        identifiers = tuple(
+            sorted({str(task_id or "").strip() for task_id in task_ids if task_id})
+        )
+        if not identifiers:
+            return frozenset()
+        with self._admit_use(), self._lock:
+            now = self._clock()
+            rows = self._conn.execute(
+                f"""
+                SELECT task_id FROM task_transition_claims
+                 WHERE project_id = ? AND lease_expires_at > ?
+                   AND task_id IN ({','.join('?' for _ in identifiers)})
+                """,
+                (project_id, now, *identifiers),
+            ).fetchall()
+        return frozenset(str(row["task_id"]) for row in rows)
 
     def _begin_admitted(
         self,

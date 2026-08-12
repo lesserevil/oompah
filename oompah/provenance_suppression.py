@@ -1016,6 +1016,68 @@ class ProvenanceGuardedTracker:
             self._provenance_tracker.update_issue(identifier, **fields)
             self._advance_publication_revision((str(identifier),))
 
+    def batch_update_issues(
+        self,
+        updates: list[dict[str, Any]],
+        *,
+        project_id: str,
+        actor: str,
+        idempotency_key: str,
+        request_hash: str,
+        operation: dict[str, Any] | None = None,
+    ) -> dict:
+        """Apply one native atomic batch behind the provenance boundary."""
+
+        identifiers = tuple(
+            str(update.get("identifier") or "").strip() for update in updates
+        )
+        with self._provenance_project_store.project_write_lock(
+            self._provenance_project_id
+        ):
+            for identifier in identifiers:
+                self._assert_status_mutation_allowed(identifier)
+            result = self._provenance_tracker.batch_update_issues(
+                updates,
+                project_id=project_id,
+                actor=actor,
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+                operation=operation,
+            )
+            if not result.get("replayed"):
+                self._advance_publication_revision(identifiers)
+            return result
+
+    def batch_update_receipt(
+        self,
+        identifier: str,
+        *,
+        project_id: str,
+        idempotency_key: str,
+        request_hash: str,
+    ) -> dict | None:
+        lookup = getattr(self._provenance_tracker, "batch_update_receipt", None)
+        if not callable(lookup):
+            return None
+        with self._provenance_project_store.project_write_lock(
+            self._provenance_project_id
+        ):
+            result = lookup(
+                identifier,
+                project_id=project_id,
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+            )
+            if result and result.get("recovered_publication"):
+                self._advance_publication_revision(
+                    tuple(
+                        str(item.get("identifier") or "").strip()
+                        for item in result.get("results") or []
+                        if str(item.get("identifier") or "").strip()
+                    )
+                )
+            return result
+
     def reopen_issue(self, identifier: str) -> None:
         with self._provenance_project_store.project_write_lock(
             self._provenance_project_id

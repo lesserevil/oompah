@@ -6472,6 +6472,9 @@ function createCard(issue) {
 }
 
 function setupColumnDrag(header, sourceState, epicId) {
+  header.tabIndex = 0;
+  header.setAttribute('role', 'button');
+  header.setAttribute('aria-label', `Move ${COLUMN_LABELS[sourceState] || sourceState} column`);
   header.addEventListener('dragstart', e => {
     // Don't interfere with card drags — cards set dragState
     columnDragState = { sourceState, epicId };
@@ -6517,23 +6520,170 @@ function setupColumnDrag(header, sourceState, epicId) {
     const cardsToMove = getCardsInColumn(src.sourceState, scopeEpicId);
     if (cardsToMove.length === 0) return;
 
-    // Confirm with user
-    const label = COLUMN_LABELS[src.sourceState] || src.sourceState;
-    const targetLabel = COLUMN_LABELS[targetState] || targetState;
-    const scope = scopeEpicId ? (scopeEpicId === '_orphans' ? 'Unassigned' : 'this swimlane') : 'all visible';
-    if (!confirm(`Move ${cardsToMove.length} item(s) from ${label} → ${targetLabel} (${scope})?`)) return;
+    await batchMoveColumn(cardsToMove, src.sourceState, targetState, scopeEpicId);
+  });
 
-    // Optimistic update
-    for (const issue of cardsToMove) {
-      moveIssueInBoard(issue.identifier, targetState, issue.project_id || '');
+  // Accessible fallback for operators who cannot drag a whole column.
+  header.addEventListener('keydown', async e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    const choices = COLUMNS.filter(state => state !== sourceState);
+    const requested = prompt(
+      `Move this column to which state?\n${choices.join(', ')}`,
+      choices[0] || ''
+    );
+    if (!requested) return;
+    const targetState = columnKeyForStatus(requested);
+    if (!choices.includes(targetState)) {
+      showBoardError(`Unknown destination: ${requested}`);
+      return;
     }
-    renderBoard(boardData);
-
-    // Fire API calls
-    for (const issue of cardsToMove) {
-      await updateIssue(issue.identifier, {status: targetState, project_id: issue.project_id || ''});
+    const cardsToMove = getCardsInColumn(sourceState, epicId);
+    if (cardsToMove.length) {
+      await batchMoveColumn(cardsToMove, sourceState, targetState, epicId);
     }
   });
+}
+
+function columnBatchIdempotencyKey(projectId, sourceState, targetState, cards) {
+  const members = cards.map(issue =>
+    `${issue.identifier}:${issue.authority_revision || ''}`
+  ).join('|');
+  // Keep the key bounded even for the 200-card API maximum. Two independent
+  // 32-bit accumulators make accidental collisions fail as explicit request-
+  // hash conflicts rather than silently replaying another operation.
+  let first = 2166136261;
+  let second = 5381;
+  for (let index = 0; index < members.length; index++) {
+    const code = members.charCodeAt(index);
+    first = Math.imul(first ^ code, 16777619) >>> 0;
+    second = (Math.imul(second, 33) ^ code) >>> 0;
+  }
+  const digest = first.toString(16).padStart(8, '0') +
+    second.toString(16).padStart(8, '0');
+  return `dashboard-column:${projectId}:${sourceState}:${targetState}:${cards.length}:${digest}`;
+}
+
+async function batchMoveColumn(cardsToMove, sourceState, targetState, scopeEpicId) {
+  clearBoardError();
+  clearBoardNotice();
+  const projectIds = new Set(cardsToMove.map(issue => String(issue.project_id || '')));
+  if (projectIds.size !== 1 || projectIds.has('')) {
+    showBoardError('Batch update failed: a column move must contain tasks from one project.');
+    return false;
+  }
+  if (cardsToMove.some(issue => !issue.authority_revision)) {
+    showBoardError('Batch update failed: the board snapshot lacks task revision evidence. Refresh and retry.');
+    return false;
+  }
+  const projectId = [...projectIds][0];
+  const trackerKinds = new Set(cardsToMove.map(issue => String(issue.tracker_kind || '')));
+  if (trackerKinds.size !== 1 || !trackerKinds.has('oompah_md')) {
+    showBoardError(
+      'Batch update unavailable: this tracker cannot guarantee an atomic whole-column move.'
+    );
+    return false;
+  }
+  const label = COLUMN_LABELS[sourceState] || sourceState;
+  const targetLabel = COLUMN_LABELS[targetState] || targetState;
+  const scope = scopeEpicId
+    ? (scopeEpicId === '_orphans' ? 'Unassigned' : 'this swimlane')
+    : 'all visible';
+  if (!confirm(`Move ${cardsToMove.length} item(s) from ${label} → ${targetLabel} (${scope})?`)) {
+    return false;
+  }
+
+  const body = {
+    project_id: projectId,
+    status: statusForColumn(targetState),
+    operation: {
+      kind: 'whole_column_move',
+      source_status: statusForColumn(sourceState),
+      scope: scopeEpicId || 'flat_board',
+    },
+    updates: cardsToMove.map(issue => ({
+      identifier: issue.identifier,
+      expected_status: statusForColumn(sourceState),
+      expected_revision: issue.authority_revision,
+    })),
+  };
+  if (!httpAuthEnabled) {
+    let project = currentProjects.find(p => p.id === projectId);
+    if (!project) project = await refreshProjectConfigForStatusActor(projectId);
+    const actor = projectStatusActorLogin(project);
+    if (!actor) {
+      showBoardError(
+        'Batch update failed: configure a project status actor before moving a column.'
+      );
+      return false;
+    }
+    body.actor_login = actor;
+  }
+
+  document.getElementById('status-text').textContent =
+    `Moving ${cardsToMove.length} tasks…`;
+  let response;
+  try {
+    response = await fetch(
+      `/api/v1/projects/${encodeURIComponent(projectId)}/tasks/batch-update`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': columnBatchIdempotencyKey(
+            projectId, sourceState, targetState, cardsToMove
+          ),
+        },
+        body: JSON.stringify(body),
+      }
+    );
+  } catch (_) {
+    showBoardError('Batch update failed: network error. No local tasks were moved.');
+    return false;
+  }
+  let result = null;
+  try { result = await response.json(); } catch (_) { /* response stays actionable below */ }
+  if (!response.ok) {
+    const rejections = result && result.error && Array.isArray(result.error.rejections)
+      ? result.error.rejections
+      : [];
+    const details = rejections.slice(0, 8).map(item =>
+      `${item.identifier || 'batch'}: ${item.message || item.code}`
+    ).join('; ');
+    const message = result && result.error
+      ? result.error.message || result.error.code
+      : String(response.status);
+    showBoardError(
+      `Batch update failed: ${message}${details ? ' — ' + details : ''}`
+    );
+    // The column was retained locally until the authoritative result, so a
+    // rejection needs no rollback and preserves the operator's selection.
+    return false;
+  }
+
+  const committed = new Map(
+    (Array.isArray(result && result.results) ? result.results : []).map(
+      item => [item.identifier, item]
+    )
+  );
+  for (const issue of cardsToMove) {
+    const committedIssue = committed.get(issue.identifier);
+    if (!committedIssue || !committedIssue.revision) {
+      showBoardError(
+        'Batch committed, but its authoritative revisions were incomplete. Refreshing the board.'
+      );
+      const fresh = await fetchIssues();
+      if (fresh) renderBoard(fresh);
+      return false;
+    }
+    issue.authority_revision = committedIssue.revision;
+    moveIssueInBoard(issue.identifier, targetState, projectId);
+  }
+  renderBoard(boardData);
+  const message = `Moved ${cardsToMove.length} tasks in one atomic batch.`;
+  document.getElementById('status-text').textContent = message;
+  showBoardNotice(message);
+  return true;
 }
 
 function getCardsInColumn(state, epicId) {
