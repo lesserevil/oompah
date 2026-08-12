@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1152
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:server] Add comment API error: StateBranchFetchError(''Cannot sync
   state branch \''oompah/state/proj-3e4e9214\'': git fetch origin \''oompah/state/proj-3e4e9214\''
@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:24:03.095156Z'
-updated_at: '2026-08-12T17:31:37.094956Z'
+updated_at: '2026-08-12T17:38:35.334067Z'
 work_branch: null
 target_branch: null
 review_url: null

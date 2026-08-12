@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1149
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue TRICKLE-121:
   All 2 dispatch candidates unavailable: prov-651d553c/sonnet: contributor_evidence_unavailable:
@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:23:31.745991Z'
-updated_at: '2026-08-12T17:31:26.314044Z'
+updated_at: '2026-08-12T17:38:24.439079Z'
 work_branch: null
 target_branch: null
 review_url: null
