@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1193
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Continue truncated restart reconstruction before worker admission
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:19:53.793903Z'
-updated_at: '2026-08-12T23:52:33.735926Z'
+updated_at: '2026-08-12T23:53:31.109562Z'
 work_branch: OOMPAH-1193
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 75888359-5bee-46fc-b1ce-ff1e9f0b0769
   request_fingerprint: d14c77f040ab8fb1e911e1c3f202433dd4507180144720fc99796278236e6765
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.integration:
   version: 2
   state: ready
@@ -35,6 +35,64 @@ oompah.integration:
   submitted_at: '2026-08-12T23:52:25.331593+00:00'
   updated_at: '2026-08-12T23:52:25.331593+00:00'
 oompah.work_branch: OOMPAH-1193
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-a6664a85ce2c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1193
+    digest: 4f0f7ab63e0f00033ae3ef03651752a6f3431fe453d7da598638c3544ca51c14
+  - version: 1
+    audit_id: audit-c9ab6a47dfc7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1193
+    digest: 4f0f7ab63e0f00033ae3ef03651752a6f3431fe453d7da598638c3544ca51c14
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a6664a85ce2c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1193
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4f0f7ab63e0f00033ae3ef03651752a6f3431fe453d7da598638c3544ca51c14
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-12T23:53:24.668045+00:00'
+    eligible_at: '2026-08-12T23:53:24.668045+00:00'
+    selected_ref: 1744e1cf730bae9b846ad850bdd1808d9563831c
+    selected_sha: 1744e1cf730bae9b846ad850bdd1808d9563831c
+  - version: 1
+    audit_id: audit-c9ab6a47dfc7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1193
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4f0f7ab63e0f00033ae3ef03651752a6f3431fe453d7da598638c3544ca51c14
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-12T23:53:24.668045+00:00'
+    prerequisite_audit_id: audit-a6664a85ce2c
+    selected_ref: 1744e1cf730bae9b846ad850bdd1808d9563831c
+    selected_sha: 1744e1cf730bae9b846ad850bdd1808d9563831c
+  attempt_history: []
 ---
 ## Summary
 
@@ -62,5 +120,10 @@ author: oompah
 created: 2026-08-12 23:52
 ---
 Implemented bounded restart-reconstruction continuation with audit-first admission ordering; guarded source failures from immediate retry loops. Focused 195-test workflow suite, complete 20,185-test gate, and Python 3.11/3.12/3.13 CI pass.
+---
+author: oompah
+created: 2026-08-12 23:53
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
