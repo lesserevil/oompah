@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1192
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Allow durable workflow START to publish runtime before its status transition
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T22:43:52.044640Z'
-updated_at: '2026-08-12T22:44:05.655913Z'
+updated_at: '2026-08-12T22:47:36.650856Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: b17dd9ae-fd84-4b5c-aef8-36b5f938a21d
   request_fingerprint: 3e7a6e731a0e094248063262aa779f0695cd5a17277458467868e8239b1b3a66
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
