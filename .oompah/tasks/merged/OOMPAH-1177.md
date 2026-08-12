@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:54:19.893858Z'
-updated_at: '2026-08-12T20:02:04.721839Z'
+updated_at: '2026-08-12T20:02:10.901422Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,7 +47,21 @@ oompah.terminal_audit:
     created_at: '2026-08-12T20:01:58.553483+00:00'
     selected_ref: origin/OOMPAH-1177
     selected_sha: 6ce5745fa2a73f182521e01855f5b36e351abfe5
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1177
+    target_state: Merged
+    evidence_fingerprint: b1d2387a807434655673ed826591407984e8bbbd1ed96bf5541b9521680fec50
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1177
+    selected_sha: 6ce5745fa2a73f182521e01855f5b36e351abfe5
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-12T20:02:09.062104+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -82,5 +96,12 @@ author: oompah
 created: 2026-08-12 19:22
 ---
 Combined with the transactional batch update work on PR #837 at exact head aaa3ec17a0b98e280bffa1e71d3dd904f5060d41. Combined focused regression coverage passes 911 tests; the authoritative full Makefile gate and GitHub 3.11/3.12/3.13 checks are running before merge.
+---
+author: oompah
+created: 2026-08-12 20:02
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Direct-owner completion verified in merged PR #837 at 00db66b58: provider admission now fails closed unless exact durable claim evidence converges; full Python 3.11/3.12/3.13 CI passed.
 ---
 <!-- COMMENTS:END -->
