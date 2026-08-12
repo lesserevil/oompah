@@ -366,6 +366,12 @@ def test_incomplete_restart_reconstruction_requests_follow_up_cut() -> None:
     reports = iter(
         (
             {
+                "projects": {
+                    "project-a": {
+                        "implementation": {"truncated": False},
+                        "integration": {"truncated": True},
+                    }
+                },
                 "liveness": {
                     "scan_complete": False,
                     "status": "action_required",
@@ -442,6 +448,37 @@ def test_incomplete_restart_reconstruction_requests_follow_up_cut() -> None:
         "workflow_admission",
     ]
     runtime.continue_admission_async.assert_awaited_once_with()
+
+
+def test_restart_source_error_does_not_request_immediate_retry_loop() -> None:
+    runtime = SimpleNamespace(
+        restart_reconstruction_pending=True,
+        reconcile_async=AsyncMock(
+            return_value={
+                "projects": {"project-a": {"error": "TimeoutError"}},
+                "liveness": {
+                    "scan_complete": False,
+                    "status": "action_required",
+                },
+            }
+        ),
+        continue_admission_async=AsyncMock(),
+    )
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator._run_terminal_audit_tick_phase = AsyncMock(
+        return_value={"pending": 0}
+    )
+    orchestrator._request_workflow_reconcile_continuation = Mock(
+        return_value=True
+    )
+
+    _report, _audit_metrics, continuation_requested = asyncio.run(
+        orchestrator._run_restart_reconstruction_tick(runtime)
+    )
+
+    assert continuation_requested is False
+    orchestrator._request_workflow_reconcile_continuation.assert_not_called()
+    runtime.continue_admission_async.assert_not_awaited()
 
 
 def test_restart_audit_recovery_precedes_reconcile_exception() -> None:
