@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T22:38:37.996985Z'
-updated_at: '2026-08-12T01:38:30.897730Z'
+updated_at: '2026-08-12T15:59:44.490621Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,24 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: incident-20260811-trickle-forge-cutover-checkpoint-fencing
   request_fingerprint: 3de38f978420eee0995ae789c6acad1d54859cfec2a8f4923b625abb518eb916
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 79300d84bb5b4a8196156d4d2929ad553e2609700b4cb5eb57f9b0efacff2812
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 4cd92af1d62e456e292772c72f60fbbe05fa49f92807748f835e9fc697ab0f18:11840
+  claim_owner: 02fd371b-4f1d-4e9b-a422-f3effd90464e
+  claimed_at: '2026-08-12T15:59:36.414669+00:00'
+  claim_expires_at: '2026-08-12T16:29:36.414669+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 8d5b7f74-148e-4ed7-be48-1887128d5cfb
 ---
 ## Summary
 
