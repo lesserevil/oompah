@@ -619,6 +619,25 @@ class AuditResult:
                 raise TypeError(f"AuditResult.{field_name} must be a sequence of strings")
 
 
+def _is_safe_retry_exhaustion_escalation(result: AuditResult) -> bool:
+    """Return whether evidence drift may safely escalate *result* to a human.
+
+    This provenance can only be attached by the coordinator after bounded
+    retry exhaustion.  The result cannot approve a terminal transition or
+    reopen implementation work: it only moves an exact, still-pending audit
+    generation from ``In Validation`` to ``Needs Human``.  That makes the
+    escalation safe when a legacy audit predates the tracker-projection
+    ledger or a forge/configuration cutover changed the live projection.
+    """
+
+    return bool(
+        result.verdict is Verdict.NEEDS_HUMAN
+        and result.attempt_origin
+        is AuditAttemptOrigin.COORDINATOR_RETRY_EXHAUSTION
+        and result.failure_classification in _NON_SUBSTANTIVE_REARM_CLASSES
+    )
+
+
 class ResultRejection:
     """Reason strings used when :meth:`apply_audit_result` rejects a result."""
 
@@ -3367,6 +3386,7 @@ class TerminalTransitionCoordinator:
                         submitted_tracker_fingerprint == result.evidence_fingerprint
                         and current_tracker_fingerprint
                         != submitted_tracker_fingerprint
+                        and not _is_safe_retry_exhaustion_escalation(result)
                     ):
                         try:
                             projection_present, _projection = (
@@ -4437,6 +4457,19 @@ class TerminalTransitionCoordinator:
                     reason=ResultRejection.STATE_MISMATCH,
                 )
 
+            # Retry-exhaustion escalation is deliberately different from an
+            # auditor verdict.  It cannot approve the requested terminal
+            # state and the exact audit identity above still has to match.
+            # Permit that one coordinator-authored result to route to Needs
+            # Human even when a legacy record has no reproducible tracker
+            # projection or the live projection changed during a forge or
+            # credential cutover.  Persisting the result completes the audit
+            # once, so repeated recovery scans become idempotent instead of
+            # continuously advancing terminal authority and superseding
+            # unrelated workflow publications.
+            if _is_safe_retry_exhaustion_escalation(result):
+                pass
+
             # Retire the obsolete audit and immediately stage the same target
             # against the new canonical evidence.  This runs inside the same
             # project mutation fence as the refresh above, so no lifecycle or
@@ -4448,78 +4481,79 @@ class TerminalTransitionCoordinator:
             # closed and retain the original audit instead of silently
             # replacing it with weaker evidence.  Legacy records have no
             # projection and receive the same conservative treatment.
-            if (
-                audited_tracker_projection is None
-                or audited_tracker_projection != result.evidence_fingerprint
-            ):
-                return ResultOutcome(
-                    success=False,
-                    audit_id=result.audit_id,
-                    reason=ResultRejection.CURRENT_EVIDENCE_UNAVAILABLE,
-                )
-            replacement = self._transition_locked(
-                store,
-                tracker,
-                replace(
-                    current_issue,
-                    state=stale_record.previous_state or current_issue.state,
-                ),
-                result.target_state,
-                stale_record.requested_by
-                or ContributorIdentity("oompah", "terminal-audit-refresh"),
-                project_id,
-                current_fingerprint,
-                revision_binding=(
-                    AuditRevisionBinding(
-                        stale_record.selected_ref,
-                        stale_record.selected_sha,
+            else:
+                if (
+                    audited_tracker_projection is None
+                    or audited_tracker_projection != result.evidence_fingerprint
+                ):
+                    return ResultOutcome(
+                        success=False,
+                        audit_id=result.audit_id,
+                        reason=ResultRejection.CURRENT_EVIDENCE_UNAVAILABLE,
                     )
-                    if stale_record.selected_ref is not None
-                    and stale_record.selected_sha is not None
-                    else None
-                ),
-                workflow_revision=stale_record.workflow_revision,
-                ensure_validation_on_coalesce=True,
-                revalidate_completed=True,
-            )
-            if not replacement.success:
-                return ResultOutcome(
-                    success=False,
-                    audit_id=result.audit_id,
-                    reason=ResultRejection.CURRENT_EVIDENCE_UNAVAILABLE,
-                )
-            superseded_ids = replacement.superseded_audit_ids or (
-                [replacement.superseded_audit_id]
-                if replacement.superseded_audit_id
-                else []
-            )
-            for superseded_audit_id in superseded_ids:
-                self._record_metric(
-                    "record_stale_discarded",
+                replacement = self._transition_locked(
+                    store,
+                    tracker,
+                    replace(
+                        current_issue,
+                        state=stale_record.previous_state or current_issue.state,
+                    ),
+                    result.target_state,
+                    stale_record.requested_by
+                    or ContributorIdentity("oompah", "terminal-audit-refresh"),
                     project_id,
-                    identifier,
-                    superseded_audit_id,
+                    current_fingerprint,
+                    revision_binding=(
+                        AuditRevisionBinding(
+                            stale_record.selected_ref,
+                            stale_record.selected_sha,
+                        )
+                        if stale_record.selected_ref is not None
+                        and stale_record.selected_sha is not None
+                        else None
+                    ),
+                    workflow_revision=stale_record.workflow_revision,
+                    ensure_validation_on_coalesce=True,
+                    revalidate_completed=True,
                 )
-                self._clear_retired_alert(
-                    project_id, identifier, superseded_audit_id
+                if not replacement.success:
+                    return ResultOutcome(
+                        success=False,
+                        audit_id=result.audit_id,
+                        reason=ResultRejection.CURRENT_EVIDENCE_UNAVAILABLE,
+                    )
+                superseded_ids = replacement.superseded_audit_ids or (
+                    [replacement.superseded_audit_id]
+                    if replacement.superseded_audit_id
+                    else []
                 )
-            if not replacement.coalesced:
-                replacement_ids = replacement.audit_ids or (
-                    [replacement.audit_id] if replacement.audit_id else []
-                )
-                for replacement_audit_id in replacement_ids:
+                for superseded_audit_id in superseded_ids:
                     self._record_metric(
-                        "record_queued",
+                        "record_stale_discarded",
                         project_id,
                         identifier,
-                        replacement_audit_id,
+                        superseded_audit_id,
                     )
-            return ResultOutcome(
-                success=False,
-                audit_id=result.audit_id,
-                reason=ResultRejection.CURRENT_EVIDENCE_MISMATCH,
-                cancelled_audit_ids=superseded_ids,
-            )
+                    self._clear_retired_alert(
+                        project_id, identifier, superseded_audit_id
+                    )
+                if not replacement.coalesced:
+                    replacement_ids = replacement.audit_ids or (
+                        [replacement.audit_id] if replacement.audit_id else []
+                    )
+                    for replacement_audit_id in replacement_ids:
+                        self._record_metric(
+                            "record_queued",
+                            project_id,
+                            identifier,
+                            replacement_audit_id,
+                        )
+                return ResultOutcome(
+                    success=False,
+                    audit_id=result.audit_id,
+                    reason=ResultRejection.CURRENT_EVIDENCE_MISMATCH,
+                    cancelled_audit_ids=superseded_ids,
+                )
 
         if result.verdict == Verdict.PASS:
             lifecycle_conflict = self._lifecycle_conflict(
