@@ -1,10 +1,10 @@
 ---
-id: OOMPAH-1158
+id: OOMPAH-1182
 type: bug
 status: Backlog
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
-  task-authority deadline issue_id=TRICKLE-134 identifier=TRICKLE-134 run_id=fa6b28b840cb4e49bbdc64785040cf3a
+  task-authority deadline issue_id=TRICKLE-133 identifier=TRICKLE-133 run_id=b7bc8bd84c3d4155b825155cb6efd047
   timeout_sec...'
 parent: null
 children: []
@@ -12,8 +12,8 @@ blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
-created_at: '2026-08-12T15:36:49.568359Z'
-updated_at: '2026-08-12T15:36:49.568359Z'
+created_at: '2026-08-12T15:57:16.427766Z'
+updated_at: '2026-08-12T15:57:16.427766Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -26,7 +26,7 @@ merged_at: null
 ### Problem
 Oompah detected a backend error from `backend:orchestrator`:
 
-> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-134 identifier=TRICKLE-134 run_id=fa6b28b840cb4e49bbdc64785040cf3a timeout_seconds=5.0
+> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-133 identifier=TRICKLE-133 run_id=b7bc8bd84c3d4155b825155cb6efd047 timeout_seconds=5.0
 
 ### Steps to Reproduce
 1. Run oompah with `backend:orchestrator` active.
@@ -36,7 +36,7 @@ Oompah detected a backend error from `backend:orchestrator`:
 ### Actual Behavior
 An error occurs in `backend:orchestrator` and is recorded by oompah's `error_watcher`:
 
-> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-134 identifier=TRICKLE-134 run_id=fa6b28b840cb4e49bbdc64785040cf3a timeout_seconds=5.0
+> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-133 identifier=TRICKLE-133 run_id=b7bc8bd84c3d4155b825155cb6efd047 timeout_seconds=5.0
 
 ### Expected Behavior
 The operation in `backend:orchestrator` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
@@ -51,8 +51,8 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 - source_project: proj-14849f1b
 - tracker: provenanceguardedtracker
 - tracker_kind: provenanceguardedtracker
-- fingerprint: df585d9f7f2ef528
-- dedup_fingerprint: df585d9f7f2ef528
+- fingerprint: a6e6cc98c2346ac2
+- dedup_fingerprint: a6e6cc98c2346ac2
 
 ## Acceptance Criteria
 

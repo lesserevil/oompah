@@ -1,19 +1,17 @@
 ---
-id: OOMPAH-1160
+id: OOMPAH-1156
 type: bug
-status: Backlog
+status: Open
 priority: 2
-title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
-  task-authority deadline issue_id=TRICKLE-131 identifier=TRICKLE-131 run_id=d46e4f1e71814502bf567f6d3019bd57
-  timeout_sec...'
+title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-118'
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
-created_at: '2026-08-12T15:39:15.149783Z'
-updated_at: '2026-08-12T15:39:15.149783Z'
+created_at: '2026-08-12T15:36:08.719137Z'
+updated_at: '2026-08-12T15:57:14.506765Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -26,7 +24,7 @@ merged_at: null
 ### Problem
 Oompah detected a backend error from `backend:orchestrator`:
 
-> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-131 identifier=TRICKLE-131 run_id=d46e4f1e71814502bf567f6d3019bd57 timeout_seconds=5.0
+> ACP worker failed issue_id=TRICKLE-118
 
 ### Steps to Reproduce
 1. Run oompah with `backend:orchestrator` active.
@@ -36,7 +34,7 @@ Oompah detected a backend error from `backend:orchestrator`:
 ### Actual Behavior
 An error occurs in `backend:orchestrator` and is recorded by oompah's `error_watcher`:
 
-> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-131 identifier=TRICKLE-131 run_id=d46e4f1e71814502bf567f6d3019bd57 timeout_seconds=5.0
+> ACP worker failed issue_id=TRICKLE-118
 
 ### Expected Behavior
 The operation in `backend:orchestrator` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
@@ -51,8 +49,9 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 - source_project: proj-14849f1b
 - tracker: provenanceguardedtracker
 - tracker_kind: provenanceguardedtracker
-- fingerprint: a8a649ab1deecc47
-- dedup_fingerprint: a8a649ab1deecc47
+- fingerprint: dae6798cb24a91d0
+- dedup_fingerprint: dae6798cb24a91d0
+- source_issue: TRICKLE-118
 
 ## Acceptance Criteria
 

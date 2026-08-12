@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1178
 type: feature
-status: Backlog
+status: Open
 priority: 2
 title: Support transactional batch task updates for whole-column moves
 parent: null
@@ -13,7 +13,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-08-12T15:56:01.307393Z'
-updated_at: '2026-08-12T15:56:01.307393Z'
+updated_at: '2026-08-12T15:57:26.342596Z'
 work_branch: null
 target_branch: null
 review_url: null
