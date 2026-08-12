@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1156
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-118'
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:36:08.719137Z'
-updated_at: '2026-08-12T17:31:58.023382Z'
+updated_at: '2026-08-12T17:39:59.425099Z'
 work_branch: null
 target_branch: null
 review_url: null

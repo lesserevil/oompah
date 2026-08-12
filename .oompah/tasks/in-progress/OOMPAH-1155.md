@@ -1,9 +1,9 @@
 ---
-id: OOMPAH-1159
+id: OOMPAH-1155
 type: bug
-status: Open
+status: In Progress
 priority: 2
-title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-120'
+title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-134'
 parent: null
 children: []
 blocked_by: []
@@ -11,8 +11,8 @@ start_blocked_by: []
 labels:
 - human-only
 assignee: null
-created_at: '2026-08-12T15:39:02.214661Z'
-updated_at: '2026-08-12T17:32:09.822842Z'
+created_at: '2026-08-12T15:29:41.203071Z'
+updated_at: '2026-08-12T17:39:49.721827Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,7 +25,7 @@ merged_at: null
 ### Problem
 Oompah detected a backend error from `backend:orchestrator`:
 
-> ACP worker failed issue_id=TRICKLE-120
+> ACP worker failed issue_id=TRICKLE-134
 
 ### Steps to Reproduce
 1. Run oompah with `backend:orchestrator` active.
@@ -35,7 +35,7 @@ Oompah detected a backend error from `backend:orchestrator`:
 ### Actual Behavior
 An error occurs in `backend:orchestrator` and is recorded by oompah's `error_watcher`:
 
-> ACP worker failed issue_id=TRICKLE-120
+> ACP worker failed issue_id=TRICKLE-134
 
 ### Expected Behavior
 The operation in `backend:orchestrator` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
@@ -50,9 +50,9 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 - source_project: proj-14849f1b
 - tracker: provenanceguardedtracker
 - tracker_kind: provenanceguardedtracker
-- fingerprint: 4fb1f057c62f8a55
-- dedup_fingerprint: 4fb1f057c62f8a55
-- source_issue: TRICKLE-120
+- fingerprint: 22e4547d85a51ca3
+- dedup_fingerprint: 22e4547d85a51ca3
+- source_issue: TRICKLE-134
 
 ## Acceptance Criteria
 
