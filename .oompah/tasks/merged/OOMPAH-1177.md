@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1177
 type: bug
-status: In Progress
+status: Merged
 priority: 1
 title: Fail closed when dispatch claim persistence does not converge
 parent: null
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:54:19.893858Z'
-updated_at: '2026-08-12T20:02:00.358424Z'
+updated_at: '2026-08-12T20:02:04.721839Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,6 +51,7 @@ oompah.terminal_audit:
   version: 1
   pending_chain: []
   attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
