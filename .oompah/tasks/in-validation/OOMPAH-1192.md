@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1192
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Allow durable workflow START to publish runtime before its status transition
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T22:43:52.044640Z'
-updated_at: '2026-08-12T22:48:09.166063Z'
+updated_at: '2026-08-12T23:03:18.026409Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,65 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: b17dd9ae-fd84-4b5c-aef8-36b5f938a21d
   request_fingerprint: 3e7a6e731a0e094248063262aa779f0695cd5a17277458467868e8239b1b3a66
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-647755f57617
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1192
+    digest: b39e46f1de9cadc6a5e155cb59be63904dbc9f78cb89254fb9486690e17e769a
+  - version: 1
+    audit_id: audit-877e01c56d2b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1192
+    digest: b39e46f1de9cadc6a5e155cb59be63904dbc9f78cb89254fb9486690e17e769a
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-647755f57617
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1192
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b39e46f1de9cadc6a5e155cb59be63904dbc9f78cb89254fb9486690e17e769a
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-12T23:03:11.543262+00:00'
+    eligible_at: '2026-08-12T23:03:11.543262+00:00'
+    selected_ref: origin/OOMPAH-1192
+    selected_sha: 7820d212e4bd7224ec205aae2493ed5f22130fde
+  - version: 1
+    audit_id: audit-877e01c56d2b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1192
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b39e46f1de9cadc6a5e155cb59be63904dbc9f78cb89254fb9486690e17e769a
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-12T23:03:11.543262+00:00'
+    prerequisite_audit_id: audit-647755f57617
+    selected_ref: origin/OOMPAH-1192
+    selected_sha: 7820d212e4bd7224ec205aae2493ed5f22130fde
+  attempt_history: []
 ---
 ## Summary
 
@@ -47,5 +105,10 @@ author: oompah
 created: 2026-08-12 22:48
 ---
 Implementation committed at 7820d212e and pushed. Focused dispatch/workflow suites pass (90 passed); new regression cases cover workflow-owned source-state admission and external status-race rejection. PR #840 opened with auto-merge armed. Trickle remains paused.
+---
+author: oompah
+created: 2026-08-12 23:03
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
