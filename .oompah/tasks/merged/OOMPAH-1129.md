@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1129
 type: bug
-status: Open
+status: Merged
 priority: 2
 title: Record authenticated actor provenance for orchestrator and project pause changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-11T22:38:43.861744Z'
-updated_at: '2026-08-12T17:30:03.004884Z'
+updated_at: '2026-08-12T20:01:15.608302Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,6 +43,32 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 03198e42-27d6-42f8-850f-eefaa866cc82
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f9ab3ea67a8d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1129
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 470b637f1959545665e8ce205c46d7c16df8d54eb67bc7c238cef788bb2686c6
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Direct-owner completion verified in merged PR #836 at a6a983171: authenticated
+      scheduling-control provenance is persisted and exposed with spoofing/redaction
+      coverage; the exact merge passed the full Python 3.11/3.12/3.13 CI matrix.'
+    created_at: '2026-08-12T20:01:11.001257+00:00'
+    selected_ref: origin/main
+    selected_sha: 00db66b58afc1dfbb67572226213a8da8fd22ec4
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
