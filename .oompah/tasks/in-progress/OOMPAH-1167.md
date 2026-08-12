@@ -14,13 +14,38 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:46:49.735704Z'
-updated_at: '2026-08-12T17:40:43.165115Z'
+updated_at: '2026-08-12T20:22:25.034260Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-92dbca37ac8b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1167
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1544d24add89e88e1a13cbd637be5e3fc97acfd3ec3217b475c809ab983bfabd
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Historical auto-filed occurrence from the state-branch and dispatch-convergence
+      incident, consolidated into completed roots OOMPAH-1127, OOMPAH-1128, and OOMPAH-1177.
+      PRs #836 and #837 delivered durable transport fencing, stable incident identity,
+      and fail-closed provider admission with passing full CI; this occurrence requires
+      no independent implementation.'
+    created_at: '2026-08-12T20:22:23.191877+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
