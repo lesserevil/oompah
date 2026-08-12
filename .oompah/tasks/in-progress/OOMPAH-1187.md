@@ -1,10 +1,10 @@
 ---
-id: OOMPAH-1154
+id: OOMPAH-1187
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
-  task-authority deadline issue_id=TRICKLE-119 identifier=TRICKLE-119 run_id=58f614b6da9445cab095fbc4f091197f
+  task-authority deadline issue_id=OOMPAH-1127 identifier=OOMPAH-1127 run_id=970c2fe725bc48c380ce746f7d8db174
   timeout_sec...'
 parent: null
 children: []
@@ -13,8 +13,8 @@ start_blocked_by: []
 labels:
 - human-only
 assignee: null
-created_at: '2026-08-12T15:28:33.623933Z'
-updated_at: '2026-08-12T17:31:51.046493Z'
+created_at: '2026-08-12T16:00:08.121772Z'
+updated_at: '2026-08-12T17:42:18.826815Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,7 +27,7 @@ merged_at: null
 ### Problem
 Oompah detected a backend error from `backend:orchestrator`:
 
-> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-119 identifier=TRICKLE-119 run_id=58f614b6da9445cab095fbc4f091197f timeout_seconds=5.0
+> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=OOMPAH-1127 identifier=OOMPAH-1127 run_id=970c2fe725bc48c380ce746f7d8db174 timeout_seconds=5.0
 
 ### Steps to Reproduce
 1. Run oompah with `backend:orchestrator` active.
@@ -37,7 +37,7 @@ Oompah detected a backend error from `backend:orchestrator`:
 ### Actual Behavior
 An error occurs in `backend:orchestrator` and is recorded by oompah's `error_watcher`:
 
-> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-119 identifier=TRICKLE-119 run_id=58f614b6da9445cab095fbc4f091197f timeout_seconds=5.0
+> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=OOMPAH-1127 identifier=OOMPAH-1127 run_id=970c2fe725bc48c380ce746f7d8db174 timeout_seconds=5.0
 
 ### Expected Behavior
 The operation in `backend:orchestrator` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
@@ -52,8 +52,8 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 - source_project: proj-14849f1b
 - tracker: provenanceguardedtracker
 - tracker_kind: provenanceguardedtracker
-- fingerprint: 1bb04b78b2a8c9f4
-- dedup_fingerprint: 1bb04b78b2a8c9f4
+- fingerprint: fa809054ac0528bc
+- dedup_fingerprint: fa809054ac0528bc
 
 ## Acceptance Criteria
 

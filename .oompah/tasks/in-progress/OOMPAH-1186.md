@@ -1,9 +1,9 @@
 ---
-id: OOMPAH-1185
+id: OOMPAH-1186
 type: bug
-status: Backlog
+status: In Progress
 priority: 2
-title: '[backend:orchestrator] All dispatch candidates failed for issue TRICKLE-133:
+title: '[backend:orchestrator] All dispatch candidates failed for issue TRICKLE-120:
   All 2 dispatch candidates unavailable: prov-52e94e83/gpt-5.6-luna: contributor_evidence_unavailable:
   Cannot durably reco...'
 parent: null
@@ -13,8 +13,8 @@ start_blocked_by: []
 labels:
 - human-only
 assignee: null
-created_at: '2026-08-12T15:57:57.877191Z'
-updated_at: '2026-08-12T17:34:01.215624Z'
+created_at: '2026-08-12T15:58:08.127787Z'
+updated_at: '2026-08-12T17:42:15.068589Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,7 +27,7 @@ merged_at: null
 ### Problem
 Oompah detected a backend error from `backend:orchestrator`:
 
-> All dispatch candidates failed for issue TRICKLE-133: All 2 dispatch candidates unavailable: prov-52e94e83/gpt-5.6-luna: contributor_evidence_unavailable: Cannot durably record exact contributor provider/model evidence before the bounded task-authority deadline. The pre-provider runtime was retired for retry; no provider or workspace was started.; prov-651d553c/haiku: contributor_evidence_unavailable: Cannot durably record exact contributor provider/model evidence before launch (StateBranchFetchError). Restore tracker metadata writes and retry; no provider or workspace was started.
+> All dispatch candidates failed for issue TRICKLE-120: All 2 dispatch candidates unavailable: prov-52e94e83/gpt-5.6-luna: contributor_evidence_unavailable: Cannot durably record exact contributor provider/model evidence before launch (StateBranchFetchError). Restore tracker metadata writes and retry; no provider or workspace was started.; prov-651d553c/haiku: contributor_evidence_unavailable: Cannot durably record exact contributor provider/model evidence before launch (StateBranchFetchError). Restore tracker metadata writes and retry; no provider or workspace was started.
 
 ### Steps to Reproduce
 1. Run oompah with `backend:orchestrator` active.
@@ -37,7 +37,7 @@ Oompah detected a backend error from `backend:orchestrator`:
 ### Actual Behavior
 An error occurs in `backend:orchestrator` and is recorded by oompah's `error_watcher`:
 
-> All dispatch candidates failed for issue TRICKLE-133: All 2 dispatch candidates unavailable: prov-52e94e83/gpt-5.6-luna: contributor_evidence_unavailable: Cannot durably record exact contributor provider/model evidence before the bounded task-authority deadline. The pre-provider runtime was retired for retry; no provider or workspace was started.; prov-651d553c/haiku: contributor_evidence_unavailable: Cannot durably record exact contributor provider/model evidence before launch (StateBranchFetchError). Restore tracker metadata writes and retry; no provider or workspace was started.
+> All dispatch candidates failed for issue TRICKLE-120: All 2 dispatch candidates unavailable: prov-52e94e83/gpt-5.6-luna: contributor_evidence_unavailable: Cannot durably record exact contributor provider/model evidence before launch (StateBranchFetchError). Restore tracker metadata writes and retry; no provider or workspace was started.; prov-651d553c/haiku: contributor_evidence_unavailable: Cannot durably record exact contributor provider/model evidence before launch (StateBranchFetchError). Restore tracker metadata writes and retry; no provider or workspace was started.
 
 ### Expected Behavior
 The operation in `backend:orchestrator` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
@@ -52,8 +52,8 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 - source_project: proj-14849f1b
 - tracker: provenanceguardedtracker
 - tracker_kind: provenanceguardedtracker
-- fingerprint: 718aa3b1ba1707f3
-- dedup_fingerprint: 718aa3b1ba1707f3
+- fingerprint: f9cfadc6488b1fec
+- dedup_fingerprint: f9cfadc6488b1fec
 
 ## Acceptance Criteria
 

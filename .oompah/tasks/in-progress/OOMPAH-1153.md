@@ -1,11 +1,9 @@
 ---
-id: OOMPAH-1187
+id: OOMPAH-1153
 type: bug
-status: Backlog
+status: In Progress
 priority: 2
-title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
-  task-authority deadline issue_id=OOMPAH-1127 identifier=OOMPAH-1127 run_id=970c2fe725bc48c380ce746f7d8db174
-  timeout_sec...'
+title: '[backend:orchestrator] Failed to apply duplicate preflight result for TRICKLE-140'
 parent: null
 children: []
 blocked_by: []
@@ -13,8 +11,8 @@ start_blocked_by: []
 labels:
 - human-only
 assignee: null
-created_at: '2026-08-12T16:00:08.121772Z'
-updated_at: '2026-08-12T17:34:08.266657Z'
+created_at: '2026-08-12T15:27:24.712760Z'
+updated_at: '2026-08-12T17:42:25.611955Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,7 +25,7 @@ merged_at: null
 ### Problem
 Oompah detected a backend error from `backend:orchestrator`:
 
-> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=OOMPAH-1127 identifier=OOMPAH-1127 run_id=970c2fe725bc48c380ce746f7d8db174 timeout_seconds=5.0
+> Failed to apply duplicate preflight result for TRICKLE-140
 
 ### Steps to Reproduce
 1. Run oompah with `backend:orchestrator` active.
@@ -37,7 +35,7 @@ Oompah detected a backend error from `backend:orchestrator`:
 ### Actual Behavior
 An error occurs in `backend:orchestrator` and is recorded by oompah's `error_watcher`:
 
-> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=OOMPAH-1127 identifier=OOMPAH-1127 run_id=970c2fe725bc48c380ce746f7d8db174 timeout_seconds=5.0
+> Failed to apply duplicate preflight result for TRICKLE-140
 
 ### Expected Behavior
 The operation in `backend:orchestrator` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
@@ -52,8 +50,8 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 - source_project: proj-14849f1b
 - tracker: provenanceguardedtracker
 - tracker_kind: provenanceguardedtracker
-- fingerprint: fa809054ac0528bc
-- dedup_fingerprint: fa809054ac0528bc
+- fingerprint: fb0b7cc20961b467
+- dedup_fingerprint: fb0b7cc20961b467
 
 ## Acceptance Criteria
 
