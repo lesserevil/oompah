@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T21:09:00.853491Z'
-updated_at: '2026-08-12T21:10:09.570098Z'
+updated_at: '2026-08-12T22:11:05.542775Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -63,5 +63,10 @@ author: oompah
 created: 2026-08-12 21:10
 ---
 Direct operator implementation started on branch OOMPAH-1189 while the Oompah project remains paused. Trickle is temporarily paused after live fail-closed reproduction; no provider was admitted. The durable owner-claim request is queued under workflow job workflow-job-08d53f39e0dc4967a51a5aef0e3cb767, and this comment records the handoff while paused workflow execution cannot materialize it.
+---
+author: oompah
+created: 2026-08-12 22:11
+---
+Fix implemented and pushed in commit 9843b466f on PR #838. Native state-branch network Git now uses the managed project canonical remote as the direct operand with project credentials in an ephemeral environment, ignoring stale clone origins and ambient Git rewrites. Live Trickle canonical fetch succeeds. Full local gate: 20,178 passed, 7 skipped, 2 xfailed; secret scan passed. Trickle remains temporarily paused pending merge/restart; all other projects remain paused.
 ---
 <!-- COMMENTS:END -->
