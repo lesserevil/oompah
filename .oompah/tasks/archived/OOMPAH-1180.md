@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:57:08.788851Z'
-updated_at: '2026-08-12T20:11:17.573776Z'
+updated_at: '2026-08-12T20:11:38.330294Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -109,5 +109,10 @@ created: 2026-08-12 20:11
 Override by oompah-cli: terminal transition to Archived applied by project owner.
 
 Reason: Historical auto-filed occurrence from the state-branch and dispatch-convergence incident, consolidated into completed roots OOMPAH-1127, OOMPAH-1128, and OOMPAH-1177. PRs #836 and #837 delivered the durable transport, stable incident identity, and fail-closed provider-admission repairs with full CI. This occurrence requires no independent implementation.
+---
+author: oompah
+created: 2026-08-12 20:11
+---
+Archived as a historical incident occurrence superseded by merged root fixes OOMPAH-1127, OOMPAH-1128, and OOMPAH-1177 (PRs #836/#837).
 ---
 <!-- COMMENTS:END -->
