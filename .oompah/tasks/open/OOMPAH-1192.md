@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T22:43:52.044640Z'
-updated_at: '2026-08-12T22:47:36.650856Z'
+updated_at: '2026-08-12T22:48:09.166063Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-12 22:44
 ---
 Direct owner is implementing from live evidence. Trickle has been paused to stop retry churn. Observed affected tasks include TRICKLE-123, 124, 131, 132, 134, 135, 137, 119, 121, 122, and 118; all ordinary starts aborted before provider admission and compensation restored Open. The original state-branch transport failure is no longer present.
+---
+author: oompah
+created: 2026-08-12 22:48
+---
+Implementation committed at 7820d212e and pushed. Focused dispatch/workflow suites pass (90 passed); new regression cases cover workflow-owned source-state admission and external status-race rejection. PR #840 opened with auto-merge armed. Trickle remains paused.
 ---
 <!-- COMMENTS:END -->
