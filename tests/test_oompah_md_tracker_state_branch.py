@@ -1245,6 +1245,35 @@ class TestStateBranchTrackerFailures:
         assert secret not in str(exc_info.value)
         assert "must not contain credentials" in str(exc_info.value)
 
+    def test_canonical_remote_strips_legacy_username_only_userinfo(
+        self, tmp_path: Path
+    ) -> None:
+        """A legacy clone username cannot leak into managed Git argv."""
+        tracker = OompahMarkdownTracker(
+            active_states=[OPEN],
+            terminal_states=[DONE],
+            cwd=str(tmp_path),
+            access_token="managed-secret",
+            forge_kind="github",
+            canonical_remote_url=(
+                "https://legacy-actor@github.example:8443/org/repo.git"
+            ),
+        )
+
+        completed = subprocess.CompletedProcess(
+            args=["git", "fetch"], returncode=0, stdout="", stderr=""
+        )
+        with patch(
+            "oompah.oompah_md_tracker.subprocess.run", return_value=completed
+        ) as run:
+            tracker._git(["fetch", "origin", "main"], check=True)
+
+        command = run.call_args.args[0]
+        assert (
+            "https://github.example:8443/org/repo.git" in command
+        )
+        assert all("legacy-actor" not in argument for argument in command)
+
     def test_transient_index_lock_retries_complete_stage_commit_transaction(
         self, tmp_path: Path
     ) -> None:
@@ -2272,6 +2301,43 @@ class TestOrchestratorStateBranchWiring:
         assert call_kwargs.get("canonical_remote_url") == project.repo_url
         assert call_kwargs.get("access_token") == "project-token"
         assert call_kwargs.get("forge_kind") == "gitlab"
+
+    def test_orchestrator_constructs_tracker_for_legacy_username_remote(
+        self, tmp_path: Path
+    ) -> None:
+        """One legacy project URL cannot abort multi-project startup."""
+        from oompah.models import Project
+        from oompah.orchestrator import Orchestrator as _Orch
+
+        repo = tmp_path / "legacy-username"
+        repo.mkdir()
+        project = Project(
+            id="proj-legacy-username",
+            name="legacy-username",
+            repo_url="https://actor@github.example/org/repo.git",
+            repo_path=str(repo),
+            default_branch="main",
+            state_branch_enabled=True,
+            access_token="project-token",
+            forge_kind="github",
+        )
+        project_store = MagicMock()
+        project_store.canonical_remote_url.return_value = project.repo_url
+        orch = SimpleNamespace(
+            config=SimpleNamespace(
+                tracker_active_states=[OPEN],
+                tracker_terminal_states=[DONE],
+                tracker_kind="oompah_md",
+                terminal_control_lock_timeout_seconds=5.0,
+            ),
+            project_store=project_store,
+        )
+
+        tracker = _Orch._new_tracker_for_project(orch, project)
+
+        assert tracker._provenance_tracker._canonical_remote_url == (
+            "https://github.example/org/repo.git"
+        )
 
     def test_tracker_stores_state_branch_name_attribute(
         self, tmp_path: Path

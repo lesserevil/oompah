@@ -409,14 +409,19 @@ class OompahMarkdownTracker:
                 raise TrackerError(
                     "Managed canonical remote URL is malformed"
                 ) from exc
-            if parsed_remote.scheme.lower() in {"http", "https"} and (
-                "@" in parsed_remote.netloc
-                or parsed_remote.username is not None
-                or parsed_remote.password is not None
-            ):
-                raise TrackerError(
-                    "Managed canonical remote URL must not contain credentials"
-                )
+            if parsed_remote.scheme.lower() in {"http", "https"}:
+                if parsed_remote.password is not None:
+                    raise TrackerError(
+                        "Managed canonical remote URL must not contain credentials"
+                    )
+                if parsed_remote.username is not None:
+                    # Legacy project registrations may include a non-secret
+                    # clone username (for example ``https://actor@github``).
+                    # The managed token remains askpass-only; remove that
+                    # user-info before placing the canonical URL in argv.
+                    self._canonical_remote_url = parsed_remote._replace(
+                        netloc=parsed_remote.netloc.rsplit("@", 1)[-1]
+                    ).geturl()
         # Optional callback invoked after each successful state-branch checkpoint
         # flush. Used by server.py to invalidate the issues snapshot cache so
         # clients receive fresh data without waiting for the 60-second TTL.
