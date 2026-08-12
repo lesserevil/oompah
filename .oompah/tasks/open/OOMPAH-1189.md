@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1189
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Use managed authenticated remote for native state-branch claims
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T21:09:00.853491Z'
-updated_at: '2026-08-12T21:09:00.853491Z'
+updated_at: '2026-08-12T21:09:40.804988Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,6 +25,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: scheduling-state-branch-canonical-auth-20260812
   request_fingerprint: a3aa7f1c53b8557fa4553c1a9f238cd5489828892b0581957135e622aa99fc99
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
