@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:56:01.307393Z'
-updated_at: '2026-08-12T19:07:32.614029Z'
+updated_at: '2026-08-12T19:22:14.404623Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-08-12 19:07
 ---
 Direct-owner implementation is feature-complete on branch OOMPAH-1178. Added one-call project-scoped atomic batch status API, exact per-task CAS with monotonic lifecycle revisions, persistent idempotency receipts, crash-safe publishing recovery, single state-branch commit/push, explicit unsupported remote capabilities, owner/worker/audit/integration/transition fences, paused-project semantics, coalesced events/rollups, and accessible dashboard whole-column drag/keyboard flow. Focused integration evidence: 639 passed; terminal mutation scan 21/21 passed. The full make test gate is currently running on the exact working tree while all projects remain paused.
+---
+author: oompah
+created: 2026-08-12 19:22
+---
+Committed and pushed as bbfb66b578e783c7ee319c93fd96c5bd11934394, then combined with OOMPAH-1177 on PR #837 at aaa3ec17a0b98e280bffa1e71d3dd904f5060d41. Exact-head expanded integration coverage passes 1,893 tests and the combined focused suite passes 911; terminal mutation scan passes 21/21. Full Makefile gate and GitHub matrix are running.
 ---
 <!-- COMMENTS:END -->
