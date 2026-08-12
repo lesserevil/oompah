@@ -791,12 +791,12 @@ async function toggleMergeQueue(id, enabled) {
 }
 
 async function pauseProject(id) {
-  await _runMutation('Pause project', '/api/v1/projects/' + id + '/pause', {method: 'POST'});
+  await _runMutation('Pause project', '/api/v1/projects/' + id + '/pause', {method: 'POST', headers: {'X-Oompah-Request-Source': 'ui'}});
   loadProjects();
 }
 
 async function resumeProject(id) {
-  await _runMutation('Resume project', '/api/v1/projects/' + id + '/resume', {method: 'POST'});
+  await _runMutation('Resume project', '/api/v1/projects/' + id + '/resume', {method: 'POST', headers: {'X-Oompah-Request-Source': 'ui'}});
   loadProjects();
 }
 

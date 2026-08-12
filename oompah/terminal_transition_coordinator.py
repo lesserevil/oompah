@@ -5072,6 +5072,10 @@ class TerminalTransitionCoordinator:
                 "Failed to apply audit-result status %r for %s",
                 applied_status,
                 identifier,
+                extra={
+                    "error_class": "terminal_transition.status_apply_failed",
+                    "incident_key": f"{project_id}/{identifier}",
+                },
             )
 
         # --- Post the result comment only after the authoritative status was
@@ -5109,6 +5113,10 @@ class TerminalTransitionCoordinator:
                 logger.exception(
                     "Failed to finalize terminal-audit result intent for %s",
                     identifier,
+                    extra={
+                        "error_class": "terminal_transition.finalization_failed",
+                        "incident_key": f"{project_id}/{identifier}",
+                    },
                 )
 
         # --- Epic-audit-repair signalling ---

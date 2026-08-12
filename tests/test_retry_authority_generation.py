@@ -1782,8 +1782,10 @@ def test_retry_cancellation_publishes_to_foreign_timer_owner_loop(tmp_path):
         thread.join(timeout=1)
 
 
-def test_post_rearm_persistence_failure_suppresses_resumed_event(tmp_path):
-    """Activation cannot report success after its new retry snapshot fails."""
+def test_resume_provenance_failure_suppresses_activation_and_resumed_event(
+    tmp_path,
+):
+    """Resume cannot arm work or report success before provenance is durable."""
 
     async def scenario():
         orch = _orchestrator(tmp_path)
@@ -1817,16 +1819,14 @@ def test_post_rearm_persistence_failure_suppresses_resumed_event(tmp_path):
         ):
             assert orch.unpause() is False
 
-        assert recovery.timer_handle is not None
-        assert orch._retry_persistence_failed is True
+        assert recovery.timer_handle is None
+        assert orch._retry_persistence_failed is False
         assert orch._quiesced is True
         assert orch._dispatch_is_blocked(issue) is True
         assert all(
             getattr(event_type, "value", event_type) != "orchestrator_resumed"
             for event_type in emitted
         )
-        recovery.timer_handle.cancel()
-        recovery.timer_handle = None
         orch._cancel_retry_for_issue(issue_id=issue.id, reason="test cleanup")
 
     asyncio.run(scenario())

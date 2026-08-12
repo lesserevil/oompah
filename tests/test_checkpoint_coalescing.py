@@ -1596,6 +1596,72 @@ class TestShutdownFlush:
         assert q.pending_mutations == 0
 
 
+class TestCheckpointWriterCutover:
+    """Superseded tracker generations cannot publish after cutover."""
+
+    def test_retire_preserves_pending_state_for_successor_exactly_once(
+        self, state_repo: tuple[Path, str]
+    ) -> None:
+        repo, state_branch = state_repo
+        FakeTimer, timers = TestCheckpointQueueDebounce()._make_fake_timer_factory(
+            False
+        )
+        old = _make_tracker(
+            repo,
+            state_branch_name=state_branch,
+            timer_factory=FakeTimer,
+        )
+        old.create_issue("Pending across credential cutover")
+        assert old.checkpoint_pending_mutations == 1
+
+        transferred = old.retire_checkpoint_writer(reason="credential_cutover")
+        commits_before_adoption = _commit_count(repo, state_branch)
+        # Even if stale timer callbacks race after the cutover, the retired
+        # queue is a no-op and cannot call the old publication authority.
+        for timer in timers:
+            timer.fn(*timer.args, **timer.kwargs)
+        assert _commit_count(repo, state_branch) == commits_before_adoption
+        with pytest.raises(TrackerError, match="retired tracker"):
+            old.create_issue("Forbidden stale mutation")
+
+        successor = _make_tracker(repo, state_branch_name=state_branch)
+        successor.adopt_checkpoint_state(reason="credential_cutover")
+        commits_after_adoption = _commit_count(repo, state_branch)
+        successor.adopt_checkpoint_state(reason="credential_cutover_replay")
+
+        assert transferred == 1
+        assert commits_after_adoption == commits_before_adoption + 1
+        assert _commit_count(repo, state_branch) == commits_after_adoption
+        assert successor.fetch_all_issues()[0].title == (
+            "Pending across credential cutover"
+        )
+
+    def test_error_incident_identity_is_project_scoped(self, caplog) -> None:
+        def fail() -> None:
+            raise RuntimeError("push rejected")
+
+        FakeTimer, _ = TestCheckpointQueueDebounce()._make_fake_timer_factory(False)
+        queue = CheckpointQueue(
+            debounce_ms=100,
+            max_delay_ms=1100,
+            flush_fn=fail,
+            incident_key="state_branch:proj-a",
+            _timer_factory=FakeTimer,
+        )
+        queue.schedule()
+
+        with caplog.at_level("ERROR"), pytest.raises(RuntimeError):
+            queue.flush(reason="debounce")
+
+        record = next(
+            record
+            for record in caplog.records
+            if record.name == "oompah.checkpoint_queue"
+        )
+        assert record.error_class == "checkpoint_queue.flush_failed"
+        assert record.incident_key == "state_branch:proj-a"
+
+
 # ---------------------------------------------------------------------------
 # § 10 — Auto-correction of invalid max_delay < debounce
 # ---------------------------------------------------------------------------

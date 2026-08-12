@@ -131,6 +131,7 @@ class ErrorWatcher:
         priority: int = 2,
         issue_id: str | None = None,
         error_class: str | None = None,
+        incident_key: str | None = None,
     ) -> str | None:
         """Report an error and create a task if not a duplicate.
 
@@ -150,11 +151,19 @@ class ErrorWatcher:
                 the exact message text, project, or subcommand. Use this
                 for known operational/infra failure modes that fan out
                 across many call sites.
+            incident_key: Optional stable caller-owned identity within
+                ``error_class``. Use it to keep independent task/backend
+                incidents distinct without hashing volatile telemetry.
 
         Returns:
             The task identifier if one was created, None if deduplicated.
         """
-        fp = self._fingerprint(source, message, error_class=error_class)
+        fp = self._fingerprint(
+            source,
+            message,
+            error_class=error_class,
+            incident_key=incident_key,
+        )
 
         now = time.monotonic()
         record = self._seen.get(fp)
@@ -206,6 +215,7 @@ class ErrorWatcher:
             source, message, fp,
             detail=detail,
             error_class=error_class,
+            incident_key=incident_key,
             issue_id=issue_id,
         )
 
@@ -362,6 +372,7 @@ class ErrorWatcher:
         *,
         detail: str | None = None,
         error_class: str | None = None,
+        incident_key: str | None = None,
         issue_id: str | None = None,
     ) -> str:
         """Build a structured bug description that passes ``validate_issue()``.
@@ -472,6 +483,8 @@ class ErrorWatcher:
             meta_lines.append(f"- source_issue: {issue_id}")
         if error_class:
             meta_lines.append(f"- error_class: {error_class}")
+        if incident_key:
+            meta_lines.append(f"- incident_key: {incident_key}")
 
         return "".join(parts) + "\n".join(meta_lines)
 
@@ -529,6 +542,7 @@ class ErrorWatcher:
         message: str,
         *,
         error_class: str | None = None,
+        incident_key: str | None = None,
     ) -> str:
         """Create a stable fingerprint for deduplication.
 
@@ -553,7 +567,7 @@ class ErrorWatcher:
         message text.
         """
         if error_class:
-            raw = f"class={error_class}"
+            raw = f"class={error_class}:incident={incident_key or 'global'}"
             return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
         import re
@@ -602,6 +616,16 @@ class ErrorWatcher:
             "<duration>",
             normalized,
         )
+        # Retry counters are telemetry, not incident identity.  Preserve the
+        # field name so semantically different counters do not collapse, but
+        # normalize every value including the small 1..25 range that the
+        # generic large-number rule intentionally leaves untouched.
+        normalized = re.sub(
+            r"\b(push_failures|retry_count|retry|attempt|failure_count|"
+            r"failures|count)\s*=\s*\d+\b",
+            r"\1=<count>",
+            normalized,
+        )
         normalized = re.sub(r"\b\d{4,}\b", "<num>", normalized)
         raw = f"{source}:{normalized}"
         return hashlib.sha256(raw.encode()).hexdigest()[:16]
@@ -643,6 +667,7 @@ class _TaskLoggingHandler(logging.Handler):
             # to collapse fan-out failures (e.g. one Dolt slowdown that
             # produces N project-fetch errors) into a single task.
             error_class = getattr(record, "error_class", None)
+            incident_key = getattr(record, "incident_key", None)
             self._watcher.report_error(
                 source=source,
                 message=message,
@@ -650,6 +675,7 @@ class _TaskLoggingHandler(logging.Handler):
                 priority=priority,
                 issue_id=issue_id,
                 error_class=error_class,
+                incident_key=incident_key,
             )
         except Exception:
             # Never let handler errors propagate

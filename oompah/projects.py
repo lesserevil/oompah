@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import logging
@@ -2516,7 +2517,69 @@ class ProjectStore:
                 self.advance_workflow_authority_revision(project_id)
             return project
 
-    def _update_unlocked(self, project_id: str, **fields) -> Project | None:
+    def validate_update(self, project_id: str, **fields) -> Project | None:
+        """Return a normalized update candidate without publishing it.
+
+        Validation uses the same implementation as :meth:`update`, against a
+        detached project and a non-persisting store clone.  Callers that must
+        fence an existing writer before publishing new credentials can thus
+        reject invalid input before that irreversible authority cut.
+        """
+
+        with self.project_write_lock(project_id):
+            project = self._projects.get(project_id)
+            if project is None:
+                return None
+            candidate_store = copy.copy(self)
+            candidate_store._projects = dict(self._projects)
+            candidate_store._projects[project_id] = replace(project)
+            return candidate_store._update_unlocked(
+                project_id,
+                _persist=False,
+                **fields,
+            )
+
+    def update_after_validation(
+        self,
+        project_id: str,
+        *,
+        before_publish: Callable[[], None],
+        **fields,
+    ) -> Project | None:
+        """Validate, run an authority fence, then publish under one lock.
+
+        ``before_publish`` runs only after the complete detached candidate is
+        valid, while the per-project write lock is still held.  This is the
+        credential-cutover primitive: no task mutation can enter between the
+        old writer fence and publication of its successor configuration.
+        """
+
+        with self.project_write_lock(project_id):
+            candidate = self.validate_update(project_id, **fields)
+            if candidate is None:
+                return None
+            before_publish()
+            previous = self._projects[project_id]
+            self._projects[project_id] = candidate
+            register_secret_values(
+                (candidate.access_token, candidate.webhook_secret)
+            )
+            try:
+                self._save()
+            except Exception:
+                self._projects[project_id] = previous
+                raise
+            if fields:
+                self.advance_workflow_authority_revision(project_id)
+            return candidate
+
+    def _update_unlocked(
+        self,
+        project_id: str,
+        *,
+        _persist: bool = True,
+        **fields,
+    ) -> Project | None:
         """Update a project's mutable fields.
 
         Args:
@@ -3020,9 +3083,11 @@ class ProjectStore:
             # Dynamic project updates can introduce a new opaque token/secret;
             # retain both the new and old value in the process-local registry so
             # delayed workers cannot expose either during rotation.
-            register_secret_values((project.access_token, project.webhook_secret))
-
-            self._save()
+            if _persist:
+                register_secret_values(
+                    (project.access_token, project.webhook_secret)
+                )
+                self._save()
         return project
 
     def delete(self, project_id: str) -> bool:

@@ -779,6 +779,44 @@ def _authenticated_principal(request: Any) -> AuthenticatedPrincipal | None:
     return None
 
 
+def _scheduling_control_request_context(
+    request: Request | None,
+    body: dict[str, Any] | None = None,
+) -> tuple[str, str, str, JSONResponse | None]:
+    """Return server-derived actor/source/request identity for pause controls."""
+
+    principal = _authenticated_principal(request)
+    client_actor = _client_supplied_actor(body, request)
+    if principal is not None and principal.is_authenticated:
+        if not principal.actor_login:
+            return "", "api", "", _no_authorized_actor_response()
+        if (
+            client_actor
+            and client_actor.casefold() != principal.actor_login.casefold()
+        ):
+            return "", "api", "", _actor_conflict_response(
+                principal, client_actor
+            )
+        actor = principal.actor_login
+    else:
+        # Auth-disabled compatibility remains attributable without ever
+        # promoting a caller-supplied actor string to trusted provenance.
+        actor = "oompah-unauthenticated"
+
+    source = "api"
+    request_id = f"control-{uuid.uuid4().hex}"
+    if request is not None:
+        if request.headers.get("x-oompah-request-source", "").casefold() in {
+            "ui",
+            "dashboard",
+        }:
+            source = "ui"
+        supplied_request_id = str(request.headers.get("x-request-id") or "").strip()
+        if supplied_request_id:
+            request_id = supplied_request_id
+    return actor, source, request_id, None
+
+
 def _mcp_authentication_enabled() -> bool:
     """Return whether the current server configuration requires Basic auth."""
     return _http_credentials is not None and _http_credentials.enabled
@@ -17905,15 +17943,30 @@ async def api_agent_activity(identifier: str, project_id: str | None = None):
 
 
 @app.post("/api/v1/orchestrator/pause")
-async def api_orchestrator_pause():
+async def api_orchestrator_pause(request: Request = None):
     """Pause the orchestrator (stop dispatching new agents).
 
     In multi-process / API-only mode enqueues a 'pause' command in the
     IPC SQLite queue so the scheduler process picks it up on the next tick.
     """
     try:
+        body: dict[str, Any] = {}
+        if request is not None:
+            try:
+                candidate = await request.json()
+                body = candidate if isinstance(candidate, dict) else {}
+            except Exception:
+                pass
+        actor, source, request_id, conflict = _scheduling_control_request_context(
+            request, body
+        )
+        if conflict is not None:
+            return conflict
         if _orchestrator is None and _ipc is not None:
-            cmd_id = _ipc.enqueue_command("pause")
+            cmd_id = _ipc.enqueue_command(
+                "pause",
+                {"actor": actor, "source": source, "request_id": request_id},
+            )
             return JSONResponse({"ok": True, "paused": True, "ipc_command_id": cmd_id})
         orch = _get_orchestrator()
         request_loop = asyncio.get_running_loop()
@@ -17921,6 +17974,9 @@ async def api_orchestrator_pause():
             orch.pause,
             notify=False,
             termination_loop=request_loop,
+            actor=actor,
+            source=source,
+            request_id=request_id,
         )
         _request_lifecycle_publication(orch, int(pause_generation))
         return JSONResponse({"ok": True, "paused": True})
@@ -17964,19 +18020,39 @@ async def api_orchestrator_quiesce():
 
 
 @app.post("/api/v1/orchestrator/resume")
-async def api_orchestrator_resume():
+async def api_orchestrator_resume(request: Request = None):
     """Resume the orchestrator.
 
     In multi-process / API-only mode enqueues an 'unpause' command in
     the IPC SQLite queue.
     """
     try:
+        body: dict[str, Any] = {}
+        if request is not None:
+            try:
+                candidate = await request.json()
+                body = candidate if isinstance(candidate, dict) else {}
+            except Exception:
+                pass
+        actor, source, request_id, conflict = _scheduling_control_request_context(
+            request, body
+        )
+        if conflict is not None:
+            return conflict
         if _orchestrator is None and _ipc is not None:
-            cmd_id = _ipc.enqueue_command("unpause")
+            cmd_id = _ipc.enqueue_command(
+                "unpause",
+                {"actor": actor, "source": source, "request_id": request_id},
+            )
             return JSONResponse({"ok": True, "paused": False, "ipc_command_id": cmd_id})
         orch = _get_orchestrator()
         def _resume_with_generation() -> tuple[bool, int]:
-            resumed = orch.unpause(notify=False)
+            resumed = orch.unpause(
+                notify=False,
+                actor=actor,
+                source=source,
+                request_id=request_id,
+            )
             admission_lock = getattr(orch, "_provider_admission_lock", None)
             with admission_lock or contextlib.nullcontext():
                 generation = int(
@@ -20578,19 +20654,51 @@ async def api_update_project(project_id: str, request: Request):
             fields["status_actor_login"] = _resolve_github_token_owner(
                 fields["access_token"]
             )
-        admission_lock = (
-            getattr(orch, "_provider_admission_lock", None)
-            if "paused" in fields
-            else None
-        )
+        pause_change = fields.pop("paused", None) if "paused" in fields else None
+        if pause_change is not None and fields:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": (
+                            "paused must be changed alone so scheduling-control "
+                            "provenance remains atomic"
+                        ),
+                    }
+                },
+                status_code=400,
+            )
         tracker_configuration_changed = bool(
             set(fields) & _PROJECT_TRACKER_CACHE_FIELDS
         )
-        with admission_lock or contextlib.nullcontext():
+        if pause_change is not None:
+            actor, source, request_id, conflict = (
+                _scheduling_control_request_context(request, body)
+            )
+            if conflict is not None:
+                return conflict
+            setter = getattr(type(orch), "set_project_paused", None)
+            project = (
+                setter(
+                    orch,
+                    project_id,
+                    bool(pause_change),
+                    actor=actor,
+                    source=source,
+                    request_id=request_id,
+                )
+                if callable(setter)
+                else orch.project_store.update(project_id, paused=bool(pause_change))
+            )
+        else:
             project = (
                 _update_project_tracker_configuration(orch, project_id, **fields)
                 if tracker_configuration_changed
-                else orch.project_store.update(project_id, **fields)
+                else (
+                    orch.project_store.update(project_id, **fields)
+                    if fields
+                    else orch.project_store.get(project_id)
+                )
             )
         if not project:
             return JSONResponse(
@@ -20653,7 +20761,7 @@ async def api_delete_project(project_id: str):
 
 
 @app.post("/api/v1/projects/{project_id}/pause")
-async def api_project_pause(project_id: str):
+async def api_project_pause(project_id: str, request: Request = None):
     """Pause dispatch for a single project.
 
     Mirrors /api/v1/orchestrator/pause but scoped to one project.
@@ -20664,9 +20772,32 @@ async def api_project_pause(project_id: str):
     """
     try:
         orch = _get_orchestrator()
-        admission_lock = getattr(orch, "_provider_admission_lock", None)
-        with admission_lock or contextlib.nullcontext():
-            project = orch.project_store.update(project_id, paused=True)
+        body: dict[str, Any] = {}
+        if request is not None:
+            try:
+                candidate = await request.json()
+                body = candidate if isinstance(candidate, dict) else {}
+            except Exception:
+                pass
+        actor, source, request_id, conflict = _scheduling_control_request_context(
+            request, body
+        )
+        if conflict is not None:
+            return conflict
+        setter = getattr(type(orch), "set_project_paused", None)
+        if callable(setter):
+            project = setter(
+                orch,
+                project_id,
+                True,
+                actor=actor,
+                source=source,
+                request_id=request_id,
+            )
+        else:
+            admission_lock = getattr(orch, "_provider_admission_lock", None)
+            with admission_lock or contextlib.nullcontext():
+                project = orch.project_store.update(project_id, paused=True)
         if not project:
             return JSONResponse(
                 {
@@ -20693,13 +20824,36 @@ async def api_project_pause(project_id: str):
 
 
 @app.post("/api/v1/projects/{project_id}/resume")
-async def api_project_resume(project_id: str):
+async def api_project_resume(project_id: str, request: Request = None):
     """Resume dispatch for a single project (clear the per-project pause)."""
     try:
         orch = _get_orchestrator()
-        admission_lock = getattr(orch, "_provider_admission_lock", None)
-        with admission_lock or contextlib.nullcontext():
-            project = orch.project_store.update(project_id, paused=False)
+        body: dict[str, Any] = {}
+        if request is not None:
+            try:
+                candidate = await request.json()
+                body = candidate if isinstance(candidate, dict) else {}
+            except Exception:
+                pass
+        actor, source, request_id, conflict = _scheduling_control_request_context(
+            request, body
+        )
+        if conflict is not None:
+            return conflict
+        setter = getattr(type(orch), "set_project_paused", None)
+        if callable(setter):
+            project = setter(
+                orch,
+                project_id,
+                False,
+                actor=actor,
+                source=source,
+                request_id=request_id,
+            )
+        else:
+            admission_lock = getattr(orch, "_provider_admission_lock", None)
+            with admission_lock or contextlib.nullcontext():
+                project = orch.project_store.update(project_id, paused=False)
         if not project:
             return JSONResponse(
                 {
