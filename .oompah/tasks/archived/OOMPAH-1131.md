@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T01:39:00.495653Z'
-updated_at: '2026-08-12T20:04:49.806829Z'
+updated_at: '2026-08-12T20:04:57.272875Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,7 +39,21 @@ oompah.terminal_audit:
       writers and stabilized retry incident identity; its full CI matrix passed. This
       occurrence requires no independent implementation.'
     created_at: '2026-08-12T20:04:45.192870+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1131
+    target_state: Archived
+    evidence_fingerprint: 558d9f84b48a0beeb1fb430a19b2be0cac4dcc1e7b90263fd129351b8b5dc3fa
+    workflow_revision: null
+    selected_ref: null
+    selected_sha: null
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-12T20:04:55.531190+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -94,5 +108,12 @@ Duplicate error_watcher occurrence suppressed; this task already tracks the same
 Source: `backend:checkpoint_queue`
 
 Message: Checkpoint flush FAILED (reason=debounce); push_failures=1
+---
+author: oompah
+created: 2026-08-12 20:04
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Historical auto-filed checkpoint occurrence consolidated into completed roots OOMPAH-1127 and OOMPAH-1128. PR #836 at a6a983171 fenced stale checkpoint writers and stabilized retry incident identity; its full CI matrix passed. This occurrence requires no independent implementation.
 ---
 <!-- COMMENTS:END -->
