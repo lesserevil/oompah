@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T01:39:00.495653Z'
-updated_at: '2026-08-12T20:04:57.272875Z'
+updated_at: '2026-08-12T20:05:47.899293Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -115,5 +115,10 @@ created: 2026-08-12 20:04
 Override by oompah-cli: terminal transition to Archived applied by project owner.
 
 Reason: Historical auto-filed checkpoint occurrence consolidated into completed roots OOMPAH-1127 and OOMPAH-1128. PR #836 at a6a983171 fenced stale checkpoint writers and stabilized retry incident identity; its full CI matrix passed. This occurrence requires no independent implementation.
+---
+author: oompah
+created: 2026-08-12 20:05
+---
+Archived as a historical checkpoint occurrence superseded by merged root fixes OOMPAH-1127 and OOMPAH-1128 (PR #836, a6a983171).
 ---
 <!-- COMMENTS:END -->
