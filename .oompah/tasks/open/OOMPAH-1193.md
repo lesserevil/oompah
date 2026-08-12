@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:19:53.793903Z'
-updated_at: '2026-08-12T23:20:28.142733Z'
+updated_at: '2026-08-12T23:30:58.045951Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-12 23:20
 ---
 Live reproduction on build 81c63ce5: Trickle generation 6315 reported implementation truncated=false with 17/17 schedules materialized, integration truncated=true with 0/2 schedules materialized, epic truncated=true with 1/3 schedules materialized, liveness scan_complete=false, and worker admission deferred. workflow_reconcile_continuation_requested remained false. Trickle was paused before implementing the hotfix; all other projects were already paused.
+---
+author: oompah
+created: 2026-08-12 23:30
+---
+Safety refinement pushed in 1744e1cf: immediate restart continuation is now limited to reports with an explicitly truncated workflow domain. Incomplete scans caused by source or authority read errors do not self-requeue, preserving normal retry backoff and preventing a hot loop. Focused restart tests: 5 passed; workflow retirement/runtime tests: 195 passed. Exact-head complete gate and Python 3.11/3.12/3.13 CI are running.
 ---
 <!-- COMMENTS:END -->
