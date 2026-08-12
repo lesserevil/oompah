@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:57:48.492072Z'
-updated_at: '2026-08-12T20:12:04.916985Z'
+updated_at: '2026-08-12T20:12:12.863261Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,21 @@ oompah.terminal_audit:
       and fail-closed provider-admission repairs with full CI. This occurrence requires
       no independent implementation.'
     created_at: '2026-08-12T20:11:56.583878+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1184
+    target_state: Archived
+    evidence_fingerprint: a4d0b1b29b512d9c5336e94650494d0b837bcafc5490d958db4456171d8780d2
+    workflow_revision: null
+    selected_ref: null
+    selected_sha: null
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-12T20:12:11.248570+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -87,3 +101,13 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-12 20:12
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Historical auto-filed occurrence from the state-branch and dispatch-convergence incident, consolidated into completed roots OOMPAH-1127, OOMPAH-1128, and OOMPAH-1177. PRs #836 and #837 delivered the durable transport, stable incident identity, and fail-closed provider-admission repairs with full CI. This occurrence requires no independent implementation.
+---
+<!-- COMMENTS:END -->
