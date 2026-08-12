@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1190
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Sanitize legacy username-only userinfo in managed canonical remotes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T22:25:20.676127Z'
-updated_at: '2026-08-12T22:28:08.088073Z'
+updated_at: '2026-08-12T22:37:45.085000Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,65 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: f01ec846-9ac5-473d-aaae-428603c060fd
   request_fingerprint: 2e8962baf19d5e1b07cb1196d198039e040e6b841ecc623363ed710f3e25669b
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-13be62762bd9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1190
+    digest: 3b276b96baece8ebefb59526ee4b021278b859dd5820df5e8a6a47d286b89e5d
+  - version: 1
+    audit_id: audit-3a159708a3be
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1190
+    digest: 3b276b96baece8ebefb59526ee4b021278b859dd5820df5e8a6a47d286b89e5d
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-13be62762bd9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1190
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3b276b96baece8ebefb59526ee4b021278b859dd5820df5e8a6a47d286b89e5d
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-12T22:37:38.654914+00:00'
+    eligible_at: '2026-08-12T22:37:38.654914+00:00'
+    selected_ref: origin/OOMPAH-1190
+    selected_sha: ad14380b0004fc42fe0e4e5d9f3e8f57cb12990d
+  - version: 1
+    audit_id: audit-3a159708a3be
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1190
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3b276b96baece8ebefb59526ee4b021278b859dd5820df5e8a6a47d286b89e5d
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-12T22:37:38.654914+00:00'
+    prerequisite_audit_id: audit-13be62762bd9
+    selected_ref: origin/OOMPAH-1190
+    selected_sha: ad14380b0004fc42fe0e4e5d9f3e8f57cb12990d
+  attempt_history: []
 ---
 ## Summary
 
@@ -47,5 +105,10 @@ author: oompah
 created: 2026-08-12 22:28
 ---
 Expanded regression coverage now proves orchestrator tracker construction succeeds for a state-branch project with a legacy username-only URL. Focused result: 4 passed. Pushed ad14380b and opened PR #839 with auto-merge armed.
+---
+author: oompah
+created: 2026-08-12 22:37
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
