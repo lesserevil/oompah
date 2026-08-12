@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:54:19.893858Z'
-updated_at: '2026-08-12T19:22:11.350593Z'
+updated_at: '2026-08-12T20:02:00.358424Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -26,6 +26,31 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: dispatch-claim-persistence-open-live-agent-20260812
   request_fingerprint: 17e5f5425300a525dfb0db14b1eca163f241a7ff4a86ffcd5c058ae92fee4b10
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-b8c5348bc26f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1177
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b1d2387a807434655673ed826591407984e8bbbd1ed96bf5541b9521680fec50
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Direct-owner completion verified in merged PR #837 at 00db66b58: provider
+      admission now fails closed unless exact durable claim evidence converges; full
+      Python 3.11/3.12/3.13 CI passed.'
+    created_at: '2026-08-12T20:01:58.553483+00:00'
+    selected_ref: origin/OOMPAH-1177
+    selected_sha: 6ce5745fa2a73f182521e01855f5b36e351abfe5
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 

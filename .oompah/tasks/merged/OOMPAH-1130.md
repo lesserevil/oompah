@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-11T22:58:51.766509Z'
-updated_at: '2026-08-12T20:01:45.293203Z'
+updated_at: '2026-08-12T20:01:54.650247Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -115,5 +115,10 @@ created: 2026-08-12 20:01
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Direct-owner completion verified in merged PR #836 at a6a983171: exhausted-audit recovery no longer churns terminal authority or starves unrelated workflow publication; full CI passed.
+---
+author: oompah
+created: 2026-08-12 20:01
+---
+Completed by merged PR #836 (a6a983171). Exhausted terminal-audit recovery now converges once and cannot repeatedly supersede project workflow publication.
 ---
 <!-- COMMENTS:END -->
