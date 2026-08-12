@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1161
 type: bug
-status: In Progress
+status: Archived
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-131'
 parent: null
@@ -12,13 +12,39 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:39:47.107720Z'
-updated_at: '2026-08-12T17:40:15.512623Z'
+updated_at: '2026-08-12T20:20:47.462081Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6c05a188a9a6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1161
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0b04fc8387bc0d482a6973190d9691067df8201c35e14665c51f9e659aa6212e
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Historical auto-filed occurrence from the state-branch and dispatch-convergence
+      incident, consolidated into completed roots OOMPAH-1127, OOMPAH-1128, and OOMPAH-1177.
+      PRs #836 and #837 delivered durable transport fencing, stable incident identity,
+      and fail-closed provider admission with passing full CI; this occurrence requires
+      no independent implementation.'
+    created_at: '2026-08-12T20:20:39.735459+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
