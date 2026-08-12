@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T22:38:37.996985Z'
-updated_at: '2026-08-11T23:17:51.216054Z'
+updated_at: '2026-08-12T01:38:30.897730Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,5 +59,10 @@ author: oompah
 created: 2026-08-11 22:58
 ---
 Post-cutover live verification found an additional project-wide deadlock: exhausted audits for TRICKLE-99, TRICKLE-114, and TRICKLE-115 cannot refresh evidence and repeatedly supersede durable workflow publication, blocking 16 unrelated Open tasks. This distinct recovery/publication starvation defect is tracked by OOMPAH-1130. A normal service restart reproduced the condition.
+---
+author: oompah
+created: 2026-08-12 01:38
+---
+Direct operator ownership is active on branch OOMPAH-1130. The workflow-authorized Open → In Progress transition is currently unavailable because OOMPAH-1130 prevents publication of the required generation; this comment and branch are the durable ownership handoff until that blocker is repaired.
 ---
 <!-- COMMENTS:END -->

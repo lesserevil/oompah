@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T22:58:51.766509Z'
-updated_at: '2026-08-11T23:18:01.097282Z'
+updated_at: '2026-08-12T01:38:40.541940Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,3 +56,11 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-12 01:38
+---
+Direct operator ownership is active on branch OOMPAH-1130. The workflow-authorized Open → In Progress transition is currently unavailable because OOMPAH-1130 prevents publication of the required generation; this comment and branch are the durable ownership handoff until that blocker is repaired.
+---
+<!-- COMMENTS:END -->
