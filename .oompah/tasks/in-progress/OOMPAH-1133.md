@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1133
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:checkpoint_queue] Checkpoint flush FAILED (reason=debounce); push_failures=3'
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T01:43:46.324060Z'
-updated_at: '2026-08-12T17:30:17.182026Z'
+updated_at: '2026-08-12T17:37:07.073515Z'
 work_branch: null
 target_branch: null
 review_url: null

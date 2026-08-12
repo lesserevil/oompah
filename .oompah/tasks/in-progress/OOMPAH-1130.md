@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1130
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Prevent exhausted terminal-audit recovery from starving project workflow publication
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-11T22:58:51.766509Z'
-updated_at: '2026-08-12T17:30:06.569861Z'
+updated_at: '2026-08-12T17:36:56.736529Z'
 work_branch: null
 target_branch: null
 review_url: null

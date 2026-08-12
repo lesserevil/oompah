@@ -1,9 +1,9 @@
 ---
-id: OOMPAH-1131
+id: OOMPAH-1137
 type: bug
-status: Open
+status: In Progress
 priority: 2
-title: '[backend:checkpoint_queue] Checkpoint flush FAILED (reason=debounce); push_failures=1'
+title: '[backend:checkpoint_queue] Checkpoint flush FAILED (reason=max_delay); push_failures=1'
 parent: null
 children: []
 blocked_by: []
@@ -11,8 +11,8 @@ start_blocked_by: []
 labels:
 - human-only
 assignee: null
-created_at: '2026-08-12T01:39:00.495653Z'
-updated_at: '2026-08-12T17:30:10.079222Z'
+created_at: '2026-08-12T15:05:09.027930Z'
+updated_at: '2026-08-12T17:37:21.976994Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -23,9 +23,9 @@ merged_at: null
 ## Summary
 
 ### Problem
-Oompah detected a backend error from `backend:checkpoint_queue`:
+Oompah detected a backend error (error class: `checkpoint_queue.flush_failed`) from `backend:checkpoint_queue`:
 
-> Checkpoint flush FAILED (reason=debounce); push_failures=1
+> Checkpoint flush FAILED (reason=max_delay); push_failures=1
 
 ### Steps to Reproduce
 1. Run oompah with `backend:checkpoint_queue` active.
@@ -35,7 +35,7 @@ Oompah detected a backend error from `backend:checkpoint_queue`:
 ### Actual Behavior
 An error occurs in `backend:checkpoint_queue` and is recorded by oompah's `error_watcher`:
 
-> Checkpoint flush FAILED (reason=debounce); push_failures=1
+> Checkpoint flush FAILED (reason=max_delay); push_failures=1
 
 ### Expected Behavior
 The operation in `backend:checkpoint_queue` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
@@ -50,8 +50,10 @@ The operation in `backend:checkpoint_queue` should complete successfully, or deg
 - source_project: proj-14849f1b
 - tracker: provenanceguardedtracker
 - tracker_kind: provenanceguardedtracker
-- fingerprint: 501dbabc8d027cd3
-- dedup_fingerprint: 501dbabc8d027cd3
+- fingerprint: 4e3f69c045df49d4
+- dedup_fingerprint: 4e3f69c045df49d4
+- error_class: checkpoint_queue.flush_failed
+- incident_key: state_branch:oompah/state/proj-3e4e9214
 
 ## Acceptance Criteria
 
@@ -59,15 +61,3 @@ The operation in `backend:checkpoint_queue` should complete successfully, or deg
 
 ## Notes
 
-## Comments
-<!-- COMMENTS:BEGIN -->
-author: oompah
-created: 2026-08-12 01:51
----
-Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
-
-Source: `backend:checkpoint_queue`
-
-Message: Checkpoint flush FAILED (reason=debounce); push_failures=1
----
-<!-- COMMENTS:END -->
