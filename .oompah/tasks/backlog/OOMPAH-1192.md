@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T22:43:52.044640Z'
-updated_at: '2026-08-12T22:43:52.044640Z'
+updated_at: '2026-08-12T22:44:05.655913Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Live Trickle scheduling on merged OOMPAH-1189/1190 reaches authenticated native 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-12 22:44
+---
+Direct owner is implementing from live evidence. Trickle has been paused to stop retry churn. Observed affected tasks include TRICKLE-123, 124, 131, 132, 134, 135, 137, 119, 121, 122, and 118; all ordinary starts aborted before provider admission and compensation restored Open. The original state-branch transport failure is no longer present.
+---
+<!-- COMMENTS:END -->
