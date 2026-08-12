@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1145
 type: bug
-status: In Progress
+status: Archived
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue TRICKLE-137:
   All 2 dispatch candidates unavailable: prov-52e94e83/gpt-5.6-luna: contributor_evidence_unavailable:
@@ -14,13 +14,39 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:20:27.474547Z'
-updated_at: '2026-08-12T17:38:01.142672Z'
+updated_at: '2026-08-12T20:06:22.984213Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-62f4ec435d62
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1145
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 705c04806f7b1a5cf5d60eff198d52e47ae8bf4fae22a233ed5eea06062ded5d
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Historical auto-filed occurrence from the state-branch and dispatch-convergence
+      incident, consolidated into completed roots OOMPAH-1127, OOMPAH-1128, and OOMPAH-1177.
+      PRs #836 and #837 delivered the durable transport, stable incident identity,
+      and fail-closed provider-admission repairs with full CI. This occurrence requires
+      no independent implementation.'
+    created_at: '2026-08-12T20:06:17.951895+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
