@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1193
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Continue truncated restart reconstruction before worker admission
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:19:53.793903Z'
-updated_at: '2026-08-12T23:19:53.793903Z'
+updated_at: '2026-08-12T23:20:09.535168Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 75888359-5bee-46fc-b1ce-ff1e9f0b0769
   request_fingerprint: d14c77f040ab8fb1e911e1c3f202433dd4507180144720fc99796278236e6765
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
