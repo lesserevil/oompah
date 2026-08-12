@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1175
 type: bug
-status: In Progress
+status: Archived
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue TRICKLE-123:
   All 2 dispatch candidates unavailable: prov-651d553c/haiku: contributor_evidence_unavailable:
@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:51:31.411244Z'
-updated_at: '2026-08-12T20:10:30.113109Z'
+updated_at: '2026-08-12T20:10:34.564786Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,6 +46,7 @@ oompah.terminal_audit:
   version: 1
   pending_chain: []
   attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
