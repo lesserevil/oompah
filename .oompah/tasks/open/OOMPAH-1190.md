@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1190
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Sanitize legacy username-only userinfo in managed canonical remotes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T22:25:20.676127Z'
-updated_at: '2026-08-12T22:25:42.265142Z'
+updated_at: '2026-08-12T22:26:31.345763Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: f01ec846-9ac5-473d-aaae-428603c060fd
   request_fingerprint: 2e8962baf19d5e1b07cb1196d198039e040e6b841ecc623363ed710f3e25669b
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
