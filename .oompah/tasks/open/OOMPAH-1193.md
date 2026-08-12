@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:19:53.793903Z'
-updated_at: '2026-08-12T23:30:58.045951Z'
-work_branch: null
+updated_at: '2026-08-12T23:52:33.735926Z'
+work_branch: OOMPAH-1193
 target_branch: null
 review_url: null
 review_number: null
@@ -25,6 +25,16 @@ oompah.create_once:
   creation_marker: 75888359-5bee-46fc-b1ce-ff1e9f0b0769
   request_fingerprint: d14c77f040ab8fb1e911e1c3f202433dd4507180144720fc99796278236e6765
 oompah.lifecycle_revision: 1
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1193
+  head_sha: 1744e1cf730bae9b846ad850bdd1808d9563831c
+  submitted_at: '2026-08-12T23:52:25.331593+00:00'
+  updated_at: '2026-08-12T23:52:25.331593+00:00'
+oompah.work_branch: OOMPAH-1193
 ---
 ## Summary
 
@@ -47,5 +57,10 @@ author: oompah
 created: 2026-08-12 23:30
 ---
 Safety refinement pushed in 1744e1cf: immediate restart continuation is now limited to reports with an explicitly truncated workflow domain. Incomplete scans caused by source or authority read errors do not self-requeue, preserving normal retry backoff and preventing a hot loop. Focused restart tests: 5 passed; workflow retirement/runtime tests: 195 passed. Exact-head complete gate and Python 3.11/3.12/3.13 CI are running.
+---
+author: oompah
+created: 2026-08-12 23:52
+---
+Implemented bounded restart-reconstruction continuation with audit-first admission ordering; guarded source failures from immediate retry loops. Focused 195-test workflow suite, complete 20,185-test gate, and Python 3.11/3.12/3.13 CI pass.
 ---
 <!-- COMMENTS:END -->
