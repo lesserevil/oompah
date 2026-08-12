@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:56:01.307393Z'
-updated_at: '2026-08-12T17:41:34.982368Z'
+updated_at: '2026-08-12T19:07:32.614029Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -50,3 +50,11 @@ Acceptance criteria: moving a column of tasks is performed with one client API r
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-12 19:07
+---
+Direct-owner implementation is feature-complete on branch OOMPAH-1178. Added one-call project-scoped atomic batch status API, exact per-task CAS with monotonic lifecycle revisions, persistent idempotency receipts, crash-safe publishing recovery, single state-branch commit/push, explicit unsupported remote capabilities, owner/worker/audit/integration/transition fences, paused-project semantics, coalesced events/rollups, and accessible dashboard whole-column drag/keyboard flow. Focused integration evidence: 639 passed; terminal mutation scan 21/21 passed. The full make test gate is currently running on the exact working tree while all projects remain paused.
+---
+<!-- COMMENTS:END -->
