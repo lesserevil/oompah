@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1148
 type: bug
-status: In Progress
+status: Archived
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-121 identifier=TRICKLE-121 run_id=a9b9ece56c5a4ef1a12d95bfef96b65f
@@ -14,13 +14,39 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:23:19.667942Z'
-updated_at: '2026-08-12T17:38:16.666746Z'
+updated_at: '2026-08-12T20:17:01.849636Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-2fbd480354f8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1148
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b23fd262b5df92ed0cb8bb9a4bec1d98d5476b4455f570d573c582eb1543d9cb
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Historical auto-filed occurrence from the state-branch and dispatch-convergence
+      incident, consolidated into completed roots OOMPAH-1127, OOMPAH-1128, and OOMPAH-1177.
+      PRs #836 and #837 delivered durable transport fencing, stable incident identity,
+      and fail-closed provider admission with passing full CI; this occurrence requires
+      no independent implementation.'
+    created_at: '2026-08-12T20:16:55.783479+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
