@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1127
 type: bug
-status: Open
+status: Merged
 priority: 1
 title: Fence stale checkpoint writers during tracker forge and credential cutovers
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-11T22:38:37.996985Z'
-updated_at: '2026-08-12T17:29:56.015899Z'
+updated_at: '2026-08-12T19:57:43.220690Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,6 +67,31 @@ oompah.work_contributors:
     source_branch: OOMPAH-1127
     source_sha: null
     completed_at: ''
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-30b7881769c0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1127
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f2ac30d18aebc0fd56a44fb2c45a4e11e0b218d82a4c60900181a19588de2a8b
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Direct-owner completion verified in merged PR #836 at a6a983171: state-writer
+      generation fencing and cutover recovery are implemented with regression coverage;
+      the exact merge passed the full Python 3.11/3.12/3.13 CI matrix.'
+    created_at: '2026-08-12T19:57:34.931023+00:00'
+    selected_ref: origin/main
+    selected_sha: 00db66b58afc1dfbb67572226213a8da8fd22ec4
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
