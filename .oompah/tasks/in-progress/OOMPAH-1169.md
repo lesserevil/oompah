@@ -1,10 +1,10 @@
 ---
-id: OOMPAH-1164
+id: OOMPAH-1169
 type: bug
-status: Backlog
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
-  task-authority deadline issue_id=TRICKLE-121 identifier=TRICKLE-121 run_id=4968987433b14c458bc25f0c9540f949
+  task-authority deadline issue_id=TRICKLE-123 identifier=TRICKLE-123 run_id=600dc903d94e4dfab8717bb0ad60ff8c
   timeout_sec...'
 parent: null
 children: []
@@ -13,8 +13,8 @@ start_blocked_by: []
 labels:
 - human-only
 assignee: null
-created_at: '2026-08-12T15:44:17.274814Z'
-updated_at: '2026-08-12T17:32:32.649575Z'
+created_at: '2026-08-12T15:47:41.133173Z'
+updated_at: '2026-08-12T17:40:50.496568Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,7 +27,7 @@ merged_at: null
 ### Problem
 Oompah detected a backend error from `backend:orchestrator`:
 
-> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-121 identifier=TRICKLE-121 run_id=4968987433b14c458bc25f0c9540f949 timeout_seconds=5.0
+> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-123 identifier=TRICKLE-123 run_id=600dc903d94e4dfab8717bb0ad60ff8c timeout_seconds=5.0
 
 ### Steps to Reproduce
 1. Run oompah with `backend:orchestrator` active.
@@ -37,7 +37,7 @@ Oompah detected a backend error from `backend:orchestrator`:
 ### Actual Behavior
 An error occurs in `backend:orchestrator` and is recorded by oompah's `error_watcher`:
 
-> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-121 identifier=TRICKLE-121 run_id=4968987433b14c458bc25f0c9540f949 timeout_seconds=5.0
+> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-123 identifier=TRICKLE-123 run_id=600dc903d94e4dfab8717bb0ad60ff8c timeout_seconds=5.0
 
 ### Expected Behavior
 The operation in `backend:orchestrator` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
@@ -52,8 +52,8 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 - source_project: proj-14849f1b
 - tracker: provenanceguardedtracker
 - tracker_kind: provenanceguardedtracker
-- fingerprint: 3e2b9088436974f7
-- dedup_fingerprint: 3e2b9088436974f7
+- fingerprint: a127a45063acbb1a
+- dedup_fingerprint: a127a45063acbb1a
 
 ## Acceptance Criteria
 
