@@ -21,6 +21,7 @@ Coverage areas:
 from __future__ import annotations
 
 import multiprocessing
+import os
 import subprocess
 import threading
 import time
@@ -1110,6 +1111,140 @@ class TestStateBranchTrackerFailures:
         """
         assert issubclass(TrackerStateBranchMissingError, TrackerError)
 
+    def test_managed_canonical_remote_overrides_stale_origin_and_ambient_rewrite(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """State fetch/push must use managed authority after transport migration."""
+        source = _init_git_repo(tmp_path / "source")
+        state_branch = "oompah/state/proj-migrated"
+        _create_state_branch(source, state_branch)
+        canonical = tmp_path / "canonical.git"
+        _git(source, "clone", "--bare", str(source), str(canonical))
+
+        checkout = tmp_path / "checkout"
+        subprocess.run(
+            ["git", "clone", str(canonical), str(checkout)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        _git(checkout, "config", "user.email", "test@example.com")
+        _git(checkout, "config", "user.name", "Test Agent")
+        _git(
+            checkout,
+            "remote",
+            "set-url",
+            "origin",
+            "git@stale.invalid:wrong/repository.git",
+        )
+
+        # An inherited global rewrite is also untrusted project authority.
+        ambient_config = tmp_path / "ambient.gitconfig"
+        ambient_config.write_text(
+            "[url \"ssh://stale.invalid/\"]\n"
+            f"\tinsteadOf = {canonical.as_uri()}\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(ambient_config))
+
+        tracker = OompahMarkdownTracker(
+            active_states=[OPEN],
+            terminal_states=[DONE],
+            cwd=str(checkout),
+            default_branch="main",
+            git_sync=True,
+            state_branch_enabled=True,
+            state_branch_name=state_branch,
+            access_token="managed-secret",
+            forge_kind="gitlab",
+            canonical_remote_url=canonical.as_uri(),
+        )
+
+        created = tracker.create_issue("Canonical transport task")
+        tracker.flush_checkpoint(reason="test")
+        remote_task = subprocess.run(
+            [
+                "git",
+                f"--git-dir={canonical}",
+                "show",
+                f"{state_branch}:.oompah/tasks/backlog/{created.identifier}.md",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        assert "Canonical transport task" in remote_task.stdout
+        assert (
+            _git(
+                checkout,
+                "config",
+                "--local",
+                "--get",
+                "remote.origin.url",
+            ).stdout.strip()
+            == "git@stale.invalid:wrong/repository.git"
+        )
+
+    def test_canonical_network_failure_redacts_project_credential(
+        self, tmp_path: Path
+    ) -> None:
+        """Managed transport failures cannot expose tokens or URL userinfo."""
+        root = tmp_path / "repo"
+        root.mkdir()
+        token = "top-secret-token"
+        tracker = OompahMarkdownTracker(
+            active_states=[OPEN],
+            terminal_states=[DONE],
+            cwd=str(root),
+            access_token=token,
+            forge_kind="gitlab",
+            canonical_remote_url="https://example.invalid/repo.git",
+        )
+
+        failed = subprocess.CompletedProcess(
+            args=["git", "fetch"],
+            returncode=1,
+            stdout="",
+            stderr=(
+                f"fatal: https://leaked:{token}@example.invalid/repo.git "
+                f"rejected {token}"
+            ),
+        )
+        with patch(
+            "oompah.oompah_md_tracker.subprocess.run", return_value=failed
+        ) as run:
+            result = tracker._git(["fetch", "origin", "main"], check=False)
+
+        child_env = run.call_args.kwargs["env"]
+        command = run.call_args.args[0]
+        assert tracker._canonical_remote_url in command
+        assert "origin" not in command
+        assert child_env["OOMPAH_GIT_PASSWORD"] == token
+        assert token not in result.stderr
+        assert "leaked" not in result.stderr
+        assert "[REDACTED]" in result.stderr
+        assert os.environ.get("OOMPAH_GIT_PASSWORD") != token
+
+    def test_canonical_remote_rejects_embedded_credentials_without_echo(
+        self, tmp_path: Path
+    ) -> None:
+        """Managed project credentials may only use the ephemeral environment."""
+        secret = "embedded-secret"
+
+        with pytest.raises(TrackerError) as exc_info:
+            OompahMarkdownTracker(
+                active_states=[OPEN],
+                terminal_states=[DONE],
+                cwd=str(tmp_path),
+                canonical_remote_url=(
+                    f"https://managed:{secret}@example.invalid/repo.git"
+                ),
+            )
+
+        assert secret not in str(exc_info.value)
+        assert "must not contain credentials" in str(exc_info.value)
+
     def test_transient_index_lock_retries_complete_stage_commit_transaction(
         self, tmp_path: Path
     ) -> None:
@@ -2022,6 +2157,8 @@ class TestOrchestratorStateBranchWiring:
             repo_path=str(tmp_path / "naming"),
             default_branch="main",
             state_branch_enabled=True,
+            access_token="project-token",
+            forge_kind="gitlab",
         )
 
         assert project.state_branch_name == "oompah/state/proj-naming-test", (
@@ -2086,6 +2223,8 @@ class TestOrchestratorStateBranchWiring:
             repo_path=str(tmp_path / "wiring"),
             default_branch="main",
             state_branch_enabled=True,
+            access_token="project-token",
+            forge_kind="gitlab",
         )
         (tmp_path / "wiring").mkdir()
 
@@ -2114,6 +2253,7 @@ class TestOrchestratorStateBranchWiring:
             orch.config.tracker_active_states = [OPEN]
             orch.config.tracker_terminal_states = [DONE]
             orch.config.tracker_kind = "oompah_md"
+            orch.project_store.canonical_remote_url.return_value = project.repo_url
 
             # Call _new_tracker_for_project bound to the mock orchestrator
             _Orch._new_tracker_for_project(orch, project)
@@ -2129,6 +2269,9 @@ class TestOrchestratorStateBranchWiring:
             f"Factory must receive the correct state_branch_name; "
             f"got factory kwargs: {call_kwargs}"
         )
+        assert call_kwargs.get("canonical_remote_url") == project.repo_url
+        assert call_kwargs.get("access_token") == "project-token"
+        assert call_kwargs.get("forge_kind") == "gitlab"
 
     def test_tracker_stores_state_branch_name_attribute(
         self, tmp_path: Path

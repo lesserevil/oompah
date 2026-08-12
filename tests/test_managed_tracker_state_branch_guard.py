@@ -338,6 +338,7 @@ def test_auto_archive_and_shutdown_leave_code_branch_untouched(
 ) -> None:
     repo, remote, state_branch = _init_remote_with_state_branch(tmp_path)
     project = _make_project(repo)
+    project.repo_url = str(remote)
     orch = _make_orchestrator(tmp_path, project)
     tracker = orch._tracker_for_project(project.id)
     assert isinstance(tracker, ProvenanceGuardedTracker)
@@ -408,6 +409,7 @@ def test_server_error_watcher_and_scheduler_write_only_to_state_branch(
     """
     repo, remote, state_branch = _init_remote_with_state_branch(tmp_path)
     project = _make_project(repo)
+    project.repo_url = str(remote)
     orch = _make_orchestrator(tmp_path, project)
     tracker = orch._tracker_for_project(project.id)
     assert isinstance(tracker, ProvenanceGuardedTracker)

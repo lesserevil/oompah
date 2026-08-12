@@ -21,6 +21,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -376,6 +377,7 @@ class OompahMarkdownTracker:
         allow_default_branch_task_writes: bool = True,
         access_token: str | None = None,
         forge_kind: str = "github",
+        canonical_remote_url: str | None = None,
         _checkpoint_timer_factory: Any = None,
         _on_checkpoint_flushed: Any = None,
     ) -> None:
@@ -395,6 +397,26 @@ class OompahMarkdownTracker:
         # Token is never stored in git config or URLs; only in ephemeral subprocess env.
         self._access_token = str(access_token or "")
         self._forge_kind = str(forge_kind or "github").strip().lower() or "github"
+        # Managed state-branch operations must resolve the server-owned remote
+        # from project configuration, not from a clone's possibly stale origin.
+        # The URL is injected as command-scoped Git configuration and is never
+        # written back to the repository.
+        self._canonical_remote_url = str(canonical_remote_url or "").strip() or None
+        if self._canonical_remote_url:
+            try:
+                parsed_remote = urlsplit(self._canonical_remote_url)
+            except ValueError as exc:
+                raise TrackerError(
+                    "Managed canonical remote URL is malformed"
+                ) from exc
+            if parsed_remote.scheme.lower() in {"http", "https"} and (
+                "@" in parsed_remote.netloc
+                or parsed_remote.username is not None
+                or parsed_remote.password is not None
+            ):
+                raise TrackerError(
+                    "Managed canonical remote URL must not contain credentials"
+                )
         # Optional callback invoked after each successful state-branch checkpoint
         # flush. Used by server.py to invalidate the issues snapshot cache so
         # clients receive fresh data without waiting for the 60-second TTL.
@@ -3198,6 +3220,8 @@ class OompahMarkdownTracker:
         return self._git(["rev-parse", "--is-inside-work-tree"], check=False).returncode == 0
 
     def _has_remote(self, name: str) -> bool:
+        if name == "origin" and self._canonical_remote_url:
+            return True
         return self._git(["remote", "get-url", name], check=False).returncode == 0
 
     def _infer_default_branch(self) -> str | None:
@@ -3238,20 +3262,81 @@ class OompahMarkdownTracker:
             len(args) > 0
             and args[0] in ("push", "fetch", "ls-remote")
         )
+        command_args = list(args)
+        if (
+            is_network_op
+            and self._canonical_remote_url
+            and len(command_args) > 1
+            and command_args[1] == "origin"
+        ):
+            # Use the canonical URL as the network operand. Git's config model
+            # appends command-scoped remote URLs to a repository's existing
+            # values, so remote.origin.url cannot reliably replace a stale
+            # first value. A direct credential-free URL is deterministic.
+            command_args[1] = self._canonical_remote_url
+            if command_args[0] == "fetch" and len(command_args) == 3:
+                branch = command_args[2]
+                command_args[2] = (
+                    f"+refs/heads/{branch}:refs/remotes/origin/{branch}"
+                )
 
         # Run git command, optionally with credential environment for network ops.
         result: subprocess.CompletedProcess[str]
         try:
-            if is_network_op and self._access_token:
-                # Use ephemeral credential environment for network operations.
-                # The context manager creates a temp GIT_ASKPASS script and sets
-                # credential env vars, then cleans up after the subprocess exits.
+            if is_network_op and self._canonical_remote_url:
+                # Managed state-branch network operations are an authority
+                # boundary. Ignore ambient Git control and replace origin only
+                # for this child process with the project store's canonical URL.
+                # This repairs stale SSH origins without persisting credentials
+                # or mutating repository configuration.
+                base_env = {
+                    key: value
+                    for key, value in os.environ.items()
+                    if not key.startswith("GIT_")
+                    and key not in {"SSH_ASKPASS", "LD_PRELOAD"}
+                }
+                base_env.update(
+                    {
+                        "GIT_CONFIG_NOSYSTEM": "1",
+                        "GIT_CONFIG_GLOBAL": os.devnull,
+                        "GIT_TERMINAL_PROMPT": "0",
+                        "GIT_SSH_COMMAND": "ssh -F /dev/null -oBatchMode=yes",
+                        "GIT_NO_REPLACE_OBJECTS": "1",
+                        "GIT_OPTIONAL_LOCKS": "0",
+                    }
+                )
+                config = [
+                    ("core.hooksPath", os.devnull),
+                    ("credential.helper", ""),
+                    ("protocol.ext.allow", "never"),
+                    ("core.sshCommand", "ssh -F /dev/null -oBatchMode=yes"),
+                ]
+                base_env["GIT_CONFIG_COUNT"] = str(len(config))
+                for index, (key, value) in enumerate(config):
+                    base_env[f"GIT_CONFIG_KEY_{index}"] = key
+                    base_env[f"GIT_CONFIG_VALUE_{index}"] = value
+                with git_credential_environment(
+                    forge_kind=self._forge_kind,
+                    access_token=self._access_token,
+                    base_env=base_env,
+                ) as credential_env:
+                    result = subprocess.run(
+                        ["git", *command_args],
+                        cwd=effective_cwd,
+                        capture_output=True,
+                        text=True,
+                        timeout=60,
+                        env=credential_env,
+                    )
+            elif is_network_op and self._access_token:
+                # Legacy callers with a credential but no managed canonical
+                # remote retain their existing remote-selection behavior.
                 with git_credential_environment(
                     forge_kind=self._forge_kind,
                     access_token=self._access_token,
                 ) as credential_env:
                     result = subprocess.run(
-                        ["git", *args],
+                        ["git", *command_args],
                         cwd=effective_cwd,
                         capture_output=True,
                         text=True,
@@ -3261,7 +3346,7 @@ class OompahMarkdownTracker:
             else:
                 # No credentials needed (or no token configured) — use default env
                 result = subprocess.run(
-                    ["git", *args],
+                    ["git", *command_args],
                     cwd=effective_cwd,
                     capture_output=True,
                     text=True,
@@ -3326,6 +3411,9 @@ def _oompah_md_factory(
     state_branch_push_retry_backoff_ms: int = 1000,
     state_branch_shadow_write: bool = False,
     allow_default_branch_task_writes: bool = True,
+    access_token: str | None = None,
+    forge_kind: str = "github",
+    canonical_remote_url: str | None = None,
     **kwargs: Any,
 ) -> OompahMarkdownTracker:
     return OompahMarkdownTracker(
@@ -3341,4 +3429,7 @@ def _oompah_md_factory(
         state_branch_push_retry_backoff_ms=state_branch_push_retry_backoff_ms,
         state_branch_shadow_write=state_branch_shadow_write,
         allow_default_branch_task_writes=allow_default_branch_task_writes,
+        access_token=access_token,
+        forge_kind=forge_kind,
+        canonical_remote_url=canonical_remote_url,
     )

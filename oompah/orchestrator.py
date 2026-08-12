@@ -9995,6 +9995,12 @@ class Orchestrator:
             if state_branch_enabled:
                 extra["state_branch_enabled"] = True
                 extra["state_branch_name"] = project.state_branch_name
+                # State-branch fetch/push authority comes from managed project
+                # configuration. The checkout's origin may predate a forge or
+                # transport migration and must not select the network target.
+                extra["canonical_remote_url"] = self.project_store.canonical_remote_url(
+                    str(project.id)
+                )
                 if getattr(project, "state_branch_shadow_write", False) is True:
                     extra["state_branch_shadow_write"] = True
         tracker = factory(
