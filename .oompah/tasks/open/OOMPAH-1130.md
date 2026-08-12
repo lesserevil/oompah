@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T22:58:51.766509Z'
-updated_at: '2026-08-12T01:38:40.541940Z'
+updated_at: '2026-08-12T01:52:40.307817Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,5 +62,10 @@ author: oompah
 created: 2026-08-12 01:38
 ---
 Direct operator ownership is active on branch OOMPAH-1130. The workflow-authorized Open → In Progress transition is currently unavailable because OOMPAH-1130 prevents publication of the required generation; this comment and branch are the durable ownership handoff until that blocker is repaired.
+---
+author: oompah
+created: 2026-08-12 01:52
+---
+Implemented and deployed commit 5503ae15e on PR #836. Regression coverage: 338 terminal-transition/recovery tests pass. Live verification: Trickle workflow snapshot generation 5225 published successfully, three workflow worker lanes became active, and stale terminal-audit transport failures fell from 3 to 0. Oompah remains paused; only Trickle is resumed. Awaiting protected-branch CI/merge while I continue the remaining directly owned blockers.
 ---
 <!-- COMMENTS:END -->
