@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-11T22:38:40.818634Z'
-updated_at: '2026-08-12T19:58:30.110518Z'
+updated_at: '2026-08-12T19:58:37.710509Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -139,5 +139,10 @@ created: 2026-08-12 19:58
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Direct-owner completion verified in merged PR #836 at a6a983171: stable incident identities and retry coalescing are implemented with regression coverage; the exact merge passed the full Python 3.11/3.12/3.13 CI matrix.
+---
+author: oompah
+created: 2026-08-12 19:58
+---
+Completed by merged PR #836 (a6a983171). Auto-filed retries now use stable incident identities while retaining occurrence telemetry and task/project separation.
 ---
 <!-- COMMENTS:END -->
