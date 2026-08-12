@@ -650,9 +650,10 @@ class TestGitHubClaimRunIdProtocol:
             "issues without tracker kind must not read metadata for claim verification"
         )
 
-    def test_run_id_failure_falls_through_gracefully(self, tmp_path, event_loop):
-        """If set_metadata_field or get_metadata raises, dispatch must
-        still proceed rather than blocking the queue."""
+    def test_run_id_failure_aborts_before_provider_admission(
+        self, tmp_path, event_loop
+    ):
+        """A claim that cannot be persisted must never start a provider."""
         orch = _make_orchestrator(tmp_path)
         issue = _github_issue(state="open")
         fresh = _github_issue(state="open")
@@ -662,24 +663,103 @@ class TestGitHubClaimRunIdProtocol:
         _bind_status_tracker(mock_tracker, fresh)
         mock_tracker.set_metadata_field.side_effect = RuntimeError("network error")
 
+        run_worker = MagicMock(return_value=asyncio.sleep(0))
         with (
             patch.object(orch, "_tracker_for_issue", return_value=mock_tracker),
-            patch.object(
-                orch, "_run_worker", new=MagicMock(return_value=asyncio.sleep(0))
-            ),
+            patch.object(orch, "_run_worker", new=run_worker),
         ):
             event_loop.run_until_complete(orch._dispatch(issue, attempt=None))
 
-        # Despite the failure, dispatch must have proceeded.
+        # The status transition may have committed before the shared claim
+        # failed, but compensation restores the original dispatchable state.
         in_progress_calls = [
             c
             for c in mock_tracker.update_issue.call_args_list
             if c.kwargs.get("status") == "In Progress"
         ]
         assert len(in_progress_calls) == 1, (
-            "Dispatch must proceed even when run-id claim fails"
+            "The regression must cross the committed status boundary"
         )
-        assert issue.id in orch.state.running
+        assert issue.state == "open"
+        assert issue.id not in orch.state.running
+        assert issue.id not in orch.state.claimed
+        run_worker.assert_not_called()
+
+    def test_open_post_write_evidence_aborts_before_provider_admission(
+        self, tmp_path, event_loop
+    ):
+        """A tracker re-read that stays Open cannot be projected as claimed."""
+
+        orch = _make_orchestrator(tmp_path)
+        issue = _github_issue(state="open")
+        before = _github_issue(state="open")
+        after = _github_issue(state="open")
+        captured: dict[str, str] = {}
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_states_by_ids.side_effect = [
+            [before],
+            [before],
+            [after],
+        ]
+        mock_tracker.fetch_issue_detail.return_value = before
+        mock_tracker.update_issue.return_value = None
+        mock_tracker.set_metadata_field.side_effect = (
+            lambda _identifier, _key, value: captured.update(run_id=value)
+        )
+        mock_tracker.get_metadata.side_effect = lambda _identifier: {
+            "oompah.agent_run_id": captured.get("run_id")
+        }
+        run_worker = MagicMock(return_value=asyncio.sleep(0))
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=mock_tracker),
+            patch.object(orch, "_run_worker", new=run_worker),
+        ):
+            event_loop.run_until_complete(orch._dispatch(issue, attempt=None))
+
+        assert issue.id not in orch.state.running
+        assert issue.id not in orch.state.claimed
+        run_worker.assert_not_called()
+
+    def test_replaced_post_write_assignment_aborts_before_provider_admission(
+        self, tmp_path, event_loop
+    ):
+        """A different durable assignment wins even when status converged."""
+
+        orch = _make_orchestrator(tmp_path)
+        issue = _github_issue(state="open")
+        before = _github_issue(state="open")
+        after = _github_issue(
+            state="In Progress",
+            assignment_id="replacement-generation",
+        )
+        captured: dict[str, str] = {}
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_states_by_ids.side_effect = [
+            [before],
+            [before],
+            [after],
+        ]
+        _bind_status_tracker(mock_tracker, before)
+        mock_tracker.set_metadata_field.side_effect = (
+            lambda _identifier, _key, value: captured.update(run_id=value)
+        )
+        mock_tracker.get_metadata.side_effect = lambda _identifier: {
+            "oompah.agent_run_id": captured.get("run_id")
+        }
+        run_worker = MagicMock(return_value=asyncio.sleep(0))
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=mock_tracker),
+            patch.object(orch, "_run_worker", new=run_worker),
+        ):
+            event_loop.run_until_complete(orch._dispatch(issue, attempt=None))
+
+        assert issue.id not in orch.state.running
+        assert issue.id not in orch.state.claimed
+        run_worker.assert_not_called()
 
 
 class TestSnapshotIncludesTrackerKind:

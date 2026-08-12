@@ -58935,10 +58935,14 @@ class Orchestrator:
                     raise
                 logger.warning(
                     "GitHub run-id claim protocol failed for %s: %s"
-                    " — proceeding without claim verification",
+                    " — aborting before provider admission",
                     issue.identifier,
                     exc,
                 )
+                await _compensate_before_admission(
+                    "shared tracker claim persistence failed"
+                )
+                return False
 
         # Keep ordinary final tracker observation and RunningEntry publication
         # in the same authority transaction as accepted worker submissions.
@@ -58977,11 +58981,18 @@ class Orchestrator:
                         and retry_entry is None,
                     )
                     raise
-                logger.debug(
-                    "Post-dispatch state refresh failed for %s: %s — using optimistic in_progress snapshot",
+                logger.warning(
+                    "Post-dispatch state refresh failed for %s: %s — "
+                    "aborting before provider admission",
                     issue.identifier,
                     exc,
                 )
+                if implementation_dispatch:
+                    await _compensate_before_admission(
+                        "post-status durable evidence refresh failed",
+                        transition_locked=retry_entry is None,
+                    )
+                    return False
                 post_update = []
             if post_update:
                 running_issue = post_update[0]
@@ -59050,17 +59061,33 @@ class Orchestrator:
                         notify=False,
                     )
                     return False
-                if (
-                    auditor_plan is None
-                    and not duplicate_preflight
-                    and _state_key(running_issue.state) != "in_progress"
-                ):
-                    running_issue = replace(
-                        running_issue,
-                        state=_configured_in_progress_state(
-                            self.config.tracker_active_states
-                        ),
+                if implementation_dispatch:
+                    post_status_mismatch = (
+                        _state_key(running_issue.state)
+                        != _state_key(implementation_intended_status)
                     )
+                    post_assignment_mismatch = bool(
+                        claimed_assignment_id
+                        and getattr(running_issue, "assignment_id", None) is not None
+                        and str(getattr(running_issue, "assignment_id", None) or "")
+                        != claimed_assignment_id
+                    )
+                    if post_status_mismatch or post_assignment_mismatch:
+                        logger.warning(
+                            "Aborting implementation dispatch of %s before "
+                            "provider admission: durable claim evidence did not "
+                            "converge (status=%r expected_status=%r "
+                            "assignment_match=%s)",
+                            issue.identifier,
+                            running_issue.state,
+                            implementation_intended_status,
+                            not post_assignment_mismatch,
+                        )
+                        await _compensate_before_admission(
+                            "post-status durable claim evidence mismatch",
+                            transition_locked=retry_entry is None,
+                        )
+                        return False
 
             # The terminal fence may have been installed while the post-update
             # tracker read was in flight.  There are no awaits between this check
