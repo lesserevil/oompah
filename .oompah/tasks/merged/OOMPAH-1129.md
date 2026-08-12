@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-11T22:38:43.861744Z'
-updated_at: '2026-08-12T20:01:21.695353Z'
+updated_at: '2026-08-12T20:01:30.043080Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -124,5 +124,10 @@ created: 2026-08-12 20:01
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Direct-owner completion verified in merged PR #836 at a6a983171: authenticated scheduling-control provenance is persisted and exposed with spoofing/redaction coverage; the exact merge passed the full Python 3.11/3.12/3.13 CI matrix.
+---
+author: oompah
+created: 2026-08-12 20:01
+---
+Completed by merged PR #836 (a6a983171). Global and project scheduling-control changes now retain authenticated actor, source, request, state-change, and timestamp provenance.
 ---
 <!-- COMMENTS:END -->
