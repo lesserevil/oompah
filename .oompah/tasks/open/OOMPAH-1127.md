@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T22:38:37.996985Z'
-updated_at: '2026-08-12T15:59:50.332219Z'
+updated_at: '2026-08-12T16:00:29.437282Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,6 +42,24 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 8d5b7f74-148e-4ed7-be48-1887128d5cfb
+oompah.work_contributors:
+  runs:
+  - run_id: 970c2fe725bc48c380ce746f7d8db174--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-1127
+    source_sha: null
+    completed_at: ''
+  - run_id: 970c2fe725bc48c380ce746f7d8db174--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-1127
+    source_sha: null
+    completed_at: ''
 ---
 ## Summary
 
@@ -87,5 +105,14 @@ author: oompah
 created: 2026-08-12 15:59
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-12 16:00
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 39s
 ---
 <!-- COMMENTS:END -->

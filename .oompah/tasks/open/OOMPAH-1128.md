@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T22:38:40.818634Z'
-updated_at: '2026-08-12T01:38:33.942397Z'
+updated_at: '2026-08-12T16:00:16.140421Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,24 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: incident-20260811-stable-error-watcher-identities
   request_fingerprint: cd782db30139e2c1d3347519044c9aa72728bd131593f9018545163028d44543
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 160debb635c1fc4cb7d03f53a751939dedbd715a745f3137570d88a780442d72
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 43eb87265afb7682ebacbbef09be8a5c20cf6aaeea1da7055c2f44247733e9cc:11841
+  claim_owner: 02fd371b-4f1d-4e9b-a422-f3effd90464e
+  claimed_at: '2026-08-12T15:59:56.968581+00:00'
+  claim_expires_at: '2026-08-12T16:29:56.968581+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: b009276c-a134-45fd-933d-60bf78df08a8
 ---
 ## Summary
 
@@ -59,5 +77,10 @@ author: oompah
 created: 2026-08-12 01:38
 ---
 Direct operator ownership is active on branch OOMPAH-1130. The workflow-authorized Open → In Progress transition is currently unavailable because OOMPAH-1130 prevents publication of the required generation; this comment and branch are the durable ownership handoff until that blocker is repaired.
+---
+author: oompah
+created: 2026-08-12 16:00
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->

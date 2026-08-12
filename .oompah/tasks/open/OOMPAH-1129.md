@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-11T22:38:43.861744Z'
-updated_at: '2026-08-12T01:38:37.175277Z'
+updated_at: '2026-08-12T16:00:24.375067Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,23 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: incident-20260811-pause-resume-actor-provenance
   request_fingerprint: 738e1cd8e4736a45f2ce8c6021cab3e8725c1dbf66885804f3a29d6d88d46eed
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 38f2e84ceca6b8d3f7825bb1250208bfefece105adca8503cfd43d2e8034e669
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: e718b671ba2fdbbb19a8d883f561b0c2db585edcec4c48236d50827de106b774:11842
+  claim_owner: 02fd371b-4f1d-4e9b-a422-f3effd90464e
+  claimed_at: '2026-08-12T16:00:22.482885+00:00'
+  claim_expires_at: '2026-08-12T16:30:22.482885+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
 ---
 ## Summary
 
