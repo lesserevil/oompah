@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1171
 type: bug
-status: Backlog
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue TRICKLE-131:
   All 2 dispatch candidates unavailable: prov-651d553c/haiku: contributor_evidence_unavailable:
@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:48:09.597086Z'
-updated_at: '2026-08-12T17:33:03.053512Z'
+updated_at: '2026-08-12T17:40:59.735612Z'
 work_branch: null
 target_branch: null
 review_url: null
