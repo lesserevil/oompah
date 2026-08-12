@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T01:39:00.495653Z'
-updated_at: '2026-08-12T01:39:00.495653Z'
+updated_at: '2026-08-12T01:51:45.933295Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,3 +58,15 @@ The operation in `backend:checkpoint_queue` should complete successfully, or deg
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-12 01:51
+---
+Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
+
+Source: `backend:checkpoint_queue`
+
+Message: Checkpoint flush FAILED (reason=debounce); push_failures=1
+---
+<!-- COMMENTS:END -->
