@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-11T22:38:43.861744Z'
-updated_at: '2026-08-12T20:01:15.608302Z'
+updated_at: '2026-08-12T20:01:21.695353Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -64,7 +64,21 @@ oompah.terminal_audit:
     created_at: '2026-08-12T20:01:11.001257+00:00'
     selected_ref: origin/main
     selected_sha: 00db66b58afc1dfbb67572226213a8da8fd22ec4
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1129
+    target_state: Merged
+    evidence_fingerprint: 470b637f1959545665e8ce205c46d7c16df8d54eb67bc7c238cef788bb2686c6
+    workflow_revision: null
+    selected_ref: origin/main
+    selected_sha: 00db66b58afc1dfbb67572226213a8da8fd22ec4
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-12T20:01:20.014782+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -103,5 +117,12 @@ author: oompah
 created: 2026-08-12 01:38
 ---
 Direct operator ownership is active on branch OOMPAH-1130. The workflow-authorized Open → In Progress transition is currently unavailable because OOMPAH-1130 prevents publication of the required generation; this comment and branch are the durable ownership handoff until that blocker is repaired.
+---
+author: oompah
+created: 2026-08-12 20:01
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Direct-owner completion verified in merged PR #836 at a6a983171: authenticated scheduling-control provenance is persisted and exposed with spoofing/redaction coverage; the exact merge passed the full Python 3.11/3.12/3.13 CI matrix.
 ---
 <!-- COMMENTS:END -->
