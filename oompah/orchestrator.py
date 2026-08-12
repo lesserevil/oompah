@@ -17002,6 +17002,12 @@ class Orchestrator:
         publication_pending = bool(
             getattr(runtime, "restart_reconstruction_pending", False)
         )
+        if publication_pending and not continuation_requested:
+            continuation_requested = (
+                self._request_workflow_reconcile_continuation(
+                    reason="workflow_restart_reconstruction_incomplete"
+                )
+            )
         if publication_pending or report.get("requires_reconcile") is True:
             return report, audit_metrics, continuation_requested
 
