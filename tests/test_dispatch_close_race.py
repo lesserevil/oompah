@@ -741,6 +741,12 @@ class TestGitHubClaimRunIdProtocol:
             [before],
             [before],
             [after],
+            # Compensation re-reads the exact durable winner before deciding
+            # whether rollback is still authorized.  Keep returning the
+            # replacement generation: exhausting an iterable side effect
+            # leaks StopIteration through the executor boundary on Python
+            # 3.11, where asyncio cannot inject it into a Future.
+            [after],
         ]
         _bind_status_tracker(mock_tracker, before)
         mock_tracker.set_metadata_field.side_effect = (
@@ -760,6 +766,11 @@ class TestGitHubClaimRunIdProtocol:
         assert issue.id not in orch.state.running
         assert issue.id not in orch.state.claimed
         run_worker.assert_not_called()
+        assert mock_tracker.fetch_issue_states_by_ids.call_count == 4
+        assert all(
+            call.kwargs.get("status") != "Open"
+            for call in mock_tracker.update_issue.call_args_list
+        ), "the external replacement assignment must not be rolled back"
 
 
 class TestSnapshotIncludesTrackerKind:
