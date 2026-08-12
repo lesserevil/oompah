@@ -14,13 +14,38 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:57:08.788851Z'
-updated_at: '2026-08-12T17:41:41.799303Z'
+updated_at: '2026-08-12T20:11:07.104418Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-b134eb91159c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1180
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: afe7cb4a1ea250ac0a0fe2ba2f55701a59e9cabcf6b9e8efd91200abf66fe5fd
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Historical auto-filed occurrence from the state-branch and dispatch-convergence
+      incident, consolidated into completed roots OOMPAH-1127, OOMPAH-1128, and OOMPAH-1177.
+      PRs #836 and #837 delivered the durable transport, stable incident identity,
+      and fail-closed provider-admission repairs with full CI. This occurrence requires
+      no independent implementation.'
+    created_at: '2026-08-12T20:11:05.271124+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
