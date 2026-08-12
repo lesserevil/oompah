@@ -2302,6 +2302,43 @@ class TestOrchestratorStateBranchWiring:
         assert call_kwargs.get("access_token") == "project-token"
         assert call_kwargs.get("forge_kind") == "gitlab"
 
+    def test_orchestrator_constructs_tracker_for_legacy_username_remote(
+        self, tmp_path: Path
+    ) -> None:
+        """One legacy project URL cannot abort multi-project startup."""
+        from oompah.models import Project
+        from oompah.orchestrator import Orchestrator as _Orch
+
+        repo = tmp_path / "legacy-username"
+        repo.mkdir()
+        project = Project(
+            id="proj-legacy-username",
+            name="legacy-username",
+            repo_url="https://actor@github.example/org/repo.git",
+            repo_path=str(repo),
+            default_branch="main",
+            state_branch_enabled=True,
+            access_token="project-token",
+            forge_kind="github",
+        )
+        project_store = MagicMock()
+        project_store.canonical_remote_url.return_value = project.repo_url
+        orch = SimpleNamespace(
+            config=SimpleNamespace(
+                tracker_active_states=[OPEN],
+                tracker_terminal_states=[DONE],
+                tracker_kind="oompah_md",
+                terminal_control_lock_timeout_seconds=5.0,
+            ),
+            project_store=project_store,
+        )
+
+        tracker = _Orch._new_tracker_for_project(orch, project)
+
+        assert tracker._provenance_tracker._canonical_remote_url == (
+            "https://github.example/org/repo.git"
+        )
+
     def test_tracker_stores_state_branch_name_attribute(
         self, tmp_path: Path
     ) -> None:
