@@ -38,6 +38,7 @@ from oompah.oompah_md_tracker import (
     _STATE_BRANCH_GIT_LOCK_MAX_ATTEMPTS,
 )
 from oompah.statuses import BACKLOG, DONE, IN_PROGRESS, IN_REVIEW, OPEN
+from oompah.task_transition_service import issue_authority_version
 from oompah.tracker import TrackerError, TrackerStateBranchFetchError, TrackerStateBranchMissingError
 
 
@@ -356,6 +357,50 @@ class TestStateBranchTrackerIntegration:
         assert main_sha_after == main_sha_before, (
             "Status update must not change main branch HEAD"
         )
+
+    def test_batch_update_uses_one_state_branch_commit(
+        self, state_branch_repo: tuple[Path, str]
+    ) -> None:
+        repo, state_branch = state_branch_repo
+        tracker = _make_tracker(
+            repo,
+            state_branch_enabled=True,
+            state_branch_name=state_branch,
+            git_sync=True,
+        )
+        first = tracker.create_issue(
+            "First atomic state task", description="Move the first task."
+        )
+        second = tracker.create_issue(
+            "Second atomic state task", description="Move the second task."
+        )
+        tracker.flush_checkpoint(reason="seed-batch")
+        for issue in (first, second):
+            issue.project_id = "project-1"
+        before = int(_git(repo, "rev-list", "--count", state_branch).stdout.strip())
+
+        result = tracker.batch_update_issues(
+            [
+                {
+                    "identifier": issue.identifier,
+                    "expected_status": issue.state,
+                    "expected_revision": issue_authority_version(issue),
+                    "fields": {"status": OPEN},
+                }
+                for issue in (first, second)
+            ],
+            project_id="project-1",
+            actor="alice",
+            idempotency_key="state-column-1",
+            request_hash="state-request-1",
+        )
+
+        after = int(_git(repo, "rev-list", "--count", state_branch).stdout.strip())
+        assert after == before + 1
+        assert {row["status"] for row in result["results"]} == {OPEN}
+        assert tracker.checkpoint_pending_mutations == 0
+        assert tracker.fetch_issue_detail(first.identifier).state == OPEN
+        assert tracker.fetch_issue_detail(second.identifier).state == OPEN
 
     def test_state_branch_commit_invalidates_another_tracker_read_cache(
         self, state_branch_repo: tuple[Path, str]

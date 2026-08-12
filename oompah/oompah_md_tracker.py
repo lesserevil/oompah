@@ -17,6 +17,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,8 @@ from oompah.statuses import (
     status_key,
 )
 from oompah.tracker import (
+    BatchIdempotencyConflictError,
+    BatchPreconditionError,
     CreateOnceConflictError,
     StateBranchFetchError,
     StateBranchMissingError,
@@ -352,6 +355,7 @@ class OompahMarkdownTracker:
     # the extension interface.
     supports_generation_bound_reads = True
     supports_atomic_create_once = True
+    supports_atomic_batch_updates = True
     supports_bounded_state_reads = True
 
     def __init__(
@@ -762,6 +766,7 @@ class OompahMarkdownTracker:
         # repository mutation lock.  A concurrent status-file move therefore
         # appears wholly before or wholly after this detail observation.
         with self._write_lock:
+            self._recover_batch_manifest()
             rec = self._read_record(identifier)
             if rec is None:
                 return None
@@ -885,12 +890,27 @@ class OompahMarkdownTracker:
         return _sort_issues_for_dispatch(matched)
 
     def fetch_issue_states_by_ids(self, issue_ids: list[str]) -> list[Issue]:
-        issues = []
-        for issue_id in issue_ids:
-            issue = self.fetch_issue_detail(issue_id)
-            if issue:
-                issues.append(issue)
-        return issues
+        wanted = {self._lookup_id(issue_id) for issue_id in issue_ids if issue_id}
+        if not wanted:
+            return []
+        # Resolve the complete batch from one coherent cached scan. This avoids
+        # N detail reads and guarantees every preflight member belongs to the
+        # same repository generation even when another process is publishing.
+        with self._write_lock:
+            records = self._read_records()
+            with self._read_cache_guard:
+                states = dict(self._read_cache_status_by_id or {})
+            found: dict[str, Issue] = {}
+            for record in records:
+                issue = self._normalize_record(record)
+                key = self._lookup_id(issue.identifier)
+                if key in wanted:
+                    found[key] = self._with_dependency_states(issue, states)
+            return [
+                found[key]
+                for issue_id in issue_ids
+                if (key := self._lookup_id(issue_id)) in found
+            ]
 
     def fetch_memories(self) -> dict[str, str]:
         return {}
@@ -1126,6 +1146,13 @@ class OompahMarkdownTracker:
                 body = self._apply_field(meta, body, key, value)
             meta["updated_at"] = _now_iso()
             new_status = canonicalize_status(str(meta.get("status") or old_status))
+            if new_status != old_status:
+                prior_revision = meta.get("oompah.lifecycle_revision", 0)
+                if isinstance(prior_revision, bool) or not isinstance(
+                    prior_revision, int
+                ):
+                    prior_revision = 0
+                meta["oompah.lifecycle_revision"] = prior_revision + 1
             new_path = self._path_for(str(meta["id"]), new_status)
             if new_path == path:
                 _write_markdown(path, meta, body)
@@ -1150,6 +1177,378 @@ class OompahMarkdownTracker:
         # CheckpointQueue._lock, which is acquired inside flush().
         if self._checkpoint_queue is not None and new_status != old_status:
             self._maybe_mandatory_flush(new_status)
+
+    def batch_update_issues(
+        self,
+        updates: list[dict[str, Any]],
+        *,
+        project_id: str,
+        actor: str,
+        idempotency_key: str,
+        request_hash: str,
+        operation: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Apply one ordered compare-and-swap batch in one tracker transaction.
+
+        Every record and the idempotency receipt are written while the shared
+        repository lock is held, then published by one commit/checkpoint.  A
+        stale member or local write failure restores the complete pre-batch
+        file set before releasing the lock.
+        """
+
+        from oompah.task_transition_service import issue_authority_version
+
+        if not updates:
+            raise BatchPreconditionError(
+                [{"code": "empty_batch", "message": "updates must not be empty"}]
+            )
+        identifiers = [str(update.get("identifier") or "").strip() for update in updates]
+        if any(not identifier for identifier in identifiers):
+            raise BatchPreconditionError(
+                [{"code": "invalid_identifier", "message": "identifier is required"}]
+            )
+        if len(set(identifiers)) != len(identifiers):
+            raise BatchPreconditionError(
+                [
+                    {
+                        "code": "duplicate_identifier",
+                        "message": "batch identifiers must be unique",
+                    }
+                ]
+            )
+
+        receipt_key = f"{project_id}:{idempotency_key}"
+        with self._write_lock:
+            self._prepare_default_branch_for_write()
+            receipts = self._read_batch_receipts()
+            prior_receipt = receipts.get(receipt_key)
+            if isinstance(prior_receipt, dict):
+                if prior_receipt.get("request_hash") != request_hash:
+                    raise BatchIdempotencyConflictError(
+                        "Idempotency-Key was already used for a different batch."
+                    )
+                return {
+                    "batch_id": str(prior_receipt.get("batch_id") or ""),
+                    "replayed": True,
+                    "results": list(prior_receipt.get("results") or []),
+                }
+            records: dict[str, dict[str, Any]] = {}
+            rejections: list[dict[str, Any]] = []
+            for identifier in identifiers:
+                record = self._read_record_uncached(identifier)
+                if record is None:
+                    rejections.append(
+                        {
+                            "identifier": identifier,
+                            "code": "task_missing",
+                            "message": "Task was not found in this project.",
+                        }
+                    )
+                else:
+                    records[identifier] = record
+            if rejections:
+                raise BatchPreconditionError(rejections)
+
+            for update in updates:
+                identifier = str(update["identifier"])
+                issue = self._normalize_record(records[identifier])
+                issue.project_id = project_id
+                observed_revision = issue_authority_version(issue)
+                expected_revision = str(update.get("expected_revision") or "")
+                expected_status = canonicalize_status(update.get("expected_status"))
+                if expected_revision != observed_revision or (
+                    expected_status and expected_status != canonicalize_status(issue.state)
+                ):
+                    rejections.append(
+                        {
+                            "identifier": identifier,
+                            "code": "stale_revision",
+                            "message": "Task changed after the board snapshot.",
+                            "current_status": canonicalize_status(issue.state),
+                            "current_revision": observed_revision,
+                        }
+                    )
+            if rejections:
+                raise BatchPreconditionError(rejections)
+
+            batch_id = f"batch-{uuid.uuid4().hex}"
+            backups: list[tuple[Path, Path, str]] = []
+            written: dict[str, dict[str, Any]] = {}
+            now = _now_iso()
+            manifest_written = False
+            try:
+                for update in updates:
+                    identifier = str(update["identifier"])
+                    record = records[identifier]
+                    old_path = Path(record["path"])
+                    meta = dict(record["meta"])
+                    body = str(record["body"])
+                    for key, value in dict(update.get("fields") or {}).items():
+                        body = self._apply_field(meta, body, key, value)
+                    meta["updated_at"] = now
+                    old_status = canonicalize_status(
+                        str(record["meta"].get("status") or BACKLOG)
+                    )
+                    new_status = canonicalize_status(
+                        str(meta.get("status") or old_status)
+                    )
+                    if new_status != old_status:
+                        prior_revision = meta.get("oompah.lifecycle_revision", 0)
+                        if isinstance(prior_revision, bool) or not isinstance(
+                            prior_revision, int
+                        ):
+                            prior_revision = 0
+                        meta["oompah.lifecycle_revision"] = prior_revision + 1
+                    meta["oompah.last_batch"] = {
+                        "batch_id": batch_id,
+                        "actor": actor,
+                        "committed_at": now,
+                        "operation": dict(operation or {}),
+                    }
+                    new_path = self._path_for(str(meta["id"]), new_status)
+                    backups.append(
+                        (old_path, new_path, old_path.read_text(encoding="utf-8"))
+                    )
+                    written[identifier] = {
+                        "path": new_path,
+                        "meta": meta,
+                        "body": body,
+                    }
+
+                results: list[dict[str, str]] = []
+                for identifier in identifiers:
+                    issue = self._normalize_record(written[identifier])
+                    issue.project_id = project_id
+                    results.append(
+                        {
+                            "identifier": identifier,
+                            "status": canonicalize_status(issue.state),
+                            "revision": issue_authority_version(issue),
+                        }
+                    )
+                receipts[receipt_key] = {
+                    "batch_id": batch_id,
+                    "request_hash": request_hash,
+                    "committed_at": now,
+                    "operation": dict(operation or {}),
+                    "results": results,
+                }
+                receipt_existed = self._batch_receipts_path.exists()
+                receipt_backup = (
+                    self._batch_receipts_path.read_text(encoding="utf-8")
+                    if receipt_existed
+                    else ""
+                )
+
+                manifest = {
+                    "schema_version": 1,
+                    "phase": "writing",
+                    "task_count": len(identifiers),
+                    "receipt_existed": receipt_existed,
+                    "receipt_content": receipt_backup,
+                    "backups": [
+                        {
+                            "old_path": str(old_path.relative_to(self.tasks_root)),
+                            "new_path": str(new_path.relative_to(self.tasks_root)),
+                            "content": content,
+                        }
+                        for old_path, new_path, content in backups
+                    ],
+                }
+                _atomic_write(
+                    self._batch_transaction_path,
+                    json.dumps(manifest, sort_keys=True),
+                )
+                manifest_written = True
+                _atomic_write(
+                    self._batch_receipts_path,
+                    yaml.safe_dump(receipts, sort_keys=False, allow_unicode=False),
+                )
+                for identifier in identifiers:
+                    record = written[identifier]
+                    old_path, new_path, _content = next(
+                        backup for backup in backups if backup[0].stem == identifier
+                    )
+                    _write_markdown(new_path, record["meta"], record["body"])
+                    if old_path != new_path:
+                        old_path.unlink(missing_ok=True)
+                # Past this durable boundary every member and the receipt are
+                # present together. A publish failure has an unknown remote
+                # outcome, so a successor must re-drive this exact commit/push
+                # instead of restoring files behind a possibly-created commit.
+                manifest["phase"] = "publishing"
+                _atomic_write(
+                    self._batch_transaction_path,
+                    json.dumps(manifest, sort_keys=True),
+                )
+            except BaseException:
+                if manifest_written:
+                    for old_path, new_path, content in reversed(backups):
+                        if new_path != old_path:
+                            new_path.unlink(missing_ok=True)
+                        _atomic_write(old_path, content)
+                    if receipt_existed:
+                        _atomic_write(self._batch_receipts_path, receipt_backup)
+                    else:
+                        self._batch_receipts_path.unlink(missing_ok=True)
+                    self._batch_transaction_path.unlink(missing_ok=True)
+                raise
+            for identifier in identifiers:
+                _advance_repo_read_generation(
+                    self._repo_lock_key,
+                    task_id=identifier,
+                )
+            self._clear_read_cache_local()
+            try:
+                self._publish_batch_transaction(len(identifiers))
+            except BaseException:
+                # The local commit may exist and the remote may have accepted
+                # the push even when its response was lost. Preserve the
+                # complete transaction and receipt so the same idempotency key
+                # can safely finish publication on retry.
+                raise
+            self._batch_transaction_path.unlink(missing_ok=True)
+
+        self._notify_read_change()
+        generation = self.get_state_branch_generation()
+        if generation is not None:
+            for result in results:
+                result["storage_generation"] = generation
+        return {"batch_id": batch_id, "replayed": False, "results": results}
+
+    def batch_update_receipt(
+        self,
+        identifier: str,
+        *,
+        project_id: str,
+        idempotency_key: str,
+        request_hash: str,
+    ) -> dict[str, Any] | None:
+        """Read one exact durable batch receipt without applying new effects."""
+
+        with self._write_lock:
+            recovered_publication = self._recover_batch_manifest(publish=True)
+            receipts = self._read_batch_receipts()
+            receipt = receipts.get(f"{project_id}:{idempotency_key}")
+            if not isinstance(receipt, dict):
+                return None
+            if receipt.get("request_hash") != request_hash:
+                raise BatchIdempotencyConflictError(
+                    "Idempotency-Key was already used for a different batch."
+                )
+            result = {
+                "batch_id": str(receipt.get("batch_id") or ""),
+                "replayed": True,
+                "results": list(receipt.get("results") or []),
+            }
+            if recovered_publication:
+                # The original API call never crossed the tracker return
+                # boundary, so its coalesced workflow/scheduler effects still
+                # need to be emitted once by the recovering request.
+                result["recovered_publication"] = True
+            return result
+
+    @property
+    def _batch_transaction_path(self) -> Path:
+        return self.tasks_root.parent / ".batch-transaction.json"
+
+    @property
+    def _batch_receipts_path(self) -> Path:
+        return self.tasks_root / "batch-receipts.yml"
+
+    def _read_batch_receipts(self) -> dict[str, Any]:
+        path = self._batch_receipts_path
+        if not path.exists():
+            return {}
+        try:
+            raw = yaml.load(path.read_text(encoding="utf-8"), Loader=_YAML_SAFE_LOADER)
+        except (OSError, yaml.YAMLError) as exc:
+            raise TrackerError("Cannot read native batch idempotency receipts") from exc
+        if not isinstance(raw, dict):
+            raise TrackerError("Native batch idempotency receipts are malformed")
+        return {str(key): value for key, value in raw.items()}
+
+    def _publish_batch_transaction(self, task_count: int) -> None:
+        """Publish an already materialized all-member batch exactly once."""
+
+        subject = f"Batch update {task_count} oompah tasks"
+        if self.state_branch_enabled and self._checkpoint_queue is not None:
+            self._commit_and_push_state_branch(subject)
+            if self.state_branch_shadow_write:
+                self._shadow_write_to_default_branch(f"Shadow {subject.lower()}")
+            self.last_checkpoint_at = time.monotonic()
+        else:
+            self._commit_and_push(subject)
+
+    def _recover_batch_manifest(self, *, publish: bool = False) -> bool:
+        """Recover an interrupted batch at its durable transaction phase.
+
+        ``writing`` has no commit authority and is rolled back completely.
+        ``publishing`` already contains every member plus its idempotency
+        receipt and must be re-driven, never rolled back behind a possibly
+        successful local commit or remote push. Read paths may observe that
+        coherent local state without performing network I/O; receipt lookups
+        and the next writer finish publication before continuing.
+        """
+
+        manifest_path = self._batch_transaction_path
+        if not manifest_path.exists():
+            return False
+        try:
+            raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+            backups = raw.get("backups") if isinstance(raw, dict) else None
+            if not isinstance(backups, list) or not backups:
+                raise ValueError("manifest has no backups")
+            root = self.tasks_root.resolve()
+            restored: list[tuple[Path, Path, str]] = []
+            for item in backups:
+                if not isinstance(item, dict):
+                    raise ValueError("backup entry is invalid")
+                old_path = (root / str(item.get("old_path") or "")).resolve()
+                new_path = (root / str(item.get("new_path") or "")).resolve()
+                if root not in old_path.parents or root not in new_path.parents:
+                    raise ValueError("backup path escapes task storage")
+                content = item.get("content")
+                if not isinstance(content, str):
+                    raise ValueError("backup content is invalid")
+                restored.append((old_path, new_path, content))
+            phase = str(raw.get("phase") or "writing")
+            if phase == "publishing":
+                if not publish:
+                    return False
+                task_count = raw.get("task_count")
+                if not isinstance(task_count, int) or task_count < 1:
+                    raise ValueError("publishing manifest has invalid task count")
+                self._publish_batch_transaction(task_count)
+                manifest_path.unlink(missing_ok=True)
+                self._clear_read_cache_local()
+                logger.warning(
+                    "Completed publication of an interrupted native task batch"
+                )
+                self._notify_read_change()
+                return True
+            if phase != "writing":
+                raise ValueError(f"manifest has unknown phase {phase!r}")
+
+            for old_path, new_path, content in reversed(restored):
+                if new_path != old_path:
+                    new_path.unlink(missing_ok=True)
+                _atomic_write(old_path, content)
+            receipt_content = raw.get("receipt_content")
+            if raw.get("receipt_existed") is True:
+                if not isinstance(receipt_content, str):
+                    raise ValueError("receipt backup is invalid")
+                _atomic_write(self._batch_receipts_path, receipt_content)
+            else:
+                self._batch_receipts_path.unlink(missing_ok=True)
+            manifest_path.unlink(missing_ok=True)
+            self._clear_read_cache_local()
+            logger.warning("Recovered an interrupted native task batch transaction")
+            return False
+        except Exception as exc:
+            raise TrackerError(
+                "Cannot recover interrupted native task batch transaction"
+            ) from exc
 
     def close_issue(self, identifier: str, *, reason: str | None = None) -> None:
         status = self._terminal_status()
@@ -1548,6 +1947,7 @@ class OompahMarkdownTracker:
         if not self.state_branch_enabled:
             return None
         with self._write_lock:
+            self._recover_batch_manifest()
             return self._state_branch_generation_locked()
 
     def get_publication_revision(self) -> int:
@@ -1870,6 +2270,12 @@ class OompahMarkdownTracker:
             description=description,
             priority=priority,
             state=state,
+            lifecycle_revision=(
+                meta.get("oompah.lifecycle_revision")
+                if isinstance(meta.get("oompah.lifecycle_revision"), int)
+                and not isinstance(meta.get("oompah.lifecycle_revision"), bool)
+                else None
+            ),
             branch_name=_sanitize_identifier(identifier),
             target_branch=_optional_str(
                 meta.get("target_branch") or meta.get("oompah.target_branch")
@@ -1952,6 +2358,7 @@ class OompahMarkdownTracker:
         # generation (before or after that transition), including when a
         # graceful reload has created a second tracker instance.
         with self._write_lock:
+            self._recover_batch_manifest()
             generation = _repo_read_generation(self._repo_lock_key)
             with self._read_cache_guard:
                 cached = self._read_cache
@@ -2661,6 +3068,7 @@ class OompahMarkdownTracker:
         self._assert_writer_active()
         if task_state:
             self._assert_task_writes_allowed()
+            self._recover_batch_manifest(publish=True)
         if not self._git_sync_requested() or not self._is_git_repo():
             return
         if self.state_branch_enabled:

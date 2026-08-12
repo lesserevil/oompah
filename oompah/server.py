@@ -6,6 +6,7 @@ import asyncio
 import base64
 import contextlib
 import functools
+import hashlib
 import inspect
 import json
 import logging
@@ -181,6 +182,8 @@ from oompah.work_decision_projection import (
 )
 from oompah.label_auth import is_authorized_status_actor
 from oompah.tracker import (
+    BatchIdempotencyConflictError,
+    BatchPreconditionError,
     CreateOnceConflictError,
     TrackerError,
     normalize_priority_int,
@@ -213,6 +216,7 @@ from oompah.statuses import (
 from oompah.terminal_audit import (
     ContributorIdentity,
     EvidenceFingerprint,
+    RequestState,
     TargetState,
     compute_issue_evidence_fingerprint,
 )
@@ -229,6 +233,7 @@ from oompah.transition_gate import (
     check_intake_transition,
     is_project_owner,
 )
+from oompah.workflow_contract import TransitionRequirement, transition_rule
 from oompah.agent_profile_store import (
     AgentProfileStore,
     AgentProfileStoreError,
@@ -4940,6 +4945,10 @@ def _serialize_issues(orch, all_issues: list) -> dict[str, list]:
             "priority": issue.priority,
             "state": state,
             "tracker_state": tracker_state,
+            # Exact lifecycle CAS evidence used by the whole-column batch API.
+            # It deliberately excludes generic timestamps, so comments and
+            # unrelated metadata do not create false stale-card rejections.
+            "authority_revision": issue_authority_version(issue),
             "work_decision": _work_decision_for_task(
                 orch, issue.project_id, issue.identifier, issue
             ),
@@ -14992,6 +15001,559 @@ async def api_terminal_provenance_action(
             "changed": result.changed,
         }
     )
+
+
+_BATCH_UPDATE_MAX_TASKS = 200
+_BATCH_SAFE_REQUIREMENTS = frozenset(
+    {
+        TransitionRequirement.EXPECTED_VERSION,
+        TransitionRequirement.PROJECT_OWNER_AUTHORITY,
+        TransitionRequirement.ACTIONABLE_DESCRIPTION,
+    }
+)
+
+
+def _batch_status_commit(
+    orch: Any,
+    tracker: Any,
+    project: Any,
+    project_id: str,
+    updates: list[dict[str, Any]],
+    target_status: str,
+    actor: str,
+    idempotency_key: str,
+    request_hash: str,
+    operation: dict[str, str],
+) -> dict[str, Any]:
+    """Preflight and commit one project-scoped status batch under one lock."""
+
+    identifiers = [str(item["identifier"]) for item in updates]
+    with orch.project_store.project_write_lock(project_id):
+        receipt_lookup = getattr(tracker, "batch_update_receipt", None)
+        if callable(receipt_lookup):
+            replay = receipt_lookup(
+                identifiers[0],
+                project_id=project_id,
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+            )
+            if replay is not None:
+                return replay
+        transition_journal = getattr(orch, "task_transition_journal", None)
+        active_claims = getattr(transition_journal, "active_claims_for_tasks", None)
+        if callable(active_claims):
+            claimed = active_claims(project_id, identifiers)
+            if isinstance(claimed, (set, frozenset, list, tuple)) and claimed:
+                raise BatchPreconditionError(
+                    [
+                        {
+                            "identifier": identifier,
+                            "code": "transition_owned",
+                            "message": "A durable lifecycle transition owns this task.",
+                        }
+                        for identifier in sorted(claimed)
+                    ]
+                )
+        issues = list(tracker.fetch_issue_states_by_ids(identifiers))
+        by_identifier: dict[str, Any] = {}
+        for issue in issues:
+            issue.project_id = project_id
+            for alias in (issue.id, issue.identifier):
+                if alias:
+                    by_identifier[str(alias)] = issue
+
+        rejections: list[dict[str, Any]] = []
+        tracker_updates: list[dict[str, Any]] = []
+        integration_queue = getattr(orch, "integration_queue", None)
+        for item in updates:
+            identifier = str(item["identifier"])
+            issue = by_identifier.get(identifier)
+            if issue is None:
+                rejections.append(
+                    {
+                        "identifier": identifier,
+                        "code": "task_missing",
+                        "message": "Task was not found in this project.",
+                    }
+                )
+                continue
+            current_status = canonicalize_status(issue.state)
+            current_revision = issue_authority_version(issue)
+            if (
+                item["expected_revision"] != current_revision
+                or item["expected_status"] != current_status
+            ):
+                rejections.append(
+                    {
+                        "identifier": identifier,
+                        "code": "stale_revision",
+                        "message": "Task changed after the board snapshot.",
+                        "current_status": current_status,
+                        "current_revision": current_revision,
+                    }
+                )
+                continue
+            if current_status == target_status:
+                rejections.append(
+                    {
+                        "identifier": identifier,
+                        "code": "already_in_target_status",
+                        "message": "Task is already in the requested status.",
+                    }
+                )
+                continue
+            if current_status in TERMINAL_STATUSES or current_status == IN_VALIDATION:
+                rejections.append(
+                    {
+                        "identifier": identifier,
+                        "code": "workflow_owned_status",
+                        "message": (
+                            "Terminal and validation states require their "
+                            "dedicated workflow."
+                        ),
+                    }
+                )
+                continue
+            audit_store_factory = getattr(orch, "_audit_store", None)
+            if callable(audit_store_factory):
+                try:
+                    audit_document = audit_store_factory(issue).read(
+                        issue.identifier
+                    )
+                    audit_active = bool(audit_document.is_quarantined) or any(
+                        record.request_state
+                        in {RequestState.PENDING, RequestState.IN_PROGRESS}
+                        for record in audit_document.pending_chain
+                    )
+                except Exception:
+                    audit_active = True
+                if audit_active:
+                    rejections.append(
+                        {
+                            "identifier": identifier,
+                            "code": "audit_owned",
+                            "message": (
+                                "A terminal audit owns this task or its audit "
+                                "metadata is unavailable."
+                            ),
+                        }
+                    )
+                    continue
+            if (issue.issue_type or "").strip().lower() == "epic":
+                rejections.append(
+                    {
+                        "identifier": identifier,
+                        "code": "derived_epic_status",
+                        "message": "Epic status is derived and cannot be batch-moved.",
+                    }
+                )
+                continue
+            rule = transition_rule(current_status, target_status)
+            if rule is None:
+                rejections.append(
+                    {
+                        "identifier": identifier,
+                        "code": "illegal_transition",
+                        "message": f"{current_status} cannot move to {target_status}.",
+                    }
+                )
+                continue
+            unsupported = sorted(
+                requirement.value
+                for requirement in rule.requirements - _BATCH_SAFE_REQUIREMENTS
+            )
+            if unsupported:
+                rejections.append(
+                    {
+                        "identifier": identifier,
+                        "code": "policy_sensitive_transition",
+                        "message": (
+                            "This transition requires its dedicated workflow: "
+                            + ", ".join(unsupported)
+                        ),
+                    }
+                )
+                continue
+            gate = check_intake_transition(
+                current_status,
+                target_status,
+                actor,
+                project,
+                issue_is_ready=False,
+                issue_has_requestor_approval=False,
+                is_bot=_is_bot_actor(actor),
+            )
+            if not gate.allowed:
+                rejections.append(
+                    {
+                        "identifier": identifier,
+                        "code": "intake_transition_rejected",
+                        "message": gate.reason or gate.remedy,
+                    }
+                )
+                continue
+            if is_dispatchable_status(target_status) and not str(
+                issue.description or ""
+            ).strip():
+                rejections.append(
+                    {
+                        "identifier": identifier,
+                        "code": "actionable_description_required",
+                        "message": "Dispatchable tasks require a non-empty description.",
+                    }
+                )
+                continue
+            if (
+                issue.id in getattr(orch.state, "running", {})
+                or issue.id in getattr(orch.state, "claimed", set())
+                or issue.id in getattr(orch.state, "retry_attempts", {})
+            ):
+                rejections.append(
+                    {
+                        "identifier": identifier,
+                        "code": "scheduler_owned",
+                        "message": "A scheduler worker or retry owns this task.",
+                    }
+                )
+                continue
+            owner_claim = getattr(orch, "_owner_claim_for_issue", None)
+            if callable(owner_claim) and owner_claim(issue.id, project_id) is not None:
+                rejections.append(
+                    {
+                        "identifier": identifier,
+                        "code": "owner_claim_active",
+                        "message": "A direct-owner lease owns this task.",
+                    }
+                )
+                continue
+            queue_item = (
+                integration_queue.get(project_id, issue.identifier)
+                if integration_queue is not None
+                and callable(getattr(integration_queue, "get", None))
+                else None
+            )
+            if queue_item is not None and str(queue_item.state) not in {
+                "cancelled",
+                "integrated",
+            }:
+                rejections.append(
+                    {
+                        "identifier": identifier,
+                        "code": "integration_owned",
+                        "message": "An integration queue lease or item owns this task.",
+                    }
+                )
+                continue
+            tracker_updates.append(
+                {
+                    "identifier": issue.identifier,
+                    "expected_revision": item["expected_revision"],
+                    "expected_status": current_status,
+                    "fields": {"status": target_status},
+                }
+            )
+
+        if rejections:
+            raise BatchPreconditionError(rejections)
+        return tracker.batch_update_issues(
+            tracker_updates,
+            project_id=project_id,
+            actor=actor,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+            operation=operation,
+        )
+
+
+@app.post("/api/v1/projects/{project_id}/tasks/batch-update")
+async def api_batch_update_tasks(project_id: str, request: Request):
+    """Atomically update an ordered set of native tasks in one API call."""
+
+    try:
+        orch = _get_orchestrator()
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": f"Invalid JSON: {exc}"}},
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "request body must be a JSON object",
+                    }
+                },
+                status_code=400,
+            )
+        supplied_project = str(body.get("project_id") or project_id).strip()
+        canonical_project = _canonical_managed_project_id(orch, supplied_project)
+        if canonical_project != _canonical_managed_project_id(orch, project_id):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "project_mismatch",
+                        "message": "Body and path project identities must match.",
+                    }
+                },
+                status_code=409,
+            )
+        project_id = canonical_project
+        project = _project_by_id(orch, project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "project_not_found", "message": "Project not found."}},
+                status_code=404,
+            )
+        actor, actor_conflict = _resolve_authorization_actor(body, request)
+        if actor_conflict is not None:
+            return actor_conflict
+        if not actor:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "actor_unmapped",
+                        "message": "An authenticated or configured project actor is required.",
+                    }
+                },
+                status_code=403,
+            )
+        raw_key = request.headers.get("Idempotency-Key")
+        idempotency_key = str(raw_key or body.get("idempotency_key") or "").strip()
+        if not idempotency_key or len(idempotency_key) > 512:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_idempotency_key",
+                        "message": "Idempotency-Key is required and must not exceed 512 characters.",
+                    }
+                },
+                status_code=400,
+            )
+        raw_updates = body.get("updates")
+        if (
+            not isinstance(raw_updates, list)
+            or not raw_updates
+            or len(raw_updates) > _BATCH_UPDATE_MAX_TASKS
+        ):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": f"updates must contain 1-{_BATCH_UPDATE_MAX_TASKS} tasks",
+                    }
+                },
+                status_code=400,
+            )
+        raw_target = body.get("status")
+        target_status = canonicalize_status(raw_target)
+        if not isinstance(raw_target, str) or target_status not in CANONICAL_STATUSES:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "status is invalid"}},
+                status_code=400,
+            )
+        if target_status in TERMINAL_STATUSES or target_status == IN_VALIDATION:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "terminal_transition_requires_audit",
+                        "message": "Terminal and validation transitions require the audit workflow.",
+                    }
+                },
+                status_code=409,
+            )
+        raw_operation = body.get("operation") or {"kind": "batch_status_update"}
+        if not isinstance(raw_operation, dict):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "operation must be an object",
+                    }
+                },
+                status_code=400,
+            )
+        operation: dict[str, str] = {}
+        for key in ("kind", "source_status", "scope"):
+            value = raw_operation.get(key)
+            if value is None:
+                continue
+            if not isinstance(value, str) or not value.strip() or len(value) > 200:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": f"operation.{key} must be a non-empty string of at most 200 characters",
+                        }
+                    },
+                    status_code=400,
+                )
+            operation[key] = value.strip()
+        operation.setdefault("kind", "batch_status_update")
+        updates: list[dict[str, str]] = []
+        identifiers: set[str] = set()
+        for index, raw in enumerate(raw_updates):
+            if not isinstance(raw, dict):
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": f"updates[{index}] must be an object",
+                        }
+                    },
+                    status_code=400,
+                )
+            identifier = str(raw.get("identifier") or "").strip()
+            expected_revision = str(raw.get("expected_revision") or "").strip()
+            expected_status = canonicalize_status(raw.get("expected_status"))
+            if (
+                not identifier
+                or not expected_revision
+                or expected_status not in CANONICAL_STATUSES
+            ):
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": (
+                                f"updates[{index}] requires identifier, "
+                                "expected_revision, and expected_status"
+                            ),
+                        }
+                    },
+                    status_code=400,
+                )
+            if identifier in identifiers:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "duplicate_identifier",
+                            "message": f"Duplicate task identifier: {identifier}",
+                        }
+                    },
+                    status_code=400,
+                )
+            identifiers.add(identifier)
+            updates.append(
+                {
+                    "identifier": identifier,
+                    "expected_revision": expected_revision,
+                    "expected_status": expected_status,
+                }
+            )
+
+        tracker = await _run_control_api_io(_get_tracker, orch, project_id)
+        _wire_tracker_issue_cache_invalidation(tracker, project_id)
+        if (
+            getattr(tracker, "supports_atomic_batch_updates", False) is not True
+            or not callable(getattr(tracker, "batch_update_issues", None))
+        ):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "atomic_batch_unsupported",
+                        "message": "This tracker cannot guarantee an atomic batch update.",
+                    },
+                    "capability": {"atomic": False, "backend": getattr(project, "tracker_kind", None)},
+                },
+                status_code=409,
+            )
+        canonical_request = json.dumps(
+            {
+                "project_id": project_id,
+                "actor": actor,
+                "status": target_status,
+                "operation": operation,
+                "updates": updates,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        request_hash = hashlib.sha256(canonical_request.encode("utf-8")).hexdigest()
+        result = await _run_control_api_io(
+            _batch_status_commit,
+            orch,
+            tracker,
+            project,
+            project_id,
+            updates,
+            target_status,
+            actor,
+            idempotency_key,
+            request_hash,
+            operation,
+        )
+        publish_effects = bool(
+            not result.get("replayed") or result.get("recovered_publication")
+        )
+        paused_check = getattr(orch, "_is_project_paused", None)
+        project_paused = bool(
+            paused_check(project_id)
+            if callable(paused_check)
+            else getattr(project, "paused", False)
+        )
+        if publish_effects:
+            for item in result["results"]:
+                if is_dispatchable_status(item["status"]):
+                    orch.state.completed.discard(item["identifier"])
+                    orch.state.claimed.discard(item["identifier"])
+            orch.event_bus.emit(
+                EventType.ISSUE_STATE_CHANGED,
+                {
+                    "project_id": project_id,
+                    "identifiers": [item["identifier"] for item in result["results"]],
+                    "status": target_status,
+                    "change": "batch-updated",
+                    "batch_id": result["batch_id"],
+                },
+            )
+            if is_dispatchable_status(target_status) and not project_paused:
+                await _run_control_api_io(orch.request_refresh)
+        # Native publication invokes the tracker read-change callback exactly
+        # once. That callback synchronously advances snapshot authority and,
+        # when clients are connected, schedules the one fresh issues push.
+        # Do not add a second endpoint-local broadcast here.
+        epoch, _state_revision, issue_revision = _protocol_values()
+        return JSONResponse(
+            {
+                "ok": True,
+                **result,
+                "project_id": project_id,
+                "status": target_status,
+                "operation": operation,
+                "atomicity": "atomic",
+                "batch_size": len(updates),
+                "storage_transactions": 0 if result.get("replayed") else 1,
+                "project_paused": project_paused,
+                "scheduler_refresh": bool(
+                    publish_effects
+                    and is_dispatchable_status(target_status)
+                    and not project_paused
+                ),
+                "event_cursor": {"epoch": epoch, "issue_revision": issue_revision},
+            }
+        )
+    except (BatchPreconditionError, BatchIdempotencyConflictError) as exc:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                    "rejections": exc.rejections,
+                },
+                "atomicity": "atomic",
+                "applied": 0,
+            },
+            status_code=409,
+        )
+    except Exception as exc:
+        logger.error("Batch task update API error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "batch_update_failed", "message": str(exc)}},
+            status_code=500,
+        )
 
 
 @app.patch("/api/v1/issues/{identifier}")

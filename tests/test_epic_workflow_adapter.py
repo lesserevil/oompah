@@ -26,6 +26,7 @@ from oompah.statuses import (
     IN_VALIDATION,
     MERGED,
     NEEDS_REBASE,
+    OPEN,
 )
 from oompah.task_transition_service import (
     TransitionDisposition,
@@ -2634,6 +2635,71 @@ def test_event_router_never_wakes_same_identifier_in_another_project():
         )
     } == {"epic_workflow_event:issue-state-changed"}
     orchestrator.request_refresh.assert_not_called()
+    router.close()
+
+
+def test_event_router_coalesces_batch_members_to_one_parent_rollup():
+    parent = epic("TOP")
+    first = Issue(
+        id="FIRST",
+        identifier="FIRST",
+        title="First",
+        state=OPEN,
+        issue_type="task",
+        parent_id="TOP",
+        project_id="project-1",
+    )
+    second = Issue(
+        id="SECOND",
+        identifier="SECOND",
+        title="Second",
+        state=OPEN,
+        issue_type="task",
+        parent_id="TOP",
+        project_id="project-1",
+    )
+    tracker = Tracker([parent, first, second])
+    controller = MagicMock()
+    controller.scheduler = MagicMock()
+    runtime = SimpleNamespace(
+        enforce=True,
+        project_bindings={
+            "project-1": SimpleNamespace(
+                tracker=tracker,
+                epic_controller=controller,
+            )
+        },
+    )
+    orchestrator = SimpleNamespace(
+        request_refresh=MagicMock(),
+        _request_workflow_batch_continuation=MagicMock(return_value=True),
+    )
+    router = EpicWorkflowEventRouter(orchestrator, runtime)
+    with patch(
+        "oompah.epic_workflow_adapter.EpicWorkflowController"
+    ) as ephemeral_controller:
+        ephemeral_controller.return_value.evaluate.return_value = SimpleNamespace(
+            tasks=()
+        )
+        router.on_issue_changed(
+            "issue_state_changed",
+            {
+                "project_id": "project-1",
+                "identifiers": ["FIRST", "SECOND"],
+                "change": "batch-updated",
+                "batch_id": "batch-1",
+            },
+        )
+        router.drain_events(timeout=1.0)
+
+    assert controller.schedule_action.call_count == 2
+    assert {
+        call.kwargs["action"] for call in controller.schedule_action.call_args_list
+    } == {EpicAction.READINESS, EpicAction.TARGET_RESOLUTION}
+    for call in controller.schedule_action.call_args_list:
+        assert call.kwargs["payload"]["trigger_identifiers"] == ["FIRST", "SECOND"]
+        assert call.kwargs["payload"]["batch_id"] == "batch-1"
+    assert orchestrator._request_workflow_batch_continuation.call_count == 2
     router.close()
 
 

@@ -2482,8 +2482,88 @@ class EpicWorkflowEventRouter:
                 payload=wake_payload,
             )
 
+    def _wake_issue_batch(
+        self,
+        payload: Mapping[str, Any],
+        identifiers: tuple[str, ...],
+        *,
+        source: str,
+    ) -> None:
+        """Wake every impacted epic once for one committed task batch."""
+
+        if not self.runtime.enforce:
+            return
+        impacted: dict[tuple[int, str], tuple[Any, Issue]] = {}
+        trigger_authorities: dict[str, str] = {}
+        project_id = payload.get("project_id")
+        for identifier in identifiers:
+            resolved = self._resolve_issue(project_id, identifier)
+            if resolved is None:
+                continue
+            binding, issue = resolved
+            trigger_authorities[issue.identifier] = issue_authority_version(issue)
+            if _text(issue.issue_type).lower() == "epic":
+                impacted[(id(binding), issue.identifier)] = (binding, issue)
+            parent_id = _text(issue.parent_id)
+            if parent_id:
+                parent = binding.tracker.fetch_issue_detail(parent_id)
+                if parent is not None and _text(parent.issue_type).lower() == "epic":
+                    impacted[(id(binding), parent.identifier)] = (binding, parent)
+
+        wake_payload = {
+            "trigger_identifiers": list(trigger_authorities),
+            "trigger_authorities": trigger_authorities,
+            "change": _text(payload.get("change")) or None,
+            "batch_id": _text(payload.get("batch_id")) or None,
+        }
+        for binding, epic in impacted.values():
+            if canonicalize_status(epic.state) in {MERGED, ARCHIVED}:
+                self._schedule(
+                    binding,
+                    epic,
+                    EpicAction.CLEANUP,
+                    source=source,
+                    payload=wake_payload,
+                )
+                continue
+            self._schedule(
+                binding,
+                epic,
+                EpicAction.READINESS,
+                source=source,
+                payload=wake_payload,
+            )
+            self._schedule(
+                binding,
+                epic,
+                EpicAction.TARGET_RESOLUTION,
+                source=source,
+                payload=wake_payload,
+            )
+            self._schedule_current_decision(
+                binding,
+                epic,
+                source=source,
+                payload=wake_payload,
+            )
+
     def on_issue_changed(self, _event: object, payload: dict[str, Any]) -> None:
         if not self.runtime.enforce:
+            return
+        identifiers = payload.get("identifiers")
+        if isinstance(identifiers, list):
+            members = tuple(
+                str(identifier).strip()
+                for identifier in identifiers
+                if str(identifier).strip()
+            )
+            if members:
+                self._submit_ordered(
+                    self._wake_issue_batch,
+                    dict(payload),
+                    members,
+                    source="issue-state-changed",
+                )
             return
         self._submit_ordered(
             self._wake_issue, dict(payload), source="issue-state-changed"

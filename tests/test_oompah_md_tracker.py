@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import subprocess
 import threading
@@ -32,6 +33,8 @@ from oompah.statuses import (
     PROPOSED,
 )
 from oompah.tracker import TrackerError
+from oompah.tracker import BatchIdempotencyConflictError, BatchPreconditionError
+from oompah.task_transition_service import issue_authority_version
 
 
 def _tracker(tmp_path, *, git_sync: bool = False) -> OompahMarkdownTracker:
@@ -95,6 +98,270 @@ def test_publication_revision_is_shared_and_constant_time(tmp_path):
     assert issue.identifier
     assert tracker.get_publication_revision() == before + 1
     assert replacement.get_publication_revision() == before + 1
+
+
+class TestOompahMarkdownTrackerBatchUpdate:
+    def _tasks(self, tmp_path):
+        tracker = _tracker(tmp_path)
+        first = tracker.create_issue(
+            "First batch task",
+            description="Move the first exact task.",
+            initial_status=BACKLOG,
+        )
+        second = tracker.create_issue(
+            "Second batch task",
+            description="Move the second exact task.",
+            initial_status=BACKLOG,
+        )
+        for issue in (first, second):
+            issue.project_id = "project-1"
+        return tracker, first, second
+
+    @staticmethod
+    def _updates(*issues):
+        return [
+            {
+                "identifier": issue.identifier,
+                "expected_status": issue.state,
+                "expected_revision": issue_authority_version(issue),
+                "fields": {"status": OPEN},
+            }
+            for issue in issues
+        ]
+
+    def test_batch_moves_all_members_with_one_commit(self, tmp_path):
+        tracker, first, second = self._tasks(tmp_path)
+        tracker._commit_and_push = MagicMock()
+
+        result = tracker.batch_update_issues(
+            self._updates(first, second),
+            project_id="project-1",
+            actor="alice",
+            idempotency_key="column-1",
+            request_hash="request-1",
+            operation={"kind": "whole_column_move", "scope": "flat_board"},
+        )
+
+        assert result["replayed"] is False
+        assert [item["identifier"] for item in result["results"]] == [
+            first.identifier,
+            second.identifier,
+        ]
+        assert tracker.fetch_issue_detail(first.identifier).state == OPEN
+        assert tracker.fetch_issue_detail(second.identifier).state == OPEN
+        first_meta = _frontmatter(
+            tracker.tasks_root / "open" / f"{first.identifier}.md"
+        )
+        assert first_meta["oompah.last_batch"] == {
+            "batch_id": result["batch_id"],
+            "actor": "alice",
+            "committed_at": first_meta["oompah.last_batch"]["committed_at"],
+            "operation": {"kind": "whole_column_move", "scope": "flat_board"},
+        }
+        tracker._commit_and_push.assert_called_once()
+        assert not tracker._batch_transaction_path.exists()
+
+    def test_bulk_state_read_uses_one_coherent_record_scan(self, tmp_path):
+        tracker, first, second = self._tasks(tmp_path)
+        original = tracker._read_records
+        tracker._read_records = MagicMock(side_effect=original)
+
+        issues = tracker.fetch_issue_states_by_ids(
+            [second.identifier, "missing", first.identifier]
+        )
+
+        assert [issue.identifier for issue in issues] == [
+            second.identifier,
+            first.identifier,
+        ]
+        tracker._read_records.assert_called_once_with()
+
+    def test_batch_replay_returns_original_receipt_without_a_second_commit(
+        self, tmp_path
+    ):
+        tracker, first, second = self._tasks(tmp_path)
+        updates = self._updates(first, second)
+        tracker._commit_and_push = MagicMock()
+
+        initial = tracker.batch_update_issues(
+            updates,
+            project_id="project-1",
+            actor="alice",
+            idempotency_key="column-1",
+            request_hash="request-1",
+        )
+        replay = tracker.batch_update_issues(
+            updates,
+            project_id="project-1",
+            actor="alice",
+            idempotency_key="column-1",
+            request_hash="request-1",
+        )
+
+        assert replay == {**initial, "replayed": True}
+        tracker._commit_and_push.assert_called_once()
+
+    def test_batch_rejects_stale_member_without_changing_any_task(self, tmp_path):
+        tracker, first, second = self._tasks(tmp_path)
+        updates = self._updates(first, second)
+        updates[1]["expected_revision"] = "stale"
+
+        with pytest.raises(BatchPreconditionError) as exc_info:
+            tracker.batch_update_issues(
+                updates,
+                project_id="project-1",
+                actor="alice",
+                idempotency_key="column-1",
+                request_hash="request-1",
+            )
+
+        assert exc_info.value.rejections[0]["identifier"] == second.identifier
+        assert tracker.fetch_issue_detail(first.identifier).state == BACKLOG
+        assert tracker.fetch_issue_detail(second.identifier).state == BACKLOG
+
+    def test_batch_rejects_idempotency_key_reuse_for_other_payload(self, tmp_path):
+        tracker, first, second = self._tasks(tmp_path)
+        updates = self._updates(first, second)
+        tracker.batch_update_issues(
+            updates,
+            project_id="project-1",
+            actor="alice",
+            idempotency_key="column-1",
+            request_hash="request-1",
+        )
+
+        with pytest.raises(BatchIdempotencyConflictError):
+            tracker.batch_update_issues(
+                updates,
+                project_id="project-1",
+                actor="alice",
+                idempotency_key="column-1",
+                request_hash="different-request",
+            )
+
+    def test_batch_publish_failure_is_recovered_by_idempotent_retry(self, tmp_path):
+        tracker, first, second = self._tasks(tmp_path)
+        updates = self._updates(first, second)
+        tracker._commit_and_push = MagicMock(
+            side_effect=[TrackerError("push response lost"), None]
+        )
+
+        with pytest.raises(TrackerError, match="push response lost"):
+            tracker.batch_update_issues(
+                updates,
+                project_id="project-1",
+                actor="alice",
+                idempotency_key="column-recover",
+                request_hash="request-recover",
+            )
+
+        assert tracker.fetch_issue_detail(first.identifier).state == OPEN
+        assert tracker.fetch_issue_detail(second.identifier).state == OPEN
+        assert tracker._batch_transaction_path.exists()
+
+        replay = tracker.batch_update_receipt(
+            first.identifier,
+            project_id="project-1",
+            idempotency_key="column-recover",
+            request_hash="request-recover",
+        )
+
+        assert replay is not None
+        assert replay["replayed"] is True
+        assert replay["recovered_publication"] is True
+        assert {item["status"] for item in replay["results"]} == {OPEN}
+        assert tracker._commit_and_push.call_count == 2
+        assert not tracker._batch_transaction_path.exists()
+
+    def test_interrupted_precommit_batch_rolls_back_before_next_read(self, tmp_path):
+        tracker, first, _second = self._tasks(tmp_path)
+        old_path = Path(
+            tracker._read_record_uncached(first.identifier)["path"]
+        )
+        new_path = tracker._path_for(first.identifier, OPEN)
+        old_content = old_path.read_text(encoding="utf-8")
+        new_path.parent.mkdir(parents=True, exist_ok=True)
+        new_path.write_text(old_content.replace("status: Backlog", "status: Open"))
+        old_path.unlink()
+        tracker._batch_receipts_path.write_text("temporary: receipt\n")
+        tracker._batch_transaction_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "phase": "writing",
+                    "task_count": 1,
+                    "receipt_existed": False,
+                    "receipt_content": "",
+                    "backups": [
+                        {
+                            "old_path": str(old_path.relative_to(tracker.tasks_root)),
+                            "new_path": str(new_path.relative_to(tracker.tasks_root)),
+                            "content": old_content,
+                        }
+                    ],
+                }
+            )
+        )
+        tracker._clear_read_cache_local()
+
+        assert tracker.fetch_issue_detail(first.identifier).state == BACKLOG
+        assert old_path.exists()
+        assert not new_path.exists()
+        assert not tracker._batch_receipts_path.exists()
+        assert not tracker._batch_transaction_path.exists()
+
+    def test_concurrent_overlapping_batches_have_one_winner(self, tmp_path):
+        tracker, first, second = self._tasks(tmp_path)
+        updates = self._updates(first, second)
+
+        def apply(key: str):
+            try:
+                return tracker.batch_update_issues(
+                    updates,
+                    project_id="project-1",
+                    actor="alice",
+                    idempotency_key=key,
+                    request_hash=key,
+                )
+            except BatchPreconditionError as exc:
+                return exc
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            outcomes = list(pool.map(apply, ("concurrent-a", "concurrent-b")))
+
+        assert sum(isinstance(outcome, dict) for outcome in outcomes) == 1
+        loser = next(
+            outcome for outcome in outcomes if isinstance(outcome, BatchPreconditionError)
+        )
+        assert {item["code"] for item in loser.rejections} == {"stale_revision"}
+        assert tracker.fetch_issue_detail(first.identifier).state == OPEN
+        assert tracker.fetch_issue_detail(second.identifier).state == OPEN
+
+    def test_batch_revision_rejects_aba_status_cycle(self, tmp_path):
+        tracker, first, second = self._tasks(tmp_path)
+        original_updates = self._updates(first, second)
+
+        tracker.update_issue(first.identifier, status=OPEN)
+        tracker.update_issue(first.identifier, status=BACKLOG)
+        returned = tracker.fetch_issue_detail(first.identifier)
+        returned.project_id = "project-1"
+
+        assert returned.state == BACKLOG
+        assert returned.lifecycle_revision == 2
+        assert issue_authority_version(returned) != original_updates[0][
+            "expected_revision"
+        ]
+        with pytest.raises(BatchPreconditionError) as exc_info:
+            tracker.batch_update_issues(
+                original_updates,
+                project_id="project-1",
+                actor="alice",
+                idempotency_key="aba-batch",
+                request_hash="aba-request",
+            )
+
+        assert exc_info.value.rejections[0]["identifier"] == first.identifier
+        assert tracker.fetch_issue_detail(second.identifier).state == BACKLOG
 
 
 class TestOompahMarkdownTrackerCreate:

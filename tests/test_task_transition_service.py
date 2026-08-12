@@ -324,6 +324,9 @@ def test_authority_version_ignores_benign_tracker_timestamp_churn():
         replace(issue, state="In Progress")
     ) != issue_authority_version(issue)
     assert issue_authority_version(
+        replace(issue, lifecycle_revision=1)
+    ) != issue_authority_version(issue)
+    assert issue_authority_version(
         replace(issue, parent_id="OTHER-EPIC")
     ) != issue_authority_version(issue)
     assert issue_authority_version(
@@ -854,6 +857,31 @@ async def test_existing_api_backlog_promotion_policy_is_unchanged(tmp_path):
 
     assert applied.disposition is TransitionDisposition.APPLIED
     assert tracker.updates == [("TASK-1", "Open")]
+
+
+def test_active_claims_for_tasks_returns_only_live_matching_claims(tmp_path):
+    issue = _issue(state="Backlog", assignment_id=None)
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+    intent = _intent(
+        issue,
+        requested_status="Open",
+        actor="alice",
+        authority=TransitionAuthority.API,
+        reason_code="api.status_updated",
+        evidence_generation=None,
+    )
+    begun = service.journal.begin(intent, lease_ttl_seconds=300)
+
+    assert service.journal.active_claims_for_tasks(
+        intent.project_id, [intent.task_id, "TASK-OTHER"]
+    ) == frozenset({intent.task_id})
+
+    assert begun.claim_token is not None
+    service.journal.release(intent.project_id, intent.task_id, begun.claim_token)
+    assert service.journal.active_claims_for_tasks(
+        intent.project_id, [intent.task_id]
+    ) == frozenset()
 
 
 @pytest.mark.asyncio
