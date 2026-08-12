@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1137
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: '[backend:checkpoint_queue] Checkpoint flush FAILED (reason=max_delay); push_failures=1'
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T15:05:09.027930Z'
-updated_at: '2026-08-12T15:05:09.027930Z'
+updated_at: '2026-08-12T15:54:42.187983Z'
 work_branch: null
 target_branch: null
 review_url: null
