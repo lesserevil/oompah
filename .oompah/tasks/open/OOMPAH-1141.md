@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1141
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue TRICKLE-135:
   All 2 dispatch candidates unavailable: prov-52e94e83/gpt-5.6-luna: contributor_evidence_unavailable:
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T15:12:56.236736Z'
-updated_at: '2026-08-12T15:12:56.236736Z'
+updated_at: '2026-08-12T15:55:15.163808Z'
 work_branch: null
 target_branch: null
 review_url: null
