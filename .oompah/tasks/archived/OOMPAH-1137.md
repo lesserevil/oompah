@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:05:09.027930Z'
-updated_at: '2026-08-12T20:05:21.869672Z'
+updated_at: '2026-08-12T20:05:28.015744Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,7 +39,21 @@ oompah.terminal_audit:
       writers and stabilized retry incident identity; its full CI matrix passed. This
       occurrence requires no independent implementation.'
     created_at: '2026-08-12T20:05:17.018543+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1137
+    target_state: Archived
+    evidence_fingerprint: 157ce71239b65618ef9d7c5031bcafe0a338287193d547823baad00c6b5bbbce
+    workflow_revision: null
+    selected_ref: null
+    selected_sha: null
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-12T20:05:26.311824+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -86,3 +100,13 @@ The operation in `backend:checkpoint_queue` should complete successfully, or deg
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-12 20:05
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Historical auto-filed checkpoint occurrence consolidated into completed roots OOMPAH-1127 and OOMPAH-1128. PR #836 at a6a983171 fenced stale checkpoint writers and stabilized retry incident identity; its full CI matrix passed. This occurrence requires no independent implementation.
+---
+<!-- COMMENTS:END -->
