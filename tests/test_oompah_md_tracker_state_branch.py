@@ -1245,6 +1245,35 @@ class TestStateBranchTrackerFailures:
         assert secret not in str(exc_info.value)
         assert "must not contain credentials" in str(exc_info.value)
 
+    def test_canonical_remote_strips_legacy_username_only_userinfo(
+        self, tmp_path: Path
+    ) -> None:
+        """A legacy clone username cannot leak into managed Git argv."""
+        tracker = OompahMarkdownTracker(
+            active_states=[OPEN],
+            terminal_states=[DONE],
+            cwd=str(tmp_path),
+            access_token="managed-secret",
+            forge_kind="github",
+            canonical_remote_url=(
+                "https://legacy-actor@github.example:8443/org/repo.git"
+            ),
+        )
+
+        completed = subprocess.CompletedProcess(
+            args=["git", "fetch"], returncode=0, stdout="", stderr=""
+        )
+        with patch(
+            "oompah.oompah_md_tracker.subprocess.run", return_value=completed
+        ) as run:
+            tracker._git(["fetch", "origin", "main"], check=True)
+
+        command = run.call_args.args[0]
+        assert (
+            "https://github.example:8443/org/repo.git" in command
+        )
+        assert all("legacy-actor" not in argument for argument in command)
+
     def test_transient_index_lock_retries_complete_stage_commit_transaction(
         self, tmp_path: Path
     ) -> None:
