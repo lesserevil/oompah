@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - bug
+- human-only
 assignee: null
 created_at: '2026-08-12T15:54:19.893858Z'
-updated_at: '2026-08-12T15:54:19.893858Z'
+updated_at: '2026-08-12T17:33:26.912958Z'
 work_branch: null
 target_branch: null
 review_url: null

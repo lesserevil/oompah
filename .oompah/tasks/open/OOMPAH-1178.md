@@ -11,9 +11,10 @@ start_blocked_by: []
 labels:
 - needs:frontend
 - needs:backend
+- human-only
 assignee: null
 created_at: '2026-08-12T15:56:01.307393Z'
-updated_at: '2026-08-12T15:57:26.342596Z'
+updated_at: '2026-08-12T17:33:30.532856Z'
 work_branch: null
 target_branch: null
 review_url: null
