@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T22:25:20.676127Z'
-updated_at: '2026-08-12T22:26:31.345763Z'
+updated_at: '2026-08-12T22:28:08.088073Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-12 22:25
 ---
 Direct owner recovery implementation is committed and pushed on hotfix/canonical-remote-userinfo at 5900dd8d. Focused canonical-remote tests pass (3 passed). The recovery build started successfully at this revision; all projects remain paused pending merge and final deployment.
+---
+author: oompah
+created: 2026-08-12 22:28
+---
+Expanded regression coverage now proves orchestrator tracker construction succeeds for a state-branch project with a legacy username-only URL. Focused result: 4 passed. Pushed ad14380b and opened PR #839 with auto-merge armed.
 ---
 <!-- COMMENTS:END -->
