@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1138
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-140'
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T15:07:48.444434Z'
-updated_at: '2026-08-12T15:07:48.444434Z'
+updated_at: '2026-08-12T15:54:51.408835Z'
 work_branch: null
 target_branch: null
 review_url: null
