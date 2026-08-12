@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1136
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-120 identifier=TRICKLE-120 run_id=3eb13918e99547c09ada069a3d134d34
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T01:52:46.887177Z'
-updated_at: '2026-08-12T01:52:46.887177Z'
+updated_at: '2026-08-12T15:54:31.988101Z'
 work_branch: null
 target_branch: null
 review_url: null
