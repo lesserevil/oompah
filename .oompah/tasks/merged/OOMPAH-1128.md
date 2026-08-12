@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-11T22:38:40.818634Z'
-updated_at: '2026-08-12T19:58:19.556138Z'
+updated_at: '2026-08-12T19:58:30.110518Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -74,7 +74,21 @@ oompah.terminal_audit:
     created_at: '2026-08-12T19:58:09.722261+00:00'
     selected_ref: origin/main
     selected_sha: 00db66b58afc1dfbb67572226213a8da8fd22ec4
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1128
+    target_state: Merged
+    evidence_fingerprint: aebe42575c8bb288397e30f621e4904c79316073e316ed3f11c31098f2aee58b
+    workflow_revision: null
+    selected_ref: origin/main
+    selected_sha: 00db66b58afc1dfbb67572226213a8da8fd22ec4
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-12T19:58:26.977071+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -118,5 +132,12 @@ author: oompah
 created: 2026-08-12 16:00
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-12 19:58
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Direct-owner completion verified in merged PR #836 at a6a983171: stable incident identities and retry coalescing are implemented with regression coverage; the exact merge passed the full Python 3.11/3.12/3.13 CI matrix.
 ---
 <!-- COMMENTS:END -->
