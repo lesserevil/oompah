@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1177
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Fail closed when dispatch claim persistence does not converge
 parent: null
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:54:19.893858Z'
-updated_at: '2026-08-12T17:33:26.912958Z'
+updated_at: '2026-08-12T17:41:27.253635Z'
 work_branch: null
 target_branch: null
 review_url: null
