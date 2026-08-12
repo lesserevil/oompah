@@ -361,6 +361,126 @@ def test_superseded_publication_requests_one_full_reconcile_tick() -> None:
     )
 
 
+def test_incomplete_restart_reconstruction_requests_follow_up_cut() -> None:
+    order: list[str] = []
+    reports = iter(
+        (
+            {
+                "projects": {
+                    "project-a": {
+                        "implementation": {"truncated": False},
+                        "integration": {"truncated": True},
+                    }
+                },
+                "liveness": {
+                    "scan_complete": False,
+                    "status": "action_required",
+                },
+                "worker": {
+                    "skipped": True,
+                    "reason": (
+                        "workflow worker admission deferred until the restart "
+                        "audit-priority boundary"
+                    ),
+                },
+            },
+            {
+                "liveness": {"scan_complete": True, "status": "healthy"},
+                "worker": {},
+            },
+        )
+    )
+    runtime = SimpleNamespace(
+        worker=SimpleNamespace(accepting=True),
+        restart_reconstruction_pending=True,
+        continue_admission_async=AsyncMock(
+            side_effect=lambda: order.append("workflow_admission")
+            or {"worker": {"processed": 1}}
+        ),
+    )
+
+    async def reconcile_async(*, admit_workers):
+        assert admit_workers is False
+        report = next(reports)
+        order.append(
+            "reconcile_incomplete"
+            if report["liveness"]["scan_complete"] is False
+            else "reconcile_complete"
+        )
+        runtime.restart_reconstruction_pending = not report["liveness"][
+            "scan_complete"
+        ]
+        return report
+
+    runtime.reconcile_async = AsyncMock(side_effect=reconcile_async)
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.workflow_runtime = runtime
+    orchestrator._run_terminal_audit_tick_phase = AsyncMock(
+        side_effect=lambda **kwargs: order.append(
+            "audit_recovery"
+            if kwargs["allow_new_launches"] is False
+            else "audit_launch"
+        )
+        or {"pending": 0}
+    )
+    orchestrator._request_workflow_reconcile_continuation = Mock(
+        return_value=True
+    )
+
+    async def scenario() -> tuple[bool, bool]:
+        first = await orchestrator._run_restart_reconstruction_tick(runtime)
+        second = await orchestrator._run_restart_reconstruction_tick(runtime)
+        return first[2], second[2]
+
+    first_continuation, second_continuation = asyncio.run(scenario())
+
+    assert first_continuation is True
+    assert second_continuation is False
+    orchestrator._request_workflow_reconcile_continuation.assert_called_once_with(
+        reason="workflow_restart_reconstruction_incomplete"
+    )
+    assert order == [
+        "audit_recovery",
+        "reconcile_incomplete",
+        "audit_recovery",
+        "reconcile_complete",
+        "audit_launch",
+        "workflow_admission",
+    ]
+    runtime.continue_admission_async.assert_awaited_once_with()
+
+
+def test_restart_source_error_does_not_request_immediate_retry_loop() -> None:
+    runtime = SimpleNamespace(
+        restart_reconstruction_pending=True,
+        reconcile_async=AsyncMock(
+            return_value={
+                "projects": {"project-a": {"error": "TimeoutError"}},
+                "liveness": {
+                    "scan_complete": False,
+                    "status": "action_required",
+                },
+            }
+        ),
+        continue_admission_async=AsyncMock(),
+    )
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator._run_terminal_audit_tick_phase = AsyncMock(
+        return_value={"pending": 0}
+    )
+    orchestrator._request_workflow_reconcile_continuation = Mock(
+        return_value=True
+    )
+
+    _report, _audit_metrics, continuation_requested = asyncio.run(
+        orchestrator._run_restart_reconstruction_tick(runtime)
+    )
+
+    assert continuation_requested is False
+    orchestrator._request_workflow_reconcile_continuation.assert_not_called()
+    runtime.continue_admission_async.assert_not_awaited()
+
+
 def test_restart_audit_recovery_precedes_reconcile_exception() -> None:
     order: list[str] = []
 

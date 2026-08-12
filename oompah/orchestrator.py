@@ -12472,6 +12472,25 @@ class Orchestrator:
         )
         return self._request_workflow_reconcile_continuation(reason=reason)
 
+    @staticmethod
+    def _runtime_report_has_truncated_cut(report: Mapping[str, Any]) -> bool:
+        """Return whether a bounded domain cut has more work to materialize."""
+
+        projects = report.get("projects")
+        if not isinstance(projects, Mapping):
+            return False
+        for project_report in projects.values():
+            if not isinstance(project_report, Mapping):
+                continue
+            for domain in ("implementation", "review", "integration", "epic"):
+                domain_report = project_report.get(domain)
+                if (
+                    isinstance(domain_report, Mapping)
+                    and domain_report.get("truncated") is True
+                ):
+                    return True
+        return False
+
     def _terminal_audit_stage_wakes_snapshot(self) -> dict[tuple[str, str], str]:
         """Return a stable copy of exact successor wake ownership."""
 
@@ -17002,6 +17021,16 @@ class Orchestrator:
         publication_pending = bool(
             getattr(runtime, "restart_reconstruction_pending", False)
         )
+        if (
+            publication_pending
+            and not continuation_requested
+            and self._runtime_report_has_truncated_cut(report)
+        ):
+            continuation_requested = (
+                self._request_workflow_reconcile_continuation(
+                    reason="workflow_restart_reconstruction_incomplete"
+                )
+            )
         if publication_pending or report.get("requires_reconcile") is True:
             return report, audit_metrics, continuation_requested
 
