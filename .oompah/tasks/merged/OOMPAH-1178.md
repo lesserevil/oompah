@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1178
 type: feature
-status: In Validation
+status: Merged
 priority: 2
 title: Support transactional batch task updates for whole-column moves
 parent: null
@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:56:01.307393Z'
-updated_at: '2026-08-12T19:57:12.296315Z'
+updated_at: '2026-08-12T20:02:26.874548Z'
 work_branch: OOMPAH-1178
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/837
@@ -45,6 +45,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1178
     digest: 8c6fcb07f9ab40113d4cc90d8a0c5119374a976b47c0c7215c05f6490b549791
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6e780408ffd9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1178
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8c6fcb07f9ab40113d4cc90d8a0c5119374a976b47c0c7215c05f6490b549791
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Direct-owner completion verified in merged PR #837 at 00db66b58: transactional
+      batch task updates and whole-column UI moves are implemented; focused suites
+      passed 1,893 and 911 tests and full Python 3.11/3.12/3.13 CI passed.'
+    created_at: '2026-08-12T20:02:22.339971+00:00'
+    selected_ref: origin/OOMPAH-1178
+    selected_sha: f1902e64d2cdef014e84a8cb1c58896ca1e40f35
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -90,6 +111,7 @@ oompah.terminal_audit:
     selected_ref: origin/OOMPAH-1178
     selected_sha: f1902e64d2cdef014e84a8cb1c58896ca1e40f35
   attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 

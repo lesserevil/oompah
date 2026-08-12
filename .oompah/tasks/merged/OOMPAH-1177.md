@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:54:19.893858Z'
-updated_at: '2026-08-12T20:02:10.901422Z'
+updated_at: '2026-08-12T20:02:20.048398Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -103,5 +103,10 @@ created: 2026-08-12 20:02
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Direct-owner completion verified in merged PR #837 at 00db66b58: provider admission now fails closed unless exact durable claim evidence converges; full Python 3.11/3.12/3.13 CI passed.
+---
+author: oompah
+created: 2026-08-12 20:02
+---
+Completed by merged PR #837 (00db66b58). Every covered dispatch path now requires a committed and re-read exact claim before provider admission, with safe compensation on mismatch.
 ---
 <!-- COMMENTS:END -->
