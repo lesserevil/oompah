@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1178
 type: feature
-status: In Progress
+status: In Review
 priority: 2
 title: Support transactional batch task updates for whole-column moves
 parent: null
@@ -14,12 +14,12 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:56:01.307393Z'
-updated_at: '2026-08-12T19:22:14.404623Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
-review_head: null
+updated_at: '2026-08-12T19:24:42.945466Z'
+work_branch: OOMPAH-1178
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/837
+review_number: '837'
+review_head: aaa3ec17a0b98e280bffa1e71d3dd904f5060d41
 merged_at: null
 oompah.create_once:
   version: 1
@@ -27,6 +27,11 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: feature-batch-task-updates-column-drag-20260812
   request_fingerprint: 5ec1af9a834162f7aa2e2169a817eb3f0af7a9ac6c84ed06d3cafcbe59b9190f
+oompah.review_url: https://github.com/lesserevil/oompah/pull/837
+oompah.review_number: '837'
+oompah.work_branch: OOMPAH-1178
+oompah.target_branch: main
+oompah.review_head: aaa3ec17a0b98e280bffa1e71d3dd904f5060d41
 ---
 ## Summary
 
@@ -61,5 +66,10 @@ author: oompah
 created: 2026-08-12 19:22
 ---
 Committed and pushed as bbfb66b578e783c7ee319c93fd96c5bd11934394, then combined with OOMPAH-1177 on PR #837 at aaa3ec17a0b98e280bffa1e71d3dd904f5060d41. Exact-head expanded integration coverage passes 1,893 tests and the combined focused suite passes 911; terminal mutation scan passes 21/21. Full Makefile gate and GitHub matrix are running.
+---
+author: oompah
+created: 2026-08-12 19:24
+---
+Branch quality gate passed for `aaa3ec17a0b98e280bffa1e71d3dd904f5060d41` using `make test` in 178.3s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
