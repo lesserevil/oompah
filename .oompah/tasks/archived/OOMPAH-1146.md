@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1146
 type: bug
-status: In Progress
+status: Archived
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue TRICKLE-135:
   All 2 dispatch candidates unavailable: prov-651d553c/haiku: contributor_evidence_unavailable:
@@ -14,13 +14,39 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:20:40.043668Z'
-updated_at: '2026-08-12T17:38:06.649209Z'
+updated_at: '2026-08-12T20:06:39.285811Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-792d261e1988
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1146
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7199e66b20043cce51d15d82f669a495754ca4b4dd55c1222ef74850c6bd9138
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Historical auto-filed occurrence from the state-branch and dispatch-convergence
+      incident, consolidated into completed roots OOMPAH-1127, OOMPAH-1128, and OOMPAH-1177.
+      PRs #836 and #837 delivered the durable transport, stable incident identity,
+      and fail-closed provider-admission repairs with full CI. This occurrence requires
+      no independent implementation.'
+    created_at: '2026-08-12T20:06:34.684453+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
