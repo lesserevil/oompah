@@ -423,6 +423,11 @@ class OompahMarkdownTracker:
         # rather than a server import: tracker instances are also used by the
         # task CLI and by background workers.
         self._read_change_callbacks: list[Any] = []
+        # A project tracker cache generation can outlive its configuration
+        # authority because callers may retain the old object.  Cutover sets
+        # this event before publishing the new configuration; every mutation
+        # checks it under the shared repository write lock.
+        self._writer_retired = threading.Event()
         # Monotonic timestamp of the last successful state-branch checkpoint
         # flush.  Updated by _do_checkpoint_flush so callers (e.g. server.py
         # issues-snapshot logic) can detect when a checkpoint has advanced past
@@ -441,6 +446,7 @@ class OompahMarkdownTracker:
                 debounce_ms=int(state_branch_checkpoint_debounce_ms),
                 max_delay_ms=int(state_branch_checkpoint_max_delay_ms),
                 flush_fn=self._do_checkpoint_flush,
+                incident_key=f"state_branch:{self.state_branch_name}",
                 **kwargs,
             )
 
@@ -481,6 +487,45 @@ class OompahMarkdownTracker:
         """
         if self._checkpoint_queue is not None:
             self._checkpoint_queue.shutdown()
+
+    def retire_checkpoint_writer(self, *, reason: str) -> int:
+        """Permanently fence this tracker before a configuration cutover.
+
+        No pending task state is discarded.  Timer publication is cancelled,
+        an in-flight flush is allowed to finish under the old authority, and a
+        shared repository-lock barrier waits for already-started mutations.
+        The successor tracker then adopts the dirty worktree/local head using
+        the new forge credentials.
+        """
+
+        del reason  # Reserved for structured cutover diagnostics.
+        self._writer_retired.set()
+        transferred = (
+            self._checkpoint_queue.retire()
+            if self._checkpoint_queue is not None
+            else 0
+        )
+        # Every mutation holds this shared lock from its authority check until
+        # its file write and queue schedule complete.  Acquiring it here proves
+        # no old-generation mutation remains in flight when this method returns.
+        with self._write_lock:
+            pass
+        return transferred
+
+    def adopt_checkpoint_state(self, *, reason: str) -> int:
+        """Publish preserved state through this tracker's current authority.
+
+        A synthetic queue item is intentional: a predecessor may already have
+        committed locally before its push failed, leaving no dirty file for
+        ``git commit`` to discover.  The state-branch flush therefore also
+        publishes an unchanged local head.
+        """
+
+        self._assert_writer_active()
+        if self._checkpoint_queue is None:
+            return 0
+        self._checkpoint_queue.schedule()
+        return self._checkpoint_queue.flush(reason=reason)
 
     @property
     def checkpoint_pending_mutations(self) -> int:
@@ -2355,8 +2400,10 @@ class OompahMarkdownTracker:
             "🤖 Generated with https://github.com/lesserevil/oompah\n\n"
             "Co-authored-by: oompah <lesserevil@users.noreply.github.com>\n"
         )
-        if not self._stage_and_commit_state_branch(state_root, message):
-            return
+        # Even when there is no dirty task file, a predecessor may have
+        # committed locally and then lost push authority.  Continue to the push
+        # so a successor generation publishes that exact preserved head.
+        self._stage_and_commit_state_branch(state_root, message)
 
         if not self._has_remote("origin"):
             return
@@ -2600,7 +2647,18 @@ class OompahMarkdownTracker:
                 "project's configured state branch is used."
             )
 
+    def _assert_writer_active(self) -> None:
+        """Reject mutations after this tracker generation is superseded."""
+
+        if self._writer_retired.is_set():
+            raise TrackerError(
+                "Refusing native task mutation through a retired tracker "
+                "configuration generation. Resolve the project tracker again "
+                "and retry with its current forge credentials."
+            )
+
     def _prepare_default_branch_for_write(self, *, task_state: bool = True) -> None:
+        self._assert_writer_active()
         if task_state:
             self._assert_task_writes_allowed()
         if not self._git_sync_requested() or not self._is_git_repo():

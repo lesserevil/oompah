@@ -443,6 +443,9 @@ async def setup_services(
     if start_paused and not orchestrator.is_paused:
         orchestrator._paused = True
         orchestrator._save_paused_state()
+        record_startup_pause = getattr(orchestrator, "record_startup_pause", None)
+        if callable(record_startup_pause):
+            record_startup_pause(source="startup")
         logger.info("Booting paused (--paused flag)")
     elif orchestrator.is_paused:
         logger.info("Booting paused (persisted state)")

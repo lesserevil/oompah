@@ -457,6 +457,48 @@ class TestFingerprintNormalization:
             w, b, source="log:backend"
         )
 
+    def test_checkpoint_push_failure_counter_values_collapse(self):
+        w, _ = self._make_watcher()
+        fingerprints = {
+            self._fp(
+                w,
+                f"Checkpoint flush FAILED (reason=debounce); push_failures={value}",
+                source="backend:checkpoint_queue",
+            )
+            for value in range(1, 26)
+        }
+        assert len(fingerprints) == 1
+
+    def test_checkpoint_trigger_reasons_share_explicit_incident(self):
+        w, _ = self._make_watcher()
+        fingerprints = {
+            self._fp(
+                w,
+                f"Checkpoint flush FAILED (reason={reason}); push_failures=3",
+                source="backend:checkpoint_queue",
+                error_class="checkpoint_queue.flush_failed",
+                incident_key="state_branch_checkpoint_publish",
+            )
+            for reason in ("debounce", "max_delay", "terminal_status:Done")
+        }
+        assert len(fingerprints) == 1
+
+    def test_explicit_incident_keys_keep_terminal_tasks_distinct(self):
+        w, _ = self._make_watcher()
+        first = self._fp(
+            w,
+            "terminal transition failed on retry 1",
+            error_class="terminal_transition.finalization_failed",
+            incident_key="TRICKLE-114",
+        )
+        second = self._fp(
+            w,
+            "terminal transition failed on retry 2",
+            error_class="terminal_transition.finalization_failed",
+            incident_key="TRICKLE-115",
+        )
+        assert first != second
+
     def test_uuid_normalization(self):
         w, _ = self._make_watcher()
         a = "session 11111111-2222-3333-4444-555555555555 dropped"
@@ -808,6 +850,29 @@ class TestTaskLoggingHandlerErrorClass:
 
         kwargs = watcher.report_error.call_args.kwargs
         assert kwargs["error_class"] is None
+
+    def test_handler_passes_stable_incident_key_from_extra(self):
+        from oompah.error_watcher import _TaskLoggingHandler
+
+        watcher = MagicMock()
+        handler = _TaskLoggingHandler(watcher)
+        record = logging.LogRecord(
+            name="oompah.checkpoint_queue",
+            level=logging.ERROR,
+            pathname=__file__,
+            lineno=1,
+            msg="Checkpoint flush FAILED; push_failures=25",
+            args=(),
+            exc_info=None,
+        )
+        record.module = "checkpoint_queue"
+        record.error_class = "checkpoint_queue.flush_failed"
+        record.incident_key = "state_branch_checkpoint_publish"
+
+        handler.emit(record)
+
+        kwargs = watcher.report_error.call_args.kwargs
+        assert kwargs["incident_key"] == "state_branch_checkpoint_publish"
 
 
 class TestErrorClassForTrackerExc:

@@ -16,6 +16,8 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -24,6 +26,19 @@ from oompah.config import ServiceConfig
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore
+from oompah import server as srv
+from oompah.server import (
+    AuthenticatedPrincipal,
+    _AUTH_PRINCIPAL_SCOPE_CAPABILITY,
+)
+
+
+def _run_api(coroutine):
+    return asyncio.run(coroutine)
+
+
+async def _async_value(value):
+    return value
 
 
 # ---------------------------------------------------------------------------
@@ -362,6 +377,52 @@ class TestProjectPauseAPI:
         assert body["id"] == "proj-api"
         assert self.store.get("proj-api").paused is True
 
+    def test_pause_uses_authenticated_actor_and_rejects_spoof(self):
+        original = srv._orchestrator
+        real_orchestrator = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            project_store=self.store,
+            state_path=str(Path(self.store.path).parent / "service_state.json"),
+        )
+        srv._orchestrator = real_orchestrator
+        try:
+            principal = AuthenticatedPrincipal(
+                username="operator-http",
+                actor_login="project-owner",
+                source="basic",
+            )
+            scope = {_AUTH_PRINCIPAL_SCOPE_CAPABILITY: principal}
+            request = type(
+                "Request",
+                (),
+                {
+                    "scope": scope,
+                    "headers": {
+                        "x-oompah-request-source": "ui",
+                        "x-request-id": "project-pause-1",
+                    },
+                    "json": lambda self: _async_value({"actor": "spoofed"}),
+                },
+            )()
+
+            denied = _run_api(srv.api_project_pause("proj-api", request))
+            assert denied.status_code == 403
+            assert self.store.get("proj-api").paused is False
+
+            request.json = lambda: _async_value({})
+            accepted = _run_api(srv.api_project_pause("proj-api", request))
+            assert accepted.status_code == 200
+            record = real_orchestrator.get_snapshot()[
+                "scheduling_control_history"
+            ][0]
+            assert record["actor"] == "project-owner"
+            assert record["source"] == "ui"
+            assert record["project_id"] == "proj-api"
+            assert record["request_id"] == "project-pause-1"
+        finally:
+            srv._orchestrator = original
+
     def test_resume_endpoint_sets_paused_false(self):
         # First pause
         self.store.update("proj-api", paused=True)
@@ -427,6 +488,15 @@ class TestProjectPauseAPI:
         assert res.status_code == 200
         assert res.json()["paused"] is True
         assert self.store.get("proj-api").paused is True
+
+    def test_patch_cannot_mix_pause_with_unattributed_configuration(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-api",
+            json={"paused": True, "name": "changed"},
+        )
+        assert res.status_code == 400
+        assert self.store.get("proj-api").paused is False
+        assert self.store.get("proj-api").name == "apitest"
 
 
 # ---------------------------------------------------------------------------

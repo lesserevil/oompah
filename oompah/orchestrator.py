@@ -597,6 +597,9 @@ _DUPLICATE_CORPUS_STOP_WORDS = frozenset(
 
 logger = logging.getLogger(__name__)
 
+_SCHEDULING_CONTROL_HISTORY_LIMIT = 100
+_SCHEDULING_CONTROL_SAFE_VALUE_RE = re.compile(r"[^A-Za-z0-9._:/@+-]+")
+
 # ``Orchestrator.__init__`` installs an instance alert lock for every normal
 # service instance.  A few restart/compatibility paths construct a lightweight
 # instance without running ``__init__``; serialize that one-time installation
@@ -2044,6 +2047,18 @@ class Orchestrator:
         # cannot race and replace one another.
         self._state_io_lock = threading.RLock()
         self._state_load_failed = False
+        raw_scheduling_history = self._load_state().get(
+            "scheduling_control_history", []
+        )
+        self._scheduling_control_history: list[dict[str, Any]] = (
+            [
+                dict(item)
+                for item in raw_scheduling_history[-_SCHEDULING_CONTROL_HISTORY_LIMIT:]
+                if isinstance(item, Mapping)
+            ]
+            if isinstance(raw_scheduling_history, list)
+            else []
+        )
         PROVIDER_HEALTH_CACHE.configure(
             os.path.join(_state_dir, "provider_health.json")
         )
@@ -6812,6 +6827,11 @@ class Orchestrator:
         self,
         expected_generation: int,
         paused: bool,
+        *,
+        actor: str | None = None,
+        source: str | None = None,
+        request_id: str | None = None,
+        previous_state: bool | None = None,
     ) -> bool:
         """Persist pause intent only while its lifecycle mutation is current.
 
@@ -6828,7 +6848,157 @@ class Orchestrator:
                 or bool(self._paused) != bool(paused)
             ):
                 return False
-            return self._save_state(paused=bool(paused))
+            if actor is None or source is None or previous_state is None:
+                return self._save_state(paused=bool(paused))
+            return self._record_scheduling_control_change(
+                scope="orchestrator",
+                previous_state=bool(previous_state),
+                new_state=bool(paused),
+                actor=actor,
+                source=source,
+                request_id=request_id,
+                state_updates={"paused": bool(paused)},
+            )
+
+    @staticmethod
+    def _safe_scheduling_control_value(
+        value: str | None,
+        *,
+        fallback: str,
+        limit: int = 128,
+    ) -> str:
+        """Return bounded, non-secret provenance suitable for state/logs."""
+
+        redacted = redact_sensitive_data(str(value or ""))
+        text = str(redacted or "").strip()[:limit]
+        text = _SCHEDULING_CONTROL_SAFE_VALUE_RE.sub("_", text).strip("_")
+        return text or fallback
+
+    def _record_scheduling_control_change(
+        self,
+        *,
+        scope: str,
+        previous_state: bool,
+        new_state: bool,
+        actor: str,
+        source: str,
+        request_id: str | None = None,
+        project_id: str | None = None,
+        state_updates: Mapping[str, object] | None = None,
+    ) -> bool:
+        """Durably append one scheduling pause/resume provenance record."""
+
+        safe_scope = self._safe_scheduling_control_value(
+            scope, fallback="orchestrator", limit=32
+        )
+        safe_actor = self._safe_scheduling_control_value(
+            actor, fallback="oompah-system"
+        )
+        safe_source = self._safe_scheduling_control_value(
+            source, fallback="internal", limit=32
+        )
+        safe_project = (
+            self._safe_scheduling_control_value(project_id, fallback="unknown")
+            if project_id
+            else None
+        )
+        safe_request_id = self._safe_scheduling_control_value(
+            request_id or f"control-{uuid.uuid4().hex}",
+            fallback=f"control-{uuid.uuid4().hex}",
+        )
+        record: dict[str, Any] = {
+            "version": 1,
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+            "scope": safe_scope,
+            "action": "pause" if new_state else "resume",
+            "previous_paused": bool(previous_state),
+            "new_paused": bool(new_state),
+            "changed": bool(previous_state) != bool(new_state),
+            "actor": safe_actor,
+            "source": safe_source,
+            "request_id": safe_request_id,
+        }
+        if safe_project is not None:
+            record["project_id"] = safe_project
+
+        with self._state_io_lock:
+            history = [*self._scheduling_control_history, record][
+                -_SCHEDULING_CONTROL_HISTORY_LIMIT:
+            ]
+            updates = dict(state_updates or {})
+            updates["scheduling_control_history"] = history
+            if not self._save_state(**updates):
+                return False
+            self._scheduling_control_history = history
+
+        logger.info(
+            "Scheduling control change scope=%s project_id=%s action=%s "
+            "previous_paused=%s new_paused=%s actor=%s source=%s request_id=%s",
+            safe_scope,
+            safe_project or "-",
+            record["action"],
+            record["previous_paused"],
+            record["new_paused"],
+            safe_actor,
+            safe_source,
+            safe_request_id,
+        )
+        return True
+
+    def record_startup_pause(self, *, source: str = "startup") -> bool:
+        """Attribute a startup-forced pause without trusting external input."""
+
+        return self._record_scheduling_control_change(
+            scope="orchestrator",
+            previous_state=False,
+            new_state=True,
+            actor="oompah-system",
+            source=source,
+            request_id=f"startup-{self._service_instance_id}",
+            state_updates={"paused": True},
+        )
+
+    def set_project_paused(
+        self,
+        project_id: str,
+        paused: bool,
+        *,
+        actor: str = "oompah-system",
+        source: str = "internal",
+        request_id: str | None = None,
+    ) -> Any | None:
+        """Change one project pause flag and persist authenticated provenance."""
+
+        with self._provider_admission_lock:
+            existing = self.project_store.get(project_id)
+            if existing is None:
+                return None
+            previous = bool(getattr(existing, "paused", False))
+            project = self.project_store.update(project_id, paused=bool(paused))
+            if project is None:
+                return None
+            if self._record_scheduling_control_change(
+                scope="project",
+                project_id=project_id,
+                previous_state=previous,
+                new_state=bool(paused),
+                actor=actor,
+                source=source,
+                request_id=request_id,
+            ):
+                return project
+            # Provenance and the safety state are one operator transaction.
+            # Roll back while admission remains fenced if the audit record
+            # cannot be made durable.
+            restored = self.project_store.update(project_id, paused=previous)
+            if restored is None:
+                logger.critical(
+                    "Project %s pause provenance failed and rollback was unavailable",
+                    project_id,
+                )
+            raise RuntimeError(
+                "project pause change aborted because provenance could not be persisted"
+            )
 
     def _persist_workflow_liveness_state(
         self, state: Mapping[str, Any]
@@ -7166,6 +7336,9 @@ class Orchestrator:
         *,
         notify: bool = True,
         termination_loop: asyncio.AbstractEventLoop | None = None,
+        actor: str = "oompah-system",
+        source: str = "internal",
+        request_id: str | None = None,
     ) -> int:
         """Pause agents and dispatch without forgetting recovery authority.
 
@@ -7177,6 +7350,7 @@ class Orchestrator:
         retirement on its live asyncio loop.
         """
         with self._provider_admission_lock:
+            previous_paused = bool(self._paused)
             self._paused = True
             self._provider_admission_generation += 1
             pause_generation = self._provider_admission_generation
@@ -7184,7 +7358,22 @@ class Orchestrator:
                 reason="scheduler_pause",
                 error="operator pause interrupted auditor before verdict",
             )
-        self._save_paused_state_if_generation(pause_generation, True)
+        persisted_pause = self._save_paused_state_if_generation(
+            pause_generation,
+            True,
+            actor=actor,
+            source=source,
+            request_id=request_id,
+            previous_state=previous_paused,
+        )
+        if not persisted_pause:
+            with self._provider_admission_lock:
+                if self._provider_admission_generation == pause_generation:
+                    self._paused = previous_paused
+                    self._provider_admission_generation += 1
+            raise RuntimeError(
+                "orchestrator pause aborted because provenance could not be persisted"
+            )
         preserved_recovery_ids: set[str] = set()
         with self._retry_authority_lock:
             recovery_entries = list(self.state.retry_attempts.items())
@@ -9306,7 +9495,14 @@ class Orchestrator:
                 return False
         return bool(publication_result["published"])
 
-    def unpause(self, *, notify: bool = True) -> bool:
+    def unpause(
+        self,
+        *,
+        notify: bool = True,
+        actor: str = "oompah-system",
+        source: str = "internal",
+        request_id: str | None = None,
+    ) -> bool:
         """Resume dispatch unless a restart transaction owns admission.
 
         A restart request is an admission fence as soon as it is claimed, even
@@ -9358,11 +9554,30 @@ class Orchestrator:
                 )
                 return False
             pending_restart_recovery = bool(self._restart_issue_snapshot())
+            previous_paused = bool(self._paused)
             self._paused = False
             self._quiesced = pending_restart_recovery
             self._provider_admission_generation += 1
             unpause_generation = self._provider_admission_generation
-        self._save_paused_state_if_generation(unpause_generation, False)
+        persisted_resume = self._save_paused_state_if_generation(
+            unpause_generation,
+            False,
+            actor=actor,
+            source=source,
+            request_id=request_id,
+            previous_state=previous_paused,
+        )
+        if not persisted_resume:
+            with self._provider_admission_lock:
+                if self._provider_admission_generation == unpause_generation:
+                    self._paused = previous_paused
+                    self._quiesced = True
+                    self._provider_admission_generation += 1
+            logger.error(
+                "Orchestrator resume aborted because pause provenance could "
+                "not be persisted; admission remains quiesced"
+            )
+            return False
         if pending_restart_recovery:
             scheduled = self._schedule_restart_issue_recovery_for_resume()
             if notify:
@@ -9983,9 +10198,35 @@ class Orchestrator:
                 if generation != int(
                     getattr(self, "_project_tracker_generation", 1)
                 ):
+                    checkpoint_tracker = (
+                        tracker._provenance_tracker
+                        if isinstance(tracker, ProvenanceGuardedTracker)
+                        else tracker
+                    )
+                    retire = getattr(
+                        type(checkpoint_tracker), "retire_checkpoint_writer", None
+                    )
+                    if callable(retire):
+                        retire(
+                            checkpoint_tracker,
+                            reason="tracker_factory_generation_superseded",
+                        )
                     continue
                 cached = self._project_trackers.get(project.id)
                 if cached is not None:
+                    checkpoint_tracker = (
+                        tracker._provenance_tracker
+                        if isinstance(tracker, ProvenanceGuardedTracker)
+                        else tracker
+                    )
+                    retire = getattr(
+                        type(checkpoint_tracker), "retire_checkpoint_writer", None
+                    )
+                    if callable(retire):
+                        retire(
+                            checkpoint_tracker,
+                            reason="tracker_factory_cache_lost",
+                        )
                     return cached
                 self._project_trackers[project.id] = tracker
                 return tracker
@@ -10011,6 +10252,9 @@ class Orchestrator:
         project = str(project_id or "").strip()
         if not project:
             raise ValueError("project_id is required")
+        retired_tracker: Any | None = None
+        transferred_mutations = 0
+        checkpoint_adoption_required = False
         with self._work_decisions_lock:
             with self._project_trackers_lock:
                 # Avoid writing a pending authority cut for an unknown project.
@@ -10019,6 +10263,7 @@ class Orchestrator:
                 # remains valid through the update below.
                 if self.project_store.get(project) is None:
                     return None
+                retired_tracker = self._project_trackers.get(project)
                 next_epoch = self._work_decision_publication_epoch + 1
                 next_decisions = {
                     key: decision
@@ -10098,8 +10343,35 @@ class Orchestrator:
                         "workflow decision availability could not be persisted"
                     )
 
+                real_project_store = isinstance(self.project_store, ProjectStore)
+                prepublished_project: Any | None = None
                 try:
-                    updated_project = self.project_store.update(project, **fields)
+                    if real_project_store:
+                        # Reject invalid input before an irreversible writer
+                        # fence.  The atomic primitive below validates again
+                        # under its publication lock to cover outside writers.
+                        candidate = self.project_store.validate_update(
+                            project,
+                            **fields,
+                        )
+                        if candidate is None:
+                            raise RuntimeError(
+                                "project disappeared while validating tracker "
+                                "configuration"
+                            )
+                    else:
+                        # Test doubles and legacy adapters do not provide the
+                        # ProjectStore validation transaction.  Publish before
+                        # fencing so their failure remains reversible.
+                        prepublished_project = self.project_store.update(
+                            project,
+                            **fields,
+                        )
+                        if prepublished_project is None:
+                            raise RuntimeError(
+                                "project disappeared while publishing tracker "
+                                "configuration"
+                            )
                 except Exception:
                     try:
                         restored = self._save_state(
@@ -10125,17 +10397,82 @@ class Orchestrator:
                             "decision availability rollback both failed"
                         )
                     raise
-                if updated_project is None:
-                    restored = self._save_state(
-                        work_decision_availability=previous_availability_payload
+
+                def fence_checkpoint_writer() -> None:
+                    nonlocal checkpoint_adoption_required
+                    nonlocal transferred_mutations
+                    checkpoint_tracker = (
+                        retired_tracker._provenance_tracker
+                        if isinstance(retired_tracker, ProvenanceGuardedTracker)
+                        else retired_tracker
                     )
-                    if restored is False:
-                        raise RuntimeError(
-                            "project disappeared during tracker configuration "
-                            "update and workflow decision availability rollback "
-                            "failed"
+                    retire_writer = getattr(
+                        type(checkpoint_tracker),
+                        "retire_checkpoint_writer",
+                        None,
+                    )
+                    if callable(retire_writer):
+                        checkpoint_adoption_required = True
+                        transferred_mutations = int(
+                            retire_writer(
+                                checkpoint_tracker,
+                                reason=(
+                                    "project_tracker_configuration_changed"
+                                ),
+                            )
+                            or 0
                         )
-                    return None
+
+                try:
+                    updated_project = (
+                        self.project_store.update_after_validation(
+                            project,
+                            before_publish=fence_checkpoint_writer,
+                            **fields,
+                        )
+                        if real_project_store
+                        else prepublished_project
+                    )
+                    if not real_project_store:
+                        fence_checkpoint_writer()
+                except Exception as exc:
+                    if not checkpoint_adoption_required:
+                        try:
+                            restored = self._save_state(
+                                work_decision_availability=(
+                                    previous_availability_payload
+                                )
+                            )
+                        except Exception:  # noqa: BLE001 - preserve cut failure
+                            logger.exception(
+                                "Prior workflow decision availability "
+                                "restoration raised after atomic project "
+                                "configuration validation failed"
+                            )
+                            restored = False
+                        if restored is False:
+                            raise RuntimeError(
+                                "project tracker configuration update and "
+                                "workflow decision availability rollback both "
+                                "failed"
+                            ) from exc
+                        raise
+                    logger.critical(
+                        "Validated project tracker configuration for %s "
+                        "could not be published after fencing its old "
+                        "writer: %s",
+                        project,
+                        exc,
+                    )
+                    raise RuntimeError(
+                        "validated tracker configuration publication failed "
+                        "after old writer authority was safely fenced"
+                    ) from exc
+                if updated_project is None:
+                    raise RuntimeError(
+                        "project disappeared while publishing validated tracker "
+                        "configuration after old writer authority was fenced"
+                    )
 
                 self._project_tracker_generation += 1
                 self._project_trackers.pop(project, None)
@@ -10169,6 +10506,38 @@ class Orchestrator:
                 },
             )
         )
+        if checkpoint_adoption_required:
+            try:
+                successor = self._tracker_for_project(project)
+                checkpoint_successor = (
+                    successor._provenance_tracker
+                    if isinstance(successor, ProvenanceGuardedTracker)
+                    else successor
+                )
+                adopt = getattr(
+                    type(checkpoint_successor), "adopt_checkpoint_state", None
+                )
+                if callable(adopt):
+                    adopt(
+                        checkpoint_successor,
+                        reason="tracker_configuration_cutover",
+                    )
+            except Exception as exc:
+                logger.error(
+                    "Project tracker configuration for %s was applied and its "
+                    "old writer was fenced, but preserved checkpoint state "
+                    "could not be published with the successor authority "
+                    "(transferred_mutations=%d): %s. Remediation: repair the "
+                    "current project credential, then perform another tracker "
+                    "configuration update to re-drive adoption.",
+                    project,
+                    transferred_mutations,
+                    exc,
+                )
+                raise RuntimeError(
+                    "project tracker configuration was applied safely, but "
+                    "preserved checkpoint publication with the new authority failed"
+                ) from exc
         return updated_project
 
     def _provenance_suppression_status(
@@ -17136,17 +17505,25 @@ class Orchestrator:
     # IPC command implementations
     # ------------------------------------------------------------------
 
-    def _ipc_cmd_pause(self, _payload: dict) -> None:
+    def _ipc_cmd_pause(self, payload: dict) -> None:
         """IPC: pause the orchestrator."""
-        self.pause()
+        self.pause(
+            actor=str(payload.get("actor") or "oompah-system"),
+            source=str(payload.get("source") or "ipc"),
+            request_id=str(payload.get("request_id") or "") or None,
+        )
 
     def _ipc_cmd_quiesce(self, _payload: dict) -> None:
         """IPC: stop new dispatch while preserving running workers."""
         self.quiesce()
 
-    def _ipc_cmd_unpause(self, _payload: dict) -> None:
+    def _ipc_cmd_unpause(self, payload: dict) -> None:
         """IPC: resume the orchestrator."""
-        self.unpause()
+        self.unpause(
+            actor=str(payload.get("actor") or "oompah-system"),
+            source=str(payload.get("source") or "ipc"),
+            request_id=str(payload.get("request_id") or "") or None,
+        )
 
     def _ipc_cmd_request_refresh(self, _payload: dict) -> None:
         """IPC: trigger a dispatch loop refresh."""
@@ -71907,6 +72284,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "generated_at": now.isoformat(),
             "paused": self._paused,
             "quiesced": getattr(self, "_quiesced", False),
+            "scheduling_control_history": list(
+                reversed(self._scheduling_control_history)
+            ),
             "config": {
                 "default_first_dispatch": self.config.default_first_dispatch,
                 "parallel_epic_children_enabled": (

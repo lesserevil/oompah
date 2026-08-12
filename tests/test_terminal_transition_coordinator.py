@@ -5912,6 +5912,95 @@ class TestApplyPassSingleTarget:
         assert len(doc.pending_chain) == 1
         assert doc.pending_chain[0].request_state == RequestState.PENDING
 
+    def test_retry_exhaustion_escalates_legacy_audit_after_evidence_drift(
+        self,
+    ) -> None:
+        class DetailTracker(_MemoryTracker):
+            def __init__(self, current: Issue) -> None:
+                super().__init__()
+                self.current = current
+
+            def fetch_issue_detail(self, identifier: str) -> Issue | None:
+                return copy.copy(self.current) if identifier == TASK_ID else None
+
+            def update_issue(self, identifier: str, **kwargs: Any) -> None:
+                super().update_issue(identifier, **kwargs)
+                if "status" in kwargs:
+                    self.current.state = kwargs["status"]
+
+        current = Issue(
+            id=TASK_ID,
+            identifier=TASK_ID,
+            title="Legacy exhausted audit",
+            description="current tracker projection after cutover",
+            state=IN_VALIDATION,
+            project_id=PROJECT_ID,
+        )
+        tracker = DetailTracker(current)
+        record = _pending_record(fingerprint=_fingerprint("d"))
+        _seed_metadata(tracker, [record])
+        result = AuditResult(
+            audit_id=record.audit_id,
+            target_state=record.target_state,
+            evidence_fingerprint=record.evidence_fingerprint,
+            verdict=Verdict.NEEDS_HUMAN,
+            failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
+            message=(
+                "Audit infrastructure retries were exhausted. Restore the "
+                "auditor transport, then have a project owner rearm this audit."
+            ),
+            attempt_id="infrastructure-exhausted-audit-pending-1-1",
+            attempt_origin=AuditAttemptOrigin.COORDINATOR_RETRY_EXHAUSTION,
+        )
+        coordinator = _coordinator(tracker)
+
+        outcome = _apply(coordinator, copy.copy(current), result)
+        replay = _apply(coordinator, copy.copy(current), result)
+
+        assert outcome.success is True
+        assert outcome.applied_status == NEEDS_HUMAN
+        assert replay.success is True
+        assert replay.idempotent is True
+        doc = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        assert doc.pending_chain[0].request_state == RequestState.COMPLETED
+        assert len(doc.pending_chain[0].attempts) == 1
+
+    def test_model_needs_human_cannot_bypass_legacy_evidence_drift(self) -> None:
+        class DetailTracker(_MemoryTracker):
+            def __init__(self, current: Issue) -> None:
+                super().__init__()
+                self.current = current
+
+            def fetch_issue_detail(self, identifier: str) -> Issue | None:
+                return copy.copy(self.current) if identifier == TASK_ID else None
+
+        current = Issue(
+            id=TASK_ID,
+            identifier=TASK_ID,
+            title="Legacy audit",
+            description="current tracker projection after cutover",
+            state=IN_VALIDATION,
+            project_id=PROJECT_ID,
+        )
+        tracker = DetailTracker(current)
+        record = _pending_record(fingerprint=_fingerprint("d"))
+        _seed_metadata(tracker, [record])
+
+        outcome = _apply(
+            _coordinator(tracker),
+            copy.copy(current),
+            _needs_human_result(
+                record,
+                message="Please review the evidence drift and decide how to proceed.",
+            ),
+        )
+
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.CURRENT_EVIDENCE_UNAVAILABLE
+        assert tracker.current_status(TASK_ID) is None
+
     def test_pass_marks_record_completed(self) -> None:
         tracker = _MemoryTracker()
         record = _pending_record(target=TargetState.DONE)

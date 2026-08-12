@@ -6,9 +6,15 @@ import os
 import threading
 
 import pytest
+from starlette.requests import Request
 
 from oompah.config import ServiceConfig
 from oompah.orchestrator import Orchestrator
+from oompah import server
+from oompah.server import (
+    AuthenticatedPrincipal,
+    _AUTH_PRINCIPAL_SCOPE_CAPABILITY,
+)
 
 
 def _make_config() -> ServiceConfig:
@@ -54,6 +60,102 @@ class TestPausedStatePersistence:
         with open(state_path) as f:
             data = json.load(f)
         assert data["paused"] is True
+
+    def test_authenticated_pause_provenance_survives_restart(
+        self, tmp_path, event_loop
+    ):
+        state_path = str(tmp_path / "service_state.json")
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            state_path=state_path,
+        )
+
+        orch.pause(
+            actor="project-owner",
+            source="ui",
+            request_id="request-123",
+        )
+        restarted = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            state_path=state_path,
+        )
+
+        record = restarted.get_snapshot()["scheduling_control_history"][0]
+        assert record == {
+            "version": 1,
+            "recorded_at": record["recorded_at"],
+            "scope": "orchestrator",
+            "action": "pause",
+            "previous_paused": False,
+            "new_paused": True,
+            "changed": True,
+            "actor": "project-owner",
+            "source": "ui",
+            "request_id": "request-123",
+        }
+
+    def test_pause_provenance_sanitizes_credentials(self, tmp_path, event_loop):
+        state_path = str(tmp_path / "service_state.json")
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            state_path=state_path,
+        )
+
+        orch.pause(
+            actor="owner bearer secret-token",
+            source="api\nAuthorization: secret-token",
+            request_id="req secret-token",
+        )
+
+        persisted = (tmp_path / "service_state.json").read_text(encoding="utf-8")
+        assert "secret-token" not in persisted
+        record = orch.get_snapshot()["scheduling_control_history"][0]
+        assert "secret-token" not in record["actor"]
+        assert "secret-token" not in record["source"]
+        assert "secret-token" not in record["request_id"]
+
+    def test_global_pause_endpoint_uses_authenticated_principal(
+        self, tmp_path, event_loop
+    ):
+        state_path = str(tmp_path / "service_state.json")
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            state_path=state_path,
+        )
+        principal = AuthenticatedPrincipal(
+            username="http-operator",
+            actor_login="project-owner",
+            source="basic",
+        )
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v1/orchestrator/pause",
+            "headers": [
+                (b"x-oompah-request-source", b"ui"),
+                (b"x-request-id", b"pause-request-1"),
+            ],
+            _AUTH_PRINCIPAL_SCOPE_CAPABILITY: principal,
+        }
+        request = Request(scope)
+        original = server._orchestrator
+        server._orchestrator = orch
+        try:
+            response = event_loop.run_until_complete(
+                server.api_orchestrator_pause(request)
+            )
+        finally:
+            server._orchestrator = original
+
+        assert response.status_code == 200
+        record = orch.get_snapshot()["scheduling_control_history"][0]
+        assert record["actor"] == "project-owner"
+        assert record["source"] == "ui"
+        assert record["request_id"] == "pause-request-1"
 
     def test_quiesce_does_not_persist_operator_pause_or_terminate_workers(
         self, tmp_path

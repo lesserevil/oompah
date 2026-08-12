@@ -61,6 +61,7 @@ class CheckpointQueue:
         debounce_ms: int = 5000,
         max_delay_ms: int = 30000,
         flush_fn: Callable[[], None],
+        incident_key: str = "state_branch_checkpoint_publish",
         _clock: Callable[[], float] | None = None,
         _timer_factory: Callable[..., Any] | None = None,
     ) -> None:
@@ -80,6 +81,7 @@ class CheckpointQueue:
         self._debounce_ms = debounce_ms
         self._max_delay_ms = max_delay_ms
         self._flush_fn = flush_fn
+        self._incident_key = str(incident_key or "state_branch_checkpoint_publish")
         self._clock: Callable[[], float] = _clock if _clock is not None else time.monotonic
         self._timer_factory: Callable[..., Any] = (
             _timer_factory if _timer_factory is not None else threading.Timer
@@ -102,6 +104,7 @@ class CheckpointQueue:
         self._first_pending_at: float | None = None
         self._last_push_at: str | None = None
         self._push_failures: int = 0
+        self._retired: bool = False
 
     # ------------------------------------------------------------------
     # Public API
@@ -114,6 +117,8 @@ class CheckpointQueue:
         the first pending mutation; resets the debounce timer on every call.
         """
         with self._lock:
+            if self._retired:
+                raise RuntimeError("checkpoint writer generation is retired")
             self._pending += 1
             now = self._clock()
 
@@ -177,6 +182,8 @@ class CheckpointQueue:
         # BEFORE flush() returns so callers see the completed commit state.
         with self._flush_serial:
             with self._lock:
+                if self._retired:
+                    return 0
                 count = self._pending
                 if count == 0:
                     return 0
@@ -214,13 +221,51 @@ class CheckpointQueue:
                     "Checkpoint flush FAILED (reason=%s); push_failures=%d",
                     reason,
                     self._push_failures,
+                    extra={
+                        "error_class": "checkpoint_queue.flush_failed",
+                        "incident_key": self._incident_key,
+                    },
                 )
                 raise
+
+    def retire(self) -> int:
+        """Fence this writer generation without publishing through it.
+
+        Waits for an already-running flush to finish, cancels timers, and
+        rejects every later schedule.  Buffered task files and any local-only
+        checkpoint commit remain in the shared state worktree for a successor
+        writer with current credentials to adopt and publish.
+
+        Returns the number of buffered mutations transferred to the successor.
+        """
+
+        with self._flush_serial:
+            with self._lock:
+                if self._retired:
+                    return 0
+                self._retired = True
+                count = self._pending
+                if self._debounce_timer is not None:
+                    self._debounce_timer.cancel()
+                    self._debounce_timer = None
+                if self._max_delay_timer is not None:
+                    self._max_delay_timer.cancel()
+                    self._max_delay_timer = None
+                self._pending = 0
+                self._first_pending_at = None
+                return count
 
     def shutdown(self) -> None:
         """Flush any pending mutations and cancel timers for graceful shutdown."""
         # flush() is idempotent — safe even if pending == 0.
         self.flush(reason="shutdown")
+
+    @property
+    def retired(self) -> bool:
+        """Whether this queue has permanently lost publication authority."""
+
+        with self._lock:
+            return self._retired
 
     # ------------------------------------------------------------------
     # Observability

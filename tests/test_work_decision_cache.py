@@ -18,7 +18,7 @@ import oompah.orchestrator as orchestrator_module
 import oompah.server as server_module
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
-from oompah.projects import ProjectStore
+from oompah.projects import ProjectError, ProjectStore
 from oompah.state_branch_migration import (
     MigrationResult,
     StateBranchVerificationResult,
@@ -1975,6 +1975,35 @@ def test_project_config_cut_restores_availability_when_project_update_fails(
     orchestrator._notify_observers.assert_not_called()
     orchestrator._set_refresh_requested.assert_not_called()
     orchestrator._post_event.assert_not_called()
+
+
+def test_project_config_cut_validates_before_retiring_checkpoint_writer(
+    tmp_path,
+) -> None:
+    orchestrator, project = _endpoint_authority_orchestrator(
+        tmp_path,
+        migration_stage="",
+    )
+
+    class RetiringTracker:
+        def __init__(self) -> None:
+            self.retire = Mock(return_value=1)
+
+        def retire_checkpoint_writer(self, *, reason):
+            return self.retire(reason=reason)
+
+    tracker = RetiringTracker()
+    orchestrator._project_trackers[project.id] = tracker
+
+    with pytest.raises(ProjectError, match="max_in_flight_prs"):
+        orchestrator.update_project_tracker_configuration(
+            project.id,
+            max_in_flight_prs=0,
+        )
+
+    tracker.retire.assert_not_called()
+    assert project.max_in_flight_prs != 0
+    assert orchestrator._project_trackers[project.id] is tracker
 
 
 def test_project_config_cut_rejects_late_old_generation_refresh(tmp_path) -> None:

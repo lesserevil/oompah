@@ -4449,7 +4449,7 @@ async function fetchOrchestratorState() {
 
 async function togglePause() {
   const endpoint = orchPaused ? '/api/v1/orchestrator/resume' : '/api/v1/orchestrator/pause';
-  await fetch(endpoint, {method: 'POST'});
+  await fetch(endpoint, {method: 'POST', headers: {'X-Oompah-Request-Source': 'ui'}});
   await fetchOrchestratorState();
 }
 
