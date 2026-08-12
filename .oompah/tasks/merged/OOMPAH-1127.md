@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-11T22:38:37.996985Z'
-updated_at: '2026-08-12T19:57:55.024766Z'
+updated_at: '2026-08-12T19:58:06.548412Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -167,5 +167,10 @@ created: 2026-08-12 19:57
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Direct-owner completion verified in merged PR #836 at a6a983171: state-writer generation fencing and cutover recovery are implemented with regression coverage; the exact merge passed the full Python 3.11/3.12/3.13 CI matrix.
+---
+author: oompah
+created: 2026-08-12 19:58
+---
+Completed by merged PR #836 (a6a983171). The implementation fences stale state-branch writers across repository/forge/credential cutovers, preserves pending state, and bounds failed cutover recovery.
 ---
 <!-- COMMENTS:END -->

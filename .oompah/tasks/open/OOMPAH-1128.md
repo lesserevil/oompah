@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-11T22:38:40.818634Z'
-updated_at: '2026-08-12T17:29:59.572364Z'
+updated_at: '2026-08-12T19:58:12.640599Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,6 +53,31 @@ oompah.work_contributors:
     source_branch: OOMPAH-1128
     source_sha: null
     completed_at: ''
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-a050382e3c32
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1128
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: aebe42575c8bb288397e30f621e4904c79316073e316ed3f11c31098f2aee58b
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Direct-owner completion verified in merged PR #836 at a6a983171: stable
+      incident identities and retry coalescing are implemented with regression coverage;
+      the exact merge passed the full Python 3.11/3.12/3.13 CI matrix.'
+    created_at: '2026-08-12T19:58:09.722261+00:00'
+    selected_ref: origin/main
+    selected_sha: 00db66b58afc1dfbb67572226213a8da8fd22ec4
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
