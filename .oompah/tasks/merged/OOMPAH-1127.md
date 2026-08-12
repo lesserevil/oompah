@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-11T22:38:37.996985Z'
-updated_at: '2026-08-12T19:57:43.220690Z'
+updated_at: '2026-08-12T19:57:55.024766Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -88,7 +88,21 @@ oompah.terminal_audit:
     created_at: '2026-08-12T19:57:34.931023+00:00'
     selected_ref: origin/main
     selected_sha: 00db66b58afc1dfbb67572226213a8da8fd22ec4
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1127
+    target_state: Merged
+    evidence_fingerprint: f2ac30d18aebc0fd56a44fb2c45a4e11e0b218d82a4c60900181a19588de2a8b
+    workflow_revision: null
+    selected_ref: origin/main
+    selected_sha: 00db66b58afc1dfbb67572226213a8da8fd22ec4
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-12T19:57:52.924665+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -146,5 +160,12 @@ Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 39s
+---
+author: oompah
+created: 2026-08-12 19:57
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Direct-owner completion verified in merged PR #836 at a6a983171: state-writer generation fencing and cutover recovery are implemented with regression coverage; the exact merge passed the full Python 3.11/3.12/3.13 CI matrix.
 ---
 <!-- COMMENTS:END -->
