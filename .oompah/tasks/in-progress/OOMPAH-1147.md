@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1147
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue TRICKLE-119:
   All 2 dispatch candidates unavailable: prov-52e94e83/gpt-5.6-luna: contributor_evidence_unavailable:
@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:23:08.685893Z'
-updated_at: '2026-08-12T17:31:18.102698Z'
+updated_at: '2026-08-12T17:38:11.652521Z'
 work_branch: null
 target_branch: null
 review_url: null
