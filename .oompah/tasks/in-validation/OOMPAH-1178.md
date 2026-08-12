@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1178
 type: feature
-status: In Review
+status: In Validation
 priority: 2
 title: Support transactional batch task updates for whole-column moves
 parent: null
@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:56:01.307393Z'
-updated_at: '2026-08-12T19:24:42.945466Z'
+updated_at: '2026-08-12T19:57:12.296315Z'
 work_branch: OOMPAH-1178
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/837
@@ -32,6 +32,64 @@ oompah.review_number: '837'
 oompah.work_branch: OOMPAH-1178
 oompah.target_branch: main
 oompah.review_head: aaa3ec17a0b98e280bffa1e71d3dd904f5060d41
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-041365d47abb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1178
+    digest: 8c6fcb07f9ab40113d4cc90d8a0c5119374a976b47c0c7215c05f6490b549791
+  - version: 1
+    audit_id: audit-ff6ce97a0895
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1178
+    digest: 8c6fcb07f9ab40113d4cc90d8a0c5119374a976b47c0c7215c05f6490b549791
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-041365d47abb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1178
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8c6fcb07f9ab40113d4cc90d8a0c5119374a976b47c0c7215c05f6490b549791
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-12T19:57:06.162756+00:00'
+    eligible_at: '2026-08-12T19:57:06.162756+00:00'
+    selected_ref: origin/OOMPAH-1178
+    selected_sha: f1902e64d2cdef014e84a8cb1c58896ca1e40f35
+  - version: 1
+    audit_id: audit-ff6ce97a0895
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1178
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8c6fcb07f9ab40113d4cc90d8a0c5119374a976b47c0c7215c05f6490b549791
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-12T19:57:06.162756+00:00'
+    prerequisite_audit_id: audit-041365d47abb
+    selected_ref: origin/OOMPAH-1178
+    selected_sha: f1902e64d2cdef014e84a8cb1c58896ca1e40f35
+  attempt_history: []
 ---
 ## Summary
 
@@ -71,5 +129,10 @@ author: oompah
 created: 2026-08-12 19:24
 ---
 Branch quality gate passed for `aaa3ec17a0b98e280bffa1e71d3dd904f5060d41` using `make test` in 178.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-12 19:57
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
