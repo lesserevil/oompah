@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1155
 type: bug
-status: In Progress
+status: Archived
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-134'
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T15:29:41.203071Z'
-updated_at: '2026-08-12T20:08:01.986968Z'
+updated_at: '2026-08-12T20:08:08.607617Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,6 +44,7 @@ oompah.terminal_audit:
   version: 1
   pending_chain: []
   attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
