@@ -153,6 +153,7 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "review.source_deleted",
         "rollup.children_complete",
         "rollup.children_missing",
+        "rollup.waiting_parent_landing",
         "rollup.waiting_children",
         "standalone.delivery_eligible",
         "terminal.final",
@@ -1887,6 +1888,57 @@ def _landing_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
     landed = tuple(item for item in candidates if item.state is LandingState.LANDED)
     unknown = tuple(item for item in candidates if item.state is LandingState.UNKNOWN)
     if landed:
+        if not epic and task.parent_id:
+            task_observation = facts.fact(FactDomain.TASK)
+            task_value = (
+                _mapping(task_observation.value)
+                if task_observation.state is FactState.KNOWN
+                else None
+            )
+            parent_identity = str(
+                (task_value or {}).get("parent_identifier") or ""
+            ).strip()
+            parent_status = canonicalize_status(
+                (task_value or {}).get("parent_status")
+            )
+            parent_issue_type = str(
+                (task_value or {}).get("parent_issue_type") or ""
+            ).strip().lower()
+            parent_error = str(
+                (task_value or {}).get("parent_error") or ""
+            ).strip()
+            if (
+                parent_identity != task.parent_id
+                or parent_issue_type != "epic"
+                or parent_status not in {MERGED, ARCHIVED}
+            ):
+                # A shared child's accepted revision landing on the parent
+                # branch proves Done, not Merged.  The parent rollup owns the
+                # later target landing.  Publishing a terminal job before the
+                # parent is terminal guarantees coordinator rejection and can
+                # hold restart reconstruction at N-1 forever.  Keep this
+                # normal wait jobless; the canonical project scan observes
+                # the exact parent status and reassesses it automatically.
+                observed = (
+                    parent_error
+                    or parent_status
+                    or "parent_authority_unavailable"
+                )
+                return _decision(
+                    task,
+                    facts,
+                    disposition=TaskDisposition.BLOCKED,
+                    reason_code="rollup.waiting_parent_landing",
+                    owner=WorkflowOwner.ROLLUP,
+                    prerequisites=(
+                        UnmetPrerequisite(
+                            "rollup.parent_not_terminal",
+                            task.parent_id,
+                            observed,
+                        ),
+                    ),
+                    actions=(PermittedAction.REFRESH_LANDING,),
+                )
         action = (
             "epic_auto_close"
             if epic

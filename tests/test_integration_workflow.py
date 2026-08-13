@@ -4342,7 +4342,9 @@ async def test_composed_done_child_carries_parent_landing_head_through_rollup(
     task.integration = None
     parent = issue(parent_id)
     parent.issue_type = "epic"
-    parent.state = "Done"
+    # This test exercises the terminal path; the shared parent has already
+    # landed on its immediate target.
+    parent.state = "Merged"
     parent.work_branch = target
     parent.target_branch = "main"
     tracker = Tracker([task, parent])
@@ -4531,6 +4533,7 @@ def test_done_child_consumes_parent_scoped_canonical_landing_after_restart(tmp_p
     git(tmp_path, "branch", "-D", "TASK-A")
 
     task, parent, fact = _parent_scoped_child_fixture(revision=child_head)
+    parent.state = "Merged"
     tracker = Tracker([task, parent])
     store_path = tmp_path / "workflow.sqlite3"
     store = WorkflowJobStore(str(store_path))
@@ -4608,6 +4611,51 @@ def test_done_child_consumes_parent_scoped_canonical_landing_after_restart(tmp_p
     assert restarted_request.prior == fact
     assert restarted_request.revision == child_head
     restarted.close()
+
+
+@pytest.mark.parametrize("terminal_parent_state", ("Merged", "Archived"))
+def test_done_child_defers_rollup_job_until_parent_is_terminal(
+    tmp_path, terminal_parent_state
+):
+    task, parent, fact = _parent_scoped_child_fixture()
+    tracker = Tracker([task, parent])
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    store.record_landing_facts(
+        project_id="project-1",
+        task_id=parent.identifier,
+        facts=(fact.to_dict(),),
+    )
+    controller = IntegrationWorkflowController(
+        collector=collector(tracker, PriorOnlyLandingCollector()),
+        store=store,
+        landing_request_resolver=IntegrationLandingRequestResolver(
+            project_id="project-1",
+            tracker=tracker,
+            project_store=SimpleNamespace(
+                epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+            ),
+            project_default_branch="main",
+            workflow_store=store,
+        ),
+    )
+
+    waiting, waiting_reconcile = controller.reconcile((task,))
+
+    assert waiting.tasks[0].decision.reason_code == (
+        "rollup.waiting_parent_landing"
+    )
+    assert waiting.tasks[0].decision.durable_jobs == ()
+    assert waiting_reconcile.jobs_required == 0
+    assert waiting_reconcile.jobs_materialized == 0
+    assert store.list_jobs(project_id="project-1", task_id=task.identifier) == ()
+
+    parent.state = terminal_parent_state
+    terminal, terminal_reconcile = controller.reconcile((task,))
+
+    assert terminal.tasks[0].decision.durable_jobs == ("parent_rollup_review",)
+    assert terminal_reconcile.jobs_required == 1
+    assert terminal_reconcile.jobs_materialized == 1
+    store.close()
 
 
 @pytest.mark.parametrize(
@@ -4936,6 +4984,7 @@ def test_deleted_parent_ref_uses_final_exact_head_for_full_patch_proof(tmp_path)
         base_branch="epic/E-1",
     )
     parent = issue("E-1")
+    parent.issue_type = "epic"
     parent.state = "Merged"
     parent.work_branch = "epic/E-1"
     parent.integration = IntegrationRecord(

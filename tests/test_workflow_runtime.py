@@ -8750,6 +8750,10 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(
     assert task_decision.durable_jobs == ("parent_rollup_review",)
     assert guard(task_intent) is None
 
+    # The composed child terminal path is only eligible after the parent epic
+    # has landed.  Earlier assertions intentionally exercise the live epic's
+    # pre-terminal mutation guard, so advance it only for this child case.
+    issue.state = "Merged"
     composed_decision = binding.integration_controller.evaluate(
         (composed_task,)
     ).tasks[0].decision
@@ -8780,6 +8784,7 @@ def test_enforce_runtime_refreshes_remote_target_before_landing_decision(
     )
     assert guard(mismatched_composed_intent) == "task composed landing head changed"
     tracker.blank_project_reads = False
+    issue.state = "In Progress"
 
     # Review-owned terminalization uses a different fact projection than the
     # integration parent-rollup lane, despite sharing the public reason code.

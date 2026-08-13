@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from oompah.models import BlockerRef, Issue
-from oompah.statuses import canonicalize_status
+from oompah.statuses import DONE, canonicalize_status
 from oompah.tracker import TrackerProtocol
 from oompah.workflow_fact_model import (
     LANDING_FACT_SCHEMA_VERSION,
@@ -573,8 +573,13 @@ def _integration_value(issue: Issue) -> Any:
     return value
 
 
-def _task_value(issue: Issue) -> dict[str, Any]:
-    return {
+def _task_value(
+    issue: Issue,
+    *,
+    parent: Issue | None = None,
+    parent_error: str | None = None,
+) -> dict[str, Any]:
+    value = {
         "id": issue.id,
         "identifier": issue.identifier,
         "status": canonicalize_status(issue.state),
@@ -593,6 +598,18 @@ def _task_value(issue: Issue) -> dict[str, Any]:
         "review_number": issue.review_number,
         "review_head": issue.review_head,
     }
+    if parent is not None or parent_error is not None:
+        value["parent_identifier"] = (
+            str(getattr(parent, "identifier", "") or "").strip() or None
+        )
+        value["parent_status"] = (
+            canonicalize_status(parent.state) if parent is not None else None
+        )
+        value["parent_issue_type"] = (
+            str(getattr(parent, "issue_type", "") or "").strip() or None
+        )
+        value["parent_error"] = str(parent_error or "").strip() or None
+    return value
 
 
 class WorkflowFactCollector:
@@ -1018,10 +1035,50 @@ class WorkflowFactCollector:
                 error_code=f"dependency_{type(exc).__name__.lower()}",
             )
 
+        parent = None
+        parent_error = None
+        parent_id = str(issue.parent_id or "").strip()
+        needs_parent_terminal_authority = bool(
+            parent_id
+            and canonicalize_status(issue.state) == DONE
+            and str(issue.issue_type or "task").strip().lower() != "epic"
+        )
+        if needs_parent_terminal_authority:
+            try:
+                if authoritative_issues is not None:
+                    parent = authoritative_issues.get(
+                        parent_id
+                    ) or authoritative_issues.get(parent_id.casefold())
+                else:
+                    parent = self.tracker.fetch_issue_detail(parent_id)
+            except Exception as exc:  # noqa: BLE001 - parent authority boundary
+                parent_error = f"parent_{type(exc).__name__.lower()}"
+            else:
+                parent_identity = str(
+                    getattr(parent, "identifier", "")
+                    or getattr(parent, "id", "")
+                    or ""
+                ).strip()
+                parent_project = str(
+                    getattr(parent, "project_id", "") or ""
+                ).strip()
+                if parent is None:
+                    parent_error = "parent_missing"
+                elif parent_identity != parent_id:
+                    parent = None
+                    parent_error = "parent_identity_mismatch"
+                elif parent_project and parent_project != self.project_id:
+                    parent = None
+                    parent_error = "parent_project_mismatch"
+
         observations: dict[FactDomain, FactObservation] = {
             FactDomain.TASK: FactObservation.known(
                 FactDomain.TASK,
-                _task_value(issue),
+                _task_value(
+                    issue,
+                    parent=parent,
+                    parent_error=parent_error,
+                ),
                 observed_at=now_iso,
                 source="tracker",
             ),
