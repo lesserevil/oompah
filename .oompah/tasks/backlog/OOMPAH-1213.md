@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:50:52.786229Z'
-updated_at: '2026-08-13T03:50:52.786229Z'
+updated_at: '2026-08-13T04:28:50.927677Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,3 +59,15 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 04:28
+---
+Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
+
+Source: `backend:orchestrator`
+
+Message: Restart recovery persistence failed closed: restart recovery publication was not acknowledged
+---
+<!-- COMMENTS:END -->
