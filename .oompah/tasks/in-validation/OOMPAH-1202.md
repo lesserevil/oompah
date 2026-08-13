@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1202
 type: bug
-status: Open
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-124 identifier=TRICKLE-124 run_id=5ec1b92404db430e9971b34803104ae8
@@ -13,14 +13,72 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T00:37:46.158982Z'
-updated_at: '2026-08-13T01:01:21.703071Z'
+updated_at: '2026-08-13T01:13:59.435396Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-a2f9379ecc6e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1202
+    digest: 964a381cf343e46f2a0c06d6f0642fd123ae146b5f4afe538976b0424605ea6d
+  - version: 1
+    audit_id: audit-57d9f820651a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1202
+    digest: 964a381cf343e46f2a0c06d6f0642fd123ae146b5f4afe538976b0424605ea6d
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a2f9379ecc6e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1202
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 964a381cf343e46f2a0c06d6f0642fd123ae146b5f4afe538976b0424605ea6d
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T01:13:53.346213+00:00'
+    eligible_at: '2026-08-13T01:13:53.346213+00:00'
+    selected_ref: origin/main
+    selected_sha: 07d742c9cb37155beb22e8007937125f3ad053aa
+  - version: 1
+    audit_id: audit-57d9f820651a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1202
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 964a381cf343e46f2a0c06d6f0642fd123ae146b5f4afe538976b0424605ea6d
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T01:13:53.346213+00:00'
+    prerequisite_audit_id: audit-a2f9379ecc6e
+    selected_ref: origin/main
+    selected_sha: 07d742c9cb37155beb22e8007937125f3ad053aa
+  attempt_history: []
 ---
 ## Summary
 
@@ -72,5 +130,10 @@ author: oompah
 created: 2026-08-13 01:01
 ---
 Fix implemented and pushed on branch OOMPAH-1202 (commit fdaa27b0c, PR #843). Contributor evidence now takes per-project authority before auditor-policy authority, matching ProjectStore.update and eliminating the deadlock cycle. Added a direct lock-order regression and a concurrent production-shape ProjectStore/ProvenanceGuardedTracker regression. Focused verification: 21 provider-retirement tests and 543 orchestrator/project tests pass; terminal mutation and secret scans pass. Full Python 3.11/3.12/3.13 CI is running.
+---
+author: oompah
+created: 2026-08-13 01:13
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
