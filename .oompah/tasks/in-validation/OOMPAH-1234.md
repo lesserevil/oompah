@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1234
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Wake queued nested topology repairs independently of implementation retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T11:02:41.641589Z'
-updated_at: '2026-08-13T11:15:50.179479Z'
+updated_at: '2026-08-13T11:34:57.275575Z'
 work_branch: OOMPAH-1234
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: cd7a3378-bd51-43b7-a1c4-f5b7ee908979
   request_fingerprint: 77a790dd37017add0acfd675dc561e5750a30bcfb90c6a44ed4551f6572ecedb
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.integration:
   version: 2
   state: ready
@@ -35,6 +35,64 @@ oompah.integration:
   submitted_at: '2026-08-13T11:15:42.599789+00:00'
   updated_at: '2026-08-13T11:15:42.599789+00:00'
 oompah.work_branch: OOMPAH-1234
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-46ed92492658
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1234
+    digest: 1a4f8b1e10a129013da0bfbe60bf0468d921f838095cbc9b1ca455ccafa4f042
+  - version: 1
+    audit_id: audit-3e3f86066e49
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1234
+    digest: 1a4f8b1e10a129013da0bfbe60bf0468d921f838095cbc9b1ca455ccafa4f042
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-46ed92492658
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1234
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1a4f8b1e10a129013da0bfbe60bf0468d921f838095cbc9b1ca455ccafa4f042
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T11:34:51.842598+00:00'
+    eligible_at: '2026-08-13T11:34:51.842598+00:00'
+    selected_ref: c3a50bc6c4df16d3c52aaf1110e50a2e502521e8
+    selected_sha: c3a50bc6c4df16d3c52aaf1110e50a2e502521e8
+  - version: 1
+    audit_id: audit-3e3f86066e49
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1234
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1a4f8b1e10a129013da0bfbe60bf0468d921f838095cbc9b1ca455ccafa4f042
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T11:34:51.842598+00:00'
+    prerequisite_audit_id: audit-46ed92492658
+    selected_ref: c3a50bc6c4df16d3c52aaf1110e50a2e502521e8
+    selected_sha: c3a50bc6c4df16d3c52aaf1110e50a2e502521e8
+  attempt_history: []
 ---
 ## Summary
 
@@ -62,5 +120,10 @@ author: oompah
 created: 2026-08-13 11:15
 ---
 Recover queued nested topology repairs independently at startup with pause/backoff/generation fencing; stabilize wait authority before enqueue. 335 focused tests and repository scans pass.
+---
+author: oompah
+created: 2026-08-13 11:34
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
