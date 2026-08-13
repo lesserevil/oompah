@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T15:00:01.939071Z'
-updated_at: '2026-08-13T15:00:18.727192Z'
+updated_at: '2026-08-13T15:05:03.803926Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-13 15:00
 ---
 Live exact evidence verified via GitLab API after exhaustion: MR !7 source epic-TRICKLE-117--task-TRICKLE-119 -> main, head b286f1cf139f992c4d1d2da033076409c7095f70, base bf527cbd46d3f45faf14915a23e4df386f7a2ebb, state opened, mergeable, pipeline 62535729 running. The alert is therefore stale provider-observation exhaustion, not an invalid submission.
+---
+author: oompah
+created: 2026-08-13 15:05
+---
+Root cause fixed on PR #868: GitLab find_pr_for_branch now hydrates an open MR missing diff_refs from the exact detail endpoint, matching list_open_reviews behavior. If detail is unavailable it retains partial identity and callers remain fail-closed. Tests: 44 GitLab SCM cases and 3 standalone exact-review/restart cases pass.
 ---
 <!-- COMMENTS:END -->
