@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T22:41:57.033700Z'
-updated_at: '2026-08-12T22:57:27.279977Z'
+updated_at: '2026-08-13T01:16:49.627650Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,16 @@ author: oompah
 created: 2026-08-12 22:57
 ---
 Live root cause confirmed during the paused Trickle verification window. TRICKLE-140 retains accepted integration head 6d089ed6 and work_branch TRICKLE-140, but GitLab MR !4 merged that exact head into main and deleted origin/TRICKLE-140; follow-up MR !5 also merged. Duplicate preflight is read-only, yet _create_workspace_for_issue routes it through accepted_submission_branch/create_worktree, which requires the mutable remote branch to still exist and equal the accepted head. The accepted commit is present and is an ancestor of origin/main, so branch deletion after merge is normal, not an infrastructure failure. Repair should bind read-only duplicate screening to the immutable accepted commit (or a freshly proven containing target) without requiring the deleted source ref, retain exact authority fencing, and add a merged+deleted-source-branch regression. Trickle is paused; TRICKLE-140 was restored to Open but duplicate screening exhausted to owner action after this third inconclusive attempt.
+---
+author: oompah
+created: 2026-08-13 01:16
+---
+Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
+
+Source: `backend:orchestrator`
+
+Message: ACP worker failed issue_id=TRICKLE-140
+
+Source issue: `TRICKLE-140`
 ---
 <!-- COMMENTS:END -->
