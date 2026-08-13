@@ -17,7 +17,7 @@ import asyncio
 import json
 import urllib.error
 from io import BytesIO
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -926,6 +926,40 @@ class TestProviderTestEndpoint:
         assert body["success"] is False
         assert body["error_reason"] == "auth_failed"
 
+    def test_claude_endpoint_probes_the_isolated_worker_auth_path(
+        self, health_client
+    ):
+        client, store = health_client
+        p = store.create(
+            name="Claude",
+            base_url="",
+            mode="acp",
+            backend="claude",
+            billing_model="subscription",
+        )
+        result = ProviderTestResult(
+            provider_id=p.id,
+            provider_name=p.name,
+            model="",
+            success=True,
+            latency_ms=1.0,
+            response_text="4",
+        )
+
+        with patch(
+            "oompah.provider_health.run_acp_health_check",
+            new=AsyncMock(return_value=result),
+        ) as probe:
+            response = client.post(f"/api/v1/providers/{p.id}/test")
+
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+        assert probe.await_args.kwargs["isolate_remote_write"] is True
+        assert (
+            probe.await_args.kwargs["provider_auth_kind"]
+            == "claude_subscription"
+        )
+
 
 # ---------------------------------------------------------------------------
 # ACP live probe (run_acp_health_check)
@@ -955,6 +989,33 @@ class TestAcpLiveProbe:
         assert result.error_reason == ""
         assert result.response_text == "4"
         assert result.latency_ms >= 0.0
+
+    def test_isolated_probe_forwards_worker_auth_options(self, fake_acp_backend):
+        p = _make_acp_provider(backend=fake_acp_backend)
+        from oompah.acp_backends.registry import BACKENDS
+
+        captured = []
+        backend = BACKENDS[fake_acp_backend]
+        original = backend.start_session
+
+        def capture(self, options):
+            captured.append(options)
+            return original(self, options)
+
+        with patch.object(backend, "start_session", capture):
+            result = asyncio.run(
+                run_acp_health_check(
+                    p,
+                    isolate_remote_write=True,
+                    provider_auth_kind="claude_subscription",
+                )
+            )
+
+        assert result.success is True
+        assert captured
+        options = captured[0]
+        assert options.isolate_remote_write is True
+        assert options.provider_auth_kind == "claude_subscription"
 
     def test_failed_status_maps_to_reason(self, fake_acp_backend_failing):
         p = _make_acp_provider(backend=fake_acp_backend_failing)

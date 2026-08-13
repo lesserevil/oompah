@@ -944,6 +944,8 @@ async def run_acp_health_check(
     model: str | None = None,
     *,
     before_transport_contact: Callable[[], str | None] | None = None,
+    isolate_remote_write: bool = False,
+    provider_auth_kind: str | None = None,
 ) -> ProviderTestResult:
     """Live-probe an ACP provider by running one tiny turn through its backend.
 
@@ -1042,6 +1044,8 @@ async def run_acp_health_check(
         turn_timeout_s=ACP_HEALTH_CHECK_TIMEOUT,
         on_event=None,
         billing_model=billing_model,
+        isolate_remote_write=isolate_remote_write,
+        provider_auth_kind=provider_auth_kind,
         begin_transport_contact=_begin_probe_transport,
     )
 

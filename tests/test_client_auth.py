@@ -25,6 +25,7 @@ Security test coverage:
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import stat
@@ -50,6 +51,7 @@ from oompah.client_auth import (
     resolve_client_credentials,
     sanitize_server_url,
     task_venv_path,
+    validate_isolated_provider_auth,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -892,6 +894,125 @@ class TestEndToEnd:
             assert clean["GIT_CONFIG_GLOBAL"] == os.devnull
         finally:
             shutil.rmtree(clean["OOMPAH_WORKER_RUNTIME_DIR"], ignore_errors=True)
+
+    def test_isolated_claude_auth_supports_current_top_level_layout(self, tmp_path):
+        operator_home = tmp_path / "operator-home"
+        operator_home.mkdir()
+        (operator_home / ".claude.json").write_text(
+            json.dumps(
+                {
+                    "primaryApiKey": "sk-ant-api-model-token",
+                    "projects": {"/operator/private": {"trusted": True}},
+                    "oauthAccount": {"emailAddress": "operator@example.test"},
+                }
+            )
+        )
+        (operator_home / ".gitconfig").write_text("[credential]\nhelper = store\n")
+
+        clean = agent_environment(
+            {"PATH": "/bin", "HOME": str(operator_home)},
+            isolate_remote_write=True,
+            provider_auth_kind="claude_subscription",
+        )
+        try:
+            copied_auth = Path(clean["CLAUDE_CONFIG_DIR"]) / ".claude.json"
+            assert json.loads(copied_auth.read_text()) == {
+                "primaryApiKey": "sk-ant-api-model-token"
+            }
+            assert copied_auth.stat().st_mode & 0o777 == 0o600
+            assert not (Path(clean["HOME"]) / ".gitconfig").exists()
+            assert clean["GIT_CONFIG_GLOBAL"] == os.devnull
+        finally:
+            shutil.rmtree(clean["OOMPAH_WORKER_RUNTIME_DIR"], ignore_errors=True)
+
+    def test_isolated_claude_auth_supports_configured_current_layout(self, tmp_path):
+        operator_home = tmp_path / "operator-home"
+        claude_root = tmp_path / "operator-claude"
+        operator_home.mkdir()
+        claude_root.mkdir()
+        (claude_root / ".claude.json").write_text(
+            '{"primaryApiKey":"sk-ant-api-model-token"}'
+        )
+
+        clean = agent_environment(
+            {
+                "PATH": "/bin",
+                "HOME": str(operator_home),
+                "CLAUDE_CONFIG_DIR": str(claude_root),
+            },
+            isolate_remote_write=True,
+            provider_auth_kind="claude_subscription",
+        )
+        try:
+            destination_root = Path(clean["CLAUDE_CONFIG_DIR"])
+            assert destination_root != claude_root
+            assert json.loads((destination_root / ".claude.json").read_text()) == {
+                "primaryApiKey": "sk-ant-api-model-token"
+            }
+        finally:
+            shutil.rmtree(clean["OOMPAH_WORKER_RUNTIME_DIR"], ignore_errors=True)
+
+    def test_isolated_claude_auth_prefers_legacy_dedicated_artifact(self, tmp_path):
+        operator_home = tmp_path / "operator-home"
+        claude_root = operator_home / ".claude"
+        claude_root.mkdir(parents=True)
+        (claude_root / ".credentials.json").write_text(
+            '{"claudeAiOauth":{"accessToken":"legacy-token"}}'
+        )
+        (operator_home / ".claude.json").write_text(
+            '{"primaryApiKey":"current-token"}'
+        )
+
+        clean = agent_environment(
+            {"PATH": "/bin", "HOME": str(operator_home)},
+            isolate_remote_write=True,
+            provider_auth_kind="claude_subscription",
+        )
+        try:
+            destination_root = Path(clean["CLAUDE_CONFIG_DIR"])
+            assert (destination_root / ".credentials.json").read_text() == (
+                '{"claudeAiOauth":{"accessToken":"legacy-token"}}'
+            )
+            assert not (destination_root / ".claude.json").exists()
+        finally:
+            shutil.rmtree(clean["OOMPAH_WORKER_RUNTIME_DIR"], ignore_errors=True)
+
+    @pytest.mark.parametrize(
+        "document",
+        ["{}", '{"primaryApiKey":""}', "[]", "not-json"],
+    )
+    def test_isolated_claude_current_layout_fails_closed_when_invalid(
+        self, tmp_path, document
+    ):
+        operator_home = tmp_path / "operator-home"
+        operator_home.mkdir()
+        (operator_home / ".claude.json").write_text(document)
+
+        with pytest.raises(OSError, match="provider authentication artifact is invalid"):
+            agent_environment(
+                {"PATH": "/bin", "HOME": str(operator_home)},
+                isolate_remote_write=True,
+                provider_auth_kind="claude_subscription",
+            )
+
+    def test_isolated_provider_auth_preflight_uses_launch_path_and_cleans_up(
+        self, tmp_path, monkeypatch
+    ):
+        operator_home = tmp_path / "operator-home"
+        operator_home.mkdir()
+        (operator_home / ".claude.json").write_text(
+            '{"primaryApiKey":"sk-ant-api-model-token"}'
+        )
+        runtime_root = tmp_path / "runtime-root"
+        runtime_root.mkdir()
+        monkeypatch.setenv("TMPDIR", str(runtime_root))
+
+        validate_isolated_provider_auth(
+            "claude_subscription",
+            {"PATH": "/bin", "HOME": str(operator_home)},
+        )
+
+        assert list(runtime_root.iterdir()) == []
 
     def test_unknown_isolated_provider_layout_fails_closed(self):
         with pytest.raises(OSError, match="unknown isolated worker provider"):
