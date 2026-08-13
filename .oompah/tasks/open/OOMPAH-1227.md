@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:16:04.050669Z'
-updated_at: '2026-08-13T09:16:23.219875Z'
+updated_at: '2026-08-13T09:23:15.614711Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-13 09:16
 ---
 Claimed directly for live scheduling recovery. Reproduced on TRICKLE-118: GitLab MR list evidence reported exact head and successful CI but blank base_sha; MR detail reports base_sha 983b2f1f…. The review_merge job exhausted stale_evidence and left the project review slot blocked. Implementing fail-closed detail hydration now.
+---
+author: oompah
+created: 2026-08-13 09:23
+---
+Implementation pushed and opened as PR #856. GitLab list responses missing immutable head/base evidence are hydrated through the exact MR detail endpoint; malformed/unavailable detail remains an unavailable observation. Focused GitLab SCM and review suites: 120 passed, 2 skipped. Hosted gates are running.
 ---
 <!-- COMMENTS:END -->
