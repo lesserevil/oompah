@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T08:09:49.181773Z'
-updated_at: '2026-08-13T08:33:31.521362Z'
-work_branch: null
+updated_at: '2026-08-13T08:49:27.003912Z'
+work_branch: OOMPAH-1225
 target_branch: null
 review_url: null
 review_number: null
@@ -25,6 +25,16 @@ oompah.create_once:
   creation_marker: gitlab-mr-list-missing-head-pipeline-ci-refresh
   request_fingerprint: 5b4e407fccdecbfa7bacb307fae8f5032d210c7257893900acc7ce2a0133e5c8
 oompah.lifecycle_revision: 1
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1225
+  head_sha: 69fb55edca7c6c2f5d04e2839266968c07bd5049
+  submitted_at: '2026-08-13T08:49:19.100809+00:00'
+  updated_at: '2026-08-13T08:49:19.100809+00:00'
+oompah.work_branch: OOMPAH-1225
 ---
 ## Summary
 
@@ -44,5 +54,10 @@ author: oompah
 created: 2026-08-13 08:33
 ---
 Implementation committed and pushed as 69fb55ed on PR #854. Local focused suites passed before rebase (121 GitLab/review tests; 331 broader SCM/review tests), post-rebase secret scan passed, and hosted Python 3.11/3.12/3.13 gates are running. Live source task TRICKLE-118 remains review.ci_pending until deployment.
+---
+author: oompah
+created: 2026-08-13 08:49
+---
+Refresh GitLab review CI from the exact immutable MR head when list responses omit head_pipeline; preserve warnings and the embedded fast path. PR #854 passed hosted Python 3.11/3.12/3.13 gates.
 ---
 <!-- COMMENTS:END -->
