@@ -21,6 +21,7 @@ import contextvars
 import hashlib
 import inspect
 import json
+import logging
 import os
 import re
 import sqlite3
@@ -61,6 +62,8 @@ from oompah.workflow_contract import (
     TransitionRequirement,
     transition_rule,
 )
+
+logger = logging.getLogger(__name__)
 
 TRANSITION_JOURNAL_SCHEMA_VERSION = 1
 DEFAULT_TRANSITION_CLAIM_TTL_SECONDS = 300.0
@@ -1760,6 +1763,13 @@ class TaskTransitionService:
             try:
                 detail = str(guard(intent, issue) or "").strip()
             except Exception:  # noqa: BLE001 - workflow authority must fail closed
+                logger.exception(
+                    "Task transition mutation guard failed project=%s task=%s "
+                    "reason=%s",
+                    intent.project_id,
+                    intent.task_id,
+                    intent.reason_code,
+                )
                 return "transition.mutation_guard_failed", True, None
             if detail:
                 return "transition.stale_precondition", False, detail
