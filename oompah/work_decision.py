@@ -113,6 +113,7 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "implementation.active",
         "implementation.action_scheduled",
         "implementation.recovery_scheduled",
+        "implementation.submission_recovery_parked",
         "intake.awaiting_decision",
         "integration.active",
         "integration.dependencies_blocked",
@@ -2329,15 +2330,6 @@ def _evaluate_task_default_policy(
                 durable_jobs=("terminal_audit_done",),
                 recommended_status=IN_VALIDATION,
             )
-        if hard_start:
-            return _decision(
-                view,
-                facts,
-                disposition=TaskDisposition.BLOCKED,
-                reason_code="dispatch.dependencies_blocked",
-                prerequisites=hard_start,
-                actions=(PermittedAction.WAIT_DEPENDENCY,),
-            )
         config = facts.fact(FactDomain.CONFIG)
         config_value = (
             _mapping(config.value) if config.state is FactState.KNOWN else None
@@ -2348,6 +2340,9 @@ def _evaluate_task_default_policy(
         pending_action = str(
             (config_value or {}).get("implementation_pending_action") or ""
         ).strip()
+        submission_recovery_state = str(
+            (config_value or {}).get("accepted_submission_recovery_state") or ""
+        ).strip()
         if view.status == OPEN and duplicate_state == "running":
             return _decision(
                 view,
@@ -2356,6 +2351,42 @@ def _evaluate_task_default_policy(
                 reason_code="duplicate.investigating",
                 owner=WorkflowOwner.DUPLICATE_INVESTIGATOR,
                 actions=(PermittedAction.INVESTIGATE_DUPLICATE,),
+            )
+        if pending_action == "validation_submission":
+            return _decision(
+                view,
+                facts,
+                disposition=TaskDisposition.RETRY_SCHEDULED,
+                reason_code="implementation.action_scheduled",
+                owner=WorkflowOwner.DISPATCHER,
+                actions=(PermittedAction.RECONCILE_IMPLEMENTATION,),
+                alert=AlertSeverity.INFO,
+                durable_jobs=(pending_action,),
+            )
+        if submission_recovery_state.startswith("accepted_submission_"):
+            return _decision(
+                view,
+                facts,
+                disposition=TaskDisposition.BLOCKED,
+                reason_code="implementation.submission_recovery_parked",
+                owner=WorkflowOwner.DISPATCHER,
+                prerequisites=(
+                    UnmetPrerequisite(
+                        "implementation.submission_recovery_parked",
+                        submission_recovery_state,
+                    ),
+                ),
+                actions=(PermittedAction.RECONCILE_IMPLEMENTATION,),
+                alert=AlertSeverity.INFO,
+            )
+        if hard_start:
+            return _decision(
+                view,
+                facts,
+                disposition=TaskDisposition.BLOCKED,
+                reason_code="dispatch.dependencies_blocked",
+                prerequisites=hard_start,
+                actions=(PermittedAction.WAIT_DEPENDENCY,),
             )
         if view.status == OPEN and pending_action in {
             "duplicate_screening",

@@ -558,6 +558,7 @@ VALID_TRANSITIONS: Mapping[str, frozenset[str]] = MappingProxyType(
                 NEEDS_HUMAN,
                 NEEDS_CI_FIX,
                 NEEDS_REBASE,
+                READY_TO_INTEGRATE,
                 DONE,
                 ARCHIVED,
             }

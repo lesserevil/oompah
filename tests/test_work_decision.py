@@ -384,6 +384,64 @@ def test_accepted_submission_recovery_does_not_require_a_live_implementer():
     assert decision.alert_level is AlertSeverity.INFO
 
 
+def test_open_accepted_submission_preempts_dispatch_and_dependencies():
+    issue = _issue(OPEN)
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.DEPENDENCIES: _known(
+                    FactDomain.DEPENDENCIES,
+                    {
+                        "finish": [],
+                        "hard_start": [{"identifier": "TASK-H", "status": OPEN}],
+                    },
+                ),
+                FactDomain.CONFIG: _known(
+                    FactDomain.CONFIG,
+                    {
+                        "implementation_pending_action": "validation_submission",
+                        "accepted_submission_recovery_state": (
+                            "accepted_submission_exact"
+                        ),
+                    },
+                ),
+            },
+        ),
+    )
+
+    assert decision.reason_code == "implementation.action_scheduled"
+    assert decision.disposition is TaskDisposition.RETRY_SCHEDULED
+    assert decision.durable_jobs == ("validation_submission",)
+    assert decision.alert_level is AlertSeverity.INFO
+
+
+def test_open_stale_accepted_submission_parks_instead_of_redispatching():
+    issue = _issue(OPEN)
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.CONFIG: _known(
+                    FactDomain.CONFIG,
+                    {
+                        "accepted_submission_recovery_state": (
+                            "accepted_submission_branch_advanced"
+                        ),
+                    },
+                )
+            },
+        ),
+    )
+
+    assert decision.reason_code == "implementation.submission_recovery_parked"
+    assert decision.disposition is TaskDisposition.BLOCKED
+    assert decision.durable_jobs == ()
+    assert decision.alert_level is AlertSeverity.INFO
+
+
 def test_accepted_focus_handoff_recovery_does_not_require_live_outgoing_run():
     issue = _issue(IN_PROGRESS)
     decision = evaluate_task(

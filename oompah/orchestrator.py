@@ -16000,12 +16000,12 @@ class Orchestrator:
             integration_head = str(
                 getattr(integration, "head_sha", "") or ""
             ).strip().lower()
-            current_head = str(issue_exact_head(current) or "").strip().lower()
             if (
-                canonicalize_status(current.state) == IN_PROGRESS
+                canonicalize_status(current.state)
+                in {OPEN, IN_PROGRESS, NEEDS_CI_FIX, NEEDS_REBASE}
                 and integration_state in {"ready", "queued", "integrating"}
                 and integration_head
-                and (not current_head or current_head == integration_head)
+                and accepted_submission_branch(current)
             ):
                 # Submission metadata is the accepted-generation authority.
                 # If the process dies after persisting it but before publishing
@@ -59147,6 +59147,39 @@ class Orchestrator:
                         None,
                     ):
                         setattr(running_issue, attr, getattr(issue, attr))
+                running_integration = getattr(running_issue, "integration", None)
+                running_integration_state = str(
+                    getattr(running_integration, "state", "") or ""
+                ).strip().lower()
+                running_integration_head = str(
+                    getattr(running_integration, "head_sha", "") or ""
+                ).strip().lower()
+                if (
+                    implementation_dispatch
+                    and canonicalize_status(running_issue.state)
+                    in {OPEN, IN_PROGRESS, NEEDS_CI_FIX, NEEDS_REBASE}
+                    and running_integration_state
+                    in {"ready", "queued", "integrating"}
+                    and accepted_submission_branch(running_issue)
+                ):
+                    logger.info(
+                        "Aborting implementation dispatch of %s before worker "
+                        "start: accepted submission owns head %s",
+                        issue.identifier,
+                        running_integration_head,
+                    )
+                    await _compensate_before_admission(
+                        "accepted submission owns implementation admission",
+                        transition_locked=retry_entry is None,
+                    )
+                    self._cancel_retry_for_issue(
+                        issue_id=issue.id,
+                        identifier=issue.identifier,
+                        project_id=issue.project_id,
+                        reason="accepted submission owns implementation admission",
+                        notify=False,
+                    )
+                    return False
                 post_state = _state_key(running_issue.state)
                 if implementation_dispatch and (
                     issue.id in self.state.completed
