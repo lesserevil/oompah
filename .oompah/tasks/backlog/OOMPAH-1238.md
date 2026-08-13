@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T12:43:56.637636Z'
-updated_at: '2026-08-13T13:02:01.103018Z'
-work_branch: null
+updated_at: '2026-08-13T13:02:10.178732Z'
+work_branch: OOMPAH-1238
 target_branch: null
 review_url: null
 review_number: null
@@ -33,6 +33,7 @@ oompah.integration:
   head_sha: ab11ea173f0ca4a31345111b9f3ac854d3666fc2
   submitted_at: '2026-08-13T13:01:56.306150+00:00'
   updated_at: '2026-08-13T13:01:56.306150+00:00'
+oompah.work_branch: OOMPAH-1238
 ---
 ## Summary
 
@@ -55,5 +56,10 @@ author: oompah
 created: 2026-08-13 13:01
 ---
 Implemented immutable create-once receipt and exact-authority retry recovery. Also advanced the rebase event contract so live exhausted v3 jobs get a safe new durable identity after deployment. Focused tests: 171 passed; terminal mutation and secret scans passed. Commit ab11ea173 pushed.
+---
+author: oompah
+created: 2026-08-13 13:02
+---
+Atomic epic-rebase creation now returns its immutable helper ID without depending on immediate child-index visibility; retries recover the exact active authority task, and v4 event identity re-arms exhausted pre-fix jobs. Tests and scans pass; ab11ea173 pushed.
 ---
 <!-- COMMENTS:END -->
