@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1207
 type: bug
-status: Backlog
+status: In Validation
 priority: 1
 title: Restart reconstruction recognizes protected imperative implementation jobs
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:28:41.440593Z'
-updated_at: '2026-08-13T02:42:49.816970Z'
+updated_at: '2026-08-13T02:59:12.521573Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,65 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: restart-protected-imperative-deadlock-v1
   request_fingerprint: 797202381757f69a5b53e55ce41290011c271fb8242330dce8c5fd860a7a71c8
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-371f4e17043f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1207
+    digest: 6a2d89d1b8e58b16d1963ea3fabedd5d634aa38094a37fa6afd43d5930ab07c1
+  - version: 1
+    audit_id: audit-0fdf1367d086
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1207
+    digest: 6a2d89d1b8e58b16d1963ea3fabedd5d634aa38094a37fa6afd43d5930ab07c1
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-371f4e17043f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1207
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6a2d89d1b8e58b16d1963ea3fabedd5d634aa38094a37fa6afd43d5930ab07c1
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T02:59:07.813945+00:00'
+    eligible_at: '2026-08-13T02:59:07.813945+00:00'
+    selected_ref: origin/main
+    selected_sha: 683b5f34a3c30eed0a608cddbd8ffe1c7874ab34
+  - version: 1
+    audit_id: audit-0fdf1367d086
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1207
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6a2d89d1b8e58b16d1963ea3fabedd5d634aa38094a37fa6afd43d5930ab07c1
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T02:59:07.813945+00:00'
+    prerequisite_audit_id: audit-371f4e17043f
+    selected_ref: origin/main
+    selected_sha: 683b5f34a3c30eed0a608cddbd8ffe1c7874ab34
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -41,5 +100,10 @@ author: oompah
 created: 2026-08-13 02:42
 ---
 Implemented the restart reconstruction fix on branch OOMPAH-1207. Protected imperative implementation jobs now satisfy the current fact decision's materialization obligation, both in implementation reconciliation accounting and universal restart proof. Regression coverage exercises fact reconciliation and two-cut restart liveness. Verification: 324 affected workflow suites passed; terminal-audit mutation scan passed; secret scan passed.
+---
+author: oompah
+created: 2026-08-13 02:59
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
