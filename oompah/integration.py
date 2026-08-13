@@ -134,9 +134,12 @@ def is_direct_epic_maintenance_issue(issue: object) -> bool:
     """Return whether an issue is the auto-filed shared-epic rebase helper.
 
     These tasks intentionally publish the parent epic branch from their own
-    assigned checkout.  The title/parent shape is the durable classification
-    available to submission callers, and keeps ordinary epic children on the
-    normal integration queue.
+    assigned checkout.  Current helpers carry project-scoped creation metadata
+    plus exact server-issued rebase target and authority records.  Those
+    records support persisted non-convention branch names without widening
+    this privileged classification to arbitrary title-shaped epic children.
+    Legacy helpers without any explicit identity metadata retain the bounded
+    canonical-title fallback.
     """
 
     def field(name: str) -> object:
@@ -145,6 +148,77 @@ def is_direct_epic_maintenance_issue(issue: object) -> bool:
         return getattr(issue, name, None)
 
     parent = str(field("parent_id") or "").strip()
+    identifier = str(field("identifier") or field("id") or "").strip()
+    observed_project_id = str(field("project_id") or "").strip()
+    creation = field("create_once")
+    target = field("epic_rebase_target")
+    authority = field("epic_rebase_authority")
+    explicit = any(value is not None for value in (creation, target, authority))
+    if explicit:
+        if not all(
+            isinstance(value, Mapping) for value in (creation, target, authority)
+        ):
+            return False
+        assert isinstance(creation, Mapping)
+        assert isinstance(target, Mapping)
+        assert isinstance(authority, Mapping)
+
+        creation_project_id = str(creation.get("project_id") or "").strip()
+        project_id = observed_project_id or creation_project_id
+
+        def exact_version(value: Mapping[str, object]) -> bool:
+            version = value.get("version")
+            return (
+                isinstance(version, int)
+                and not isinstance(version, bool)
+                and version == 1
+            )
+
+        epic_branch = str(target.get("epic_branch") or "").strip()
+        target_branch = str(target.get("target_branch") or "").strip()
+        generation = str(authority.get("generation") or "").strip().lower()
+        epic_head = str(authority.get("epic_head") or "").strip().lower()
+        target_head = str(authority.get("target_head") or "").strip().lower()
+        marker = str(creation.get("creation_marker") or "").strip()
+        if not (
+            parent
+            and identifier
+            and project_id
+            and creation_project_id == project_id
+            and (
+                not observed_project_id
+                or observed_project_id == creation_project_id
+            )
+            and exact_version(creation)
+            and exact_version(target)
+            and exact_version(authority)
+            and creation.get("operation_kind") == "epic_rebase_helper"
+            and re.fullmatch(r"[0-9a-f]{64}", generation)
+            and marker
+            == "oompah-epic-rebase-reservation-v1:"
+            + hashlib.sha256(
+                "\0".join((project_id, parent, generation)).encode("utf-8")
+            ).hexdigest()
+            and authority.get("task_id") == identifier
+            and target.get("epic_identifier") == parent
+            and authority.get("epic_identifier") == parent
+            and epic_branch
+            and authority.get("epic_branch") == epic_branch
+            and target_branch
+            and authority.get("target_branch") == target_branch
+            and re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", epic_head)
+            and re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", target_head)
+            and target.get("resolution")
+            in {"authoritative_parent", "confirmed_top_level"}
+        ):
+            return False
+        work_branch = str(field("work_branch") or "").strip()
+        configured_target = str(field("target_branch") or "").strip()
+        return bool(
+            (not work_branch or work_branch == epic_branch)
+            and (not configured_target or configured_target == target_branch)
+        )
+
     title = str(field("title") or "").strip().lower()
     if not parent or not title.startswith("rebase "):
         return False
@@ -173,9 +247,13 @@ def direct_epic_maintenance_handoff_ready(
         return getattr(subject, name, None)
 
     parent = str(field(issue, "parent_id") or "").strip()
-    epic_branch = "epic-" + re.sub(r"[^A-Za-z0-9._-]+", "_", parent).strip(
-        "._-"
-    )
+    explicit_target = field(issue, "epic_rebase_target")
+    if isinstance(explicit_target, Mapping):
+        epic_branch = str(explicit_target.get("epic_branch") or "").strip()
+    else:
+        epic_branch = "epic-" + re.sub(
+            r"[^A-Za-z0-9._-]+", "_", parent
+        ).strip("._-")
     record = integration if integration is not None else field(issue, "integration")
     if record is None:
         return False
@@ -196,11 +274,17 @@ def direct_epic_maintenance_handoff_ready(
         and re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", head)
     ):
         return False
-    for issue_field, expected in (
-        ("work_branch", task_branch),
-        ("target_branch", base_branch),
-        ("head_sha", head),
-    ):
+    issue_expectations = [("work_branch", task_branch), ("head_sha", head)]
+    if isinstance(explicit_target, Mapping):
+        issue_expectations.append(
+            (
+                "target_branch",
+                str(explicit_target.get("target_branch") or "").strip(),
+            )
+        )
+    else:
+        issue_expectations.append(("target_branch", base_branch))
+    for issue_field, expected in issue_expectations:
         observed = str(field(issue, issue_field) or "").strip()
         if observed and observed.lower() != expected.lower():
             return False

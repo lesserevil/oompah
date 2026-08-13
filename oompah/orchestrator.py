@@ -17817,6 +17817,56 @@ class Orchestrator:
             self._tracker_for_issue(issue), self.project_store, project_id
         )
 
+    def _direct_epic_done_publication_audited(
+        self,
+        issue: Issue,
+        published_sha: str,
+    ) -> bool:
+        """Prove an old Done helper already passed audit at its published SHA.
+
+        OOMPAH-1257 recovery upgrades the helper's integration record after an
+        older server already applied PASS.  That upgrade changes the canonical
+        fingerprint, so current-fingerprint matching would request a redundant
+        second audit.  The coordinator-owned completed record and exact
+        request/attempt revision bindings are the immutable authority here.
+        """
+
+        if canonicalize_status(issue.state) != DONE:
+            return False
+        project_id = str(issue.project_id or "").strip()
+        published = str(published_sha or "").strip().lower()
+        if (
+            not project_id
+            or re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", published)
+            is None
+        ):
+            return False
+        try:
+            document = self._audit_store(issue).read(issue.identifier)
+        except Exception as exc:  # noqa: BLE001 - recovery must fail closed
+            logger.debug(
+                "Direct-maintenance audit evidence unavailable for %s: %s",
+                issue.identifier,
+                exc,
+            )
+            return False
+        return any(
+            record.project_id == project_id
+            and record.task_id == issue.identifier
+            and record.target_state is TargetState.DONE
+            and record.request_state is RequestState.COMPLETED
+            and str(record.selected_sha or "").strip().lower() == published
+            and any(
+                attempt.target_state is TargetState.DONE
+                and attempt.request_state is RequestState.COMPLETED
+                and attempt.verdict is Verdict.PASS
+                and attempt.evidence_fingerprint == record.evidence_fingerprint
+                and str(attempt.selected_sha or "").strip().lower() == published
+                for attempt in record.attempts
+            )
+            for record in document.pending_chain
+        )
+
     def _activate_status_departure_audit(
         self,
         document: TerminalAuditMetadata,
@@ -30471,13 +30521,45 @@ class Orchestrator:
             if issues is None:
                 continue
             for issue in issues:
+                observed_project_id = str(issue.project_id or "").strip()
+                if observed_project_id and observed_project_id != str(project.id):
+                    logger.warning(
+                        "Skipping direct epic maintenance recovery for %s: "
+                        "task scope %s conflicts with tracker scope %s",
+                        issue.identifier,
+                        observed_project_id,
+                        project.id,
+                    )
+                    continue
+                issue.project_id = str(project.id)
                 if not is_direct_epic_maintenance_issue(issue):
                     continue
-                if canonicalize_status(issue.state) != READY_TO_INTEGRATE:
+                if canonicalize_status(issue.state) not in {
+                    READY_TO_INTEGRATE,
+                    DONE,
+                }:
                     continue
                 record = getattr(issue, "integration", None)
-                if record is None or str(record.state).lower() != "ready":
+                record_state = str(getattr(record, "state", "")).lower()
+                if record is None or record_state not in {"ready", "integrated"}:
                     continue
+                if record_state == "integrated":
+                    if not direct_epic_maintenance_handoff_ready(issue, record):
+                        continue
+                    try:
+                        parent = self._resolve_parent_epic(issue, fail_closed=True)
+                    except Exception as exc:  # noqa: BLE001 - retry next pass
+                        logger.debug(
+                            "Deferred direct epic label convergence for %s: %s",
+                            issue.identifier,
+                            exc,
+                        )
+                        continue
+                    if parent is None or EpicRebaseState.REBASED.label in {
+                        str(label).strip().lower()
+                        for label in (parent.labels or [])
+                    }:
+                        continue
                 completion = await self.complete_direct_epic_maintenance_submission(
                     issue,
                     record,
@@ -45017,24 +45099,23 @@ class Orchestrator:
         *,
         project_id: str | None = None,
         reason: str = "",
-    ) -> None:
+        target_branch: str | None = None,
+        target_parent_id: str | None = None,
+        target_resolution: str | None = None,
+    ) -> bool:
         """Transition ``epic_identifier`` to ``state`` and sync labels.
 
-        Idempotent: calling twice with the same state is a no-op
-        (except for the timestamp update).  Removes any other
-        ``epic:*`` labels from the task before adding the new one.
+        Idempotent: calling twice with the same state is a no-op for durable
+        state except for the timestamp, while still reconciling tracker labels
+        that may have missed a prior best-effort write. Removes any other
+        ``epic:*`` labels before adding the new one. Returns false when the
+        state snapshot could not be made durable.
         """
         with self._epic_rebase_authority_lock:
             old_key = self._epic_rebase_state_storage_key(
                 epic_identifier, project_id
             )
             old_entry = self._epic_rebase_states.get(old_key) if old_key else None
-            if old_entry is not None and old_entry.state == state.value:
-                # Same state — just refresh the timestamp.
-                old_entry.updated_at = time.time()
-                self._persist_epic_rebase_states()
-                return
-
             now = time.time()
             retry_count = old_entry.retry_count if old_entry else 0
             # Increment retry count on FAILED transitions
@@ -45065,13 +45146,59 @@ class Orchestrator:
                 storage_key = self._epic_rebase_state_key(
                     epic_identifier, project_id
                 )
-            self._epic_rebase_states[storage_key] = EpicRebaseStateEntry(
-                state=state.value,
-                updated_at=now,
-                project_id=project_id,
-                retry_count=retry_count,
-                reason=reason or (old_entry.reason if old_entry else ""),
-            )
+            if old_entry is not None and old_entry.state == state.value:
+                next_entry = replace(
+                    old_entry,
+                    updated_at=now,
+                    project_id=project_id or old_entry.project_id,
+                    reason=reason or old_entry.reason,
+                )
+            else:
+                next_entry = EpicRebaseStateEntry(
+                    state=state.value,
+                    updated_at=now,
+                    project_id=project_id,
+                    retry_count=retry_count,
+                    reason=reason or (old_entry.reason if old_entry else ""),
+                    target_branch=old_entry.target_branch if old_entry else None,
+                    target_parent_id=(
+                        old_entry.target_parent_id if old_entry else None
+                    ),
+                    target_resolution=(
+                        old_entry.target_resolution if old_entry else ""
+                    ),
+                )
+            if target_branch is not None:
+                next_entry.target_branch = (
+                    str(target_branch or "").strip() or None
+                )
+                next_entry.target_parent_id = (
+                    str(target_parent_id or "").strip() or None
+                )
+                next_entry.target_resolution = str(
+                    target_resolution or ""
+                ).strip()
+            else:
+                if target_parent_id is not None:
+                    next_entry.target_parent_id = (
+                        str(target_parent_id or "").strip() or None
+                    )
+                if target_resolution is not None:
+                    next_entry.target_resolution = str(
+                        target_resolution or ""
+                    ).strip()
+            self._epic_rebase_states[storage_key] = next_entry
+            # Persist the state and its exact target as one durable snapshot
+            # before any best-effort tracker label calls.  A process exit after
+            # this point can therefore recover nested-epic convergence without
+            # guessing the project default branch.
+            if not self._persist_epic_rebase_states():
+                logger.error(
+                    "Failed to durably persist epic %s rebase state %s",
+                    epic_identifier,
+                    state.value,
+                )
+                return False
 
         # Sync labels on the task.
         try:
@@ -45102,12 +45229,12 @@ class Orchestrator:
                 exc,
             )
 
-        self._persist_epic_rebase_states()
         logger.info(
             "Epic %s rebase state -> %s",
             epic_identifier,
             state.value,
         )
+        return True
 
     def _get_epic_rebase_state(
         self, epic_identifier: str, *, project_id: str | None = None
@@ -65723,10 +65850,17 @@ class Orchestrator:
             return None
         if not project_id:
             return False, "direct epic maintenance requires a managed project", None
+        if current.project_id and str(current.project_id) != str(project_id):
+            return False, "direct epic maintenance project scope conflicts", None
+        current.project_id = str(project_id)
         parent_id = str(getattr(current, "parent_id", None) or "").strip()
         published_sha = str(getattr(record, "head_sha", None) or "").strip().lower()
         if not parent_id or not published_sha:
             return False, "direct epic publication evidence is incomplete", None
+        already_audited = self._direct_epic_done_publication_audited(
+            current,
+            published_sha,
+        )
 
         project = self.project_store.get(project_id)
         if project is None:
@@ -65934,31 +66068,63 @@ class Orchestrator:
                 tracker.add_comment(current.identifier, summary, author="oompah")
         current.integration = integrated
 
-        try:
-            transition = await self.request_terminal_transition(
-                current_issue=current,
-                requested_target=TargetState.DONE,
-                trigger_identity=ContributorIdentity(
-                    "oompah-epic-maintenance",
-                    "service",
-                ),
-                project_id=project_id,
-                evidence_fingerprint=compute_issue_evidence_fingerprint(
-                    current,
-                    str(project_id),
-                ),
-            )
-        except Exception as exc:  # noqa: BLE001 - retry terminal audit safely
+        if not already_audited:
+            try:
+                transition = await self.request_terminal_transition(
+                    current_issue=current,
+                    requested_target=TargetState.DONE,
+                    trigger_identity=ContributorIdentity(
+                        "oompah-epic-maintenance",
+                        "service",
+                    ),
+                    project_id=project_id,
+                    evidence_fingerprint=compute_issue_evidence_fingerprint(
+                        current,
+                        str(project_id),
+                    ),
+                )
+            except Exception as exc:  # noqa: BLE001 - retry terminal audit safely
+                return (
+                    False,
+                    f"published epic head reconciled but audit staging failed: {exc}",
+                    integrated,
+                )
+            if not transition.success and transition.reason != "already completed":
+                return (
+                    False,
+                    "published epic head reconciled but audited Done could not be "
+                    f"staged: {transition.reason or 'unknown coordinator failure'}",
+                    integrated,
+                )
+        # The exact parent ref has now been reconciled, its child landing
+        # mapping and direct-maintenance proof are durable, and terminal audit
+        # owns the helper.  Converge the parent rebase state here.  Nested
+        # epics intentionally skip default-branch staleness sweeps, so leaving
+        # this solely to periodic observation strands their ``epic:rebasing``
+        # label indefinitely after a successful publication.
+        explicit_target = getattr(current, "epic_rebase_target", None)
+        completed_target_branch = (
+            str(explicit_target.get("target_branch") or "").strip()
+            if isinstance(explicit_target, Mapping)
+            else str(current.target_branch or "").strip()
+        )
+        state_persisted = self._set_epic_rebase_state(
+            parent_id,
+            EpicRebaseState.REBASED,
+            project_id=project_id,
+            target_branch=completed_target_branch,
+            target_parent_id=getattr(parent, "parent_id", None),
+            target_resolution=(
+                str(explicit_target.get("resolution") or "").strip()
+                if isinstance(explicit_target, Mapping)
+                else "authoritative_parent"
+            ),
+        )
+        if not state_persisted:
             return (
                 False,
-                f"published epic head reconciled but audit staging failed: {exc}",
-                integrated,
-            )
-        if not transition.success and transition.reason != "already completed":
-            return (
-                False,
-                "published epic head reconciled but audited Done could not be "
-                f"staged: {transition.reason or 'unknown coordinator failure'}",
+                "published epic head reconciled but parent rebase state and "
+                "target could not be durably persisted",
                 integrated,
             )
         self.state.completed.add(current.id)

@@ -1405,6 +1405,21 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         intake=intake,
         duplicate_screening=duplicate_screening,
         integration=integration,
+        epic_rebase_target=(
+            meta.get("epic_rebase_target")
+            if isinstance(meta.get("epic_rebase_target"), dict)
+            else None
+        ),
+        epic_rebase_authority=(
+            meta.get("epic_rebase_authority")
+            if isinstance(meta.get("epic_rebase_authority"), dict)
+            else None
+        ),
+        create_once=(
+            meta.get("create_once")
+            if isinstance(meta.get("create_once"), dict)
+            else None
+        ),
         assignment_id=(
             str(
                 meta.get("agent_run_id") or meta.get("oompah.agent_run_id") or ""

@@ -1523,6 +1523,41 @@ def test_incident_direct_maintenance_bypasses_ordinary_child_integration():
     assert decision.durable_jobs == ("terminal_audit_done",)
 
 
+def test_audited_direct_maintenance_is_terminal_without_ordinary_landing():
+    issue = _issue(
+        DONE,
+        title="Rebase epic-EPIC-1 onto main",
+        parent_id="EPIC-1",
+        work_branch="epic-EPIC-1",
+        target_branch="epic-EPIC-1",
+        head_sha="a" * 40,
+    )
+    facts = _facts(
+        issue,
+        overrides={
+            FactDomain.INTEGRATION: _known(
+                FactDomain.INTEGRATION,
+                {
+                    "state": "integrated",
+                    "mode": "queue",
+                    "task_branch": "epic-EPIC-1",
+                    "base_branch": "epic-EPIC-1",
+                    "head_sha": "a" * 40,
+                    "integrated_sha": "a" * 40,
+                    "maintenance_publication_proven": True,
+                },
+            )
+        },
+    )
+
+    decision = evaluate_task(issue, facts)
+
+    assert decision.disposition is TaskDisposition.TERMINAL
+    assert decision.reason_code == "maintenance.publication_proven"
+    assert decision.durable_jobs == ()
+    assert decision.next_reassessment_at is None
+
+
 @pytest.mark.parametrize(
     "override",
     [
