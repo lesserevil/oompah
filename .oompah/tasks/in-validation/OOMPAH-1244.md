@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1244
 type: bug
-status: Open
+status: In Validation
 priority: 2
 title: '[backend:acp_agent] ACP backend ''claude'' crashed during run_turn: OSError:
   configured provider authentication artifact is unavailable'
@@ -12,14 +12,72 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T14:34:54.048407Z'
-updated_at: '2026-08-13T16:13:10.612642Z'
+updated_at: '2026-08-13T16:35:49.231080Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-57a82a4889eb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1244
+    digest: 43620d7f3d9ed22fbf1cb4fb05cde1146f1843414d129e2bb60df599f718fb45
+  - version: 1
+    audit_id: audit-27d3a4d92676
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1244
+    digest: 43620d7f3d9ed22fbf1cb4fb05cde1146f1843414d129e2bb60df599f718fb45
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-57a82a4889eb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1244
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 43620d7f3d9ed22fbf1cb4fb05cde1146f1843414d129e2bb60df599f718fb45
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T16:35:43.939700+00:00'
+    eligible_at: '2026-08-13T16:35:43.939700+00:00'
+    selected_ref: origin/OOMPAH-1244
+    selected_sha: 84d03e811aaabe1a0cfa7bd851261f4c49bac765
+  - version: 1
+    audit_id: audit-27d3a4d92676
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1244
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 43620d7f3d9ed22fbf1cb4fb05cde1146f1843414d129e2bb60df599f718fb45
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T16:35:43.939700+00:00'
+    prerequisite_audit_id: audit-57a82a4889eb
+    selected_ref: origin/OOMPAH-1244
+    selected_sha: 84d03e811aaabe1a0cfa7bd851261f4c49bac765
+  attempt_history: []
 ---
 ## Summary
 
@@ -80,5 +138,10 @@ author: oompah
 created: 2026-08-13 16:13
 ---
 Direct implementation claimed after reproducing the exact current-layout mismatch: claude auth status is healthy from the operator environment, but the installed Claude release reads a primaryApiKey from ~/.claude.json while isolated rebase bootstrap only accepts ~/.claude/.credentials.json. A minimal isolated home containing only the primaryApiKey authenticates successfully. Fix will support both explicit layouts without copying unrelated operator configuration, add regression coverage, and keep missing/unsafe artifacts fail-closed.
+---
+author: oompah
+created: 2026-08-13 16:35
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
