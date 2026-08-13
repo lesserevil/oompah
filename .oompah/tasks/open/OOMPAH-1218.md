@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:05:12.348049Z'
-updated_at: '2026-08-13T04:05:42.679452Z'
+updated_at: '2026-08-13T04:10:04.912269Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,3 +67,11 @@ Relevant files:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 04:10
+---
+Root cause confirmed and patch implemented. START/RECOVERY/FOCUS_HANDOFF now derive transition evidence from the exact verified runtime assignment; validation submission uses the immutable captured assignment (with live assignment fallback). Real TaskTransitionService regressions prove Open → In Progress and In Progress → Ready to Integrate succeed while missing assignment fails closed. Full implementation adapter suite: 67 passed.
+---
+<!-- COMMENTS:END -->
