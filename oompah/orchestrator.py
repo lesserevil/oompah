@@ -60492,11 +60492,24 @@ class Orchestrator:
                 trusted_repo = self._epic_rebase_publish_trusted_repo(project)
                 tracker = self._tracker_for_project(project_id)
                 issue = tracker.fetch_issue_detail(task_identifier)
-                if issue is None or str(issue.project_id or "") != project_id:
+                if issue is None:
                     raise ProjectError(
                         "Scoped epic rebase helper is unavailable "
                         "[reason=epic_rebase_publish_task_missing]"
                     )
+                observed_project_id = str(issue.project_id or "").strip()
+                if observed_project_id and observed_project_id != project_id:
+                    raise ProjectError(
+                        "Scoped epic rebase helper belongs to another project "
+                        "[reason=epic_rebase_publish_task_scope_mismatch]"
+                    )
+                # Native managed trackers store project identity in the
+                # tracker boundary, not in every task record.  The scoped
+                # tracker lookup above is authoritative for an unstamped
+                # issue; stamp that known identity before the remaining
+                # task-kind, parent, authority, and CAS checks.  A conflicting
+                # non-empty identity remains fail-closed above.
+                issue.project_id = project_id
                 if not self._is_epic_rebase_task(issue):
                     raise ProjectError(
                         "Task is not an epic rebase helper "
