@@ -16072,6 +16072,28 @@ class Orchestrator:
             }
             accepted_submission_recovery_parked = False
             integration = getattr(current, "integration", None)
+            if is_direct_epic_maintenance_issue(current):
+                parent_id = str(current.parent_id or "").strip()
+                try:
+                    parent = (
+                        self._tracker_for_issue(current).fetch_issue_detail(parent_id)
+                        if parent_id
+                        else None
+                    )
+                    value["direct_epic_maintenance_parent_rebased"] = bool(
+                        self._get_epic_rebase_state(
+                            parent_id,
+                            project_id=current.project_id,
+                        )
+                        is EpicRebaseState.REBASED
+                        and parent is not None
+                        and EpicRebaseState.REBASED.label in (parent.labels or [])
+                    )
+                except Exception:
+                    # Parent convergence is an authority fact.  An unreadable
+                    # parent must retain the exact idempotent completion job;
+                    # it is never evidence that recovery has finished.
+                    value["direct_epic_maintenance_parent_rebased"] = False
             integration_state = str(
                 getattr(integration, "state", "") or ""
             ).strip().lower()
@@ -65835,6 +65857,7 @@ class Orchestrator:
         project_id: str | None,
         *,
         summary: str | None = None,
+        _authority_owned: bool = False,
     ) -> tuple[bool, str, IntegrationRecord | None] | None:
         """Complete a directly-published epic rebase through terminal audit.
 
@@ -65848,6 +65871,60 @@ class Orchestrator:
 
         if not is_direct_epic_maintenance_issue(current):
             return None
+        if not _authority_owned:
+            # API submission, durable workflow execution, worker exit, and
+            # restart recovery all converge on this primitive.  Serialize the
+            # legacy callers on the same per-task mutex used by durable
+            # revalidation so no process-local path can mutate the queue or
+            # tracker concurrently with a generation-fenced workflow effect.
+            issue_id = str(current.id or current.identifier).strip()
+            if issue_id:
+                async with self.issue_transition_lock(issue_id):
+                    # Legacy recovery/exit callers can arrive with a snapshot
+                    # captured before a durable generation won the mutex.
+                    # Refresh after acquisition and consume only the current
+                    # tracker-owned record so serialization is also an exact
+                    # authority boundary rather than merely mutual exclusion.
+                    if project_id:
+                        try:
+                            tracker = self._tracker_for_project(project_id)
+                            fresh = await asyncio.to_thread(
+                                tracker.fetch_issue_detail,
+                                current.identifier,
+                            )
+                        except Exception:  # noqa: BLE001 - fail closed on authority
+                            fresh = None
+                        if (
+                            isinstance(fresh, Issue)
+                            and str(fresh.identifier) == str(current.identifier)
+                        ):
+                            if not fresh.project_id:
+                                fresh.project_id = str(project_id)
+                            current = fresh
+                            fresh_record = getattr(fresh, "integration", None)
+                            if isinstance(fresh_record, IntegrationRecord):
+                                record = fresh_record
+                            else:
+                                return (
+                                    False,
+                                    "current direct epic maintenance integration "
+                                    "authority is unavailable",
+                                    None,
+                                )
+                        else:
+                            return (
+                                False,
+                                "current direct epic maintenance task authority "
+                                "is unavailable",
+                                None,
+                            )
+                    return await self.complete_direct_epic_maintenance_submission(
+                        current,
+                        record,
+                        project_id,
+                        summary=summary,
+                        _authority_owned=True,
+                    )
         if not project_id:
             return False, "direct epic maintenance requires a managed project", None
         if current.project_id and str(current.project_id) != str(project_id):
@@ -66034,14 +66111,37 @@ class Orchestrator:
             current.identifier,
             reason="Cancelled stale ordinary row before direct epic completion",
             expected_head_sha=published_sha,
+            expected_epic_id=parent_id,
+            expected_task_branch=epic_branch,
+            expected_base_branch=str(getattr(record, "base_branch", None) or ""),
         )
-        if cancelled_row is None:
+        if not cancelled_row:
             surviving_row = await asyncio.to_thread(
                 self.integration_queue.get,
                 project_id,
                 current.identifier,
             )
-            if surviving_row is not None:
+            cancelled_generation_matches = bool(
+                surviving_row is not None
+                and str(getattr(surviving_row, "state", "") or "").strip().lower()
+                == "cancelled"
+                and str(getattr(surviving_row, "epic_id", "") or "").strip()
+                == parent_id
+                and str(getattr(surviving_row, "task_branch", "") or "").strip()
+                == epic_branch
+                and str(getattr(surviving_row, "head_sha", "") or "").strip().lower()
+                == published_sha
+                and (
+                    already_recorded
+                    or str(
+                        getattr(surviving_row, "base_branch", "") or ""
+                    ).strip()
+                    == str(getattr(record, "base_branch", None) or "").strip()
+                )
+                and str(getattr(surviving_row, "last_error", "") or "").strip()
+                == "Cancelled stale ordinary row before direct epic completion"
+            )
+            if surviving_row is not None and not cancelled_generation_matches:
                 message = (
                     "published epic head reconciled but a conflicting ordinary "
                     "integration row could not be cancelled"

@@ -43,7 +43,7 @@ from oompah.terminal_audit import (
 from oompah.terminal_audit_metadata import TerminalAuditMetadata
 from oompah.orchestrator import EpicTargetResolutionError, Orchestrator
 from oompah.projects import ProjectError
-from oompah.statuses import DONE, IN_REVIEW, NEEDS_REBASE
+from oompah.statuses import DONE, IN_REVIEW, NEEDS_REBASE, READY_TO_INTEGRATE
 from oompah.work_decision_projection import operator_actionable_alerts
 
 
@@ -2534,6 +2534,7 @@ class TestEpicRebaseGenerationAuthority:
                 helper,
                 record,
                 helper.project_id,
+                _authority_owned=True,
             )
         )
 
@@ -2591,7 +2592,7 @@ class TestEpicRebaseGenerationAuthority:
 
         completed, _message, returned = asyncio.run(
             orch.complete_direct_epic_maintenance_submission(
-                helper, record, helper.project_id
+                helper, record, helper.project_id, _authority_owned=True
             )
         )
 
@@ -2676,11 +2677,13 @@ class TestEpicRebaseGenerationAuthority:
         )
         orch.integration_queue = MagicMock()
         orch.integration_queue.cancel.return_value = MagicMock()
-        orch.request_terminal_transition = AsyncMock()
+        orch.request_terminal_transition = AsyncMock(
+            return_value=type("Result", (), {"success": True, "reason": None})()
+        )
 
         recovered, _message, integrated = asyncio.run(
             orch.complete_direct_epic_maintenance_submission(
-                helper, record, helper.project_id
+                helper, record, helper.project_id, _authority_owned=True
             )
         )
 
@@ -2731,7 +2734,7 @@ class TestEpicRebaseGenerationAuthority:
 
         recovered, message, integrated = asyncio.run(
             orch.complete_direct_epic_maintenance_submission(
-                helper, record, helper.project_id
+                helper, record, helper.project_id, _authority_owned=True
             )
         )
 
@@ -2740,6 +2743,227 @@ class TestEpicRebaseGenerationAuthority:
         assert integrated is not None and integrated.maintenance_publication_proven
         assert helper.id not in orch.state.completed
         tracker.update_issue.assert_not_called()
+
+    def test_direct_completion_retry_accepts_exact_cancelled_queue_generation(
+        self, tmp_path
+    ):
+        """A crash after cancellation but before metadata can replay exactly."""
+
+        orch = _make_orchestrator(tmp_path)
+        helper = _make_rebase_helper("REBASE-1", "EPIC-1")
+        helper.state = READY_TO_INTEGRATE
+        helper.target_branch = "main"
+        parent = _make_issue("EPIC-1", labels=["epic:rebasing"])
+        parent.work_branch = "epic-EPIC-1"
+        published = "c" * 40
+        record = IntegrationRecord(
+            state="ready",
+            mode="queue",
+            task_branch="epic-EPIC-1",
+            base_branch="main",
+            base_sha="a" * 40,
+            head_sha=published,
+        )
+        helper.integration = record
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = parent
+        orch.project_store.get.return_value = _make_project()
+        orch.project_store.reconcile_published_epic_worktree.return_value = type(
+            "Reconciliation",
+            (),
+            {
+                "completed": True,
+                "old_sha": "a" * 40,
+                "status": "already_published",
+                "reason": None,
+            },
+        )()
+        orch._resolve_parent_epic = MagicMock(return_value=parent)
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._persist_direct_epic_child_landing_evidence = MagicMock(
+            return_value=True
+        )
+        orch._direct_epic_done_publication_audited = MagicMock(return_value=True)
+        orch.integration_queue.enqueue(
+            project_id=helper.project_id,
+            epic_id=parent.identifier,
+            task_id=helper.identifier,
+            task_branch="epic-EPIC-1",
+            head_sha=published,
+            base_branch="main",
+            base_sha="a" * 40,
+        )
+        assert orch.integration_queue.cancel(
+            helper.project_id,
+            helper.identifier,
+            reason="Cancelled stale ordinary row before direct epic completion",
+            expected_head_sha=published,
+            expected_epic_id=parent.identifier,
+            expected_task_branch="epic-EPIC-1",
+            expected_base_branch="main",
+        )
+        orch.request_terminal_transition = AsyncMock()
+
+        recovered, _message, returned = asyncio.run(
+            orch.complete_direct_epic_maintenance_submission(
+                helper, record, helper.project_id, _authority_owned=True
+            )
+        )
+
+        assert recovered is True
+        assert returned is not record
+        assert returned is not None and returned.maintenance_publication_proven
+        tracker.set_metadata_field.assert_called_once()
+        orch.request_terminal_transition.assert_not_awaited()
+        assert orch._get_epic_rebase_state(
+            parent.identifier, project_id=helper.project_id
+        ) is EpicRebaseState.REBASED
+
+    def test_durable_and_legacy_direct_completion_share_one_task_authority(
+        self, tmp_path
+    ):
+        """A legacy caller cannot overlap the durable completion effect."""
+
+        orch = _make_orchestrator(tmp_path)
+        helper = _make_rebase_helper("REBASE-1", "EPIC-1")
+        helper.state = READY_TO_INTEGRATE
+        helper.target_branch = "main"
+        parent = _make_issue("EPIC-1", labels=["epic:rebasing"])
+        parent.work_branch = "epic-EPIC-1"
+        published = "c" * 40
+        record = IntegrationRecord(
+            state="ready",
+            mode="queue",
+            task_branch="epic-EPIC-1",
+            base_branch="main",
+            base_sha="a" * 40,
+            head_sha=published,
+        )
+        helper.integration = record
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.side_effect = lambda identifier: (
+            helper if identifier == helper.identifier else parent
+        )
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch.project_store.get.return_value = _make_project()
+        entered = threading.Event()
+        release = threading.Event()
+        active = 0
+        max_active = 0
+        calls = 0
+
+        def reconcile(*_args, **_kwargs):
+            nonlocal active, max_active, calls
+            active += 1
+            max_active = max(max_active, active)
+            calls += 1
+            if calls == 1:
+                entered.set()
+                assert release.wait(timeout=2)
+            active -= 1
+            return type(
+                "Reconciliation",
+                (),
+                {
+                    "completed": True,
+                    "old_sha": "a" * 40,
+                    "status": "already_published",
+                    "reason": None,
+                },
+            )()
+
+        orch.project_store.reconcile_published_epic_worktree.side_effect = reconcile
+        orch._resolve_parent_epic = MagicMock(return_value=parent)
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._persist_direct_epic_child_landing_evidence = MagicMock(
+            return_value=True
+        )
+        orch._direct_epic_done_publication_audited = MagicMock(return_value=True)
+        cancelled = type(
+            "Cancelled",
+            (),
+            {
+                "state": "cancelled",
+                "epic_id": "EPIC-1",
+                "task_branch": "epic-EPIC-1",
+                "base_branch": "main",
+                "head_sha": published,
+                "last_error": (
+                    "Cancelled stale ordinary row before direct epic completion"
+                ),
+            },
+        )()
+        orch.integration_queue = MagicMock()
+        orch.integration_queue.cancel.return_value = True
+        orch.integration_queue.get.return_value = cancelled
+        orch.request_terminal_transition = AsyncMock()
+
+        async def scenario():
+            async def durable():
+                async with orch.issue_transition_lock(helper.id):
+                    return await orch.complete_direct_epic_maintenance_submission(
+                        helper,
+                        record,
+                        helper.project_id,
+                        _authority_owned=True,
+                    )
+
+            durable_task = asyncio.create_task(durable())
+            assert await asyncio.to_thread(entered.wait, 2)
+            legacy_task = asyncio.create_task(
+                orch.complete_direct_epic_maintenance_submission(
+                    helper, record, helper.project_id
+                )
+            )
+            await asyncio.sleep(0.05)
+            assert not legacy_task.done()
+            release.set()
+            return await asyncio.gather(durable_task, legacy_task)
+
+        results = asyncio.run(scenario())
+
+        assert all(result[0] for result in results)
+        assert max_active == 1
+        integration_writes = [
+            call
+            for call in tracker.set_metadata_field.call_args_list
+            if len(call.args) > 1 and call.args[1] == "oompah.integration"
+        ]
+        assert len(integration_writes) == 1
+
+    def test_legacy_direct_completion_fails_closed_when_refresh_fails_after_lock(
+        self, tmp_path
+    ):
+        """A stale legacy snapshot never runs after its mutex wait."""
+
+        orch = _make_orchestrator(tmp_path)
+        helper = _make_rebase_helper("REBASE-1", "EPIC-1")
+        record = IntegrationRecord(
+            state="ready",
+            mode="queue",
+            task_branch="epic-EPIC-1",
+            base_branch="main",
+            base_sha="a" * 40,
+            head_sha="c" * 40,
+        )
+        helper.integration = record
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.side_effect = OSError("tracker unavailable")
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch.project_store.reconcile_published_epic_worktree = MagicMock()
+
+        result = asyncio.run(
+            orch.complete_direct_epic_maintenance_submission(
+                helper, record, helper.project_id
+            )
+        )
+
+        assert result == (
+            False,
+            "current direct epic maintenance task authority is unavailable",
+            None,
+        )
+        orch.project_store.reconcile_published_epic_worktree.assert_not_called()
 
     def test_server_publish_stamps_scoped_native_task_project(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
