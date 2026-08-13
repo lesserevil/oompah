@@ -229,6 +229,29 @@ def epic_branch(identifier: str) -> str:
     return f"epic-{sanitize_branch_identifier(raw)}"
 
 
+def epic_source_branch(issue: Issue) -> str:
+    """Return the persisted epic branch, with the canonical name as fallback.
+
+    Older managed projects can carry an epic implementation on a branch that
+    predates the ``epic-<id>`` naming convention.  That persisted branch is
+    still the mutable source authority used by dispatch, rebase helpers, and
+    forge reviews; silently substituting the canonical fallback makes the
+    durable workflow observe a different Git topology.
+    """
+
+    canonical = epic_branch(issue.identifier)
+    persisted = str(getattr(issue, "work_branch", None) or "").strip()
+    # A few native adapters expose the issue identifier as a generic
+    # ``branch_name`` default even though no branch was assigned.  That is not
+    # persisted epic branch authority and must not replace the service-owned
+    # canonical name.
+    if not persisted:
+        branch_name = str(getattr(issue, "branch_name", None) or "").strip()
+        identifier = str(issue.identifier or issue.id or "").strip()
+        persisted = branch_name if branch_name and branch_name != identifier else ""
+    return persisted or canonical
+
+
 def is_epic_rollup_issue(
     issue: Issue,
     *,
@@ -284,7 +307,7 @@ def resolve_epic_target(
             raise EpicTargetResolutionError(
                 f"{epic.identifier} parent {parent.identifier} is not an epic"
             )
-        return epic_branch(parent.identifier)
+        return epic_source_branch(parent)
     return _required_text(default_branch, "default_branch")
 
 
@@ -599,8 +622,8 @@ class EpicFactCollector:
                     tracker=None if authoritative_children is not None else self.tracker,
                 )
                 maintenance = _is_maintenance(child)
-                target = epic_branch(parent.identifier)
-                source = epic_branch(identifier) if nested else _source_branch(child)
+                target = epic_source_branch(parent)
+                source = epic_source_branch(child) if nested else _source_branch(child)
                 revision = _revision(child)
                 standalone_landing = (
                     None
@@ -678,7 +701,7 @@ class EpicFactCollector:
         visit(root, (root.identifier,))
         return EpicGraph(
             parent_id=parent_id,
-            epic_branch=epic_branch(root.identifier),
+            epic_branch=epic_source_branch(root),
             target_branch=root_target,
             children=tuple(sorted(direct, key=lambda item: str(item["identifier"]))),
             acyclic=cycle is None,
@@ -1501,14 +1524,12 @@ class ProductionEpicWorkflowBackend:
                 and containment_terminal
             )
         if action is EpicAction.REBASE_REPAIR:
-            # A stale rebase request must not mutate the newly resolved target
-            # merely because fresh facts still request *some* rebase repair.
-            # Check the event's exact immediate target before the generic
-            # durable-job authorization below.
-            return bool(
-                action.value in snapshot.decision.durable_jobs
-                and cls._rebase_target_is_current(snapshot, payload)
-            )
+            # Rebase repair is an explicit, already-authorized targeted event;
+            # it is not produced by the ordinary epic decision inventory.
+            # Revalidate that event against its exact persisted source and
+            # immediate target.  The generic worker CAS independently fences
+            # the exact live source head captured at enqueue.
+            return cls._rebase_target_is_current(snapshot, payload)
         if action.value in snapshot.decision.durable_jobs:
             return True
         if action in {
@@ -1535,14 +1556,42 @@ class ProductionEpicWorkflowBackend:
         """
 
         expected_target = str(payload.get("target_branch") or "").strip()
+        expected_source = str(payload.get("source_branch") or "").strip()
+        actual_source = str(
+            cls._containment(snapshot).get("epic_branch") or ""
+        ).strip()
         actual_target = str(
             cls._containment(snapshot).get("target_branch") or ""
         ).strip()
         return bool(
             expected_target
             and expected_target == actual_target
+            and (not expected_source or expected_source == actual_source)
             and canonicalize_status(snapshot.epic.state) not in {MERGED, ARCHIVED}
         )
+
+    @classmethod
+    def _rebase_source_head(
+        cls,
+        snapshot: _EpicActionSnapshot,
+        payload: Mapping[str, Any],
+    ) -> str | None:
+        """Return the live exact source revision for one rebase request."""
+
+        containment = cls._containment(snapshot)
+        source = str(containment.get("epic_branch") or "").strip()
+        target = str(containment.get("target_branch") or "").strip()
+        requested_source = str(payload.get("source_branch") or "").strip()
+        if not source or not target or (requested_source and requested_source != source):
+            return None
+        matching = tuple(
+            landing
+            for landing in snapshot.facts.landings
+            if landing.source == source and landing.target == target
+        )
+        if len(matching) != 1:
+            return None
+        return _exact_head(matching[0].revision)
 
     @classmethod
     def _require_action_current(
@@ -1613,17 +1662,13 @@ class ProductionEpicWorkflowBackend:
                 # verify that exact already-created effect, but never to apply
                 # a helper to a different target or a terminal epic.
                 current = self._rebase_target_is_current(snapshot, payload)
-            # A new fresh decision which still authorizes the same target is
-            # stronger current authority than the event callback's earlier
-            # observation revision.  Only consult an older request revision
-            # as crash-recovery evidence after the fresh decision no longer
-            # authorizes creation.  Once an effect receipt exists, creation
-            # itself may have changed containment by adding the maintenance
-            # child; restart must replay verification rather than supersede
-            # the already-observed effect.
+            # A fresh matching source/target is stronger current authority
+            # than the event callback's earlier observation revision.  Still
+            # inspect once when that revision changed: a crash may have
+            # created the helper before its receipt checkpoint.  Absence of an
+            # effect does not revoke the fresh targeted request.
             if (
-                not current
-                and requested_revision
+                requested_revision
                 and not isinstance(saved_effect, Mapping)
                 and requested_revision != snapshot.decision.evidence_revision
             ):
@@ -1639,13 +1684,13 @@ class ProductionEpicWorkflowBackend:
                     snapshot.facts,
                     payload,
                 )
-                current = observed is not None
-                if not current:
+                recovered = observed is not None
+                if not recovered:
                     recoverable = getattr(
                         self.effects, "recoverable_epic_effect", None
                     )
                     if callable(recoverable):
-                        current = bool(
+                        recovered = bool(
                             await self._observe_external(
                                 recoverable,
                                 action,
@@ -1654,6 +1699,7 @@ class ProductionEpicWorkflowBackend:
                                 payload,
                             )
                         )
+                current = current or recovered
         auto_close_authority = (
             self._auto_close_landing_authority(snapshot)
             if action is EpicAction.AUTO_CLOSE
@@ -1666,9 +1712,13 @@ class ProductionEpicWorkflowBackend:
                 self._cleanup_head(snapshot)
                 if action is EpicAction.CLEANUP
                 else (
-                    auto_close_authority.exact_head
-                    if auto_close_authority is not None
-                    else issue_exact_head(snapshot.epic)
+                    self._rebase_source_head(snapshot, payload)
+                    if action is EpicAction.REBASE_REPAIR
+                    else (
+                        auto_close_authority.exact_head
+                        if auto_close_authority is not None
+                        else issue_exact_head(snapshot.epic)
+                    )
                 )
             ),
             current=current,

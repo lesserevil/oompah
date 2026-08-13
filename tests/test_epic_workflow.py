@@ -188,6 +188,52 @@ def test_epic_branch_uses_the_project_store_sanitization_contract():
     assert epic_branch("foo.lock") == "epic-foo.lock_"
 
 
+def test_nested_epic_facts_use_persisted_legacy_source_branch_and_live_head(
+    tmp_path,
+):
+    git(tmp_path, "init", "-b", "main")
+    (tmp_path / "base.txt").write_text("base\n")
+    git(tmp_path, "add", "base.txt")
+    git(tmp_path, "commit", "-m", "base")
+    git(tmp_path, "checkout", "-b", "epic-TOP")
+    (tmp_path / "parent.txt").write_text("parent\n")
+    git(tmp_path, "add", "parent.txt")
+    git(tmp_path, "commit", "-m", "advance parent")
+    git(tmp_path, "checkout", "main")
+    git(tmp_path, "checkout", "-b", "LEGACY-MID")
+    (tmp_path / "nested.txt").write_text("nested\n")
+    git(tmp_path, "add", "nested.txt")
+    git(tmp_path, "commit", "-m", "nested work")
+    live_source_head = git(tmp_path, "rev-parse", "HEAD")
+    git(tmp_path, "checkout", "main")
+
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    mid = issue(
+        "MID",
+        state=OPEN,
+        issue_type="epic",
+        parent_id="TOP",
+        work_branch="LEGACY-MID",
+    )
+    mid.review_head = "f" * 40
+    facts = EpicFactCollector(
+        project_id="project-1",
+        tracker=Tracker([top, mid]),
+        repo_path=str(tmp_path),
+    ).collect("MID")
+
+    containment = facts.fact(FactDomain.CONTAINMENT)
+    assert containment.value["epic_branch"] == "LEGACY-MID"
+    assert containment.value["target_branch"] == "epic-TOP"
+    own_landing = next(
+        item
+        for item in facts.landings
+        if item.source == "LEGACY-MID" and item.target == "epic-TOP"
+    )
+    assert own_landing.revision == live_source_head
+    assert own_landing.state is LandingState.NOT_LANDED
+
+
 def test_nested_target_rejects_a_parent_from_another_project():
     nested = issue(
         "NESTED", state=IN_PROGRESS, issue_type="epic", parent_id="FOREIGN"
@@ -1539,7 +1585,7 @@ def test_rebase_action_rejects_stale_target_even_when_repair_remains_runnable():
         {"target_branch": "epic-NEW"},
     )
     snapshot.decision.durable_jobs = ()
-    assert not ProductionEpicWorkflowBackend._is_action_current(
+    assert ProductionEpicWorkflowBackend._is_action_current(
         EpicAction.REBASE_REPAIR,
         snapshot,
         {"target_branch": "epic-NEW"},
@@ -1761,8 +1807,19 @@ async def test_rebase_revalidation_accepts_fresh_observation_revision_before_eff
         state=FactState.KNOWN,
         value={"epic_branch": "epic-TOP", "target_branch": "main"},
     )
+    facts.landings = (
+        LandingFact(
+            "epic-TOP",
+            "main",
+            "a" * 40,
+            {"kind": "not_ancestor"},
+            "2026-08-13T00:00:00+00:00",
+            "project-1",
+            state=LandingState.NOT_LANDED,
+        ),
+    )
     decision = SimpleNamespace(
-        durable_jobs=(EpicAction.REBASE_REPAIR.value,),
+        durable_jobs=(),
         evidence_revision="fresh-observation-revision",
         reason_code="epic.rebase_required",
     )
@@ -1780,6 +1837,7 @@ async def test_rebase_revalidation_accepts_fresh_observation_revision_before_eff
         job=SimpleNamespace(
             action=EpicAction.REBASE_REPAIR.value,
             payload={
+                "source_branch": "epic-TOP",
                 "target_branch": "main",
                 "evidence_revision": "event-observation-revision",
             },
@@ -1794,6 +1852,7 @@ async def test_rebase_revalidation_accepts_fresh_observation_revision_before_eff
 
     assert result.current is True
     assert result.evidence_revision == "fresh-observation-revision"
+    assert result.head_sha == "a" * 40
     assert result.generation == context.job.generation
 
 
