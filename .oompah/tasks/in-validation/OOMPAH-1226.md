@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T08:33:09.430186Z'
-updated_at: '2026-08-13T09:23:49.598788Z'
-work_branch: null
+updated_at: '2026-08-13T09:25:36.104411Z'
+work_branch: OOMPAH-1226
 target_branch: null
 review_url: null
 review_number: null
@@ -83,6 +83,16 @@ oompah.terminal_audit:
     selected_ref: origin/OOMPAH-1226
     selected_sha: e63e61f8a4145de79582937e263f6b4dff7d5e5a
   attempt_history: []
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1226
+  head_sha: e63e61f8a4145de79582937e263f6b4dff7d5e5a
+  submitted_at: '2026-08-13T09:25:26.525989+00:00'
+  updated_at: '2026-08-13T09:25:26.525989+00:00'
+oompah.work_branch: OOMPAH-1226
 ---
 ## Summary
 
@@ -105,5 +115,10 @@ author: oompah
 created: 2026-08-13 09:23
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-13 09:25
+---
+Implemented exact target-containment proof for accepted submissions whose source branch was deleted, routed landed submissions into validation, and parked ambiguous accepted authority ahead of generic implementation recovery. Added regression coverage for landed, unavailable, advanced, and repeated-reconciliation cases. PR #855 exact head e63e61f8 passed hosted gates on Python 3.11, 3.12, and 3.13 and merged as ff129764.
 ---
 <!-- COMMENTS:END -->
