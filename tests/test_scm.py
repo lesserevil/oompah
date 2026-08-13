@@ -3895,6 +3895,62 @@ class TestGitLabListOpenReviews:
         assert r.source_repository == "group/project"
         assert r.target_repository == "group/project"
 
+    def test_missing_list_identity_is_hydrated_from_exact_mr_detail(self):
+        listed = self._mr()
+        listed.pop("diff_refs")
+        calls = []
+        p = _GL.provider()
+
+        def fake(method, path, **kwargs):
+            calls.append((method, path, kwargs))
+            if path.endswith("/merge_requests"):
+                return _GL.r([listed])
+            if path.endswith("/merge_requests/1"):
+                return _GL.r(self._mr())
+            raise AssertionError(path)
+
+        p._api = fake
+
+        review = p.list_open_reviews("group/project")[0]
+
+        assert review.head_sha == "a" * 40
+        assert review.base_sha == "b" * 40
+        assert review.source_repository == "group/project"
+        assert review.target_repository == "group/project"
+        assert [path for _method, path, _kwargs in calls] == [
+            "/projects/group%2Fproject/merge_requests",
+            "/projects/group%2Fproject/merge_requests/1",
+        ]
+
+    @pytest.mark.parametrize("detail", [None, {"iid": 1, "diff_refs": {}}])
+    def test_missing_list_identity_fails_closed_when_detail_is_unavailable(
+        self, detail
+    ):
+        listed = self._mr()
+        listed.pop("diff_refs")
+        p = _GL.provider()
+
+        def fake(_method, path, **_kwargs):
+            if path.endswith("/merge_requests"):
+                return _GL.r([listed])
+            if detail is None:
+                return _GL.r(code=503)
+            return _GL.r(detail)
+
+        p._api = fake
+
+        assert p.list_open_reviews("group/project") == []
+        assert p.last_open_reviews_fetch_ok is False
+
+    def test_complete_list_identity_avoids_detail_lookup(self):
+        p = _GL.provider()
+        p._api = mock.MagicMock(return_value=_GL.r([self._mr()]))
+
+        review = p.list_open_reviews("group/project")[0]
+
+        assert review.base_sha == "b" * 40
+        assert p._api.call_count == 1
+
     @pytest.mark.parametrize(
         "project_ids",
         [

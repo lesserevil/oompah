@@ -69,6 +69,8 @@ class _ForgeFixture:
                     "author": {"username": "gitlab-user"}, "source_branch": "feature/widget",
                     "target_branch": "main", "created_at": "2026-01-01", "updated_at": "2026-01-02",
                     "labels": ["ready"], "head_pipeline": {"status": "success"},
+                    "sha": "b" * 40, "diff_refs": {"base_sha": "a" * 40},
+                    "source_project_id": 7, "target_project_id": 7,
                 }])
             if path.endswith("/changes"):
                 return _Response({"changes": [{"new_path": "src/widget.py"}]})

@@ -3436,6 +3436,71 @@ class GitLabProvider(SCMProvider):
         except httpx.HTTPError:
             return False
 
+    def _hydrate_open_review_identity(
+        self,
+        repo: str,
+        encoded_repo: str,
+        review: Mapping[str, Any],
+    ) -> dict[str, Any] | None:
+        """Return list evidence with one complete immutable MR identity.
+
+        GitLab's merge-request list endpoint may omit ``diff_refs`` even for
+        open merge requests.  The detail endpoint is the authority for those
+        immutable fields.  Never manufacture a repository identity or let a
+        partial detail response weaken the list observation.
+        """
+
+        head_sha = str(
+            review.get("sha")
+            or (review.get("diff_refs") or {}).get("head_sha")
+            or ""
+        )
+        base_sha = str((review.get("diff_refs") or {}).get("base_sha") or "")
+        if _is_full_git_sha(head_sha) and _is_full_git_sha(base_sha):
+            return dict(review)
+
+        review_id = str(review.get("iid") or "").strip()
+        if not review_id:
+            return None
+        try:
+            response = self._api(
+                "GET",
+                f"/projects/{encoded_repo}/merge_requests/{review_id}",
+            )
+            if response.status_code != 200:
+                logger.warning(
+                    "GitLab open review identity %s!%s: HTTP %d",
+                    repo,
+                    review_id,
+                    response.status_code,
+                )
+                return None
+            detail = response.json()
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
+            logger.warning(
+                "GitLab open review identity failed for %s!%s: %s",
+                repo,
+                review_id,
+                exc,
+            )
+            return None
+        if not isinstance(detail, Mapping) or str(detail.get("iid") or "") != review_id:
+            return None
+
+        hydrated = dict(review)
+        hydrated.update(detail)
+        head_sha = str(
+            hydrated.get("sha")
+            or (hydrated.get("diff_refs") or {}).get("head_sha")
+            or ""
+        )
+        base_sha = str(
+            (hydrated.get("diff_refs") or {}).get("base_sha") or ""
+        )
+        if not _is_full_git_sha(head_sha) or not _is_full_git_sha(base_sha):
+            return None
+        return hydrated
+
     def list_open_reviews(self, repo: str) -> list[ReviewRequest]:
         self.last_open_reviews_fetch_ok = False
         encoded = self._project_path(repo)
@@ -3454,7 +3519,16 @@ class GitLabProvider(SCMProvider):
         self.last_open_reviews_fetch_ok = True
 
         results = []
-        for mr in data:
+        for listed_mr in data:
+            if not isinstance(listed_mr, Mapping):
+                self.last_open_reviews_fetch_ok = False
+                return []
+            mr = self._hydrate_open_review_identity(repo, encoded, listed_mr)
+            if mr is None:
+                # An incomplete immutable identity is an unavailable provider
+                # observation, not proof of a changed review generation.
+                self.last_open_reviews_fetch_ok = False
+                return []
             author = mr.get("author", {})
             author_name = author.get("username", author.get("name", "")) if isinstance(author, dict) else str(author)
 
