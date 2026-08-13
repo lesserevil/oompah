@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1258
 type: task
-status: Backlog
+status: In Validation
 priority: null
 title: Complete direct epic maintenance through the durable workflow
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T22:41:28.315466Z'
-updated_at: '2026-08-13T23:11:58.708415Z'
+updated_at: '2026-08-13T23:46:19.617707Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,65 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: cc0c5a04-711a-4b53-9ccb-aa96ce836044
   request_fingerprint: c9ce64ee590cb20387926be736d3c23fe19e5d785cc955861f8d6da1d7b17b01
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-34e08cda3145
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1258
+    digest: 61674f78694d73f3c6a4a98f80402124d74c8245301a979f60e24af6cb4f2202
+  - version: 1
+    audit_id: audit-bf14b9b4d11b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1258
+    digest: 61674f78694d73f3c6a4a98f80402124d74c8245301a979f60e24af6cb4f2202
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-34e08cda3145
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1258
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 61674f78694d73f3c6a4a98f80402124d74c8245301a979f60e24af6cb4f2202
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T23:46:14.984417+00:00'
+    eligible_at: '2026-08-13T23:46:14.984417+00:00'
+    selected_ref: origin/OOMPAH-1258
+    selected_sha: 9a02dea4bb32e6f176a63badea7c51550e2f948b
+  - version: 1
+    audit_id: audit-bf14b9b4d11b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1258
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 61674f78694d73f3c6a4a98f80402124d74c8245301a979f60e24af6cb4f2202
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T23:46:14.984417+00:00'
+    prerequisite_audit_id: audit-34e08cda3145
+    selected_ref: origin/OOMPAH-1258
+    selected_sha: 9a02dea4bb32e6f176a63badea7c51550e2f948b
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -46,5 +105,10 @@ author: oompah
 created: 2026-08-13 23:11
 ---
 Implementation underway on branch OOMPAH-1258. Added a durable direct_epic_maintenance_completion integration action selected for exact Ready/Done helpers instead of generic landing refresh; it revalidates project/task/status/branch/head/evidence under the shared task mutex, calls the existing guarded completion primitive, observes proof plus parent rebase-state/label convergence, and handles the post-cancel/pre-label crash boundary idempotently. Validation: 729 focused workflow/runtime/orchestrator tests passed; 424 direct affected tests passed; terminal mutation scan 21/21; diff check clean. Independent review in progress.
+---
+author: oompah
+created: 2026-08-13 23:46
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
