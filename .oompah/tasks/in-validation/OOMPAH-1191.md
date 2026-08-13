@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T22:41:57.033700Z'
-updated_at: '2026-08-13T03:41:34.140929Z'
+updated_at: '2026-08-13T03:59:55.737630Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -148,6 +148,17 @@ Queued for terminal transition to Merged. An auditor will review and apply the t
 ---
 author: oompah
 created: 2026-08-13 03:41
+---
+Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
+
+Source: `backend:orchestrator`
+
+Message: ACP worker failed issue_id=TRICKLE-140
+
+Source issue: `TRICKLE-140`
+---
+author: oompah
+created: 2026-08-13 03:59
 ---
 Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
 
