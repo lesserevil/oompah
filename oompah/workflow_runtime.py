@@ -43,6 +43,7 @@ from oompah.epic_workflow import (
 from oompah.events import EventType
 from oompah.implementation_workflow import (
     FACT_IMPLEMENTATION_LANE,
+    IMPERATIVE_IMPLEMENTATION_LANE,
     IMPLEMENTATION_ACTIONS,
     IMPLEMENTATION_ORDERING_NAMESPACE,
     ImplementationWorkflowController,
@@ -2466,18 +2467,26 @@ class WorkflowRuntime:
                 for action in decision.durable_jobs:
                     if _LIVENESS_ACTION_OWNER.get(action) != "implementation":
                         continue
+                    source_revision = (
+                        item["binding"]
+                        .implementation_controller.scheduler.decision_revision(
+                            decision
+                        )
+                    )
                     if self.store.event_lane_materialized(
                         project_id=decision.project_id,
                         task_id=decision.task_id,
                         ordering_namespace=IMPLEMENTATION_ORDERING_NAMESPACE,
                         scheduling_lane=FACT_IMPLEMENTATION_LANE,
-                        source_revision=(
-                            item["binding"]
-                            .implementation_controller.scheduler.decision_revision(
-                                decision
-                            )
-                        ),
+                        source_revision=source_revision,
                         actions=(action,),
+                    ) or self.store.protected_event_lane_materialized(
+                        project_id=decision.project_id,
+                        task_id=decision.task_id,
+                        ordering_namespace=IMPLEMENTATION_ORDERING_NAMESPACE,
+                        source_revision=source_revision,
+                        scheduling_lanes=(IMPERATIVE_IMPLEMENTATION_LANE,),
+                        actions=tuple(IMPLEMENTATION_ACTIONS),
                     ):
                         proven.setdefault(
                             (decision.project_id, decision.task_id), set()
