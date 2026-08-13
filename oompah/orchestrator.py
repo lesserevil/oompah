@@ -35725,6 +35725,7 @@ class Orchestrator:
 
         seen: set[str] = set()
         matches: list[Issue] = []
+        expected_project_id = str(getattr(epic, "project_id", None) or "").strip()
         for child in candidates:
             identifier = str(
                 getattr(child, "identifier", None) or getattr(child, "id", "") or ""
@@ -35732,6 +35733,23 @@ class Orchestrator:
             if not identifier or identifier in seen or identifier == epic.identifier:
                 continue
             seen.add(identifier)
+            observed_project_id = str(
+                getattr(child, "project_id", None) or ""
+            ).strip()
+            if (
+                expected_project_id
+                and observed_project_id
+                and observed_project_id != expected_project_id
+            ):
+                continue
+            if expected_project_id and not observed_project_id:
+                # Native tracker rows are scoped by their tracker instance and
+                # do not persist project_id in every Markdown task.  Restore
+                # that known scope before project-bound rebase classification
+                # and ownership checks.  This is required for authoritative
+                # pre-convention source branches whose title does not contain
+                # the current ``epic-<id>`` fallback spelling.
+                child.project_id = expected_project_id
             if _state_key(getattr(child, "state", "")) not in actionable:
                 continue
             raw_child_parent = getattr(child, "parent_id", None)

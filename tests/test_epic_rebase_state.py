@@ -1215,6 +1215,59 @@ def _configure_publish_fixture(
 
 
 class TestEpicRebaseGenerationAuthority:
+    def test_native_sibling_discovery_restores_project_scope_for_authority(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        epic = _make_issue("EPIC-1", labels=["rebase-requested"])
+        epic.work_branch = "legacy-nested-epic-source"
+        helper = _make_rebase_helper("REBASE-1", epic.identifier)
+        helper.project_id = None
+        helper.title = "Rebase legacy-nested-epic-source onto main"
+        tracker = MagicMock()
+        tracker.fetch_children.return_value = [helper]
+        tracker.fetch_issues_by_states.return_value = [helper]
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+        orch._epic_rebase_authorities[
+            orch._epic_rebase_authority_key(epic.project_id, epic.identifier)
+        ] = EpicRebaseStateEntry(
+            state=EpicRebaseState.REBASING.value,
+            updated_at=time.time(),
+            project_id=epic.project_id,
+            target_branch="main",
+            target_resolution="confirmed_top_level",
+            authority_generation="generation-1",
+            authority_task_id=helper.identifier,
+            authority_epic_head="epic-head-1",
+            authority_target_head="main-head-1",
+        )
+
+        siblings = orch._active_epic_rebase_siblings(
+            tracker,
+            epic,
+            target_branch="main",
+        )
+
+        assert siblings == [helper]
+        assert helper.project_id == epic.project_id
+
+    def test_native_sibling_discovery_rejects_conflicting_project_scope(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        epic = _make_issue("EPIC-1", labels=["rebase-requested"])
+        helper = _make_rebase_helper("REBASE-1", epic.identifier)
+        helper.project_id = "other-project"
+        tracker = MagicMock()
+        tracker.fetch_children.return_value = [helper]
+        tracker.fetch_issues_by_states.return_value = [helper]
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+
+        siblings = orch._active_epic_rebase_siblings(tracker, epic)
+
+        assert siblings == []
+        assert helper.project_id == "other-project"
+
     def test_prepare_uses_parent_persisted_source_branch(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         project = _make_project()
@@ -2266,10 +2319,25 @@ class TestEpicRebaseGenerationAuthority:
 
     def test_server_publish_uses_persisted_authoritative_epic_branch(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
-        helper, epic, _tracker, candidate, lease_head, target_head = (
+        helper, epic, tracker, candidate, lease_head, target_head = (
             _configure_publish_fixture(orch, tmp_path)
         )
         epic.work_branch = "legacy-nested-epic-source"
+        helper.title = "Rebase legacy-nested-epic-source onto main"
+        native_helper = _make_rebase_helper(helper.identifier, epic.identifier)
+        native_helper.project_id = None
+        native_helper.title = helper.title
+        native_helper.target_branch = helper.target_branch
+        tracker.fetch_children.return_value = [native_helper]
+        tracker.fetch_issues_by_states.return_value = [native_helper]
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+        authority = orch._epic_rebase_authority_entry(
+            helper.project_id,
+            epic.identifier,
+        )
+        assert authority is not None
+        authority.target_resolution = "confirmed_top_level"
+        del orch._active_epic_rebase_siblings
         orch._observe_epic_rebase_generation = MagicMock(
             side_effect=[
                 ("generation-1", lease_head, target_head),
@@ -2284,6 +2352,7 @@ class TestEpicRebaseGenerationAuthority:
         )
 
         assert result["published"] is True
+        assert native_helper.project_id == helper.project_id
         assert [
             call.kwargs["epic_branch"]
             for call in orch._observe_epic_rebase_generation.call_args_list
