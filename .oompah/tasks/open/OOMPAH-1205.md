@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:27:25.590177Z'
-updated_at: '2026-08-13T01:51:48.028014Z'
+updated_at: '2026-08-13T01:54:50.226790Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,5 +67,10 @@ author: oompah
 created: 2026-08-13 01:51
 ---
 Live Trickle root cause narrowed after OOMPAH-1202 removed the lock inversion: native state-branch mutations still fetch/reconcile the remote before every buffered local write. Under concurrent scheduling this turns coalesced metadata updates into serialized network transactions, so valid pre-provider evidence can wait beyond the 5s authority bound. Repair will sync once per tracker generation, buffer subsequent local writes, and retain push-reject fetch/rebase recovery at checkpoint publication.
+---
+author: oompah
+created: 2026-08-13 01:54
+---
+Fix pushed on branch OOMPAH-1205. Each state-branch tracker generation now synchronizes once before its first mutation; subsequent buffered writes remain local until checkpoint publication, while push rejection still performs fetch/rebase recovery. Verification: 60 native state-branch tests and 40 provider-retirement/managed-guard tests pass; terminal mutation and secret scans pass.
 ---
 <!-- COMMENTS:END -->
