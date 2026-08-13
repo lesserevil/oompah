@@ -1054,6 +1054,120 @@ def test_rebase_verification_is_bound_to_exact_receipt_helper_and_workflow_key()
     )
 
 
+def test_rebase_verification_binds_native_helper_to_workflow_project():
+    issue = epic("MID", parent_id="TOP")
+    facts = rebase_facts()
+    effects, orchestrator, tracker = effect_fixture(issue)
+    helper = Issue(
+        id="REBASE-1",
+        identifier="REBASE-1",
+        title="Rebase MID onto epic-TOP",
+        description="fixture",
+        state=NEEDS_REBASE,
+        issue_type="task",
+        # Native Markdown records inherit this from their tracker and may not
+        # carry it in the serialized task document.
+        project_id=None,
+        parent_id="MID",
+        target_branch="epic-TOP",
+    )
+    tracker.fetch_issue_detail.return_value = helper
+    tracker.get_metadata.return_value = {
+        "oompah.workflow_idempotency_key": "repair-native-project"
+    }
+    orchestrator._is_epic_rebase_task.side_effect = (
+        lambda candidate, parent: candidate.project_id == "project-1"
+        and parent == "MID"
+    )
+    orchestrator._epic_rebase_helper_target.return_value = "epic-TOP"
+    receipt = {
+        "helper_id": helper.identifier,
+        "workflow_idempotency_key": "repair-native-project",
+        "source_branch": "epic-MID",
+        "target_branch": "epic-TOP",
+    }
+
+    assert effects.verify_epic_effect(
+        EpicAction.REBASE_REPAIR,
+        issue,
+        facts,
+        {"target_branch": "epic-TOP"},
+        receipt,
+    ) == {"effect": EpicAction.REBASE_REPAIR.value, **receipt}
+
+
+def test_rebase_observation_binds_native_helper_to_workflow_project():
+    issue = epic("MID", parent_id="TOP")
+    facts = rebase_facts()
+    effects, orchestrator, tracker = effect_fixture(issue)
+    helper = Issue(
+        id="REBASE-1",
+        identifier="REBASE-1",
+        title="Rebase MID onto epic-TOP",
+        description="fixture",
+        state=NEEDS_REBASE,
+        issue_type="task",
+        project_id=None,
+        parent_id="MID",
+        target_branch="epic-TOP",
+    )
+    tracker.fetch_children.return_value = [helper]
+    tracker.get_metadata.return_value = {
+        "oompah.workflow_idempotency_key": "existing-repair"
+    }
+    orchestrator._is_epic_rebase_task.side_effect = (
+        lambda candidate, parent: candidate.project_id == "project-1"
+        and parent == "MID"
+    )
+    orchestrator._epic_rebase_helper_target.return_value = "epic-TOP"
+
+    assert effects.inspect_epic_effect(
+        EpicAction.REBASE_REPAIR,
+        issue,
+        facts,
+        {"target_branch": "epic-TOP"},
+    ) == {
+        "effect": EpicAction.REBASE_REPAIR.value,
+        "helper_id": "REBASE-1",
+        "workflow_idempotency_key": "existing-repair",
+        "source_branch": "epic-MID",
+        "target_branch": "epic-TOP",
+    }
+
+
+def test_rebase_verification_rejects_helper_from_another_project():
+    issue = epic("MID", parent_id="TOP")
+    facts = rebase_facts()
+    effects, orchestrator, tracker = effect_fixture(issue)
+    helper = Issue(
+        id="REBASE-1",
+        identifier="REBASE-1",
+        title="Rebase MID onto epic-TOP",
+        description="fixture",
+        state=NEEDS_REBASE,
+        issue_type="task",
+        project_id="project-other",
+        parent_id="MID",
+        target_branch="epic-TOP",
+    )
+    tracker.fetch_issue_detail.return_value = helper
+    receipt = {
+        "helper_id": helper.identifier,
+        "workflow_idempotency_key": "repair-wrong-project",
+        "source_branch": "epic-MID",
+        "target_branch": "epic-TOP",
+    }
+
+    assert effects.verify_epic_effect(
+        EpicAction.REBASE_REPAIR,
+        issue,
+        facts,
+        {"target_branch": "epic-TOP"},
+        receipt,
+    ) is None
+    orchestrator._is_epic_rebase_task.assert_not_called()
+
+
 @pytest.mark.asyncio
 async def test_rebase_creation_rejects_live_source_head_race():
     issue = epic("MID", parent_id="TOP")
@@ -2435,7 +2549,7 @@ def test_rebase_event_uses_target_and_epic_authority_not_observation_revision():
         "target_branch": "main",
         "request_source": "nested-dispatch-topology",
         "evidence_revision": "event-observation-revision",
-        "revalidation_contract": "target-source-head-immutable-helper-v4",
+        "revalidation_contract": "target-source-head-native-helper-project-v5",
     }
     assert call.kwargs["generation"].startswith("epic-event:")
     controller.scheduler.wake.assert_called_once_with("epic-rebase-requested")

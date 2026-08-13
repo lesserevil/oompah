@@ -1213,6 +1213,59 @@ def _configure_publish_fixture(
 
 
 class TestEpicRebaseGenerationAuthority:
+    def test_prepare_uses_parent_persisted_source_branch(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        project = _make_project()
+        project.id = "proj-1"
+        helper = _make_rebase_helper("REBASE-1", "EPIC-1")
+        helper.target_branch = "main"
+        parent = _make_issue("EPIC-1", labels=["rebase-requested"])
+        parent.work_branch = "legacy-epic-source"
+        tracker = MagicMock()
+        orch.project_store.get.return_value = project
+        orch._resolve_parent_epic = MagicMock(return_value=parent)
+        orch._resolve_epic_target_branch = MagicMock(return_value="main")
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+        orch._admit_epic_rebase_helper = MagicMock(return_value=(True, ""))
+
+        assert orch._prepare_epic_rebase_helper_target(helper) == (True, "")
+        orch._admit_epic_rebase_helper.assert_called_once_with(
+            tracker,
+            helper,
+            parent=parent,
+            epic_branch="legacy-epic-source",
+            target_branch="main",
+        )
+
+    def test_workspace_uses_parent_persisted_source_branch(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        helper = _make_rebase_helper("REBASE-1", "EPIC-1")
+        parent = _make_issue("EPIC-1", labels=["rebase-requested"])
+        parent.work_branch = "legacy-epic-source"
+        tracker = MagicMock()
+        orch._prepare_epic_rebase_helper_target = MagicMock(
+            return_value=(True, "")
+        )
+        orch._resolve_parent_epic = MagicMock(return_value=parent)
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+        orch.project_store.create_epic_worktree.return_value = "/wt/epic"
+        orch._epic_rebase_workspace_has_remote_write_route = MagicMock(
+            return_value=False
+        )
+        orch._worktree_head = MagicMock(return_value="a" * 40)
+
+        path, resolved_parent = orch._create_workspace_for_issue(helper)
+
+        assert path == "/wt/epic"
+        assert resolved_parent is parent
+        assert helper.work_branch == "legacy-epic-source"
+        assert helper.branch_name == "legacy-epic-source"
+        orch.project_store.create_epic_worktree.assert_called_once_with(
+            "proj-1",
+            "EPIC-1",
+            branch_name="legacy-epic-source",
+        )
+
     def test_recorded_actionable_winner_outranks_newly_claimed_duplicate(
         self, tmp_path
     ):

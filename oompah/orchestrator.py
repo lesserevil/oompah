@@ -35475,7 +35475,10 @@ class Orchestrator:
             tracker,
             issue,
             parent=parent,
-            epic_branch=self.project_store.epic_branch_name(parent.identifier),
+            # The branch recorded on the epic is containment authority. It
+            # may predate the current ``epic-<id>`` convention, and the
+            # durable helper was created against that exact source.
+            epic_branch=self._epic_branch_for_issue(parent),
             target_branch=expected,
         )
         return admitted, reason
@@ -41676,6 +41679,7 @@ class Orchestrator:
                 self.project_store.create_epic_worktree,
                 issue.project_id,
                 parent_epic.identifier,
+                branch_name=epic_branch,
             )
             if self._epic_rebase_workspace_has_remote_write_route(wp):
                 raise ProjectError(
