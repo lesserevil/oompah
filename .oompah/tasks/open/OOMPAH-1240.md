@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1240
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Recognize persisted exact rebase helper during effect verification
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T13:41:09.711627Z'
-updated_at: '2026-08-13T13:41:09.711627Z'
+updated_at: '2026-08-13T13:42:08.157361Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 25732016-0297-4ace-8199-742af8cd985b
   request_fingerprint: 4aeb6b9dfd027b62fd73fa1488530a9fcc234dd203b9ffad5767533742151387
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
