@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T10:25:26.660518Z'
-updated_at: '2026-08-13T10:26:00.565280Z'
-work_branch: null
+updated_at: '2026-08-13T10:31:42.116397Z'
+work_branch: OOMPAH-1233
 target_branch: null
 review_url: null
 review_number: null
@@ -25,6 +25,16 @@ oompah.create_once:
   creation_marker: 6b34eecc-c88d-485e-86a2-e62b75d7493a
   request_fingerprint: aa782013cdbafb0b5c541f0295c2ecb65e5297e67b4c97a81dbdd9875bbac022
 oompah.lifecycle_revision: 1
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1233
+  head_sha: d93f9a2fe38c8237901b3589fca8550a63333cc8
+  submitted_at: '2026-08-13T10:31:33.095227+00:00'
+  updated_at: '2026-08-13T10:31:33.095227+00:00'
+oompah.work_branch: OOMPAH-1233
 ---
 ## Summary
 
@@ -42,5 +52,10 @@ author: oompah
 created: 2026-08-13 10:26
 ---
 Claimed directly by the operator agent while the Oompah project remains paused. Reproduced on TRICKLE-140: accepted head is already on target, but standalone delivery exhausts at the earlier source-branch existence check. Implementing on branch OOMPAH-1233 with exact-head containment and authority-fencing regressions.
+---
+author: oompah
+created: 2026-08-13 10:31
+---
+Implemented exact accepted-head containment for forge-deleted standalone source branches. If the immutable accepted head is already contained by the freshly fetched target, Oompah persists canonical no-op integration evidence and stages the normal terminal audit without a review; negative/unavailable proofs retain the missing-branch alert. Added contained, uncontained, proof-unavailable, and authority-race regressions. Validation: 107 standalone delivery tests passed; 14 focused workflow/dispatch tests passed; terminal mutation scan and diff checks passed. Commit d93f9a2fe pushed.
 ---
 <!-- COMMENTS:END -->
