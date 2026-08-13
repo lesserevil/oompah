@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:30:46.069410Z'
-updated_at: '2026-08-13T09:37:23.474109Z'
-work_branch: null
+updated_at: '2026-08-13T09:51:59.888530Z'
+work_branch: OOMPAH-1228
 target_branch: null
 review_url: null
 review_number: null
@@ -25,6 +25,16 @@ oompah.create_once:
   creation_marker: 8da572d7-f464-44ad-807b-2ac8e3eca989
   request_fingerprint: 6799d0fc8aba0cd3563e447d80c1c8678cd66345d3a948da7c52f7f343ecb250
 oompah.lifecycle_revision: 1
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1228
+  head_sha: 1e9c15be1b1e25c99d15c4fd593d8af32b071173
+  submitted_at: '2026-08-13T09:51:45.485359+00:00'
+  updated_at: '2026-08-13T09:51:45.485359+00:00'
+oompah.work_branch: OOMPAH-1228
 ---
 ## Summary
 
@@ -47,5 +57,10 @@ author: oompah
 created: 2026-08-13 09:37
 ---
 Implementation pushed as PR #857. The commit-time validation guard accepts exact target containment only when the accepted source ref is absent; source advancement, target drift, missing/non-contained target proof, and owner/assignment changes remain blocked. Guard exceptions now retain a traceback in logs. Focused transition/runtime verification: 450 passed. Hosted gates are running.
+---
+author: oompah
+created: 2026-08-13 09:51
+---
+Permit a deleted accepted source branch through validation only when the exact accepted head is contained by the authoritative target branch, while preserving fail-closed behavior for drift and unavailable evidence. Mutation-guard exceptions are now logged. Focused tests and hosted CI on Python 3.11, 3.12, and 3.13 pass.
 ---
 <!-- COMMENTS:END -->
