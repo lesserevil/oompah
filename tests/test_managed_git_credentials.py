@@ -8,6 +8,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from oompah.git_credentials import (
     git_authentication_failure,
     git_credential_environment,
@@ -19,7 +21,7 @@ from oompah.integration_executor import (
     _git_failure_message,
 )
 from oompah.models import Project
-from oompah.projects import ProjectStore
+from oompah.projects import ProjectError, ProjectStore
 
 
 def _project(tmp_path: Path, *, token: str | None, forge: str) -> Project:
@@ -151,6 +153,8 @@ def test_project_network_runner_uses_only_its_gitlab_token(tmp_path: Path) -> No
 
     assert result.returncode == 0
     assert "project-token" not in observed["args"]
+    assert project.repo_url in observed["args"]
+    assert "origin" not in observed["args"]
     env = observed["env"]
     assert env["OOMPAH_GIT_USERNAME"] == "oauth2"
     assert env["OOMPAH_GIT_PASSWORD"] == "project-token"
@@ -161,6 +165,300 @@ def test_project_network_runner_uses_only_its_gitlab_token(tmp_path: Path) -> No
         for index in range(config_count)
     )
     assert "project-token" not in result.stderr
+
+
+def test_project_network_runner_rejects_embedded_remote_credentials(
+    tmp_path: Path,
+) -> None:
+    secret = "embedded-secret"
+    project = _project(tmp_path, token="project-token", forge="gitlab")
+    project.repo_url = f"https://actor:{secret}@forge.example/group/repo.git"
+
+    with pytest.raises(ProjectError) as exc_info:
+        ProjectStore._run_network_git(project, ["git", "fetch", "origin"])
+
+    assert secret not in str(exc_info.value)
+    assert "must not contain credentials" in str(exc_info.value)
+
+
+def test_project_network_runner_strips_legacy_remote_username(tmp_path: Path) -> None:
+    project = _project(tmp_path, token="project-token", forge="gitlab")
+    project.repo_url = "https://legacy-actor@forge.example/group/repo.git"
+
+    with patch(
+        "oompah.projects.subprocess.run",
+        return_value=subprocess.CompletedProcess(["git", "fetch"], 0, "", ""),
+    ) as run:
+        ProjectStore._run_network_git(project, ["git", "fetch", "origin"])
+
+    command = run.call_args.args[0]
+    assert "https://forge.example/group/repo.git" in command
+    assert all("legacy-actor" not in argument for argument in command)
+
+
+def test_project_network_runner_uses_canonical_remote_over_stale_origin(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Managed fetch/push ignore stale checkout and ambient URL authority."""
+
+    canonical = tmp_path / "canonical.git"
+    stale = tmp_path / "stale.git"
+    seed = tmp_path / "seed"
+    checkout = tmp_path / "checkout"
+    for remote in (canonical, stale):
+        subprocess.run(
+            ["git", "init", "--bare", str(remote)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    subprocess.run(
+        ["git", "init", "-b", "main", str(seed)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(seed), "config", "user.name", "Test Agent"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(seed), "config", "user.email", "test@example.test"],
+        check=True,
+    )
+    (seed / "seed.txt").write_text("canonical\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(seed), "add", "seed.txt"], check=True)
+    subprocess.run(
+        ["git", "-C", str(seed), "commit", "-m", "seed"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(seed), "push", canonical.as_uri(), "HEAD:main"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "clone", stale.as_uri(), str(checkout)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    ambient_config = tmp_path / "ambient.gitconfig"
+    ambient_config.write_text(
+        "[url \"ssh://stale.invalid/\"]\n"
+        f"\tinsteadOf = {canonical.as_uri()}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(ambient_config))
+
+    project = Project(
+        id="managed",
+        name="managed",
+        repo_url=canonical.as_uri(),
+        repo_path=str(checkout),
+        forge_kind="gitlab",
+    )
+    fetched = ProjectStore._run_network_git(
+        project,
+        ["git", "fetch", "origin"],
+    )
+
+    assert fetched.returncode == 0, fetched.stderr
+    canonical_head = subprocess.run(
+        ["git", f"--git-dir={canonical}", "rev-parse", "refs/heads/main"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    tracking_head = subprocess.run(
+        ["git", "-C", str(checkout), "rev-parse", "refs/remotes/origin/main"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    configured_origin = subprocess.run(
+        ["git", "-C", str(checkout), "remote", "get-url", "origin"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    assert tracking_head == canonical_head
+    assert configured_origin == stale.as_uri()
+
+    pushed = ProjectStore._run_network_git(
+        project,
+        ["git", "push", "origin", f"{canonical_head}:refs/heads/canonical-only"],
+    )
+    assert pushed.returncode == 0, pushed.stderr
+    assert (
+        subprocess.run(
+            [
+                "git",
+                f"--git-dir={canonical}",
+                "rev-parse",
+                "refs/heads/canonical-only",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        == canonical_head
+    )
+    assert subprocess.run(
+        [
+            "git",
+            f"--git-dir={stale}",
+            "rev-parse",
+            "--verify",
+            "refs/heads/canonical-only",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    ).returncode != 0
+
+    deleted = ProjectStore._run_network_git(
+        project,
+        ["git", "push", "origin", ":refs/heads/canonical-only"],
+    )
+    assert deleted.returncode == 0, deleted.stderr
+    assert subprocess.run(
+        [
+            "git",
+            f"--git-dir={canonical}",
+            "rev-parse",
+            "--verify",
+            "refs/heads/canonical-only",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    ).returncode != 0
+
+
+def test_private_epic_dispatch_refreshes_through_canonical_remote(
+    tmp_path: Path,
+) -> None:
+    """The production epic refresh path cannot inherit a stale SSH origin."""
+
+    canonical = tmp_path / "canonical.git"
+    stale = tmp_path / "stale.git"
+    seed = tmp_path / "seed"
+    checkout = tmp_path / "checkout"
+    subprocess.run(
+        ["git", "init", "--bare", str(canonical)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "init", "--bare", str(stale)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "init", "-b", "main", str(seed)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    for key, value in (
+        ("user.name", "Test Agent"),
+        ("user.email", "test@example.test"),
+    ):
+        subprocess.run(
+            ["git", "-C", str(seed), "config", key, value],
+            check=True,
+        )
+    (seed / "seed.txt").write_text("epic\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(seed), "add", "seed.txt"], check=True)
+    subprocess.run(
+        ["git", "-C", str(seed), "commit", "-m", "seed"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(seed),
+            "push",
+            canonical.as_uri(),
+            "HEAD:main",
+            "HEAD:epic-TRICKLE-127",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "clone", "--branch", "main", canonical.as_uri(), str(checkout)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    store = ProjectStore(
+        path=str(tmp_path / "projects.json"),
+        repos_root=str(tmp_path / "repos"),
+        worktree_root=str(tmp_path / "worktrees"),
+    )
+    project = Project(
+        id="trickle",
+        name="trickle",
+        repo_url=canonical.as_uri(),
+        repo_path=str(checkout),
+        default_branch="main",
+        forge_kind="gitlab",
+    )
+    store._projects[project.id] = project
+    epic_path = store.create_epic_worktree(project.id, "TRICKLE-127")
+    subprocess.run(
+        ["git", "-C", str(checkout), "remote", "set-url", "origin", stale.as_uri()],
+        check=True,
+    )
+
+    prepared_path, prepared_head = store.prepare_epic_branch_for_private_dispatch(
+        project.id,
+        "TRICKLE-127",
+    )
+
+    canonical_head = subprocess.run(
+        [
+            "git",
+            f"--git-dir={canonical}",
+            "rev-parse",
+            "refs/heads/epic-TRICKLE-127",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    assert prepared_path == epic_path
+    assert prepared_head == canonical_head
+    assert (
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                epic_path,
+                "config",
+                "--get",
+                "branch.epic-TRICKLE-127.remote",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        == "origin"
+    )
 
 
 def test_integration_git_subprocess_inherits_ephemeral_project_credentials(

@@ -2674,7 +2674,12 @@ class TestRemoveWorktreeCleanup:
 
         assert changed is True
         assert skip_reason is None
-        assert ["git", "push", "origin", ":refs/heads/TASK-42"] in calls
+        assert [
+            "git",
+            "push",
+            project.repo_url,
+            ":refs/heads/TASK-42",
+        ] in calls
         assert ["git", "branch", "-D", "--", "TASK-42"] in calls
 
     def test_terminal_cleanup_deletes_real_local_and_remote_refs(self, tmp_path):
