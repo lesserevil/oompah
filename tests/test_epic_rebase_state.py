@@ -1322,6 +1322,39 @@ class TestEpicRebaseGenerationAuthority:
         assert restarted_entry is not None
         assert restarted_entry.authority_task_id == "REBASE-1"
 
+    def test_consumed_generation_recovers_exact_active_helper_identity(self, tmp_path):
+        """A lagging child projection cannot erase the create-once identity."""
+        orch = _make_orchestrator(tmp_path)
+        epic = _make_issue("EPIC-1", labels=["rebase-requested"])
+        helper = _make_rebase_helper("REBASE-1", epic.identifier)
+        tracker = _atomic_create_tracker()
+        tracker.create_issue_once.return_value = helper
+        orch._active_epic_rebase_siblings = MagicMock(return_value=[])
+        orch._observe_epic_rebase_generation = MagicMock(
+            return_value=("generation-1", "epic-head-1", "main-head-1")
+        )
+
+        assert orch._file_rebase_task(
+            tracker, epic, "epic-EPIC-1", "main"
+        ) is helper
+        entry = orch._epic_rebase_authority_entry(
+            epic.project_id, epic.identifier
+        )
+        assert entry is not None
+        helper.description += (
+            "\nOOMPAH-EPIC-REBASE-RESERVATION: "
+            + entry.authority_creation_marker
+            + "\n"
+        )
+        tracker.fetch_issue_detail.return_value = helper
+
+        replayed = orch._file_rebase_task(
+            tracker, epic, "epic-EPIC-1", "main"
+        )
+
+        assert replayed is helper
+        tracker.create_issue_once.assert_called_once()
+
     def test_unresolved_remote_heads_do_not_reserve_or_create_helper(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         epic = _make_issue("EPIC-1", labels=["rebase-requested"])

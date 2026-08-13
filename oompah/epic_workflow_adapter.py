@@ -1929,7 +1929,7 @@ class OrchestratorEpicWorkflowEffects:
                 originating_job=originating_job or idempotency_key,
                 evidence_generation=evidence_generation,
             )
-            await self._blocking(
+            helper = await self._blocking(
                 self._ensure_rebase_helper_under_authority,
                 epic,
                 facts,
@@ -1938,14 +1938,28 @@ class OrchestratorEpicWorkflowEffects:
                 expected_head=expected_head,
                 idempotency_key=idempotency_key,
             )
-            evidence = await self._blocking(self._rebase_evidence, epic, facts, payload)
-            if evidence is None:
+            # Creation and every bookkeeping write above are serialized under
+            # exact epic authority. Return the immutable identity obtained
+            # from that boundary instead of immediately rediscovering the task
+            # through a potentially lagging children projection. The worker's
+            # separate verify phase re-reads this exact identity and fails
+            # closed until the tracker can prove it.
+            helper_id = _text(getattr(helper, "identifier", None)) or _text(
+                getattr(helper, "id", None)
+            )
+            if not helper_id:  # defensive: _ensure already enforces this
                 raise WorkflowActionError(
-                    "rebase helper is not visible after creation",
+                    "rebase helper has no immutable identity",
                     category=WorkflowFailureCategory.TRANSIENT,
                     retryable=True,
                 )
-            return evidence
+            return {
+                "effect": EpicAction.REBASE_REPAIR.value,
+                "helper_id": helper_id,
+                "workflow_idempotency_key": idempotency_key,
+                "source_branch": source,
+                "target_branch": target,
+            }
 
         if action is EpicAction.CLEANUP:
             cleaned: list[str] = []
@@ -2336,7 +2350,9 @@ class EpicWorkflowEventRouter:
             # Advance the immutable event identity once so requests stranded
             # under former observation/source contracts do not replay their
             # already-terminal idempotency keys after upgrade.
-            event_payload["revalidation_contract"] = "target-source-head-v3"
+            event_payload["revalidation_contract"] = (
+                "target-source-head-immutable-helper-v4"
+            )
         else:
             expected_head = issue_exact_head(epic)
         if action is EpicAction.CLEANUP:
