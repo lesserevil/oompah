@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1237
 type: task
-status: Backlog
+status: In Validation
 priority: null
 title: Allow authoritative nested epic targets through dispatch validation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T12:43:52.537888Z'
-updated_at: '2026-08-13T12:50:31.641648Z'
+updated_at: '2026-08-13T13:03:05.544544Z'
 work_branch: OOMPAH-1237
 target_branch: null
 review_url: null
@@ -34,6 +34,65 @@ oompah.integration:
   submitted_at: '2026-08-13T12:50:17.846536+00:00'
   updated_at: '2026-08-13T12:50:17.846536+00:00'
 oompah.work_branch: OOMPAH-1237
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-c6854d3276ee
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1237
+    digest: 199c93af2ef9784e0e416f63684b606d9c0e559517abf54ad18a2c3fffc0aaf0
+  - version: 1
+    audit_id: audit-74a095e32845
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1237
+    digest: 199c93af2ef9784e0e416f63684b606d9c0e559517abf54ad18a2c3fffc0aaf0
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-c6854d3276ee
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1237
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 199c93af2ef9784e0e416f63684b606d9c0e559517abf54ad18a2c3fffc0aaf0
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T13:02:59.952303+00:00'
+    eligible_at: '2026-08-13T13:02:59.952303+00:00'
+    selected_ref: 6232cba0fb65d5099259424d7b5b298f37054a45
+    selected_sha: 6232cba0fb65d5099259424d7b5b298f37054a45
+  - version: 1
+    audit_id: audit-74a095e32845
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1237
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 199c93af2ef9784e0e416f63684b606d9c0e559517abf54ad18a2c3fffc0aaf0
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T13:02:59.952303+00:00'
+    prerequisite_audit_id: audit-c6854d3276ee
+    selected_ref: 6232cba0fb65d5099259424d7b5b298f37054a45
+    selected_sha: 6232cba0fb65d5099259424d7b5b298f37054a45
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -61,5 +120,10 @@ author: oompah
 created: 2026-08-13 12:50
 ---
 Exact server-issued nested-epic rebase authority now bypasses only the incompatible generic branch-pattern fence; forged legacy-title helpers and ordinary untracked targets remain rejected. Tests and scans pass; commit 6232cba0f is pushed.
+---
+author: oompah
+created: 2026-08-13 13:03
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
