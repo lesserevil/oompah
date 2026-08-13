@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T06:00:42.489158Z'
-updated_at: '2026-08-13T06:07:59.293724Z'
+updated_at: '2026-08-13T06:52:03.532567Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-13 06:07
 ---
 Claiming directly from the live Trickle incident. OOMPAH-1221 is deployed; the remaining six Ready-task critical alerts are the exact capacity-wait exhaustion reproduction this task will fix.
+---
+author: oompah
+created: 2026-08-13 06:52
+---
+Implementation complete and under full-gate verification. The fix maps only a positively proven full review queue to WorkflowAdministrativeDeferral, preserves the exact generation/checkpoint without consuming attempts, keeps unavailable forge state on substantive bounded retries, and restart-rearms only authoritative legacy exhausted rows whose exact checkpoint branch/head still matches the current Ready standalone submission. Focused integration/runtime/job/standalone suites: 528 passed; full make test is in progress.
 ---
 <!-- COMMENTS:END -->
