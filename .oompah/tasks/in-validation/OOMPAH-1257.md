@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1257
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Recognize noncanonical epic rebase helpers after terminal audit
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T18:57:41.903878Z'
-updated_at: '2026-08-13T22:17:36.229423Z'
+updated_at: '2026-08-13T22:29:30.524553Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,65 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: d2d82af2-71ba-4073-8f80-0b564b096e86
   request_fingerprint: c1f4d6c1fe9df59e7d2246ebc306b734d3afe6f68b28501495e6d3f247715124
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-77c04096c667
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1257
+    digest: 3eb871a6638e2c13f9dd8629c0576974c33d71f13fd8ab157c187a3298c35e1a
+  - version: 1
+    audit_id: audit-f2d36ddb237f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1257
+    digest: 3eb871a6638e2c13f9dd8629c0576974c33d71f13fd8ab157c187a3298c35e1a
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-77c04096c667
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1257
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3eb871a6638e2c13f9dd8629c0576974c33d71f13fd8ab157c187a3298c35e1a
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T22:29:25.785719+00:00'
+    eligible_at: '2026-08-13T22:29:25.785719+00:00'
+    selected_ref: origin/OOMPAH-1257
+    selected_sha: 525c7a2e09384a6b0b13f3020e81f70dd54c48a5
+  - version: 1
+    audit_id: audit-f2d36ddb237f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1257
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3eb871a6638e2c13f9dd8629c0576974c33d71f13fd8ab157c187a3298c35e1a
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T22:29:25.785719+00:00'
+    prerequisite_audit_id: audit-77c04096c667
+    selected_ref: origin/OOMPAH-1257
+    selected_sha: 525c7a2e09384a6b0b13f3020e81f70dd54c48a5
+  attempt_history: []
 ---
 ## Summary
 
@@ -57,5 +115,10 @@ author: oompah
 created: 2026-08-13 22:17
 ---
 Second exact-head review found the post-persistence label-repair restart edge and ignored save failure. Fixed at 2d2d3d485: same-state recovery now reconciles stale labels, integration recovery re-enters only for proven integrated Done helpers whose parent label still needs repair, and a failed state snapshot aborts before labels/completion. Added simulated restart label repair, failed-save, direct-completion fail-closed, and integrated-checkpoint recovery tests. Combined focused suite: 1,371 passed; direct changed-path set: 386 passed; terminal scan and secret scan pass. Final exact-head review and CI are running.
+---
+author: oompah
+created: 2026-08-13 22:29
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
