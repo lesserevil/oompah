@@ -778,6 +778,17 @@ def test_remote_branch_head_rejects_ref_movement_during_observation(
         store.remote_branch_head("proj-1", target)
 
 
+def test_remote_target_contains_only_landed_immutable_head(tmp_path):
+    store, target, _task_branch, target_sha, _first, unlanded_head = (
+        _real_nested_submission_store(tmp_path)
+    )
+
+    assert store.remote_target_contains_head("proj-1", target, target_sha) is True
+    assert (
+        store.remote_target_contains_head("proj-1", target, unlanded_head) is False
+    )
+
+
 def test_new_head_without_base_uses_canonical_nested_target_and_merge_base(tmp_path):
     store, target_branch, task_branch, target_sha, old_head, new_head = (
         _real_nested_submission_store(tmp_path)

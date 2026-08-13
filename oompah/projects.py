@@ -7088,6 +7088,60 @@ class ProjectStore:
                 )
             return first
 
+    def remote_target_contains_head(
+        self,
+        project_id: str,
+        target_branch: str,
+        head_sha: str,
+    ) -> bool:
+        """Prove an immutable accepted head is on a stable remote target.
+
+        This is the source-deleted recovery companion to
+        :meth:`remote_branch_head`.  It refreshes the exact target through the
+        same stable two-read contract, then checks ordinary Git ancestry in
+        the managed clone.  Missing commit objects and unavailable targets are
+        evidence failures, not negative landing observations.
+        """
+
+        project = self._projects.get(project_id)
+        if project is None:
+            raise ProjectError(f"Unknown project: {project_id}")
+        target = str(target_branch or "").strip()
+        head = str(head_sha or "").strip().lower()
+        if not target:
+            raise ProjectError("target branch is required")
+        if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", head):
+            raise ProjectError("accepted head must be a full hexadecimal object id")
+
+        target_head = self.remote_branch_head(project_id, target)
+        if not target_head:
+            raise ProjectError(f"remote target branch {target!r} is unavailable")
+        commit = subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", f"{head}^{{commit}}"],
+            cwd=project.repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        if commit.returncode != 0:
+            raise ProjectError(f"accepted head {head} is unavailable in managed clone")
+        contained = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", head, target_head],
+            cwd=project.repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        if contained.returncode not in {0, 1}:
+            raise ProjectError(
+                f"could not compare accepted head {head} with remote target {target!r}"
+            )
+        return contained.returncode == 0
+
     def verify_submission_git_authority(
         self,
         project_id: str,

@@ -752,6 +752,25 @@ def _implementation_decision(
             alert=AlertSeverity.INFO,
             durable_jobs=(pending_action,),
         )
+    submission_recovery_state = str(
+        (config_value or {}).get("accepted_submission_recovery_state") or ""
+    ).strip()
+    if submission_recovery_state.startswith("accepted_submission_"):
+        # Accepted integration metadata is stronger than an expired or absent
+        # implementer lease.  Exact/landed evidence publishes
+        # ``validation_submission`` above; every other accepted state is an
+        # explicit fail-closed park and must remain jobless.  Scheduling a
+        # generic recovery here only creates an immediate supersede loop at
+        # the provider boundary.
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.BLOCKED,
+            reason_code="implementation.submission_recovery_parked",
+            owner=WorkflowOwner.DISPATCHER,
+            actions=(PermittedAction.RECONCILE_IMPLEMENTATION,),
+            alert=AlertSeverity.INFO,
+        )
     if authority.state is not FactState.KNOWN or _mapping(authority.value) is None:
         return _fact_wait(
             task,

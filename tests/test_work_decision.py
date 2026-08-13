@@ -384,6 +384,41 @@ def test_accepted_submission_recovery_does_not_require_a_live_implementer():
     assert decision.alert_level is AlertSeverity.INFO
 
 
+@pytest.mark.parametrize(
+    "recovery_state",
+    [
+        "accepted_submission_branch_unavailable",
+        "accepted_submission_branch_advanced",
+        "accepted_submission_claim_changed",
+    ],
+)
+def test_in_progress_accepted_submission_parks_without_recovery_job(
+    recovery_state,
+):
+    issue = _issue(IN_PROGRESS)
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.CONFIG: _known(
+                    FactDomain.CONFIG,
+                    {"accepted_submission_recovery_state": recovery_state},
+                ),
+                FactDomain.IMPLEMENTATION_AUTHORITY: _known(
+                    FactDomain.IMPLEMENTATION_AUTHORITY,
+                    {"lease_expires_at": None},
+                ),
+            },
+        ),
+    )
+
+    assert decision.reason_code == "implementation.submission_recovery_parked"
+    assert decision.disposition is TaskDisposition.BLOCKED
+    assert decision.durable_jobs == ()
+    assert decision.action_required is False
+
+
 def test_open_accepted_submission_preempts_dispatch_and_dependencies():
     issue = _issue(OPEN)
     decision = evaluate_task(

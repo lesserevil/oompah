@@ -869,6 +869,58 @@ def test_direct_owner_submission_recovery_fails_closed_on_remote_or_claim_race()
     assert "implementation_pending_action" not in racing_config
 
 
+def test_deleted_accepted_branch_uses_exact_target_containment_for_recovery():
+    issue = _issue(state="In Progress")
+    issue.head_sha = "a" * 40
+    issue.integration = SimpleNamespace(
+        state="ready",
+        head_sha="a" * 40,
+        task_branch="TASK-1",
+        base_branch="main",
+        base_sha="b" * 40,
+    )
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    orch.project_store.remote_branch_head.return_value = None
+    orch.project_store.remote_target_contains_head.return_value = True
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert config["accepted_submission_recovery_state"] == (
+        "accepted_submission_landed"
+    )
+    assert config["implementation_pending_action"] == "validation_submission"
+    assert config["implementation_pending_payload"]["head_sha"] == "a" * 40
+    orch.project_store.remote_target_contains_head.assert_called_once_with(
+        issue.project_id,
+        "main",
+        "a" * 40,
+    )
+
+
+def test_deleted_accepted_branch_without_target_proof_stays_parked():
+    issue = _issue(state="In Progress")
+    issue.head_sha = "a" * 40
+    issue.integration = SimpleNamespace(
+        state="ready",
+        head_sha="a" * 40,
+        task_branch="TASK-1",
+        base_branch="main",
+        base_sha="b" * 40,
+    )
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    orch.project_store.remote_branch_head.return_value = None
+    orch.project_store.remote_target_contains_head.return_value = False
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert config["accepted_submission_recovery_state"] == (
+        "accepted_submission_branch_unavailable"
+    )
+    assert "implementation_pending_action" not in config
+
+
 def _accepted_validation_commit_fixture(tmp_path):
     head = "a" * 40
     issue = _issue(state="In Progress")
