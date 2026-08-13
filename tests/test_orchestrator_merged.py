@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch, call
 import pytest
 
 from oompah.config import ServiceConfig
+from oompah.integration import IntegrationRecord
 from oompah.models import BlockerRef, Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectStore, github_work_branch_name
@@ -2185,6 +2186,45 @@ class TestShouldDispatchCompleted:
         issue = _make_issue("feat-1", state="in_progress")
         orch.state.completed.add("feat-1")
         assert orch._should_dispatch(issue) is False
+
+    def test_durable_recovery_releases_stale_completed_fence(self, tmp_path):
+        """Exact recovery supersedes only an ownerless active legacy fence."""
+        orch = self._make_orchestrator(tmp_path)
+        issue = _make_issue("feat-1", state="in_progress")
+        orch.state.completed.add(issue.id)
+
+        assert orch._should_dispatch(issue, durable_recovery=True) is True
+        assert issue.id not in orch.state.completed
+
+    def test_durable_recovery_preserves_completed_fence_with_live_owner(
+        self, tmp_path
+    ):
+        """A current direct owner remains authoritative over recovery."""
+        orch = self._make_orchestrator(tmp_path)
+        issue = _make_issue("feat-1", state="in_progress")
+        orch.state.completed.add(issue.id)
+        orch._has_live_owner_claim = MagicMock(return_value=True)
+
+        assert orch._should_dispatch(issue, durable_recovery=True) is False
+        assert issue.id in orch.state.completed
+
+    def test_durable_recovery_preserves_completed_fence_with_submission(
+        self, tmp_path
+    ):
+        """An accepted implementation handoff remains newer than recovery."""
+        orch = self._make_orchestrator(tmp_path)
+        issue = _make_issue("feat-1", state="in_progress")
+        issue.integration = IntegrationRecord(
+            state="ready",
+            task_branch="feat-1",
+            head_sha="a" * 40,
+            base_branch="main",
+            base_sha="b" * 40,
+        )
+        orch.state.completed.add(issue.id)
+
+        assert orch._should_dispatch(issue, durable_recovery=True) is False
+        assert issue.id in orch.state.completed
 
     def test_non_completed_issue_dispatched(self, tmp_path):
         """An issue NOT in state.completed should be dispatchable."""

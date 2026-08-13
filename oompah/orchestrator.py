@@ -46140,7 +46140,31 @@ class Orchestrator:
         if issue.id in self.state.retry_attempts:
             return _reject("retry_pending")
         if issue.id in self.state.completed:
-            return _reject("completed")
+            # ``state.completed`` is a legacy, process-local admission fence.
+            # The durable controller can independently prove that an
+            # ownerless In Progress generation requires recovery after the
+            # worker exited before publishing its handoff.  In that exact
+            # case the durable recovery is the newer authority: release the
+            # stale legacy fence while the workflow dispatch lane is held so
+            # the final dispatch boundary observes the same ownership cut.
+            #
+            # Keep every durable completion signal fail closed.  Accepted
+            # submissions, direct owners, running/claimed workers, terminal
+            # tracker state, and provenance suppression are all rejected by
+            # the preceding gates (or the explicit checks below).
+            stale_recovery_fence = bool(
+                durable_active
+                and not accepted_submission_branch(issue)
+                and not self._has_live_owner_claim(issue.id, issue.project_id)
+            )
+            if stale_recovery_fence:
+                self.state.completed.discard(issue.id)
+                logger.warning(
+                    "Durable recovery released stale completed fence for %s",
+                    issue.identifier,
+                )
+            else:
+                return _reject("completed")
         if self._has_live_owner_claim(issue.id, issue.project_id):
             return _reject("direct_owner_claim")
         is_p0 = issue.priority is not None and issue.priority == 0
