@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T13:08:46.480588Z'
-updated_at: '2026-08-13T13:12:55.831164Z'
-work_branch: null
+updated_at: '2026-08-13T13:13:11.825075Z'
+work_branch: OOMPAH-1239
 target_branch: null
 review_url: null
 review_number: null
@@ -24,6 +24,16 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 1b3db1dd-b180-4102-a9bc-eb256db75f99
   request_fingerprint: 3ed5ff688af9b0650b3f1f817da53b242acba07da3d9ef6ebdfb6c4129606c78
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1239
+  head_sha: f8d9349aee9aeb493a676bd56bdceca289d7aaa7
+  submitted_at: '2026-08-13T13:12:58.318256+00:00'
+  updated_at: '2026-08-13T13:12:58.318256+00:00'
+oompah.work_branch: OOMPAH-1239
 ---
 ## Summary
 
@@ -46,5 +56,10 @@ author: oompah
 created: 2026-08-13 13:12
 ---
 Implemented exact publish-authority bypass for the recursive nested-topology preflight. Ordinary and title-shaped helpers remain fenced. 183 focused tests pass; terminal mutation and secret scans pass. Commit f8d9349ae pushed.
+---
+author: oompah
+created: 2026-08-13 13:13
+---
+Exact-authority epic-rebase helpers no longer require their own completed rebase as a dispatch prerequisite; ordinary nested children remain topology-fenced. Tests/scans pass; f8d9349ae pushed.
 ---
 <!-- COMMENTS:END -->
