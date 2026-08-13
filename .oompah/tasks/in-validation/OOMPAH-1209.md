@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1209
 type: bug
-status: Backlog
+status: In Validation
 priority: 1
 title: Restart reconstruction recognizes protected epic event jobs
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:08:42.935045Z'
-updated_at: '2026-08-13T03:18:00.218662Z'
+updated_at: '2026-08-13T03:29:07.695682Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,65 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: restart-protected-epic-event-deadlock-v1
   request_fingerprint: 258f98e1475a715f60330cb8778b43fb138c465da15f5f965af8d8f7aa577020
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-01576b227da5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1209
+    digest: 77c1ed1c72c690108cd8989f7bb80c5f7a02f579e6601aae0e9b4a53e47c0b44
+  - version: 1
+    audit_id: audit-13f6c7c65d15
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1209
+    digest: 77c1ed1c72c690108cd8989f7bb80c5f7a02f579e6601aae0e9b4a53e47c0b44
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-01576b227da5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1209
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 77c1ed1c72c690108cd8989f7bb80c5f7a02f579e6601aae0e9b4a53e47c0b44
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T03:29:00.842683+00:00'
+    eligible_at: '2026-08-13T03:29:00.842683+00:00'
+    selected_ref: origin/OOMPAH-1209
+    selected_sha: 6bb76c69179c43c82bc7fc2e9aaeb5398128162d
+  - version: 1
+    audit_id: audit-13f6c7c65d15
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1209
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 77c1ed1c72c690108cd8989f7bb80c5f7a02f579e6601aae0e9b4a53e47c0b44
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T03:29:00.842683+00:00'
+    prerequisite_audit_id: audit-01576b227da5
+    selected_ref: origin/OOMPAH-1209
+    selected_sha: 6bb76c69179c43c82bc7fc2e9aaeb5398128162d
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -41,5 +100,10 @@ author: oompah
 created: 2026-08-13 03:18
 ---
 Reproduced the live restart deadlock with TRICKLE-117/TRICKLE-127 and implemented a domain-configured substitute proof. Generic managed scheduling now accepts only a live event job in an explicitly configured lane for the exact current action and current managed cursor; EpicWorkflowController configures epic-event:<action>. Different actions and stale cursors remain unproven. Verification: 407 workflow job/scheduler/epic/runtime tests passed, including end-to-end restart liveness; terminal-audit mutation scan passed; secret scan passed.
+---
+author: oompah
+created: 2026-08-13 03:29
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
