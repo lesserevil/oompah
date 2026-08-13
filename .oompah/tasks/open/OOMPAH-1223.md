@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1223
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Block nested child dispatch until inferred parent hierarchy is dispatchable
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:08:25.770498Z'
-updated_at: '2026-08-13T07:08:47.667049Z'
+updated_at: '2026-08-13T07:42:33.653973Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 61f0d7b2-4ea4-49b9-b849-6b612fb4815b
   request_fingerprint: 9864e04fd65f31463c553e326207516f963ec46c2898d76407f6279da6ba9829
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
