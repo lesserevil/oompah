@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T14:32:41.192085Z'
-updated_at: '2026-08-13T14:40:09.185346Z'
-work_branch: null
+updated_at: '2026-08-13T14:44:17.766604Z'
+work_branch: OOMPAH-1242
 target_branch: null
 review_url: null
 review_number: null
@@ -25,6 +25,16 @@ oompah.create_once:
   creation_marker: 17b045c2-9045-4892-be53-3eac67d25256
   request_fingerprint: 4e8f025d5976a94cb2d61527c19326a04aac0e16daf6d281733a3e92c80ba605
 oompah.lifecycle_revision: 1
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1242
+  head_sha: f10263212cf4f759f81fd2fd034ce383956dfd8f
+  submitted_at: '2026-08-13T14:44:09.735151+00:00'
+  updated_at: '2026-08-13T14:44:09.735151+00:00'
+oompah.work_branch: OOMPAH-1242
 ---
 ## Summary
 
@@ -42,5 +52,10 @@ author: oompah
 created: 2026-08-13 14:40
 ---
 Implemented exact-authority retirement in both startup recovery and the post-claim race boundary. An exact epic-rebase helper now cancels its obsolete nested topology repair before any fast-forward mutation; ordinary/title-shaped tasks remain fenced. Added restart and claim-race regressions. Focused suite: 103 passed; terminal mutation and secret scans passed.
+---
+author: oompah
+created: 2026-08-13 14:44
+---
+Implemented exact-helper authority retirement for legacy nested-topology repair and shutdown-safe epic event routing. Regression coverage passes (103 focused tests); PR #868 is under hosted review.
 ---
 <!-- COMMENTS:END -->
