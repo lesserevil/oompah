@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T13:47:10.437674Z'
-updated_at: '2026-08-13T13:59:36.259126Z'
+updated_at: '2026-08-13T14:52:53.518980Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,16 @@ author: oompah
 created: 2026-08-13 13:59
 ---
 Implemented regression coverage and repair: helper admission and direct maintenance workspace allocation now preserve the parent epic's persisted work_branch instead of synthesizing a current-convention branch. This covers the live TRICKLE-130/TRICKLE-141 pre-convention source mismatch.
+---
+author: oompah
+created: 2026-08-13 14:52
+---
+Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
+
+Source: `backend:orchestrator`
+
+Message: ACP worker failed issue_id=TRICKLE-141
+
+Source issue: `TRICKLE-141`
 ---
 <!-- COMMENTS:END -->
