@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T18:57:41.903878Z'
-updated_at: '2026-08-13T22:12:22.596381Z'
+updated_at: '2026-08-13T22:17:36.229423Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-08-13 22:12
 ---
 Independent exact-head review found two blockers before merge: incomplete GitLab project/parent/branch projection and a two-write crash window between parent REBASED state and target evidence. Both are fixed at updated head 609cec731: GitLab now canonicalizes parent identity and projects exact scope/branches; parent state+target now persist in one durable snapshot before label I/O, with existing target retained across transitions. New adapter and simulated-crash/restart regressions pass. Verification: 730 tracker tests, 638 workflow/audit tests, terminal scan 21/21. Fresh exact-head review and CI are running.
+---
+author: oompah
+created: 2026-08-13 22:17
+---
+Second exact-head review found the post-persistence label-repair restart edge and ignored save failure. Fixed at 2d2d3d485: same-state recovery now reconciles stale labels, integration recovery re-enters only for proven integrated Done helpers whose parent label still needs repair, and a failed state snapshot aborts before labels/completion. Added simulated restart label repair, failed-save, direct-completion fail-closed, and integrated-checkpoint recovery tests. Combined focused suite: 1,371 passed; direct changed-path set: 386 passed; terminal scan and secret scan pass. Final exact-head review and CI are running.
 ---
 <!-- COMMENTS:END -->
