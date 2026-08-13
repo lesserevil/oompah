@@ -41514,6 +41514,15 @@ class Orchestrator:
         allow_repair: bool = True,
         publish_wait: bool = True,
     ) -> NestedDispatchEvidence | None:
+        # An exact-authority epic-rebase helper repairs the nested branch that
+        # ordinary child topology preflight requires to already be reachable.
+        # Applying that preflight here is therefore recursive: the helper can
+        # run only after completing its own work.  Server-issued publish
+        # authority binds the project, parent epic, helper identity, source
+        # generation, and target; title-shaped or otherwise ordinary children
+        # do not receive this bypass.
+        if self._has_epic_rebase_publish_authority(issue):
+            return None
         evidence = self._collect_nested_dispatch_evidence(issue)
         if evidence is None:
             return None
