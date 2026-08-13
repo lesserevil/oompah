@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T12:43:52.537888Z'
-updated_at: '2026-08-13T12:43:52.537888Z'
+updated_at: '2026-08-13T12:44:49.555401Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Live scheduling bug: OOMPAH-1236 created TRICKLE-141, an exact-generation rebase
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 12:44
+---
+Claimed directly from live TRICKLE-141 dispatch failure. The helper has exact server-owned rebase authority and authoritative target epic-TRICKLE-127, but generic release-pick pattern validation rejects it. Implementing the narrow authority-backed exemption now; Oompah remains paused and only Trickle is resumed.
+---
+<!-- COMMENTS:END -->
