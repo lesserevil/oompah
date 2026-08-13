@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:08:25.770498Z'
-updated_at: '2026-08-13T08:02:10.565267Z'
-work_branch: null
+updated_at: '2026-08-13T08:13:18.186839Z'
+work_branch: OOMPAH-1223
 target_branch: null
 review_url: null
 review_number: null
@@ -25,6 +25,16 @@ oompah.create_once:
   creation_marker: 61f0d7b2-4ea4-49b9-b849-6b612fb4815b
   request_fingerprint: 9864e04fd65f31463c553e326207516f963ec46c2898d76407f6279da6ba9829
 oompah.lifecycle_revision: 1
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1223
+  head_sha: 9110278408b23f4ad74e33aa8367a4f12ce24045
+  submitted_at: '2026-08-13T08:13:08.164084+00:00'
+  updated_at: '2026-08-13T08:13:08.164084+00:00'
+oompah.work_branch: OOMPAH-1223
 ---
 ## Summary
 
@@ -52,5 +62,10 @@ author: oompah
 created: 2026-08-13 08:02
 ---
 Hosted gate compatibility follow-up complete: fixed loose tracker doubles being misclassified as inferred rollups and preserved specific Open-rollup landing work ahead of aggregate status reconciliation while keeping Backlog hierarchy activation authoritative. All eight hosted failures now pass locally; expanded focused coverage is 893 passed. Corrected head 911027840 is pushed and full Python 3.11/3.12/3.13 gates are running.
+---
+author: oompah
+created: 2026-08-13 08:13
+---
+Unified inferred and declared rollup authority across runtime partitioning, target facts, event routing, hierarchy admission, and restart recovery. Backlog ancestors now activate durably before descendants dispatch; late topology races defer without consuming retry attempts. Focused hierarchy/review compatibility coverage: 893 passed. Hosted full gates passed on Python 3.11, 3.12, and 3.13.
 ---
 <!-- COMMENTS:END -->
