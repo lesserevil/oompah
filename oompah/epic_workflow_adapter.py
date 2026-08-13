@@ -1382,9 +1382,19 @@ class OrchestratorEpicWorkflowEffects:
                 category=WorkflowFailureCategory.TRANSIENT,
                 retryable=True,
             ) from exc
+        if isinstance(helper, Issue):
+            try:
+                # Native Markdown records derive project identity from their
+                # tracker/repository and therefore legitimately deserialize
+                # with an empty ``project_id``.  Bind that implicit scope
+                # before asking the orchestrator to recognize its exact,
+                # server-issued rebase authority.  A conflicting explicit
+                # project still fails closed below.
+                helper = normalize_issue_project_scope(helper, self.project_id)
+            except EpicProjectScopeError:
+                return None
         if (
             not isinstance(helper, Issue)
-            or _text(helper.project_id) not in {"", self.project_id}
             or _text(helper.parent_id) != epic.identifier
             or not self.orchestrator._is_epic_rebase_task(
                 helper, epic.identifier
@@ -1426,6 +1436,14 @@ class OrchestratorEpicWorkflowEffects:
         matching: list[Issue] = []
         wrong_target: list[Issue] = []
         for helper in children:
+            try:
+                # Native Markdown children inherit the project from their
+                # tracker and may deserialize without an explicit project id.
+                # Bind that implicit scope before exact helper recognition so
+                # persisted server authority remains observable after restart.
+                helper = normalize_issue_project_scope(helper, self.project_id)
+            except EpicProjectScopeError:
+                continue
             if (
                 _text(helper.parent_id) != epic.identifier
                 or canonicalize_status(helper.state) not in active
@@ -2351,7 +2369,7 @@ class EpicWorkflowEventRouter:
             # under former observation/source contracts do not replay their
             # already-terminal idempotency keys after upgrade.
             event_payload["revalidation_contract"] = (
-                "target-source-head-immutable-helper-v4"
+                "target-source-head-native-helper-project-v5"
             )
         else:
             expected_head = issue_exact_head(epic)

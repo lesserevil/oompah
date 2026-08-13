@@ -1737,7 +1737,7 @@ class TestWorkspaceAllocation:
         assert issue.work_branch == "epic-epic-1"
         assert issue.branch_name == "epic-epic-1"
         orch.project_store.create_epic_worktree.assert_called_once_with(
-            "proj-1", "epic-1"
+            "proj-1", "epic-1", branch_name="epic-epic-1"
         )
         orch.project_store.create_worktree.assert_not_called()
         metadata = {
