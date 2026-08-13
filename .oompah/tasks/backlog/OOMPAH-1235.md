@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T11:41:26.466501Z'
-updated_at: '2026-08-13T11:41:26.466501Z'
+updated_at: '2026-08-13T11:41:43.959403Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Live scheduling bug exposed by TRICKLE-138/139 after OOMPAH-1234 woke their queu
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 11:41
+---
+Claimed directly from live Trickle monitoring. OOMPAH-1234 successfully woke both old topology repairs; both correctly require a TRICKLE-130 rebase, but the epic-rebase event self-supersedes on freshly recollected evidence and replays its terminal idempotency key. Implementing and validating the systemic fix now; Oompah remains paused and only Trickle is resumed.
+---
+<!-- COMMENTS:END -->
