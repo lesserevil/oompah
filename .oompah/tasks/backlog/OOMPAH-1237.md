@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T12:43:52.537888Z'
-updated_at: '2026-08-13T12:50:22.726303Z'
-work_branch: null
+updated_at: '2026-08-13T12:50:31.641648Z'
+work_branch: OOMPAH-1237
 target_branch: null
 review_url: null
 review_number: null
@@ -33,6 +33,7 @@ oompah.integration:
   head_sha: 6232cba0fb65d5099259424d7b5b298f37054a45
   submitted_at: '2026-08-13T12:50:17.846536+00:00'
   updated_at: '2026-08-13T12:50:17.846536+00:00'
+oompah.work_branch: OOMPAH-1237
 ---
 ## Summary
 
@@ -55,5 +56,10 @@ author: oompah
 created: 2026-08-13 12:50
 ---
 Implemented exact-authority recognition for nested epic rebase helpers without weakening ordinary untracked-target validation. Focused tests: 154 passed. Terminal mutation and secret scans passed. Commit 6232cba0f pushed.
+---
+author: oompah
+created: 2026-08-13 12:50
+---
+Exact server-issued nested-epic rebase authority now bypasses only the incompatible generic branch-pattern fence; forged legacy-title helpers and ordinary untracked targets remain rejected. Tests and scans pass; commit 6232cba0f is pushed.
 ---
 <!-- COMMENTS:END -->
