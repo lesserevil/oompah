@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T15:31:19.680451Z'
-updated_at: '2026-08-13T15:31:25.608232Z'
+updated_at: '2026-08-13T15:37:07.267843Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,3 +36,11 @@ Bug: an implementation_start job can complete with an ACTIVE durable disposition
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 15:37
+---
+Implemented on PR #869. Agent-sourced ACTIVE authority now expires when its start transition is complete and no exact live RunningEntry remains; transition-in-flight and direct-owner authority remain protected. This lets TRICKLE-141 enter durable recovery immediately after deploy. Focused suite: 550 passed; hosted CI in progress.
+---
+<!-- COMMENTS:END -->

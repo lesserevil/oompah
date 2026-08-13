@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T15:23:30.972748Z'
-updated_at: '2026-08-13T15:23:40.289886Z'
+updated_at: '2026-08-13T15:37:04.412053Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,3 +36,11 @@ Bug: a standalone Ready-to-Integrate submission can persist integration v2 with 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 15:37
+---
+Implemented on PR #869. Root cause: top-level standalone submit omitted the project default target, so exact Git verification could not capture base_sha and later blamed a healthy GitLab MR. Added default-target capture, precise diagnostics, and regression coverage. Focused suite: 550 passed; hosted CI in progress.
+---
+<!-- COMMENTS:END -->
