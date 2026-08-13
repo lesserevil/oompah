@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:16:04.050669Z'
-updated_at: '2026-08-13T09:23:15.614711Z'
-work_branch: null
+updated_at: '2026-08-13T09:47:30.645078Z'
+work_branch: OOMPAH-1227
 target_branch: null
 review_url: null
 review_number: null
@@ -25,6 +25,16 @@ oompah.create_once:
   creation_marker: 7ebb5290-c5a2-488e-9586-76491c07d68c
   request_fingerprint: 344cc165d4c7e22ad84d51c59e84eaa4c68fa512d3bfc1da15c5cc44f2e06548
 oompah.lifecycle_revision: 1
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1227
+  head_sha: 7887a5d9eb293c686e649dc70e275042a69ee70f
+  submitted_at: '2026-08-13T09:47:21.308990+00:00'
+  updated_at: '2026-08-13T09:47:21.308990+00:00'
+oompah.work_branch: OOMPAH-1227
 ---
 ## Summary
 
@@ -47,5 +57,10 @@ author: oompah
 created: 2026-08-13 09:23
 ---
 Implementation pushed and opened as PR #856. GitLab list responses missing immutable head/base evidence are hydrated through the exact MR detail endpoint; malformed/unavailable detail remains an unavailable observation. Focused GitLab SCM and review suites: 120 passed, 2 skipped. Hosted gates are running.
+---
+author: oompah
+created: 2026-08-13 09:47
+---
+Hydrate incomplete GitLab merge-request identity from the exact detail endpoint and fail closed when immutable head/base identity remains unavailable. Focused provider tests and hosted CI on Python 3.11, 3.12, and 3.13 pass.
 ---
 <!-- COMMENTS:END -->
