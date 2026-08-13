@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T11:02:41.641589Z'
-updated_at: '2026-08-13T11:02:47.058282Z'
+updated_at: '2026-08-13T11:02:55.452520Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,3 +36,11 @@ Live follow-up to OOMPAH-1232 on TRICKLE-138/139. OOMPAH-1232 breaks the in-call
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 11:02
+---
+Claimed directly after live verification of OOMPAH-1232. The deployed overlap fix handles new admissions, but pre-existing queued repairs need a bounded independent startup/maintenance wake. Implementing that recovery path now while Oompah remains paused and only Trickle is resumed.
+---
+<!-- COMMENTS:END -->
