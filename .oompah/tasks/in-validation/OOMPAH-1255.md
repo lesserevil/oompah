@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1255
 type: task
-status: Backlog
+status: In Validation
 priority: null
 title: Stamp native sibling scope before noncanonical rebase authority selection
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T18:13:35.579127Z'
-updated_at: '2026-08-13T18:22:12.014603Z'
+updated_at: '2026-08-13T18:30:35.977902Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,65 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: cbca0849-a742-4e96-9196-41c398ed2525
   request_fingerprint: 9787e58516647b17cd2bb7f697947ea7aa802671f8dc89dd12f0f358a4da8aef
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-8f9db42cad50
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1255
+    digest: 009f4916dbca6a26974577789d55909c6de11318f1bb23a8ce6d300feddf19f4
+  - version: 1
+    audit_id: audit-0002fec1d997
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1255
+    digest: 009f4916dbca6a26974577789d55909c6de11318f1bb23a8ce6d300feddf19f4
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8f9db42cad50
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1255
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 009f4916dbca6a26974577789d55909c6de11318f1bb23a8ce6d300feddf19f4
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T18:30:28.101348+00:00'
+    eligible_at: '2026-08-13T18:30:28.101348+00:00'
+    selected_ref: origin/OOMPAH-1255
+    selected_sha: 24ae869d94a828afa9c13b5d9b15f86d8d995847
+  - version: 1
+    audit_id: audit-0002fec1d997
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1255
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 009f4916dbca6a26974577789d55909c6de11318f1bb23a8ce6d300feddf19f4
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T18:30:28.101348+00:00'
+    prerequisite_audit_id: audit-8f9db42cad50
+    selected_ref: origin/OOMPAH-1255
+    selected_sha: 24ae869d94a828afa9c13b5d9b15f86d8d995847
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -41,5 +100,10 @@ author: oompah
 created: 2026-08-13 18:22
 ---
 Implementation is pushed in PR #873 (commit 24ae869d9). The fix restores tracker-known project scope on unstamped native sibling rows before authority classification and rejects conflicting scope. Verification: all 114 tests in tests/test_epic_rebase_state.py passed; make terminal-audit-scan passed; make check-secrets passed. Awaiting branch-gate CI.
+---
+author: oompah
+created: 2026-08-13 18:30
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
