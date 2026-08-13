@@ -25050,10 +25050,18 @@ class Orchestrator:
             and accepted_requeue_marker is not None
             and integration.wait_generation == accepted_requeue_marker
         )
+        if review_state == "open" and not re.fullmatch(
+            r"[0-9a-f]{40}|[0-9a-f]{64}", expected_base
+        ):
+            return (
+                "unknown",
+                forge_head,
+                "accepted standalone submission lacks exact base generation "
+                "identity; resubmit the exact published task head to repair it",
+            )
         if review_state == "open" and (
             not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", forge_head)
             or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", forge_base)
-            or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", expected_base)
         ):
             return (
                 "unknown",

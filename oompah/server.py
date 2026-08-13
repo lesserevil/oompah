@@ -6289,6 +6289,29 @@ async def _verify_submission_git_authority(
         return record
 
     base_branch = str(record.base_branch or "").strip() or None
+    if (
+        base_branch is None
+        and str(record.mode or "").strip().lower() == "standalone"
+        and not is_direct_epic_maintenance_issue(issue)
+    ):
+        get_project = getattr(store, "get", None)
+        project = get_project(project_id) if callable(get_project) else None
+        configured_default = getattr(project, "default_branch", None)
+        if (
+            not isinstance(configured_default, str)
+            or not configured_default.strip()
+        ):
+            configured_default = getattr(project, "branch", None)
+        base_branch = (
+            configured_default.strip()
+            if isinstance(configured_default, str) and configured_default.strip()
+            else None
+        )
+        if base_branch is None:
+            raise ValueError(
+                "standalone submission Git authority rejected: the managed "
+                "project has no default target branch"
+            )
     parent_id = str(getattr(issue, "parent_id", None) or "").strip()
     existing = getattr(issue, "integration", None)
     reuses_exact_submission = bool(

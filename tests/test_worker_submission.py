@@ -834,6 +834,56 @@ def test_new_head_without_base_uses_canonical_nested_target_and_merge_base(tmp_p
     assert verified.base_sha == target_sha
 
 
+def test_standalone_submission_without_base_uses_project_default_and_merge_base(
+    tmp_path,
+):
+    store, target_branch, task_branch, target_sha, _old_head, new_head = (
+        _real_nested_submission_store(tmp_path)
+    )
+    project = store.get("proj-1")
+    assert project is not None
+    project.default_branch = target_branch
+    issue = Issue(
+        id="TASK-STANDALONE",
+        identifier="TASK-STANDALONE",
+        title="Standalone task",
+        state="Ready to Integrate",
+        project_id="proj-1",
+        work_branch=task_branch,
+        integration=IntegrationRecord(
+            state="ready",
+            mode="standalone",
+            task_branch=task_branch,
+            head_sha=new_head,
+        ),
+    )
+    record = server_module._submission_record(
+        issue,
+        {
+            "summary": "Repair exact standalone submission authority",
+            "task_branch": task_branch,
+            "head_sha": new_head,
+            "remote_head_sha": new_head,
+            "worktree_clean": True,
+        },
+    )
+    assert record is issue.integration
+
+    orch = MagicMock()
+    orch.project_store = store
+    orch.config.parallel_epic_children_enabled = True
+    verified = asyncio.run(
+        server_module._verify_submission_git_authority(
+            orch, issue, "proj-1", record
+        )
+    )
+
+    assert verified is not record
+    assert verified.mode == "standalone"
+    assert verified.base_branch == target_branch
+    assert verified.base_sha == target_sha
+
+
 def test_same_head_submission_with_corrected_target_is_a_new_authority():
     issue = Issue(
         id="OOMPAH-834",
