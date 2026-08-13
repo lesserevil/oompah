@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T06:00:42.489158Z'
-updated_at: '2026-08-13T06:52:03.532567Z'
-work_branch: null
+updated_at: '2026-08-13T07:23:21.561028Z'
+work_branch: OOMPAH-1222
 target_branch: null
 review_url: null
 review_number: null
@@ -25,6 +25,16 @@ oompah.create_once:
   creation_marker: a69d81a1-c7cc-428e-96e5-30861dd2eeb2
   request_fingerprint: 282feaf6d1cba4c5475da05bde8327339074a59963c881e2aca2041aea61e268
 oompah.lifecycle_revision: 1
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1222
+  head_sha: 3769a6310e406692118d04c115b81254859de829
+  submitted_at: '2026-08-13T07:23:12.795525+00:00'
+  updated_at: '2026-08-13T07:23:12.795525+00:00'
+oompah.work_branch: OOMPAH-1222
 ---
 ## Summary
 
@@ -47,5 +57,10 @@ author: oompah
 created: 2026-08-13 06:52
 ---
 Implementation complete and under full-gate verification. The fix maps only a positively proven full review queue to WorkflowAdministrativeDeferral, preserves the exact generation/checkpoint without consuming attempts, keeps unavailable forge state on substantive bounded retries, and restart-rearms only authoritative legacy exhausted rows whose exact checkpoint branch/head still matches the current Ready standalone submission. Focused integration/runtime/job/standalone suites: 528 passed; full make test is in progress.
+---
+author: oompah
+created: 2026-08-13 07:23
+---
+Implemented exact non-substantive review-capacity deferrals and authoritative startup recovery for legacy exhausted standalone-delivery rows. Focused suites: 528 passed; full make test: 20,226 passed, 7 skipped, 2 xfailed; hosted Python 3.11/3.12/3.13 gates all passed. PR #852.
 ---
 <!-- COMMENTS:END -->
