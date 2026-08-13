@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from oompah.integration import IntegrationRecord
-from oompah.models import BlockerRef, Issue, Project
+from oompah.models import BlockerRef, EpicRebaseStateEntry, Issue, Project
 from oompah.orchestrator import NestedDispatchEvidence, Orchestrator
 from oompah.projects import NestedDispatchTopology, ProjectError, ProjectStore
 from oompah.workflow_jobs import WorkflowJobSpec, WorkflowJobState
@@ -174,6 +174,78 @@ def test_standalone_and_top_level_children_do_not_enter_nested_fence(tmp_path):
     assert orchestrator._collect_nested_dispatch_evidence(standalone) is None
     assert orchestrator._collect_nested_dispatch_evidence(top_level_child) is None
     orchestrator.project_store.observe_nested_dispatch_topology.assert_not_called()
+
+
+def test_exact_authority_rebase_helper_bypasses_recursive_nested_fence(tmp_path):
+    orchestrator, _tracker, child, nested, _topology = (
+        _oompah_770_796_fixture(tmp_path)
+    )
+    helper = _issue(
+        "OOMPAH-900",
+        parent_id=nested.identifier,
+        state="Needs Rebase",
+    )
+    helper.priority = 0
+    helper.title = "Rebase epic-OOMPAH-770 onto epic-OOMPAH-763"
+    helper.target_branch = "epic-OOMPAH-763"
+    orchestrator._epic_rebase_authorities[
+        orchestrator._epic_rebase_authority_key(
+            helper.project_id, nested.identifier
+        )
+    ] = EpicRebaseStateEntry(
+        state="rebasing",
+        updated_at=time.time(),
+        project_id=helper.project_id,
+        target_branch=helper.target_branch,
+        target_parent_id="OOMPAH-763",
+        target_resolution="authoritative_parent",
+        authority_generation="generation-1",
+        authority_task_id=helper.identifier,
+        authority_epic_head="a" * 40,
+        authority_target_head="f" * 40,
+    )
+    orchestrator._collect_nested_dispatch_evidence = MagicMock()
+
+    assert orchestrator._preflight_nested_epic_dispatch(helper) is None
+    orchestrator._collect_nested_dispatch_evidence.assert_not_called()
+
+
+def test_title_shaped_rebase_helper_without_authority_keeps_nested_fence(tmp_path):
+    orchestrator, _tracker, child, nested, _topology = (
+        _oompah_770_796_fixture(tmp_path)
+    )
+    helper = replace(
+        child,
+        identifier="OOMPAH-901",
+        id="OOMPAH-901",
+        state="Needs Rebase",
+        priority=0,
+        title="Rebase epic-OOMPAH-770 onto epic-OOMPAH-763",
+        target_branch="epic-OOMPAH-763",
+    )
+    blocked = NestedDispatchEvidence(
+        project_id="proj-1",
+        task_id=helper.identifier,
+        task_authority="task",
+        nested_epic_id=nested.identifier,
+        nested_authority="nested",
+        target_epic_id="OOMPAH-763",
+        target_authority="target",
+        topology=None,
+        required_heads=(),
+        topology_generation="topology",
+        generation="generation",
+        ready=False,
+        reason_code="nested_lineage_unavailable",
+    )
+    orchestrator._collect_nested_dispatch_evidence = MagicMock(
+        return_value=blocked
+    )
+
+    assert orchestrator._preflight_nested_epic_dispatch(
+        helper, allow_repair=False, publish_wait=False
+    ) is blocked
+    orchestrator._collect_nested_dispatch_evidence.assert_called_once_with(helper)
 
 
 def test_wrong_immediate_parent_target_fails_closed(tmp_path):
