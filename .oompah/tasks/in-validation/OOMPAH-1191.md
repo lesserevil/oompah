@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1191
 type: bug
-status: Open
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-140'
 parent: null
@@ -11,14 +11,72 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T22:41:57.033700Z'
-updated_at: '2026-08-13T01:43:46.627448Z'
+updated_at: '2026-08-13T01:55:37.724659Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-279f36055070
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1191
+    digest: fc049f390ddcd11b482b9f697e28cfcec3a38657d07caf7b8d6b590d36ec8c94
+  - version: 1
+    audit_id: audit-7709dfbfe186
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1191
+    digest: fc049f390ddcd11b482b9f697e28cfcec3a38657d07caf7b8d6b590d36ec8c94
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-279f36055070
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1191
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fc049f390ddcd11b482b9f697e28cfcec3a38657d07caf7b8d6b590d36ec8c94
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T01:55:31.525192+00:00'
+    eligible_at: '2026-08-13T01:55:31.525192+00:00'
+    selected_ref: origin/main
+    selected_sha: 5f88d74b9668dbf611767fdbd0cd1ef9d1750587
+  - version: 1
+    audit_id: audit-7709dfbfe186
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1191
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fc049f390ddcd11b482b9f697e28cfcec3a38657d07caf7b8d6b590d36ec8c94
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T01:55:31.525192+00:00'
+    prerequisite_audit_id: audit-279f36055070
+    selected_ref: origin/main
+    selected_sha: 5f88d74b9668dbf611767fdbd0cd1ef9d1750587
+  attempt_history: []
 ---
 ## Summary
 
@@ -82,5 +140,10 @@ author: oompah
 created: 2026-08-13 01:43
 ---
 Root cause confirmed live on TRICKLE-140: duplicate screening reused mutable implementation workspace recovery after an accepted branch had been merged/deleted. Implemented attempt-scoped detached read-only screening at the immutable accepted SHA (or an atomic target-branch snapshot for fresh tasks), plus exact cleanup. Focused tests cover merged/deleted source branches and cleanup scoping.
+---
+author: oompah
+created: 2026-08-13 01:55
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
