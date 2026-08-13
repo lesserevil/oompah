@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1221
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Accepted integration submissions must preempt implementation dispatch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T05:19:06.019608Z'
-updated_at: '2026-08-13T05:19:06.019608Z'
+updated_at: '2026-08-13T05:19:23.913347Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: e27c0303-bd1e-4eda-a993-267b894fdfa2
   request_fingerprint: 5111a3df750124b1bb3921dfea79e59f57e7038b91724e04203367574ce50d73
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -35,3 +36,11 @@ Bug: a task can carry an exact accepted integration record (integration.state=re
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 05:19
+---
+Claiming directly. The live reproduction has six exhausted completed submissions plus three redundant implementations admitted after restart; OOMPAH-1218 prevents status drift for new assignment transitions but accepted submission authority still needs to preempt implementation decisions.
+---
+<!-- COMMENTS:END -->
