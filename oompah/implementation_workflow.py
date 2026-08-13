@@ -730,6 +730,16 @@ class ImplementationWorkflowController:
                         actions=tuple(IMPLEMENTATION_ACTIONS),
                     )
                 )
+                if protected_materialized:
+                    self.store.reconcile_event_handoff_retirements(
+                        project_id=item.decision.project_id,
+                        task_id=item.decision.task_id,
+                        authority_scheduling_lanes=(
+                            IMPERATIVE_IMPLEMENTATION_LANE,
+                        ),
+                        retired_scheduling_lanes=(FACT_IMPLEMENTATION_LANE,),
+                        actions=tuple(IMPLEMENTATION_ACTIONS),
+                    )
                 materialized += int(protected_materialized)
                 schedules_materialized += int(protected_materialized)
             else:

@@ -59,6 +59,25 @@ _LIFECYCLE_FINAL_AUTHORITY_REVISIONS = frozenset(
 _DURABLE_RETIREMENT_PROOF_PREDICATE = """
 (
     (
+        retirement.authority_kind = 'event_handoff'
+        AND retirement.snapshot_generation IS NULL
+        AND job.workflow_managed = 0
+        AND EXISTS (
+            SELECT 1
+              FROM workflow_event_cursors cursor
+              JOIN workflow_jobs handoff
+                ON handoff.project_id = cursor.project_id
+               AND handoff.task_id = cursor.task_id
+               AND handoff.scheduling_lane = cursor.event_namespace
+               AND handoff.generation = cursor.event_generation
+             WHERE cursor.project_id = retirement.project_id
+               AND cursor.task_id = retirement.task_id
+               AND cursor.event_generation = retirement.decision_revision
+               AND handoff.workflow_managed = 0
+               AND handoff.state NOT IN ('superseded', 'cancelled')
+        )
+    )
+    OR (
         retirement.authority_kind = 'terminal_audit_handoff'
         AND retirement.snapshot_generation IS NULL
         AND EXISTS (
@@ -2965,6 +2984,104 @@ class WorkflowJobStore:
             and _job_row_proves_live_authority(row, now=timestamp)
         )
 
+    def reconcile_event_handoff_retirements(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        authority_scheduling_lanes: Sequence[str],
+        retired_scheduling_lanes: Sequence[str],
+        actions: Sequence[str],
+        now: float | None = None,
+    ) -> int:
+        """Retire exhausted lanes behind the current exact event authority.
+
+        This also repairs handoffs written by an older service version: the
+        active event cursor and its concrete non-retired job are sufficient
+        durable authority. Only explicitly named sibling lanes are retired.
+        """
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        authority_lanes = tuple(
+            sorted(
+                {
+                    _required_text(lane, "authority_scheduling_lane")
+                    for lane in authority_scheduling_lanes
+                }
+            )
+        )
+        retired_lanes = tuple(
+            sorted(
+                {
+                    _required_text(lane, "retired_scheduling_lane")
+                    for lane in retired_scheduling_lanes
+                }
+            )
+        )
+        normalized_actions = tuple(
+            sorted({_required_text(action, "action") for action in actions})
+        )
+        if not authority_lanes:
+            raise ValueError("authority_scheduling_lanes cannot be empty")
+        if not retired_lanes:
+            raise ValueError("retired_scheduling_lanes cannot be empty")
+        if not normalized_actions:
+            raise ValueError("actions cannot be empty")
+        timestamp = float(self._clock() if now is None else now)
+        with self._authority_mutation_guard():
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                authority = self._conn.execute(
+                    f"""
+                    SELECT job.generation, job.scheduling_lane,
+                           job.enqueue_sequence
+                      FROM workflow_jobs job
+                      JOIN workflow_event_cursors cursor
+                        ON cursor.project_id = job.project_id
+                       AND cursor.task_id = job.task_id
+                       AND cursor.event_namespace = job.scheduling_lane
+                       AND cursor.event_generation = job.generation
+                     WHERE job.project_id = ? AND job.task_id = ?
+                       AND job.workflow_managed = 0
+                       AND job.scheduling_lane IN (
+                           {','.join('?' for _ in authority_lanes)}
+                       )
+                       AND job.action IN (
+                           {','.join('?' for _ in normalized_actions)}
+                       )
+                       AND job.state NOT IN (?, ?)
+                     ORDER BY job.enqueue_sequence DESC LIMIT 1
+                    """,
+                    (
+                        project,
+                        task,
+                        *authority_lanes,
+                        *normalized_actions,
+                        WorkflowJobState.SUPERSEDED.value,
+                        WorkflowJobState.CANCELLED.value,
+                    ),
+                ).fetchone()
+                if authority is None:
+                    self._conn.commit()
+                    return 0
+                retired = self._record_event_handoff_retirements_locked(
+                    project_id=project,
+                    task_id=task,
+                    authority_generation=str(authority["generation"]),
+                    authority_scheduling_lane=str(authority["scheduling_lane"]),
+                    authority_enqueue_sequence=int(
+                        authority["enqueue_sequence"]
+                    ),
+                    retired_scheduling_lanes=retired_lanes,
+                    now=timestamp,
+                )
+                self._conn.commit()
+                return retired
+            except Exception:
+                self._conn.rollback()
+                raise
+
     def terminal_audit_lane_materialized(
         self,
         *,
@@ -4314,6 +4431,16 @@ class WorkflowJobStore:
                     )
                     superseded += 1
                 result = self._from_row(self._row_locked(job.job_id))
+                if supersede_lanes:
+                    self._record_event_handoff_retirements_locked(
+                        project_id=project,
+                        task_id=task,
+                        authority_generation=generation,
+                        authority_scheduling_lane=lane,
+                        authority_enqueue_sequence=job.enqueue_sequence,
+                        retired_scheduling_lanes=tuple(supersede_lanes),
+                        now=timestamp,
+                    )
                 self._conn.commit()
                 return WorkflowEventWrite(result, True, created, superseded)
             except Exception:
@@ -4744,6 +4871,118 @@ class WorkflowJobStore:
                     snapshot_generation,
                     now,
                 ),
+            )
+        return len(rows)
+
+    def _record_event_handoff_retirements_locked(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        authority_generation: str,
+        authority_scheduling_lane: str,
+        authority_enqueue_sequence: int,
+        retired_scheduling_lanes: Sequence[str],
+        now: float,
+    ) -> int:
+        """Bind named event lanes to one exact current event successor."""
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        generation = _required_text(authority_generation, "authority_generation")
+        authority_lane = _required_text(
+            authority_scheduling_lane, "authority_scheduling_lane"
+        )
+        if (
+            isinstance(authority_enqueue_sequence, bool)
+            or int(authority_enqueue_sequence) < 1
+        ):
+            raise ValueError("authority_enqueue_sequence must be positive")
+        authority_sequence = int(authority_enqueue_sequence)
+        retired_lanes = tuple(
+            sorted(
+                {
+                    _required_text(lane, "retired_scheduling_lane")
+                    for lane in retired_scheduling_lanes
+                }
+            )
+        )
+        if not retired_lanes:
+            raise ValueError("retired_scheduling_lanes cannot be empty")
+        authority = self._conn.execute(
+            """
+            SELECT job.enqueue_sequence
+              FROM workflow_event_cursors cursor
+              JOIN workflow_jobs job
+                ON job.project_id = cursor.project_id
+               AND job.task_id = cursor.task_id
+               AND job.scheduling_lane = cursor.event_namespace
+               AND job.generation = cursor.event_generation
+             WHERE cursor.project_id = ? AND cursor.task_id = ?
+               AND cursor.event_namespace = ?
+               AND cursor.event_generation = ?
+               AND job.workflow_managed = 0
+               AND job.state NOT IN (?, ?)
+             LIMIT 1
+            """,
+            (
+                project,
+                task,
+                authority_lane,
+                generation,
+                WorkflowJobState.SUPERSEDED.value,
+                WorkflowJobState.CANCELLED.value,
+            ),
+        ).fetchone()
+        if authority is None:
+            raise WorkflowJobStoreError(
+                "event handoff retirement lost its exact successor job"
+            )
+        rows = self._conn.execute(
+            f"""
+            SELECT job_id
+              FROM workflow_jobs
+             WHERE project_id = ? AND task_id = ?
+               AND workflow_managed = 0
+                AND scheduling_lane IN (
+                   {','.join('?' for _ in retired_lanes)}
+               )
+               AND enqueue_sequence < ?
+               AND NOT (
+                   scheduling_lane = ? AND generation = ?
+               )
+             ORDER BY enqueue_sequence
+            """,
+            (
+                project,
+                task,
+                *retired_lanes,
+                authority_sequence,
+                authority_lane,
+                generation,
+            ),
+        ).fetchall()
+        rows = [
+            row
+            for row in rows
+            if not self._job_has_durable_retirement_locked(str(row["job_id"]))
+        ]
+        for row in rows:
+            self._conn.execute(
+                """
+                INSERT INTO workflow_job_retirements(
+                    job_id, project_id, task_id, authority_kind,
+                    decision_revision, snapshot_generation, retired_at
+                ) VALUES (?, ?, ?, 'event_handoff', ?, NULL, ?)
+                ON CONFLICT(job_id) DO UPDATE SET
+                    project_id = excluded.project_id,
+                    task_id = excluded.task_id,
+                    authority_kind = excluded.authority_kind,
+                    decision_revision = excluded.decision_revision,
+                    snapshot_generation = NULL,
+                    retired_at = excluded.retired_at
+                """,
+                (str(row["job_id"]), project, task, generation, now),
             )
         return len(rows)
 

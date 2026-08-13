@@ -12,7 +12,10 @@ from pathlib import Path
 import pytest
 
 from oompah.implementation_workflow import (
+    FACT_IMPLEMENTATION_LANE,
+    IMPERATIVE_IMPLEMENTATION_LANE,
     IMPLEMENTATION_ACTIONS,
+    IMPLEMENTATION_ORDERING_NAMESPACE,
     ImplementationAction,
     ImplementationDisposition,
     ImplementationExecutionResult,
@@ -994,6 +997,170 @@ def test_fact_reconcile_counts_different_protected_imperative_event(tmp_path):
     assert [job for job in store.list_jobs() if job.state in ACTIVE_JOB_STATES] == [
         imperative
     ]
+    store.close()
+
+
+def test_imperative_handoff_retires_prior_fact_exhaustion(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    task = issue(OPEN)
+    controller = ImplementationWorkflowController(
+        collector=collector([task]), store=store
+    )
+    _batch, initial = controller.reconcile([task])
+    assert initial.jobs_materialized == 1
+    fact = store.claim_next(
+        lease_owner="fact-worker",
+        lease_seconds=30,
+        actions=(ImplementationAction.START.value,),
+    )
+    assert fact is not None
+    store.fail(
+        fact.job_id,
+        fact.lease_token,
+        error="fact generation exhausted",
+        category="permanent",
+        retryable=False,
+    )
+    assert [job.job_id for job in store.current_exhausted_jobs(
+        project_id=task.project_id, task_id=task.identifier
+    )] == [fact.job_id]
+
+    retry = event(controller, ImplementationAction.RETRY)
+
+    assert store.get(retry.job_id).state is WorkflowJobState.QUEUED
+    assert not store.current_exhausted_jobs(
+        project_id=task.project_id, task_id=task.identifier
+    )
+    claimed_retry = store.claim_next(
+        lease_owner="retry-worker",
+        lease_seconds=30,
+        actions=(ImplementationAction.RETRY.value,),
+    )
+    assert claimed_retry is not None
+    store.fail(
+        claimed_retry.job_id,
+        claimed_retry.lease_token,
+        error="successor exhausted",
+        category="permanent",
+        retryable=False,
+    )
+    assert [job.job_id for job in store.current_exhausted_jobs(
+        project_id=task.project_id, task_id=task.identifier
+    )] == [retry.job_id]
+    store.close()
+
+
+def test_fact_reconcile_repairs_legacy_imperative_handoff_retirement(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    task = issue(OPEN)
+    controller = ImplementationWorkflowController(
+        collector=collector([task]), store=store
+    )
+    controller.reconcile([task])
+    fact = store.claim_next(
+        lease_owner="fact-worker",
+        lease_seconds=30,
+        actions=(ImplementationAction.START.value,),
+    )
+    assert fact is not None
+    store.fail(
+        fact.job_id,
+        fact.lease_token,
+        error="legacy fact exhaustion",
+        category="permanent",
+        retryable=False,
+    )
+    source_generation = store.allocate_event_generation()
+    legacy = store.materialize_event(
+        project_id=task.project_id,
+        task_id=task.identifier,
+        decision_revision="legacy-imperative-retry",
+        action=ImplementationAction.RETRY.value,
+        idempotency_namespace="implementation",
+        scheduling_lane=IMPERATIVE_IMPLEMENTATION_LANE,
+        ordering_namespace=IMPLEMENTATION_ORDERING_NAMESPACE,
+        source_generation=source_generation,
+        source_revision="legacy-imperative-retry",
+        payload={
+            "owner_id": "agent-1",
+            "work_branch": task.work_branch,
+            "expected_status": task.state,
+        },
+    )
+    assert legacy.job is not None
+    assert store.current_exhausted_jobs(
+        project_id=task.project_id, task_id=task.identifier
+    )
+
+    _batch, repaired = controller.reconcile([task])
+
+    assert repaired.jobs_materialized == 1
+    assert repaired.truncated is False
+    assert not store.current_exhausted_jobs(
+        project_id=task.project_id, task_id=task.identifier
+    )
+    assert store.get(legacy.job.job_id).state is WorkflowJobState.QUEUED
+    store.close()
+
+
+def test_legacy_handoff_does_not_retire_newer_fact_exhaustion(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    task = issue(OPEN)
+    controller = ImplementationWorkflowController(
+        collector=collector([task]), store=store
+    )
+    controller.reconcile([task])
+    first_fact = store.claim_next(
+        lease_owner="first-fact-worker",
+        lease_seconds=30,
+        actions=(ImplementationAction.START.value,),
+    )
+    assert first_fact is not None
+    store.fail(
+        first_fact.job_id,
+        first_fact.lease_token,
+        error="older fact exhaustion",
+        category="permanent",
+        retryable=False,
+    )
+    retry = event(controller, ImplementationAction.RETRY)
+    newer_generation = store.allocate_event_generation()
+    newer_fact = store.materialize_event(
+        project_id=task.project_id,
+        task_id=task.identifier,
+        decision_revision="newer-fact",
+        action=ImplementationAction.START.value,
+        idempotency_namespace="implementation",
+        scheduling_lane=FACT_IMPLEMENTATION_LANE,
+        ordering_namespace=IMPLEMENTATION_ORDERING_NAMESPACE,
+        source_generation=newer_generation,
+        source_revision="newer-fact",
+        payload={
+            "work_branch": task.work_branch,
+            "expected_status": task.state,
+        },
+    )
+    assert newer_fact.job is not None
+    claimed_newer = store.claim_next(
+        lease_owner="newer-fact-worker",
+        lease_seconds=30,
+        actions=(ImplementationAction.START.value,),
+    )
+    assert claimed_newer is not None
+    store.fail(
+        claimed_newer.job_id,
+        claimed_newer.lease_token,
+        error="newer fact exhaustion",
+        category="permanent",
+        retryable=False,
+    )
+
+    controller.reconcile([task])
+
+    assert [job.job_id for job in store.current_exhausted_jobs(
+        project_id=task.project_id, task_id=task.identifier
+    )] == [newer_fact.job.job_id]
+    assert store.get(retry.job_id).state is WorkflowJobState.QUEUED
     store.close()
 
 
