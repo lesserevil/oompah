@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:29:16.227300Z'
-updated_at: '2026-08-13T16:49:13.216406Z'
+updated_at: '2026-08-13T22:41:56.984295Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,5 +69,14 @@ Duplicate error_watcher occurrence suppressed; this task already tracks the same
 Source: `backend:server`
 
 Message: Update issue API error: TaskTransitionNotApplied('OOMPAH-1251: In Progress was not applied (rejected: transition.project_owner_authority_required)')
+---
+author: oompah
+created: 2026-08-13 22:41
+---
+Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
+
+Source: `backend:server`
+
+Message: Update issue API error: TaskTransitionNotApplied('OOMPAH-1258: In Progress was not applied (rejected: transition.project_owner_authority_required)')
 ---
 <!-- COMMENTS:END -->

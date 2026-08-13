@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T22:41:28.315466Z'
-updated_at: '2026-08-13T22:41:28.315466Z'
+updated_at: '2026-08-13T22:41:59.562731Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Live follow-up to OOMPAH-1257. In all-enforce mode, a recognized direct epic reb
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 22:41
+---
+Claimed for direct implementation after live all-enforce reproduction: TRICKLE-141 is correctly classified as a noncanonical direct helper, but state=ready is routed to generic integration_landing_refresh because the only ready-to-proven conversion remains in the disabled legacy project sweep. Implementing a task-scoped durable maintenance-completion action; no project-wide writer will be re-enabled.
+---
+<!-- COMMENTS:END -->
