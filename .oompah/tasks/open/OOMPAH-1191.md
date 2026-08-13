@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T22:41:57.033700Z'
-updated_at: '2026-08-13T01:16:49.627650Z'
+updated_at: '2026-08-13T01:43:46.627448Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -77,5 +77,10 @@ Source: `backend:orchestrator`
 Message: ACP worker failed issue_id=TRICKLE-140
 
 Source issue: `TRICKLE-140`
+---
+author: oompah
+created: 2026-08-13 01:43
+---
+Root cause confirmed live on TRICKLE-140: duplicate screening reused mutable implementation workspace recovery after an accepted branch had been merged/deleted. Implemented attempt-scoped detached read-only screening at the immutable accepted SHA (or an atomic target-branch snapshot for fresh tasks), plus exact cleanup. Focused tests cover merged/deleted source branches and cleanup scoping.
 ---
 <!-- COMMENTS:END -->
