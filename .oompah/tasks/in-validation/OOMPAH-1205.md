@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1205
 type: bug
-status: Open
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-121 identifier=TRICKLE-121 run_id=6fb92a00160243d3ae918f5d6e89ab70
@@ -13,14 +13,72 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:27:25.590177Z'
-updated_at: '2026-08-13T01:54:50.226790Z'
+updated_at: '2026-08-13T02:13:52.694913Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-7fd8fe1e9a76
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1205
+    digest: d7ba4e7bd601ecabc33b27929790ae46046c0f41eef078145a5afc687be7b6e8
+  - version: 1
+    audit_id: audit-abc8ccb8d154
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1205
+    digest: d7ba4e7bd601ecabc33b27929790ae46046c0f41eef078145a5afc687be7b6e8
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-7fd8fe1e9a76
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1205
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d7ba4e7bd601ecabc33b27929790ae46046c0f41eef078145a5afc687be7b6e8
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T02:13:47.162500+00:00'
+    eligible_at: '2026-08-13T02:13:47.162500+00:00'
+    selected_ref: origin/OOMPAH-1205
+    selected_sha: 2649a99fe7a7d734a9a87a115e87fc06ec46b255
+  - version: 1
+    audit_id: audit-abc8ccb8d154
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1205
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d7ba4e7bd601ecabc33b27929790ae46046c0f41eef078145a5afc687be7b6e8
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T02:13:47.162500+00:00'
+    prerequisite_audit_id: audit-7fd8fe1e9a76
+    selected_ref: origin/OOMPAH-1205
+    selected_sha: 2649a99fe7a7d734a9a87a115e87fc06ec46b255
+  attempt_history: []
 ---
 ## Summary
 
@@ -72,5 +130,10 @@ author: oompah
 created: 2026-08-13 01:54
 ---
 Fix pushed on branch OOMPAH-1205. Each state-branch tracker generation now synchronizes once before its first mutation; subsequent buffered writes remain local until checkpoint publication, while push rejection still performs fetch/rebase recovery. Verification: 60 native state-branch tests and 40 provider-retirement/managed-guard tests pass; terminal mutation and secret scans pass.
+---
+author: oompah
+created: 2026-08-13 02:13
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
