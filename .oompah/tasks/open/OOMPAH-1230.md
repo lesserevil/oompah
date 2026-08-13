@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:58:05.284702Z'
-updated_at: '2026-08-13T09:59:44.862434Z'
+updated_at: '2026-08-13T10:03:05.522663Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,10 @@ author: oompah
 created: 2026-08-13 09:59
 ---
 Claimed directly for live scheduling recovery. Root cause captured from the newly added traceback: WorkflowRuntime.from_orchestrator defines workflow_transition_guard(intent) but TaskTransitionService invokes mutation guards as guard(intent, issue). Every runtime validation transition therefore raises TypeError before the specific validation authority check. Fixing the adapter signature and adding an end-to-end regression now.
+---
+author: oompah
+created: 2026-08-13 10:03
+---
+Fix pushed with regression coverage. The runtime guard now honors TaskTransitionService's two-argument callback contract while retaining its own fresh authoritative tracker read. Focused workflow runtime and task transition suites: 284 passed. Hosted gates are starting.
 ---
 <!-- COMMENTS:END -->
