@@ -3867,7 +3867,7 @@ class TestGitLabListOpenReviews:
             "diff_refs": {"base_sha": "b" * 40},
             "source_project_id": 21,
             "target_project_id": 21,
-            "head_pipeline": None,
+            "head_pipeline": {"status": "success"},
             "changes_count": 5,
         }
         base.update(overrides)
@@ -3978,6 +3978,79 @@ class TestGitLabListOpenReviews:
         p._api = lambda m, path, **kw: _GL.r([mr])
         reviews = p.list_open_reviews("g/p")
         assert reviews[0].ci_status is CIStatus.UNKNOWN
+
+    @pytest.mark.parametrize(
+        ("pipeline_status", "expected"),
+        [
+            ("success", CIStatus.PASSED),
+            ("failed", CIStatus.FAILED),
+            ("running", CIStatus.PENDING),
+        ],
+    )
+    def test_missing_head_pipeline_falls_back_to_exact_head_pipeline(
+        self, pipeline_status, expected
+    ):
+        mr = self._mr(head_pipeline=None, sha="c" * 40)
+        calls = []
+        p = _GL.provider()
+
+        def fake(method, path, **kwargs):
+            calls.append((path, kwargs.get("params")))
+            if path.endswith("/merge_requests"):
+                return _GL.r([mr])
+            if path.endswith("/pipelines"):
+                assert kwargs["params"]["sha"] == "c" * 40
+                return _GL.r(
+                    [{"id": 17, "status": pipeline_status, "web_url": "pipeline"}]
+                )
+            if path.endswith("/pipelines/17/jobs"):
+                return _GL.r([])
+            raise AssertionError(path)
+
+        p._api = fake
+
+        review = p.list_open_reviews("g/p")[0]
+
+        assert review.ci_status is expected
+        assert review.head_sha == "c" * 40
+        assert any(path.endswith("/pipelines") for path, _params in calls)
+
+    def test_missing_head_pipeline_preserves_fallback_capability_warning(self):
+        mr = self._mr(head_pipeline=None, sha="d" * 40)
+        p = _GL.provider()
+
+        def fake(_method, path, **_kwargs):
+            if path.endswith("/merge_requests"):
+                return _GL.r([mr])
+            if path.endswith("/pipelines"):
+                return _GL.r(code=403)
+            raise AssertionError(path)
+
+        p._api = fake
+
+        review = p.list_open_reviews("g/p")[0]
+
+        assert review.ci_status is CIStatus.UNKNOWN
+        assert review.ci_warnings == [
+            {
+                "type": "gitlab_ci_forbidden",
+                "message": (
+                    "CI check results are unavailable: HTTP 403 from GitLab "
+                    "pipelines API. Grant CI access to your token so oompah "
+                    "can observe CI status."
+                ),
+            }
+        ]
+
+    def test_embedded_head_pipeline_avoids_fallback_lookup(self):
+        mr = self._mr(head_pipeline={"status": "success"})
+        p = _GL.provider()
+        p._api = mock.MagicMock(return_value=_GL.r([mr]))
+
+        review = p.list_open_reviews("g/p")[0]
+
+        assert review.ci_status is CIStatus.PASSED
+        assert p._api.call_count == 1
 
     def test_draft_mr_detected_from_draft_field(self):
         mr = self._mr(draft=True, work_in_progress=False)

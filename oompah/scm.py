@@ -3464,8 +3464,13 @@ class GitLabProvider(SCMProvider):
                 if isinstance(rv, dict):
                     reviewers.append(rv.get("username", rv.get("name", "")))
 
-            # CI status from head_pipeline
+            # GitLab's merge-request list response may omit ``head_pipeline``
+            # even though an exact-head pipeline exists.  Treat the embedded
+            # object as a fast path, then fall back to the immutable head SHA
+            # through the provider's pipeline contract.  An unavailable or
+            # empty observation remains UNKNOWN and therefore retryable.
             ci_status = ""
+            ci_warnings: list[CapabilityWarning] = []
             pipeline = mr.get("head_pipeline") or {}
             if pipeline:
                 ps = pipeline.get("status", "").lower()
@@ -3475,6 +3480,15 @@ class GitLabProvider(SCMProvider):
                     ci_status = "failed"
                 elif ps in ("running", "pending", "created"):
                     ci_status = "pending"
+            head_sha = str(
+                mr.get("sha")
+                or (mr.get("diff_refs") or {}).get("head_sha")
+                or ""
+            )
+            if not ci_status and head_sha:
+                ci_status, ci_warnings = self._fetch_ci_status_and_warnings(
+                    repo, head_sha
+                )
 
             has_conflicts = mr.get("has_conflicts", False)
             rebase_needed = has_conflicts or (mr.get("diverged_commits_count") or 0) > 0
@@ -3494,15 +3508,12 @@ class GitLabProvider(SCMProvider):
                 draft=mr.get("draft", False) or mr.get("work_in_progress", False),
                 reviewers=reviewers,
                 ci_status=ci_status,
+                ci_warnings=ci_warnings,
                 additions=mr.get("changes_count", 0) if isinstance(mr.get("changes_count"), int) else 0,
                 deletions=0,
                 needs_rebase=rebase_needed,
                 has_conflicts=has_conflicts,
-                head_sha=str(
-                    mr.get("sha")
-                    or (mr.get("diff_refs") or {}).get("head_sha")
-                    or ""
-                ),
+                head_sha=head_sha,
                 base_sha=str((mr.get("diff_refs") or {}).get("base_sha") or ""),
                 source_repository=self._same_project_source_repository(repo, mr),
                 target_repository=repo,
