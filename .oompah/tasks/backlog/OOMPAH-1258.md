@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T22:41:28.315466Z'
-updated_at: '2026-08-13T22:41:59.562731Z'
+updated_at: '2026-08-13T23:11:58.708415Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-08-13 22:41
 ---
 Claimed for direct implementation after live all-enforce reproduction: TRICKLE-141 is correctly classified as a noncanonical direct helper, but state=ready is routed to generic integration_landing_refresh because the only ready-to-proven conversion remains in the disabled legacy project sweep. Implementing a task-scoped durable maintenance-completion action; no project-wide writer will be re-enabled.
+---
+author: oompah
+created: 2026-08-13 23:11
+---
+Implementation underway on branch OOMPAH-1258. Added a durable direct_epic_maintenance_completion integration action selected for exact Ready/Done helpers instead of generic landing refresh; it revalidates project/task/status/branch/head/evidence under the shared task mutex, calls the existing guarded completion primitive, observes proof plus parent rebase-state/label convergence, and handles the post-cancel/pre-label crash boundary idempotently. Validation: 729 focused workflow/runtime/orchestrator tests passed; 424 direct affected tests passed; terminal mutation scan 21/21; diff check clean. Independent review in progress.
 ---
 <!-- COMMENTS:END -->
