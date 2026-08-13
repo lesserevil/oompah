@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T18:13:35.579127Z'
-updated_at: '2026-08-13T18:30:35.977902Z'
+updated_at: '2026-08-13T18:52:31.495561Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -105,5 +105,10 @@ author: oompah
 created: 2026-08-13 18:30
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-13 18:52
+---
+Live acceptance passed after deployment at revision 535bccdcf: TRICKLE-141 published candidate b4add27840872ec39ea08bcb4c68895a4ff978db through the guarded server CAS path (published=true, recovered=false); origin/TRICKLE-130 now names that exact SHA; an independent Opus audit passed and advanced TRICKLE-141 to Done. The false duplicate-authority rejection is resolved.
 ---
 <!-- COMMENTS:END -->
