@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T13:08:46.480588Z'
-updated_at: '2026-08-13T13:08:46.480588Z'
+updated_at: '2026-08-13T13:09:10.054174Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Live scheduling bug observed after deploying OOMPAH-1237: exact-authority helper
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 13:09
+---
+Claimed directly from live TRICKLE-141 scheduling. Implementing the narrow exact-authority bypass now; only Trickle remains resumed.
+---
+<!-- COMMENTS:END -->
