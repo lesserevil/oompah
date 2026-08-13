@@ -2260,6 +2260,31 @@ def _evaluate_task_default_policy(
     if provenance_decision is not None:
         return provenance_decision
 
+    # A direct epic-maintenance helper has already published its accepted
+    # revision onto the authoritative parent ref.  Once its independent audit
+    # reaches Done there is no ordinary source-to-target landing left to
+    # discover; treating it as an ordinary Done child manufactures a missing
+    # landing fact and eventually an actionable retry-exhaustion alert.
+    integration = facts.fact(FactDomain.INTEGRATION)
+    integration_value = (
+        _mapping(integration.value)
+        if integration.state is FactState.KNOWN
+        else None
+    )
+    if (
+        view.status == DONE
+        and integration_value
+        and direct_epic_maintenance_handoff_ready(task, integration_value)
+    ):
+        return _decision(
+            view,
+            facts,
+            disposition=TaskDisposition.TERMINAL,
+            reason_code="maintenance.publication_proven",
+            owner=WorkflowOwner.NONE,
+            reassess=False,
+        )
+
     # A Done nested epic has already completed its own containment rollup.  Its
     # remaining obligation is the exact landing on its immediate target, just
     # like any other Done task.  Sending it back through child rollup can
@@ -2332,7 +2357,6 @@ def _evaluate_task_default_policy(
             actions=(PermittedAction.PROMOTE_OPEN,),
         )
     if view.status in {OPEN, NEEDS_CI_FIX, NEEDS_REBASE}:
-        integration = facts.fact(FactDomain.INTEGRATION)
         integration_value = (
             _mapping(integration.value)
             if integration.state is FactState.KNOWN

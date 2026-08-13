@@ -23,7 +23,7 @@ import threading
 import time
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -32,6 +32,15 @@ from oompah.authority_boundary import check_shell_command
 from oompah.epic_staleness import StalenessResult
 from oompah.models import EpicRebaseState, EpicRebaseStateEntry, Issue, OwnerClaim
 from oompah.integration import IntegrationRecord
+from oompah.terminal_audit import (
+    AuditAttempt,
+    EvidenceFingerprint,
+    RequestState,
+    TargetState,
+    TerminalAuditRecord,
+    Verdict,
+)
+from oompah.terminal_audit_metadata import TerminalAuditMetadata
 from oompah.orchestrator import EpicTargetResolutionError, Orchestrator
 from oompah.projects import ProjectError
 from oompah.statuses import DONE, IN_REVIEW, NEEDS_REBASE
@@ -244,6 +253,120 @@ class TestSetEpicRebaseState:
         ]
         # The label was already present on the issue, so no add-label needed.
         assert len(add_label_calls) == 0
+
+    def test_transition_persists_rebased_state_and_target_atomically(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = _make_issue(
+            "epic-1", labels=["epic:rebasing"]
+        )
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._epic_rebase_states["epic-1"] = EpicRebaseStateEntry(
+            state=EpicRebaseState.REBASING.value,
+            updated_at=time.time(),
+            project_id="proj-1",
+            target_branch="stale-target",
+            target_parent_id="stale-parent",
+            target_resolution="authoritative_parent",
+        )
+
+        def crash_during_label_sync(*_args, **_kwargs):
+            disk = json.loads((tmp_path / "state.json").read_text())
+            persisted = disk["epic_rebase_states"]["epic-1"]
+            assert persisted["state"] == "rebased"
+            assert persisted["target_branch"] == "epic-parent"
+            assert persisted["target_parent_id"] == "parent-1"
+            assert persisted["target_resolution"] == "authoritative_parent"
+            raise SystemExit("simulated process exit after durable state write")
+
+        tracker.fetch_issue_detail.side_effect = crash_during_label_sync
+
+        with pytest.raises(SystemExit, match="simulated process exit"):
+            orch._set_epic_rebase_state(
+                "epic-1",
+                EpicRebaseState.REBASED,
+                project_id="proj-1",
+                target_branch="epic-parent",
+                target_parent_id="parent-1",
+                target_resolution="authoritative_parent",
+            )
+
+        restarted = _make_orchestrator(tmp_path)
+        entry = restarted._epic_rebase_state_entry("epic-1", "proj-1")
+        assert entry is not None
+        assert entry.state == "rebased"
+        assert entry.target_branch == "epic-parent"
+        assert entry.target_parent_id == "parent-1"
+        assert entry.target_resolution == "authoritative_parent"
+
+        recovery_tracker = MagicMock()
+        recovery_tracker.fetch_issue_detail.return_value = _make_issue(
+            "epic-1", labels=["epic:rebasing"]
+        )
+        restarted._tracker_for_project = MagicMock(
+            return_value=recovery_tracker
+        )
+
+        assert restarted._set_epic_rebase_state(
+            "epic-1",
+            EpicRebaseState.REBASED,
+            project_id="proj-1",
+            target_branch="epic-parent",
+            target_parent_id="parent-1",
+            target_resolution="authoritative_parent",
+        )
+        recovery_tracker.update_issue.assert_any_call(
+            "epic-1", **{"remove-label": "epic:rebasing"}
+        )
+        recovery_tracker.update_issue.assert_any_call(
+            "epic-1", **{"add-label": "epic:rebased"}
+        )
+
+    def test_transition_fails_closed_before_labels_when_state_save_fails(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = _make_issue(
+            "epic-1", labels=["epic:rebasing"]
+        )
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._persist_epic_rebase_states = MagicMock(return_value=False)
+
+        persisted = orch._set_epic_rebase_state(
+            "epic-1",
+            EpicRebaseState.REBASED,
+            project_id="proj-1",
+            target_branch="epic-parent",
+        )
+
+        assert persisted is False
+        tracker.fetch_issue_detail.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_transition_without_new_target_retains_existing_target(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = None
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._epic_rebase_states["epic-1"] = EpicRebaseStateEntry(
+            state=EpicRebaseState.REBASING.value,
+            updated_at=time.time(),
+            project_id="proj-1",
+            target_branch="epic-parent",
+            target_parent_id="parent-1",
+            target_resolution="authoritative_parent",
+        )
+
+        orch._set_epic_rebase_state(
+            "epic-1", EpicRebaseState.REBASED, project_id="proj-1"
+        )
+
+        entry = orch._epic_rebase_state_entry("epic-1", "proj-1")
+        assert entry is not None
+        assert entry.target_branch == "epic-parent"
+        assert entry.target_parent_id == "parent-1"
+        assert entry.target_resolution == "authoritative_parent"
 
 
 class TestEpicTargetResolution:
@@ -2423,6 +2546,200 @@ class TestEpicRebaseGenerationAuthority:
             expected_old_sha="a" * 40,
             maintenance_identifier=helper.identifier,
         )
+
+    def test_direct_completion_converges_nested_parent_rebase_state(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        helper = _make_rebase_helper("REBASE-1", "EPIC-1")
+        helper.target_branch = "epic-EPIC-0"
+        parent = _make_issue(
+            "EPIC-1", parent_id="EPIC-0", labels=["epic:rebasing"]
+        )
+        published = "c" * 40
+        record = IntegrationRecord(
+            state="ready",
+            mode="queue",
+            task_branch="legacy-epic-source",
+            base_branch="epic-EPIC-0",
+            base_sha="a" * 40,
+            head_sha=published,
+        )
+        helper.integration = record
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = parent
+        orch.project_store.get.return_value = _make_project()
+        orch.project_store.reconcile_published_epic_worktree.return_value = type(
+            "Reconciliation",
+            (),
+            {
+                "completed": True,
+                "old_sha": "a" * 40,
+                "status": "completed",
+                "reason": None,
+            },
+        )()
+        orch._resolve_parent_epic = MagicMock(return_value=parent)
+        orch._epic_branch_for_issue = MagicMock(return_value="legacy-epic-source")
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._persist_direct_epic_child_landing_evidence = MagicMock(
+            return_value=True
+        )
+        orch.integration_queue = MagicMock()
+        orch.integration_queue.cancel.return_value = MagicMock()
+        orch.request_terminal_transition = AsyncMock(
+            return_value=type("Result", (), {"success": True, "reason": None})()
+        )
+
+        completed, _message, returned = asyncio.run(
+            orch.complete_direct_epic_maintenance_submission(
+                helper, record, helper.project_id
+            )
+        )
+
+        assert completed is True
+        assert returned is not None and returned.maintenance_publication_proven
+        assert orch._get_epic_rebase_state(
+            parent.identifier, project_id=helper.project_id
+        ) is EpicRebaseState.REBASED
+        tracker.update_issue.assert_any_call(
+            parent.identifier, **{"remove-label": "epic:rebasing"}
+        )
+        tracker.update_issue.assert_any_call(
+            parent.identifier, **{"add-label": "epic:rebased"}
+        )
+        state_entry = orch._epic_rebase_state_entry(
+            parent.identifier, helper.project_id
+        )
+        assert state_entry is not None
+        assert state_entry.target_branch == "epic-EPIC-0"
+        assert state_entry.target_parent_id == "EPIC-0"
+        assert state_entry.target_resolution == "authoritative_parent"
+
+    def test_done_recovery_reuses_exact_pass_and_does_not_reaudit(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        helper = _make_rebase_helper("REBASE-1", "EPIC-1")
+        helper.state = DONE
+        published = "c" * 40
+        record = IntegrationRecord(
+            state="ready",
+            mode="queue",
+            task_branch="epic-EPIC-1",
+            base_branch="main",
+            base_sha="a" * 40,
+            head_sha=published,
+        )
+        helper.integration = record
+        parent = _make_issue("EPIC-1", labels=["epic:rebasing"])
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = parent
+        fingerprint = EvidenceFingerprint("d" * 64)
+        completed = TerminalAuditRecord(
+            audit_id="audit-1",
+            project_id=helper.project_id,
+            task_id=helper.identifier,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.COMPLETED,
+            selected_ref=published,
+            selected_sha=published,
+            attempts=[
+                AuditAttempt(
+                    attempt_id="attempt-1",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=fingerprint,
+                    request_state=RequestState.COMPLETED,
+                    verdict=Verdict.PASS,
+                    selected_ref=published,
+                    selected_sha=published,
+                )
+            ],
+        )
+        audit_store = MagicMock()
+        audit_store.read.return_value = TerminalAuditMetadata(
+            pending_chain=[completed]
+        )
+        orch._audit_store = MagicMock(return_value=audit_store)
+        orch.project_store.get.return_value = _make_project()
+        orch.project_store.reconcile_published_epic_worktree.return_value = type(
+            "Reconciliation",
+            (),
+            {
+                "completed": True,
+                "old_sha": "a" * 40,
+                "status": "already_published",
+                "reason": None,
+            },
+        )()
+        orch._resolve_parent_epic = MagicMock(return_value=parent)
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._persist_direct_epic_child_landing_evidence = MagicMock(
+            return_value=True
+        )
+        orch.integration_queue = MagicMock()
+        orch.integration_queue.cancel.return_value = MagicMock()
+        orch.request_terminal_transition = AsyncMock()
+
+        recovered, _message, integrated = asyncio.run(
+            orch.complete_direct_epic_maintenance_submission(
+                helper, record, helper.project_id
+            )
+        )
+
+        assert recovered is True
+        assert integrated is not None and integrated.maintenance_publication_proven
+        orch.request_terminal_transition.assert_not_awaited()
+        assert orch._get_epic_rebase_state(
+            parent.identifier, project_id=helper.project_id
+        ) is EpicRebaseState.REBASED
+
+    def test_direct_completion_fails_when_parent_state_is_not_durable(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        helper = _make_rebase_helper("REBASE-1", "EPIC-1")
+        parent = _make_issue("EPIC-1", labels=["epic:rebasing"])
+        published = "c" * 40
+        record = IntegrationRecord(
+            state="ready",
+            mode="queue",
+            task_branch="epic-EPIC-1",
+            base_branch="main",
+            base_sha="a" * 40,
+            head_sha=published,
+        )
+        helper.integration = record
+        tracker = MagicMock()
+        orch.project_store.get.return_value = _make_project()
+        orch.project_store.reconcile_published_epic_worktree.return_value = type(
+            "Reconciliation",
+            (),
+            {
+                "completed": True,
+                "old_sha": "a" * 40,
+                "status": "completed",
+                "reason": None,
+            },
+        )()
+        orch._resolve_parent_epic = MagicMock(return_value=parent)
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._persist_direct_epic_child_landing_evidence = MagicMock(
+            return_value=True
+        )
+        orch.integration_queue = MagicMock()
+        orch.integration_queue.cancel.return_value = MagicMock()
+        orch.request_terminal_transition = AsyncMock(
+            return_value=type("Result", (), {"success": True, "reason": None})()
+        )
+        orch._persist_epic_rebase_states = MagicMock(return_value=False)
+
+        recovered, message, integrated = asyncio.run(
+            orch.complete_direct_epic_maintenance_submission(
+                helper, record, helper.project_id
+            )
+        )
+
+        assert recovered is False
+        assert "could not be durably persisted" in message
+        assert integrated is not None and integrated.maintenance_publication_proven
+        assert helper.id not in orch.state.completed
+        tracker.update_issue.assert_not_called()
 
     def test_server_publish_stamps_scoped_native_task_project(self, tmp_path):
         orch = _make_orchestrator(tmp_path)

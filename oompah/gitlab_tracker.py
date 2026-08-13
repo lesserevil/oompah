@@ -320,7 +320,7 @@ class GitLabIssueTracker:
             start_dependencies = []
         iid = int(data["iid"])
         status = _status_from_labels(labels, str(data.get("state", "opened")))
-        parent = next(
+        parent_label = next(
             (
                 label[len("parent:") :]
                 for label in labels
@@ -328,6 +328,19 @@ class GitLabIssueTracker:
             ),
             None,
         )
+        parent = None
+        if parent_label:
+            try:
+                parent = (
+                    self.parse_identifier(parent_label).canonical
+                    if "#" in parent_label
+                    else GitLabIdentifier(self.project, int(parent_label)).canonical
+                )
+            except (GitLabIdentifierError, TrackerError, TypeError, ValueError):
+                # Malformed relationship labels are not trustworthy workflow
+                # authority.  Keep the issue visible but fail closed on its
+                # parent relationship.
+                parent = None
         blockers = [
             BlockerRef(identifier=label[len("blocked-by:") :])
             for label in labels
@@ -351,6 +364,13 @@ class GitLabIssueTracker:
                 None,
             ),
             issue_type=_issue_type_from_labels(labels),
+            project_id=(str(metadata.get("project_id") or "").strip() or None),
+            work_branch=(
+                str(metadata.get("work_branch") or "").strip() or None
+            ),
+            target_branch=(
+                str(metadata.get("target_branch") or "").strip() or None
+            ),
             labels=labels,
             parent_id=parent,
             blocked_by=blockers,
@@ -373,6 +393,21 @@ class GitLabIssueTracker:
             requestor_login=(data.get("author") or {}).get("username"),
             duplicate_screening=duplicate_screening,
             integration=integration,
+            epic_rebase_target=(
+                metadata.get("epic_rebase_target")
+                if isinstance(metadata.get("epic_rebase_target"), dict)
+                else None
+            ),
+            epic_rebase_authority=(
+                metadata.get("epic_rebase_authority")
+                if isinstance(metadata.get("epic_rebase_authority"), dict)
+                else None
+            ),
+            create_once=(
+                metadata.get("create_once")
+                if isinstance(metadata.get("create_once"), dict)
+                else None
+            ),
         )
 
     def _labels_with_status(self, labels: list[str], status: str) -> list[str]:

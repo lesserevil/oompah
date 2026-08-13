@@ -2335,6 +2335,21 @@ class OompahMarkdownTracker:
                 else None
             ),
             integration=parse_integration_record(meta.get("oompah.integration")),
+            epic_rebase_target=(
+                meta.get("oompah.epic_rebase_target")
+                if isinstance(meta.get("oompah.epic_rebase_target"), dict)
+                else None
+            ),
+            epic_rebase_authority=(
+                meta.get("oompah.epic_rebase_authority")
+                if isinstance(meta.get("oompah.epic_rebase_authority"), dict)
+                else None
+            ),
+            create_once=(
+                meta.get("oompah.create_once")
+                if isinstance(meta.get("oompah.create_once"), dict)
+                else None
+            ),
             assignment_id=_optional_str(
                 meta.get("agent_run_id") or meta.get("oompah.agent_run_id")
             ),

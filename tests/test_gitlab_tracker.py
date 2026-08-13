@@ -23,6 +23,7 @@ Coverage goals
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from types import SimpleNamespace
@@ -31,6 +32,7 @@ from unittest.mock import patch
 import httpx
 import pytest
 
+from oompah.integration import is_direct_epic_maintenance_issue
 from oompah.gitlab_tracker import (
     GitLabClient,
     GitLabIssueTracker,
@@ -505,7 +507,67 @@ class TestIssueParsing:
         )
         issue = tracker.fetch_issue_detail("group/sub/project#3")
         assert issue is not None
-        assert issue.parent_id == "2"
+        assert issue.parent_id == "group/sub/project#2"
+
+    def test_projects_scoped_epic_rebase_helper_authority(self):
+        generation = "f" * 64
+        marker = (
+            "oompah-epic-rebase-reservation-v1:"
+            + hashlib.sha256(
+                (
+                    "proj-gitlab\0group/sub/project#2\0" + generation
+                ).encode()
+            ).hexdigest()
+        )
+        metadata = {
+            "project_id": "proj-gitlab",
+            "work_branch": "group/sub/project#2",
+            "target_branch": "epic-group_sub_project_1",
+            "create_once": {
+                "version": 1,
+                "project_id": "proj-gitlab",
+                "operation_kind": "epic_rebase_helper",
+                "creation_marker": marker,
+            },
+            "epic_rebase_target": {
+                "version": 1,
+                "epic_identifier": "group/sub/project#2",
+                "epic_branch": "group/sub/project#2",
+                "target_branch": "epic-group_sub_project_1",
+                "resolution": "authoritative_parent",
+            },
+            "epic_rebase_authority": {
+                "version": 1,
+                "generation": generation,
+                "task_id": "group/sub/project#7",
+                "epic_identifier": "group/sub/project#2",
+                "epic_branch": "group/sub/project#2",
+                "epic_head": "a" * 40,
+                "target_branch": "epic-group_sub_project_1",
+                "target_head": "b" * 40,
+            },
+        }
+        client = FakeClient()
+        client.issue = _issue(
+            7,
+            labels=["task", "parent:2", "oompah:status:open"],
+            description=_update_description_metadata("body", metadata),
+        )
+        tracker = GitLabIssueTracker(
+            project="group/sub/project",
+            active_states=["Open"],
+            terminal_states=["Done"],
+            client=client,
+        )
+
+        issue = tracker.fetch_issue_detail("group/sub/project#7")
+
+        assert issue is not None
+        assert issue.project_id == "proj-gitlab"
+        assert issue.parent_id == "group/sub/project#2"
+        assert issue.work_branch == "group/sub/project#2"
+        assert issue.target_branch == "epic-group_sub_project_1"
+        assert is_direct_epic_maintenance_issue(issue)
 
     def test_blocked_by_label_is_parsed_from_labels(self):
         client = FakeClient()
@@ -609,7 +671,7 @@ class TestCreateAndUpdateIssue:
     def test_create_issue_with_parent_parses_parent_into_returned_issue(self, tracker):
         instance, _ = tracker
         created = instance.create_issue("Child", parent="group/sub/project#2")
-        assert created.parent_id == "2"
+        assert created.parent_id == "group/sub/project#2"
 
     def test_update_issue_title_sends_put(self, tracker):
         instance, client = tracker

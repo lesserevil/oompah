@@ -317,6 +317,13 @@ class Issue:
     duplicate_screening: dict[str, Any] | None = None
     # Versioned private-branch submission state (oompah.integration).
     integration: IntegrationRecord | None = None
+    # Server-issued identity for an auto-filed shared-epic rebase helper.
+    # These fields are projected from tracker metadata so every downstream
+    # workflow component can recognize persisted non-convention epic branches
+    # without re-deriving privileged task identity from human-editable titles.
+    epic_rebase_target: dict[str, Any] | None = None
+    epic_rebase_authority: dict[str, Any] | None = None
+    create_once: dict[str, Any] | None = None
     # Durable task-worktree recovery evidence discovered during retry setup.
     # This is populated from the project repository's recovery ref rather than
     # trusted task text, so a restarted worker receives the exact prior

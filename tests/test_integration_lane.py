@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 from unittest import mock
 
 from oompah.config import ServiceConfig
+from oompah.integration import IntegrationRecord
+from oompah.models import Issue
 from oompah.orchestrator import DispatchEvent, DispatchEventType, Orchestrator
 from tests.tick_test_support import tick_dispatch_mock
 
@@ -229,6 +232,112 @@ def test_direct_epic_recovery_posts_refresh_without_worker_exit(tmp_path) -> Non
             project.id,
         )
         post_refresh.assert_called_once_with()
+    finally:
+        _close(orchestrator)
+
+
+def test_direct_epic_recovery_repairs_audited_done_with_stale_ready_record(
+    tmp_path,
+) -> None:
+    """A PASS that raced old classification still re-enters direct recovery."""
+
+    orchestrator = _make_orchestrator(tmp_path)
+    project = SimpleNamespace(id="proj-1", name="test")
+    helper = Issue(
+        id="REBASE-1",
+        identifier="REBASE-1",
+        title="Rebase epic-EPIC-1 onto main",
+        state="Done",
+        parent_id="EPIC-1",
+        project_id=None,
+        integration=IntegrationRecord(
+            state="ready",
+            mode="queue",
+            task_branch="epic-EPIC-1",
+            base_branch="main",
+            head_sha="a" * 40,
+        ),
+    )
+    tracker = mock.MagicMock()
+    tracker.fetch_all_issues.return_value = [helper]
+    orchestrator.project_store.list_all.return_value = [project]
+    orchestrator._tracker_for_project = mock.MagicMock(return_value=tracker)
+    orchestrator.complete_direct_epic_maintenance_submission = mock.AsyncMock(
+        return_value=(True, "recovered", helper.integration)
+    )
+    orchestrator._sync_ready_integration_submissions = mock.MagicMock()
+    orchestrator._reconcile_terminal_parent_integration_rows = mock.MagicMock()
+    orchestrator._retire_inactive_integration_rows = mock.MagicMock()
+    orchestrator._audit_container_dependency_cycles = mock.MagicMock(return_value=[])
+    orchestrator.integration_queue.items = mock.MagicMock(return_value=[])
+
+    try:
+        asyncio.run(orchestrator._process_integration_queues())
+
+        (
+            orchestrator.complete_direct_epic_maintenance_submission
+            .assert_awaited_once_with(helper, helper.integration, project.id)
+        )
+        assert helper.project_id == project.id
+    finally:
+        _close(orchestrator)
+
+
+def test_direct_epic_recovery_repairs_stale_label_after_integrated_checkpoint(
+    tmp_path,
+) -> None:
+    """A crash after integration persistence still re-enters label repair."""
+
+    orchestrator = _make_orchestrator(tmp_path)
+    project = SimpleNamespace(id="proj-1", name="test")
+    helper = Issue(
+        id="REBASE-1",
+        identifier="REBASE-1",
+        title="Rebase epic-EPIC-1 onto main",
+        state="Done",
+        parent_id="EPIC-1",
+        project_id="proj-1",
+        work_branch="epic-EPIC-1",
+        head_sha="a" * 40,
+        integration=IntegrationRecord(
+            state="integrated",
+            mode="queue",
+            task_branch="epic-EPIC-1",
+            base_branch="epic-EPIC-1",
+            head_sha="a" * 40,
+            integrated_sha="a" * 40,
+            maintenance_publication_proven=True,
+        ),
+    )
+    parent = Issue(
+        id="EPIC-1",
+        identifier="EPIC-1",
+        title="parent",
+        state="Open",
+        labels=["epic:rebasing"],
+        project_id="proj-1",
+    )
+    tracker = mock.MagicMock()
+    tracker.fetch_all_issues.return_value = [helper]
+    orchestrator.project_store.list_all.return_value = [project]
+    orchestrator._tracker_for_project = mock.MagicMock(return_value=tracker)
+    orchestrator._resolve_parent_epic = mock.MagicMock(return_value=parent)
+    orchestrator.complete_direct_epic_maintenance_submission = mock.AsyncMock(
+        return_value=(True, "recovered labels", helper.integration)
+    )
+    orchestrator._sync_ready_integration_submissions = mock.MagicMock()
+    orchestrator._reconcile_terminal_parent_integration_rows = mock.MagicMock()
+    orchestrator._retire_inactive_integration_rows = mock.MagicMock()
+    orchestrator._audit_container_dependency_cycles = mock.MagicMock(return_value=[])
+    orchestrator.integration_queue.items = mock.MagicMock(return_value=[])
+
+    try:
+        asyncio.run(orchestrator._process_integration_queues())
+
+        (
+            orchestrator.complete_direct_epic_maintenance_submission
+            .assert_awaited_once_with(helper, helper.integration, project.id)
+        )
     finally:
         _close(orchestrator)
 

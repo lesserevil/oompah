@@ -1,6 +1,7 @@
 """Tests for durable private-branch integration metadata."""
 
 from types import SimpleNamespace
+import hashlib
 
 import pytest
 
@@ -10,11 +11,103 @@ from oompah.integration import (
     accepted_submission_branch,
     assigned_work_branch,
     expected_submission_branch,
+    direct_epic_maintenance_handoff_ready,
+    is_direct_epic_maintenance_issue,
     parse_integration_record,
     requeue_standalone_review_generation,
     review_generation_requeue_marker,
     validate_submission_branch,
 )
+
+
+def _authoritative_noncanonical_helper(**overrides):
+    generation = "f" * 64
+    issue = {
+        "id": "TRICKLE-141",
+        "identifier": "TRICKLE-141",
+        "title": "Rebase TRICKLE-130 onto epic-TRICKLE-127",
+        "parent_id": "TRICKLE-130",
+        "project_id": "proj-trickle",
+        "work_branch": "TRICKLE-130",
+        "target_branch": "epic-TRICKLE-127",
+        "create_once": {
+            "version": 1,
+            "project_id": "proj-trickle",
+            "operation_kind": "epic_rebase_helper",
+            "creation_marker": "oompah-epic-rebase-reservation-v1:"
+            + hashlib.sha256(
+                f"proj-trickle\0TRICKLE-130\0{generation}".encode()
+            ).hexdigest(),
+        },
+        "epic_rebase_target": {
+            "version": 1,
+            "epic_identifier": "TRICKLE-130",
+            "epic_branch": "TRICKLE-130",
+            "target_branch": "epic-TRICKLE-127",
+            "resolution": "authoritative_parent",
+        },
+        "epic_rebase_authority": {
+            "version": 1,
+            "generation": generation,
+            "task_id": "TRICKLE-141",
+            "epic_identifier": "TRICKLE-130",
+            "epic_branch": "TRICKLE-130",
+            "epic_head": "a" * 40,
+            "target_branch": "epic-TRICKLE-127",
+            "target_head": "b" * 40,
+        },
+    }
+    issue.update(overrides)
+    return issue
+
+
+def test_noncanonical_direct_maintenance_uses_explicit_scoped_authority():
+    issue = _authoritative_noncanonical_helper()
+
+    assert is_direct_epic_maintenance_issue(issue)
+    assert direct_epic_maintenance_handoff_ready(
+        issue,
+        {
+            "state": "integrated",
+            "mode": "queue",
+            "task_branch": "TRICKLE-130",
+            "base_branch": "TRICKLE-130",
+            "head_sha": "c" * 40,
+            "integrated_sha": "c" * 40,
+            "maintenance_publication_proven": True,
+        },
+    )
+
+
+def test_native_noncanonical_helper_uses_creation_scope_when_model_is_unstamped():
+    issue = _authoritative_noncanonical_helper(project_id=None)
+
+    assert is_direct_epic_maintenance_issue(issue)
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement"),
+    [
+        ("project_id", "proj-forged"),
+        ("identifier", "TRICKLE-999"),
+        ("parent_id", "TRICKLE-999"),
+        ("work_branch", "forged-source"),
+        ("target_branch", "forged-target"),
+    ],
+)
+def test_explicit_direct_maintenance_rejects_conflicting_scope(field, replacement):
+    issue = _authoritative_noncanonical_helper(**{field: replacement})
+
+    assert not is_direct_epic_maintenance_issue(issue)
+
+
+def test_incomplete_explicit_identity_disables_legacy_title_fallback():
+    issue = _authoritative_noncanonical_helper(
+        title="Rebase epic-TRICKLE-130 onto main",
+        epic_rebase_authority=None,
+    )
+
+    assert not is_direct_epic_maintenance_issue(issue)
 
 
 def test_integration_record_round_trips_all_supported_evidence():
