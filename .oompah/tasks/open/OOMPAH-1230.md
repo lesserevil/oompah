@@ -12,14 +12,24 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:58:05.284702Z'
-updated_at: '2026-08-13T10:03:05.522663Z'
-work_branch: null
+updated_at: '2026-08-13T10:15:57.875996Z'
+work_branch: OOMPAH-1230
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
 oompah.lifecycle_revision: 1
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1230
+  head_sha: 320593caf587c69ada8e35b54e1b458929b34c63
+  submitted_at: '2026-08-13T10:15:46.222133+00:00'
+  updated_at: '2026-08-13T10:15:46.222133+00:00'
+oompah.work_branch: OOMPAH-1230
 ---
 ## Summary
 
@@ -71,5 +81,10 @@ author: oompah
 created: 2026-08-13 10:03
 ---
 Fix pushed with regression coverage. The runtime guard now honors TaskTransitionService's two-argument callback contract while retaining its own fresh authoritative tracker read. Focused workflow runtime and task transition suites: 284 passed. Hosted gates are starting.
+---
+author: oompah
+created: 2026-08-13 10:15
+---
+Honor TaskTransitionService's two-argument mutation-guard callback contract while retaining the runtime guard's authoritative fresh tracker read. Regression coverage and 284 focused tests pass; hosted CI passes on Python 3.11, 3.12, and 3.13.
 ---
 <!-- COMMENTS:END -->
