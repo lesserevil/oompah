@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1220
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Defer shared-child Merged transitions until the parent rollup is terminal
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:40:53.600135Z'
-updated_at: '2026-08-13T04:40:53.600135Z'
+updated_at: '2026-08-13T04:41:07.687664Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 6491613b-cadb-45fd-bc25-919e0fd32fb0
   request_fingerprint: 84197b591728a766bfc9e0854826f9a889ab47127f7218b3446c07dbbdb06975
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
