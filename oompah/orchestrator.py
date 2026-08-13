@@ -41664,6 +41664,87 @@ class Orchestrator:
 
         return f"{issue_identifier}--terminal-audit-{attempt_id}"
 
+    @staticmethod
+    def _duplicate_preflight_workspace_identifier(
+        issue_identifier: str,
+        run_id: str | None,
+    ) -> str:
+        """Return the attempt-scoped identifier for duplicate inspection."""
+
+        return f"{issue_identifier}--duplicate-screening-{run_id or 'legacy'}"
+
+    def _create_workspace_for_duplicate_preflight(
+        self,
+        issue: Issue,
+        run_id: str | None,
+        *,
+        authority_check: Any = None,
+    ) -> str:
+        """Create a detached read-only workspace for duplicate screening.
+
+        Accepted submission evidence is immutable even after a forge deletes
+        its source branch. Bind screening to that exact head instead of asking
+        ordinary implementation workspace recovery to recreate the mutable
+        branch. Fresh tasks without accepted evidence inspect an atomically
+        resolved target-branch snapshot.
+        """
+
+        if not issue.project_id:
+            workspace = self._authority_guarded_call(
+                authority_check,
+                self.workspace_mgr.create_for_issue,
+                self._duplicate_preflight_workspace_identifier(
+                    issue.identifier,
+                    run_id,
+                ),
+            )
+            self._authority_guarded_call(
+                authority_check,
+                self.workspace_mgr.run_before_run,
+                workspace.path,
+            )
+            return workspace.path
+
+        project = self.project_store.get(issue.project_id)
+        if project is None:
+            raise ProjectError(f"Unknown project: {issue.project_id}")
+
+        exact_head = (
+            str(issue_exact_head(issue) or "").strip().lower()
+            if accepted_submission_branch(issue)
+            else ""
+        )
+        revision = exact_head
+        if not revision:
+            target_branch = str(
+                issue.target_branch or project.default_branch or "main"
+            ).strip()
+            revision = f"origin/{target_branch}"
+
+        workspace_identifier = self._duplicate_preflight_workspace_identifier(
+            issue.identifier,
+            run_id,
+        )
+        workspace, resolved_sha = self._authority_guarded_call(
+            authority_check,
+            self.project_store.create_detached_readonly_worktree,
+            issue.project_id,
+            workspace_identifier,
+            revision,
+        )
+        if exact_head and resolved_sha.lower() != exact_head:
+            raise ProjectError(
+                "duplicate-screening workspace resolved a different commit than "
+                "the accepted exact head"
+            )
+        logger.info(
+            "Duplicate-screening workspace bound issue=%s run=%s revision=%s",
+            issue.identifier,
+            run_id or "legacy",
+            resolved_sha,
+        )
+        return workspace
+
     def _revisionless_archive_evidence(
         self,
         issue: Issue,
@@ -61681,6 +61762,15 @@ class Orchestrator:
                 # the shared epic worktree; otherwise per-task path.
                 if forced_auditor and auditor_plan is not None:
                     wp = self._create_workspace_for_auditor(issue, auditor_plan)
+                elif read_only_preflight:
+                    wp = self._create_workspace_for_duplicate_preflight(
+                        issue,
+                        run_id,
+                        authority_check=self._workspace_authority_check(
+                            issue,
+                            run_id,
+                        ),
+                    )
                 else:
                     wp, _epic = self._create_workspace_for_issue(
                         issue,
@@ -62629,6 +62719,15 @@ class Orchestrator:
                 # Resolve workspace via the epic_strategy-aware helper.
                 if forced_auditor and auditor_plan is not None:
                     wp = self._create_workspace_for_auditor(issue, auditor_plan)
+                elif read_only_preflight:
+                    wp = self._create_workspace_for_duplicate_preflight(
+                        issue,
+                        run_id,
+                        authority_check=self._workspace_authority_check(
+                            issue,
+                            run_id,
+                        ),
+                    )
                 else:
                     wp, _epic = self._create_workspace_for_issue(
                         issue,
@@ -66102,6 +66201,27 @@ class Orchestrator:
                 exc,
             )
 
+    def _remove_duplicate_preflight_workspace(self, entry: RunningEntry) -> None:
+        """Remove one attempt-scoped duplicate-screening worktree."""
+
+        project_id = str(getattr(entry.issue, "project_id", "") or "").strip()
+        if not project_id:
+            return
+        workspace_identifier = self._duplicate_preflight_workspace_identifier(
+            entry.identifier,
+            entry.run_id,
+        )
+        try:
+            self.project_store.remove_worktree(project_id, workspace_identifier)
+        except Exception as exc:  # noqa: BLE001 - exit cleanup must complete
+            logger.warning(
+                "Detached duplicate-screening workspace cleanup failed "
+                "issue=%s run=%s: %s",
+                entry.identifier,
+                entry.run_id,
+                exc,
+            )
+
     async def _on_worker_exit(
         self,
         issue_id: str,
@@ -66455,6 +66575,10 @@ class Orchestrator:
         if getattr(entry, "duplicate_preflight", False):
             self._remove_running_entry(issue_id, entry)
             await self._handle_duplicate_preflight_exit(entry, reason, error)
+            await asyncio.to_thread(
+                self._remove_duplicate_preflight_workspace,
+                entry,
+            )
             return
 
         if entry.is_auditor:
