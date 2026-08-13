@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1232
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Rearm runnable workflow jobs when blocking evidence changes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T10:08:08.871557Z'
-updated_at: '2026-08-13T10:08:08.871557Z'
+updated_at: '2026-08-13T10:38:38.297950Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: c5389a39-0475-4191-ada8-e49be43cf34d
   request_fingerprint: 93e69203bf22fff1b3823d66fe5518d3cdd5e33c5e812ee0770173ee78c214c4
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -35,3 +36,11 @@ Bug reproduced live on TRICKLE-138 and TRICKLE-139 after OOMPAH-1223 repaired ne
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 10:38
+---
+Claimed directly. Root cause refined from live durable rows: nested preflight enqueues and synchronously drives nested_dispatch_topology_repair from inside a leased implementation_start job, but WorkflowJobStore.claim_next rejects every repair because any running job for the same task blocks the claim. The implementation job then administratively defers and repeats, leaving the repair queued forever. Fix will permit only this explicitly safe pre-effect implementation→topology-repair overlap, preserve all other per-task exclusion, and test restart/retry convergence and unrelated-action isolation.
+---
+<!-- COMMENTS:END -->
