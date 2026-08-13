@@ -3097,6 +3097,71 @@ def test_recovery_filters_project_action_and_phase_without_touching_terminal(sto
     assert store.get(terminal.job_id).state is WorkflowJobState.RUNNING
 
 
+def test_claim_compatible_running_action_is_explicit_and_task_scoped(store):
+    """A repair may overlap its pre-effect owner without widening exclusion."""
+
+    store.enqueue(
+        spec(
+            "implementation",
+            task="TASK-NESTED",
+            action="implementation_start",
+        )
+    )
+    implementation = store.claim_next(
+        lease_owner="implementation-runtime",
+        lease_seconds=30,
+        actions=("implementation_start",),
+    )
+    assert implementation is not None
+    store.enqueue(
+        spec(
+            "repair",
+            task="TASK-NESTED",
+            generation="repair-generation",
+            action="nested_dispatch_topology_repair",
+        )
+    )
+    store.enqueue(
+        spec(
+            "unrelated",
+            task="TASK-NESTED",
+            generation="unrelated-generation",
+            action="unrelated_workflow_action",
+        )
+    )
+
+    assert (
+        store.claim_next(
+            lease_owner="ordinary-runtime",
+            lease_seconds=30,
+            task_id="TASK-NESTED",
+            actions=("unrelated_workflow_action",),
+        )
+        is None
+    )
+    repair = store.claim_next(
+        lease_owner="topology-runtime",
+        lease_seconds=30,
+        task_id="TASK-NESTED",
+        actions=("nested_dispatch_topology_repair",),
+        compatible_running_actions=("implementation_start",),
+    )
+
+    assert repair is not None
+    assert repair.action == "nested_dispatch_topology_repair"
+    assert store.get(implementation.job_id).state is WorkflowJobState.RUNNING
+    assert (
+        store.claim_next(
+            lease_owner="other-runtime",
+            lease_seconds=30,
+            task_id="TASK-NESTED",
+            actions=("unrelated_workflow_action",),
+            compatible_running_actions=("implementation_start",),
+        )
+        is None
+    )
+
+
 def test_supersede_revokes_running_lease_and_never_revives_on_enqueue(store):
     original_spec = spec()
     store.enqueue(original_spec)

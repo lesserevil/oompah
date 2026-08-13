@@ -5715,6 +5715,7 @@ class WorkflowJobStore:
         task_id: str | None = None,
         generation: str | None = None,
         actions: Sequence[str] | None = None,
+        compatible_running_actions: Sequence[str] | None = None,
         required_snapshot_generation: int | None = None,
         fair_across_projects: bool = False,
         now: float | None = None,
@@ -5739,6 +5740,7 @@ class WorkflowJobStore:
                     task_id=task_id,
                     generation=generation,
                     actions=actions,
+                    compatible_running_actions=compatible_running_actions,
                     required_snapshot_generation=required_snapshot_generation,
                     now=timestamp,
                 )
@@ -5833,6 +5835,7 @@ class WorkflowJobStore:
         task_id: str | None = None,
         generation: str | None = None,
         actions: Sequence[str] | None = None,
+        compatible_running_actions: Sequence[str] | None = None,
         required_snapshot_generation: int | None = None,
         now: float | None = None,
     ) -> bool:
@@ -5853,6 +5856,7 @@ class WorkflowJobStore:
                 task_id=task_id,
                 generation=generation,
                 actions=actions,
+                compatible_running_actions=compatible_running_actions,
                 required_snapshot_generation=required_snapshot_generation,
                 now=timestamp,
             )
@@ -5874,6 +5878,7 @@ class WorkflowJobStore:
         task_id: str | None,
         generation: str | None,
         actions: Sequence[str] | None,
+        compatible_running_actions: Sequence[str] | None,
         required_snapshot_generation: int | None,
         now: float,
     ) -> tuple[
@@ -5902,6 +5907,25 @@ class WorkflowJobStore:
         )
         if project_ids is not None and not normalized_project_ids:
             raise ValueError("project_ids cannot be empty")
+        normalized_compatible_actions = (
+            tuple(
+                sorted(
+                    {
+                        _required_text(action, "compatible_running_action")
+                        for action in compatible_running_actions
+                    }
+                )
+            )
+            if compatible_running_actions
+            else ()
+        )
+        running_compatibility_clause = ""
+        if normalized_compatible_actions:
+            running_compatibility_clause = (
+                " AND owned.action NOT IN ("
+                + ",".join("?" for _ in normalized_compatible_actions)
+                + ") "
+            )
         clauses = [
             "(candidate.state = ? OR (candidate.state = ? "
             "AND candidate.retry_at IS NOT NULL AND candidate.retry_at <= ?))",
@@ -5925,6 +5949,7 @@ class WorkflowJobStore:
             "WHERE owned.project_id = candidate.project_id "
             "AND owned.task_id = candidate.task_id "
             "AND owned.state = 'running'"
+            f"{running_compatibility_clause}"
             ")",
         ]
         values: list[object] = [
@@ -5932,6 +5957,7 @@ class WorkflowJobStore:
             WorkflowJobState.RETRY_WAIT.value,
             now,
         ]
+        values.extend(normalized_compatible_actions)
         for column, value in (
             ("project_id", project_id),
             ("task_id", task_id),

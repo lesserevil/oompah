@@ -336,6 +336,11 @@ _AUDIT_START_CHECKPOINT_FAILURE_PREFIX = (
 _RETRY_ATTEMPTS_VERSION_STATE_KEY = "retry_attempts_version"
 _NESTED_DISPATCH_REPAIR_ACTION = "nested_dispatch_topology_repair"
 _NESTED_DISPATCH_REPAIR_LANE = "nested-dispatch-topology"
+_NESTED_DISPATCH_REPAIR_COMPATIBLE_RUNNING_ACTIONS = (
+    "implementation_start",
+    "implementation_recovery",
+    "focus_handoff",
+)
 
 # A structured verdict is a durable authority hand-off, not ordinary model
 # work.  Reserve one provider turn for submit_audit_result after the ordinary
@@ -41267,6 +41272,9 @@ class Orchestrator:
             task_id=evidence.task_id,
             generation=evidence.generation,
             actions=(_NESTED_DISPATCH_REPAIR_ACTION,),
+            compatible_running_actions=(
+                _NESTED_DISPATCH_REPAIR_COMPATIBLE_RUNNING_ACTIONS
+            ),
         )
         if job is None or not job.lease_token:
             return
@@ -41356,6 +41364,11 @@ class Orchestrator:
         if allow_repair and evidence.topology is not None:
             self._schedule_nested_dispatch_repair(evidence)
             self._drive_nested_dispatch_repair(evidence)
+            repaired = self._collect_nested_dispatch_evidence(issue)
+            if repaired is not None and repaired.ready:
+                if publish_wait:
+                    self._clear_nested_dispatch_wait(issue, repaired)
+                return repaired
         return evidence
 
     def _create_workspace_for_issue(
