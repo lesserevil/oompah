@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1228
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Allow landed deleted-source submissions through validation commit guard
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:30:46.069410Z'
-updated_at: '2026-08-13T09:51:59.888530Z'
+updated_at: '2026-08-13T09:52:38.333155Z'
 work_branch: OOMPAH-1228
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 8da572d7-f464-44ad-807b-2ac8e3eca989
   request_fingerprint: 6799d0fc8aba0cd3563e447d80c1c8678cd66345d3a948da7c52f7f343ecb250
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.integration:
   version: 2
   state: ready
@@ -35,6 +35,64 @@ oompah.integration:
   submitted_at: '2026-08-13T09:51:45.485359+00:00'
   updated_at: '2026-08-13T09:51:45.485359+00:00'
 oompah.work_branch: OOMPAH-1228
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-793e9794c569
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1228
+    digest: b3241f20ea13be00acab5c31e9141532e49716c23976b505e47f2bc3fee350cd
+  - version: 1
+    audit_id: audit-80f7ee30a3f4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1228
+    digest: b3241f20ea13be00acab5c31e9141532e49716c23976b505e47f2bc3fee350cd
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-793e9794c569
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1228
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b3241f20ea13be00acab5c31e9141532e49716c23976b505e47f2bc3fee350cd
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T09:52:25.754829+00:00'
+    eligible_at: '2026-08-13T09:52:25.754829+00:00'
+    selected_ref: 1e9c15be1b1e25c99d15c4fd593d8af32b071173
+    selected_sha: 1e9c15be1b1e25c99d15c4fd593d8af32b071173
+  - version: 1
+    audit_id: audit-80f7ee30a3f4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1228
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b3241f20ea13be00acab5c31e9141532e49716c23976b505e47f2bc3fee350cd
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T09:52:25.754829+00:00'
+    prerequisite_audit_id: audit-793e9794c569
+    selected_ref: 1e9c15be1b1e25c99d15c4fd593d8af32b071173
+    selected_sha: 1e9c15be1b1e25c99d15c4fd593d8af32b071173
+  attempt_history: []
 ---
 ## Summary
 
@@ -62,5 +120,10 @@ author: oompah
 created: 2026-08-13 09:51
 ---
 Permit a deleted accepted source branch through validation only when the exact accepted head is contained by the authoritative target branch, while preserving fail-closed behavior for drift and unavailable evidence. Mutation-guard exceptions are now logged. Focused tests and hosted CI on Python 3.11, 3.12, and 3.13 pass.
+---
+author: oompah
+created: 2026-08-13 09:52
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
