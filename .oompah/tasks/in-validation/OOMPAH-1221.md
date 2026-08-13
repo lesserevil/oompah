@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1221
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Accepted integration submissions must preempt implementation dispatch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T05:19:06.019608Z'
-updated_at: '2026-08-13T05:58:24.869411Z'
+updated_at: '2026-08-13T06:05:57.131320Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,65 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: e27c0303-bd1e-4eda-a993-267b894fdfa2
   request_fingerprint: 5111a3df750124b1bb3921dfea79e59f57e7038b91724e04203367574ce50d73
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-6f49271d6f30
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1221
+    digest: 07abc04abb2cda0e368bc6198ef28ab814d73a0d759968559560e2fa29adc2ce
+  - version: 1
+    audit_id: audit-aaef2de0c841
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1221
+    digest: 07abc04abb2cda0e368bc6198ef28ab814d73a0d759968559560e2fa29adc2ce
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-6f49271d6f30
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1221
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 07abc04abb2cda0e368bc6198ef28ab814d73a0d759968559560e2fa29adc2ce
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T06:05:49.466643+00:00'
+    eligible_at: '2026-08-13T06:05:49.466643+00:00'
+    selected_ref: origin/OOMPAH-1221
+    selected_sha: 27c9bd1ae4fa35310ca8abaf4e56a844990d4963
+  - version: 1
+    audit_id: audit-aaef2de0c841
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1221
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 07abc04abb2cda0e368bc6198ef28ab814d73a0d759968559560e2fa29adc2ce
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T06:05:49.466643+00:00'
+    prerequisite_audit_id: audit-6f49271d6f30
+    selected_ref: origin/OOMPAH-1221
+    selected_sha: 27c9bd1ae4fa35310ca8abaf4e56a844990d4963
+  attempt_history: []
 ---
 ## Summary
 
