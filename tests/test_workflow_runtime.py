@@ -2755,6 +2755,76 @@ def test_runtime_shares_ledger_and_recovers_leased_job(tmp_path):
     store.close()
 
 
+def test_runtime_rearms_only_exact_legacy_standalone_capacity_exhaustion(
+    tmp_path,
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-CAPACITY")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+
+    def exhaust(task_id, *, error):
+        queued = store.enqueue(
+            WorkflowJobSpec(
+                project_id="project-1",
+                task_id=task_id,
+                generation=f"generation-{task_id}",
+                action="standalone_delivery",
+                idempotency_key=f"{task_id}:standalone",
+                expected_head_sha="a" * 40,
+                max_attempts=1,
+            )
+        )
+        running = store.claim_next(
+            lease_owner="legacy-worker",
+            lease_seconds=30,
+            project_id="project-1",
+            actions=("standalone_delivery",),
+        )
+        assert running is not None and running.job_id == queued.job_id
+        return store.fail(
+            running.job_id,
+            running.lease_token,
+            error=error,
+            category=WorkflowFailureCategory.TRANSIENT,
+            retryable=True,
+        )
+
+    capacity = exhaust(
+        "TASK-CAPACITY",
+        error="standalone delivery is waiting for an exact forge effect",
+    )
+    genuine = exhaust(
+        "TASK-GENUINE",
+        error="standalone review creation failed",
+    )
+
+    class CapacityBackend:
+        @staticmethod
+        def legacy_exhaustion_is_capacity_wait(job):
+            return job.job_id == capacity.job_id
+
+    handler = CompleteHandler()
+    handler.backend = CapacityBackend()
+    handlers = complete_handlers()
+    handlers["standalone_delivery"] = handler
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=handlers,
+    )
+
+    recovery = asyncio.run(runtime.start())
+
+    assert recovery["legacy_standalone_capacity_rearmed"] == 1
+    assert store.get(capacity.job_id).state is WorkflowJobState.QUEUED
+    assert store.get(capacity.job_id).attempts == 0
+    assert store.get(genuine.job_id).state is WorkflowJobState.EXHAUSTED
+    runtime.close()
+    store.close()
+
+
 class CompleteHandler:
     domain = "tracker"
 

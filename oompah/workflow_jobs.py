@@ -4027,7 +4027,7 @@ class WorkflowJobStore:
                 self._conn.rollback()
                 raise
 
-    def rearm_terminal_job(
+    def rearm_exhausted_job(
         self,
         job_id: str,
         *,
@@ -4036,12 +4036,12 @@ class WorkflowJobStore:
         reason: str,
         now: float | None = None,
     ) -> WorkflowJob:
-        """Reset one completed/exhausted generation for an authorized rearm.
+        """Reset one completed/exhausted generation after an authorized proof.
 
-        The caller must prove the tracker created a fresh audit identity for
-        the same semantic target/evidence generation.  Superseded and
-        cancelled jobs are deliberately not rearmable: those states represent
-        replacement or revocation, not an exhausted provider decision.
+        The caller must prove that the same semantic target/evidence generation
+        has fresh execution authority. Superseded and cancelled jobs are
+        deliberately not rearmable: those states represent replacement or
+        revocation, not an exhausted provider decision.
         """
 
         identifier = _required_text(job_id, "job_id")
@@ -4107,6 +4107,25 @@ class WorkflowJobStore:
             except Exception:
                 self._conn.rollback()
                 raise
+
+    def rearm_terminal_job(
+        self,
+        job_id: str,
+        *,
+        generation: str,
+        phase: str,
+        reason: str,
+        now: float | None = None,
+    ) -> WorkflowJob:
+        """Compatibility wrapper for terminal-audit authorized rearms."""
+
+        return self.rearm_exhausted_job(
+            job_id,
+            generation=generation,
+            phase=phase,
+            reason=reason,
+            now=now,
+        )
 
     def materialize_event(
         self,

@@ -69,6 +69,7 @@ from oompah.workflow_jobs import (
     WorkflowFailureCategory,
     WorkflowJob,
     WorkflowJobSpec,
+    WorkflowJobState,
     WorkflowJobStore,
 )
 from oompah.workflow_scheduler import WorkflowJobScheduler, WorkflowReconcileResult
@@ -77,6 +78,7 @@ from oompah.workflow_worker import (
     EffectResult,
     RevalidationResult,
     VerificationResult,
+    WorkflowAdministrativeDeferral,
     WorkflowActionDomain,
     WorkflowActionError,
     WorkflowActionSuperseded,
@@ -3631,6 +3633,62 @@ class OrchestratorIntegrationActionBackend:
             details=details,
         )
 
+    def legacy_exhaustion_is_capacity_wait(self, job: WorkflowJob) -> bool:
+        """Prove an old standalone exhaustion is only a live capacity wait."""
+
+        if (
+            job.action != "standalone_delivery"
+            or job.state is not WorkflowJobState.EXHAUSTED
+            or "waiting for an exact forge effect"
+            not in str(job.last_error or "")
+        ):
+            return False
+        issue = self.tracker.fetch_issue_detail(job.task_id)
+        record = self._record(issue)
+        checkpoint = job.checkpoint or {}
+        revalidation = checkpoint.get("revalidation", {})
+        details = (
+            revalidation.get("details", {})
+            if isinstance(revalidation, Mapping)
+            else {}
+        )
+        checkpoint_head = str(
+            (
+                revalidation.get("head_sha")
+                if isinstance(revalidation, Mapping)
+                else None
+            )
+            or (
+                details.get("task_head")
+                if isinstance(details, Mapping)
+                else None
+            )
+            or job.expected_head_sha
+            or ""
+        ).strip()
+        checkpoint_branch = str(
+            details.get("task_branch", "")
+            if isinstance(details, Mapping)
+            else ""
+        ).strip()
+        if (
+            issue is None
+            or canonicalize_status(issue.state) != READY_TO_INTEGRATE
+            or not isinstance(record, IntegrationRecord)
+            or str(record.mode or "").strip().lower() != "standalone"
+            or not self._standalone_route_is_current(issue, record)
+            or not checkpoint_head
+            or checkpoint_head != str(record.head_sha or "").strip()
+            or not checkpoint_branch
+            or checkpoint_branch != str(record.task_branch or "").strip()
+        ):
+            return False
+        capacity = getattr(self.orchestrator, "_project_review_capacity", None)
+        if not callable(capacity):
+            return False
+        _open_reviews, _limit, at_capacity = capacity(self.project_id)
+        return bool(at_capacity)
+
     def _revalidate_historical_replay(
         self, context: WorkflowJobContext
     ) -> RevalidationResult:
@@ -5373,7 +5431,7 @@ class OrchestratorIntegrationActionBackend:
                         current and _workflow_authority_locally_current()
                     )
 
-            await asyncio.to_thread(
+            delivery_outcome = await asyncio.to_thread(
                 self.orchestrator._reconcile_one_standalone_ready_to_integrate_task,
                 self.project_id,
                 context.job.task_id,
@@ -5394,6 +5452,11 @@ class OrchestratorIntegrationActionBackend:
                 context,
             )
             if not observation.applied:
+                if delivery_outcome == "capacity_wait":
+                    raise WorkflowAdministrativeDeferral(
+                        "standalone delivery is waiting for review capacity",
+                        effect_not_started=True,
+                    )
                 raise WorkflowActionError(
                     "standalone delivery is waiting for an exact forge effect",
                     category=WorkflowFailureCategory.TRANSIENT,

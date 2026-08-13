@@ -2064,6 +2064,60 @@ class WorkflowRuntime:
             "recovered": expired + abandoned,
         }
 
+    def _rearm_legacy_standalone_capacity_exhaustion(self) -> int:
+        """Migrate exact legacy capacity waits to non-substantive retries."""
+
+        rearmed = 0
+        for project_id, binding in self.project_bindings.items():
+            handler = self.handlers.get("standalone_delivery")
+            routed = getattr(handler, "handlers", None)
+            project_handler = (
+                routed.get(project_id)
+                if isinstance(routed, Mapping)
+                else handler
+            )
+            backend = (
+                getattr(project_handler, "backend", None)
+                if project_handler is not None
+                else None
+            )
+            proves_capacity_wait = getattr(
+                backend, "legacy_exhaustion_is_capacity_wait", None
+            )
+            if not callable(proves_capacity_wait) or not binding.enabled:
+                continue
+            candidates = self.store.list_jobs(
+                project_id=project_id,
+                states=("exhausted",),
+                actions=("standalone_delivery",),
+                limit=self.decision_limit,
+                newest_first=True,
+            )
+            current_by_task: dict[str, set[str]] = {}
+            for job in candidates:
+                current_ids = current_by_task.setdefault(
+                    job.task_id,
+                    {
+                        current.job_id
+                        for current in self.store.current_exhausted_jobs(
+                            project_id=project_id,
+                            task_id=job.task_id,
+                        )
+                    },
+                )
+                if job.job_id not in current_ids:
+                    continue
+                if not proves_capacity_wait(job):
+                    continue
+                self.store.rearm_exhausted_job(
+                    job.job_id,
+                    generation=job.generation,
+                    phase="intent",
+                    reason="legacy standalone review-capacity wait",
+                )
+                rearmed += 1
+        return rearmed
+
     async def start(self) -> dict[str, int]:
         """Run integrity checks and recover ownership left by a crash."""
 
@@ -2085,6 +2139,15 @@ class WorkflowRuntime:
             if self.enforce
             else {"expired": 0, "abandoned": 0, "recovered": 0}
         )
+        legacy_capacity_rearmed = (
+            self._rearm_legacy_standalone_capacity_exhaustion()
+            if self.enforce
+            else 0
+        )
+        if legacy_capacity_rearmed:
+            recovery["legacy_standalone_capacity_rearmed"] = (
+                legacy_capacity_rearmed
+            )
         with self._lock:
             self._started = True
             self._last_reconcile = {"recovery": dict(recovery)}

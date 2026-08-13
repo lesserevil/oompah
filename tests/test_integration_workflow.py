@@ -65,6 +65,7 @@ from oompah.workflow_worker import (
     RevalidationResult,
     VerificationResult,
     WorkflowActionDomain,
+    WorkflowAdministrativeDeferral,
     WorkflowActionError,
     WorkflowActionSuperseded,
     WorkflowJobContext,
@@ -236,6 +237,204 @@ async def test_production_standalone_handler_invokes_only_exact_task_scope():
     assert not backend.verify_action(
         "standalone_delivery", context, effect
     ).verified
+
+
+@pytest.mark.asyncio
+async def test_standalone_review_capacity_wait_is_administrative_deferral():
+    selected = issue("TASK-CAPACITY")
+    selected.parent_id = None
+    selected.integration = replace(selected.integration, mode="standalone")
+    tracker = Tracker([selected])
+    fact_collector = collector(tracker)
+    decision = evaluate_task(selected, fact_collector.collect(selected.identifier))
+    calls = []
+
+    def defer_for_capacity(*args, **kwargs):
+        calls.append((args, kwargs))
+        return "capacity_wait"
+
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            _reconcile_one_standalone_ready_to_integrate_task=(
+                defer_for_capacity
+            ),
+        ),
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=fact_collector,
+        ),
+    )
+    context = SimpleNamespace(
+        job=SimpleNamespace(
+            project_id="project-1",
+            task_id=selected.identifier,
+            generation="generation-capacity",
+            job_id="job-capacity",
+            lease_token="lease-capacity",
+            checkpoint={
+                "revalidation": {
+                    "evidence_revision": decision.evidence_revision,
+                    "details": {
+                        "task_branch": selected.integration.task_branch,
+                        "task_head": selected.integration.head_sha,
+                        "task_target": "main",
+                    },
+                }
+            },
+        ),
+        check_interrupted=lambda: None,
+    )
+
+    with pytest.raises(
+        WorkflowAdministrativeDeferral,
+        match="waiting for review capacity",
+    ) as deferred:
+        await backend.apply_action("standalone_delivery", context)
+
+    assert deferred.value.effect_not_started is True
+    assert len(calls) == 1
+    assert tracker.fetch_issue_detail(selected.identifier).state == (
+        READY_TO_INTEGRATE
+    )
+
+
+@pytest.mark.asyncio
+async def test_capacity_deferrals_beyond_budget_preserve_standalone_attempts(
+    tmp_path,
+):
+    selected = issue("TASK-CAPACITY-BUDGET")
+    selected.parent_id = None
+    selected.integration = replace(selected.integration, mode="standalone")
+    tracker = Tracker([selected])
+    fact_collector = collector(tracker)
+    decision = evaluate_task(selected, fact_collector.collect(selected.identifier))
+    capacity_blocked = [True]
+
+    def deliver(*_args, **_kwargs):
+        if capacity_blocked[0]:
+            return "capacity_wait"
+        selected.state = "In Review"
+        selected.review_number = "17"
+        selected.review_head = selected.integration.head_sha
+        return None
+
+    integration_queue = IntegrationQueueStore(
+        str(tmp_path / "capacity-integration.sqlite3")
+    )
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            integration_queue=integration_queue,
+            _reconcile_one_standalone_ready_to_integrate_task=deliver,
+        ),
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=fact_collector,
+        ),
+    )
+    store = WorkflowJobStore(str(tmp_path / "capacity-jobs.sqlite3"))
+    queued = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id=selected.identifier,
+            generation="capacity-generation",
+            action="standalone_delivery",
+            idempotency_key="capacity-generation:standalone",
+            expected_evidence_revision=decision.evidence_revision,
+            expected_head_sha=selected.integration.head_sha,
+            max_attempts=2,
+        )
+    )
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers={
+            "standalone_delivery": IntegrationActionHandler(
+                "standalone_delivery",
+                backend,
+                domain=WorkflowActionDomain.FORGE,
+            )
+        },
+        transition_services={},
+        worker_id="capacity-worker",
+        retry_delay_seconds=0,
+    )
+
+    for _ in range(5):
+        deferred = await worker.run_once()
+        assert deferred.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+        waiting = store.get(queued.job_id)
+        assert waiting.state is WorkflowJobState.RETRY_WAIT
+        assert waiting.attempts == 0
+
+    capacity_blocked[0] = False
+    completed = await worker.run_once()
+
+    assert completed.disposition is WorkflowRunDisposition.COMPLETED
+    assert store.get(queued.job_id).attempts == 1
+    store.close()
+    integration_queue.close()
+
+
+def test_legacy_capacity_exhaustion_proof_uses_exact_checkpoint_submission():
+    selected = issue("TASK-LEGACY-CAPACITY", head="a" * 40)
+    selected.parent_id = None
+    selected.integration = replace(selected.integration, mode="standalone")
+    tracker = Tracker([selected])
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(_project_review_capacity=lambda _project_id: (1, 1, True)),
+        SimpleNamespace(project_id="project-1", tracker=tracker),
+    )
+    job = SimpleNamespace(
+        action="standalone_delivery",
+        state=WorkflowJobState.EXHAUSTED,
+        last_error="standalone delivery is waiting for an exact forge effect",
+        task_id=selected.identifier,
+        expected_head_sha=None,
+        checkpoint={
+            "revalidation": {
+                "head_sha": selected.integration.head_sha,
+                "details": {
+                    "task_branch": selected.integration.task_branch,
+                    "task_head": selected.integration.head_sha,
+                },
+            }
+        },
+    )
+
+    assert backend.legacy_exhaustion_is_capacity_wait(job)
+
+    job.checkpoint["revalidation"]["head_sha"] = "b" * 40
+    job.checkpoint["revalidation"]["details"]["task_head"] = "b" * 40
+    assert not backend.legacy_exhaustion_is_capacity_wait(job)
+
+
+def test_legacy_capacity_exhaustion_proof_rejects_non_capacity_failure():
+    selected = issue("TASK-LEGACY-FAILURE", head="a" * 40)
+    selected.parent_id = None
+    selected.integration = replace(selected.integration, mode="standalone")
+    tracker = Tracker([selected])
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(_project_review_capacity=lambda _project_id: (0, 1, False)),
+        SimpleNamespace(project_id="project-1", tracker=tracker),
+    )
+    job = SimpleNamespace(
+        action="standalone_delivery",
+        state=WorkflowJobState.EXHAUSTED,
+        last_error="standalone delivery is waiting for an exact forge effect",
+        task_id=selected.identifier,
+        expected_head_sha=selected.integration.head_sha,
+        checkpoint={
+            "revalidation": {
+                "details": {
+                    "task_branch": selected.integration.task_branch,
+                    "task_head": selected.integration.head_sha,
+                }
+            }
+        },
+    )
+
+    assert not backend.legacy_exhaustion_is_capacity_wait(job)
 
 
 @pytest.mark.asyncio
