@@ -145,7 +145,11 @@ from oompah.release_delivery_executor import cherry_pick_delivery
 from oompah.release_delivery_queue import ReleaseDeliveryQueue
 from oompah.release_delivery_store import make_delivery_worktree_key
 from oompah.epic_proposal import process_epic_proposal_issue
-from oompah.epic_workflow import EpicFactCollector, EpicWorkflowController
+from oompah.epic_workflow import (
+    EpicFactCollector,
+    EpicWorkflowController,
+    is_epic_rollup_issue,
+)
 from oompah.github_intake_bridge import (
     poll_github_issue_intake_project,
     project_uses_github_issue_intake,
@@ -16245,7 +16249,7 @@ class Orchestrator:
             )
         )
         sources = self._workflow_shadow_sources(task)
-        if str(task.issue_type or "").strip().lower() == "epic":
+        if is_epic_rollup_issue(task, tracker=scoped_tracker):
             project = self.project_store.get(project_id)
             return EpicFactCollector(
                 project_id=project_id,

@@ -9086,6 +9086,62 @@ def test_epics_have_one_domain_owner_and_new_facts_supersede_old_job(tmp_path):
     store.close()
 
 
+def test_inferred_rollup_has_one_owner_and_blocks_open_children(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    root = make_issue("ROOT", state="Backlog", issue_type="epic")
+    parent = make_issue(
+        "PARENT", state="Backlog", issue_type="feature", parent_id="ROOT"
+    )
+    child = make_issue("CHILD", state="Open", parent_id="PARENT")
+    tracker = NativeTracker([root, parent, child])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+    )
+
+    asyncio.run(runtime.start())
+    report = runtime.reconcile()
+    projections = {
+        item["task_id"]: item for item in runtime.projections()
+    }
+
+    assert report["projects"]["project-1"]["epic"]["decisions_seen"] == 2
+    assert report["projects"]["project-1"]["implementation"]["decisions_seen"] == 1
+    assert projections["PARENT"]["reason_code"] == "rollup.status_reconciliation"
+    assert projections["CHILD"]["reason_code"] == "dispatch.hierarchy_wait"
+    assert projections["CHILD"]["durable_jobs"] == []
+    assert store.list_jobs(task_id="CHILD") == ()
+    jobs = store.list_jobs(task_id="PARENT")
+    assert len(jobs) == 1
+    assert jobs[0].action == "rollup_reconciliation"
+
+    parent.state = "Open"
+    runtime.reconcile()
+    ancestor_wait = {
+        item["task_id"]: item for item in runtime.projections()
+    }
+    assert ancestor_wait["ROOT"]["reason_code"] == "rollup.status_reconciliation"
+    assert ancestor_wait["CHILD"]["reason_code"] == "dispatch.hierarchy_wait"
+    assert store.list_jobs(task_id="CHILD") == ()
+
+    root.state = "Open"
+    runtime.reconcile()
+    resumed = {item["task_id"]: item for item in runtime.projections()}
+    assert resumed["CHILD"]["reason_code"] == "dispatch.eligible"
+    child_jobs = store.list_jobs(task_id="CHILD")
+    assert len(child_jobs) == 1
+    assert child_jobs[0].action == "implementation_start"
+
+    runtime.reconcile()
+    assert len(store.list_jobs(task_id="CHILD")) == 1
+    runtime.close()
+    store.close()
+
+
 def test_epic_facts_use_the_generation_bound_project_cut_without_refetch(tmp_path):
     stale = make_issue("EPIC-RACE", state="In Progress", issue_type="epic")
     current = make_issue("EPIC-RACE", state="Done", issue_type="epic")
