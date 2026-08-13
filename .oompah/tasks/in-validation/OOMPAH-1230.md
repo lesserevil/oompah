@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:58:05.284702Z'
-updated_at: '2026-08-13T10:16:21.852363Z'
+updated_at: '2026-08-13T10:16:25.643493Z'
 work_branch: OOMPAH-1230
 target_branch: null
 review_url: null
@@ -144,5 +144,10 @@ author: oompah
 created: 2026-08-13 10:15
 ---
 Honor TaskTransitionService's two-argument mutation-guard callback contract while retaining the runtime guard's authoritative fresh tracker read. Regression coverage and 284 focused tests pass; hosted CI passes on Python 3.11, 3.12, and 3.13.
+---
+author: oompah
+created: 2026-08-13 10:16
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
