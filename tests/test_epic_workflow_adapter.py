@@ -2328,6 +2328,60 @@ def test_event_router_is_inert_outside_enforce_mode(mode):
     router.close()
 
 
+def test_rebase_event_uses_target_and_epic_authority_not_observation_revision():
+    top = epic("TOP")
+    tracker = Tracker([top])
+    controller = MagicMock()
+    controller.scheduler = MagicMock()
+    binding = SimpleNamespace(tracker=tracker, epic_controller=controller)
+    runtime = SimpleNamespace(
+        enforce=True,
+        project_bindings={"project-1": binding},
+    )
+    orchestrator = SimpleNamespace(
+        request_refresh=MagicMock(),
+        _request_workflow_batch_continuation=MagicMock(return_value=True),
+    )
+    router = EpicWorkflowEventRouter(orchestrator, runtime)
+    decision = SimpleNamespace(
+        durable_jobs=(EpicAction.REBASE_REPAIR.value,),
+        reason_code="epic.rebase_required",
+        evidence_revision="event-observation-revision",
+    )
+
+    with patch(
+        "oompah.epic_workflow_adapter.EpicWorkflowController"
+    ) as ephemeral_controller:
+        ephemeral_controller.return_value.evaluate.return_value = SimpleNamespace(
+            tasks=(SimpleNamespace(decision=decision),)
+        )
+        router.on_rebase_requested(
+            "epic_rebase_requested",
+            {
+                "project_id": "project-1",
+                "identifier": "TOP",
+                "target_branch": "main",
+                "source": "nested-dispatch-topology",
+            },
+        )
+        router.drain_events(timeout=1.0)
+
+    controller.schedule_action.assert_called_once()
+    call = controller.schedule_action.call_args
+    assert call.kwargs["action"] is EpicAction.REBASE_REPAIR
+    assert call.kwargs["expected_evidence_revision"] is None
+    assert call.kwargs["payload"] == {
+        "event_source": "epic-rebase-requested",
+        "target_branch": "main",
+        "request_source": "nested-dispatch-topology",
+        "evidence_revision": "event-observation-revision",
+        "revalidation_contract": "target-source-v2",
+    }
+    assert call.kwargs["generation"].startswith("epic-event:")
+    controller.scheduler.wake.assert_called_once_with("epic-rebase-requested")
+    router.close()
+
+
 def test_restart_cleanup_counts_created_jobs_and_replays_across_worker_ids(
     tmp_path, caplog
 ):

@@ -1613,13 +1613,17 @@ class ProductionEpicWorkflowBackend:
                 # verify that exact already-created effect, but never to apply
                 # a helper to a different target or a terminal epic.
                 current = self._rebase_target_is_current(snapshot, payload)
-            # Fence a not-yet-applied helper to the exact generation that
-            # requested it.  Once an effect receipt exists, creation itself
-            # may have changed containment by adding the maintenance child;
-            # restart must replay verification rather than supersede the
-            # already-observed effect.
+            # A new fresh decision which still authorizes the same target is
+            # stronger current authority than the event callback's earlier
+            # observation revision.  Only consult an older request revision
+            # as crash-recovery evidence after the fresh decision no longer
+            # authorizes creation.  Once an effect receipt exists, creation
+            # itself may have changed containment by adding the maintenance
+            # child; restart must replay verification rather than supersede
+            # the already-observed effect.
             if (
-                requested_revision
+                not current
+                and requested_revision
                 and not isinstance(saved_effect, Mapping)
                 and requested_revision != snapshot.decision.evidence_revision
             ):

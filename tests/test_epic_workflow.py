@@ -1754,6 +1754,50 @@ async def test_rebase_restart_resumes_partial_helper_bookkeeping_repair():
 
 
 @pytest.mark.asyncio
+async def test_rebase_revalidation_accepts_fresh_observation_revision_before_effect():
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    facts = MagicMock()
+    facts.fact.return_value = SimpleNamespace(
+        state=FactState.KNOWN,
+        value={"epic_branch": "epic-TOP", "target_branch": "main"},
+    )
+    decision = SimpleNamespace(
+        durable_jobs=(EpicAction.REBASE_REPAIR.value,),
+        evidence_revision="fresh-observation-revision",
+        reason_code="epic.rebase_required",
+    )
+    controller = MagicMock()
+    controller.collector.project_id = "project-1"
+    backend = ProductionEpicWorkflowBackend(
+        controller=controller,
+        tracker=MagicMock(),
+        effects=MagicMock(),
+    )
+    backend._fresh_snapshot = MagicMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(epic=top, facts=facts, decision=decision)
+    )
+    context = SimpleNamespace(
+        job=SimpleNamespace(
+            action=EpicAction.REBASE_REPAIR.value,
+            payload={
+                "target_branch": "main",
+                "evidence_revision": "event-observation-revision",
+            },
+            checkpoint={},
+            generation="rebase-generation-1",
+            expected_evidence_revision=None,
+            expected_head_sha=None,
+        )
+    )
+
+    result = await backend.revalidate(context)
+
+    assert result.current is True
+    assert result.evidence_revision == "fresh-observation-revision"
+    assert result.generation == context.job.generation
+
+
+@pytest.mark.asyncio
 async def test_epic_handler_executes_one_exact_task_scoped_effect(tmp_path):
     calls: list[tuple[str, str]] = []
 
