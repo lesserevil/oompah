@@ -3124,6 +3124,84 @@ class WorkflowJobStore:
             )
         )
 
+    def schedule_substitute_materialized(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        decision_revision: str,
+        job_generation: str,
+        action: str,
+        scheduling_lanes: Sequence[str],
+        now: float | None = None,
+    ) -> bool:
+        """Prove a protected event job owns one managed schedule obligation.
+
+        Some domain event routers intentionally supersede a managed decision
+        job after publication.  The event remains the execution authority that
+        must drain.  Bind that substitute proof to the current managed cursor
+        and require the exact action in an explicitly configured event lane so
+        neither a stale scan nor unrelated maintenance work can satisfy it.
+        """
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        revision = _required_text(decision_revision, "decision_revision")
+        generation = _required_text(job_generation, "job_generation")
+        normalized_action = _required_text(action, "action")
+        lanes = tuple(
+            sorted(
+                {
+                    _required_text(lane, "scheduling_lane")
+                    for lane in scheduling_lanes
+                }
+            )
+        )
+        if not lanes:
+            raise ValueError("scheduling_lanes cannot be empty")
+        timestamp = float(self._clock() if now is None else now)
+        with self._lock:
+            cursor = self._conn.execute(
+                """
+                SELECT * FROM workflow_schedule_cursors
+                 WHERE project_id = ? AND task_id = ?
+                """,
+                (project, task),
+            ).fetchone()
+            if (
+                cursor is None
+                or str(cursor["decision_revision"]) != revision
+                or str(cursor["job_generation"]) != generation
+                or str(cursor["materialized_job_generation"] or "")
+                != generation
+            ):
+                return False
+            row = self._conn.execute(
+                f"""
+                SELECT state, lease_owner, lease_expires_at
+                  FROM workflow_jobs
+                 WHERE project_id = ? AND task_id = ? AND action = ?
+                   AND scheduling_lane IN (
+                       {','.join('?' for _ in lanes)}
+                   )
+                   AND state IN (
+                       {','.join('?' for _ in ACTIVE_JOB_STATES)}
+                   )
+                 ORDER BY enqueue_sequence DESC LIMIT 1
+                """,
+                (
+                    project,
+                    task,
+                    normalized_action,
+                    *lanes,
+                    *(state.value for state in ACTIVE_JOB_STATES),
+                ),
+            ).fetchone()
+        return bool(
+            row is not None
+            and _job_row_proves_live_authority(row, now=timestamp)
+        )
+
     def activate_schedule(
         self,
         *,

@@ -158,6 +158,57 @@ def test_stale_slow_scan_cannot_replace_newer_task_schedule(store):
     )
 
 
+def test_protected_same_action_event_satisfies_current_schedule(store):
+    scheduler = WorkflowJobScheduler(
+        store=store,
+        protected_event_lane_prefixes=("epic-event:",),
+    )
+    current = decision(jobs=("child_landing_verification",))
+    first = scheduler.reconcile((current,))
+    managed = store.list_jobs()[0]
+    event = store.materialize_event(
+        project_id=current.project_id,
+        task_id=current.task_id,
+        decision_revision="event-revision",
+        action="child_landing_verification",
+        idempotency_namespace="epic-action:child_landing_verification",
+        scheduling_lane="epic-event:child_landing_verification",
+    )
+
+    replay = scheduler.reconcile((current,))
+
+    assert first.jobs_materialized == 1
+    assert store.get(managed.job_id).state is WorkflowJobState.SUPERSEDED
+    assert event.job is not None
+    assert store.get(event.job.job_id).state is WorkflowJobState.QUEUED
+    assert replay.jobs_materialized == 1
+    assert replay.schedules_materialized == 1
+    assert replay.truncated is False
+
+
+def test_protected_different_action_cannot_satisfy_current_schedule(store):
+    scheduler = WorkflowJobScheduler(
+        store=store,
+        protected_event_lane_prefixes=("epic-event:",),
+    )
+    current = decision(jobs=("child_landing_verification",))
+    scheduler.reconcile((current,))
+    store.materialize_event(
+        project_id=current.project_id,
+        task_id=current.task_id,
+        decision_revision="event-revision",
+        action="epic_restart_reconciliation",
+        idempotency_namespace="epic-action:epic_restart_reconciliation",
+        scheduling_lane="epic-event:epic_restart_reconciliation",
+    )
+
+    replay = scheduler.reconcile((current,))
+
+    assert replay.jobs_required == 1
+    assert replay.jobs_materialized == 0
+    assert replay.truncated is True
+
+
 def test_completed_recurring_action_rearms_only_after_reassessment_deadline(
     store, clock
 ):
