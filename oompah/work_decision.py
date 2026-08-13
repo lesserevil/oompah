@@ -19,6 +19,7 @@ from typing import Any
 from oompah.integration import (
     ACCEPTED_SUBMISSION_STATES,
     REVIEW_GENERATION_REQUEUE_WAIT_REASON,
+    direct_epic_maintenance_completion_ready,
     direct_epic_maintenance_handoff_ready,
     review_generation_requeue_marker,
 )
@@ -129,6 +130,7 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "landing.evidence_unknown",
         "landing.target_evidence_missing",
         "landing.waiting",
+        "maintenance.publication_completion_pending",
         "maintenance.publication_proven",
         "graph.impossible",
         "liveness.reassessment_overdue",
@@ -2271,10 +2273,72 @@ def _evaluate_task_default_policy(
         if integration.state is FactState.KNOWN
         else None
     )
+    config = facts.fact(FactDomain.CONFIG)
+    config_value = (
+        _mapping(config.value) if config.state is FactState.KNOWN else None
+    )
+    direct_handoff_ready = bool(
+        integration_value
+        and direct_epic_maintenance_handoff_ready(task, integration_value)
+    )
+    # Parent state is part of the completion effect, not optional diagnostics.
+    # Missing/stale/error CONFIG authority must therefore fail closed and keep
+    # the exact idempotent completion job live until convergence can be proved.
+    parent_convergence_unproven = bool(
+        direct_handoff_ready
+        and (
+            (
+                config_value is not None
+                and config_value.get("direct_epic_maintenance_parent_rebased")
+                is False
+            )
+            # An Open/repair helper still has terminal-audit work to do, so
+            # its established audited handoff remains runnable when an older
+            # collector lacks this new observation.  Done is the dangerous
+            # terminal boundary: never declare it complete without positive
+            # parent convergence authority.
+            or (
+                view.status == DONE
+                and (
+                    config_value is None
+                    or config_value.get(
+                        "direct_epic_maintenance_parent_rebased"
+                    )
+                    is not True
+                )
+            )
+        )
+    )
+    if (
+        view.status
+        in {
+            OPEN,
+            NEEDS_CI_FIX,
+            NEEDS_REBASE,
+            IN_VALIDATION,
+            READY_TO_INTEGRATE,
+            DONE,
+        }
+        and integration_value
+        and (
+            direct_epic_maintenance_completion_ready(task, integration_value)
+            or parent_convergence_unproven
+            or (view.status == READY_TO_INTEGRATE and direct_handoff_ready)
+        )
+    ):
+        return _decision(
+            view,
+            facts,
+            disposition=TaskDisposition.RETRY_SCHEDULED,
+            reason_code="maintenance.publication_completion_pending",
+            owner=WorkflowOwner.INTEGRATOR,
+            actions=(PermittedAction.RECONCILE_TARGET,),
+            durable_jobs=("direct_epic_maintenance_completion",),
+        )
     if (
         view.status == DONE
         and integration_value
-        and direct_epic_maintenance_handoff_ready(task, integration_value)
+        and direct_handoff_ready
     ):
         return _decision(
             view,
@@ -2375,10 +2439,6 @@ def _evaluate_task_default_policy(
                 durable_jobs=("terminal_audit_done",),
                 recommended_status=IN_VALIDATION,
             )
-        config = facts.fact(FactDomain.CONFIG)
-        config_value = (
-            _mapping(config.value) if config.state is FactState.KNOWN else None
-        )
         duplicate_state = str(
             (config_value or {}).get("duplicate_screening_state") or ""
         ).strip().lower()

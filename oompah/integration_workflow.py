@@ -27,11 +27,12 @@ from oompah.integration_executor import (
 from oompah.integration import (
     ACCEPTED_SUBMISSION_STATES,
     IntegrationRecord,
+    direct_epic_maintenance_completion_ready,
     direct_epic_maintenance_handoff_ready,
     is_direct_epic_maintenance_issue,
 )
 from oompah.integration_queue import STANDALONE_RECLASSIFICATION_REASON
-from oompah.models import Issue
+from oompah.models import EpicRebaseState, Issue
 from oompah.statuses import (
     ARCHIVED,
     DONE,
@@ -91,6 +92,7 @@ HISTORICAL_REPLAY_PRIORITY = 10_000
 INTEGRATION_ACTIONS = frozenset(
     {
         "epic_branch_reconciliation",
+        "direct_epic_maintenance_completion",
         "historical_audit_replay_batch",
         "integration_attempt",
         "integration_landing_refresh",
@@ -1380,7 +1382,9 @@ class IntegrationWorkflowController:
                 task.identifier: task
                 for task in normalized_tasks
                 if canonicalize_status(task.state) in {READY_TO_INTEGRATE, DONE}
+                or direct_epic_maintenance_completion_ready(task)
                 or direct_epic_maintenance_handoff_ready(task)
+                or is_direct_epic_maintenance_issue(task)
             }.items()
         )
         if len(selected) > self.decision_limit:
@@ -1399,7 +1403,8 @@ class IntegrationWorkflowController:
         for task in ready:
             default_requests = (
                 ()
-                if direct_epic_maintenance_handoff_ready(task)
+                if direct_epic_maintenance_completion_ready(task)
+                or direct_epic_maintenance_handoff_ready(task)
                 else self.landing_requests_for(
                     task,
                     authoritative_issues=authoritative_issues,
@@ -1830,6 +1835,7 @@ class IntegrationActionHandler:
 
 
 _INTEGRATION_ACTION_DOMAINS = {
+    "direct_epic_maintenance_completion": WorkflowActionDomain.GIT,
     "epic_branch_reconciliation": WorkflowActionDomain.GIT,
     "historical_audit_replay_batch": WorkflowActionDomain.AUDIT,
     "integration_attempt": WorkflowActionDomain.GIT,
@@ -2612,6 +2618,35 @@ class OrchestratorIntegrationActionBackend:
             if callable(sync)
             else contextlib.nullcontext(True)
         )
+
+    @contextlib.asynccontextmanager
+    async def _async_issue_authority_lock(self, context: WorkflowJobContext):
+        """Hold the submission/terminal mutex across an awaited mutation."""
+
+        issue = await asyncio.to_thread(self._fresh_issue, context)
+        issue_id = str(
+            getattr(issue, "id", "")
+            or getattr(issue, "identifier", "")
+            or context.job.task_id
+        )
+        factory = getattr(self.orchestrator, "issue_transition_lock", None)
+        lock = factory(issue_id) if callable(factory) else None
+        acquire = getattr(lock, "acquire", None)
+        release = getattr(lock, "release", None)
+        if not callable(acquire) or not callable(release):
+            yield
+            return
+        acquired = await _resolve(acquire())
+        if acquired is False:
+            raise WorkflowActionError(
+                "task authority is temporarily unavailable",
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            )
+        try:
+            yield
+        finally:
+            release()
 
     def _repair_rebased_tracker_checkpoint(
         self,
@@ -3550,7 +3585,8 @@ class OrchestratorIntegrationActionBackend:
             )
         requests = (
             ()
-            if action == "terminal_audit_done"
+            if action
+            in {"direct_epic_maintenance_completion", "terminal_audit_done"}
             else self._landing_request(issue)
         )
         facts = self.binding.collector.collect(
@@ -3613,6 +3649,7 @@ class OrchestratorIntegrationActionBackend:
                     or getattr(issue, "head_sha", "")
                     or ""
                 ).strip(),
+                "task_status": canonicalize_status(issue.state),
             }
         )
         if rollup_authority is not None:
@@ -3797,6 +3834,67 @@ class OrchestratorIntegrationActionBackend:
                 ),
                 "queue_branch": getattr(row, "task_branch", None),
                 "queue_head": getattr(row, "head_sha", None),
+            },
+        )
+
+    def _direct_maintenance_observation(
+        self,
+        action: str,
+        context: WorkflowJobContext,
+        *,
+        expected_head: str | None = None,
+    ) -> EffectObservation:
+        """Observe the exact durable result of direct publication completion."""
+
+        issue = self._fresh_issue(context)
+        record = self._record(issue)
+        head = str(expected_head or self._head_from_checkpoint(context) or "").strip()
+        current_head = str(
+            getattr(record, "integrated_sha", None)
+            or getattr(record, "head_sha", None)
+            or ""
+        ).strip()
+        parent_id = str(getattr(issue, "parent_id", "") or "").strip()
+        rebase_state_reader = getattr(
+            self.orchestrator, "_get_epic_rebase_state", None
+        )
+        try:
+            parent = (
+                self.tracker.fetch_issue_detail(parent_id) if parent_id else None
+            )
+            parent_rebased = bool(
+                callable(rebase_state_reader)
+                and rebase_state_reader(parent_id, project_id=self.project_id)
+                is EpicRebaseState.REBASED
+                and parent is not None
+                and EpicRebaseState.REBASED.label in (parent.labels or [])
+            )
+        except Exception:  # noqa: BLE001 - incomplete observation retries apply
+            parent_rebased = False
+        applied = bool(
+            issue is not None
+            and direct_epic_maintenance_handoff_ready(issue, record)
+            and head
+            and current_head == head
+            and parent_rebased
+        )
+        return EffectObservation(
+            applied,
+            {
+                **self._base_receipt(action, context),
+                "task_status": (
+                    canonicalize_status(issue.state) if issue is not None else None
+                ),
+                "task_branch": str(
+                    getattr(record, "task_branch", None) or ""
+                ).strip()
+                or None,
+                "task_head": current_head or None,
+                "maintenance_publication_proven": bool(
+                    getattr(record, "maintenance_publication_proven", False)
+                ),
+                "parent_id": parent_id or None,
+                "parent_rebased": parent_rebased,
             },
         )
 
@@ -4176,6 +4274,8 @@ class OrchestratorIntegrationActionBackend:
     def observe_action(
         self, action: str, context: WorkflowJobContext
     ) -> EffectObservation:
+        if action == "direct_epic_maintenance_completion":
+            return self._direct_maintenance_observation(action, context)
         if action == "integration_landing_refresh":
             issue = self._fresh_issue(context)
             landing = self._landing(issue) if issue is not None else None
@@ -5248,6 +5348,86 @@ class OrchestratorIntegrationActionBackend:
     async def apply_action(
         self, action: str, context: WorkflowJobContext
     ) -> EffectResult:
+        if action == "direct_epic_maintenance_completion":
+            context.check_interrupted()
+            details = self._revalidation_details(context)
+            expected_evidence = self._revalidated_evidence_revision(context)
+            expected_branch = str(details.get("task_branch") or "").strip()
+            expected_head = str(details.get("task_head") or "").strip()
+            expected_status = canonicalize_status(details.get("task_status"))
+            async with self._async_issue_authority_lock(context):
+                context.check_interrupted()
+                issue = await asyncio.to_thread(self._fresh_issue, context)
+                record = self._record(issue)
+                if (
+                    issue is None
+                    or not isinstance(record, IntegrationRecord)
+                    or canonicalize_status(issue.state) != expected_status
+                    or not (
+                        direct_epic_maintenance_completion_ready(issue, record)
+                        or direct_epic_maintenance_handoff_ready(issue, record)
+                    )
+                    or record.task_branch != expected_branch
+                    or record.head_sha != expected_head
+                ):
+                    raise WorkflowActionError(
+                        "direct epic maintenance authority changed after revalidation",
+                        category=WorkflowFailureCategory.STALE_EVIDENCE,
+                        retryable=True,
+                    )
+                facts = await asyncio.to_thread(
+                    self.binding.collector.collect,
+                    issue.identifier,
+                    landing_requests=(),
+                )
+                decision = evaluate_task(issue, facts)
+                if (
+                    action not in decision.durable_jobs
+                    or decision.evidence_revision != expected_evidence
+                ):
+                    raise WorkflowActionError(
+                        "direct epic maintenance evidence changed after revalidation",
+                        category=WorkflowFailureCategory.STALE_EVIDENCE,
+                        retryable=True,
+                    )
+                completion = (
+                    await self.orchestrator.complete_direct_epic_maintenance_submission(
+                        issue,
+                        record,
+                        self.project_id,
+                        _authority_owned=True,
+                    )
+                )
+            if completion is None:
+                raise WorkflowActionError(
+                    "direct epic maintenance classification changed during completion",
+                    category=WorkflowFailureCategory.STALE_EVIDENCE,
+                    retryable=True,
+                )
+            completed, message, completed_record = completion
+            if not completed:
+                raise WorkflowActionError(
+                    message,
+                    category=WorkflowFailureCategory.TRANSIENT,
+                    retryable=True,
+                )
+            completed_head = str(
+                getattr(completed_record, "integrated_sha", None)
+                or getattr(completed_record, "head_sha", None)
+                or ""
+            ).strip()
+            context.check_interrupted()
+            self._request_refresh()
+            return EffectResult(
+                {
+                    **self._base_receipt(action, context),
+                    "source_evidence_revision": expected_evidence,
+                    "task_status": expected_status,
+                    "task_branch": expected_branch,
+                    "task_head": completed_head or expected_head,
+                    "message": message,
+                }
+            )
         if action == "integration_landing_refresh":
             def _refresh_landing() -> LandingFact:
                 issue = self._issue(context)
@@ -5543,6 +5723,31 @@ class OrchestratorIntegrationActionBackend:
         context: WorkflowJobContext,
         effect: EffectResult,
     ) -> VerificationResult:
+        if action == "direct_epic_maintenance_completion":
+            expected_head = str(effect.receipt.get("task_head") or "").strip()
+            observation = self._direct_maintenance_observation(
+                action,
+                context,
+                expected_head=expected_head,
+            )
+            exact_receipt = bool(
+                effect.receipt.get("source_evidence_revision")
+                == self._revalidated_evidence_revision(context)
+                and effect.receipt.get("task_branch")
+                == str(
+                    self._revalidation_details(context).get("task_branch") or ""
+                ).strip()
+                and expected_head
+            )
+            return VerificationResult(
+                bool(exact_receipt and observation.applied),
+                {**dict(effect.receipt), **dict(observation.receipt)},
+                (
+                    None
+                    if exact_receipt and observation.applied
+                    else "exact direct maintenance completion is not durable"
+                ),
+            )
         if action == "integration_attempt":
             route = str(effect.receipt.get("route") or "")
             observation = self._attempt_observation(

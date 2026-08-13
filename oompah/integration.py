@@ -282,13 +282,68 @@ def direct_epic_maintenance_handoff_ready(
                 str(explicit_target.get("target_branch") or "").strip(),
             )
         )
-    else:
-        issue_expectations.append(("target_branch", base_branch))
+    # A legacy helper's task target remains the branch the epic was rebased
+    # onto (often ``main``), while its completed integration record is
+    # intentionally rewritten to describe the authoritative epic branch.
+    # The canonical-title classifier plus parent/work-branch/exact-head proof
+    # provides the legacy boundary; comparing those two different targets
+    # would make the first durable checkpoint non-idempotent.
     for issue_field, expected in issue_expectations:
         observed = str(field(issue, issue_field) or "").strip()
         if observed and observed.lower() != expected.lower():
             return False
     return True
+
+
+def direct_epic_maintenance_completion_ready(
+    issue: object,
+    integration: object | None = None,
+) -> bool:
+    """Return whether an exact published helper still needs completion.
+
+    A direct rebase submission first persists a ``ready`` record whose task
+    branch is the authoritative epic branch and whose base is the recorded
+    immediate target.  Unlike an ordinary queue submission, that published
+    head must be reconciled by the dedicated maintenance completion primitive;
+    it must never be interpreted as a child source awaiting a second landing.
+    """
+
+    if not is_direct_epic_maintenance_issue(issue):
+        return False
+
+    def field(subject: object, name: str) -> object:
+        if isinstance(subject, Mapping):
+            return subject.get(name)
+        return getattr(subject, name, None)
+
+    target = field(issue, "epic_rebase_target")
+    record = integration if integration is not None else field(issue, "integration")
+    if record is None:
+        return False
+    if isinstance(target, Mapping):
+        epic_branch = str(target.get("epic_branch") or "").strip()
+        target_branch = str(target.get("target_branch") or "").strip()
+    else:
+        parent = str(field(issue, "parent_id") or "").strip()
+        epic_branch = "epic-" + re.sub(
+            r"[^A-Za-z0-9._-]+", "_", parent
+        ).strip("._-")
+        target_branch = str(field(issue, "target_branch") or "").strip()
+    task_branch = str(field(record, "task_branch") or "").strip()
+    base_branch = str(field(record, "base_branch") or "").strip()
+    head = str(field(record, "head_sha") or "").strip().lower()
+    integrated = str(field(record, "integrated_sha") or "").strip().lower()
+    return bool(
+        str(field(record, "state") or "").strip().lower() == "ready"
+        and str(field(record, "mode") or "").strip().lower() == "queue"
+        and field(record, "maintenance_publication_proven") is not True
+        and epic_branch
+        and target_branch
+        and task_branch == epic_branch
+        and base_branch == target_branch
+        and re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", head)
+        and not integrated
+    )
 
 
 def _compute_evidence_fingerprint(

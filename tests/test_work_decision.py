@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
@@ -737,7 +738,11 @@ def test_integration_action_required_is_the_only_warning_path():
                     "action_required": True,
                     "action_code": "repair_credentials",
                 },
-            )
+            ),
+            FactDomain.CONFIG: _known(
+                FactDomain.CONFIG,
+                {"direct_epic_maintenance_parent_rebased": True},
+            ),
         },
     )
 
@@ -1511,7 +1516,11 @@ def test_incident_direct_maintenance_bypasses_ordinary_child_integration():
                     "integrated_sha": "a" * 40,
                     "maintenance_publication_proven": True,
                 },
-            )
+            ),
+            FactDomain.CONFIG: _known(
+                FactDomain.CONFIG,
+                {"direct_epic_maintenance_parent_rebased": True},
+            ),
         },
     )
 
@@ -1521,6 +1530,73 @@ def test_incident_direct_maintenance_bypasses_ordinary_child_integration():
     assert decision.responsible_owner is WorkflowOwner.AUDITOR
     assert decision.recommended_status == IN_VALIDATION
     assert decision.durable_jobs == ("terminal_audit_done",)
+
+
+@pytest.mark.parametrize("status", [READY_TO_INTEGRATE, DONE])
+def test_direct_maintenance_ready_publication_schedules_completion(status):
+    generation = "f" * 64
+    project_id = "project-1"
+    parent_id = "EPIC-1"
+    issue = _issue(
+        status,
+        identifier="REBASE-1",
+        id="REBASE-1",
+        title="Rebase legacy-epic-source onto epic-EPIC-0",
+        parent_id=parent_id,
+        work_branch="legacy-epic-source",
+        target_branch="epic-EPIC-0",
+        create_once={
+            "version": 1,
+            "project_id": project_id,
+            "operation_kind": "epic_rebase_helper",
+            "creation_marker": "oompah-epic-rebase-reservation-v1:"
+            + hashlib.sha256(
+                f"{project_id}\0{parent_id}\0{generation}".encode()
+            ).hexdigest(),
+        },
+        epic_rebase_target={
+            "version": 1,
+            "epic_identifier": parent_id,
+            "epic_branch": "legacy-epic-source",
+            "target_branch": "epic-EPIC-0",
+            "resolution": "authoritative_parent",
+        },
+        epic_rebase_authority={
+            "version": 1,
+            "generation": generation,
+            "task_id": "REBASE-1",
+            "epic_identifier": parent_id,
+            "epic_branch": "legacy-epic-source",
+            "epic_head": "a" * 40,
+            "target_branch": "epic-EPIC-0",
+            "target_head": "b" * 40,
+        },
+    )
+    facts = _facts(
+        issue,
+        overrides={
+            FactDomain.INTEGRATION: _known(
+                FactDomain.INTEGRATION,
+                {
+                    "state": "ready",
+                    "mode": "queue",
+                    "task_branch": "legacy-epic-source",
+                    "base_branch": "epic-EPIC-0",
+                    "head_sha": "c" * 40,
+                },
+            ),
+            FactDomain.CONFIG: _known(
+                FactDomain.CONFIG,
+                {"direct_epic_maintenance_parent_rebased": True},
+            ),
+        },
+    )
+
+    decision = evaluate_task(issue, facts)
+
+    assert decision.reason_code == "maintenance.publication_completion_pending"
+    assert decision.responsible_owner is WorkflowOwner.INTEGRATOR
+    assert decision.durable_jobs == ("direct_epic_maintenance_completion",)
 
 
 def test_audited_direct_maintenance_is_terminal_without_ordinary_landing():
@@ -1546,7 +1622,11 @@ def test_audited_direct_maintenance_is_terminal_without_ordinary_landing():
                     "integrated_sha": "a" * 40,
                     "maintenance_publication_proven": True,
                 },
-            )
+            ),
+            FactDomain.CONFIG: _known(
+                FactDomain.CONFIG,
+                {"direct_epic_maintenance_parent_rebased": True},
+            ),
         },
     )
 
@@ -1556,6 +1636,99 @@ def test_audited_direct_maintenance_is_terminal_without_ordinary_landing():
     assert decision.reason_code == "maintenance.publication_proven"
     assert decision.durable_jobs == ()
     assert decision.next_reassessment_at is None
+
+
+def test_proven_direct_maintenance_repairs_missing_parent_convergence():
+    issue = _issue(
+        DONE,
+        title="Rebase epic-EPIC-1 onto main",
+        parent_id="EPIC-1",
+        work_branch="epic-EPIC-1",
+        target_branch="epic-EPIC-1",
+        head_sha="a" * 40,
+    )
+    facts = _facts(
+        issue,
+        overrides={
+            FactDomain.INTEGRATION: _known(
+                FactDomain.INTEGRATION,
+                {
+                    "state": "integrated",
+                    "mode": "queue",
+                    "task_branch": "epic-EPIC-1",
+                    "base_branch": "epic-EPIC-1",
+                    "head_sha": "a" * 40,
+                    "integrated_sha": "a" * 40,
+                    "maintenance_publication_proven": True,
+                },
+            ),
+            FactDomain.CONFIG: _known(
+                FactDomain.CONFIG,
+                {"direct_epic_maintenance_parent_rebased": False},
+            ),
+        },
+    )
+
+    decision = evaluate_task(issue, facts)
+
+    assert decision.reason_code == "maintenance.publication_completion_pending"
+    assert decision.durable_jobs == ("direct_epic_maintenance_completion",)
+
+
+@pytest.mark.parametrize(
+    "config_observation",
+    [
+        FactObservation.missing(
+            FactDomain.CONFIG, observed_at=NOW_ISO, source="test"
+        ),
+        FactObservation.stale(
+            FactDomain.CONFIG,
+            {"direct_epic_maintenance_parent_rebased": True},
+            observed_at=NOW_ISO,
+            source="test",
+        ),
+        FactObservation.error(
+            FactDomain.CONFIG,
+            observed_at=NOW_ISO,
+            source="test",
+            error_code="parent_authority_unavailable",
+        ),
+    ],
+)
+def test_proven_direct_maintenance_fails_closed_without_parent_authority(
+    config_observation,
+):
+    issue = _issue(
+        DONE,
+        title="Rebase epic-EPIC-1 onto main",
+        parent_id="EPIC-1",
+        work_branch="epic-EPIC-1",
+        target_branch="epic-EPIC-1",
+        head_sha="a" * 40,
+    )
+    facts = _facts(
+        issue,
+        overrides={
+            FactDomain.INTEGRATION: _known(
+                FactDomain.INTEGRATION,
+                {
+                    "state": "integrated",
+                    "mode": "queue",
+                    "task_branch": "epic-EPIC-1",
+                    "base_branch": "epic-EPIC-1",
+                    "head_sha": "a" * 40,
+                    "integrated_sha": "a" * 40,
+                    "maintenance_publication_proven": True,
+                },
+            ),
+            FactDomain.CONFIG: config_observation,
+        },
+    )
+
+    decision = evaluate_task(issue, facts)
+
+    assert decision.reason_code == "maintenance.publication_completion_pending"
+    assert decision.durable_jobs == ("direct_epic_maintenance_completion",)
 
 
 @pytest.mark.parametrize(

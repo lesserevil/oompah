@@ -1671,6 +1671,9 @@ class IntegrationQueueStore:
         reason: str | None = None,
         expected_head_sha: str | None = None,
         expected_state: str | None = None,
+        expected_epic_id: str | None = None,
+        expected_task_branch: str | None = None,
+        expected_base_branch: str | None = None,
     ) -> bool:
         """Retire a stale nonterminal row and invalidate any active lease.
 
@@ -1690,6 +1693,9 @@ class IntegrationQueueStore:
                   AND state IN ('ready', 'integrating', 'blocked')
                   AND (? IS NULL OR head_sha = ?)
                   AND (? IS NULL OR state = ?)
+                  AND (? IS NULL OR epic_id = ?)
+                  AND (? IS NULL OR task_branch = ?)
+                  AND (? IS NULL OR base_branch = ?)
                 """,
                 (
                     _now_iso(),
@@ -1700,6 +1706,12 @@ class IntegrationQueueStore:
                     expected_head_sha,
                     expected_state,
                     expected_state,
+                    expected_epic_id,
+                    expected_epic_id,
+                    expected_task_branch,
+                    expected_task_branch,
+                    expected_base_branch,
+                    expected_base_branch,
                 ),
             )
             self._conn.commit()

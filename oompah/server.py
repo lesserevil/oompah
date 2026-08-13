@@ -6717,6 +6717,7 @@ async def _accept_worker_submission(
                 record,
                 project_id,
                 summary=str(body.get("summary") or "").strip(),
+                _authority_owned=True,
             )
             if direct_completion is None:
                 raise ValueError(

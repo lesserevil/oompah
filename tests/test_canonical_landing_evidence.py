@@ -814,6 +814,7 @@ def test_direct_rebase_completion_stops_before_audit_on_mapping_save_failure():
             current,
             record,
             project.id,
+            _authority_owned=True,
         )
     )
 
@@ -897,6 +898,7 @@ def test_direct_rebase_proof_is_not_published_when_queue_cancel_cas_fails():
             current,
             record,
             project.id,
+            _authority_owned=True,
         )
     )
 

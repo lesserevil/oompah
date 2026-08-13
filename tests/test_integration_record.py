@@ -10,6 +10,7 @@ from oompah.integration import (
     REVIEW_GENERATION_REQUEUE_WAIT_REASON,
     accepted_submission_branch,
     assigned_work_branch,
+    direct_epic_maintenance_completion_ready,
     expected_submission_branch,
     direct_epic_maintenance_handoff_ready,
     is_direct_epic_maintenance_issue,
@@ -77,6 +78,68 @@ def test_noncanonical_direct_maintenance_uses_explicit_scoped_authority():
             "maintenance_publication_proven": True,
         },
     )
+
+
+def test_noncanonical_direct_maintenance_ready_record_requires_completion():
+    issue = _authoritative_noncanonical_helper()
+
+    assert direct_epic_maintenance_completion_ready(
+        issue,
+        {
+            "state": "ready",
+            "mode": "queue",
+            "task_branch": "TRICKLE-130",
+            "base_branch": "epic-TRICKLE-127",
+            "head_sha": "c" * 40,
+        },
+    )
+
+
+def test_legacy_canonical_direct_maintenance_ready_record_requires_completion():
+    issue = {
+        "identifier": "REBASE-1",
+        "title": "Rebase epic-EPIC-1 onto main",
+        "parent_id": "EPIC-1",
+        "work_branch": "epic-EPIC-1",
+        "target_branch": "main",
+    }
+
+    assert direct_epic_maintenance_completion_ready(
+        issue,
+        {
+            "state": "ready",
+            "mode": "queue",
+            "task_branch": "epic-EPIC-1",
+            "base_branch": "main",
+            "head_sha": "c" * 40,
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"state": "integrated"},
+        {"mode": "standalone"},
+        {"task_branch": "forged-source"},
+        {"base_branch": "forged-target"},
+        {"head_sha": "not-a-sha"},
+        {"integrated_sha": "c" * 40},
+        {"maintenance_publication_proven": True},
+    ],
+)
+def test_direct_maintenance_completion_rejects_non_ready_authority(override):
+    issue = _authoritative_noncanonical_helper()
+    record = {
+        "state": "ready",
+        "mode": "queue",
+        "task_branch": "TRICKLE-130",
+        "base_branch": "epic-TRICKLE-127",
+        "head_sha": "c" * 40,
+        **override,
+    }
+
+    assert not direct_epic_maintenance_completion_ready(issue, record)
 
 
 def test_native_noncanonical_helper_uses_creation_scope_when_model_is_unstamped():

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import nullcontext
+import hashlib
 import os
 import subprocess
 import threading
 from dataclasses import replace
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 import pytest
 
 from oompah.integration import IntegrationRecord
@@ -28,7 +30,7 @@ from oompah.integration_workflow import (
     classify_integration_result,
     schedule_project_historical_replay,
 )
-from oompah.models import BlockerRef, Issue
+from oompah.models import BlockerRef, EpicRebaseState, Issue
 from oompah.orchestrator import Orchestrator
 from oompah.statuses import IN_VALIDATION
 from oompah.terminal_audit import (
@@ -4310,6 +4312,233 @@ def collector(tracker, landing_collector=None, implementation_authority=None):
             FactDomain.CONFIG: lambda _: {"version": 1},
         },
     )
+
+
+def direct_maintenance_issue(*, state=READY_TO_INTEGRATE):
+    project_id = "project-1"
+    parent_id = "EPIC-1"
+    generation = "f" * 64
+    return Issue(
+        id="REBASE-1",
+        identifier="REBASE-1",
+        title="Rebase legacy-epic-source onto epic-EPIC-0",
+        description="Publish one exact nested epic generation",
+        state=state,
+        project_id=project_id,
+        parent_id=parent_id,
+        work_branch="legacy-epic-source",
+        target_branch="epic-EPIC-0",
+        integration=IntegrationRecord(
+            state="ready",
+            mode="queue",
+            task_branch="legacy-epic-source",
+            base_branch="epic-EPIC-0",
+            base_sha="b" * 40,
+            head_sha="c" * 40,
+        ),
+        create_once={
+            "version": 1,
+            "project_id": project_id,
+            "operation_kind": "epic_rebase_helper",
+            "creation_marker": "oompah-epic-rebase-reservation-v1:"
+            + hashlib.sha256(
+                f"{project_id}\0{parent_id}\0{generation}".encode()
+            ).hexdigest(),
+        },
+        epic_rebase_target={
+            "version": 1,
+            "epic_identifier": parent_id,
+            "epic_branch": "legacy-epic-source",
+            "target_branch": "epic-EPIC-0",
+            "parent_id": "EPIC-0",
+            "resolution": "authoritative_parent",
+        },
+        epic_rebase_authority={
+            "version": 1,
+            "generation": generation,
+            "task_id": "REBASE-1",
+            "epic_identifier": parent_id,
+            "epic_branch": "legacy-epic-source",
+            "epic_head": "a" * 40,
+            "target_branch": "epic-EPIC-0",
+            "target_head": "b" * 40,
+        },
+    )
+
+
+@pytest.mark.parametrize("state", [READY_TO_INTEGRATE, "Done"])
+def test_direct_maintenance_ready_uses_only_task_scoped_completion(
+    tmp_path, state
+):
+    task = direct_maintenance_issue(state=state)
+    tracker = Tracker([task])
+    store = WorkflowJobStore(str(tmp_path / "maintenance.sqlite3"))
+    controller = IntegrationWorkflowController(
+        collector=collector(tracker), store=store
+    )
+
+    batch, scheduled = controller.reconcile([task])
+
+    assert batch.decisions[0].durable_jobs == (
+        "direct_epic_maintenance_completion",
+    )
+    assert batch.tasks[0].landing_requests == ()
+    assert scheduled.jobs_created == 1
+    jobs = store.list_jobs(task_id=task.identifier)
+    assert [job.action for job in jobs] == [
+        "direct_epic_maintenance_completion"
+    ]
+    store.close()
+
+
+@pytest.mark.asyncio
+async def test_direct_maintenance_action_completes_exact_generation_and_replays(
+    tmp_path,
+):
+    task = direct_maintenance_issue(state="Done")
+    parent = Issue(
+        id="EPIC-1",
+        identifier="EPIC-1",
+        title="Nested epic",
+        state="Open",
+        project_id="project-1",
+        labels=["epic:rebasing"],
+    )
+    tracker = Tracker([task, parent])
+    fact_collector = collector(tracker)
+    store = WorkflowJobStore(str(tmp_path / "maintenance-action.sqlite3"))
+    controller = IntegrationWorkflowController(
+        collector=fact_collector, store=store
+    )
+    decision = controller.evaluate([task]).decisions[0]
+    calls = []
+
+    async def complete(current, record, project_id, *, _authority_owned=False):
+        assert _authority_owned is True
+        calls.append((current.identifier, record.head_sha, project_id))
+        completed = replace(
+            record,
+            state="integrated",
+            base_branch=record.task_branch,
+            integrated_sha=record.head_sha,
+            maintenance_publication_proven=True,
+        )
+        current.integration = completed
+        parent.labels = ["epic:rebased"]
+        return True, "completed", completed
+
+    orchestrator = SimpleNamespace(
+        integration_queue=SimpleNamespace(get=lambda *_args: None),
+        project_store=SimpleNamespace(
+            get=lambda _project_id: SimpleNamespace(default_branch="main")
+        ),
+        complete_direct_epic_maintenance_submission=complete,
+        _get_epic_rebase_state=lambda *_args, **_kwargs: EpicRebaseState.REBASED,
+        request_refresh=lambda: None,
+    )
+    backend = OrchestratorIntegrationActionBackend(
+        orchestrator,
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=fact_collector,
+            integration_controller=controller,
+        ),
+    )
+    job = SimpleNamespace(
+        project_id="project-1",
+        task_id=task.identifier,
+        generation="generation-1",
+        expected_evidence_revision=decision.evidence_revision,
+        checkpoint={},
+    )
+    context = SimpleNamespace(job=job, check_interrupted=lambda: None)
+    revalidation = backend.revalidate_action(
+        "direct_epic_maintenance_completion", context
+    )
+    job.checkpoint = {
+        "revalidation": {
+            "generation": revalidation.generation,
+            "evidence_revision": revalidation.evidence_revision,
+            "head_sha": revalidation.head_sha,
+            "details": dict(revalidation.details),
+        }
+    }
+
+    assert not backend.observe_action(
+        "direct_epic_maintenance_completion", context
+    ).applied
+    effect = await backend.apply_action(
+        "direct_epic_maintenance_completion", context
+    )
+    verification = backend.verify_action(
+        "direct_epic_maintenance_completion", context, effect
+    )
+
+    assert verification.verified
+    assert calls == [("REBASE-1", "c" * 40, "project-1")]
+    assert backend.observe_action(
+        "direct_epic_maintenance_completion", context
+    ).applied
+    assert parent.labels == ["epic:rebased"]
+    assert backend.build_action_transition(
+        "direct_epic_maintenance_completion", context, verification
+    ) is None
+    store.close()
+
+
+@pytest.mark.asyncio
+async def test_direct_maintenance_action_rejects_changed_head(tmp_path):
+    task = direct_maintenance_issue()
+    tracker = Tracker([task])
+    fact_collector = collector(tracker)
+    store = WorkflowJobStore(str(tmp_path / "maintenance-stale.sqlite3"))
+    controller = IntegrationWorkflowController(
+        collector=fact_collector, store=store
+    )
+    decision = controller.evaluate([task]).decisions[0]
+    complete = AsyncMock()
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            integration_queue=SimpleNamespace(get=lambda *_args: None),
+            project_store=SimpleNamespace(
+                get=lambda _project_id: SimpleNamespace(default_branch="main")
+            ),
+            complete_direct_epic_maintenance_submission=complete,
+        ),
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=fact_collector,
+            integration_controller=controller,
+        ),
+    )
+    job = SimpleNamespace(
+        project_id="project-1",
+        task_id=task.identifier,
+        generation="generation-1",
+        expected_evidence_revision=decision.evidence_revision,
+        checkpoint={},
+    )
+    context = SimpleNamespace(job=job, check_interrupted=lambda: None)
+    revalidation = backend.revalidate_action(
+        "direct_epic_maintenance_completion", context
+    )
+    job.checkpoint = {
+        "revalidation": {
+            "generation": revalidation.generation,
+            "evidence_revision": revalidation.evidence_revision,
+            "head_sha": revalidation.head_sha,
+            "details": dict(revalidation.details),
+        }
+    }
+    task.integration = replace(task.integration, head_sha="d" * 40)
+
+    with pytest.raises(WorkflowActionError, match="authority changed"):
+        await backend.apply_action("direct_epic_maintenance_completion", context)
+
+    complete.assert_not_awaited()
+    store.close()
 
 
 def test_exact_owner_revocation_wakes_one_standalone_delivery(tmp_path):
