@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T13:47:10.437674Z'
-updated_at: '2026-08-13T14:52:53.518980Z'
+updated_at: '2026-08-13T15:53:14.086129Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -74,6 +74,17 @@ Implemented regression coverage and repair: helper admission and direct maintena
 ---
 author: oompah
 created: 2026-08-13 14:52
+---
+Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
+
+Source: `backend:orchestrator`
+
+Message: ACP worker failed issue_id=TRICKLE-141
+
+Source issue: `TRICKLE-141`
+---
+author: oompah
+created: 2026-08-13 15:53
 ---
 Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
 
