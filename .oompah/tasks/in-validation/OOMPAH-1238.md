@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1238
 type: task
-status: Backlog
+status: In Validation
 priority: null
 title: Return immutable helper identity after atomic epic-rebase creation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T12:43:56.637636Z'
-updated_at: '2026-08-13T13:02:10.178732Z'
+updated_at: '2026-08-13T13:14:14.863447Z'
 work_branch: OOMPAH-1238
 target_branch: null
 review_url: null
@@ -34,6 +34,65 @@ oompah.integration:
   submitted_at: '2026-08-13T13:01:56.306150+00:00'
   updated_at: '2026-08-13T13:01:56.306150+00:00'
 oompah.work_branch: OOMPAH-1238
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-cbf9b94e638b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1238
+    digest: ac37dfe7aba4a36d021def862e5663c998a8ddfdc8f00b39edb443f7ca693460
+  - version: 1
+    audit_id: audit-8e79bb2427b8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1238
+    digest: ac37dfe7aba4a36d021def862e5663c998a8ddfdc8f00b39edb443f7ca693460
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-cbf9b94e638b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1238
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ac37dfe7aba4a36d021def862e5663c998a8ddfdc8f00b39edb443f7ca693460
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T13:14:09.639152+00:00'
+    eligible_at: '2026-08-13T13:14:09.639152+00:00'
+    selected_ref: ab11ea173f0ca4a31345111b9f3ac854d3666fc2
+    selected_sha: ab11ea173f0ca4a31345111b9f3ac854d3666fc2
+  - version: 1
+    audit_id: audit-8e79bb2427b8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1238
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ac37dfe7aba4a36d021def862e5663c998a8ddfdc8f00b39edb443f7ca693460
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T13:14:09.639152+00:00'
+    prerequisite_audit_id: audit-cbf9b94e638b
+    selected_ref: ab11ea173f0ca4a31345111b9f3ac854d3666fc2
+    selected_sha: ab11ea173f0ca4a31345111b9f3ac854d3666fc2
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -61,5 +120,10 @@ author: oompah
 created: 2026-08-13 13:02
 ---
 Atomic epic-rebase creation now returns its immutable helper ID without depending on immediate child-index visibility; retries recover the exact active authority task, and v4 event identity re-arms exhausted pre-fix jobs. Tests and scans pass; ab11ea173 pushed.
+---
+author: oompah
+created: 2026-08-13 13:14
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
