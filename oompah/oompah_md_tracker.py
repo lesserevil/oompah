@@ -437,6 +437,13 @@ class OompahMarkdownTracker:
         # on first-time worktree creation.
         self._state_root: Path | None = None
         self._state_worktree_lock = threading.Lock()
+        # One managed service owns state-branch writes for a project.  Sync the
+        # worktree once when this tracker generation first mutates it, then let
+        # the checkpoint queue coalesce local writes without repeating a
+        # network fetch under the repository write lock.  Push rejection still
+        # fetches/rebases in _commit_and_push_state_branch, preserving recovery
+        # if another process advanced the remote during a restart overlap.
+        self._state_branch_write_synced = False
         # Shared per-repo lock — all tracker instances for the same git repo
         # serialize through this lock, even across graceful reloads where
         # reload_config() clears the tracker cache and creates a new instance
@@ -2754,9 +2761,15 @@ class OompahMarkdownTracker:
                 f"Remove the worktree directory and let the tracker recreate it."
             )
 
-        # Sync from origin if available.
-        if self._has_remote("origin"):
+        # Sync once per tracker configuration generation. Repeating a remote
+        # fetch before every buffered mutation serializes network latency under
+        # the repository lock and can starve bounded pre-provider evidence
+        # writes. A successful checkpoint keeps this single-writer clone
+        # current; any unexpected remote advance is handled by the existing
+        # push-rejection fetch/rebase path.
+        if self._has_remote("origin") and not self._state_branch_write_synced:
             self._sync_state_branch_from_remote()
+            self._state_branch_write_synced = True
 
     def _sync_state_branch_from_remote(self) -> None:
         """Fetch and fast-forward the state branch worktree from origin.
