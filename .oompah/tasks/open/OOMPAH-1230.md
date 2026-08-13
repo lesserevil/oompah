@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1230
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: '[backend:task_transition_service] Task transition mutation guard failed project=proj-3e4e9214
   task=TRICKLE-140 reason=implementation.validation_submission'
@@ -12,13 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:58:05.284702Z'
-updated_at: '2026-08-13T09:58:05.284702Z'
+updated_at: '2026-08-13T09:59:44.862434Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -59,3 +60,11 @@ The operation in `backend:task_transition_service` should complete successfully,
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 09:59
+---
+Claimed directly for live scheduling recovery. Root cause captured from the newly added traceback: WorkflowRuntime.from_orchestrator defines workflow_transition_guard(intent) but TaskTransitionService invokes mutation guards as guard(intent, issue). Every runtime validation transition therefore raises TypeError before the specific validation authority check. Fixing the adapter signature and adding an end-to-end regression now.
+---
+<!-- COMMENTS:END -->
