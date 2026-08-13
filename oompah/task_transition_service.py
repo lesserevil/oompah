@@ -21,6 +21,7 @@ import contextvars
 import hashlib
 import inspect
 import json
+import logging
 import os
 import re
 import sqlite3
@@ -1760,6 +1761,13 @@ class TaskTransitionService:
             try:
                 detail = str(guard(intent, issue) or "").strip()
             except Exception:  # noqa: BLE001 - workflow authority must fail closed
+                logging.getLogger(__name__).exception(
+                    "Task transition mutation guard failed project=%s task=%s "
+                    "reason=%s",
+                    intent.project_id,
+                    intent.task_id,
+                    intent.reason_code,
+                )
                 return "transition.mutation_guard_failed", True, None
             if detail:
                 return "transition.stale_precondition", False, detail

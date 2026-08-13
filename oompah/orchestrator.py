@@ -5729,6 +5729,20 @@ class Orchestrator:
         captured_branch = str(payload.get("work_branch") or "").strip()
         if not branch or (captured_branch and captured_branch != branch):
             return "validation submission branch authority changed"
+        integration = getattr(issue, "integration", None)
+        accepted_target = str(
+            getattr(integration, "base_branch", None)
+            or issue.target_branch
+            or ""
+        ).strip()
+        captured_target = str(payload.get("base_branch") or "").strip()
+        issue_target = str(issue.target_branch or "").strip()
+        if (
+            not accepted_target
+            or (captured_target and captured_target != accepted_target)
+            or (issue_target and issue_target != accepted_target)
+        ):
+            return "validation submission target authority changed"
         try:
             remote_head = str(
                 self.project_store.remote_branch_head(intent.project_id, branch)
@@ -5736,8 +5750,19 @@ class Orchestrator:
             ).strip().lower()
         except Exception:  # noqa: BLE001 - remote authority must fail closed
             return "validation submission remote head is unavailable"
-        if remote_head != expected_head:
+        if remote_head and remote_head != expected_head:
             return "validation submission remote head changed"
+        if not remote_head:
+            try:
+                landed = self.project_store.remote_target_contains_head(
+                    intent.project_id,
+                    accepted_target,
+                    expected_head,
+                )
+            except Exception:  # noqa: BLE001 - landing proof fails closed
+                return "validation submission target containment is unavailable"
+            if not landed:
+                return "validation submission accepted head is not on target"
 
         captured_claim_id = str(payload.get("owner_claim_id") or "").strip()
         current_claim = self._live_owner_claim_for_issue_locked(
@@ -5745,7 +5770,11 @@ class Orchestrator:
             intent.project_id,
         )
         if not captured_claim_id:
-            if submission.generation != intent.evidence_generation:
+            captured_assignment = str(
+                payload.get("assignment_id") or ""
+            ).strip()
+            expected_generation = captured_assignment or submission.generation
+            if expected_generation != intent.evidence_generation:
                 return "validation submission generation changed"
             if current_claim is not None:
                 return "validation submission owner authority changed"

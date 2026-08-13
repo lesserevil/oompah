@@ -132,6 +132,35 @@ def _service(tmp_path, tracker, **overrides):
     )
 
 
+def test_mutation_guard_exception_is_logged_with_safe_transition_identity(
+    tmp_path, caplog
+):
+    issue = _issue()
+    tracker = FakeTracker(issue)
+
+    def broken_guard(_intent, _issue):
+        raise RuntimeError("guard exploded")
+
+    service = _service(tmp_path, tracker, mutation_guard=broken_guard)
+    intent = _intent(
+        issue,
+        requested_status="Ready to Integrate",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="implementation.validation_submission",
+        exact_head=issue.head_sha,
+    )
+
+    with caplog.at_level("ERROR"):
+        outcome = asyncio.run(service.execute(intent))
+
+    assert outcome.reason_code == "transition.mutation_guard_failed"
+    assert (
+        "project=project-1 task=TASK-1 "
+        "reason=implementation.validation_submission"
+    ) in caplog.text
+    assert "guard exploded" in caplog.text
+
+
 def test_journal_close_drains_admitted_transition_saga(tmp_path):
     """Retirement cannot close SQLite between a transition's journal writes."""
 

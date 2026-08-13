@@ -921,7 +921,7 @@ def test_deleted_accepted_branch_without_target_proof_stays_parked():
     assert "implementation_pending_action" not in config
 
 
-def _accepted_validation_commit_fixture(tmp_path):
+def _accepted_validation_commit_fixture(tmp_path, *, direct_owner=True):
     head = "a" * 40
     issue = _issue(state="In Progress")
     issue.head_sha = head
@@ -945,7 +945,7 @@ def _accepted_validation_commit_fixture(tmp_path):
     )
     orch._persist_owner_claims_locked = MagicMock(return_value=True)
     orch._advance_owner_claim_authority = MagicMock()
-    claim = _install_owner_claim(orch, issue)
+    claim = _install_owner_claim(orch, issue) if direct_owner else None
     store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
     orch.workflow_job_store = store
     job = store.enqueue(
@@ -960,10 +960,12 @@ def _accepted_validation_commit_fixture(tmp_path):
             ),
             expected_head_sha=head,
             payload={
-                "owner_claim_id": claim.claim_id,
-                "owner_login": claim.owner_login,
+                "owner_claim_id": claim.claim_id if claim is not None else "",
+                "owner_login": claim.owner_login if claim is not None else "",
+                "assignment_id": issue.assignment_id,
                 "work_branch": issue.identifier,
                 "head_sha": head,
+                "base_branch": "main",
             },
         )
     )
@@ -979,7 +981,9 @@ def _accepted_validation_commit_fixture(tmp_path):
         reason_code="implementation.validation_submission",
         idempotency_key=f"{job.idempotency_key}:transition",
         originating_job=job.job_id,
-        evidence_generation=claim.claim_id,
+        evidence_generation=(
+            claim.claim_id if claim is not None else issue.assignment_id
+        ),
         exact_head=head,
     )
     journal = TransitionJournal(str(tmp_path / "transitions.sqlite3"))
@@ -994,6 +998,157 @@ def _accepted_validation_commit_fixture(tmp_path):
         ),
     )
     return orch, tracker, store, journal, service, intent, remote, claim
+
+
+def test_materialized_validation_accepts_landed_head_after_source_deletion(
+    tmp_path,
+):
+    (
+        orch,
+        tracker,
+        store,
+        journal,
+        service,
+        intent,
+        remote,
+        claim,
+    ) = _accepted_validation_commit_fixture(tmp_path)
+    remote["head"] = None
+    orch.project_store.remote_target_contains_head.return_value = True
+
+    outcome = asyncio.run(service.execute(intent))
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert tracker.fetch_issue_detail(intent.task_id).state == READY_TO_INTEGRATE
+    orch.project_store.remote_target_contains_head.assert_called_once_with(
+        intent.project_id,
+        "main",
+        intent.exact_head,
+    )
+    retiring_claim = orch._owner_claim_for_issue(claim.issue_id, claim.project_id)
+    assert retiring_claim is not None
+    assert retiring_claim.retirement_pending is True
+    store.close()
+    journal.close()
+
+
+def test_recovered_landed_validation_accepts_exact_assignment_without_owner_claim(
+    tmp_path,
+):
+    (
+        orch,
+        tracker,
+        store,
+        journal,
+        service,
+        intent,
+        remote,
+        claim,
+    ) = _accepted_validation_commit_fixture(tmp_path, direct_owner=False)
+    assert claim is None
+    remote["head"] = None
+    orch.project_store.remote_target_contains_head.return_value = True
+
+    outcome = asyncio.run(service.execute(intent))
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert tracker.fetch_issue_detail(intent.task_id).state == READY_TO_INTEGRATE
+    orch.project_store.remote_target_contains_head.assert_called_once_with(
+        intent.project_id,
+        "main",
+        intent.exact_head,
+    )
+    store.close()
+    journal.close()
+
+
+@pytest.mark.parametrize(
+    ("containment", "side_effect", "expected_detail"),
+    [
+        (
+            False,
+            None,
+            "validation submission accepted head is not on target",
+        ),
+        (
+            None,
+            RuntimeError("target unavailable"),
+            "validation submission target containment is unavailable",
+        ),
+    ],
+    ids=["not-contained", "target-unavailable"],
+)
+def test_materialized_validation_fails_closed_without_landed_target_proof(
+    tmp_path,
+    containment,
+    side_effect,
+    expected_detail,
+):
+    (
+        orch,
+        tracker,
+        store,
+        journal,
+        service,
+        intent,
+        remote,
+        claim,
+    ) = _accepted_validation_commit_fixture(tmp_path)
+    remote["head"] = None
+    orch.project_store.remote_target_contains_head.return_value = containment
+    orch.project_store.remote_target_contains_head.side_effect = side_effect
+
+    outcome = asyncio.run(service.execute(intent))
+
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == "transition.stale_precondition"
+    assert outcome.details["detail"] == expected_detail
+    assert tracker.fetch_issue_detail(intent.task_id).state == "In Progress"
+    assert tracker.status_updates == []
+    current_claim = orch._owner_claim_for_issue(claim.issue_id, claim.project_id)
+    assert current_claim is not None
+    assert current_claim.retirement_pending is False
+    store.close()
+    journal.close()
+
+
+def test_materialized_validation_fails_closed_when_target_identity_changes(
+    tmp_path,
+):
+    (
+        orch,
+        tracker,
+        store,
+        journal,
+        service,
+        intent,
+        remote,
+        claim,
+    ) = _accepted_validation_commit_fixture(tmp_path)
+    remote["head"] = None
+    with tracker._lock:
+        current = tracker.issues[intent.task_id]
+        current.target_branch = "release"
+    changed = tracker.fetch_issue_detail(intent.task_id)
+    changed_intent = replace(
+        intent,
+        expected_version=issue_authority_version(changed),
+    )
+
+    outcome = asyncio.run(service.execute(changed_intent))
+
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == "transition.stale_precondition"
+    assert outcome.details["detail"] == (
+        "validation submission target authority changed"
+    )
+    orch.project_store.remote_target_contains_head.assert_not_called()
+    assert tracker.status_updates == []
+    current_claim = orch._owner_claim_for_issue(claim.issue_id, claim.project_id)
+    assert current_claim is not None
+    assert current_claim.retirement_pending is False
+    store.close()
+    journal.close()
 
 
 def _install_precommit_barrier(service):
