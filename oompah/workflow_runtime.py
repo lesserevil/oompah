@@ -1105,6 +1105,7 @@ class WorkflowRuntime:
 
             def workflow_transition_guard(
                 intent: Any,
+                _issue: Any | None = None,
                 *,
                 _controller=epic_controller,
                 _integration_controller=integration_controller,
