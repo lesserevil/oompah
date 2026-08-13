@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1225
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Refresh GitLab review CI when MR list omits head_pipeline
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T08:09:49.181773Z'
-updated_at: '2026-08-13T08:09:49.181773Z'
+updated_at: '2026-08-13T08:10:10.524755Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: gitlab-mr-list-missing-head-pipeline-ci-refresh
   request_fingerprint: 5b4e407fccdecbfa7bacb307fae8f5032d210c7257893900acc7ce2a0133e5c8
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
