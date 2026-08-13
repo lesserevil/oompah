@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1257
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Recognize noncanonical epic rebase helpers after terminal audit
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T18:57:41.903878Z'
-updated_at: '2026-08-13T18:57:41.903878Z'
+updated_at: '2026-08-13T21:23:22.869138Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: d2d82af2-71ba-4073-8f80-0b564b096e86
   request_fingerprint: c1f4d6c1fe9df59e7d2246ebc306b734d3afe6f68b28501495e6d3f247715124
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
