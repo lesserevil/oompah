@@ -2183,6 +2183,7 @@ class EpicWorkflowEventRouter:
         self._event_pool = pool
         self._event_lock = threading.Lock()
         self._event_tail: Future[Any] | None = None
+        self._closed = False
 
     def _submit_ordered(
         self, operation: Any, /, *args: Any, **kwargs: Any
@@ -2190,6 +2191,10 @@ class EpicWorkflowEventRouter:
         """Run blocking event work off-loop in original delivery order."""
 
         with self._event_lock:
+            if self._closed:
+                rejected: Future[Any] = Future()
+                rejected.set_result(None)
+                return rejected
             predecessor = self._event_tail
 
             def ordered() -> Any:
@@ -2198,7 +2203,20 @@ class EpicWorkflowEventRouter:
                         predecessor.exception()
                 return operation(*args, **kwargs)
 
-            submitted = self._event_pool.submit(ordered)
+            try:
+                submitted = self._event_pool.submit(ordered)
+            except RuntimeError as exc:
+                # During graceful exec restart the shared orchestrator pool
+                # may close just before the event bus stops delivering forge
+                # events.  Restart reconciliation is authoritative for that
+                # late suffix; do not turn normal drain ordering into a noisy
+                # handler failure.
+                if "shutdown" not in str(exc).lower():
+                    raise
+                self._closed = True
+                rejected = Future()
+                rejected.set_result(None)
+                return rejected
             submitted.add_done_callback(self._report_event_failure)
             self._event_tail = submitted
             return submitted
@@ -2225,7 +2243,11 @@ class EpicWorkflowEventRouter:
     def close(self) -> None:
         """Drain and close only a router-owned compatibility executor."""
 
-        self.drain_events()
+        with self._event_lock:
+            self._closed = True
+            tail = self._event_tail
+        if tail is not None:
+            tail.result()
         if self._owned_pool is not None:
             self._owned_pool.shutdown(wait=True)
 

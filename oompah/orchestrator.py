@@ -41323,6 +41323,20 @@ class Orchestrator:
                         continue
                     if not current.project_id:
                         current.project_id = project_id
+                    if self._has_epic_rebase_publish_authority(current):
+                        # Exact rebase helpers own the divergent nested branch
+                        # itself.  An ordinary topology fast-forward repair is
+                        # recursive for them and must not survive restart as a
+                        # competing durable obligation.
+                        self.workflow_job_store.cancel(
+                            job.job_id,
+                            generation=job.generation,
+                            reason=(
+                                "exact epic rebase helper owns nested topology"
+                            ),
+                        )
+                        result["retired"] += 1
+                        continue
                     fresh = self._collect_nested_dispatch_evidence(current)
                     if fresh is None:
                         self.workflow_job_store.cancel(
@@ -41453,6 +41467,13 @@ class Orchestrator:
                     raise ProjectError("nested dispatch task is unavailable")
                 if not current.project_id:
                     current.project_id = evidence.project_id
+                if self._has_epic_rebase_publish_authority(current):
+                    self.workflow_job_store.cancel_owned(
+                        job.job_id,
+                        job.lease_token,
+                        reason="exact epic rebase helper owns nested topology",
+                    )
+                    return True
                 fresh = self._collect_nested_dispatch_evidence(current)
                 if fresh is None or fresh.generation != job.generation:
                     self.workflow_job_store.cancel_owned(
