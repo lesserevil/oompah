@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T12:12:00.430229Z'
-updated_at: '2026-08-13T12:12:14.234211Z'
+updated_at: '2026-08-13T12:23:58.086456Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-08-13 12:12
 ---
 Claimed directly during live Trickle monitoring. OOMPAH-1235 successfully produced v2 job seq16476, but the job superseded because durable epic facts modeled source epic-TRICKLE-130 while nested dispatch and the tracker own persisted source TRICKLE-130. Fixing the branch/head authority split now; Oompah stays paused and only Trickle remains resumed.
+---
+author: oompah
+created: 2026-08-13 12:23
+---
+Implementation complete: durable epic facts now honor persisted legacy source branches, rebase events capture source branch + exact live head + immediate target, and worker revalidation checks all three without relying on mutable collection revisions or ordinary epic decision inventory. Regression reproduces TRICKLE-130 shape. 495 focused epic/workflow tests pass; terminal mutation and secret scans pass.
 ---
 <!-- COMMENTS:END -->
