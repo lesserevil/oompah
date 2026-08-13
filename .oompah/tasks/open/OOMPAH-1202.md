@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T00:37:46.158982Z'
-updated_at: '2026-08-13T00:49:58.141473Z'
+updated_at: '2026-08-13T01:01:21.703071Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,5 +67,10 @@ author: oompah
 created: 2026-08-13 00:49
 ---
 Operator reproduced this under live Trickle scheduling and took direct ownership. Root cause: a lock-order inversion. _persist_work_contributor() acquires AUDITOR_POLICY_AUTHORITY.mutation() before tracker publication later acquires the ProjectStore project lock, while ProjectStore.update() acquires that project lock before _update_unlocked() acquires AUDITOR_POLICY_AUTHORITY.mutation(). Concurrent contributor persistence and project state mutation deadlock permanently; the configured deadline only retires the runtime while its detached thread keeps both paths wedged. The HTTP control plane then blocks on provider admission/project state. Fixing lock ordering with regression coverage; the service has been emergency-restarted and globally paused with task worktrees preserved.
+---
+author: oompah
+created: 2026-08-13 01:01
+---
+Fix implemented and pushed on branch OOMPAH-1202 (commit fdaa27b0c, PR #843). Contributor evidence now takes per-project authority before auditor-policy authority, matching ProjectStore.update and eliminating the deadlock cycle. Added a direct lock-order regression and a concurrent production-shape ProjectStore/ProvenanceGuardedTracker regression. Focused verification: 21 provider-retirement tests and 543 orchestrator/project tests pass; terminal mutation and secret scans pass. Full Python 3.11/3.12/3.13 CI is running.
 ---
 <!-- COMMENTS:END -->
