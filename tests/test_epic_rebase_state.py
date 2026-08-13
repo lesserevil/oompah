@@ -21,6 +21,7 @@ import os
 import subprocess
 import threading
 import time
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock, patch
 
@@ -30,6 +31,7 @@ from oompah.config import ServiceConfig
 from oompah.authority_boundary import check_shell_command
 from oompah.epic_staleness import StalenessResult
 from oompah.models import EpicRebaseState, EpicRebaseStateEntry, Issue, OwnerClaim
+from oompah.integration import IntegrationRecord
 from oompah.orchestrator import EpicTargetResolutionError, Orchestrator
 from oompah.projects import ProjectError
 from oompah.statuses import DONE, IN_REVIEW, NEEDS_REBASE
@@ -1546,6 +1548,50 @@ class TestEpicRebaseGenerationAuthority:
         assert denial is not None
         assert "epic_rebase_generation_stale" in denial
 
+    def test_push_revalidation_uses_persisted_authoritative_epic_branch(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        epic = _make_issue("EPIC-1", labels=["rebase-requested"])
+        epic.work_branch = "legacy-nested-epic-source"
+        helper = _make_rebase_helper("REBASE-1", epic.identifier)
+        project = _make_project()
+        project.id = helper.project_id
+        project.repo_path = "/repo"
+        tracker = MagicMock()
+        orch.project_store.get.return_value = project
+        orch._resolve_parent_epic = MagicMock(return_value=epic)
+        orch._resolve_epic_target_branch = MagicMock(return_value="main")
+        orch._observe_epic_rebase_generation = MagicMock(
+            return_value=("generation-1", "epic-head-1", "main-head-1")
+        )
+        orch._epic_rebase_local_contains_target = MagicMock(return_value=True)
+        orch._active_epic_rebase_siblings = MagicMock(return_value=[helper])
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+        orch._epic_rebase_authorities[
+            orch._epic_rebase_authority_key(epic.project_id, epic.identifier)
+        ] = EpicRebaseStateEntry(
+            state=EpicRebaseState.REBASING.value,
+            updated_at=time.time(),
+            project_id=epic.project_id,
+            target_branch="main",
+            authority_generation="generation-1",
+            authority_task_id=helper.identifier,
+            authority_epic_head="epic-head-1",
+            authority_target_head="main-head-1",
+        )
+        exact_push = (
+            "git push --force-with-lease="
+            "refs/heads/legacy-nested-epic-source:epic-head-1 "
+            "origin HEAD:refs/heads/legacy-nested-epic-source"
+        )
+
+        assert orch._epic_rebase_push_denial(helper, exact_push) is None
+        assert (
+            orch._observe_epic_rebase_generation.call_args.kwargs["epic_branch"]
+            == "legacy-nested-epic-source"
+        )
+
     def test_oompah_884_duplicate_cannot_push_rebased_shared_worktree(self, tmp_path):
         """A duplicate is fenced even when it observes a ready local rebase."""
         orch = _make_orchestrator(tmp_path)
@@ -2217,6 +2263,97 @@ class TestEpicRebaseGenerationAuthority:
         assert entry.authority_publish_lease_head == lease_head
         assert entry.authority_publish_target_head == target_head
         assert entry.authority_publish_remote_head == candidate
+
+    def test_server_publish_uses_persisted_authoritative_epic_branch(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        helper, epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        epic.work_branch = "legacy-nested-epic-source"
+        orch._observe_epic_rebase_generation = MagicMock(
+            side_effect=[
+                ("generation-1", lease_head, target_head),
+                ("generation-2", candidate, target_head),
+            ]
+        )
+
+        result = orch.publish_epic_rebase_candidate(
+            helper.project_id,
+            helper.identifier,
+            candidate,
+        )
+
+        assert result["published"] is True
+        assert [
+            call.kwargs["epic_branch"]
+            for call in orch._observe_epic_rebase_generation.call_args_list
+        ] == ["legacy-nested-epic-source", "legacy-nested-epic-source"]
+        assert orch._run_project_network_git.call_args.args[1] == [
+            "git",
+            "--no-replace-objects",
+            "push",
+            (
+                "--force-with-lease="
+                f"refs/heads/legacy-nested-epic-source:{lease_head}"
+            ),
+            "origin",
+            f"{candidate}:refs/heads/legacy-nested-epic-source",
+        ]
+
+    def test_direct_completion_reconciles_persisted_authoritative_branch(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        helper = _make_rebase_helper("REBASE-1", "EPIC-1")
+        parent = _make_issue("EPIC-1", labels=["rebase-requested"])
+        parent.work_branch = "legacy-nested-epic-source"
+        published = "c" * 40
+        record = IntegrationRecord(
+            state="integrated",
+            mode="queue",
+            task_branch=parent.work_branch,
+            base_branch=parent.work_branch,
+            base_sha="a" * 40,
+            head_sha=published,
+            integrated_sha=published,
+        )
+        helper.integration = record
+        orch.project_store.get.return_value = _make_project()
+        orch.project_store.reconcile_published_epic_worktree.return_value = (
+            type(
+                "Reconciliation",
+                (),
+                {
+                    "completed": True,
+                    "old_sha": "a" * 40,
+                    "status": "completed",
+                    "reason": None,
+                },
+            )()
+        )
+        orch._resolve_parent_epic = MagicMock(return_value=parent)
+        orch._tracker_for_project = MagicMock()
+        orch._persist_direct_epic_child_landing_evidence = MagicMock(
+            return_value=False
+        )
+
+        completed, _message, _returned = asyncio.run(
+            orch.complete_direct_epic_maintenance_submission(
+                helper,
+                record,
+                helper.project_id,
+            )
+        )
+
+        assert completed is False
+        orch.project_store.reconcile_published_epic_worktree.assert_called_once_with(
+            helper.project_id,
+            parent.identifier,
+            published,
+            branch_name=parent.work_branch,
+            expected_old_sha="a" * 40,
+            maintenance_identifier=helper.identifier,
+        )
 
     def test_server_publish_stamps_scoped_native_task_project(self, tmp_path):
         orch = _make_orchestrator(tmp_path)

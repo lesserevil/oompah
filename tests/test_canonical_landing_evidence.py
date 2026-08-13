@@ -790,6 +790,13 @@ def test_direct_rebase_completion_stops_before_audit_on_mapping_save_failure():
         add_comment=lambda *_args, **_kwargs: None,
     )
     harness._clear_integration_delivery_alert = lambda *_args: None
+    harness._resolve_parent_epic = lambda *_args, **_kwargs: Issue(
+        id="OOMPAH-740",
+        identifier="OOMPAH-740",
+        title="Parent epic",
+        project_id=project.id,
+        work_branch="epic-OOMPAH-740",
+    )
     harness._persist_direct_epic_child_landing_evidence = (
         lambda **_kwargs: False
     )
@@ -863,6 +870,13 @@ def test_direct_rebase_proof_is_not_published_when_queue_cancel_cas_fails():
         add_comment=lambda *_args, **_kwargs: None,
     )
     harness._clear_integration_delivery_alert = lambda *_args: None
+    harness._resolve_parent_epic = lambda *_args, **_kwargs: Issue(
+        id="OOMPAH-740",
+        identifier="OOMPAH-740",
+        title="Parent epic",
+        project_id=project.id,
+        work_branch="epic-OOMPAH-740",
+    )
     harness._persist_direct_epic_child_landing_evidence = lambda **_kwargs: True
 
     harness.integration_queue = SimpleNamespace(
