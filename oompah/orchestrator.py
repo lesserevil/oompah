@@ -56646,40 +56646,59 @@ class Orchestrator:
         contributor_lock = self._work_contributor_lock(issue.id)
 
         def _write() -> None:
-            with AUDITOR_POLICY_AUTHORITY.mutation():
-                tracker = self._tracker_for_issue(issue)
-                metadata = dict(tracker.get_metadata(issue.identifier) or {})
-                existing = metadata.get(_WORK_CONTRIBUTORS_KEY)
-                merged = _merge_work_contributors(
-                    existing if isinstance(existing, dict) else None,
-                    contributor,
-                )
-                tracker.set_metadata_field(
-                    issue.identifier,
-                    _WORK_CONTRIBUTORS_KEY,
-                    merged,
-                )
-
-                observed = dict(tracker.get_metadata(issue.identifier) or {})
-                persisted = next(
-                    (
-                        value
-                        for value in _load_work_contributors(observed)
-                        if value.run_id == contributor.run_id
-                    ),
-                    None,
-                )
-                if (
-                    persisted is None
-                    or persisted.provider_id != contributor.provider_id
-                    or normalize_contributor_model(persisted.model_id)
-                    != contributor.model_id
-                    or persisted.source_sha != contributor.source_sha
-                    or persisted.completed_at != contributor.completed_at
-                ):
-                    raise RuntimeError(
-                        "tracker did not confirm the exact contributor evidence upsert"
+            # Managed tracker publication acquires the per-project lock.  Project
+            # configuration writes acquire that same lock before taking the
+            # auditor-policy mutation lock.  Preserve that global order here as
+            # well: taking policy first allowed a concurrent ProjectStore.update
+            # to hold project -> wait for policy while contributor publication
+            # held policy -> waited for project, permanently wedging dispatch and
+            # the HTTP scheduling-control plane.
+            project_id = str(getattr(issue, "project_id", "") or "").strip()
+            project_lock_factory = getattr(
+                getattr(self, "project_store", None),
+                "project_write_lock",
+                None,
+            )
+            project_authority = (
+                project_lock_factory(project_id)
+                if project_id and callable(project_lock_factory)
+                else contextlib.nullcontext()
+            )
+            with project_authority:
+                with AUDITOR_POLICY_AUTHORITY.mutation():
+                    tracker = self._tracker_for_issue(issue)
+                    metadata = dict(tracker.get_metadata(issue.identifier) or {})
+                    existing = metadata.get(_WORK_CONTRIBUTORS_KEY)
+                    merged = _merge_work_contributors(
+                        existing if isinstance(existing, dict) else None,
+                        contributor,
                     )
+                    tracker.set_metadata_field(
+                        issue.identifier,
+                        _WORK_CONTRIBUTORS_KEY,
+                        merged,
+                    )
+
+                    observed = dict(tracker.get_metadata(issue.identifier) or {})
+                    persisted = next(
+                        (
+                            value
+                            for value in _load_work_contributors(observed)
+                            if value.run_id == contributor.run_id
+                        ),
+                        None,
+                    )
+                    if (
+                        persisted is None
+                        or persisted.provider_id != contributor.provider_id
+                        or normalize_contributor_model(persisted.model_id)
+                        != contributor.model_id
+                        or persisted.source_sha != contributor.source_sha
+                        or persisted.completed_at != contributor.completed_at
+                    ):
+                        raise RuntimeError(
+                            "tracker did not confirm the exact contributor evidence upsert"
+                        )
 
         if _lock_held:
             _write()

@@ -22,9 +22,10 @@ from oompah.config import ServiceConfig
 from oompah.implementation_workflow_adapter import OrchestratorImplementationEffects
 from oompah.models import AgentProfile, Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
+from oompah.projects import ProjectStore
 from oompah.server import _submission_authority_lock
 from oompah.statuses import IN_PROGRESS, IN_VALIDATION
-from oompah.work_contributors import load_contributors
+from oompah.work_contributors import WorkContributor, load_contributors
 
 
 def _orchestrator(tmp_path) -> Orchestrator:
@@ -450,6 +451,133 @@ def test_pre_provider_evidence_timeout_releases_task_authority(tmp_path) -> None
         await asyncio.sleep(0)
 
     asyncio.run(scenario())
+
+
+def test_contributor_evidence_takes_project_lock_before_policy_lock(tmp_path) -> None:
+    """Contributor publication cannot invert ProjectStore.update lock order."""
+
+    from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
+
+    orch = _orchestrator(tmp_path)
+    entry = _entry()
+    project_lock = threading.RLock()
+    orch.project_store.project_write_lock.return_value = project_lock
+    metadata: dict[str, object] = {}
+    tracker = MagicMock()
+    tracker.get_metadata.side_effect = lambda _identifier: copy.deepcopy(metadata)
+    tracker.set_metadata_field.side_effect = (
+        lambda _identifier, key, value: metadata.__setitem__(key, copy.deepcopy(value))
+    )
+    orch._tracker_for_issue = MagicMock(return_value=tracker)
+    policy_entries: list[bool] = []
+
+    @contextlib.contextmanager
+    def assert_project_lock_owned():
+        # CPython's RLock ownership probe is exactly what matters here: the
+        # inverse order deadlocked the live contributor writer against a
+        # concurrent ProjectStore.update and wedged the scheduling API.
+        policy_entries.append(project_lock._is_owned())
+        assert project_lock._is_owned()
+        yield
+
+    contributor = WorkContributor(
+        run_id="run-lock-order",
+        provider_id="provider-1",
+        provider_name="Provider One",
+        model_id="model-1",
+        focus="implementation",
+        source_branch="OOMPAH-1202",
+        source_sha=None,
+        completed_at="",
+    )
+    with patch.object(
+        AUDITOR_POLICY_AUTHORITY,
+        "mutation",
+        new=assert_project_lock_owned,
+    ):
+        orch._persist_work_contributor(entry.issue, contributor)
+
+    assert policy_entries == [True]
+    assert load_contributors(metadata) == [contributor]
+
+
+def test_contributor_evidence_and_project_update_do_not_deadlock(tmp_path) -> None:
+    """Exercise the production project -> policy order from both writers."""
+
+    from oompah.models import Project
+    from oompah.provenance_suppression import ProvenanceGuardedTracker
+
+    store = ProjectStore(path=str(tmp_path / "projects.json"))
+    project = Project(
+        id="project-1",
+        name="test-project",
+        repo_url="https://github.com/example/project.git",
+        repo_path=str(tmp_path / "repo"),
+    )
+    store._projects[project.id] = project
+    orch = Orchestrator(
+        config=ServiceConfig(
+            workspace_root=str(tmp_path / "workspaces"),
+            worker_termination_timeout_ms=100,
+            duplicate_preflight_max_agents=0,
+        ),
+        workflow_path="WORKFLOW.md",
+        project_store=store,
+        state_path=str(tmp_path / "state.json"),
+    )
+    issue = _entry().issue
+    issue.project_id = project.id
+    metadata: dict[str, object] = {}
+    raw_tracker = MagicMock()
+    raw_tracker.get_metadata.side_effect = lambda _identifier: copy.deepcopy(metadata)
+    raw_tracker.set_metadata_field.side_effect = (
+        lambda _identifier, key, value: metadata.__setitem__(key, copy.deepcopy(value))
+    )
+    tracker = ProvenanceGuardedTracker(
+        raw_tracker,
+        project_store=store,
+        project_id=project.id,
+    )
+    orch._project_trackers[project.id] = tracker
+    contributor = WorkContributor(
+        run_id="run-concurrent",
+        provider_id="provider-1",
+        provider_name="Provider One",
+        model_id="model-1",
+        focus="implementation",
+        source_branch="OOMPAH-1202",
+        source_sha=None,
+        completed_at="",
+    )
+    project_lock_held = threading.Event()
+    release_update = threading.Event()
+    original_update = store._update_unlocked
+
+    def blocked_update(*args, **kwargs):
+        project_lock_held.set()
+        assert release_update.wait(timeout=2)
+        return original_update(*args, **kwargs)
+
+    store._update_unlocked = blocked_update
+    update_thread = threading.Thread(
+        target=store.update,
+        args=(project.id,),
+        kwargs={"paused": True},
+    )
+    contributor_thread = threading.Thread(
+        target=orch._persist_work_contributor,
+        args=(issue, contributor),
+    )
+    update_thread.start()
+    assert project_lock_held.wait(timeout=1)
+    contributor_thread.start()
+    release_update.set()
+    update_thread.join(timeout=2)
+    contributor_thread.join(timeout=2)
+
+    assert not update_thread.is_alive()
+    assert not contributor_thread.is_alive()
+    assert load_contributors(metadata) == [contributor]
 
 
 def test_pre_provider_timeout_exits_without_ghost_and_authority_lanes_continue(
