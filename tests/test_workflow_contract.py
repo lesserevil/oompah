@@ -141,6 +141,10 @@ def test_key_safety_edges_require_domain_evidence():
         in TRANSITION_RULES[(IN_PROGRESS, READY_TO_INTEGRATE)].requirements
     )
     assert (
+        TransitionRequirement.ACCEPTED_SUBMISSION
+        in TRANSITION_RULES[(OPEN, READY_TO_INTEGRATE)].requirements
+    )
+    assert (
         TransitionRequirement.AUDIT_PASS
         in TRANSITION_RULES[(IN_VALIDATION, DONE)].requirements
     )

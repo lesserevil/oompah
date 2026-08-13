@@ -42,7 +42,9 @@ from oompah.statuses import (
     IN_PROGRESS,
     IN_VALIDATION,
     MERGED,
+    NEEDS_CI_FIX,
     NEEDS_HUMAN,
+    NEEDS_REBASE,
     OPEN,
     READY_TO_INTEGRATE,
     canonicalize_status,
@@ -1624,7 +1626,8 @@ class TaskTransitionService:
     @staticmethod
     def _is_validation_submission_intent(intent: TransitionIntent) -> bool:
         return bool(
-            intent.expected_status == IN_PROGRESS
+            intent.expected_status
+            in {OPEN, IN_PROGRESS, NEEDS_CI_FIX, NEEDS_REBASE}
             and intent.requested_status == READY_TO_INTEGRATE
             and intent.reason_code == "implementation.validation_submission"
         )
@@ -2277,6 +2280,29 @@ class TaskTransitionService:
                     intent,
                     TransitionDisposition.REJECTED,
                     "transition.project_owner_authority_required",
+                    issue,
+                )
+                await asyncio.to_thread(
+                    self.journal.append,
+                    transition_id,
+                    TransitionPhase.REJECTED,
+                    outcome.reason_code,
+                    outcome,
+                )
+                return outcome
+            if (
+                observed_status == OPEN
+                and intent.requested_status == READY_TO_INTEGRATE
+                and (
+                    intent.authority is not TransitionAuthority.ORCHESTRATOR
+                    or not self._is_validation_submission_intent(intent)
+                )
+            ):
+                outcome = self._outcome(
+                    transition_id,
+                    intent,
+                    TransitionDisposition.REJECTED,
+                    "transition.validation_submission_authority_required",
                     issue,
                 )
                 await asyncio.to_thread(

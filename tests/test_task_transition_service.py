@@ -1020,6 +1020,85 @@ async def test_validation_submission_retirement_failure_blocks_ready_commit(
 
 
 @pytest.mark.asyncio
+async def test_exact_accepted_submission_recovers_open_directly_to_ready(tmp_path):
+    issue = _issue(
+        state="Open",
+        integration=IntegrationRecord(
+            state="ready",
+            mode="standalone",
+            task_branch="task-1",
+            head_sha="a" * 40,
+        ),
+    )
+    tracker = FakeTracker(issue)
+    service = _service(
+        tmp_path,
+        tracker,
+        mutation_guard=lambda _intent, _issue: None,
+    )
+    intent = _intent(
+        issue,
+        requested_status="Ready to Integrate",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="implementation.validation_submission",
+        idempotency_key="open-validation-recovery",
+        originating_job="validation-job",
+        exact_head="a" * 40,
+    )
+
+    outcome = await service.execute(intent)
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert tracker.issue.state == "Ready to Integrate"
+    assert tracker.updates == [(issue.identifier, "Ready to Integrate")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("authority", "reason_code"),
+    [
+        (TransitionAuthority.API, "implementation.validation_submission"),
+        (TransitionAuthority.ORCHESTRATOR, "operator.manual_transition"),
+    ],
+)
+async def test_open_to_ready_recovery_requires_validation_orchestrator_authority(
+    tmp_path,
+    authority,
+    reason_code,
+):
+    issue = _issue(
+        state="Open",
+        integration=IntegrationRecord(
+            state="ready",
+            mode="standalone",
+            task_branch="task-1",
+            head_sha="a" * 40,
+        ),
+    )
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+    intent = _intent(
+        issue,
+        requested_status="Ready to Integrate",
+        authority=authority,
+        reason_code=reason_code,
+        idempotency_key=f"open-validation-recovery-{authority.value}",
+        originating_job="validation-job",
+        exact_head="a" * 40,
+    )
+
+    outcome = await service.execute(intent)
+
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert (
+        outcome.reason_code
+        == "transition.validation_submission_authority_required"
+    )
+    assert tracker.issue.state == "Open"
+    assert tracker.updates == []
+
+
+@pytest.mark.asyncio
 async def test_direct_maintenance_can_request_terminal_audit_from_open(tmp_path):
     maintenance = _issue(
         title="Rebase epic-EPIC-1 onto main",

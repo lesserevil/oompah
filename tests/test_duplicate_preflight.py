@@ -694,6 +694,29 @@ def test_workflow_source_recovers_accepted_submission_before_event_publication()
     assert config["implementation_pending_payload"]["work_branch"] == "TASK-1"
 
 
+def test_open_workflow_source_recovers_accepted_submission_before_dispatch():
+    issue = _issue(state=OPEN)
+    issue.head_sha = "a" * 40
+    issue.work_branch = "TASK-1"
+    issue.integration = SimpleNamespace(
+        state="ready",
+        head_sha="a" * 40,
+        task_branch="TASK-1",
+        base_branch="main",
+        base_sha="b" * 40,
+    )
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert config["accepted_submission_recovery_state"] == (
+        "accepted_submission_exact"
+    )
+    assert config["implementation_pending_action"] == "validation_submission"
+    assert config["implementation_pending_payload"]["expected_status"] == OPEN
+
+
 def test_accepted_submission_precedes_duplicate_recovery_after_restart():
     issue = _issue(state="In Progress")
     issue.head_sha = "a" * 40

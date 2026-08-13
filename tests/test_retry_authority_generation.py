@@ -2264,6 +2264,53 @@ def test_accepted_submission_wins_during_retry_setup(tmp_path):
     asyncio.run(scenario())
 
 
+def test_accepted_submission_metadata_wins_before_provider_admission(tmp_path):
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        issue = _issue(state="Open")
+        retry = _schedule(orch, issue)
+        orch._retry_dispatching[issue.id] = retry
+        orch._match_agent_profile = MagicMock(
+            return_value=MagicMock(name="default", model_role="fast")
+        )
+        orch._run_worker = AsyncMock()
+        tracker_state = {"state": "Open"}
+        tracker = MagicMock()
+        fetch_count = 0
+
+        def fetch(_issue_ids):
+            nonlocal fetch_count
+            fetch_count += 1
+            current = replace(issue, state=tracker_state["state"])
+            if fetch_count >= 3:
+                current.integration = IntegrationRecord(
+                    state="ready",
+                    task_branch=issue.work_branch,
+                    head_sha="b" * 40,
+                    base_branch="main",
+                    base_sha="c" * 40,
+                )
+            return [current]
+
+        tracker.fetch_issue_states_by_ids.side_effect = fetch
+        tracker.update_issue.side_effect = lambda _identifier, *, status: (
+            tracker_state.update(state=status)
+        )
+        tracker.fetch_issue_detail.side_effect = lambda _identifier: replace(
+            issue, state=tracker_state["state"]
+        )
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+
+        await orch._dispatch(issue, attempt=retry.attempt, retry_entry=retry)
+
+        assert issue.id not in orch.state.running
+        assert issue.id not in orch.state.retry_attempts
+        assert retry.cancelled is True
+        orch._run_worker.assert_not_awaited()
+
+    asyncio.run(scenario())
+
+
 def test_accepted_ordinary_submission_waits_for_final_worker_publication(
     tmp_path,
 ):

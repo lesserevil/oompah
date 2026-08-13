@@ -362,6 +362,30 @@ async def test_start_dispatches_exact_generation_without_direct_status_write(tmp
 
 
 @pytest.mark.asyncio
+async def test_accepted_submission_supersedes_stale_start_before_dispatch(tmp_path):
+    issue = make_issue()
+    issue.integration = IntegrationRecord(
+        state="ready",
+        task_branch=issue.work_branch,
+        head_sha=HEAD_A,
+        base_branch="main",
+        base_sha=HEAD_B,
+    )
+    orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
+    _jobs, context = make_context(tmp_path)
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    with pytest.raises(
+        WorkflowActionSuperseded,
+        match="accepted submission replaced implementation dispatch",
+    ):
+        await effects.apply(context)
+
+    assert orch.dispatches == []
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "action",
     (ImplementationAction.RECOVERY, ImplementationAction.FOCUS_HANDOFF),

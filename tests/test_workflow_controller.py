@@ -179,6 +179,56 @@ def test_exhausted_current_semantic_job_escalates_on_reevaluation(controller):
     assert decision.durable_jobs == ()
 
 
+def test_accepted_submission_replaces_exhausted_implementation_action(controller):
+    task = issue("Open", identifier="TASK-SUBMITTED-AFTER-EXHAUSTION")
+    initial_facts = facts_for(task)
+    first = controller.full_sync(
+        (task,), facts={task.identifier: initial_facts}, now=NOW
+    )
+    assert first.decisions[0].durable_jobs == ("implementation_start",)
+    running = controller.store.claim_next(
+        lease_owner="failed-implementation", lease_seconds=30
+    )
+    assert running is not None
+    controller.store.fail(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="obsolete implementation failure",
+        retryable=False,
+    )
+
+    submitted_facts = facts_for(
+        task,
+        at=(NOW + timedelta(seconds=1)).isoformat(),
+        overrides={
+            FactDomain.CONFIG: known(
+                FactDomain.CONFIG,
+                {
+                    "implementation_pending_action": "validation_submission",
+                    "accepted_submission_recovery_state": (
+                        "accepted_submission_exact"
+                    ),
+                },
+                at=(NOW + timedelta(seconds=1)).isoformat(),
+            )
+        },
+    )
+    recovered = controller.full_sync(
+        (task,),
+        facts={task.identifier: submitted_facts},
+        now=NOW + timedelta(seconds=1),
+    )
+
+    assert recovered.decisions[0].reason_code == "implementation.action_scheduled"
+    assert recovered.decisions[0].durable_jobs == ("validation_submission",)
+    current = controller.store.list_jobs(
+        task_id=task.identifier,
+        states=(WorkflowJobState.QUEUED,),
+    )
+    assert [job.action for job in current] == ["validation_submission"]
+
+
 def test_zero_job_cut_retires_exhaustion_only_after_successful_publish(controller):
     active = issue("In Progress", identifier="TASK-ZERO-CUT")
     active_facts = facts_for(

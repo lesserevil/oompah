@@ -40,10 +40,13 @@ from oompah.implementation_workflow import (
     ImplementationState,
     ImplementationWorkflowHandler,
 )
+from oompah.integration import accepted_submission_branch
 from oompah.statuses import (
     DUPLICATE_CANDIDATE,
     IN_PROGRESS,
     IN_VALIDATION,
+    NEEDS_CI_FIX,
+    NEEDS_REBASE,
     OPEN,
     READY_TO_INTEGRATE,
     canonicalize_status,
@@ -533,9 +536,28 @@ class OrchestratorImplementationEffects:
         duplicate_preflight: bool = False,
         durable_recovery: bool = False,
     ) -> None:
+        fresh = await asyncio.to_thread(self._issue, issue.identifier)
+        integration = getattr(fresh, "integration", None)
+        integration_state = _text(getattr(integration, "state", None)).lower()
+        accepted_branch = accepted_submission_branch(fresh)
+        if (
+            canonicalize_status(fresh.state)
+            in {OPEN, IN_PROGRESS, NEEDS_CI_FIX, NEEDS_REBASE}
+            and integration_state in {"ready", "queued", "integrating"}
+            and accepted_branch
+        ):
+            accepted_head = _text(getattr(integration, "head_sha", None))
+            raise WorkflowActionSuperseded(
+                "accepted submission replaced implementation dispatch",
+                replacement_generation=(
+                    f"accepted-submission:{accepted_head}"
+                    if accepted_head
+                    else f"accepted-submission:{accepted_branch}"
+                ),
+            )
         admitted = await asyncio.to_thread(
             self.orchestrator._should_dispatch,
-            issue,
+            fresh,
             duplicate_preflight=duplicate_preflight,
             durable_recovery=durable_recovery,
             suppress_lifecycle_writes=True,
