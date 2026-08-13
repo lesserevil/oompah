@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:08:42.935045Z'
-updated_at: '2026-08-13T03:08:42.935045Z'
+updated_at: '2026-08-13T03:18:00.218662Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Fix a restart-admission deadlock in epic workflow reconciliation. Startup's Epic
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 03:18
+---
+Reproduced the live restart deadlock with TRICKLE-117/TRICKLE-127 and implemented a domain-configured substitute proof. Generic managed scheduling now accepts only a live event job in an explicitly configured lane for the exact current action and current managed cursor; EpicWorkflowController configures epic-event:<action>. Different actions and stale cursors remain unproven. Verification: 407 workflow job/scheduler/epic/runtime tests passed, including end-to-end restart liveness; terminal-audit mutation scan passed; secret scan passed.
+---
+<!-- COMMENTS:END -->
