@@ -751,7 +751,9 @@ class EpicWorkflowController:
         self.collector = collector
         self.store = store
         self.scheduler = scheduler or WorkflowJobScheduler(
-            store=store, decision_limit=decision_limit
+            store=store,
+            decision_limit=decision_limit,
+            protected_event_lane_prefixes=("epic-event:",),
         )
         self.decision_limit = decision_limit
         self._latest: dict[str, EpicTaskDecision] = {}

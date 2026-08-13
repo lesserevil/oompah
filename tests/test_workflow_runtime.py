@@ -6328,6 +6328,45 @@ def test_restart_liveness_accepts_protected_imperative_implementation_job(
     store.close()
 
 
+def test_restart_liveness_accepts_protected_epic_event_job(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    epic = make_issue("EPIC-PROTECTED", state="Open", issue_type="epic")
+    tracker = NativeTracker([epic])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    controller = UniversalTotalityLivenessController(store=store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    first = runtime.reconcile()
+    action = runtime.projections()[0]["durable_jobs"][0]
+    protected = binding.epic_controller.schedule_action(
+        task_id=epic.identifier,
+        action=action,
+        generation="restart-event",
+    )
+    controller.restore_liveness_state(None)
+    report = runtime.reconcile()
+    health = controller.liveness_snapshot()
+
+    assert first["projects"]["project-1"]["epic"]["jobs_materialized"] == 1
+    assert report["projects"]["project-1"]["epic"]["truncated"] is False
+    assert health.scan_complete is True
+    assert health.required_recovery_count == 1
+    assert health.materialized_recovery_count == 1
+    assert runtime.restart_reconstruction_pending is False
+    assert store.get(protected.job_id).state is WorkflowJobState.QUEUED
+    runtime.close()
+    store.close()
+
+
 def test_direct_validation_attempt_cannot_strand_terminal_audit_liveness(tmp_path):
     class MutableNativeTracker(NativeTracker):
         def __init__(self, issues):

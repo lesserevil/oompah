@@ -122,6 +122,7 @@ class WorkflowJobScheduler:
         default_priority: int = 100,
         max_attempts: int = 5,
         policy_epoch: str = "standalone-v1",
+        protected_event_lane_prefixes: Sequence[str] = (),
     ) -> None:
         self.store = store
         self.worker = worker
@@ -135,6 +136,15 @@ class WorkflowJobScheduler:
         self.default_priority = int(default_priority)
         self.max_attempts = _bounded(max_attempts, "max_attempts")
         self._policy_epoch = self._normalize_policy_epoch(policy_epoch)
+        self._protected_event_lane_prefixes = tuple(
+            sorted(
+                {
+                    str(prefix or "").strip()
+                    for prefix in protected_event_lane_prefixes
+                    if str(prefix or "").strip()
+                }
+            )
+        )
         # Publication transactions hold this lock while reconcile re-enters it
         # so scheduler metrics can be restored with the durable job-store cut.
         self._metrics_lock = threading.RLock()
@@ -277,7 +287,7 @@ class WorkflowJobScheduler:
             ):
                 continue
             specs = self._specs(decision, cursor)
-            if not self.store.schedule_specs_materialized(
+            exact_materialized = self.store.schedule_specs_materialized(
                 project_id=decision.project_id,
                 task_id=decision.task_id,
                 decision_revision=self.decision_revision(decision),
@@ -285,7 +295,24 @@ class WorkflowJobScheduler:
                 idempotency_keys=tuple(
                     spec.idempotency_key for spec in specs
                 ),
-            ):
+            )
+            substitute_materialized = bool(
+                not exact_materialized
+                and len(specs) == 1
+                and self._protected_event_lane_prefixes
+                and self.store.schedule_substitute_materialized(
+                    project_id=decision.project_id,
+                    task_id=decision.task_id,
+                    decision_revision=self.decision_revision(decision),
+                    job_generation=cursor.job_generation,
+                    action=specs[0].action,
+                    scheduling_lanes=tuple(
+                        f"{prefix}{specs[0].action}"
+                        for prefix in self._protected_event_lane_prefixes
+                    ),
+                )
+            )
+            if not exact_materialized and not substitute_materialized:
                 continue
             schedules += 1
             jobs += len(specs)
