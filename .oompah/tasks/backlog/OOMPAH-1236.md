@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T12:12:00.430229Z'
-updated_at: '2026-08-13T12:12:00.430229Z'
+updated_at: '2026-08-13T12:12:14.234211Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Live scheduling bug exposed after OOMPAH-1235 created a current v2 epic-rebase j
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 12:12
+---
+Claimed directly during live Trickle monitoring. OOMPAH-1235 successfully produced v2 job seq16476, but the job superseded because durable epic facts modeled source epic-TRICKLE-130 while nested dispatch and the tracker own persisted source TRICKLE-130. Fixing the branch/head authority split now; Oompah stays paused and only Trickle remains resumed.
+---
+<!-- COMMENTS:END -->
