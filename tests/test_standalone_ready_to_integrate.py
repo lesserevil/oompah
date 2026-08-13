@@ -1282,6 +1282,97 @@ def test_missing_remote_branch_raises_actionable_alert(harness):
     assert "not present on the remote" in _delivery_alerts(orch)[0]["message"]
 
 
+def test_deleted_source_with_contained_accepted_head_enters_terminal_audit(harness):
+    """A forge-deleted merged branch uses exact target containment evidence."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    accepted_head = "c" * 40
+    task = _issue(
+        "TASK-DELETED-LANDED",
+        branch="feature/deleted-landed",
+        head_sha=accepted_head,
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.get_branch_head_sha.return_value = None
+    orch._count_review_branch_ahead = mock.MagicMock(return_value=(0, [], ""))
+    orch.request_terminal_transition = mock.AsyncMock(
+        return_value=TransitionResult(success=True, status_staged=True)
+    )
+
+    def persist_metadata(_identifier, key, value) -> None:
+        if key == "oompah.integration":
+            task.integration = IntegrationRecord.from_dict(value)
+
+    tracker.set_metadata_field.side_effect = persist_metadata
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_not_called()
+    provider.find_pr_for_branch.assert_not_called()
+    provider.create_review.assert_not_called()
+    orch.request_terminal_transition.assert_awaited_once()
+    assert task.integration is not None
+    assert task.integration.state == "integrated"
+    assert task.integration.integrated_sha == accepted_head
+    assert not _delivery_alerts(orch)
+
+
+@pytest.mark.parametrize(
+    ("ahead", "proof_error"),
+    [(1, ""), (0, "target fetch failed")],
+    ids=["not-contained", "proof-unavailable"],
+)
+def test_deleted_source_without_containment_keeps_actionable_alert(
+    harness,
+    ahead,
+    proof_error,
+):
+    """Missing source branches remain blocked unless exact landing is proven."""
+
+    orch, _project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-DELETED-UNKNOWN", branch="feature/deleted-unknown")
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.get_branch_head_sha.return_value = None
+    orch._count_review_branch_ahead = mock.MagicMock(
+        return_value=(ahead, [], proof_error)
+    )
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_not_called()
+    provider.find_pr_for_branch.assert_not_called()
+    provider.create_review.assert_not_called()
+    tracker.set_metadata_field.assert_not_called()
+    assert "not present on the remote" in _delivery_alerts(orch)[0]["message"]
+
+
+def test_deleted_source_containment_losing_authority_cannot_publish(harness):
+    """A stale deleted-branch proof cannot write after its generation is revoked."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-DELETED-RACE", branch="feature/deleted-race")
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.get_branch_head_sha.return_value = None
+
+    def revoke_after_proof(*_args, **_kwargs):
+        authority = orch._standalone_delivery_authorities[
+            (project.id, task.identifier)
+        ]
+        authority.revoked = True
+        return "contained", ""
+
+    orch._standalone_accepted_head_containment = mock.MagicMock(
+        side_effect=revoke_after_proof
+    )
+    orch.request_terminal_transition = mock.AsyncMock()
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_not_called()
+    tracker.set_metadata_field.assert_not_called()
+    orch.request_terminal_transition.assert_not_awaited()
+
+
 def test_existing_open_review_is_reused_idempotently(harness):
     orch, project, tracker, provider, _detect, gate = harness
     task = _issue("TASK-3")
