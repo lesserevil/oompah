@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T14:34:54.048407Z'
-updated_at: '2026-08-13T16:08:39.241652Z'
+updated_at: '2026-08-13T16:13:10.612642Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -75,5 +75,10 @@ Duplicate error_watcher occurrence suppressed; this task already tracks the same
 Source: `backend:acp_agent`
 
 Message: ACP backend 'claude' crashed during run_turn: OSError: configured provider authentication artifact is unavailable
+---
+author: oompah
+created: 2026-08-13 16:13
+---
+Direct implementation claimed after reproducing the exact current-layout mismatch: claude auth status is healthy from the operator environment, but the installed Claude release reads a primaryApiKey from ~/.claude.json while isolated rebase bootstrap only accepts ~/.claude/.credentials.json. A minimal isolated home containing only the primaryApiKey authenticates successfully. Fix will support both explicit layouts without copying unrelated operator configuration, add regression coverage, and keep missing/unsafe artifacts fail-closed.
 ---
 <!-- COMMENTS:END -->
