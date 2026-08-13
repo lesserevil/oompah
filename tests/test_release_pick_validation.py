@@ -16,7 +16,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from oompah.models import Issue, Project
+from oompah.models import EpicRebaseStateEntry, Issue, Project
 from oompah.release_pick_validation import (
     ALLOW_SOURCE_LABEL,
     ReleaseBranchValidationResult,
@@ -618,6 +618,68 @@ def test_should_dispatch_allows_repair_task_on_generated_epic_branch(
     orch._should_dispatch(issue)
     reason, _ = orch.state.reject_streak.get("COROOT-21", ("", 0))
     assert "invalid_target_branch" not in reason
+
+
+def test_should_dispatch_allows_authoritative_legacy_epic_rebase_target(tmp_path):
+    """Exact server authority admits a legacy-source helper to its parent epic."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    proj = _project(branches=["main"], default_branch="main", repo_path=repo)
+    orch = _make_orchestrator_with_project(proj)
+    helper = _issue(
+        identifier="TRICKLE-141",
+        target_branch="epic-TRICKLE-127",
+        parent_id="TRICKLE-130",
+        project_id="proj-1",
+        state="Needs Rebase",
+    )
+    helper.title = "Rebase TRICKLE-130 onto epic-TRICKLE-127"
+    helper.priority = 0
+    orch._epic_rebase_authorities = {
+        orch._epic_rebase_authority_key("proj-1", "TRICKLE-130"):
+        EpicRebaseStateEntry(
+            state="rebasing",
+            updated_at=1.0,
+            project_id="proj-1",
+            target_branch="epic-TRICKLE-127",
+            target_parent_id="TRICKLE-127",
+            target_resolution="authoritative_parent",
+            authority_generation="generation-1",
+            authority_task_id="TRICKLE-141",
+            authority_epic_head="a" * 40,
+            authority_target_head="b" * 40,
+        )
+    }
+    orch._preflight_nested_epic_dispatch = MagicMock(return_value=None)
+    orch._prepare_epic_rebase_helper_target = MagicMock(return_value=(True, ""))
+
+    orch._should_dispatch(helper)
+
+    reason, _ = orch.state.reject_streak.get("TRICKLE-141", ("", 0))
+    assert "invalid_target_branch" not in reason
+    assert orch._is_epic_rebase_task(helper)
+
+
+def test_legacy_title_without_server_authority_keeps_untracked_target_fence(tmp_path):
+    """A title shaped like a legacy helper cannot bypass branch validation."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    proj = _project(branches=["main"], default_branch="main", repo_path=repo)
+    orch = _make_orchestrator_with_project(proj)
+    helper = _issue(
+        identifier="TRICKLE-141",
+        target_branch="epic-TRICKLE-127",
+        parent_id="TRICKLE-130",
+        project_id="proj-1",
+        state="Needs Rebase",
+    )
+    helper.title = "Rebase TRICKLE-130 onto epic-TRICKLE-127"
+    helper.priority = 0
+    orch._epic_rebase_authorities = {}
+
+    assert not orch._should_dispatch(helper)
+    reason, _ = orch.state.reject_streak["TRICKLE-141"]
+    assert reason == "invalid_target_branch:untracked_branch"
 
 
 def test_should_dispatch_skips_validation_without_project():

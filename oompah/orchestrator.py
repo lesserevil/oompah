@@ -34885,6 +34885,26 @@ class Orchestrator:
         if epic_identifier is None and not parent_id:
             return False
         target_epic = epic_identifier or parent_id
+        project_id = str(getattr(issue, "project_id", None) or "").strip()
+        task_id = self._epic_rebase_authority_task_id(issue)
+        # Current server-issued authority is stronger than legacy title
+        # parsing.  In particular, an epic may retain a persisted pre-convention
+        # source such as ``TRICKLE-130`` rather than ``epic-TRICKLE-130``.  The
+        # authority record binds the exact project, parent epic, helper task,
+        # source head, target, and generation, so recognizing that identity
+        # does not broaden classification to arbitrary title-shaped tasks.
+        if project_id and task_id and hasattr(self, "_epic_rebase_authorities"):
+            entry = self._epic_rebase_authority_entry(project_id, target_epic)
+            if (
+                entry is not None
+                and entry.authority_task_id == task_id
+                and entry.authority_generation
+                and entry.authority_epic_head
+                and entry.target_branch == str(issue.target_branch or "").strip()
+                and entry.target_resolution
+                in {"authoritative_parent", "confirmed_top_level"}
+            ):
+                return True
         try:
             configured_epic_branch = self.project_store.epic_branch_name(target_epic)
         except Exception:  # noqa: BLE001 - fallback only affects classification
@@ -45995,7 +46015,7 @@ class Orchestrator:
         # at least one of the project's configured patterns, and must not
         # point at the project's protected source-only (default) branch
         # unless explicitly opted in via the ``backport:allow-source`` label.
-        if issue.target_branch:
+        if issue.target_branch and not self._is_epic_rebase_task(issue):
             _project = (
                 self.project_store.get(issue.project_id) if issue.project_id else None
             )
