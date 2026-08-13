@@ -118,9 +118,12 @@ class FakeOrchestrator:
 
     async def _dispatch(self, issue, attempt, override_profile=None, **kwargs):
         self.dispatches.append((issue.identifier, attempt, override_profile, kwargs))
+        assignment_id = f"assignment-{len(self.dispatches)}"
+        issue.assignment_id = assignment_id
         self.running[issue.id] = SimpleNamespace(
             issue=issue,
             run_id=f"run-{len(self.dispatches)}",
+            assignment_id=assignment_id,
             authority_generation=kwargs.get("workflow_generation"),
         )
 
@@ -343,6 +346,113 @@ async def test_start_dispatches_exact_generation_without_direct_status_write(tmp
     assert orch.dispatches[0][3]["status_managed_by_workflow"] is True
     assert tracker.status_writes == []
     assert transition.requested_status == IN_PROGRESS
+    assert transition.evidence_generation == issue.assignment_id
+    assert transition.evidence_generation != context.job.generation
+    journal = TransitionJournal(str(tmp_path / "start-transition.sqlite3"))
+    outcome = await TaskTransitionService(
+        project_id="project-a",
+        tracker=tracker,
+        journal=journal,
+    ).execute(transition)
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert outcome.reason_code == "transition.applied"
+    assert tracker.status_writes == [(issue.identifier, IN_PROGRESS)]
+    journal.close()
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "action",
+    (ImplementationAction.RECOVERY, ImplementationAction.FOCUS_HANDOFF),
+)
+async def test_runtime_actions_transition_with_exact_assignment_generation(
+    tmp_path,
+    action,
+):
+    issue = make_issue()
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    _jobs, context = make_context(
+        tmp_path,
+        action=action,
+        payload={"expected_status": OPEN, "focus": "implementation"},
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    backend = ProductionImplementationWorkflowBackend(effects)
+
+    result = await backend.execute(context)
+    intent = await backend.build_transition(
+        context,
+        VerificationResult(True, {"disposition": result.disposition.to_dict()}),
+    )
+
+    assert intent.evidence_generation == issue.assignment_id
+    assert intent.evidence_generation != context.job.generation
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_start_transition_without_exact_assignment_fails_closed(tmp_path):
+    issue = make_issue()
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    _jobs, context = make_context(tmp_path)
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    backend = ProductionImplementationWorkflowBackend(effects)
+    disposition = ImplementationDisposition(
+        context.job.project_id,
+        context.job.task_id,
+        context.job.generation,
+        context.job.action,
+        ImplementationState.ACTIVE,
+        ImplementationOwnershipSource.AGENT,
+        owner_id="worker-without-assignment",
+        work_branch=context.job.task_id,
+        head_sha=context.job.expected_head_sha,
+        lease_expires_at="2099-01-01T00:00:00+00:00",
+    )
+
+    with pytest.raises(
+        WorkflowActionError,
+        match="no exact assignment identity",
+    ):
+        await backend.build_transition(
+            context,
+            VerificationResult(True, {"disposition": disposition.to_dict()}),
+        )
+
+    assert tracker.status_writes == []
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_start_transition_rejects_replacement_assignment(tmp_path):
+    issue = make_issue()
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    _jobs, context = make_context(tmp_path)
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    backend = ProductionImplementationWorkflowBackend(effects)
+
+    result = await backend.execute(context)
+    dispatched_assignment = result.disposition.assignment_id
+    issue.assignment_id = "replacement-assignment"
+
+    with pytest.raises(
+        WorkflowActionError,
+        match="assignment changed before status transition",
+    ):
+        await backend.build_transition(
+            context,
+            VerificationResult(
+                True,
+                {"disposition": result.disposition.to_dict()},
+            ),
+        )
+
+    assert dispatched_assignment != issue.assignment_id
+    assert tracker.status_writes == []
     effects.receipts.close()
 
 
@@ -1862,13 +1972,18 @@ def test_native_tracker_head_fence_uses_exact_task_generation(tmp_path):
 @pytest.mark.asyncio
 async def test_submission_builds_only_transition_service_status_intent(tmp_path):
     issue = make_issue(status=IN_PROGRESS)
+    issue.assignment_id = "assignment-submitted"
     issue.integration = SimpleNamespace(state="ready", head_sha=HEAD_A)
     tracker = Tracker(issue)
     orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
     _jobs, context = make_context(
         tmp_path,
         action=ImplementationAction.VALIDATION_SUBMISSION,
-        payload={"work_branch": "TASK-1", "head_sha": HEAD_A},
+        payload={
+            "assignment_id": issue.assignment_id,
+            "work_branch": "TASK-1",
+            "head_sha": HEAD_A,
+        },
     )
     effects = OrchestratorImplementationEffects(orch, project_id="project-a")
     backend = ProductionImplementationWorkflowBackend(effects)
@@ -1881,7 +1996,18 @@ async def test_submission_builds_only_transition_service_status_intent(tmp_path)
 
     assert tracker.status_writes == []
     assert intent.requested_status == READY_TO_INTEGRATE
-    assert intent.evidence_generation == context.job.generation
+    assert intent.evidence_generation == issue.assignment_id
+    assert intent.evidence_generation != context.job.generation
+    journal = TransitionJournal(str(tmp_path / "submission-transition.sqlite3"))
+    outcome = await TaskTransitionService(
+        project_id="project-a",
+        tracker=tracker,
+        journal=journal,
+    ).execute(intent)
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert outcome.reason_code == "transition.applied"
+    assert tracker.status_writes == [(issue.identifier, READY_TO_INTEGRATE)]
+    journal.close()
     effects.receipts.close()
 
 

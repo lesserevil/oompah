@@ -1453,14 +1453,46 @@ class ProductionImplementationWorkflowBackend:
         actor = "oompah"
         authority = TransitionAuthority.ORCHESTRATOR
         evidence_generation = context.job.generation
+        if action in {
+            ImplementationAction.START,
+            ImplementationAction.RECOVERY,
+            ImplementationAction.FOCUS_HANDOFF,
+        }:
+            # The durable job generation authorizes the effect, while the
+            # assignment allocated by ``_dispatch`` authorizes the tracker
+            # status transition.  They are deliberately distinct identities.
+            # Carry the assignment proven by the exact disposition so the
+            # transition service compares like with like; using the job
+            # generation here leaves a live worker attached to an Open task.
+            raw_disposition = verification.receipt.get("disposition")
+            disposition = (
+                ImplementationDisposition.from_dict(raw_disposition)
+                if isinstance(raw_disposition, Mapping)
+                else None
+            )
+            evidence_generation = _text(
+                getattr(disposition, "assignment_id", None)
+            )
+            if not evidence_generation:
+                raise WorkflowActionError(
+                    "implementation transition has no exact assignment identity",
+                    category=WorkflowFailureCategory.POLICY,
+                    retryable=False,
+                )
         if action is ImplementationAction.VALIDATION_SUBMISSION:
             # A restart-recovered accepted submission can still be owned by a
             # live direct-owner claim.  The tracker assignment is that claim,
-            # not the fact-derived workflow job generation.  Carry the exact
-            # captured claim through the transition fence; the finalizer uses
-            # the same identity and cannot retire an ABA replacement.
+            # not the fact-derived workflow job generation. Ordinary worker
+            # submissions likewise carry the assignment captured when the
+            # accepted head was published.  Prefer those immutable payload
+            # identities, then the freshly read tracker assignment; the
+            # finalizer uses the same direct-owner identity and cannot retire
+            # an ABA replacement.
             evidence_generation = (
-                _text(payload.get("owner_claim_id")) or evidence_generation
+                _text(payload.get("owner_claim_id"))
+                or _text(payload.get("assignment_id"))
+                or _text(getattr(issue, "assignment_id", None))
+                or evidence_generation
             )
         if action is ImplementationAction.DIRECT_OWNER_CLAIM:
             actor = _text(payload.get("owner_id"))
