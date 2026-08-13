@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T06:00:42.489158Z'
-updated_at: '2026-08-13T06:01:45.822974Z'
+updated_at: '2026-08-13T06:07:59.293724Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,3 +36,11 @@ Bug observed live on Trickle on 2026-08-13: Ready tasks TRICKLE-122/124/131/132/
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 06:07
+---
+Claiming directly from the live Trickle incident. OOMPAH-1221 is deployed; the remaining six Ready-task critical alerts are the exact capacity-wait exhaustion reproduction this task will fix.
+---
+<!-- COMMENTS:END -->
