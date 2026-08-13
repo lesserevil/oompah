@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1235
 type: task
-status: Backlog
+status: In Validation
 priority: null
 title: Keep durable epic-rebase requests current across fresh evidence
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T11:41:26.466501Z'
-updated_at: '2026-08-13T11:46:52.190638Z'
+updated_at: '2026-08-13T11:56:18.224850Z'
 work_branch: OOMPAH-1235
 target_branch: null
 review_url: null
@@ -34,6 +34,65 @@ oompah.integration:
   submitted_at: '2026-08-13T11:46:44.254093+00:00'
   updated_at: '2026-08-13T11:46:44.254093+00:00'
 oompah.work_branch: OOMPAH-1235
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-d7132be309d9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1235
+    digest: d540ab0f4f7e9d38e392a710d52f7df05cfa9a9bd2326744296effc447ec2888
+  - version: 1
+    audit_id: audit-f105a93d7779
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1235
+    digest: d540ab0f4f7e9d38e392a710d52f7df05cfa9a9bd2326744296effc447ec2888
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d7132be309d9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1235
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d540ab0f4f7e9d38e392a710d52f7df05cfa9a9bd2326744296effc447ec2888
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T11:56:13.412037+00:00'
+    eligible_at: '2026-08-13T11:56:13.412037+00:00'
+    selected_ref: 1599a811c60c72908f41b0a7779ba46fb5cd4cc6
+    selected_sha: 1599a811c60c72908f41b0a7779ba46fb5cd4cc6
+  - version: 1
+    audit_id: audit-f105a93d7779
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1235
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d540ab0f4f7e9d38e392a710d52f7df05cfa9a9bd2326744296effc447ec2888
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T11:56:13.412037+00:00'
+    prerequisite_audit_id: audit-d7132be309d9
+    selected_ref: 1599a811c60c72908f41b0a7779ba46fb5cd4cc6
+    selected_sha: 1599a811c60c72908f41b0a7779ba46fb5cd4cc6
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -61,5 +120,10 @@ author: oompah
 created: 2026-08-13 11:46
 ---
 Prevent durable epic-rebase requests from self-superseding on benign evidence refresh; version event identity to recover stranded terminal requests. 494 focused tests and repository scans pass.
+---
+author: oompah
+created: 2026-08-13 11:56
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
