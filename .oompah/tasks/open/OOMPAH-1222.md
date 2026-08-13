@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1222
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Do not exhaust standalone delivery while waiting for review capacity
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T06:00:42.489158Z'
-updated_at: '2026-08-13T06:00:42.489158Z'
+updated_at: '2026-08-13T06:01:45.822974Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: a69d81a1-c7cc-428e-96e5-30861dd2eeb2
   request_fingerprint: 282feaf6d1cba4c5475da05bde8327339074a59963c881e2aca2041aea61e268
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
