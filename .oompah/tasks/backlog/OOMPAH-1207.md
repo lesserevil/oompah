@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:28:41.440593Z'
-updated_at: '2026-08-13T02:28:41.440593Z'
+updated_at: '2026-08-13T02:42:49.816970Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Fix a scheduler deadlock in the durable workflow restart boundary. When Implemen
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 02:42
+---
+Implemented the restart reconstruction fix on branch OOMPAH-1207. Protected imperative implementation jobs now satisfy the current fact decision's materialization obligation, both in implementation reconciliation accounting and universal restart proof. Regression coverage exercises fact reconciliation and two-cut restart liveness. Verification: 324 affected workflow suites passed; terminal-audit mutation scan passed; secret scan passed.
+---
+<!-- COMMENTS:END -->
