@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1228
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Allow landed deleted-source submissions through validation commit guard
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:30:46.069410Z'
-updated_at: '2026-08-13T09:30:46.069410Z'
+updated_at: '2026-08-13T09:31:05.858770Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 8da572d7-f464-44ad-807b-2ac8e3eca989
   request_fingerprint: 6799d0fc8aba0cd3563e447d80c1c8678cd66345d3a948da7c52f7f343ecb250
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -35,3 +36,11 @@ Bug observed live after deploying OOMPAH-1226. TRICKLE-140's accepted head is ex
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 09:31
+---
+Claimed directly for live TRICKLE-140 recovery. OOMPAH-1226 stopped implementation recovery churn (646 historical rows; no additions after 09:23:39) and routed the task into validation_submission. The commit guard then exhausted because it still requires the deleted source ref instead of accepting exact target containment. Implementing the missing commit-time route now.
+---
+<!-- COMMENTS:END -->
