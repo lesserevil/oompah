@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1194
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-134'
 parent: null
@@ -11,13 +11,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:09.835377Z'
-updated_at: '2026-08-12T23:56:09.835377Z'
+updated_at: '2026-08-13T00:02:43.294050Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -59,3 +60,11 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 00:02
+---
+Root cause confirmed during live Trickle dispatch: managed network Git operations pass the symbolic local remote name 'origin', so stale per-repository/worktree SSH configuration overrides the project's configured canonical HTTPS repo_url and its scoped credential environment. Scope: make ProjectStore managed network Git calls bind origin fetch/push to the project repo_url without mutating checkout config or exposing credentials; add a regression using a stale origin that proves the canonical remote is used; verify credential isolation/redaction remains intact. OOMPAH-1195 through OOMPAH-1198 are duplicate task-specific instances of this same systemic fault. Acceptance: workspace/epic refresh succeeds from canonical transport even when local origin is stale, and existing credential tests pass.
+---
+<!-- COMMENTS:END -->
