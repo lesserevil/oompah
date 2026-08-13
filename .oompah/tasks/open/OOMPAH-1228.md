@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:30:46.069410Z'
-updated_at: '2026-08-13T09:31:05.858770Z'
+updated_at: '2026-08-13T09:37:23.474109Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-13 09:31
 ---
 Claimed directly for live TRICKLE-140 recovery. OOMPAH-1226 stopped implementation recovery churn (646 historical rows; no additions after 09:23:39) and routed the task into validation_submission. The commit guard then exhausted because it still requires the deleted source ref instead of accepting exact target containment. Implementing the missing commit-time route now.
+---
+author: oompah
+created: 2026-08-13 09:37
+---
+Implementation pushed as PR #857. The commit-time validation guard accepts exact target containment only when the accepted source ref is absent; source advancement, target drift, missing/non-contained target proof, and owner/assignment changes remain blocked. Guard exceptions now retain a traceback in logs. Focused transition/runtime verification: 450 passed. Hosted gates are running.
 ---
 <!-- COMMENTS:END -->
