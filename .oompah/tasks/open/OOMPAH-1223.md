@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:08:25.770498Z'
-updated_at: '2026-08-13T07:42:33.653973Z'
+updated_at: '2026-08-13T07:45:13.386097Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-13 07:08
 ---
 Claiming directly from the live Trickle incident. Workaround for in-flight tasks: keep their Open state and stop treating regenerated exhaustion as human action; after OOMPAH-1222 deployment I will implement the unified hierarchy admission fix, deploy it, and verify TRICKLE-138/139 resume only when the parent hierarchy has valid dispatch authority.
+---
+author: oompah
+created: 2026-08-13 07:45
+---
+Implementation complete. Unified declared and inferred rollup classification across runtime partitioning, target facts, production handler revalidation, event routing, and restart seeding. Open leaves now project a jobless informational hierarchy wait until every ancestor has active authority; Backlog rollups advance through durable system-owned transitions; late topology races use a pre-effect administrative deferral without consuming attempts. Expanded focused suite: 526 passed; additional production-shaped hierarchy tests cover feature -> feature -> task, ancestor promotion, exactly-once leaf release, and free late-topology waits.
 ---
 <!-- COMMENTS:END -->
