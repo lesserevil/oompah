@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T18:57:41.903878Z'
-updated_at: '2026-08-13T21:47:21.548233Z'
+updated_at: '2026-08-13T21:55:30.407090Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-13 21:47
 ---
 Implementation in progress on branch OOMPAH-1257. Root cause confirmed: downstream title-only classification misses persisted noncanonical epic branches after exact publication/PASS. Fix projects project-scoped create/target/authority metadata into normalized issues, classifies fail-closed, makes audited Done maintenance terminal without an ordinary landing fact, converges the parent rebase state, and recovers pre-fix Done+ready records without a redundant audit. Focused regression suite currently passes (260 tests); wider workflow/terminal suites running.
+---
+author: oompah
+created: 2026-08-13 21:55
+---
+Implementation pushed at 79c80fc2c and opened as PR #874. Focused regression suites (260 tests), wider workflow/terminal suites (904 tests), terminal-audit mutation scan, secret scan, and diff checks pass. Full make test gate is still running; merge and live recovery remain pending that gate and CI.
 ---
 <!-- COMMENTS:END -->
