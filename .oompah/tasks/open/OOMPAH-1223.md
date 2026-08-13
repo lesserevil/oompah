@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:08:25.770498Z'
-updated_at: '2026-08-13T07:45:13.386097Z'
+updated_at: '2026-08-13T08:02:10.565267Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,5 +47,10 @@ author: oompah
 created: 2026-08-13 07:45
 ---
 Implementation complete. Unified declared and inferred rollup classification across runtime partitioning, target facts, production handler revalidation, event routing, and restart seeding. Open leaves now project a jobless informational hierarchy wait until every ancestor has active authority; Backlog rollups advance through durable system-owned transitions; late topology races use a pre-effect administrative deferral without consuming attempts. Expanded focused suite: 526 passed; additional production-shaped hierarchy tests cover feature -> feature -> task, ancestor promotion, exactly-once leaf release, and free late-topology waits.
+---
+author: oompah
+created: 2026-08-13 08:02
+---
+Hosted gate compatibility follow-up complete: fixed loose tracker doubles being misclassified as inferred rollups and preserved specific Open-rollup landing work ahead of aggregate status reconciliation while keeping Backlog hierarchy activation authoritative. All eight hosted failures now pass locally; expanded focused coverage is 893 passed. Corrected head 911027840 is pushed and full Python 3.11/3.12/3.13 gates are running.
 ---
 <!-- COMMENTS:END -->
