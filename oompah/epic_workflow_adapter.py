@@ -26,8 +26,8 @@ from oompah.epic_workflow import (
     EpicWorkflowController,
     EpicWorkflowHandler,
     ProductionEpicWorkflowBackend,
-    normalize_issue_project_scope,
     is_epic_rollup_issue,
+    normalize_issue_project_scope,
 )
 from oompah.events import EventType
 from oompah.models import EpicRebaseState, Issue
@@ -2325,11 +2325,20 @@ class EpicWorkflowEventRouter:
         # that mutable observation an additional generic worker CAS.
         if action is EpicAction.REBASE_REPAIR:
             expected_evidence_revision = None
+            expected_head = _text(event_payload.get("source_head")).lower()
+            if not _EXACT_HEAD_RE.fullmatch(expected_head):
+                logger.warning(
+                    "Deferred epic rebase scheduling for %s: exact live source "
+                    "generation is unavailable",
+                    epic.identifier,
+                )
+                return False
             # Advance the immutable event identity once so requests stranded
-            # under the former observation-revision contract do not replay
-            # their already-terminal idempotency key after upgrade.
-            event_payload["revalidation_contract"] = "target-source-v2"
-        expected_head = issue_exact_head(epic)
+            # under former observation/source contracts do not replay their
+            # already-terminal idempotency keys after upgrade.
+            event_payload["revalidation_contract"] = "target-source-head-v3"
+        else:
+            expected_head = issue_exact_head(epic)
         if action is EpicAction.CLEANUP:
             expected_head = self._cleanup_schedule_head(binding, epic)
             if expected_head is None:
@@ -2385,7 +2394,7 @@ class EpicWorkflowEventRouter:
         return created
 
     @staticmethod
-    def _current_decision(binding: Any, epic: Issue) -> Any | None:
+    def _current_evaluation(binding: Any, epic: Issue) -> Any | None:
         """Evaluate one epic without replacing project-wide projections."""
 
         controller = EpicWorkflowController(
@@ -2395,7 +2404,12 @@ class EpicWorkflowEventRouter:
             decision_limit=binding.epic_controller.decision_limit,
         )
         batch = controller.evaluate([epic], persist_evidence=True)
-        return batch.tasks[0].decision if batch.tasks else None
+        return batch.tasks[0] if batch.tasks else None
+
+    @staticmethod
+    def _current_decision(binding: Any, epic: Issue) -> Any | None:
+        evaluated = EpicWorkflowEventRouter._current_evaluation(binding, epic)
+        return evaluated.decision if evaluated is not None else None
 
     def _schedule_current_decision(
         self,
@@ -2664,8 +2678,28 @@ class EpicWorkflowEventRouter:
         binding, epic = resolved
         if not is_epic_rollup_issue(epic, tracker=binding.tracker):
             return
-        decision = self._current_decision(binding, epic)
-        if decision is None:
+        evaluated = self._current_evaluation(binding, epic)
+        if evaluated is None:
+            return
+        decision = evaluated.decision
+        containment = evaluated.facts.fact(FactDomain.CONTAINMENT)
+        if (
+            containment.state is not FactState.KNOWN
+            or not isinstance(containment.value, Mapping)
+        ):
+            return
+        source_branch = _text(containment.value.get("epic_branch"))
+        target_branch = _text(payload.get("target_branch"))
+        source_head = next(
+            (
+                _text(landing.revision).lower()
+                for landing in evaluated.facts.landings
+                if landing.source == source_branch
+                and landing.target == target_branch
+            ),
+            "",
+        )
+        if not source_branch or not _EXACT_HEAD_RE.fullmatch(source_head):
             return
         self._schedule(
             binding,
@@ -2673,7 +2707,9 @@ class EpicWorkflowEventRouter:
             EpicAction.REBASE_REPAIR,
             source="epic-rebase-requested",
             payload={
-                "target_branch": _text(payload.get("target_branch")),
+                "source_branch": source_branch,
+                "source_head": source_head,
+                "target_branch": target_branch,
                 "request_source": _text(payload.get("source")) or None,
                 "evidence_revision": decision.evidence_revision,
             },

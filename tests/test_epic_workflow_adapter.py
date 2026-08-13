@@ -2348,12 +2348,27 @@ def test_rebase_event_uses_target_and_epic_authority_not_observation_revision():
         reason_code="epic.rebase_required",
         evidence_revision="event-observation-revision",
     )
+    facts = containment_facts(
+        "TOP",
+        target="main",
+        landings=(
+            LandingFact(
+                "epic-TOP",
+                "main",
+                "a" * 40,
+                {"kind": "not_ancestor"},
+                "2026-08-13T00:00:00+00:00",
+                "project-1",
+                state=LandingState.NOT_LANDED,
+            ),
+        ),
+    )
 
     with patch(
         "oompah.epic_workflow_adapter.EpicWorkflowController"
     ) as ephemeral_controller:
         ephemeral_controller.return_value.evaluate.return_value = SimpleNamespace(
-            tasks=(SimpleNamespace(decision=decision),)
+            tasks=(SimpleNamespace(decision=decision, facts=facts),)
         )
         router.on_rebase_requested(
             "epic_rebase_requested",
@@ -2370,12 +2385,15 @@ def test_rebase_event_uses_target_and_epic_authority_not_observation_revision():
     call = controller.schedule_action.call_args
     assert call.kwargs["action"] is EpicAction.REBASE_REPAIR
     assert call.kwargs["expected_evidence_revision"] is None
+    assert call.kwargs["expected_head_sha"] == "a" * 40
     assert call.kwargs["payload"] == {
         "event_source": "epic-rebase-requested",
+        "source_branch": "epic-TOP",
+        "source_head": "a" * 40,
         "target_branch": "main",
         "request_source": "nested-dispatch-topology",
         "evidence_revision": "event-observation-revision",
-        "revalidation_contract": "target-source-v2",
+        "revalidation_contract": "target-source-head-v3",
     }
     assert call.kwargs["generation"].startswith("epic-event:")
     controller.scheduler.wake.assert_called_once_with("epic-rebase-requested")
