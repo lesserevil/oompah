@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:09.835377Z'
-updated_at: '2026-08-13T00:29:10.763992Z'
-work_branch: null
+updated_at: '2026-08-13T00:31:43.176931Z'
+work_branch: OOMPAH-1194
 target_branch: null
 review_url: null
 review_number: null
@@ -77,6 +77,16 @@ oompah.terminal_audit:
     selected_ref: origin/main
     selected_sha: 7140e70827fb1ead3135a559a5202089548a13f6
   attempt_history: []
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1194
+  head_sha: dc5b5998d013228a1409bd05a25b49f40787921a
+  submitted_at: '2026-08-13T00:31:33.176428+00:00'
+  updated_at: '2026-08-13T00:31:33.176428+00:00'
+oompah.work_branch: OOMPAH-1194
 ---
 ## Summary
 
@@ -129,5 +139,10 @@ author: oompah
 created: 2026-08-13 00:29
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-13 00:31
+---
+Fixed managed network Git transport authority: server-owned fetch/push/ls-remote now use the configured project repo URL, ignore stale local origins and ambient rewrites, preserve tracking and cleanup semantics, and cover the exact epic private-dispatch failure path. PR #842 merged; CI passed on Python 3.11, 3.12, and 3.13.
 ---
 <!-- COMMENTS:END -->
