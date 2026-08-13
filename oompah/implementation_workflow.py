@@ -714,6 +714,24 @@ class ImplementationWorkflowController:
                 )
                 materialized += int(exact_materialized)
                 schedules_materialized += int(exact_materialized)
+            elif actions:
+                # A current imperative action is intentionally stronger than
+                # a fact-derived replacement.  ``materialize_event`` advances
+                # the ordering revision but preserves that protected job.  It
+                # therefore satisfies this decision's execution obligation
+                # until it drains, even when its action name differs.
+                protected_materialized = (
+                    self.store.protected_event_lane_materialized(
+                        project_id=item.decision.project_id,
+                        task_id=item.decision.task_id,
+                        ordering_namespace=IMPLEMENTATION_ORDERING_NAMESPACE,
+                        source_revision=source_revision,
+                        scheduling_lanes=(IMPERATIVE_IMPLEMENTATION_LANE,),
+                        actions=tuple(IMPLEMENTATION_ACTIONS),
+                    )
+                )
+                materialized += int(protected_materialized)
+                schedules_materialized += int(protected_materialized)
             else:
                 # An accepted no-job decision is an exact retirement proof.
                 schedules_materialized += 1

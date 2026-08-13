@@ -6283,6 +6283,51 @@ def test_runtime_liveness_fails_closed_for_unmaterialized_owner_recovery(tmp_pat
     store.close()
 
 
+def test_restart_liveness_accepts_protected_imperative_implementation_job(
+    tmp_path,
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    task = make_issue("TASK-PROTECTED", state="Open")
+    tracker = NativeTracker([task])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    protected = binding.implementation_controller.schedule_event(
+        project_id="project-1",
+        task_id=task.identifier,
+        action=ImplementationAction.RETRY,
+        payload={
+            "owner_id": "prior-agent",
+            "work_branch": task.work_branch,
+            "expected_status": task.state,
+        },
+    )
+    controller = UniversalTotalityLivenessController(store=store)
+    controller.restore_liveness_state(None)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+        liveness_controller=controller,
+        **accepted_projection_wiring(),
+    )
+
+    asyncio.run(runtime.start())
+    first = runtime.reconcile()
+    report = runtime.reconcile()
+    health = controller.liveness_snapshot()
+
+    assert first["liveness"]["scan_complete"] is False
+    assert report["projects"]["project-1"]["implementation"]["truncated"] is False
+    assert report["liveness"]["scan_complete"] is True
+    assert health.required_recovery_count == 1
+    assert health.materialized_recovery_count == 1
+    assert runtime.restart_reconstruction_pending is False
+    assert store.get(protected.job_id).state is WorkflowJobState.QUEUED
+    runtime.close()
+    store.close()
+
+
 def test_direct_validation_attempt_cannot_strand_terminal_audit_liveness(tmp_path):
     class MutableNativeTracker(NativeTracker):
         def __init__(self, issues):

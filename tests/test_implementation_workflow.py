@@ -35,6 +35,7 @@ from oompah.task_transition_service import (
 from oompah.workflow_contract import TaskDisposition
 from oompah.workflow_facts import FactDomain, WorkflowFactCollector
 from oompah.workflow_jobs import (
+    ACTIVE_JOB_STATES,
     WorkflowJobLeaseLost,
     WorkflowJobState,
     WorkflowJobStore,
@@ -963,6 +964,36 @@ def test_fact_reconcile_replays_equivalent_imperative_event(tmp_path):
     assert len(store.list_jobs()) == 1
     assert store.list_jobs()[0].job_id == imperative.job_id
     assert store.list_jobs()[0].state is WorkflowJobState.QUEUED
+    store.close()
+
+
+def test_fact_reconcile_counts_different_protected_imperative_event(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    task = issue(OPEN)
+    controller = ImplementationWorkflowController(
+        collector=collector([task]), store=store
+    )
+    imperative = event(
+        controller,
+        ImplementationAction.RETRY,
+        payload={
+            "owner_id": "agent-1",
+            "work_branch": task.work_branch,
+            "expected_status": task.state,
+        },
+    )
+
+    batch, result = controller.reconcile([task])
+
+    assert batch.tasks[0].decision.durable_jobs == ("implementation_start",)
+    assert result.jobs_required == 1
+    assert result.jobs_materialized == 1
+    assert result.schedules_materialized == 1
+    assert result.truncated is False
+    assert store.get(imperative.job_id).state is WorkflowJobState.QUEUED
+    assert [job for job in store.list_jobs() if job.state in ACTIVE_JOB_STATES] == [
+        imperative
+    ]
     store.close()
 
 

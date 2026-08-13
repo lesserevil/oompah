@@ -2882,6 +2882,89 @@ class WorkflowJobStore:
             )
         )
 
+    def protected_event_lane_materialized(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        ordering_namespace: str,
+        source_revision: str,
+        scheduling_lanes: Sequence[str],
+        actions: Sequence[str],
+        now: float | None = None,
+    ) -> bool:
+        """Prove a live protected event as substitute execution authority.
+
+        A fact-derived implementation decision may advance the shared ordering
+        cursor while an active imperative event deliberately prevents creation
+        of a replacement fact job.  In that case the protected event, rather
+        than the absent fact lane, is the exact authority that must drain
+        before the fact decision can take effect.  Bind the proof to the
+        current ordering revision so an older scan cannot borrow a newer
+        imperative job.
+        """
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        ordering = _required_text(ordering_namespace, "ordering_namespace")
+        revision = _required_text(source_revision, "source_revision")
+        lanes = tuple(
+            sorted(
+                {
+                    _required_text(lane, "scheduling_lane")
+                    for lane in scheduling_lanes
+                }
+            )
+        )
+        normalized_actions = tuple(
+            sorted({_required_text(action, "action") for action in actions})
+        )
+        if not lanes:
+            raise ValueError("scheduling_lanes cannot be empty")
+        if not normalized_actions:
+            raise ValueError("actions cannot be empty")
+        timestamp = float(self._clock() if now is None else now)
+        with self._lock:
+            ordered = self._conn.execute(
+                """
+                SELECT decision_revision
+                  FROM workflow_event_ordering
+                 WHERE project_id = ? AND task_id = ?
+                   AND ordering_namespace = ?
+                """,
+                (project, task, ordering),
+            ).fetchone()
+            if ordered is None or str(ordered["decision_revision"]) != revision:
+                return False
+            row = self._conn.execute(
+                f"""
+                SELECT action, state, lease_owner, lease_expires_at
+                  FROM workflow_jobs
+                 WHERE project_id = ? AND task_id = ?
+                   AND scheduling_lane IN (
+                       {','.join('?' for _ in lanes)}
+                   )
+                   AND action IN (
+                       {','.join('?' for _ in normalized_actions)}
+                   )
+                   AND state IN (
+                       {','.join('?' for _ in ACTIVE_JOB_STATES)}
+                   )
+                 ORDER BY enqueue_sequence DESC LIMIT 1
+                """,
+                (
+                    project,
+                    task,
+                    *lanes,
+                    *normalized_actions,
+                    *(state.value for state in ACTIVE_JOB_STATES),
+                ),
+            ).fetchone()
+        return bool(
+            row is not None
+            and _job_row_proves_live_authority(row, now=timestamp)
+        )
+
     def terminal_audit_lane_materialized(
         self,
         *,
