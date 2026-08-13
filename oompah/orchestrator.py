@@ -60522,7 +60522,11 @@ class Orchestrator:
                         "[reason=epic_rebase_publish_parent_missing]"
                     )
 
-                epic_branch = self.project_store.epic_branch_name(parent.identifier)
+                # Admission leases the epic's authoritative containment branch,
+                # which may be a persisted ``work_branch`` rather than the
+                # current ``epic-<id>`` convention. Publication must observe
+                # and update that same ref.
+                epic_branch = self._epic_branch_for_issue(parent)
                 target_branch = self._resolve_epic_target_branch(parent, project)
                 remote_name = self.project_store.canonical_remote_name(project_id)
                 remote_url = self.project_store.canonical_remote_url(project_id)
@@ -60900,7 +60904,8 @@ class Orchestrator:
                     str(getattr(issue, "parent_id", "") or ""),
                     "cannot resolve rebase authority",
                 )
-            epic_branch = self.project_store.epic_branch_name(parent.identifier)
+            # Revalidate the exact source branch leased during admission.
+            epic_branch = self._epic_branch_for_issue(parent)
             target_branch = self._resolve_epic_target_branch(parent, project)
             observed = self._observe_epic_rebase_generation(
                 project_id=issue.project_id,
@@ -65708,12 +65713,23 @@ class Orchestrator:
         project = self.project_store.get(project_id)
         if project is None:
             return False, f"managed project {project_id} is unavailable", None
-        epic_branch = self.project_store.epic_branch_name(parent_id)
+        try:
+            parent = self._resolve_parent_epic(current, fail_closed=True)
+        except Exception as exc:  # noqa: BLE001 - completion must fail closed
+            return (
+                False,
+                f"direct epic maintenance parent cannot be resolved: {exc}",
+                None,
+            )
+        if parent is None:
+            return False, "direct epic maintenance parent is unavailable", None
+        epic_branch = self._epic_branch_for_issue(parent)
         reconciliation = await asyncio.to_thread(
             self.project_store.reconcile_published_epic_worktree,
             project_id,
             parent_id,
             published_sha,
+            branch_name=epic_branch,
             expected_old_sha=(getattr(record, "base_sha", None) or None),
             maintenance_identifier=current.identifier,
         )

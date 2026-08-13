@@ -3634,6 +3634,7 @@ class ProjectStore:
         epic_identifier: str,
         published_sha: str,
         *,
+        branch_name: str | None = None,
         expected_old_sha: str | None = None,
         maintenance_identifier: str | None = None,
     ) -> EpicWorktreeReconciliation:
@@ -3665,7 +3666,24 @@ class ProjectStore:
                 reason="published epic head is not a valid commit id",
             )
 
-        branch = self.epic_branch_name(epic_identifier)
+        branch = str(branch_name or "").strip() or self.epic_branch_name(
+            epic_identifier
+        )
+        valid_branch = subprocess.run(
+            ["git", "check-ref-format", f"refs/heads/{branch}"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        if valid_branch.returncode != 0:
+            return EpicWorktreeReconciliation(
+                "wrong_branch",
+                old_sha=old,
+                published_sha=published,
+                reason=f"authoritative epic branch is invalid: {branch!r}",
+            )
         path = self.epic_worktree_path_for(project_id, epic_identifier)
         with self.project_write_lock(project_id):
             if not os.path.isdir(path):

@@ -3714,6 +3714,60 @@ class TestDirectEpicAuxiliaryCleanup:
             check=False,
         ).returncode == 0
 
+    def test_reconciles_authoritative_noncanonical_epic_branch(self, tmp_path):
+        fixture = self._make_auxiliary(tmp_path)
+        authoritative_branch = "TRICKLE-130"
+        subprocess.run(
+            ["git", "branch", "-m", authoritative_branch],
+            cwd=fixture["epic_path"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "push", "origin", f"HEAD:refs/heads/{authoritative_branch}"],
+            cwd=fixture["epic_path"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        fixture["epic_branch"] = authoritative_branch
+        old, published = self._publish_auxiliary_head(fixture)
+
+        result = fixture["store"].reconcile_published_epic_worktree(
+            fixture["project"].id,
+            fixture["parent"],
+            published,
+            branch_name=fixture["epic_branch"],
+            expected_old_sha=old,
+            maintenance_identifier=fixture["issue"],
+        )
+
+        assert result.status == "reconciled"
+        assert result.completed is True
+
+    def test_reconciliation_rejects_invalid_authoritative_branch(self, tmp_path):
+        fixture = self._make_auxiliary(tmp_path)
+        old = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=fixture["epic_path"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        result = fixture["store"].reconcile_published_epic_worktree(
+            fixture["project"].id,
+            fixture["parent"],
+            old,
+            branch_name="invalid branch",
+            expected_old_sha=old,
+            maintenance_identifier=fixture["issue"],
+        )
+
+        assert result.status == "wrong_branch"
+        assert result.completed is False
+
     @pytest.mark.parametrize("change_kind", ["dirty", "active", "recovery", "divergent"])
     def test_reconciliation_preserves_unsafe_epic_checkout_states(
         self, tmp_path, change_kind
