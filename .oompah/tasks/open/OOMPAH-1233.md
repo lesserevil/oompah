@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1233
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Recognize landed standalone submissions after source branch deletion
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T10:25:26.660518Z'
-updated_at: '2026-08-13T10:25:26.660518Z'
+updated_at: '2026-08-13T10:26:00.565280Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 6b34eecc-c88d-485e-86a2-e62b75d7493a
   request_fingerprint: aa782013cdbafb0b5c541f0295c2ecb65e5297e67b4c97a81dbdd9875bbac022
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -35,3 +36,11 @@ Bug reproduced live on TRICKLE-140. A standalone task reached Ready to Integrate
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 10:26
+---
+Claimed directly by the operator agent while the Oompah project remains paused. Reproduced on TRICKLE-140: accepted head is already on target, but standalone delivery exhausts at the earlier source-branch existence check. Implementing on branch OOMPAH-1233 with exact-head containment and authority-fencing regressions.
+---
+<!-- COMMENTS:END -->
