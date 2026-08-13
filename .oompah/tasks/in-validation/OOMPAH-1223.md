@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1223
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Block nested child dispatch until inferred parent hierarchy is dispatchable
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:08:25.770498Z'
-updated_at: '2026-08-13T08:13:18.186839Z'
+updated_at: '2026-08-13T08:13:37.778636Z'
 work_branch: OOMPAH-1223
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 61f0d7b2-4ea4-49b9-b849-6b612fb4815b
   request_fingerprint: 9864e04fd65f31463c553e326207516f963ec46c2898d76407f6279da6ba9829
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.integration:
   version: 2
   state: ready
@@ -35,6 +35,64 @@ oompah.integration:
   submitted_at: '2026-08-13T08:13:08.164084+00:00'
   updated_at: '2026-08-13T08:13:08.164084+00:00'
 oompah.work_branch: OOMPAH-1223
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-7e7229dc7054
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1223
+    digest: 32c98be40957bc3783a01f698dcdf40f370d8d7e7ac5f2c27965d4323fdc8392
+  - version: 1
+    audit_id: audit-85843b9892dd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1223
+    digest: 32c98be40957bc3783a01f698dcdf40f370d8d7e7ac5f2c27965d4323fdc8392
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-7e7229dc7054
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1223
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 32c98be40957bc3783a01f698dcdf40f370d8d7e7ac5f2c27965d4323fdc8392
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T08:13:32.299869+00:00'
+    eligible_at: '2026-08-13T08:13:32.299869+00:00'
+    selected_ref: 9110278408b23f4ad74e33aa8367a4f12ce24045
+    selected_sha: 9110278408b23f4ad74e33aa8367a4f12ce24045
+  - version: 1
+    audit_id: audit-85843b9892dd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1223
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 32c98be40957bc3783a01f698dcdf40f370d8d7e7ac5f2c27965d4323fdc8392
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T08:13:32.299869+00:00'
+    prerequisite_audit_id: audit-7e7229dc7054
+    selected_ref: 9110278408b23f4ad74e33aa8367a4f12ce24045
+    selected_sha: 9110278408b23f4ad74e33aa8367a4f12ce24045
+  attempt_history: []
 ---
 ## Summary
 
@@ -67,5 +125,10 @@ author: oompah
 created: 2026-08-13 08:13
 ---
 Unified inferred and declared rollup authority across runtime partitioning, target facts, event routing, hierarchy admission, and restart recovery. Backlog ancestors now activate durably before descendants dispatch; late topology races defer without consuming retry attempts. Focused hierarchy/review compatibility coverage: 893 passed. Hosted full gates passed on Python 3.11, 3.12, and 3.13.
+---
+author: oompah
+created: 2026-08-13 08:13
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
