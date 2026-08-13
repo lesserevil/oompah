@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:08:25.770498Z'
-updated_at: '2026-08-13T07:08:25.770498Z'
+updated_at: '2026-08-13T07:08:47.667049Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Bug observed live on Trickle 2026-08-13. TRICKLE-138 and TRICKLE-139 are Open ch
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 07:08
+---
+Claiming directly from the live Trickle incident. Workaround for in-flight tasks: keep their Open state and stop treating regenerated exhaustion as human action; after OOMPAH-1222 deployment I will implement the unified hierarchy admission fix, deploy it, and verify TRICKLE-138/139 resume only when the parent hierarchy has valid dispatch authority.
+---
+<!-- COMMENTS:END -->
