@@ -4,6 +4,7 @@ import asyncio
 import copy
 import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -2433,6 +2434,58 @@ class Tracker:
 
     def fetch_issue_detail(self, identifier):
         return self.issues.get(identifier)
+
+
+def test_event_router_close_drains_accepted_work_and_rejects_late_work():
+    runtime = SimpleNamespace(enforce=True, project_bindings={})
+    orchestrator = SimpleNamespace(request_refresh=MagicMock())
+    router = EpicWorkflowEventRouter(orchestrator, runtime)
+    entered = threading.Event()
+    release = threading.Event()
+    completed: list[str] = []
+
+    def accepted_operation():
+        entered.set()
+        assert release.wait(timeout=1.0)
+        completed.append("accepted")
+
+    accepted = router._submit_ordered(accepted_operation)
+    assert entered.wait(timeout=1.0)
+    closing = threading.Thread(target=router.close)
+    closing.start()
+    for _ in range(100):
+        with router._event_lock:
+            if router._closed:
+                break
+        threading.Event().wait(0.001)
+
+    late = router._submit_ordered(lambda: completed.append("late"))
+    assert late.result(timeout=1.0) is None
+    release.set()
+    closing.join(timeout=1.0)
+
+    assert not closing.is_alive()
+    assert accepted.result(timeout=1.0) is None
+    assert completed == ["accepted"]
+
+
+def test_event_router_treats_shared_pool_shutdown_as_late_delivery():
+    pool = ThreadPoolExecutor(max_workers=1)
+    pool.shutdown(wait=True)
+    runtime = SimpleNamespace(enforce=True, project_bindings={})
+    orchestrator = SimpleNamespace(
+        request_refresh=MagicMock(),
+        _tick_pool=pool,
+    )
+    router = EpicWorkflowEventRouter(orchestrator, runtime)
+    operation = MagicMock()
+
+    rejected = router._submit_ordered(operation)
+
+    assert rejected.result(timeout=1.0) is None
+    assert router._closed is True
+    operation.assert_not_called()
+    router.close()
 
 
 @pytest.mark.parametrize("mode", ["off", "shadow"])

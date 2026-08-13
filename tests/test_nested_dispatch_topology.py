@@ -736,6 +736,71 @@ def test_startup_recovery_wakes_queued_repair_and_clears_wait(tmp_path):
     orchestrator._post_dispatch_refresh.assert_called_once_with()
 
 
+def test_startup_recovery_retires_repair_owned_by_exact_rebase_helper(tmp_path):
+    orchestrator, tracker, child, nested, _topology = (
+        _oompah_770_796_fixture(tmp_path)
+    )
+    helper = replace(
+        child,
+        id="OOMPAH-900",
+        identifier="OOMPAH-900",
+        state="Needs Rebase",
+        priority=0,
+        title="Rebase epic-OOMPAH-770 onto epic-OOMPAH-763",
+        target_branch="epic-OOMPAH-763",
+    )
+    child_evidence = orchestrator._collect_nested_dispatch_evidence(child)
+    assert child_evidence is not None
+    evidence = replace(child_evidence, task_id=helper.identifier)
+    orchestrator._schedule_nested_dispatch_repair(evidence)
+    tracker.fetch_issue_detail.return_value = helper
+    orchestrator._has_epic_rebase_publish_authority = MagicMock(
+        return_value=True
+    )
+    orchestrator._collect_nested_dispatch_evidence = MagicMock()
+    orchestrator._post_dispatch_refresh = MagicMock()
+
+    result = orchestrator._recover_queued_nested_dispatch_repairs()
+
+    jobs = orchestrator.workflow_job_store.list_jobs(
+        project_id="proj-1",
+        task_id=helper.identifier,
+        actions=("nested_dispatch_topology_repair",),
+    )
+    assert result["retired"] == 1
+    assert result["driven"] == 0
+    assert jobs[0].state is WorkflowJobState.CANCELLED
+    orchestrator._collect_nested_dispatch_evidence.assert_not_called()
+    orchestrator.project_store.advance_nested_dispatch_topology.assert_not_called()
+
+
+def test_claimed_repair_retires_if_exact_helper_authority_wins_race(tmp_path):
+    orchestrator, tracker, child, _nested, _topology = (
+        _oompah_770_796_fixture(tmp_path)
+    )
+    evidence = orchestrator._collect_nested_dispatch_evidence(child)
+    assert evidence is not None
+    orchestrator._schedule_nested_dispatch_repair(evidence)
+    tracker.fetch_issue_detail.return_value = child
+    orchestrator._has_epic_rebase_publish_authority = MagicMock(
+        return_value=True
+    )
+    orchestrator.project_store.project_write_lock.return_value = MagicMock(
+        __enter__=MagicMock(return_value=None),
+        __exit__=MagicMock(return_value=False),
+    )
+
+    assert orchestrator._drive_nested_dispatch_repair(evidence) is True
+
+    jobs = orchestrator.workflow_job_store.list_jobs(
+        project_id="proj-1",
+        task_id=child.identifier,
+        actions=("nested_dispatch_topology_repair",),
+    )
+    assert jobs[0].state is WorkflowJobState.CANCELLED
+    orchestrator.project_store.advance_nested_dispatch_topology.assert_not_called()
+
+
 def test_first_wait_materializes_repair_with_stabilized_task_authority(tmp_path):
     orchestrator, _tracker, child, _nested, _topology = (
         _oompah_770_796_fixture(tmp_path)
