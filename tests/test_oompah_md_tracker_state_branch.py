@@ -240,6 +240,57 @@ def state_branch_repo(tmp_path: Path) -> tuple[Path, str]:
 class TestStateBranchTrackerIntegration:
     """Integration tests for state-branch-aware tracker routing."""
 
+    def test_buffered_mutations_sync_remote_once_per_tracker_generation(
+        self, state_branch_repo: tuple[Path, str]
+    ) -> None:
+        """Coalesced writes cannot repeat network fetches under the write lock."""
+
+        repo, state_branch = state_branch_repo
+        tracker = _make_tracker(
+            repo,
+            state_branch_enabled=True,
+            state_branch_name=state_branch,
+            git_sync=True,
+        )
+
+        with (
+            patch.object(tracker, "_has_remote", return_value=True),
+            patch.object(tracker, "_sync_state_branch_from_remote") as sync,
+        ):
+            tracker.create_issue("First buffered mutation")
+            tracker.create_issue("Second buffered mutation")
+
+        assert sync.call_count == 1
+        assert tracker.checkpoint_pending_mutations == 2
+        tracker.retire_checkpoint_writer(reason="test cleanup")
+
+    def test_failed_initial_sync_is_retried_before_any_later_mutation(
+        self, state_branch_repo: tuple[Path, str]
+    ) -> None:
+        """Only a successful initial sync grants buffered write authority."""
+
+        repo, state_branch = state_branch_repo
+        tracker = _make_tracker(
+            repo,
+            state_branch_enabled=True,
+            state_branch_name=state_branch,
+            git_sync=True,
+        )
+        sync = MagicMock(side_effect=[TrackerError("temporary fetch failure"), None])
+
+        with (
+            patch.object(tracker, "_has_remote", return_value=True),
+            patch.object(tracker, "_sync_state_branch_from_remote", sync),
+        ):
+            with pytest.raises(TrackerError, match="temporary fetch failure"):
+                tracker.create_issue("Rejected before sync")
+            created = tracker.create_issue("Accepted after retry")
+
+        assert created.identifier
+        assert sync.call_count == 2
+        assert tracker.checkpoint_pending_mutations == 1
+        tracker.retire_checkpoint_writer(reason="test cleanup")
+
     def test_task_creation_commits_only_to_state_branch_not_main(
         self, state_branch_repo: tuple[Path, str]
     ) -> None:
