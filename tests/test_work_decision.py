@@ -721,10 +721,31 @@ def _landing(state, *, error=None, target="epic-parent"):
     )
 
 
-def test_done_uses_immediate_target_landing_without_parent_status_cycle():
+def test_done_shared_child_waits_for_parent_terminal_before_rollup_review():
     issue = _issue(DONE, parent_id="EPIC-1")
+    parent_terminal = {
+        FactDomain.TASK: _known(
+            FactDomain.TASK,
+            {
+                "identifier": issue.identifier,
+                "project_id": issue.project_id,
+                "status": issue.state,
+                "issue_type": issue.issue_type,
+                "parent_id": issue.parent_id,
+                "parent_identifier": "EPIC-1",
+                "parent_status": MERGED,
+                "parent_issue_type": "epic",
+                "parent_error": None,
+            },
+        )
+    }
     positive = evaluate_task(
-        issue, _facts(issue, landings=(_landing(LandingState.LANDED),))
+        issue,
+        _facts(
+            issue,
+            overrides=parent_terminal,
+            landings=(_landing(LandingState.LANDED),),
+        ),
     )
     negative = evaluate_task(
         issue, _facts(issue, landings=(_landing(LandingState.NOT_LANDED),))
@@ -740,6 +761,66 @@ def test_done_uses_immediate_target_landing_without_parent_status_cycle():
     assert negative.disposition is TaskDisposition.BLOCKED
     assert unknown.disposition is TaskDisposition.RETRY_SCHEDULED
     assert unknown.alert_level is AlertSeverity.INFO
+
+    waiting = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.TASK: _known(
+                    FactDomain.TASK,
+                    {
+                        **parent_terminal[FactDomain.TASK].value,
+                        "parent_status": BACKLOG,
+                    },
+                )
+            },
+            landings=(_landing(LandingState.LANDED),),
+        ),
+    )
+    assert waiting.disposition is TaskDisposition.BLOCKED
+    assert waiting.reason_code == "rollup.waiting_parent_landing"
+    assert waiting.durable_jobs == ()
+    assert not waiting.action_required
+    assert waiting.unmet_prerequisites[0].observed == BACKLOG
+
+
+@pytest.mark.parametrize(
+    "task_fields",
+    (
+        {"parent_identifier": None, "parent_error": "parent_missing"},
+        {"parent_identifier": "OTHER", "parent_status": MERGED},
+    ),
+)
+def test_done_shared_child_fails_closed_without_exact_parent_authority(task_fields):
+    issue = _issue(DONE, parent_id="EPIC-1")
+    task_value = {
+        "identifier": issue.identifier,
+        "project_id": issue.project_id,
+        "status": issue.state,
+        "issue_type": issue.issue_type,
+        "parent_id": issue.parent_id,
+        "parent_identifier": "EPIC-1",
+        "parent_status": BACKLOG,
+        "parent_issue_type": "epic",
+        "parent_error": None,
+        **task_fields,
+    }
+
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.TASK: _known(FactDomain.TASK, task_value),
+            },
+            landings=(_landing(LandingState.LANDED),),
+        ),
+    )
+
+    assert decision.reason_code == "rollup.waiting_parent_landing"
+    assert decision.disposition is TaskDisposition.BLOCKED
+    assert decision.durable_jobs == ()
 
 
 def _terminal_provenance(**overrides):
