@@ -4308,6 +4308,51 @@ class TestGitLabFindPrForBranch:
         assert result.source_repository == "g/p"
         assert result.target_repository == "g/p"
 
+    def test_open_mr_missing_list_base_is_hydrated_from_detail(self):
+        listed = self._mr(state="opened")
+        listed.pop("diff_refs")
+        calls = []
+        p = _GL.provider()
+
+        def fake(method, path, **kwargs):
+            calls.append((method, path, kwargs))
+            if path.endswith("/merge_requests"):
+                return _GL.r([listed])
+            if path.endswith("/merge_requests/7"):
+                return _GL.r(self._mr(state="opened"))
+            raise AssertionError(path)
+
+        p._api = fake
+
+        result = p.find_pr_for_branch("g/p", "OOMPAH-7")
+
+        assert result is not None
+        assert result.head_sha == "a" * 40
+        assert result.base_sha == "b" * 40
+        assert [path for _method, path, _kwargs in calls] == [
+            "/projects/g%2Fp/merge_requests",
+            "/projects/g%2Fp/merge_requests/7",
+        ]
+
+    def test_open_mr_detail_failure_retains_partial_identity(self):
+        listed = self._mr(state="opened")
+        listed.pop("diff_refs")
+        p = _GL.provider()
+
+        def fake(_method, path, **_kwargs):
+            if path.endswith("/merge_requests"):
+                return _GL.r([listed])
+            return _GL.r(code=503)
+
+        p._api = fake
+
+        result = p.find_pr_for_branch("g/p", "OOMPAH-7")
+
+        assert result is not None
+        assert result.state == "open"
+        assert result.head_sha == "a" * 40
+        assert result.base_sha == ""
+
     @pytest.mark.parametrize("missing", ["source_project_id", "target_project_id"])
     def test_missing_project_identity_does_not_infer_source_repository(self, missing):
         mr = self._mr()

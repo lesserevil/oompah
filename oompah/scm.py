@@ -3757,6 +3757,8 @@ class GitLabProvider(SCMProvider):
         if not data:
             return None
         mr = data[0]
+        if not isinstance(mr, Mapping):
+            return None
         raw_state = (mr.get("state") or "").lower()
         if raw_state == "merged":
             state = "merged"
@@ -3764,6 +3766,17 @@ class GitLabProvider(SCMProvider):
             state = "closed"
         else:
             state = "open"
+            # The list endpoint commonly omits ``diff_refs.base_sha``.  The
+            # standalone delivery authority requires both immutable head and
+            # base generations before it may adopt an existing open review,
+            # so hydrate from the exact MR detail endpoint just as
+            # ``list_open_reviews`` does.  If detail is temporarily
+            # unavailable, retain the partial list observation: callers then
+            # fail closed on incomplete identity instead of attempting to
+            # create a competing open review.
+            hydrated = self._hydrate_open_review_identity(repo, encoded, mr)
+            if hydrated is not None:
+                mr = hydrated
         author = mr.get("author", {})
         author_name = (
             author.get("username", author.get("name", ""))
