@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1232
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Rearm runnable workflow jobs when blocking evidence changes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T10:08:08.871557Z'
-updated_at: '2026-08-13T10:46:24.509973Z'
+updated_at: '2026-08-13T10:57:03.496646Z'
 work_branch: OOMPAH-1232
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: c5389a39-0475-4191-ada8-e49be43cf34d
   request_fingerprint: 93e69203bf22fff1b3823d66fe5518d3cdd5e33c5e812ee0770173ee78c214c4
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.integration:
   version: 2
   state: ready
@@ -35,6 +35,64 @@ oompah.integration:
   submitted_at: '2026-08-13T10:46:12.151525+00:00'
   updated_at: '2026-08-13T10:46:12.151525+00:00'
 oompah.work_branch: OOMPAH-1232
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-84f51dfff17b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1232
+    digest: 91c76a4b83a3ac13b0ab1a27475648c7f0e5e7be0b010e8e2683d6dd6852c2fd
+  - version: 1
+    audit_id: audit-cb015358325e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1232
+    digest: 91c76a4b83a3ac13b0ab1a27475648c7f0e5e7be0b010e8e2683d6dd6852c2fd
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-84f51dfff17b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1232
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 91c76a4b83a3ac13b0ab1a27475648c7f0e5e7be0b010e8e2683d6dd6852c2fd
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T10:56:57.125989+00:00'
+    eligible_at: '2026-08-13T10:56:57.125989+00:00'
+    selected_ref: 3ab523c787c6856073f95e8dbbabace2820ac07c
+    selected_sha: 3ab523c787c6856073f95e8dbbabace2820ac07c
+  - version: 1
+    audit_id: audit-cb015358325e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1232
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 91c76a4b83a3ac13b0ab1a27475648c7f0e5e7be0b010e8e2683d6dd6852c2fd
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T10:56:57.125989+00:00'
+    prerequisite_audit_id: audit-84f51dfff17b
+    selected_ref: 3ab523c787c6856073f95e8dbbabace2820ac07c
+    selected_sha: 3ab523c787c6856073f95e8dbbabace2820ac07c
+  attempt_history: []
 ---
 ## Summary
 
@@ -57,5 +115,10 @@ author: oompah
 created: 2026-08-13 10:46
 ---
 Fixed the nested topology self-deadlock. WorkflowJobStore now accepts an explicit compatible-running-action set; the repair path uses it only for pre-effect implementation start/recovery/handoff owners, preserving ordinary same-task exclusion. Nested preflight immediately recollects evidence after repair so a successful CAS admits dispatch in the same pass. Added store isolation and live-shaped preflight overlap regressions. Validation: 366 workflow job/runtime/implementation/topology tests passed; terminal mutation scan passed. Commit 3ab523c78 pushed.
+---
+author: oompah
+created: 2026-08-13 10:57
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
