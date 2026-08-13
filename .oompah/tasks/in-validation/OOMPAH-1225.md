@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1225
 type: bug
-status: Open
+status: In Validation
 priority: 1
 title: Refresh GitLab review CI when MR list omits head_pipeline
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T08:09:49.181773Z'
-updated_at: '2026-08-13T08:49:27.003912Z'
+updated_at: '2026-08-13T08:49:45.691085Z'
 work_branch: OOMPAH-1225
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: gitlab-mr-list-missing-head-pipeline-ci-refresh
   request_fingerprint: 5b4e407fccdecbfa7bacb307fae8f5032d210c7257893900acc7ce2a0133e5c8
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.integration:
   version: 2
   state: ready
@@ -35,6 +35,64 @@ oompah.integration:
   submitted_at: '2026-08-13T08:49:19.100809+00:00'
   updated_at: '2026-08-13T08:49:19.100809+00:00'
 oompah.work_branch: OOMPAH-1225
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-9fea7876e7fc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1225
+    digest: eb1dc9a93689313bda2b33de034da6990901e41c94e2969e34b5ea2d42766f65
+  - version: 1
+    audit_id: audit-7f5b1674ec3e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1225
+    digest: eb1dc9a93689313bda2b33de034da6990901e41c94e2969e34b5ea2d42766f65
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-9fea7876e7fc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1225
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: eb1dc9a93689313bda2b33de034da6990901e41c94e2969e34b5ea2d42766f65
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T08:49:40.299244+00:00'
+    eligible_at: '2026-08-13T08:49:40.299244+00:00'
+    selected_ref: 69fb55edca7c6c2f5d04e2839266968c07bd5049
+    selected_sha: 69fb55edca7c6c2f5d04e2839266968c07bd5049
+  - version: 1
+    audit_id: audit-7f5b1674ec3e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1225
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: eb1dc9a93689313bda2b33de034da6990901e41c94e2969e34b5ea2d42766f65
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T08:49:40.299244+00:00'
+    prerequisite_audit_id: audit-9fea7876e7fc
+    selected_ref: 69fb55edca7c6c2f5d04e2839266968c07bd5049
+    selected_sha: 69fb55edca7c6c2f5d04e2839266968c07bd5049
+  attempt_history: []
 ---
 ## Summary
 
@@ -59,5 +117,10 @@ author: oompah
 created: 2026-08-13 08:49
 ---
 Refresh GitLab review CI from the exact immutable MR head when list responses omit head_pipeline; preserve warnings and the embedded fast path. PR #854 passed hosted Python 3.11/3.12/3.13 gates.
+---
+author: oompah
+created: 2026-08-13 08:49
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
