@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:48:58.587882Z'
-updated_at: '2026-08-13T16:48:58.587882Z'
+updated_at: '2026-08-13T16:49:24.080648Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Live reproduction: TRICKLE-141's scoped Claude worker successfully rebased share
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 16:49
+---
+Direct operator ownership: reproducing and fixing this while the Oompah project remains paused. The normal Open to In Progress transition is intentionally owner-gated, so this comment records the direct handoff without resuming Oompah scheduling.
+---
+<!-- COMMENTS:END -->
