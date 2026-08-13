@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T13:47:10.437674Z'
-updated_at: '2026-08-13T16:00:43.415539Z'
+updated_at: '2026-08-13T16:07:42.976214Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -104,5 +104,10 @@ Source: `backend:orchestrator`
 Message: ACP worker failed issue_id=TRICKLE-141
 
 Source issue: `TRICKLE-141`
+---
+author: oompah
+created: 2026-08-13 16:07
+---
+Root cause refined live after provider-auth recovery: TRICKLE-141 reaches implementation dispatch, but direct epic-maintenance allocation refuses Oompah's managed Trickle clone because its common .git/config retains an HTTP userinfo remote and local credential helpers from pre-migration/adoption state. The dedicated sandbox would strip these and disable network, but the earlier security preflight correctly refuses to launch. Permanent managed-clone sanitation is tracked as OOMPAH-1249; immediate scoped workaround will normalize only Oompah's managed clone to the canonical credential-free project URL and remove its local helpers, preserving server-owned token transport.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1249
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Sanitize credential routes from managed clone Git config
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:07:17.780951Z'
-updated_at: '2026-08-13T16:07:17.780951Z'
+updated_at: '2026-08-13T16:07:39.434602Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 38414c00-1ce0-4772-8ca6-34b094cc432f
   request_fingerprint: 161c9ff76929a7deb62fc461fd2af12e3940f907f457dfd38ca6015cd1b8f517
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
