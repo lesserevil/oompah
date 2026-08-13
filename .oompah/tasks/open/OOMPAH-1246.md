@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1246
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Revalidate exact forge review evidence before exhausting standalone delivery
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T15:00:01.939071Z'
-updated_at: '2026-08-13T15:00:01.939071Z'
+updated_at: '2026-08-13T15:00:18.727192Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 7d3b2549-01ae-4e85-8efb-80b56a2d9519
   request_fingerprint: b2836bda8b9365c832a0da4bc545e530aadd3517de23c2d355a7213e697398dd
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -35,3 +36,11 @@ Scope: prevent bounded standalone_delivery jobs from reaching retry.exhausted wh
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 15:00
+---
+Live exact evidence verified via GitLab API after exhaustion: MR !7 source epic-TRICKLE-117--task-TRICKLE-119 -> main, head b286f1cf139f992c4d1d2da033076409c7095f70, base bf527cbd46d3f45faf14915a23e4df386f7a2ebb, state opened, mergeable, pipeline 62535729 running. The alert is therefore stale provider-observation exhaustion, not an invalid submission.
+---
+<!-- COMMENTS:END -->
