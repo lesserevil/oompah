@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1218
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Bind implementation status transitions to the runtime assignment generation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:05:12.348049Z'
-updated_at: '2026-08-13T04:05:12.348049Z'
+updated_at: '2026-08-13T04:05:42.679452Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 66453f65-1c85-4433-8a62-ff21f1ab7692
   request_fingerprint: 6542d304c132be47711a84d6318b1765ff5b184392b0e5f9fa3f7fab496bbda0
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
