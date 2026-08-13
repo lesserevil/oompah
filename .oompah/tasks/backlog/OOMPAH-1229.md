@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:37:50.327401Z'
-updated_at: '2026-08-13T09:37:50.327401Z'
+updated_at: '2026-08-13T09:38:06.536428Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Bug observed in hosted Python 3.13 gate for OOMPAH-1227 PR #856: tests/test_ws_f
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 09:38
+---
+Filed from PR #856's hosted Python 3.13 gate. Exact failure: the test asserted immediately after four portal.call(_broadcast, ...) invocations but the final zero-running envelope had not yet reached the patched send seam (3 observed). Python 3.11/3.12 passed. Rerunning the failed gate to confirm nondeterminism; scheduling fix separately so the live GitLab deadlock patch remains narrowly scoped.
+---
+<!-- COMMENTS:END -->
