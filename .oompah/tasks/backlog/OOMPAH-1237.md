@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T12:43:52.537888Z'
-updated_at: '2026-08-13T12:44:49.555401Z'
+updated_at: '2026-08-13T12:50:22.726303Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,15 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: f788c095-e3fa-4d7f-be3b-44e4bdc9e3bc
   request_fingerprint: ee2eb9d578855aecbf2a73a9611af791e584337300fb41ec49274338137d5a89
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1237
+  head_sha: 6232cba0fb65d5099259424d7b5b298f37054a45
+  submitted_at: '2026-08-13T12:50:17.846536+00:00'
+  updated_at: '2026-08-13T12:50:17.846536+00:00'
 ---
 ## Summary
 
@@ -41,5 +50,10 @@ author: oompah
 created: 2026-08-13 12:44
 ---
 Claimed directly from live TRICKLE-141 dispatch failure. The helper has exact server-owned rebase authority and authoritative target epic-TRICKLE-127, but generic release-pick pattern validation rejects it. Implementing the narrow authority-backed exemption now; Oompah remains paused and only Trickle is resumed.
+---
+author: oompah
+created: 2026-08-13 12:50
+---
+Implemented exact-authority recognition for nested epic rebase helpers without weakening ordinary untracked-target validation. Focused tests: 154 passed. Terminal mutation and secret scans passed. Commit 6232cba0f pushed.
 ---
 <!-- COMMENTS:END -->
