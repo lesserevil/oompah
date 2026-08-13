@@ -34661,25 +34661,40 @@ class Orchestrator:
         if str(refreshed.get("state") or "") not in {"active", "handed_off"}:
             return refreshed
         entry = self._current_running_entry(issue.id)
-        if entry is None or getattr(entry, "retirement_pending", False):
-            return refreshed
-        entry_issue = getattr(entry, "issue", None)
-        if str(getattr(entry_issue, "project_id", None) or "") != str(
-            issue.project_id or ""
-        ):
-            return refreshed
-        if str(getattr(entry, "identifier", None) or "") != str(issue.identifier):
-            return refreshed
-        if str(getattr(entry, "authority_generation", None) or "") != str(
-            refreshed.get("generation") or ""
-        ):
-            return refreshed
+        entry_issue = getattr(entry, "issue", None) if entry is not None else None
         expected_run = str(refreshed.get("run_id") or "")
-        if expected_run and expected_run != str(getattr(entry, "run_id", None) or ""):
+        exact_live_entry = bool(
+            entry is not None
+            and not getattr(entry, "retirement_pending", False)
+            and str(getattr(entry_issue, "project_id", None) or "")
+            == str(issue.project_id or "")
+            and str(getattr(entry, "identifier", None) or "")
+            == str(issue.identifier)
+            and str(getattr(entry, "authority_generation", None) or "")
+            == str(refreshed.get("generation") or "")
+            and (
+                not expected_run
+                or expected_run == str(getattr(entry, "run_id", None) or "")
+            )
+        )
+        if exact_live_entry:
+            refreshed["lease_expires_at"] = (
+                datetime.now(timezone.utc) + timedelta(hours=1)
+            ).isoformat()
             return refreshed
-        refreshed["lease_expires_at"] = (
-            datetime.now(timezone.utc) + timedelta(hours=1)
-        ).isoformat()
+
+        # The durable start/recovery effect publishes its disposition only
+        # after _dispatch has registered the exact RunningEntry. Once that job
+        # is no longer pending, a future wall-clock lease without the matching
+        # live generation is stale crash/exit residue, not ownership. Preserve
+        # transition-in-flight and explicit direct-owner authority; expire
+        # ordinary agent authority promptly so the controller schedules
+        # generation-fenced recovery instead of parking the task for an hour.
+        if (
+            refreshed.get("transition_pending") is not True
+            and str(refreshed.get("ownership_source") or "") != "direct_owner"
+        ):
+            refreshed["lease_expires_at"] = None
         return refreshed
 
     def _schedule_implementation_workflow_event(

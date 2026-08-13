@@ -287,7 +287,58 @@ def test_live_exact_worker_renews_only_its_durable_authority():
     assert datetime.fromisoformat(renewed["lease_expires_at"]) > datetime.now(
         timezone.utc
     )
-    assert replacement["lease_expires_at"] == expired["lease_expires_at"]
+    assert replacement["lease_expires_at"] is None
+
+
+def test_completed_start_without_live_worker_expires_durable_authority():
+    issue = make_issue(status=IN_PROGRESS)
+    future = {
+        "state": "active",
+        "generation": "generation-1",
+        "run_id": "run-1",
+        "ownership_source": "agent",
+        "lease_expires_at": "2099-01-01T00:00:00+00:00",
+        "transition_pending": False,
+    }
+    fake = SimpleNamespace(_current_running_entry=lambda _issue_id: None)
+
+    refreshed = Orchestrator._refresh_durable_implementation_authority(
+        fake, issue, future
+    )
+
+    assert refreshed["lease_expires_at"] is None
+
+
+@pytest.mark.parametrize(
+    "authority",
+    [
+        {
+            "state": "active",
+            "generation": "generation-1",
+            "run_id": "run-1",
+            "ownership_source": "agent",
+            "lease_expires_at": "2099-01-01T00:00:00+00:00",
+            "transition_pending": True,
+        },
+        {
+            "state": "active",
+            "generation": "generation-1",
+            "run_id": "run-1",
+            "ownership_source": "direct_owner",
+            "lease_expires_at": "2099-01-01T00:00:00+00:00",
+            "transition_pending": False,
+        },
+    ],
+)
+def test_non_worker_implementation_authority_is_not_expired(authority):
+    issue = make_issue(status=IN_PROGRESS)
+    fake = SimpleNamespace(_current_running_entry=lambda _issue_id: None)
+
+    refreshed = Orchestrator._refresh_durable_implementation_authority(
+        fake, issue, authority
+    )
+
+    assert refreshed["lease_expires_at"] == "2099-01-01T00:00:00+00:00"
 
 
 def test_receipt_race_has_one_immutable_winner(tmp_path):
