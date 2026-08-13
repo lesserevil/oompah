@@ -115,6 +115,7 @@ def _acp_provider(
         default_model="",
         mode="acp",
         billing_model=billing_model,
+        backend="claude",
     )
 
 
@@ -268,6 +269,60 @@ class TestCandidatePreflight:
         assert result != "missing_credentials", (
             "ACP providers must not be rejected for missing api_key"
         )
+
+    def test_isolated_rebase_requires_launchable_provider_auth(self, tmp_path):
+        prov = _acp_provider()
+        target = _make_target(provider=prov, model=None)
+        orch = _make_orchestrator(tmp_path)
+
+        with patch(
+            "oompah.orchestrator.validate_isolated_provider_auth",
+            side_effect=OSError("secret detail must not escape"),
+        ):
+            result = orch._candidate_preflight(
+                target,
+                require_openai_endpoint=False,
+                require_isolated_rebase=True,
+            )
+
+        assert result == "missing_credentials"
+
+    def test_isolated_rebase_accepts_launchable_claude_provider(self, tmp_path):
+        prov = _acp_provider()
+        target = _make_target(provider=prov, model=None)
+        orch = _make_orchestrator(tmp_path)
+
+        with patch(
+            "oompah.orchestrator.validate_isolated_provider_auth"
+        ) as validate:
+            result = orch._candidate_preflight(
+                target,
+                require_openai_endpoint=False,
+                require_isolated_rebase=True,
+            )
+
+        assert result == ""
+        validate.assert_called_once_with("claude_subscription")
+
+    def test_isolated_rebase_rejects_codex_subscription_before_auth_copy(
+        self, tmp_path
+    ):
+        prov = _acp_provider(billing_model="subscription")
+        prov.backend = "codex"
+        target = _make_target(provider=prov, model=None)
+        orch = _make_orchestrator(tmp_path)
+
+        with patch(
+            "oompah.orchestrator.validate_isolated_provider_auth"
+        ) as validate:
+            result = orch._candidate_preflight(
+                target,
+                require_openai_endpoint=False,
+                require_isolated_rebase=True,
+            )
+
+        assert result == "provider_unavailable"
+        validate.assert_not_called()
 
     # ------------------------------------------------------------------
     # AC4: rate-limit cooldown

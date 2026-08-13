@@ -19427,6 +19427,19 @@ async def api_test_provider(provider_id: str):
     provider, provider_signature, policy_generation = snapshot_provider_for_probe(
         provider
     )
+    backend_name = str(getattr(provider, "backend", "") or "").casefold()
+    billing_model = str(
+        getattr(provider, "billing_model", "") or "per_token"
+    ).casefold()
+    isolated_rebase_probe = bool(
+        backend_name == "claude"
+        or (backend_name == "codex" and billing_model != "subscription")
+    )
+    isolated_auth_kind = (
+        "claude_subscription"
+        if backend_name == "claude"
+        else "codex_api" if isolated_rebase_probe else None
+    )
 
     def _contact_authority() -> str | None:
         generation = policy_generation
@@ -19477,6 +19490,8 @@ async def api_test_provider(provider_id: str):
             result = await run_acp_health_check(
                 provider,
                 before_transport_contact=_contact_authority,
+                isolate_remote_write=isolated_rebase_probe,
+                provider_auth_kind=isolated_auth_kind,
             )
         else:
             result = await asyncio.to_thread(

@@ -38,6 +38,7 @@ from oompah.agent import (
     terminate_captured_processes,
 )
 from oompah.agent_profile_store import AgentProfileStore
+from oompah.client_auth import validate_isolated_provider_auth
 from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
 from oompah.api_agent import AgentActivity, ApiAgentSession
 from oompah.secrets import redact_sensitive_data
@@ -55842,6 +55843,7 @@ class Orchestrator:
         target: "DispatchTarget",
         *,
         require_openai_endpoint: bool | None = None,
+        require_isolated_rebase: bool = False,
         budget_reservation_credit_issue_id: str | None = None,
     ) -> str:
         """Check whether a candidate can reasonably be used before starting a worker.
@@ -55875,6 +55877,35 @@ class Orchestrator:
         provider = target.provider
         model = target.model
         provider_mode = (getattr(provider, "mode", "api") or "api").lower()
+
+        if require_isolated_rebase:
+            backend = str(getattr(provider, "backend", "") or "").casefold()
+            billing = str(
+                getattr(provider, "billing_model", "") or "per_token"
+            ).casefold()
+            if backend != "claude" and not (
+                backend == "codex" and billing != "subscription"
+            ):
+                logger.warning(
+                    "Preflight skip candidate %s (role=%s, provider=%s): "
+                    "provider_unavailable for isolated rebase",
+                    target.candidate_key,
+                    target.role_name or "legacy",
+                    getattr(provider, "name", target.candidate_key),
+                )
+                return "provider_unavailable"
+            auth_kind = self._isolated_acp_provider_auth_kind(backend, billing)
+            try:
+                validate_isolated_provider_auth(auth_kind)
+            except OSError:
+                logger.warning(
+                    "Preflight skip candidate %s (role=%s, provider=%s): "
+                    "missing_credentials for isolated rebase",
+                    target.candidate_key,
+                    target.role_name or "legacy",
+                    getattr(provider, "name", target.candidate_key),
+                )
+                return "missing_credentials"
 
         if require_openai_endpoint is None:
             require_openai_endpoint = provider_mode != "acp"
@@ -61805,6 +61836,7 @@ class Orchestrator:
                 preflight_skip = self._candidate_preflight(
                     target,
                     require_openai_endpoint=require_openai_endpoint,
+                    require_isolated_rebase=self._is_epic_rebase_task(issue),
                     budget_reservation_credit_issue_id=(
                         self._audit_reservation_key_for_issue(issue)
                         if auditor_plan is not None

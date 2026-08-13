@@ -48,6 +48,7 @@ CLI overrides (accepted by ``oompah task`` and ``oompah admin``)
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -210,6 +211,54 @@ def _copy_private_provider_auth(
     os.chmod(destination, 0o600)
 
 
+def _copy_private_claude_primary_api_key(
+    source: Path,
+    destination: Path,
+) -> None:
+    """Copy only Claude's current-layout model credential.
+
+    Recent Claude CLI releases persist subscription authentication in the
+    top-level ``.claude.json`` state file instead of the older dedicated
+    ``.claude/.credentials.json`` artifact.  That state file also contains
+    unrelated operator configuration and workspace history, so isolated
+    workers receive a new minimal document rather than a copy of the file.
+    """
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        fd = os.open(source, flags)
+    except OSError as exc:
+        raise OSError(
+            "configured provider authentication artifact is unavailable"
+        ) from exc
+    try:
+        source_stat = os.fstat(fd)
+        if not stat.S_ISREG(source_stat.st_mode):
+            raise OSError("configured provider authentication artifact is unsafe")
+        with os.fdopen(fd, "r", encoding="utf-8") as source_file:
+            fd = -1
+            try:
+                document = json.load(source_file)
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                raise OSError(
+                    "configured provider authentication artifact is invalid"
+                ) from exc
+    finally:
+        if fd >= 0:
+            os.close(fd)
+    primary_api_key = (
+        document.get("primaryApiKey") if isinstance(document, dict) else None
+    )
+    if not isinstance(primary_api_key, str) or not primary_api_key.strip():
+        raise OSError("configured provider authentication artifact is invalid")
+    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with destination.open("x", encoding="utf-8") as destination_file:
+        json.dump({"primaryApiKey": primary_api_key}, destination_file)
+        destination_file.write("\n")
+    os.chmod(destination, 0o600)
+
+
 def _bootstrap_isolated_provider_auth(
     environment: dict[str, str],
     source_environment: Mapping[str, str],
@@ -244,10 +293,28 @@ def _bootstrap_isolated_provider_auth(
             raise OSError("configured provider authentication artifact is unavailable")
         source_root = Path(configured_root).expanduser() if configured_root else source_home / ".claude"
         destination_root = home / ".claude"
-        _copy_private_provider_auth(
-            source_root / ".credentials.json",
-            destination_root / ".credentials.json",
-        )
+        legacy_auth = source_root / ".credentials.json"
+        try:
+            legacy_auth.lstat()
+        except FileNotFoundError:
+            current_auth = (
+                source_root / ".claude.json"
+                if configured_root
+                else source_home / ".claude.json"
+            )
+            _copy_private_claude_primary_api_key(
+                current_auth,
+                destination_root / ".claude.json",
+            )
+        except OSError as exc:
+            raise OSError(
+                "configured provider authentication artifact is unavailable"
+            ) from exc
+        else:
+            _copy_private_provider_auth(
+                legacy_auth,
+                destination_root / ".credentials.json",
+            )
         environment["CLAUDE_CONFIG_DIR"] = str(destination_root)
         return
 
@@ -284,6 +351,27 @@ def _bootstrap_isolated_provider_auth(
     if not api_key:
         raise OSError("configured provider API credential is unavailable")
     environment["OPENAI_API_KEY"] = api_key
+
+
+def validate_isolated_provider_auth(
+    provider_auth_kind: str,
+    source_environment: Mapping[str, str] | None = None,
+) -> None:
+    """Prove that an isolated worker can bootstrap its model credential.
+
+    This deliberately exercises the same copy/minimization path used at
+    worker launch. The temporary credential domain is always removed, and
+    errors contain only normalized artifact reasons.
+    """
+    source = dict(os.environ if source_environment is None else source_environment)
+    isolated = _isolated_remote_write_environment(source)
+    try:
+        _bootstrap_isolated_provider_auth(isolated, source, provider_auth_kind)
+    finally:
+        shutil.rmtree(
+            isolated.get("OOMPAH_WORKER_RUNTIME_DIR", ""),
+            ignore_errors=True,
+        )
 
 
 def task_venv_path(workspace_path: str | os.PathLike[str]) -> str:
