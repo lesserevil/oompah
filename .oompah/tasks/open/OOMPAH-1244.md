@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T14:34:54.048407Z'
-updated_at: '2026-08-13T15:55:03.269056Z'
+updated_at: '2026-08-13T16:08:39.241652Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,14 @@ author: oompah
 created: 2026-08-13 15:55
 ---
 Live root cause confirmed on TRICKLE-141: all dispatch profiles selected Claude subscription while the host lacks ~/.claude/.credentials.json, so isolated workers exited at zero turns with configured provider authentication artifact is unavailable. The generic provider probe still reported Claude healthy because it used ambient provider access rather than the isolated worker credential boundary. Operational workaround applied through the supported live profile API: quick, default, standard, and deep now select the authenticated Codex subscription provider. Permanent acceptance must make provider health/admission validate the same isolated-worker auth artifact before marking a provider dispatchable, with tests for probe-success/worker-auth-missing divergence and fallback to a genuinely launchable provider.
+---
+author: oompah
+created: 2026-08-13 16:08
+---
+Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
+
+Source: `backend:acp_agent`
+
+Message: ACP backend 'claude' crashed during run_turn: OSError: configured provider authentication artifact is unavailable
 ---
 <!-- COMMENTS:END -->
