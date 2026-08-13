@@ -45635,6 +45635,47 @@ class Orchestrator:
                 and old_entry.authority_generation == generation
                 and old_entry.authority_task_id
             ):
+                # Active-child enumeration may lag the atomic tracker write or
+                # a state-branch refresh. Persisted authority already names
+                # the one immutable create-once winner, so recover that exact
+                # task directly rather than returning an identity-less result
+                # to the durable effect retry. Terminal, moved, forged, or
+                # wrong-target tasks still consume the generation without
+                # being admitted again.
+                try:
+                    recovered = tracker.fetch_issue_detail(
+                        old_entry.authority_task_id
+                    )
+                except Exception as exc:  # noqa: BLE001 - retry remains fenced
+                    logger.warning(
+                        "Could not recover exact rebase helper %s for %s: %s",
+                        old_entry.authority_task_id,
+                        epic.identifier,
+                        exc,
+                    )
+                    recovered = None
+                if (
+                    isinstance(recovered, Issue)
+                    and self._epic_rebase_authority_task_id(recovered)
+                    == old_entry.authority_task_id
+                    and str(getattr(recovered, "project_id", None) or "").strip()
+                    in {"", str(epic.project_id or "").strip()}
+                    and str(getattr(recovered, "parent_id", None) or "").strip()
+                    == epic.identifier
+                    and _state_key(getattr(recovered, "state", ""))
+                    in {
+                        _state_key(OPEN),
+                        _state_key(IN_PROGRESS),
+                        _state_key(NEEDS_REBASE),
+                    }
+                    and self._epic_rebase_helper_target(recovered)
+                    == target_branch
+                    and self._epic_rebase_helper_has_creation_marker(
+                        recovered,
+                        old_entry.authority_creation_marker,
+                    )
+                ):
+                    return recovered
                 return None
             retrying_reserved_create = bool(
                 old_entry is not None

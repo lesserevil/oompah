@@ -883,6 +883,48 @@ async def test_rebase_helper_apply_is_idempotent_and_uses_immediate_parent_targe
 
 
 @pytest.mark.asyncio
+async def test_rebase_apply_returns_atomic_identity_before_children_refresh():
+    """A successful create is receipted before the child index catches up."""
+    issue = epic("MID", parent_id="TOP")
+    facts = rebase_facts()
+    effects, orchestrator, tracker = effect_fixture(issue)
+    helper = Issue(
+        id="REBASE-1",
+        identifier="REBASE-1",
+        title="Rebase epic-MID onto epic-TOP",
+        description="fixture",
+        state=NEEDS_REBASE,
+        issue_type="task",
+        project_id="project-1",
+        parent_id="MID",
+        target_branch="epic-TOP",
+    )
+    tracker.fetch_children.return_value = []
+    orchestrator._file_rebase_task.return_value = helper
+
+    receipt = await effects.apply_epic_effect(
+        EpicAction.REBASE_REPAIR,
+        issue,
+        facts,
+        {"target_branch": "epic-TOP"},
+        idempotency_key="repair-read-lag",
+    )
+
+    assert receipt == {
+        "effect": EpicAction.REBASE_REPAIR.value,
+        "helper_id": "REBASE-1",
+        "workflow_idempotency_key": "repair-read-lag",
+        "source_branch": "epic-MID",
+        "target_branch": "epic-TOP",
+    }
+    assert tracker.fetch_children.call_count == 2
+    assert all(call.args == ("MID",) for call in tracker.fetch_children.call_args_list)
+    tracker.set_metadata_field.assert_called_once_with(
+        "REBASE-1", "oompah.workflow_idempotency_key", "repair-read-lag"
+    )
+
+
+@pytest.mark.asyncio
 async def test_rebase_replay_repairs_all_bookkeeping_after_helper_creation_crash():
     issue = epic("MID", parent_id="TOP")
     facts = rebase_facts()
@@ -2393,7 +2435,7 @@ def test_rebase_event_uses_target_and_epic_authority_not_observation_revision():
         "target_branch": "main",
         "request_source": "nested-dispatch-topology",
         "evidence_revision": "event-observation-revision",
-        "revalidation_contract": "target-source-head-v3",
+        "revalidation_contract": "target-source-head-immutable-helper-v4",
     }
     assert call.kwargs["generation"].startswith("epic-event:")
     controller.scheduler.wake.assert_called_once_with("epic-rebase-requested")
