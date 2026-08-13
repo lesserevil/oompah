@@ -552,6 +552,62 @@ def test_exact_repair_job_mutates_topology_once(tmp_path):
     assert jobs[0].state is WorkflowJobState.COMPLETED
 
 
+def test_preflight_repairs_inside_running_implementation_lease(tmp_path):
+    """The pre-effect implementation owner cannot deadlock its own repair."""
+
+    orchestrator, tracker, child, _nested, topology = (
+        _oompah_770_796_fixture(tmp_path)
+    )
+    evidence = orchestrator._collect_nested_dispatch_evidence(child)
+    assert evidence is not None and not evidence.ready
+    implementation = WorkflowJobSpec(
+        project_id="proj-1",
+        task_id=child.identifier,
+        generation="implementation-generation",
+        action="implementation_start",
+        idempotency_key="implementation-start",
+        reason_code="dispatch.eligible",
+        payload={},
+    )
+    orchestrator.workflow_job_store.enqueue(implementation)
+    running = orchestrator.workflow_job_store.claim_next(
+        lease_owner="implementation-runtime",
+        lease_seconds=60,
+        project_id="proj-1",
+        task_id=child.identifier,
+        actions=("implementation_start",),
+    )
+    assert running is not None
+    repaired = replace(
+        topology,
+        nested_head=topology.target_head,
+        private_remote_head=topology.target_head,
+        private_local_head=topology.target_head,
+    )
+    observations = iter((evidence, evidence, replace(evidence, topology=repaired, ready=True)))
+    orchestrator._collect_nested_dispatch_evidence = MagicMock(
+        side_effect=lambda _issue: next(observations)
+    )
+    orchestrator.project_store.advance_nested_dispatch_topology.return_value = repaired
+    orchestrator.project_store.project_write_lock.return_value = MagicMock(
+        __enter__=MagicMock(return_value=None),
+        __exit__=MagicMock(return_value=False),
+    )
+    tracker.fetch_issue_detail.return_value = child
+
+    admitted = orchestrator._preflight_nested_epic_dispatch(child)
+
+    assert admitted is not None and admitted.ready
+    repairs = orchestrator.workflow_job_store.list_jobs(
+        project_id="proj-1",
+        task_id=child.identifier,
+        actions=("nested_dispatch_topology_repair",),
+    )
+    assert len(repairs) == 1
+    assert repairs[0].state is WorkflowJobState.COMPLETED
+    assert orchestrator.workflow_job_store.get(running.job_id).state is WorkflowJobState.RUNNING
+
+
 def _git(repo: Path, *args: str) -> str:
     return subprocess.run(
         ["git", *args],
