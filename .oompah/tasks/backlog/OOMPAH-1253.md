@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:17:20.003713Z'
-updated_at: '2026-08-13T17:22:17.041098Z'
+updated_at: '2026-08-13T17:36:07.859879Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-08-13 17:22
 ---
 Direct operator implementation is pushed as PR #872 while the Oompah project remains paused. Root cause confirmed live: admission leased authoritative work_branch TRICKLE-130, but both server publisher and legacy push revalidation recomputed epic-TRICKLE-130. Fix uses _epic_branch_for_issue(parent) consistently. Regression coverage added for exact observed ref, force-with-lease ref, refspec, and shell-push revalidation. Focused file: 111 passed; terminal mutation scan and full secret scan passed.
+---
+author: oompah
+created: 2026-08-13 17:36
+---
+Scope extended before merge after following the live path through completion: direct-maintenance completion and ProjectStore reconciliation also assumed epic-<id>. The fix now carries the validated authoritative branch through publisher, push revalidation, and post-publish worktree reconciliation. Full affected suites: 276 passed; terminal mutation and paranoid secret scans passed. PR #872 updated.
 ---
 <!-- COMMENTS:END -->
