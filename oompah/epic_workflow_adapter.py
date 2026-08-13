@@ -2317,6 +2317,18 @@ class EpicWorkflowEventRouter:
         if not self.runtime.enforce or binding.epic_controller is None:
             return False
         event_payload = {"event_source": source, **dict(payload or {})}
+        # A rebase request is fenced by its exact target, current epic
+        # authority/source head, and the backend's fresh decision check.  The
+        # collector's evidence revision may legitimately advance between this
+        # targeted event callback and worker revalidation (for example after a
+        # Git fetch) without changing any of those authorities.  Do not make
+        # that mutable observation an additional generic worker CAS.
+        if action is EpicAction.REBASE_REPAIR:
+            expected_evidence_revision = None
+            # Advance the immutable event identity once so requests stranded
+            # under the former observation-revision contract do not replay
+            # their already-terminal idempotency key after upgrade.
+            event_payload["revalidation_contract"] = "target-source-v2"
         expected_head = issue_exact_head(epic)
         if action is EpicAction.CLEANUP:
             expected_head = self._cleanup_schedule_head(binding, epic)
