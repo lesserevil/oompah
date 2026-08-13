@@ -39,6 +39,7 @@ from oompah.epic_workflow import (
     EpicAction,
     EpicFactCollector,
     EpicWorkflowController,
+    is_epic_rollup_issue,
 )
 from oompah.events import EventType
 from oompah.implementation_workflow import (
@@ -3000,18 +3001,18 @@ class WorkflowRuntime:
                     task_issues = [
                         issue
                         for issue in issues
-                        if str(getattr(issue, "issue_type", "") or "")
-                        .strip()
-                        .lower()
-                        != "epic"
+                        if not is_epic_rollup_issue(
+                            issue,
+                            authoritative_children=authoritative_children,
+                        )
                     ]
                     epic_issues = [
                         issue
                         for issue in issues
-                        if str(getattr(issue, "issue_type", "") or "")
-                        .strip()
-                        .lower()
-                        == "epic"
+                        if is_epic_rollup_issue(
+                            issue,
+                            authoritative_children=authoritative_children,
+                        )
                         and canonicalize_status(issue.state) != IN_VALIDATION
                     ]
                     report["projects"][project_id] = {"issues": len(issues)}
@@ -3375,22 +3376,26 @@ class WorkflowRuntime:
                     raise WorkflowPublicationSuperseded(
                         "tracker authority changed during source collection"
                     )
+                phase_started = time.monotonic()
+                authoritative_issues = self._authoritative_issue_index(issues)
+                authoritative_children = self._authoritative_children_index(issues)
                 task_issues = [
                     issue
                     for issue in issues
-                    if str(getattr(issue, "issue_type", "") or "").strip().lower()
-                    != "epic"
+                    if not is_epic_rollup_issue(
+                        issue,
+                        authoritative_children=authoritative_children,
+                    )
                 ]
                 epic_issues = [
                     issue
                     for issue in issues
-                    if str(getattr(issue, "issue_type", "") or "").strip().lower()
-                    == "epic"
+                    if is_epic_rollup_issue(
+                        issue,
+                        authoritative_children=authoritative_children,
+                    )
                     and canonicalize_status(issue.state) != IN_VALIDATION
                 ]
-                phase_started = time.monotonic()
-                authoritative_issues = self._authoritative_issue_index(issues)
-                authoritative_children = self._authoritative_children_index(issues)
                 (
                     dependency_target_identities,
                     dependency_target_membership_ambiguous,

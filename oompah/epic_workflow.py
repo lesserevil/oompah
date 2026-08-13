@@ -26,10 +26,12 @@ from oompah.models import Issue
 from oompah.projects import sanitize_branch_identifier
 from oompah.statuses import (
     ARCHIVED,
+    BACKLOG,
     DONE,
     IN_PROGRESS,
     IN_REVIEW,
     MERGED,
+    OPEN,
     canonicalize_status,
     epic_rollup_state,
 )
@@ -40,10 +42,12 @@ from oompah.task_transition_service import (
     issue_exact_head,
 )
 from oompah.work_decision import (
+    PermittedAction,
     WorkDecision,
     epic_immediate_target_landings,
     evaluate_task,
 )
+from oompah.workflow_contract import TaskDisposition, WorkflowOwner
 from oompah.workflow_fact_model import (
     CollectedValue,
     FactDomain,
@@ -56,6 +60,7 @@ from oompah.workflow_fact_model import (
     _parse_time,
 )
 from oompah.workflow_facts import GitLandingCollector, WorkflowFactCollector
+from oompah.workflow_reasons import AlertSeverity
 from oompah.workflow_jobs import (
     WorkflowEventWrite,
     WorkflowFailureCategory,
@@ -85,6 +90,65 @@ class EpicTargetResolutionError(ValueError):
 
 class EpicProjectScopeError(ValueError):
     """An issue conflicts with the project bound to its workflow."""
+
+
+def _evaluate_epic_rollup(
+    issue: Issue,
+    facts: WorkflowFacts,
+    *,
+    liveness_slo_seconds: Mapping[str, int] | None = None,
+) -> WorkDecision:
+    """Evaluate delivery plus the independent rollup-status obligation."""
+
+    decision_issue = (
+        issue
+        if str(issue.issue_type or "").strip().lower() == "epic"
+        else replace(issue, issue_type="epic")
+    )
+    decision = evaluate_task(
+        decision_issue,
+        facts,
+        liveness_slo_seconds=liveness_slo_seconds,
+    )
+    current = canonicalize_status(issue.state)
+    # Delivery and landing obligations are more specific than the aggregate
+    # status projection once a rollup is dispatchable.  A Backlog rollup must
+    # still activate first so its descendants can acquire hierarchy authority.
+    if decision.durable_jobs and current != BACKLOG:
+        return decision
+    if current not in {BACKLOG, OPEN}:
+        return decision
+    containment = facts.fact(FactDomain.CONTAINMENT)
+    children = (
+        containment.value.get("children")
+        if containment.state is FactState.KNOWN
+        and isinstance(containment.value, Mapping)
+        else None
+    )
+    if not isinstance(children, (list, tuple)) or not children:
+        return decision
+    statuses = [
+        child.get("status")
+        for child in children
+        if isinstance(child, Mapping)
+    ]
+    rolled = canonicalize_status(epic_rollup_state(statuses))
+    if rolled not in {OPEN, IN_PROGRESS} or rolled == current:
+        return decision
+    target = OPEN if current == BACKLOG else rolled
+    return replace(
+        decision,
+        disposition=TaskDisposition.RUNNABLE,
+        reason_code="rollup.status_reconciliation",
+        responsible_owner=WorkflowOwner.ROLLUP,
+        unmet_prerequisites=(),
+        permitted_actions=(PermittedAction.ROLLUP_CHILDREN,),
+        action_required=False,
+        alert_level=AlertSeverity.NONE,
+        durable_jobs=(EpicAction.ROLLUP_RECONCILIATION.value,),
+        recommended_status=target,
+        decision_revision=None,
+    )
 
 
 def normalize_issue_project_scope(issue: Issue, project_id: object) -> Issue:
@@ -165,16 +229,58 @@ def epic_branch(identifier: str) -> str:
     return f"epic-{sanitize_branch_identifier(raw)}"
 
 
+def is_epic_rollup_issue(
+    issue: Issue,
+    *,
+    authoritative_children: Mapping[str, Sequence[Issue]] | None = None,
+    tracker: Any | None = None,
+) -> bool:
+    """Return whether *issue* owns a child rollup in this authority cut.
+
+    Declared epics and inferred parents-with-children have always shared the
+    same orchestration contract.  Keeping that inference here prevents the
+    durable runtime, target resolver, and mutation adapter from assigning an
+    inferred parent to different workflow domains.
+    """
+
+    if str(issue.issue_type or "").strip().lower() == "epic":
+        return True
+    identifier = str(issue.identifier or issue.id or "").strip()
+    if not identifier:
+        return False
+    if authoritative_children is not None:
+        return bool(authoritative_children.get(identifier.casefold(), ()))
+    if tracker is None:
+        return False
+    fetch_children = getattr(tracker, "fetch_children", None)
+    if not callable(fetch_children):
+        return False
+    children = fetch_children(identifier)
+    # Tracker adapters return a concrete sequence.  Some callers use partial
+    # protocol doubles where an undeclared attribute resolves to an opaque
+    # sentinel; that is not authoritative child evidence and must not change
+    # the workflow domain assigned to the task.
+    if not isinstance(children, Sequence) or isinstance(children, (str, bytes)):
+        return False
+    return bool(children)
+
+
 def resolve_epic_target(
     epic: Issue,
     *,
     parent: Issue | None,
     default_branch: str = "main",
+    parent_is_rollup: bool | None = None,
 ) -> str:
     """Resolve an epic's immediate target without consulting lifecycle state."""
 
     if parent is not None:
-        if str(parent.issue_type or "").strip().lower() != "epic":
+        confirmed_parent = (
+            str(parent.issue_type or "").strip().lower() == "epic"
+            if parent_is_rollup is None
+            else bool(parent_is_rollup)
+        )
+        if not confirmed_parent:
             raise EpicTargetResolutionError(
                 f"{epic.identifier} parent {parent.identifier} is not an epic"
             )
@@ -455,8 +561,18 @@ class EpicFactCollector:
                     f"parent {parent.identifier} for {root.identifier} escaped "
                     f"project {self.project_id}"
                 )
+        parent_is_rollup = None
+        if parent is not None:
+            parent_is_rollup = is_epic_rollup_issue(
+                parent,
+                authoritative_children=authoritative_children,
+                tracker=None if authoritative_children is not None else self.tracker,
+            )
         root_target = resolve_epic_target(
-            root, parent=parent, default_branch=self.default_branch
+            root,
+            parent=parent,
+            default_branch=self.default_branch,
+            parent_is_rollup=parent_is_rollup,
         )
 
         def visit(parent: Issue, ancestors: tuple[str, ...]) -> None:
@@ -477,8 +593,11 @@ class EpicFactCollector:
                     cycle = "->".join((*ancestors, identifier))
                     continue
                 seen.add(identifier)
-                issue_type = str(child.issue_type or "task").strip().lower()
-                nested = issue_type == "epic"
+                nested = is_epic_rollup_issue(
+                    child,
+                    authoritative_children=authoritative_children,
+                    tracker=None if authoritative_children is not None else self.tracker,
+                )
                 maintenance = _is_maintenance(child)
                 target = epic_branch(parent.identifier)
                 source = epic_branch(identifier) if nested else _source_branch(child)
@@ -776,7 +895,15 @@ class EpicWorkflowController:
                 {
                     task.identifier: task
                     for task in tasks
-                    if str(task.issue_type or "").strip().lower() == "epic"
+                    if is_epic_rollup_issue(
+                        task,
+                        authoritative_children=authoritative_children,
+                        tracker=(
+                            None
+                            if authoritative_children is not None
+                            else self.collector.tracker
+                        ),
+                    )
                     and canonicalize_status(task.state) not in {MERGED, ARCHIVED}
                 }.items()
             )
@@ -832,7 +959,7 @@ class EpicWorkflowController:
                 EpicTaskDecision(
                     task,
                     facts,
-                    evaluate_task(
+                    _evaluate_epic_rollup(
                         task,
                         facts,
                         liveness_slo_seconds=liveness_slo_seconds,
@@ -1124,7 +1251,7 @@ class ProductionEpicWorkflowBackend:
                 category=WorkflowFailureCategory.POLICY,
                 retryable=False,
             ) from exc
-        if str(epic.issue_type or "").strip().lower() != "epic":
+        if not is_epic_rollup_issue(epic, tracker=self.tracker):
             raise WorkflowActionError(
                 f"{epic.identifier} is not an epic",
                 category=WorkflowFailureCategory.POLICY,
@@ -1162,7 +1289,7 @@ class ProductionEpicWorkflowBackend:
                 task_id=epic.identifier,
                 facts=durable,
             )
-        return _EpicActionSnapshot(epic, facts, evaluate_task(epic, facts))
+        return _EpicActionSnapshot(epic, facts, _evaluate_epic_rollup(epic, facts))
 
     async def _load_snapshot(self, context: WorkflowJobContext) -> _EpicActionSnapshot:
         """Collect tracker and Git evidence without blocking lease heartbeats."""
@@ -1559,7 +1686,15 @@ class ProductionEpicWorkflowBackend:
         cls, action: EpicAction, snapshot: _EpicActionSnapshot
     ) -> str | None:
         if action is EpicAction.ROLLUP_RECONCILIATION:
-            return cls._rollup_status(snapshot)
+            target = cls._rollup_status(snapshot)
+            if (
+                canonicalize_status(snapshot.epic.state) == BACKLOG
+                and target == IN_PROGRESS
+            ):
+                # Backlog promotion is a two-step lifecycle transition. The
+                # next generation observes Open and completes In Progress.
+                return OPEN
+            return target
         if action is EpicAction.ROLLUP_REVIEW_CREATION:
             return IN_REVIEW
         if action is EpicAction.AUTO_CLOSE:
@@ -1991,5 +2126,6 @@ __all__ = [
     "EpicWorkflowHandler",
     "ProductionEpicWorkflowBackend",
     "epic_branch",
+    "is_epic_rollup_issue",
     "resolve_epic_target",
 ]

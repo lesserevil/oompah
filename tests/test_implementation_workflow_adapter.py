@@ -55,6 +55,7 @@ from oompah.workflow_worker import (
     DurableWorkflowWorker,
     VerificationResult,
     WorkflowActionError,
+    WorkflowAdministrativeDeferral,
     WorkflowActionSuperseded,
     WorkflowJobContext,
     WorkflowRunDisposition,
@@ -381,6 +382,28 @@ async def test_accepted_submission_supersedes_stale_start_before_dispatch(tmp_pa
     ):
         await effects.apply(context)
 
+    assert orch.dispatches == []
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_nested_topology_admission_wait_does_not_spend_attempt(tmp_path):
+    issue = make_issue()
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    orch.admit_dispatch = False
+    orch._should_dispatch = lambda current, **_kwargs: (
+        orch.state.reject_streak.__setitem__(
+            current.id, ("nested_dispatch=nested_lineage_unavailable generation=abc", 1)
+        )
+        or False
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    with pytest.raises(WorkflowAdministrativeDeferral) as raised:
+        await effects._admit_dispatch(issue)
+
+    assert raised.value.effect_not_started is True
     assert orch.dispatches == []
     effects.receipts.close()
 

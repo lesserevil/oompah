@@ -1872,6 +1872,36 @@ def test_controller_uses_authoritative_graph_indexes_without_tracker_fanout(
     store.close()
 
 
+def test_controller_owns_inferred_backlog_rollup_and_promotes_one_step(tmp_path):
+    root = issue("ROOT", state=IN_PROGRESS, issue_type="epic")
+    parent = issue("PARENT", state="Backlog", issue_type="feature", parent_id="ROOT")
+    child = issue("CHILD", state=OPEN, parent_id="PARENT")
+    tracker = Tracker([root, parent, child])
+    store = WorkflowJobStore(str(tmp_path / "inferred-rollup.sqlite3"))
+    controller = EpicWorkflowController(
+        collector=EpicFactCollector(project_id="project-1", tracker=tracker),
+        store=store,
+    )
+    authoritative_issues = {
+        item.identifier.casefold(): item for item in (root, parent, child)
+    }
+    authoritative_children = {"root": (parent,), "parent": (child,)}
+
+    batch = controller.evaluate(
+        (parent,),
+        persist_evidence=False,
+        authoritative_issues=authoritative_issues,
+        authoritative_children=authoritative_children,
+    )
+
+    assert len(batch.tasks) == 1
+    decision = batch.tasks[0].decision
+    assert decision.reason_code == "rollup.status_reconciliation"
+    assert decision.durable_jobs == ("rollup_reconciliation",)
+    assert decision.recommended_status == OPEN
+    store.close()
+
+
 def test_post_landed_child_rollup_uses_exact_standalone_target_route():
     top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
     leaf = issue("LEAF", state=DONE, parent_id="TOP", work_branch="leaf")

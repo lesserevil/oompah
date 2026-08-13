@@ -64,6 +64,7 @@ from oompah.workflow_worker import (
     RevalidationResult,
     VerificationResult,
     WorkflowActionError,
+    WorkflowAdministrativeDeferral,
     WorkflowActionSuperseded,
     WorkflowJobContext,
 )
@@ -575,6 +576,12 @@ class OrchestratorImplementationEffects:
         )
         if rejected:
             reason = f"{reason}: {rejected[0]}"
+        if rejected and str(rejected[0]).startswith("nested_dispatch="):
+            raise WorkflowAdministrativeDeferral(
+                reason,
+                retry_delay_seconds=15,
+                effect_not_started=True,
+            )
         raise WorkflowActionError(
             reason,
             category=WorkflowFailureCategory.TRANSIENT,

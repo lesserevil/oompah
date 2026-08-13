@@ -27,6 +27,7 @@ from oompah.epic_workflow import (
     EpicWorkflowHandler,
     ProductionEpicWorkflowBackend,
     normalize_issue_project_scope,
+    is_epic_rollup_issue,
 )
 from oompah.events import EventType
 from oompah.models import EpicRebaseState, Issue
@@ -708,7 +709,7 @@ class OrchestratorEpicWorkflowEffects:
             ) from exc
         if (
             _text(current.identifier) != _text(expected.identifier)
-            or _text(current.issue_type).lower() != "epic"
+            or not is_epic_rollup_issue(current, tracker=tracker)
             or issue_authority_version(current) != issue_authority_version(expected)
         ):
             raise WorkflowActionSuperseded(
@@ -2439,12 +2440,14 @@ class EpicWorkflowEventRouter:
             return
         binding, issue = resolved
         impacted: list[Issue] = []
-        if _text(issue.issue_type).lower() == "epic":
+        if is_epic_rollup_issue(issue, tracker=binding.tracker):
             impacted.append(issue)
         parent_id = _text(issue.parent_id)
         if parent_id:
             parent = binding.tracker.fetch_issue_detail(parent_id)
-            if parent is not None and _text(parent.issue_type).lower() == "epic":
+            if parent is not None and is_epic_rollup_issue(
+                parent, tracker=binding.tracker
+            ):
                 impacted.append(parent)
         wake_payload = {
             "trigger_identifier": issue.identifier,
@@ -2502,12 +2505,14 @@ class EpicWorkflowEventRouter:
                 continue
             binding, issue = resolved
             trigger_authorities[issue.identifier] = issue_authority_version(issue)
-            if _text(issue.issue_type).lower() == "epic":
+            if is_epic_rollup_issue(issue, tracker=binding.tracker):
                 impacted[(id(binding), issue.identifier)] = (binding, issue)
             parent_id = _text(issue.parent_id)
             if parent_id:
                 parent = binding.tracker.fetch_issue_detail(parent_id)
-                if parent is not None and _text(parent.issue_type).lower() == "epic":
+                if parent is not None and is_epic_rollup_issue(
+                    parent, tracker=binding.tracker
+                ):
                     impacted[(id(binding), parent.identifier)] = (binding, parent)
 
         wake_payload = {
@@ -2591,7 +2596,7 @@ class EpicWorkflowEventRouter:
         if resolved is None:
             return
         binding, epic = resolved
-        if _text(epic.issue_type).lower() != "epic":
+        if not is_epic_rollup_issue(epic, tracker=binding.tracker):
             return
         self._schedule(
             binding,
@@ -2645,7 +2650,7 @@ class EpicWorkflowEventRouter:
         if resolved is None:
             return
         binding, epic = resolved
-        if _text(epic.issue_type).lower() != "epic":
+        if not is_epic_rollup_issue(epic, tracker=binding.tracker):
             return
         decision = self._current_decision(binding, epic)
         if decision is None:
@@ -2681,7 +2686,7 @@ class EpicWorkflowEventRouter:
             if not callable(operation):
                 operation = binding.tracker.fetch_all_issues
             for issue in operation():
-                if _text(issue.issue_type).lower() != "epic":
+                if not is_epic_rollup_issue(issue, tracker=binding.tracker):
                     continue
                 if canonicalize_status(issue.state) in {MERGED, ARCHIVED}:
                     tracker_head = _text(issue_exact_head(issue)).lower()

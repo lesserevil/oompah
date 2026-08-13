@@ -21,11 +21,18 @@ from typing import Any, Protocol
 
 from oompah.models import Issue
 from oompah.statuses import (
+    BACKLOG,
+    DECOMPOSED,
     DUPLICATE_CANDIDATE,
     IN_PROGRESS,
+    IN_VALIDATION,
+    NEEDS_ANSWER,
     NEEDS_CI_FIX,
+    NEEDS_HUMAN,
     NEEDS_REBASE,
     OPEN,
+    PROPOSED,
+    canonicalize_status,
 )
 from oompah.task_transition_service import (
     TransitionIntent,
@@ -34,16 +41,20 @@ from oompah.task_transition_service import (
 )
 from oompah.work_decision import (
     IMPLEMENTATION_ACTION_JOBS,
+    PermittedAction,
+    UnmetPrerequisite,
     WorkDecision,
     decision_scheduling_revision,
     evaluate_task,
 )
+from oompah.workflow_contract import TaskDisposition, WorkflowOwner
 from oompah.workflow_fact_model import (
     FactDomain,
     FactState,
     WorkflowFacts,
 )
 from oompah.workflow_facts import WorkflowFactCollector
+from oompah.workflow_reasons import AlertSeverity
 from oompah.workflow_jobs import (
     ACTIVE_JOB_STATES,
     WorkflowFailureCategory,
@@ -571,11 +582,97 @@ class ImplementationWorkflowController:
                 facts,
                 liveness_slo_seconds=liveness_slo_seconds,
             )
+            if (
+                decision.reason_code == "dispatch.eligible"
+                and authoritative_issues is not None
+                and authoritative_children is not None
+            ):
+                decision = self._apply_hierarchy_admission(
+                    task,
+                    decision,
+                    authoritative_issues=authoritative_issues,
+                    authoritative_children=authoritative_children,
+                )
             evaluated.append(
                 ImplementationTaskDecision(task, facts, decision)
             )
         self._latest = {item.task.identifier: item for item in evaluated}
         return ImplementationDecisionBatch(tuple(evaluated))
+
+    @staticmethod
+    def _apply_hierarchy_admission(
+        task: Issue,
+        decision: WorkDecision,
+        *,
+        authoritative_issues: Mapping[str, Issue],
+        authoritative_children: Mapping[str, Sequence[Issue]],
+    ) -> WorkDecision:
+        """Block dispatch until every rollup ancestor has active authority."""
+
+        parent_id = str(task.parent_id or "").strip()
+        seen = {task.identifier.casefold()}
+        waiting_statuses = {
+            PROPOSED,
+            BACKLOG,
+            DECOMPOSED,
+            NEEDS_ANSWER,
+            NEEDS_HUMAN,
+            IN_VALIDATION,
+        }
+
+        def hierarchy_wait(
+            code: str,
+            subject: str,
+            observed: str,
+        ) -> WorkDecision:
+            return replace(
+                decision,
+                disposition=TaskDisposition.BLOCKED,
+                reason_code="dispatch.hierarchy_wait",
+                responsible_owner=WorkflowOwner.ROLLUP,
+                unmet_prerequisites=(
+                    UnmetPrerequisite(code, subject, observed),
+                ),
+                permitted_actions=(PermittedAction.WAIT_DEPENDENCY,),
+                action_required=False,
+                alert_level=AlertSeverity.INFO,
+                durable_jobs=(),
+                recommended_status=None,
+                decision_revision=None,
+            )
+
+        while parent_id:
+            canonical_parent = parent_id.casefold()
+            parent = authoritative_issues.get(parent_id) or authoritative_issues.get(
+                canonical_parent
+            )
+            if parent is None or canonical_parent in seen:
+                return hierarchy_wait(
+                    "dispatch.hierarchy_unavailable",
+                    parent_id,
+                    "cycle" if canonical_parent in seen else "missing",
+                )
+            seen.add(canonical_parent)
+            parent_project = str(parent.project_id or decision.project_id).strip()
+            if parent_project != decision.project_id:
+                return hierarchy_wait(
+                    "dispatch.hierarchy_project_mismatch",
+                    parent_id,
+                    parent_project,
+                )
+            declared = str(parent.issue_type or "").strip().lower() == "epic"
+            inferred = bool(authoritative_children.get(canonical_parent, ()))
+            if not (declared or inferred):
+                break
+            parent_status = canonicalize_status(parent.state)
+            if parent_status in waiting_statuses:
+                return hierarchy_wait(
+                    "dispatch.rollup_not_active",
+                    parent.identifier,
+                    parent_status,
+                )
+            parent_id = str(parent.parent_id or "").strip()
+        return decision
 
     def reconcile(
         self,
