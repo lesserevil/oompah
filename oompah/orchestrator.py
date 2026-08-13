@@ -15536,6 +15536,7 @@ class Orchestrator:
         *,
         task_branch: str,
         accepted_head: str,
+        target_branch: str,
     ) -> tuple[bool, str, str, OwnerClaim | None]:
         """Fence restart recovery against an accepted-branch advance.
 
@@ -15555,7 +15556,8 @@ class Orchestrator:
         claim = self._owner_claim_for_issue(issue.id, issue.project_id)
         if claim is not None and claim.retirement_pending:
             return False, "accepted_submission_claim_retiring", "", claim
-        if not project_id or not branch or not expected:
+        target = str(target_branch or "").strip()
+        if not project_id or not branch or not expected or not target:
             return False, "accepted_submission_branch_unavailable", "", claim
         store = getattr(self, "project_store", None)
         remote_head = getattr(store, "remote_branch_head", None)
@@ -15571,10 +15573,26 @@ class Orchestrator:
                 type(exc).__name__,
             )
             return False, "accepted_submission_branch_unavailable", "", claim
+        landed = False
         if not observed:
-            return False, "accepted_submission_branch_unavailable", "", claim
+            target_contains = getattr(store, "remote_target_contains_head", None)
+            if not callable(target_contains):
+                return False, "accepted_submission_branch_unavailable", "", claim
+            try:
+                landed = bool(target_contains(project_id, target, expected))
+            except Exception as exc:  # noqa: BLE001 - landing proof fails closed
+                logger.info(
+                    "Parked accepted-submission recovery for %s: target "
+                    "containment is unavailable (%s)",
+                    issue.identifier,
+                    type(exc).__name__,
+                )
+                return False, "accepted_submission_branch_unavailable", "", claim
+            if not landed:
+                return False, "accepted_submission_branch_unavailable", "", claim
         if observed != expected:
-            return False, "accepted_submission_branch_advanced", observed, claim
+            if observed:
+                return False, "accepted_submission_branch_advanced", observed, claim
         current_claim = self._owner_claim_for_issue(issue.id, issue.project_id)
         if (
             (claim is None) != (current_claim is None)
@@ -15591,9 +15609,17 @@ class Orchestrator:
         return (
             True,
             (
-                "accepted_submission_exact_direct_owner"
-                if current_claim is not None
-                else "accepted_submission_exact"
+                (
+                    "accepted_submission_landed_direct_owner"
+                    if current_claim is not None
+                    else "accepted_submission_landed"
+                )
+                if landed
+                else (
+                    "accepted_submission_exact_direct_owner"
+                    if current_claim is not None
+                    else "accepted_submission_exact"
+                )
             ),
             observed,
             current_claim,
@@ -16021,6 +16047,13 @@ class Orchestrator:
                     or current.branch_name
                     or ""
                 )
+                project = self.project_store.get(str(current.project_id or ""))
+                target_branch = str(
+                    getattr(integration, "base_branch", None)
+                    or current.target_branch
+                    or getattr(project, "default_branch", None)
+                    or "main"
+                ).strip()
                 (
                     recovery_authorized,
                     recovery_state,
@@ -16030,6 +16063,7 @@ class Orchestrator:
                     current,
                     task_branch=task_branch,
                     accepted_head=integration_head,
+                    target_branch=target_branch,
                 )
                 value["accepted_submission_recovery_state"] = recovery_state
                 value["accepted_submission_head"] = integration_head

@@ -229,6 +229,44 @@ def test_accepted_submission_replaces_exhausted_implementation_action(controller
     assert [job.action for job in current] == ["validation_submission"]
 
 
+def test_parked_in_progress_submission_does_not_churn_recovery_jobs(controller):
+    task = issue("In Progress", identifier="TASK-PARKED-SUBMISSION")
+    parked = facts_for(
+        task,
+        overrides={
+            FactDomain.CONFIG: known(
+                FactDomain.CONFIG,
+                {
+                    "accepted_submission_recovery_state": (
+                        "accepted_submission_branch_unavailable"
+                    )
+                },
+            ),
+            FactDomain.IMPLEMENTATION_AUTHORITY: known(
+                FactDomain.IMPLEMENTATION_AUTHORITY,
+                {"lease_expires_at": None},
+            ),
+        },
+    )
+
+    results = [
+        controller.full_sync(
+            (task,),
+            facts={task.identifier: parked},
+            now=NOW + timedelta(seconds=offset),
+        )
+        for offset in range(3)
+    ]
+
+    assert all(
+        result.decisions[0].reason_code
+        == "implementation.submission_recovery_parked"
+        for result in results
+    )
+    assert all(result.reconciliation.jobs_created == 0 for result in results)
+    assert controller.store.list_jobs(task_id=task.identifier) == ()
+
+
 def test_zero_job_cut_retires_exhaustion_only_after_successful_publish(controller):
     active = issue("In Progress", identifier="TASK-ZERO-CUT")
     active_facts = facts_for(
