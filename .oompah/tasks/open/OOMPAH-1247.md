@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1247
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Capture standalone submission base identity before review adoption
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T15:23:30.972748Z'
-updated_at: '2026-08-13T15:23:30.972748Z'
+updated_at: '2026-08-13T15:23:40.289886Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 044a45d0-2dc4-49fb-bbcf-383ced769abe
   request_fingerprint: efb813c451d9d465b70814c784f63f4a5b4b3cbea5a64143614946ff8ad68acd
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
