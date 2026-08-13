@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:40:53.600135Z'
-updated_at: '2026-08-13T04:46:58.726722Z'
+updated_at: '2026-08-13T04:51:36.239714Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,10 @@ author: oompah
 created: 2026-08-13 04:46
 ---
 Live root cause confirmed: TRICKLE-129 was the single missing restart obligation (20/21), because its parent_rollup_review is correctly terminal-rejected while parent TRICKLE-127 is nonterminal. Patch now snapshots exact parent identity/type/status into task facts and returns a non-alerting, jobless rollup.waiting_parent_landing decision until the parent is Merged/Archived. Tests prove zero jobs before parent landing and one exact parent_rollup_review afterward. Focused results: work decision 101 passed; integration workflow 147 passed; workflow facts/owner delivery 63 passed; restart/runtime selection 15 passed.
+---
+author: oompah
+created: 2026-08-13 04:51
+---
+Fix committed and pushed as 1c01057b; PR #850 is running CI. Exact parent authority now keeps a landed shared child in a jobless rollup wait until its parent epic is Merged or Archived, preventing the rejected terminal job from holding restart reconstruction at N-1. Focused regression suites: 312 passed plus 15 runtime restart/rollup tests.
 ---
 <!-- COMMENTS:END -->
