@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1242
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Retire nested topology repair when exact rebase helper owns the branch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T14:32:41.192085Z'
-updated_at: '2026-08-13T14:44:17.766604Z'
+updated_at: '2026-08-13T15:14:50.882682Z'
 work_branch: OOMPAH-1242
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 17b045c2-9045-4892-be53-3eac67d25256
   request_fingerprint: 4e8f025d5976a94cb2d61527c19326a04aac0e16daf6d281733a3e92c80ba605
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.integration:
   version: 2
   state: ready
@@ -35,6 +35,64 @@ oompah.integration:
   submitted_at: '2026-08-13T14:44:09.735151+00:00'
   updated_at: '2026-08-13T14:44:09.735151+00:00'
 oompah.work_branch: OOMPAH-1242
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-eea5cc7b7be5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1242
+    digest: fc85e2fc2123055f28b8967c545a620c690793e6fd88b2612b8ecd86a4d7f07f
+  - version: 1
+    audit_id: audit-cd00c25c22be
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1242
+    digest: fc85e2fc2123055f28b8967c545a620c690793e6fd88b2612b8ecd86a4d7f07f
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-eea5cc7b7be5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1242
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fc85e2fc2123055f28b8967c545a620c690793e6fd88b2612b8ecd86a4d7f07f
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T15:14:45.768219+00:00'
+    eligible_at: '2026-08-13T15:14:45.768219+00:00'
+    selected_ref: f10263212cf4f759f81fd2fd034ce383956dfd8f
+    selected_sha: f10263212cf4f759f81fd2fd034ce383956dfd8f
+  - version: 1
+    audit_id: audit-cd00c25c22be
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1242
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fc85e2fc2123055f28b8967c545a620c690793e6fd88b2612b8ecd86a4d7f07f
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T15:14:45.768219+00:00'
+    prerequisite_audit_id: audit-eea5cc7b7be5
+    selected_ref: f10263212cf4f759f81fd2fd034ce383956dfd8f
+    selected_sha: f10263212cf4f759f81fd2fd034ce383956dfd8f
+  attempt_history: []
 ---
 ## Summary
 
@@ -57,5 +115,10 @@ author: oompah
 created: 2026-08-13 14:44
 ---
 Implemented exact-helper authority retirement for legacy nested-topology repair and shutdown-safe epic event routing. Regression coverage passes (103 focused tests); PR #868 is under hosted review.
+---
+author: oompah
+created: 2026-08-13 15:14
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
