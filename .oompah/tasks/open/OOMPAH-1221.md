@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T05:19:06.019608Z'
-updated_at: '2026-08-13T05:19:23.913347Z'
+updated_at: '2026-08-13T05:58:24.869411Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-13 05:19
 ---
 Claiming directly. The live reproduction has six exhausted completed submissions plus three redundant implementations admitted after restart; OOMPAH-1218 prevents status drift for new assignment transitions but accepted submission authority still needs to preempt implementation decisions.
+---
+author: oompah
+created: 2026-08-13 05:58
+---
+Implemented and pushed 27c9bd1ae with PR #851. Accepted integration records now preempt implementation decisions and final worker admission; restart reconstruction materializes exact validation-submission recovery; Open recovery is restricted to orchestration authority. Verification: 541 focused tests passed, secret scan passed, and the broad gate reached 4,423 passing tests before it was restarted for the final authority-fence edit. Hosted Python 3.11/3.12/3.13 checks are running.
 ---
 <!-- COMMENTS:END -->
