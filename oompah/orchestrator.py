@@ -23868,40 +23868,6 @@ class Orchestrator:
                 if authority is None:
                     continue
 
-                try:
-                    branch_head = provider.get_branch_head_sha(
-                        repo_slug,
-                        task_branch,
-                    )
-                    if not branch_head:
-                        reason = (
-                            f"branch {task_branch} is not present on the remote; "
-                            "push it or correct oompah.work_branch metadata"
-                        )
-                        self._arm_standalone_delivery_alert(
-                            project_id, task_id, reason, authority=authority
-                        )
-                        logger.warning(
-                            "Standalone Ready task %s branch %s not found on remote",
-                            task_id,
-                            task_branch,
-                        )
-                        continue
-                except Exception as exc:
-                    reason = f"remote branch check failed: {exc}"
-                    self._arm_standalone_delivery_alert(
-                        project_id,
-                        task_id,
-                        reason,
-                        authority=authority,
-                    )
-                    logger.warning(
-                        "Could not check if branch exists for %s: %s",
-                        task_id,
-                        exc,
-                    )
-                    continue
-
                 integration = getattr(issue, "integration", None)
                 submitted_branch = str(
                     getattr(integration, "task_branch", "") or ""
@@ -23927,6 +23893,107 @@ class Orchestrator:
                         reason,
                     )
                     continue
+
+                try:
+                    branch_head = provider.get_branch_head_sha(
+                        repo_slug,
+                        task_branch,
+                    )
+                    if not branch_head:
+                        containment_reason = ""
+                        # Forges commonly delete a source branch after merge.
+                        # The branch is no longer authoritative once an exact
+                        # accepted submission SHA exists: bind this delivery
+                        # generation to that immutable SHA and prove it
+                        # directly against the freshly fetched target ref.
+                        # A negative or unavailable proof retains the normal
+                        # actionable missing-branch failure below.
+                        if submitted_head and self._set_standalone_delivery_head(
+                            authority,
+                            task_branch,
+                            submitted_head,
+                            lambda: submitted_head,
+                        ):
+                            containment, containment_reason = (
+                                self._standalone_accepted_head_containment(
+                                    project,
+                                    authority,
+                                    tracker,
+                                    work_branch=task_branch,
+                                    target_branch=target_branch,
+                                )
+                            )
+                            if containment == "contained":
+                                staged, transition = (
+                                    self._request_standalone_contained_with_authority(
+                                        authority,
+                                        tracker,
+                                        project=project,
+                                        work_branch=task_branch,
+                                        target_branch=target_branch,
+                                    )
+                                )
+                                if not staged:
+                                    self._record_superseded_standalone_delivery(
+                                        authority,
+                                        "delivery authority changed before "
+                                        "deleted-branch terminal staging",
+                                    )
+                                    continue
+                                if transition is not None and transition.success:
+                                    self._clear_standalone_delivery_alert(
+                                        project_id,
+                                        task_id,
+                                    )
+                                    logger.info(
+                                        "Staged already-contained standalone task "
+                                        "%s after source branch deletion",
+                                        task_id,
+                                    )
+                                else:
+                                    transition_reason = (
+                                        transition.reason
+                                        if transition is not None
+                                        else "terminal audit transition failed"
+                                    )
+                                    self._arm_standalone_delivery_alert(
+                                        project_id,
+                                        task_id,
+                                        "contained deleted-branch landing could not "
+                                        "enter terminal audit: "
+                                        f"{transition_reason}",
+                                    )
+                                return
+                        reason = (
+                            f"branch {task_branch} is not present on the remote; "
+                            "push it or correct oompah.work_branch metadata"
+                        )
+                        if submitted_head and containment_reason:
+                            reason = f"{reason} ({containment_reason})"
+                        self._arm_standalone_delivery_alert(
+                            project_id, task_id, reason, authority=authority
+                        )
+                        logger.warning(
+                            "Standalone Ready task %s branch %s not found on remote",
+                            task_id,
+                            task_branch,
+                        )
+                        continue
+                except Exception as exc:
+                    reason = f"remote branch check failed: {exc}"
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        reason,
+                        authority=authority,
+                    )
+                    logger.warning(
+                        "Could not check if branch exists for %s: %s",
+                        task_id,
+                        exc,
+                    )
+                    continue
+
                 if (
                     submitted_head
                     and str(branch_head).strip().lower() != submitted_head
