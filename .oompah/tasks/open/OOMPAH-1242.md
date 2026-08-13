@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1242
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Retire nested topology repair when exact rebase helper owns the branch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T14:32:41.192085Z'
-updated_at: '2026-08-13T14:32:41.192085Z'
+updated_at: '2026-08-13T14:34:36.695143Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 17b045c2-9045-4892-be53-3eac67d25256
   request_fingerprint: 4e8f025d5976a94cb2d61527c19326a04aac0e16daf6d281733a3e92c80ba605
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 

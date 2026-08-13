@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1243
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Ignore forge events delivered after epic event-router shutdown
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T14:32:43.240296Z'
-updated_at: '2026-08-13T14:32:43.240296Z'
+updated_at: '2026-08-13T14:34:41.855180Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 29621f3b-9c54-46af-b7b6-06d19d37bdc2
   request_fingerprint: c895038d585d523bed9b8f71df06ee02ebfa99a7fb4c824628559e0de21425d7
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
