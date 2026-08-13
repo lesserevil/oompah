@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1226
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Stop In Progress accepted submissions from hot-looping recovery
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T08:33:09.430186Z'
-updated_at: '2026-08-13T08:33:09.430186Z'
+updated_at: '2026-08-13T08:33:28.212369Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 9cf0e19a-8481-49ec-8ea9-ad0dfcfdc0c0
   request_fingerprint: 3d4e88a5ed6b20d843f7d96cb3dfd9a8afaf2b998153647bda842ce1ff3d247d
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -35,3 +36,11 @@ Bug observed live on resumed Trickle 2026-08-13. TRICKLE-140 is In Progress with
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 08:33
+---
+Live workaround audit: TRICKLE-140 exact accepted head 6d089ed6 is already in GitLab main, but the source ref is deleted after merge. Leaving status untouched until a fenced lifecycle operation can consume this proof; direct status editing would hide the scheduler defect. The service continues to hot-loop superseded recovery jobs, so code repair is required.
+---
+<!-- COMMENTS:END -->

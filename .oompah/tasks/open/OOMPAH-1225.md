@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T08:09:49.181773Z'
-updated_at: '2026-08-13T08:10:10.524755Z'
+updated_at: '2026-08-13T08:33:31.521362Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,3 +38,11 @@ Bug observed live on Trickle 2026-08-13. GitLab merge request !6 for TRICKLE-118
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 08:33
+---
+Implementation committed and pushed as 69fb55ed on PR #854. Local focused suites passed before rebase (121 GitLab/review tests; 331 broader SCM/review tests), post-rebase secret scan passed, and hosted Python 3.11/3.12/3.13 gates are running. Live source task TRICKLE-118 remains review.ci_pending until deployment.
+---
+<!-- COMMENTS:END -->
