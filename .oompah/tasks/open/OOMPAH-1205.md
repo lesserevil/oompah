@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1205
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-121 identifier=TRICKLE-121 run_id=6fb92a00160243d3ae918f5d6e89ab70
@@ -13,13 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:27:25.590177Z'
-updated_at: '2026-08-13T01:27:25.590177Z'
+updated_at: '2026-08-13T01:51:48.028014Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -60,3 +61,11 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 01:51
+---
+Live Trickle root cause narrowed after OOMPAH-1202 removed the lock inversion: native state-branch mutations still fetch/reconcile the remote before every buffered local write. Under concurrent scheduling this turns coalesced metadata updates into serialized network transactions, so valid pre-provider evidence can wait beyond the 5s authority bound. Repair will sync once per tracker generation, buffer subsequent local writes, and retain push-reject fetch/rebase recovery at checkpoint publication.
+---
+<!-- COMMENTS:END -->
