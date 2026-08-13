@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1222
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Do not exhaust standalone delivery while waiting for review capacity
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T06:00:42.489158Z'
-updated_at: '2026-08-13T07:23:21.561028Z'
+updated_at: '2026-08-13T07:23:48.586775Z'
 work_branch: OOMPAH-1222
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: a69d81a1-c7cc-428e-96e5-30861dd2eeb2
   request_fingerprint: 282feaf6d1cba4c5475da05bde8327339074a59963c881e2aca2041aea61e268
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.integration:
   version: 2
   state: ready
@@ -35,6 +35,64 @@ oompah.integration:
   submitted_at: '2026-08-13T07:23:12.795525+00:00'
   updated_at: '2026-08-13T07:23:12.795525+00:00'
 oompah.work_branch: OOMPAH-1222
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-dbc95aa82a14
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1222
+    digest: 5e06d7ce3a28044a1ae5cca0249a3fd0f7bede31eb772f32e0361f845c9a7d75
+  - version: 1
+    audit_id: audit-1b8859870176
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1222
+    digest: 5e06d7ce3a28044a1ae5cca0249a3fd0f7bede31eb772f32e0361f845c9a7d75
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-dbc95aa82a14
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1222
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5e06d7ce3a28044a1ae5cca0249a3fd0f7bede31eb772f32e0361f845c9a7d75
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T07:23:43.274894+00:00'
+    eligible_at: '2026-08-13T07:23:43.274894+00:00'
+    selected_ref: 3769a6310e406692118d04c115b81254859de829
+    selected_sha: 3769a6310e406692118d04c115b81254859de829
+  - version: 1
+    audit_id: audit-1b8859870176
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1222
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5e06d7ce3a28044a1ae5cca0249a3fd0f7bede31eb772f32e0361f845c9a7d75
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T07:23:43.274894+00:00'
+    prerequisite_audit_id: audit-dbc95aa82a14
+    selected_ref: 3769a6310e406692118d04c115b81254859de829
+    selected_sha: 3769a6310e406692118d04c115b81254859de829
+  attempt_history: []
 ---
 ## Summary
 
@@ -62,5 +120,10 @@ author: oompah
 created: 2026-08-13 07:23
 ---
 Implemented exact non-substantive review-capacity deferrals and authoritative startup recovery for legacy exhausted standalone-delivery rows. Focused suites: 528 passed; full make test: 20,226 passed, 7 skipped, 2 xfailed; hosted Python 3.11/3.12/3.13 gates all passed. PR #852.
+---
+author: oompah
+created: 2026-08-13 07:23
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
