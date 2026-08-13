@@ -63,6 +63,8 @@ from oompah.workflow_contract import (
     transition_rule,
 )
 
+logger = logging.getLogger(__name__)
+
 TRANSITION_JOURNAL_SCHEMA_VERSION = 1
 DEFAULT_TRANSITION_CLAIM_TTL_SECONDS = 300.0
 TERMINAL_TARGETS = frozenset({DONE, MERGED, ARCHIVED})
@@ -1761,7 +1763,7 @@ class TaskTransitionService:
             try:
                 detail = str(guard(intent, issue) or "").strip()
             except Exception:  # noqa: BLE001 - workflow authority must fail closed
-                logging.getLogger(__name__).exception(
+                logger.exception(
                     "Task transition mutation guard failed project=%s task=%s "
                     "reason=%s",
                     intent.project_id,

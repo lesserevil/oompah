@@ -5733,7 +5733,12 @@ class Orchestrator:
         accepted_target = str(
             getattr(integration, "base_branch", None)
             or issue.target_branch
-            or ""
+            or getattr(
+                self.project_store.get(intent.project_id),
+                "default_branch",
+                None,
+            )
+            or "main"
         ).strip()
         captured_target = str(payload.get("base_branch") or "").strip()
         issue_target = str(issue.target_branch or "").strip()

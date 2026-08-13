@@ -1062,6 +1062,53 @@ def test_recovered_landed_validation_accepts_exact_assignment_without_owner_clai
     journal.close()
 
 
+def test_landed_validation_uses_project_default_when_task_target_is_absent(
+    tmp_path,
+):
+    (
+        orch,
+        tracker,
+        store,
+        journal,
+        service,
+        intent,
+        remote,
+        _claim,
+    ) = _accepted_validation_commit_fixture(tmp_path, direct_owner=False)
+    remote["head"] = None
+    orch.project_store.get.return_value = SimpleNamespace(default_branch="main")
+    orch.project_store.remote_target_contains_head.return_value = True
+    with tracker._lock:
+        current = tracker.issues[intent.task_id]
+        current.target_branch = None
+        current.integration = replace(current.integration, base_branch=None)
+    current = tracker.fetch_issue_detail(intent.task_id)
+    current_job = store.get(intent.originating_job)
+    current_payload = dict(current_job.payload or {})
+    current_payload["base_branch"] = ""
+    with store._lock:
+        store._conn.execute(
+            "UPDATE workflow_jobs SET payload_json = ? WHERE job_id = ?",
+            (json.dumps(current_payload, sort_keys=True), current_job.job_id),
+        )
+        store._conn.commit()
+    current_intent = replace(
+        intent,
+        expected_version=issue_authority_version(current),
+    )
+
+    outcome = asyncio.run(service.execute(current_intent))
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    orch.project_store.remote_target_contains_head.assert_called_once_with(
+        intent.project_id,
+        "main",
+        intent.exact_head,
+    )
+    store.close()
+    journal.close()
+
+
 @pytest.mark.parametrize(
     ("containment", "side_effect", "expected_detail"),
     [
