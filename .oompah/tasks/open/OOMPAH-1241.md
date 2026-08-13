@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T13:47:10.437674Z'
-updated_at: '2026-08-13T13:53:49.803472Z'
+updated_at: '2026-08-13T13:59:36.259126Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,10 @@ author: oompah
 created: 2026-08-13 13:53
 ---
 Root cause confirmed from the live traceback: workspace allocation re-derives TRICKLE-130's source with the default epic-* naming convention, ignoring its authoritative persisted work_branch=TRICKLE-130. The exact helper is therefore rejected as generation-stale and, if admitted, would allocate the wrong shared branch. I am fixing this together with the adjacent rebase receipt bug on branch OOMPAH-1240; tests will cover persisted non-convention branches and ensure ordinary helpers remain fail-closed.
+---
+author: oompah
+created: 2026-08-13 13:59
+---
+Implemented regression coverage and repair: helper admission and direct maintenance workspace allocation now preserve the parent epic's persisted work_branch instead of synthesizing a current-convention branch. This covers the live TRICKLE-130/TRICKLE-141 pre-convention source mismatch.
 ---
 <!-- COMMENTS:END -->

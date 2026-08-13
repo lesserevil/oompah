@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T13:41:09.711627Z'
-updated_at: '2026-08-13T13:42:08.157361Z'
+updated_at: '2026-08-13T13:59:33.441530Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,3 +36,11 @@ The v4 epic_rebase_repair workflow can atomically create or recover the authorit
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 13:59
+---
+Implemented regression coverage and repair: bind implicit native Markdown project scope before exact-helper observation/receipt verification, reject conflicting explicit scope, and bump the durable revalidation contract so exhausted pre-fix repairs replay after deployment. Focused workflow/epic suite: 485 passed; terminal mutation scan and secret scan passed.
+---
+<!-- COMMENTS:END -->
