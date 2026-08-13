@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1194
 type: bug
-status: Open
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-134'
 parent: null
@@ -11,14 +11,72 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:09.835377Z'
-updated_at: '2026-08-13T00:02:43.294050Z'
+updated_at: '2026-08-13T00:29:10.763992Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-cad206e88330
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1194
+    digest: 7e7d8e7d0f17344513c3b12b35e933f54eafa6a2c6f652415ddf601bb1cfd7c0
+  - version: 1
+    audit_id: audit-a71c9fb75593
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1194
+    digest: 7e7d8e7d0f17344513c3b12b35e933f54eafa6a2c6f652415ddf601bb1cfd7c0
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-cad206e88330
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1194
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7e7d8e7d0f17344513c3b12b35e933f54eafa6a2c6f652415ddf601bb1cfd7c0
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T00:29:04.516767+00:00'
+    eligible_at: '2026-08-13T00:29:04.516767+00:00'
+    selected_ref: origin/main
+    selected_sha: 7140e70827fb1ead3135a559a5202089548a13f6
+  - version: 1
+    audit_id: audit-a71c9fb75593
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1194
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7e7d8e7d0f17344513c3b12b35e933f54eafa6a2c6f652415ddf601bb1cfd7c0
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T00:29:04.516767+00:00'
+    prerequisite_audit_id: audit-cad206e88330
+    selected_ref: origin/main
+    selected_sha: 7140e70827fb1ead3135a559a5202089548a13f6
+  attempt_history: []
 ---
 ## Summary
 
@@ -66,5 +124,10 @@ author: oompah
 created: 2026-08-13 00:02
 ---
 Root cause confirmed during live Trickle dispatch: managed network Git operations pass the symbolic local remote name 'origin', so stale per-repository/worktree SSH configuration overrides the project's configured canonical HTTPS repo_url and its scoped credential environment. Scope: make ProjectStore managed network Git calls bind origin fetch/push to the project repo_url without mutating checkout config or exposing credentials; add a regression using a stale origin that proves the canonical remote is used; verify credential isolation/redaction remains intact. OOMPAH-1195 through OOMPAH-1198 are duplicate task-specific instances of this same systemic fault. Acceptance: workspace/epic refresh succeeds from canonical transport even when local origin is stale, and existing credential tests pass.
+---
+author: oompah
+created: 2026-08-13 00:29
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
