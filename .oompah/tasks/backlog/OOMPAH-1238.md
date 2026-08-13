@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T12:43:56.637636Z'
-updated_at: '2026-08-13T12:51:20.033996Z'
+updated_at: '2026-08-13T13:02:01.103018Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,15 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 4af593e6-a16d-4eff-aa71-fff5c999eafe
   request_fingerprint: a2594ec8b9a6ba7ba19351ae03d0c4fe3f2cfcb403f5e2b2cb9dc978d592a381
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1238
+  head_sha: ab11ea173f0ca4a31345111b9f3ac854d3666fc2
+  submitted_at: '2026-08-13T13:01:56.306150+00:00'
+  updated_at: '2026-08-13T13:01:56.306150+00:00'
 ---
 ## Summary
 
@@ -41,5 +50,10 @@ author: oompah
 created: 2026-08-13 12:51
 ---
 Claimed directly from the live seq16530 failure. Implementing read-after-write/replay identity recovery so an exactly-once helper creation yields a durable receipt instead of exhausting after its side effect already succeeded.
+---
+author: oompah
+created: 2026-08-13 13:01
+---
+Implemented immutable create-once receipt and exact-authority retry recovery. Also advanced the rebase event contract so live exhausted v3 jobs get a safe new durable identity after deployment. Focused tests: 171 passed; terminal mutation and secret scans passed. Commit ab11ea173 pushed.
 ---
 <!-- COMMENTS:END -->
