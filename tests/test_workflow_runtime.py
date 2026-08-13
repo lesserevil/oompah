@@ -350,6 +350,25 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
     assert binding.tracker_publication_changes_source is not None
     tracker.publication_revision = None
     assert binding.tracker_publication_revision_source() is None
+    task = tracker.fetch_issue_detail("TASK-BOOT")
+    assert task is not None
+    validation_intent = TransitionIntent(
+        project_id="legacy",
+        task_id=task.identifier,
+        expected_status=task.state,
+        expected_version=issue_authority_version(task),
+        requested_status="Ready to Integrate",
+        actor="oompah",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="implementation.validation_submission",
+        idempotency_key="runtime-factory-validation-guard-contract",
+        originating_job="validation-job",
+        exact_head="a" * 40,
+    )
+    assert binding.transition_service._mutation_guard(  # noqa: SLF001
+        validation_intent,
+        task,
+    ) == "validation submission authority is unavailable"
     assert runtime.liveness_controller is controller
     assert runtime._persist_liveness_state is persist_liveness  # noqa: SLF001
     runtime.close()
