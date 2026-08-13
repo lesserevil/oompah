@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T18:13:35.579127Z'
-updated_at: '2026-08-13T18:13:35.579127Z'
+updated_at: '2026-08-13T18:22:12.014603Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Bug exposed live by TRICKLE-141 after OOMPAH-1253 deployed. publish_epic_rebase_
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 18:22
+---
+Implementation is pushed in PR #873 (commit 24ae869d9). The fix restores tracker-known project scope on unstamped native sibling rows before authority classification and rejects conflicting scope. Verification: all 114 tests in tests/test_epic_rebase_state.py passed; make terminal-audit-scan passed; make check-secrets passed. Awaiting branch-gate CI.
+---
+<!-- COMMENTS:END -->
