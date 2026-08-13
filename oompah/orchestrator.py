@@ -23500,14 +23500,14 @@ class Orchestrator:
         workflow_generation: str | None = None,
         workflow_authority_check: Callable[[], bool] | None = None,
         workflow_local_authority_check: Callable[[], bool] | None = None,
-    ) -> None:
+    ) -> str | None:
         """Deliver one exact standalone generation without entering the sweep."""
 
         project = self.project_store.get(str(project_id))
         if project is None:
             return
         with self._standalone_ready_reconciliation_lock:
-            self._reconcile_standalone_delivery_scope(
+            return self._reconcile_standalone_delivery_scope(
                 projects=(project,),
                 task_scope=str(task_id),
                 expected_task_branch=(
@@ -23533,7 +23533,7 @@ class Orchestrator:
         workflow_generation: str | None,
         workflow_authority_check: Callable[[], bool] | None,
         workflow_local_authority_check: Callable[[], bool] | None,
-    ) -> None:
+    ) -> str | None:
         """Shared delivery body over an explicitly supplied candidate scope."""
 
         for project in projects:
@@ -24340,7 +24340,7 @@ class Orchestrator:
                         review_count,
                         review_limit,
                     )
-                    break
+                    return "capacity_wait"
 
                 if not self._review_quality_gate_passes(
                     project,
@@ -24468,26 +24468,45 @@ class Orchestrator:
                             owned_reservation.reservation_id,
                         )
                         return
-                    review_count, review_limit, _ = review_capacity
-                    # Capacity and an unavailable live listing are both
-                    # retryable.  Neither means the submission is stranded,
-                    # and neither justifies running gates for lower-ranked
-                    # candidates after this selected attempt lost its slot.
-                    self._arm_standalone_capacity_wait(
+                    review_count, review_limit, at_capacity = (
+                        self._project_review_capacity(project_id)
+                    )
+                    if at_capacity:
+                        # The authoritative live listing or a concurrent
+                        # reservation filled the final slot.  This is an
+                        # administrative wait and must not consume the
+                        # durable worker's substantive failure budget.
+                        self._arm_standalone_capacity_wait(
+                            project_id,
+                            task_id,
+                            review_count,
+                            review_limit,
+                            authority=authority,
+                        )
+                        logger.info(
+                            "Deferred standalone review for %s: waiting for "
+                            "review capacity (%d/%d)",
+                            task_id,
+                            review_count,
+                            review_limit,
+                        )
+                        return "capacity_wait"
+                    # Failure to obtain an authoritative forge listing is a
+                    # real transport/provider failure.  Keep it on the normal
+                    # bounded retry path instead of disguising it as capacity.
+                    reason = "live forge review state is unavailable"
+                    self._arm_standalone_delivery_alert(
                         project_id,
                         task_id,
-                        review_count,
-                        review_limit,
+                        reason,
                         authority=authority,
                     )
-                    logger.info(
-                        "Deferred standalone review for %s: review capacity or "
-                        "live forge state unavailable (%d/%d)",
+                    logger.warning(
+                        "Deferred standalone review for %s: %s",
                         task_id,
-                        review_count,
-                        review_limit,
+                        reason,
                     )
-                    break
+                    continue
                 if not reservation.acquired_new:
                     self._clear_standalone_delivery_alert(
                         project_id,

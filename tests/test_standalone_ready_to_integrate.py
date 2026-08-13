@@ -2110,6 +2110,31 @@ def test_later_sweep_stale_cache_cannot_create_second_review(harness):
     assert "waiting for review capacity" in _delivery_alerts(orch)[0]["message"]
 
 
+def test_unavailable_live_review_listing_is_not_a_capacity_wait(harness):
+    """An unavailable forge read remains a bounded substantive failure."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    project.max_in_flight_prs = 1
+    task = _issue("TASK-LIVE-REVIEWS-UNAVAILABLE")
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.find_pr_for_branch.return_value = None
+    provider.list_open_reviews.return_value = None
+
+    outcome = orch._reconcile_one_standalone_ready_to_integrate_task(
+        project.id,
+        task.identifier,
+        expected_task_branch=task.work_branch,
+        expected_head_sha=task.integration.head_sha,
+    )
+
+    assert outcome is None
+    gate.assert_called_once()
+    provider.create_review.assert_not_called()
+    [alert] = _delivery_alerts(orch)
+    assert alert["level"] != "info"
+    assert "live forge review state is unavailable" in alert["message"]
+
+
 def test_exact_durable_review_slot_is_not_reported_as_capacity_wait(harness):
     """A lagging forge lookup cannot overwrite same-task delivery success."""
 
