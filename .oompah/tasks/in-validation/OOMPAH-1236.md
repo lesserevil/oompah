@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1236
 type: task
-status: Backlog
+status: In Validation
 priority: null
 title: Unify durable epic source authority with persisted nested branches
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T12:12:00.430229Z'
-updated_at: '2026-08-13T12:24:22.788658Z'
+updated_at: '2026-08-13T12:33:54.999258Z'
 work_branch: OOMPAH-1236
 target_branch: null
 review_url: null
@@ -34,6 +34,65 @@ oompah.integration:
   submitted_at: '2026-08-13T12:24:12.681962+00:00'
   updated_at: '2026-08-13T12:24:12.681962+00:00'
 oompah.work_branch: OOMPAH-1236
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-b2a449c5a8e9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1236
+    digest: a0a3cc0593bf3f25f7753316cc817fccf10b29f7272f98a3b7e1ed75904f805b
+  - version: 1
+    audit_id: audit-bead4ba7c43b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1236
+    digest: a0a3cc0593bf3f25f7753316cc817fccf10b29f7272f98a3b7e1ed75904f805b
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-b2a449c5a8e9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1236
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a0a3cc0593bf3f25f7753316cc817fccf10b29f7272f98a3b7e1ed75904f805b
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T12:33:49.846161+00:00'
+    eligible_at: '2026-08-13T12:33:49.846161+00:00'
+    selected_ref: 15213aac3bf4f9715a6aa860bc567fa9eaea8060
+    selected_sha: 15213aac3bf4f9715a6aa860bc567fa9eaea8060
+  - version: 1
+    audit_id: audit-bead4ba7c43b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1236
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a0a3cc0593bf3f25f7753316cc817fccf10b29f7272f98a3b7e1ed75904f805b
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T12:33:49.846161+00:00'
+    prerequisite_audit_id: audit-b2a449c5a8e9
+    selected_ref: 15213aac3bf4f9715a6aa860bc567fa9eaea8060
+    selected_sha: 15213aac3bf4f9715a6aa860bc567fa9eaea8060
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -61,5 +120,10 @@ author: oompah
 created: 2026-08-13 12:24
 ---
 Unify persisted epic source authority and exact-head-fence durable rebase requests; 495 focused tests and repository scans pass.
+---
+author: oompah
+created: 2026-08-13 12:33
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
