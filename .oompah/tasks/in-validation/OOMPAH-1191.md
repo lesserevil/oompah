@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T22:41:57.033700Z'
-updated_at: '2026-08-13T04:44:50.277720Z'
+updated_at: '2026-08-13T05:48:37.176233Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -170,6 +170,17 @@ Source issue: `TRICKLE-140`
 ---
 author: oompah
 created: 2026-08-13 04:44
+---
+Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
+
+Source: `backend:orchestrator`
+
+Message: ACP worker failed issue_id=TRICKLE-140
+
+Source issue: `TRICKLE-140`
+---
+author: oompah
+created: 2026-08-13 05:48
 ---
 Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
 
