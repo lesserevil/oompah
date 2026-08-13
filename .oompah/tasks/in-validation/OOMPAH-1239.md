@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1239
 type: task
-status: Backlog
+status: In Validation
 priority: null
 title: Bypass recursive topology preflight for authoritative epic-rebase helpers
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T13:08:46.480588Z'
-updated_at: '2026-08-13T13:13:11.825075Z'
+updated_at: '2026-08-13T13:32:28.808935Z'
 work_branch: OOMPAH-1239
 target_branch: null
 review_url: null
@@ -34,6 +34,65 @@ oompah.integration:
   submitted_at: '2026-08-13T13:12:58.318256+00:00'
   updated_at: '2026-08-13T13:12:58.318256+00:00'
 oompah.work_branch: OOMPAH-1239
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-8c6b39a675b3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1239
+    digest: 78fa9e5f8fc26fc487661c116d3f107f00eaaaf8cda79ac7c9f9703cfefa8351
+  - version: 1
+    audit_id: audit-867d863001bd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1239
+    digest: 78fa9e5f8fc26fc487661c116d3f107f00eaaaf8cda79ac7c9f9703cfefa8351
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8c6b39a675b3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1239
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 78fa9e5f8fc26fc487661c116d3f107f00eaaaf8cda79ac7c9f9703cfefa8351
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T13:32:23.382593+00:00'
+    eligible_at: '2026-08-13T13:32:23.382593+00:00'
+    selected_ref: f8d9349aee9aeb493a676bd56bdceca289d7aaa7
+    selected_sha: f8d9349aee9aeb493a676bd56bdceca289d7aaa7
+  - version: 1
+    audit_id: audit-867d863001bd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1239
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 78fa9e5f8fc26fc487661c116d3f107f00eaaaf8cda79ac7c9f9703cfefa8351
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-13T13:32:23.382593+00:00'
+    prerequisite_audit_id: audit-8c6b39a675b3
+    selected_ref: f8d9349aee9aeb493a676bd56bdceca289d7aaa7
+    selected_sha: f8d9349aee9aeb493a676bd56bdceca289d7aaa7
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -61,5 +120,10 @@ author: oompah
 created: 2026-08-13 13:13
 ---
 Exact-authority epic-rebase helpers no longer require their own completed rebase as a dispatch prerequisite; ordinary nested children remain topology-fenced. Tests/scans pass; f8d9349ae pushed.
+---
+author: oompah
+created: 2026-08-13 13:32
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
