@@ -2218,6 +2218,64 @@ class TestEpicRebaseGenerationAuthority:
         assert entry.authority_publish_target_head == target_head
         assert entry.authority_publish_remote_head == candidate
 
+    def test_server_publish_stamps_scoped_native_task_project(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        helper, _epic, _tracker, candidate, lease_head, target_head = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        project_id = helper.project_id
+        helper.project_id = None
+        orch._observe_epic_rebase_generation = MagicMock(
+            side_effect=[
+                ("generation-1", lease_head, target_head),
+                ("generation-2", candidate, target_head),
+            ]
+        )
+
+        result = orch.publish_epic_rebase_candidate(
+            project_id,
+            helper.identifier,
+            candidate,
+        )
+
+        assert result["published"] is True
+        assert helper.project_id == project_id
+        orch._run_project_network_git.assert_called_once()
+
+    def test_server_publish_rejects_conflicting_task_project(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        helper, _epic, _tracker, candidate, _lease_head, _target_head = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        project_id = helper.project_id
+        helper.project_id = "proj-other"
+
+        with pytest.raises(ProjectError, match="publish_task_scope_mismatch"):
+            orch.publish_epic_rebase_candidate(
+                project_id,
+                helper.identifier,
+                candidate,
+            )
+
+        orch._run_project_network_git.assert_not_called()
+
+    def test_server_publish_rejects_missing_scoped_task(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        helper, _epic, tracker, candidate, _lease_head, _target_head = (
+            _configure_publish_fixture(orch, tmp_path)
+        )
+        tracker.fetch_issue_detail.return_value = None
+        tracker.fetch_issue_detail.side_effect = None
+
+        with pytest.raises(ProjectError, match="publish_task_missing"):
+            orch.publish_epic_rebase_candidate(
+                helper.project_id,
+                helper.identifier,
+                candidate,
+            )
+
+        orch._run_project_network_git.assert_not_called()
+
     def test_server_publish_never_uses_worker_config_for_privileged_push(
         self, tmp_path
     ):
