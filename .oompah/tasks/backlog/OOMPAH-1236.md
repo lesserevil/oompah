@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T12:12:00.430229Z'
-updated_at: '2026-08-13T12:23:58.086456Z'
-work_branch: null
+updated_at: '2026-08-13T12:24:22.788658Z'
+work_branch: OOMPAH-1236
 target_branch: null
 review_url: null
 review_number: null
@@ -24,6 +24,16 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 456e97e8-3977-48c5-9043-da95629d9ced
   request_fingerprint: 24588412e8f783192162e56511e9c7c4eeb0377ce15c7f19468c4abb3905de0f
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1236
+  head_sha: 15213aac3bf4f9715a6aa860bc567fa9eaea8060
+  submitted_at: '2026-08-13T12:24:12.681962+00:00'
+  updated_at: '2026-08-13T12:24:12.681962+00:00'
+oompah.work_branch: OOMPAH-1236
 ---
 ## Summary
 
@@ -46,5 +56,10 @@ author: oompah
 created: 2026-08-13 12:23
 ---
 Implementation complete: durable epic facts now honor persisted legacy source branches, rebase events capture source branch + exact live head + immediate target, and worker revalidation checks all three without relying on mutable collection revisions or ordinary epic decision inventory. Regression reproduces TRICKLE-130 shape. 495 focused epic/workflow tests pass; terminal mutation and secret scans pass.
+---
+author: oompah
+created: 2026-08-13 12:24
+---
+Unify persisted epic source authority and exact-head-fence durable rebase requests; 495 focused tests and repository scans pass.
 ---
 <!-- COMMENTS:END -->
