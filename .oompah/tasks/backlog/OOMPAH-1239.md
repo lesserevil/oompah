@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T13:08:46.480588Z'
-updated_at: '2026-08-13T13:09:10.054174Z'
+updated_at: '2026-08-13T13:12:55.831164Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-08-13 13:09
 ---
 Claimed directly from live TRICKLE-141 scheduling. Implementing the narrow exact-authority bypass now; only Trickle remains resumed.
+---
+author: oompah
+created: 2026-08-13 13:12
+---
+Implemented exact publish-authority bypass for the recursive nested-topology preflight. Ordinary and title-shaped helpers remain fenced. 183 focused tests pass; terminal mutation and secret scans pass. Commit f8d9349ae pushed.
 ---
 <!-- COMMENTS:END -->
