@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1218
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Bind implementation status transitions to the runtime assignment generation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:05:12.348049Z'
-updated_at: '2026-08-13T04:10:04.912269Z'
+updated_at: '2026-08-13T04:20:36.540209Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,65 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 66453f65-1c85-4433-8a62-ff21f1ab7692
   request_fingerprint: 6542d304c132be47711a84d6318b1765ff5b184392b0e5f9fa3f7fab496bbda0
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-3f52d7fe7d46
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1218
+    digest: 6f7fbc4acb15103753351c80143989af0e0d85c135031c14e997d1a2c5ac5cb7
+  - version: 1
+    audit_id: audit-d06e612135af
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1218
+    digest: 6f7fbc4acb15103753351c80143989af0e0d85c135031c14e997d1a2c5ac5cb7
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-3f52d7fe7d46
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1218
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6f7fbc4acb15103753351c80143989af0e0d85c135031c14e997d1a2c5ac5cb7
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T04:20:31.097992+00:00'
+    eligible_at: '2026-08-13T04:20:31.097992+00:00'
+    selected_ref: origin/OOMPAH-1218
+    selected_sha: 212cf88af1f4bd163fd68c8a9812472a5d9e7e9b
+  - version: 1
+    audit_id: audit-d06e612135af
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1218
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6f7fbc4acb15103753351c80143989af0e0d85c135031c14e997d1a2c5ac5cb7
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T04:20:31.097992+00:00'
+    prerequisite_audit_id: audit-3f52d7fe7d46
+    selected_ref: origin/OOMPAH-1218
+    selected_sha: 212cf88af1f4bd163fd68c8a9812472a5d9e7e9b
+  attempt_history: []
 ---
 ## Summary
 
@@ -73,5 +131,10 @@ author: oompah
 created: 2026-08-13 04:10
 ---
 Root cause confirmed and patch implemented. START/RECOVERY/FOCUS_HANDOFF now derive transition evidence from the exact verified runtime assignment; validation submission uses the immutable captured assignment (with live assignment fallback). Real TaskTransitionService regressions prove Open → In Progress and In Progress → Ready to Integrate succeed while missing assignment fails closed. Full implementation adapter suite: 67 passed.
+---
+author: oompah
+created: 2026-08-13 04:20
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
