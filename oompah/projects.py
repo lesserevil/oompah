@@ -445,6 +445,101 @@ def _recovery_git_env() -> dict[str, str]:
     return env
 
 
+def _managed_network_git_env() -> dict[str, str]:
+    """Return an isolated environment for server-owned network Git calls.
+
+    A managed project's configured repository URL is the transport authority.
+    In particular, an inherited ``url.*.insteadOf`` rule must not redirect that
+    URL back through a stale checkout transport.  Project credentials are
+    added separately by :func:`git_credential_environment`.
+    """
+
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith("GIT_")
+        and key not in {"SSH_ASKPASS", "LD_PRELOAD"}
+    }
+    env.update(
+        {
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_TERMINAL_PROMPT": "0",
+        }
+    )
+    return env
+
+
+def _managed_network_git_command(
+    project: Project,
+    args: list[str],
+) -> tuple[list[str], str, int | None]:
+    """Bind a managed Git command to the project's canonical transport."""
+
+    remote_url = str(getattr(project, "repo_url", "") or "").strip()
+    if not remote_url:
+        raise ProjectError("Managed project repository URL is unavailable")
+    try:
+        parsed_remote = urlsplit(remote_url)
+    except ValueError as exc:
+        raise ProjectError("Managed project repository URL is malformed") from exc
+    if parsed_remote.scheme.lower() in {"http", "https"}:
+        if parsed_remote.password is not None:
+            raise ProjectError(
+                "Managed project repository URL must not contain credentials"
+            )
+        if parsed_remote.username is not None:
+            remote_url = parsed_remote._replace(
+                netloc=parsed_remote.netloc.rsplit("@", 1)[-1]
+            ).geturl()
+
+    command = list(args)
+    if not command or command[0] != "git":
+        raise ProjectError("Managed network command must invoke git")
+
+    operation_index = next(
+        (
+            index
+            for index, value in enumerate(command[1:], start=1)
+            if value in {"clone", "fetch", "ls-remote", "pull", "push"}
+        ),
+        None,
+    )
+    operation = command[operation_index] if operation_index is not None else ""
+    remote_index = None
+    if operation_index is not None:
+        remote_index = next(
+            (
+                index
+                for index, value in enumerate(
+                    command[operation_index + 1 :], start=operation_index + 1
+                )
+                if value == "origin"
+            ),
+            None,
+        )
+    if remote_index is not None:
+        command[remote_index] = remote_url
+        if operation == "fetch":
+            refspecs = command[remote_index + 1 :]
+            if not refspecs:
+                command.append("+refs/heads/*:refs/remotes/origin/*")
+            elif (
+                len(refspecs) == 1
+                and not refspecs[0].startswith("-")
+                and ":" not in refspecs[0]
+                and not refspecs[0].startswith("refs/")
+            ):
+                branch = refspecs[0]
+                command[remote_index + 1] = (
+                    f"+refs/heads/{branch}:refs/remotes/origin/{branch}"
+                )
+    elif operation == "fetch" and "--all" in command:
+        command.remove("--all")
+        command.extend([remote_url, "+refs/heads/*:refs/remotes/origin/*"])
+    return command, operation, remote_index
+
+
 def _recovery_marker_context(
     repo_path: str,
     snapshot_head: str,
@@ -2167,13 +2262,22 @@ class ProjectStore:
         """
         token = getattr(project, "access_token", None)
         forge_kind = getattr(project, "forge_kind", "github")
+        # A local remote name is mutable checkout state, not project authority.
+        # Use the configured credential-free URL as the direct network operand.
+        # Fetches through a URL do not apply remote.origin.fetch, so synthesize
+        # the canonical origin tracking refspec where callers relied on it.
+        command, operation, remote_index = _managed_network_git_command(
+            project,
+            args,
+        )
+
         with git_credential_environment(
             forge_kind=forge_kind,
             access_token=token,
-            base_env=_recovery_git_env(),
+            base_env=_managed_network_git_env(),
         ) as env:
             result = subprocess.run(
-                args,
+                command,
                 cwd=cwd or project.repo_path,
                 capture_output=True,
                 text=True,
@@ -2181,6 +2285,28 @@ class ProjectStore:
                 timeout=timeout,
                 env=env,
             )
+        if result.returncode == 0 and operation == "push" and remote_index is not None:
+            # Pushing to a direct URL deliberately bypasses the stale symbolic
+            # remote.  Mirror Git's named-remote deletion bookkeeping so a
+            # successful compare-and-delete cannot leave origin/* looking
+            # alive and break idempotent terminal cleanup.
+            for refspec in command[remote_index + 1 :]:
+                normalized = str(refspec).removeprefix("+")
+                if not normalized.startswith(":refs/heads/"):
+                    continue
+                tracking_ref = (
+                    "refs/remotes/origin/"
+                    + normalized.removeprefix(":refs/heads/")
+                )
+                subprocess.run(
+                    ["git", "update-ref", "-d", tracking_ref],
+                    cwd=cwd or project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
         result.stdout = redact_git_output(result.stdout, (token or "",))
         result.stderr = redact_git_output(result.stderr, (token or "",))
         return result
@@ -6453,6 +6579,23 @@ class ProjectStore:
                     f"Could not publish epic integration branch {branch_name}: "
                     f"{push.stderr.strip()[:500]}"
                 )
+            # A direct-URL ``push --set-upstream`` records the URL itself as
+            # branch authority.  Preserve the intended symbolic upstream while
+            # keeping the checkout's possibly stale remote URL untouched.
+            _run(
+                ["config", f"branch.{branch_name}.remote", "origin"],
+                timeout=10,
+                check=True,
+            )
+            _run(
+                [
+                    "config",
+                    f"branch.{branch_name}.merge",
+                    f"refs/heads/{branch_name}",
+                ],
+                timeout=10,
+                check=True,
+            )
             head = _run(["rev-parse", "HEAD"], timeout=10)
             if head.returncode != 0 or not head.stdout.strip():
                 raise ProjectError(
