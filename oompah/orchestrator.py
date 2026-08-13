@@ -14903,6 +14903,14 @@ class Orchestrator:
         runtime_bound = self.workflow_runtime is not None
         if runtime_bound:
             await self.workflow_runtime.start()
+            # Nested topology repair is an orchestrator-owned auxiliary job,
+            # not a runtime action.  Older releases could leave one queued
+            # behind a deferred implementation job, so recover a bounded set
+            # independently before the initial world reconciliation.
+            await asyncio.get_running_loop().run_in_executor(
+                self._tick_pool,
+                self._recover_queued_nested_dispatch_repairs,
+            )
         if not runtime_bound and self.config.parallel_epic_children_enabled:
             # Queue reconciliation makes tracker and git calls which can take
             # minutes.  Give it an executor distinct from tick dispatch and
@@ -41220,6 +41228,139 @@ class Orchestrator:
                     reason="nested dispatch topology generation advanced",
                 )
 
+    def _recover_queued_nested_dispatch_repairs(
+        self,
+        *,
+        limit: int | None = None,
+    ) -> dict[str, int]:
+        """Boundedly wake durable topology repairs left queued across restart.
+
+        The ordinary nested-dispatch preflight schedules and immediately drives
+        these auxiliary jobs.  A process that predates that coupling can still
+        have queued rows whose associated implementation retry is not yet due.
+        Replay those rows directly for resumed projects, preserving retry
+        backoff and fencing every mutation against freshly collected topology
+        authority.
+        """
+
+        scan_limit = min(
+            max(
+                int(
+                    self.config.workflow_shadow_scan_limit
+                    if limit is None
+                    else limit
+                ),
+                1,
+            ),
+            1000,
+        )
+        result = {
+            "examined": 0,
+            "driven": 0,
+            "retired": 0,
+            "waits_cleared": 0,
+            "skipped_paused": 0,
+            "failures": 0,
+        }
+        if self._dispatch_is_blocked():
+            return result
+
+        remaining = scan_limit
+        for project in self.project_store.list_all():
+            if remaining <= 0:
+                break
+            project_id = str(getattr(project, "id", "") or "").strip()
+            if not project_id:
+                continue
+            if bool(getattr(project, "paused", False)):
+                result["skipped_paused"] += 1
+                continue
+            jobs = self.workflow_job_store.list_jobs(
+                project_id=project_id,
+                states=(WorkflowJobState.QUEUED, WorkflowJobState.RETRY_WAIT),
+                actions=(_NESTED_DISPATCH_REPAIR_ACTION,),
+                limit=remaining,
+            )
+            for job in jobs:
+                result["examined"] += 1
+                remaining -= 1
+                try:
+                    tracker = self._tracker_for_project(project_id)
+                    invalidate = getattr(tracker, "invalidate_read_cache", None)
+                    if callable(invalidate):
+                        invalidate()
+                    current = tracker.fetch_issue_detail(job.task_id)
+                    if not isinstance(current, Issue):
+                        self.workflow_job_store.cancel(
+                            job.job_id,
+                            generation=job.generation,
+                            reason="nested dispatch task is no longer available",
+                        )
+                        result["retired"] += 1
+                        continue
+                    if not current.project_id:
+                        current.project_id = project_id
+                    fresh = self._collect_nested_dispatch_evidence(current)
+                    if fresh is None:
+                        self.workflow_job_store.cancel(
+                            job.job_id,
+                            generation=job.generation,
+                            reason="task no longer requires nested dispatch repair",
+                        )
+                        result["retired"] += 1
+                        continue
+                    if fresh.generation != job.generation:
+                        # An unavailable topology is not replacement authority;
+                        # retain the old row so a transient read cannot erase
+                        # the only durable repair obligation.
+                        if fresh.topology is None:
+                            continue
+                        self._publish_nested_dispatch_wait(current, fresh)
+                        stabilized = self._collect_nested_dispatch_evidence(current)
+                        if stabilized is None:
+                            continue
+                        if stabilized.generation != fresh.generation:
+                            self._publish_nested_dispatch_wait(current, stabilized)
+                        fresh = stabilized
+                        self._schedule_nested_dispatch_repair(fresh)
+                        result["retired"] += 1
+                    if self._drive_nested_dispatch_repair(fresh):
+                        result["driven"] += 1
+
+                    invalidate = getattr(tracker, "invalidate_read_cache", None)
+                    if callable(invalidate):
+                        invalidate()
+                    refreshed_issue = tracker.fetch_issue_detail(job.task_id)
+                    if not isinstance(refreshed_issue, Issue):
+                        continue
+                    if not refreshed_issue.project_id:
+                        refreshed_issue.project_id = project_id
+                    repaired = self._collect_nested_dispatch_evidence(
+                        refreshed_issue
+                    )
+                    integration = getattr(refreshed_issue, "integration", None)
+                    had_wait = bool(
+                        isinstance(integration, IntegrationRecord)
+                        and integration.wait_reason
+                    )
+                    if repaired is not None and repaired.ready and had_wait:
+                        self._clear_nested_dispatch_wait(refreshed_issue, repaired)
+                        result["waits_cleared"] += 1
+                except Exception as exc:  # noqa: BLE001 - recover the bounded suffix
+                    result["failures"] += 1
+                    logger.warning(
+                        "Could not recover nested dispatch repair %s for %s: %s",
+                        job.job_id,
+                        job.task_id,
+                        exc,
+                    )
+
+        if result["driven"] or result["retired"] or result["waits_cleared"]:
+            self._post_dispatch_refresh()
+        if result["examined"]:
+            logger.info("Nested dispatch repair startup recovery: %s", result)
+        return result
+
     def _request_nested_epic_lineage_repair(
         self,
         evidence: NestedDispatchEvidence,
@@ -41262,7 +41403,7 @@ class Orchestrator:
     def _drive_nested_dispatch_repair(
         self,
         evidence: NestedDispatchEvidence,
-    ) -> None:
+    ) -> bool:
         """Claim/recover one exact repair job and run its generation CAS."""
 
         job = self.workflow_job_store.claim_next(
@@ -41277,7 +41418,7 @@ class Orchestrator:
             ),
         )
         if job is None or not job.lease_token:
-            return
+            return False
         try:
             with self.project_store.project_write_lock(evidence.project_id):
                 tracker = self._tracker_for_project(evidence.project_id)
@@ -41296,14 +41437,14 @@ class Orchestrator:
                         job.lease_token,
                         reason="nested dispatch generation changed before repair",
                     )
-                    return
+                    return True
                 if fresh.ready:
                     self.workflow_job_store.complete(
                         job.job_id,
                         job.lease_token,
                         result_transition={"already_reachable": True},
                     )
-                    return
+                    return True
                 if fresh.topology is None:
                     raise ProjectError(fresh.detail or fresh.reason_code)
                 try:
@@ -41344,6 +41485,7 @@ class Orchestrator:
                 )
             except WorkflowJobLeaseLost:
                 pass
+        return True
 
     def _preflight_nested_epic_dispatch(
         self,
@@ -41361,6 +41503,16 @@ class Orchestrator:
             return evidence
         if publish_wait:
             self._publish_nested_dispatch_wait(issue, evidence)
+            # Creating the first integration wait record changes task
+            # authority once (state/mode/base are lifecycle inputs). Stabilize
+            # the evidence and marker before materializing the repair job so
+            # it is not stale at birth.
+            current = self._collect_nested_dispatch_evidence(issue)
+            if current is None:
+                return evidence
+            if current.generation != evidence.generation:
+                self._publish_nested_dispatch_wait(issue, current)
+            evidence = current
         if allow_repair and evidence.topology is not None:
             self._schedule_nested_dispatch_repair(evidence)
             self._drive_nested_dispatch_repair(evidence)
