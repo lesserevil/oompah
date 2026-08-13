@@ -1878,6 +1878,33 @@ def test_untracked_same_head_base_mismatch_reports_base_identity(harness):
     assert "review head" not in alert
 
 
+def test_missing_accepted_base_reports_submission_identity_not_review(harness):
+    orch, _project, tracker, provider, _detect, gate = harness
+    accepted_head = "c" * 40
+    task = _issue("TASK-MISSING-BASE", branch="feature/missing-base")
+    task.integration = replace(
+        task.integration,
+        head_sha=accepted_head,
+        base_sha=None,
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.get_branch_head_sha.return_value = accepted_head
+    provider.find_pr_for_branch.return_value = _review(
+        task.identifier,
+        source_branch=task.work_branch,
+        head_sha=accepted_head,
+        base_sha="e" * 40,
+    )
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    assert task.state == READY_TO_INTEGRATE
+    gate.assert_not_called()
+    alert = _delivery_alerts(orch)[0]["message"]
+    assert "accepted standalone submission lacks exact base" in alert
+    assert "open review lacks exact" not in alert
+
+
 def test_restart_recovers_persisted_open_review_generation_checkpoint(
     tmp_path,
     monkeypatch,
