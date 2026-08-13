@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+import subprocess
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -36,11 +38,12 @@ from oompah.models import (
     Issue,
     OrchestratorState,
     OwnerClaim,
+    Project,
     RunningEntry,
 )
 from oompah.orchestrator import Orchestrator, _acp_text_activity_detail
 from oompah import orchestrator as orchestrator_module
-from oompah.projects import ProjectError
+from oompah.projects import ProjectError, ProjectStore
 from oompah.statuses import (
     DONE,
     DUPLICATE_CANDIDATE,
@@ -245,6 +248,125 @@ def _entry(issue: Issue, claim_id: str, fingerprint: str) -> RunningEntry:
         duplicate_preflight=True,
         duplicate_preflight_claim_id=claim_id,
         duplicate_preflight_fingerprint=fingerprint,
+    )
+
+
+def test_merged_deleted_branch_preflight_uses_accepted_immutable_head(tmp_path):
+    """A read-only screen must not reconstruct its deleted source branch."""
+
+    origin = tmp_path / "origin.git"
+    source = tmp_path / "source"
+    managed = tmp_path / "managed"
+    subprocess.run(["git", "init", "--bare", str(origin)], check=True)
+    subprocess.run(["git", "init", "-b", "main", str(source)], check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=source,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"],
+        cwd=source,
+        check=True,
+    )
+    (source / "comparison.md").write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "add", "comparison.md"], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-m", "base"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(origin)], cwd=source, check=True
+    )
+    subprocess.run(["git", "push", "-u", "origin", "main"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "symbolic-ref", "HEAD", "refs/heads/main"],
+        cwd=origin,
+        check=True,
+    )
+    subprocess.run(["git", "checkout", "-b", "TASK-1"], cwd=source, check=True)
+    (source / "comparison.md").write_text("accepted work\n", encoding="utf-8")
+    subprocess.run(["git", "add", "comparison.md"], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-m", "accepted work"], cwd=source, check=True)
+    accepted_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=source,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    subprocess.run(["git", "push", "-u", "origin", "TASK-1"], cwd=source, check=True)
+    subprocess.run(["git", "checkout", "main"], cwd=source, check=True)
+    subprocess.run(["git", "merge", "--ff-only", "TASK-1"], cwd=source, check=True)
+    subprocess.run(["git", "push", "origin", "main"], cwd=source, check=True)
+    subprocess.run(["git", "push", "origin", "--delete", "TASK-1"], cwd=source, check=True)
+    subprocess.run(["git", "clone", str(origin), str(managed)], check=True)
+
+    store = ProjectStore(
+        path=str(tmp_path / "projects.json"),
+        repos_root=str(tmp_path / "repos"),
+        worktree_root=str(tmp_path / "worktrees"),
+    )
+    project = Project(
+        id="project-1",
+        name="project",
+        repo_url=str(origin),
+        repo_path=str(managed),
+        branch="main",
+        default_branch="main",
+    )
+    store._projects[project.id] = project
+    issue = _issue()
+    issue.head_sha = accepted_head
+    issue.work_branch = "TASK-1"
+    issue.integration = IntegrationRecord(
+        state="ready",
+        task_branch="TASK-1",
+        head_sha=accepted_head,
+        base_branch="main",
+    )
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.project_store = store
+
+    workspace = orch._create_workspace_for_duplicate_preflight(
+        issue,
+        "screening-run",
+    )
+
+    assert subprocess.run(
+        ["git", "show-ref", "--verify", "refs/remotes/origin/TASK-1"],
+        cwd=managed,
+        capture_output=True,
+        check=False,
+    ).returncode != 0
+    assert subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip() == accepted_head
+    assert subprocess.run(
+        ["git", "symbolic-ref", "-q", "HEAD"],
+        cwd=workspace,
+        capture_output=True,
+        check=False,
+    ).returncode != 0
+    assert not (Path(workspace) / "comparison.md").read_text(
+        encoding="utf-8"
+    ).startswith("base")
+
+
+def test_duplicate_preflight_workspace_cleanup_is_attempt_scoped():
+    """Exit cleanup cannot remove an implementation or sibling run worktree."""
+
+    issue = _issue()
+    orch = _orch(_Tracker([issue]))
+    entry = _entry(issue, "claim-generation", compute_task_fingerprint(issue))
+    entry.run_id = "screening-run"
+
+    orch._remove_duplicate_preflight_workspace(entry)
+
+    orch.project_store.remove_worktree.assert_called_once_with(
+        issue.project_id,
+        "TASK-1--duplicate-screening-screening-run",
     )
 
 

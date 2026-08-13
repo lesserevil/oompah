@@ -3332,18 +3332,18 @@ class ProjectStore:
             self.worktree_root, _sanitize_identifier(project.name), sanitized
         )
 
-    def create_detached_audit_worktree(
+    def create_detached_readonly_worktree(
         self,
         project_id: str,
         workspace_identifier: str,
         revision: str,
     ) -> tuple[str, str]:
-        """Create a branchless, read-only audit view at an exact commit.
+        """Create a branchless, read-only view at an exact commit.
 
-        Auditor workspaces must not reuse implementation branches.  Historical
+        Read-only workers must not reuse implementation branches. Historical
         task and epic branches are routinely deleted after merge, and trying to
-        recreate them both fails legitimate retention audits and risks turning
-        a read-only audit into a branch-writing implementation checkout.
+        recreate them both fails legitimate inspection work and risks turning a
+        read-only checkout into branch-writing implementation authority.
 
         Returns ``(path, resolved_sha)``.  The caller supplies a unique
         attempt-scoped workspace identifier so an implementation worktree is
@@ -3374,7 +3374,7 @@ class ProjectStore:
                     status = self._git_status_for_worktree(wt_path)
                 except (OSError, subprocess.TimeoutExpired) as exc:
                     raise ProjectError(
-                        f"cannot verify existing terminal audit worktree: {exc}"
+                        f"cannot verify existing detached worktree: {exc}"
                     ) from exc
                 if (
                     existing.returncode == 0
@@ -3385,7 +3385,7 @@ class ProjectStore:
                     self._disable_worktree_hooks(wt_path)
                     return wt_path, resolved_sha
                 raise ProjectError(
-                    "existing terminal audit worktree does not match its "
+                    "existing detached worktree does not match its "
                     "attempt revision; refusing to reset it"
                 )
 
@@ -3399,18 +3399,32 @@ class ProjectStore:
             except subprocess.CalledProcessError as exc:
                 stderr = exc.stderr.strip()[:500] if exc.stderr else ""
                 raise ProjectError(
-                    f"terminal audit worktree add failed: {stderr}"
+                    f"detached worktree add failed: {stderr}"
                 ) from exc
             except subprocess.TimeoutExpired as exc:
-                raise ProjectError("terminal audit worktree add timed out") from exc
+                raise ProjectError("detached worktree add timed out") from exc
 
             self._disable_worktree_hooks(wt_path)
             logger.info(
-                "Detached terminal audit worktree created path=%s revision=%s",
+                "Detached read-only worktree created path=%s revision=%s",
                 wt_path,
                 resolved_sha,
             )
             return wt_path, resolved_sha
+
+    def create_detached_audit_worktree(
+        self,
+        project_id: str,
+        workspace_identifier: str,
+        revision: str,
+    ) -> tuple[str, str]:
+        """Create an attempt-scoped detached terminal-audit workspace."""
+
+        return self.create_detached_readonly_worktree(
+            project_id,
+            workspace_identifier,
+            revision,
+        )
 
     def resolve_audit_revision(self, project_id: str, revision: str) -> str:
         """Resolve one audit candidate to a full object ID without a worktree.
