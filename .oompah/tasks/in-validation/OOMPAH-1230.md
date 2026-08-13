@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1230
 type: bug
-status: Open
+status: In Validation
 priority: 2
 title: '[backend:task_transition_service] Task transition mutation guard failed project=proj-3e4e9214
   task=TRICKLE-140 reason=implementation.validation_submission'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:58:05.284702Z'
-updated_at: '2026-08-13T10:15:57.875996Z'
+updated_at: '2026-08-13T10:16:21.852363Z'
 work_branch: OOMPAH-1230
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.integration:
   version: 2
   state: ready
@@ -30,6 +30,64 @@ oompah.integration:
   submitted_at: '2026-08-13T10:15:46.222133+00:00'
   updated_at: '2026-08-13T10:15:46.222133+00:00'
 oompah.work_branch: OOMPAH-1230
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-8932fcfe13f9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1230
+    digest: 2f258e8911067244b19b2022d1efbf0999338a11c3b215cb0c5e248d40032db2
+  - version: 1
+    audit_id: audit-dd6b43e935e5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1230
+    digest: 2f258e8911067244b19b2022d1efbf0999338a11c3b215cb0c5e248d40032db2
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8932fcfe13f9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1230
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2f258e8911067244b19b2022d1efbf0999338a11c3b215cb0c5e248d40032db2
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T10:16:14.669803+00:00'
+    eligible_at: '2026-08-13T10:16:14.669803+00:00'
+    selected_ref: 320593caf587c69ada8e35b54e1b458929b34c63
+    selected_sha: 320593caf587c69ada8e35b54e1b458929b34c63
+  - version: 1
+    audit_id: audit-dd6b43e935e5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1230
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2f258e8911067244b19b2022d1efbf0999338a11c3b215cb0c5e248d40032db2
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T10:16:14.669803+00:00'
+    prerequisite_audit_id: audit-8932fcfe13f9
+    selected_ref: 320593caf587c69ada8e35b54e1b458929b34c63
+    selected_sha: 320593caf587c69ada8e35b54e1b458929b34c63
+  attempt_history: []
 ---
 ## Summary
 
