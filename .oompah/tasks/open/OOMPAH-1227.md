@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1227
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Hydrate immutable GitLab MR identity before review merge
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:16:04.050669Z'
-updated_at: '2026-08-13T09:16:04.050669Z'
+updated_at: '2026-08-13T09:16:23.219875Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 7ebb5290-c5a2-488e-9586-76491c07d68c
   request_fingerprint: 344cc165d4c7e22ad84d51c59e84eaa4c68fa512d3bfc1da15c5cc44f2e06548
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -35,3 +36,11 @@ Bug: GitLab merge-request list responses can omit diff_refs/base_sha (as observe
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 09:16
+---
+Claimed directly for live scheduling recovery. Reproduced on TRICKLE-118: GitLab MR list evidence reported exact head and successful CI but blank base_sha; MR detail reports base_sha 983b2f1f…. The review_merge job exhausted stale_evidence and left the project review slot blocked. Implementing fail-closed detail hydration now.
+---
+<!-- COMMENTS:END -->
