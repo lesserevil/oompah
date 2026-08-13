@@ -2332,6 +2332,9 @@ def test_accepted_ordinary_submission_waits_for_final_worker_publication(
                 base_sha=None,
             )
         )
+        orch.project_store.get = MagicMock(
+            return_value=SimpleNamespace(default_branch="main")
+        )
         orch._match_agent_profile = MagicMock(
             return_value=MagicMock(name="default", model_role="fast")
         )
