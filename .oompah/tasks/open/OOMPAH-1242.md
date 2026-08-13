@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T14:32:41.192085Z'
-updated_at: '2026-08-13T14:34:36.695143Z'
+updated_at: '2026-08-13T14:40:09.185346Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,3 +36,11 @@ Scope: fix restart recovery and durable nested-dispatch repair execution so an e
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 14:40
+---
+Implemented exact-authority retirement in both startup recovery and the post-claim race boundary. An exact epic-rebase helper now cancels its obsolete nested topology repair before any fast-forward mutation; ordinary/title-shaped tasks remain fenced. Added restart and claim-race regressions. Focused suite: 103 passed; terminal mutation and secret scans passed.
+---
+<!-- COMMENTS:END -->

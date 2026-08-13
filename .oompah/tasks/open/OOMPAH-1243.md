@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T14:32:43.240296Z'
-updated_at: '2026-08-13T14:34:41.855180Z'
+updated_at: '2026-08-13T14:40:15.022058Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,3 +36,11 @@ Scope: make EpicWorkflowEventRouter shutdown idempotently reject or coalesce lat
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 14:40
+---
+Implemented an explicit EpicWorkflowEventRouter close/admission fence. Already accepted work drains exactly once; late events and shared-pool shutdown races resolve as restart-reconciled no-ops instead of escaping RuntimeError. Added deterministic close/late-delivery tests. Focused suite: 103 passed; terminal mutation and secret scans passed.
+---
+<!-- COMMENTS:END -->
