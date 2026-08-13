@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T10:08:08.871557Z'
-updated_at: '2026-08-13T10:38:38.297950Z'
-work_branch: null
+updated_at: '2026-08-13T10:46:24.509973Z'
+work_branch: OOMPAH-1232
 target_branch: null
 review_url: null
 review_number: null
@@ -25,6 +25,16 @@ oompah.create_once:
   creation_marker: c5389a39-0475-4191-ada8-e49be43cf34d
   request_fingerprint: 93e69203bf22fff1b3823d66fe5518d3cdd5e33c5e812ee0770173ee78c214c4
 oompah.lifecycle_revision: 1
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1232
+  head_sha: 3ab523c787c6856073f95e8dbbabace2820ac07c
+  submitted_at: '2026-08-13T10:46:12.151525+00:00'
+  updated_at: '2026-08-13T10:46:12.151525+00:00'
+oompah.work_branch: OOMPAH-1232
 ---
 ## Summary
 
@@ -42,5 +52,10 @@ author: oompah
 created: 2026-08-13 10:38
 ---
 Claimed directly. Root cause refined from live durable rows: nested preflight enqueues and synchronously drives nested_dispatch_topology_repair from inside a leased implementation_start job, but WorkflowJobStore.claim_next rejects every repair because any running job for the same task blocks the claim. The implementation job then administratively defers and repeats, leaving the repair queued forever. Fix will permit only this explicitly safe pre-effect implementation→topology-repair overlap, preserve all other per-task exclusion, and test restart/retry convergence and unrelated-action isolation.
+---
+author: oompah
+created: 2026-08-13 10:46
+---
+Fixed the nested topology self-deadlock. WorkflowJobStore now accepts an explicit compatible-running-action set; the repair path uses it only for pre-effect implementation start/recovery/handoff owners, preserving ordinary same-task exclusion. Nested preflight immediately recollects evidence after repair so a successful CAS admits dispatch in the same pass. Added store isolation and live-shaped preflight overlap regressions. Validation: 366 workflow job/runtime/implementation/topology tests passed; terminal mutation scan passed. Commit 3ab523c78 pushed.
 ---
 <!-- COMMENTS:END -->
