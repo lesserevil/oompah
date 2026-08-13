@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T14:50:06.067428Z'
-updated_at: '2026-08-13T14:50:23.195139Z'
+updated_at: '2026-08-13T14:56:12.653545Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-13 14:50
 ---
 Live evidence: TRICKLE-141 is canonical In Progress with no running agent; work decision schedules implementation_recovery, while jobs 16837 and 16838 exhausted and 16842 retried because _should_dispatch returned completed. The previous worker left rebased candidate 26bfa49ab18e34ce6660fcf62ef910a37a79fcbd on local TRICKLE-130 after scoped publish capability was unavailable.
+---
+author: oompah
+created: 2026-08-13 14:56
+---
+Implemented on PR #868: exact durable recovery may release only an ownerless In Progress legacy completion fence. Accepted submissions, live owners, terminal/provenance fences, and ordinary dispatch remain blocked. Regression set: 4 focused admission tests plus 173 adjacent workflow tests pass; terminal mutation and secret scans pass.
 ---
 <!-- COMMENTS:END -->
