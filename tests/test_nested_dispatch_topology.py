@@ -584,7 +584,14 @@ def test_preflight_repairs_inside_running_implementation_lease(tmp_path):
         private_remote_head=topology.target_head,
         private_local_head=topology.target_head,
     )
-    observations = iter((evidence, evidence, replace(evidence, topology=repaired, ready=True)))
+    observations = iter(
+        (
+            evidence,
+            evidence,
+            evidence,
+            replace(evidence, topology=repaired, ready=True),
+        )
+    )
     orchestrator._collect_nested_dispatch_evidence = MagicMock(
         side_effect=lambda _issue: next(observations)
     )
@@ -606,6 +613,206 @@ def test_preflight_repairs_inside_running_implementation_lease(tmp_path):
     assert len(repairs) == 1
     assert repairs[0].state is WorkflowJobState.COMPLETED
     assert orchestrator.workflow_job_store.get(running.job_id).state is WorkflowJobState.RUNNING
+
+
+def test_startup_recovery_wakes_queued_repair_and_clears_wait(tmp_path):
+    orchestrator, _tracker, child, _nested, topology = (
+        _oompah_770_796_fixture(tmp_path)
+    )
+    waiting = orchestrator._preflight_nested_epic_dispatch(
+        child,
+        allow_repair=False,
+    )
+    assert waiting is not None and not waiting.ready
+    orchestrator._schedule_nested_dispatch_repair(waiting)
+    repaired = replace(
+        topology,
+        nested_head=topology.target_head,
+        private_remote_head=topology.target_head,
+        private_local_head=topology.target_head,
+    )
+
+    def advance(*_args, **_kwargs):
+        orchestrator.project_store.observe_nested_dispatch_topology.return_value = (
+            repaired
+        )
+        orchestrator.project_store.nested_dispatch_head_reachable.side_effect = None
+        orchestrator.project_store.nested_dispatch_head_reachable.return_value = True
+        return repaired
+
+    orchestrator.project_store.advance_nested_dispatch_topology.side_effect = advance
+    orchestrator._post_dispatch_refresh = MagicMock()
+
+    result = orchestrator._recover_queued_nested_dispatch_repairs()
+
+    jobs = orchestrator.workflow_job_store.list_jobs(
+        project_id="proj-1",
+        task_id=child.identifier,
+        actions=("nested_dispatch_topology_repair",),
+    )
+    assert result == {
+        "examined": 1,
+        "driven": 1,
+        "retired": 0,
+        "waits_cleared": 1,
+        "skipped_paused": 0,
+        "failures": 0,
+    }
+    assert jobs[0].state is WorkflowJobState.COMPLETED
+    assert child.integration is not None
+    assert child.integration.wait_reason is None
+    orchestrator._post_dispatch_refresh.assert_called_once_with()
+
+
+def test_first_wait_materializes_repair_with_stabilized_task_authority(tmp_path):
+    orchestrator, _tracker, child, _nested, _topology = (
+        _oompah_770_796_fixture(tmp_path)
+    )
+    orchestrator._drive_nested_dispatch_repair = MagicMock(return_value=False)
+
+    evidence = orchestrator._preflight_nested_epic_dispatch(child)
+
+    assert evidence is not None and not evidence.ready
+    jobs = orchestrator.workflow_job_store.list_jobs(
+        project_id="proj-1",
+        task_id=child.identifier,
+        actions=("nested_dispatch_topology_repair",),
+    )
+    assert len(jobs) == 1
+    assert jobs[0].generation == evidence.generation
+    assert child.integration is not None
+    assert child.integration.wait_generation == evidence.generation
+
+
+def test_startup_recovery_leaves_paused_project_repair_untouched(tmp_path):
+    orchestrator, _tracker, child, _nested, _topology = (
+        _oompah_770_796_fixture(tmp_path)
+    )
+    evidence = orchestrator._collect_nested_dispatch_evidence(child)
+    assert evidence is not None
+    orchestrator._schedule_nested_dispatch_repair(evidence)
+    orchestrator.project_store.list_all.return_value[0].paused = True
+    orchestrator._post_dispatch_refresh = MagicMock()
+
+    result = orchestrator._recover_queued_nested_dispatch_repairs()
+
+    jobs = orchestrator.workflow_job_store.list_jobs(
+        project_id="proj-1",
+        task_id=child.identifier,
+        actions=("nested_dispatch_topology_repair",),
+    )
+    assert result["examined"] == 0
+    assert result["skipped_paused"] == 1
+    assert jobs[0].state is WorkflowJobState.QUEUED
+    orchestrator.project_store.advance_nested_dispatch_topology.assert_not_called()
+    orchestrator._post_dispatch_refresh.assert_not_called()
+
+
+def test_startup_recovery_supersedes_stale_topology_generation(tmp_path):
+    orchestrator, _tracker, child, _nested, topology = (
+        _oompah_770_796_fixture(tmp_path)
+    )
+    stale = orchestrator._collect_nested_dispatch_evidence(child)
+    assert stale is not None
+    orchestrator._schedule_nested_dispatch_repair(stale)
+    changed = replace(topology, nested_head="b" * 40)
+    orchestrator.project_store.observe_nested_dispatch_topology.return_value = changed
+    fresh = orchestrator._collect_nested_dispatch_evidence(child)
+    assert fresh is not None and fresh.generation != stale.generation
+    orchestrator._post_dispatch_refresh = MagicMock()
+
+    result = orchestrator._recover_queued_nested_dispatch_repairs()
+
+    jobs = orchestrator.workflow_job_store.list_jobs(
+        project_id="proj-1",
+        task_id=child.identifier,
+        actions=("nested_dispatch_topology_repair",),
+    )
+    assert result["retired"] == 1
+    assert result["driven"] == 1
+    assert len(jobs) == 2
+    assert jobs[0].state is WorkflowJobState.SUPERSEDED
+    assert jobs[0].superseded_by_generation == jobs[1].generation
+    assert jobs[1].generation not in {stale.generation, fresh.generation}
+    orchestrator.project_store.advance_nested_dispatch_topology.assert_called_once()
+    orchestrator._post_dispatch_refresh.assert_called_once_with()
+
+
+def test_startup_recovery_preserves_retry_backoff(tmp_path):
+    orchestrator, _tracker, child, _nested, _topology = (
+        _oompah_770_796_fixture(tmp_path)
+    )
+    evidence = orchestrator._collect_nested_dispatch_evidence(child)
+    assert evidence is not None
+    orchestrator._schedule_nested_dispatch_repair(evidence)
+    claimed = orchestrator.workflow_job_store.claim_next(
+        lease_owner="failed-repair",
+        lease_seconds=60,
+        project_id="proj-1",
+        task_id=child.identifier,
+        actions=("nested_dispatch_topology_repair",),
+    )
+    assert claimed is not None and claimed.lease_token
+    retry = orchestrator.workflow_job_store.fail(
+        claimed.job_id,
+        claimed.lease_token,
+        category="transient",
+        error="temporary topology failure",
+        retryable=True,
+        retry_delay_seconds=3600,
+    )
+    orchestrator._post_dispatch_refresh = MagicMock()
+
+    result = orchestrator._recover_queued_nested_dispatch_repairs()
+
+    unchanged = orchestrator.workflow_job_store.get(claimed.job_id)
+    assert result["examined"] == 1
+    assert result["driven"] == 0
+    assert unchanged.state is WorkflowJobState.RETRY_WAIT
+    assert unchanged.retry_at == retry.retry_at
+    assert unchanged.attempts == retry.attempts
+    orchestrator._post_dispatch_refresh.assert_not_called()
+
+
+def test_startup_recovery_is_bounded_and_ignores_unrelated_jobs(tmp_path):
+    orchestrator, _tracker, child, _nested, _topology = (
+        _oompah_770_796_fixture(tmp_path)
+    )
+    for index in range(2):
+        orchestrator.workflow_job_store.enqueue(
+            WorkflowJobSpec(
+                project_id="proj-1",
+                task_id=f"missing-{index}",
+                generation=f"generation-{index}",
+                action="nested_dispatch_topology_repair",
+                idempotency_key=f"nested-repair-{index}",
+            )
+        )
+    unrelated = orchestrator.workflow_job_store.enqueue(
+        WorkflowJobSpec(
+            project_id="proj-1",
+            task_id=child.identifier,
+            generation="unrelated-generation",
+            action="unrelated_workflow_action",
+            idempotency_key="unrelated-startup-work",
+        )
+    )
+    orchestrator._post_dispatch_refresh = MagicMock()
+
+    result = orchestrator._recover_queued_nested_dispatch_repairs(limit=1)
+
+    repairs = orchestrator.workflow_job_store.list_jobs(
+        project_id="proj-1",
+        actions=("nested_dispatch_topology_repair",),
+    )
+    assert result["examined"] == 1
+    assert [job.state for job in repairs] == [
+        WorkflowJobState.CANCELLED,
+        WorkflowJobState.QUEUED,
+    ]
+    assert orchestrator.workflow_job_store.get(unrelated.job_id).state is (
+        WorkflowJobState.QUEUED
+    )
 
 
 def _git(repo: Path, *args: str) -> str:
