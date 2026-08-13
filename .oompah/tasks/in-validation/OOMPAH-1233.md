@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1233
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Recognize landed standalone submissions after source branch deletion
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T10:25:26.660518Z'
-updated_at: '2026-08-13T10:31:42.116397Z'
+updated_at: '2026-08-13T10:47:06.016217Z'
 work_branch: OOMPAH-1233
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 6b34eecc-c88d-485e-86a2-e62b75d7493a
   request_fingerprint: aa782013cdbafb0b5c541f0295c2ecb65e5297e67b4c97a81dbdd9875bbac022
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.integration:
   version: 2
   state: ready
@@ -35,6 +35,64 @@ oompah.integration:
   submitted_at: '2026-08-13T10:31:33.095227+00:00'
   updated_at: '2026-08-13T10:31:33.095227+00:00'
 oompah.work_branch: OOMPAH-1233
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-fc08a1a3f68f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1233
+    digest: eac24b5776ffc0a8b16c1ac77eb7b116efde8db1afc5fa39605cc3df8d59460c
+  - version: 1
+    audit_id: audit-1bb2efa68b22
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1233
+    digest: eac24b5776ffc0a8b16c1ac77eb7b116efde8db1afc5fa39605cc3df8d59460c
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-fc08a1a3f68f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1233
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: eac24b5776ffc0a8b16c1ac77eb7b116efde8db1afc5fa39605cc3df8d59460c
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T10:46:58.431485+00:00'
+    eligible_at: '2026-08-13T10:46:58.431485+00:00'
+    selected_ref: d93f9a2fe38c8237901b3589fca8550a63333cc8
+    selected_sha: d93f9a2fe38c8237901b3589fca8550a63333cc8
+  - version: 1
+    audit_id: audit-1bb2efa68b22
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1233
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: eac24b5776ffc0a8b16c1ac77eb7b116efde8db1afc5fa39605cc3df8d59460c
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-13T10:46:58.431485+00:00'
+    prerequisite_audit_id: audit-fc08a1a3f68f
+    selected_ref: d93f9a2fe38c8237901b3589fca8550a63333cc8
+    selected_sha: d93f9a2fe38c8237901b3589fca8550a63333cc8
+  attempt_history: []
 ---
 ## Summary
 
