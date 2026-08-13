@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T18:57:41.903878Z'
-updated_at: '2026-08-13T21:55:30.407090Z'
+updated_at: '2026-08-13T22:12:22.596381Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,5 +47,10 @@ author: oompah
 created: 2026-08-13 21:55
 ---
 Implementation pushed at 79c80fc2c and opened as PR #874. Focused regression suites (260 tests), wider workflow/terminal suites (904 tests), terminal-audit mutation scan, secret scan, and diff checks pass. Full make test gate is still running; merge and live recovery remain pending that gate and CI.
+---
+author: oompah
+created: 2026-08-13 22:12
+---
+Independent exact-head review found two blockers before merge: incomplete GitLab project/parent/branch projection and a two-write crash window between parent REBASED state and target evidence. Both are fixed at updated head 609cec731: GitLab now canonicalizes parent identity and projects exact scope/branches; parent state+target now persist in one durable snapshot before label I/O, with existing target retained across transitions. New adapter and simulated-crash/restart regressions pass. Verification: 730 tracker tests, 638 workflow/audit tests, terminal scan 21/21. Fresh exact-head review and CI are running.
 ---
 <!-- COMMENTS:END -->
