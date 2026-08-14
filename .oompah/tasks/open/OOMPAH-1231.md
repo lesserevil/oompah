@@ -5,13 +5,14 @@ status: Open
 priority: null
 title: Park externally blocked implementations instead of hourly redispatch
 parent: null
-children: []
+children:
+- OOMPAH-1262
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T10:05:01.537298Z'
-updated_at: '2026-08-14T02:28:39.917276Z'
+updated_at: '2026-08-14T02:39:21.397106Z'
 work_branch: null
 target_branch: null
 review_url: null
