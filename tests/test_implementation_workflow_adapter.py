@@ -2220,6 +2220,68 @@ async def test_prerequisite_resolution_rejects_task_authority_race(tmp_path):
     effects.receipts.close()
 
 
+@pytest.mark.asyncio
+async def test_prerequisite_resolution_saga_resumes_review_once_across_restart(
+    tmp_path,
+):
+    issue = make_issue(status=NEEDS_HUMAN)
+    issue.review_number = "20"
+    issue.review_head = HEAD_A
+    expected_authority = issue_authority_version(issue)
+    _record, payload = prerequisite_resolution_payload(
+        issue, expected_authority=expected_authority
+    )
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    orch.workflow_job_store.close()
+    jobs, _context = make_context(
+        tmp_path,
+        generation="resolution-generation",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=expected_authority,
+    )
+    orch.workflow_job_store = jobs
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    handler = ImplementationWorkflowHandler(
+        ProductionImplementationWorkflowBackend(effects)
+    )
+    journal = TransitionJournal(str(tmp_path / "resolution-transitions.sqlite3"))
+    transition_service = TaskTransitionService(
+        project_id="project-a",
+        tracker=tracker,
+        journal=journal,
+    )
+    worker = DurableWorkflowWorker(
+        store=jobs,
+        handlers={ImplementationAction.PREREQUISITE_RESOLUTION.value: handler},
+        transition_services={"project-a": transition_service},
+        worker_id="resolution-worker",
+        lease_seconds=10,
+        heartbeat_seconds=1,
+    )
+
+    first = await worker.run_once()
+    replay = await worker.run_once()
+
+    assert first.disposition is WorkflowRunDisposition.COMPLETED
+    assert replay.disposition is WorkflowRunDisposition.IDLE
+    assert issue.state == IN_REVIEW
+    assert tracker.status_writes == [(issue.identifier, IN_REVIEW)]
+    completed = jobs.list_jobs()[0]
+    assert completed.state is WorkflowJobState.COMPLETED
+    assert (
+        completed.checkpoint["transition_intent"]["reason_code"]
+        == "implementation.prerequisite_resolution"
+    )
+    assert completed.checkpoint["verification"]["disposition"]["state"] == (
+        ImplementationState.COMPLETED.value
+    )
+    journal.close()
+    effects.receipts.close()
+    jobs.close()
+
+
 def test_shadow_handler_construction_is_zero_write_and_total(tmp_path):
     issue = make_issue()
     tracker = Tracker(issue)
