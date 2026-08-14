@@ -12,8 +12,8 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:54.222347Z'
-updated_at: '2026-08-14T07:00:14.983712Z'
-work_branch: null
+updated_at: '2026-08-14T07:32:46.952950Z'
+work_branch: OOMPAH-1264
 target_branch: null
 review_url: null
 review_number: null
@@ -27,6 +27,18 @@ oompah.create_once:
   request_fingerprint: 1f4866dfd9890e09cbc705a0030d9bf030cc49ba6b22639e33bb93bbf52f65e5
 oompah.start_blocked_by: *id001
 oompah.lifecycle_revision: 1
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-1264
+  base_branch: epic-OOMPAH-1231
+  base_sha: ae57ba61bae24db3f17f390b1b5ace43f313c23d
+  head_sha: 038e10c2de1f1515ea19e7a63dbc2d3745137407
+  submitted_at: '2026-08-14T07:32:37.869357+00:00'
+  updated_at: '2026-08-14T07:32:37.869357+00:00'
+oompah.work_branch: OOMPAH-1264
 ---
 ## Summary
 
@@ -64,5 +76,10 @@ author: oompah
 created: 2026-08-14 07:00
 ---
 Final reviewed head 038e10c2de1f1515ea19e7a63dbc2d3745137407 is frozen clean. Independent blocking review signed off after exact CAS/lifecycle/provider/integration/profile race corrections. Authoritative plain make test: 20,568 passed, 7 skipped, 2 xfailed, zero failures in 22m34s; terminal mutation scan 21/21 passed. Publishing PR 881 update for supported-Python hosted CI.
+---
+author: oompah
+created: 2026-08-14 07:32
+---
+Implemented exact owner-authenticated prerequisite resolution with blocker/run/task-authority CAS, idempotent receipts, one fresh continuation generation, profile/dependency/operator triggers, and stale provider/review/integration fencing. Independent review signed off exact head 038e10c2; full local gate passed 20,568 tests plus 21/21 mutation scan, and hosted CI passed Python 3.11, 3.12, and 3.13.
 ---
 <!-- COMMENTS:END -->
