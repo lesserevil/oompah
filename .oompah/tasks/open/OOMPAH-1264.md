@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:54.222347Z'
-updated_at: '2026-08-14T03:55:03.271828Z'
+updated_at: '2026-08-14T04:09:20.196937Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-08-14 03:55
 ---
 Claimed for direct implementation in /home/shedwards/src/oompah-1264 on branch OOMPAH-1264, based on integrated prerequisite bf53cfb7a35c8c9773557712b55cbe09d5de6ef6 from epic-OOMPAH-1231. Oompah remains paused.
+---
+author: oompah
+created: 2026-08-14 04:09
+---
+Implementation checkpoint: immutable project-owner resolution receipt and exact blocker/run/task-authority CAS are committed locally at 587aab590a7d352c988f35c7cbdf3a80c40c37e2. Lost-response idempotency, conflicting/stale/malformed authority, exact continuation evidence, and native/GitHub/GitLab projections pass 64 focused tests. Distinct resolution-lane workflow and authenticated API/CLI slices are in progress.
 ---
 <!-- COMMENTS:END -->

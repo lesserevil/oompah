@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:37.692542Z'
-updated_at: '2026-08-14T03:55:00.079862Z'
+updated_at: '2026-08-14T04:09:17.446937Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-08-14 03:55
 ---
 Claimed for direct implementation in /home/shedwards/src/oompah-1263 on branch OOMPAH-1263, based on integrated prerequisite bf53cfb7a35c8c9773557712b55cbe09d5de6ef6 from epic-OOMPAH-1231. Oompah remains paused.
+---
+author: oompah
+created: 2026-08-14 04:09
+---
+Implementation checkpoint: exact managed zero-job lane retirement and publication rollback/restart fencing are implemented; six focused store regressions pass. Decision classification now keeps dependency waits quiet, retains real operator/platform warnings, gives accepted submissions precedence, and schedules exact outgoing-source revocation before parking. Nested topology final-lease fencing and runtime race coverage are in progress in parallel.
 ---
 <!-- COMMENTS:END -->
