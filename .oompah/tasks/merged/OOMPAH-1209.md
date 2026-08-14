@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1209
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Restart reconstruction recognizes protected epic event jobs
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:08:42.935045Z'
-updated_at: '2026-08-13T03:29:07.695682Z'
+updated_at: '2026-08-14T03:41:38.596937Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,6 +37,29 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1209
     digest: 77c1ed1c72c690108cd8989f7bb80c5f7a02f579e6601aae0e9b4a53e47c0b44
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-cdac0a52e5a0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1209
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 77c1ed1c72c690108cd8989f7bb80c5f7a02f579e6601aae0e9b4a53e47c0b44
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner terminal closure while Oompah scheduling remains intentionally
+      paused: PR 847 head 6bb76c69 merged as 50fbe399; all Python 3.11, 3.12, and
+      3.13 CI jobs passed; the merge is included in deployed main 948ef6f; queued
+      terminal audits have zero attempts and no recorded error or unresolved review
+      blocker.'
+    created_at: '2026-08-14T03:41:34.158332+00:00'
+    selected_ref: origin/OOMPAH-1209
+    selected_sha: 6bb76c69179c43c82bc7fc2e9aaeb5398128162d
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -82,7 +105,7 @@ oompah.terminal_audit:
     selected_ref: origin/OOMPAH-1209
     selected_sha: 6bb76c69179c43c82bc7fc2e9aaeb5398128162d
   attempt_history: []
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 ---
 ## Summary
 
