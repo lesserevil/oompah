@@ -3327,6 +3327,8 @@ class WorkflowJobStore:
         decision_revision: str,
         snapshot_generation: int,
         next_reassessment_at: float | None = None,
+        protected_action: str | None = None,
+        protected_scheduling_lanes: Sequence[str] = (),
         now: float | None = None,
     ) -> WorkflowScheduleCursor:
         """CAS one decision into the durable task scheduling cursor.
@@ -3347,6 +3349,24 @@ class WorkflowJobStore:
             if next_reassessment_at is None
             else float(next_reassessment_at)
         )
+        protected_lanes = tuple(
+            sorted(
+                {
+                    _required_text(lane, "protected_scheduling_lane")
+                    for lane in protected_scheduling_lanes
+                }
+            )
+        )
+        protected_job_action = (
+            _required_text(protected_action, "protected_action")
+            if protected_action is not None
+            else None
+        )
+        if (protected_job_action is None) != (not protected_lanes):
+            raise ValueError(
+                "protected_action and protected_scheduling_lanes must be "
+                "supplied together"
+            )
         timestamp = float(self._clock() if now is None else now)
 
         def job_generation(deadline_at: float | None) -> str:
@@ -3409,26 +3429,74 @@ class WorkflowJobStore:
                     existing_generation = str(existing["job_generation"])
                     recurrence_due = False
                     if not changed:
+                        rows = self._conn.execute(
+                            """
+                            SELECT state
+                              FROM workflow_jobs
+                             WHERE project_id = ? AND task_id = ?
+                               AND generation = ?
+                               AND scheduling_lane = 'decision'
+                               AND workflow_managed = 1
+                            """,
+                            (project, task, existing_generation),
+                        ).fetchall()
                         states = {
-                            WorkflowJobState(str(row["state"]))
-                            for row in self._conn.execute(
-                                """
-                                SELECT state FROM workflow_jobs
-                                 WHERE project_id = ? AND task_id = ?
-                                   AND generation = ?
-                                   AND scheduling_lane = 'decision'
-                                   AND workflow_managed = 1
-                                """,
-                                (project, task, existing_generation),
-                            ).fetchall()
+                            WorkflowJobState(str(row["state"])) for row in rows
                         }
                         scheduled_deadline = _schedule_reassessment_deadline(
                             existing_generation
                         )
-                        recurrence_due = bool(
-                            states
-                            and not (states & ACTIVE_JOB_STATES)
-                            and WorkflowJobState.EXHAUSTED not in states
+                        # Worker revalidation may supersede a recurring job
+                        # before its next deadline without changing the
+                        # semantic decision.  That row no longer proves live
+                        # restart authority, so rotate immediately unless an
+                        # exact event generation still owns execution.  An
+                        # explicit cancellation or exhaustion remains a fence,
+                        # while normal completion retains deadline semantics.
+                        live_replacement = False
+                        if protected_job_action is not None:
+                            replacements = self._conn.execute(
+                                f"""
+                                SELECT state, phase, lease_owner, lease_expires_at
+                                  FROM workflow_jobs
+                                 WHERE project_id = ? AND task_id = ?
+                                   AND action = ? AND workflow_managed = 0
+                                   AND scheduling_lane IN (
+                                       {','.join('?' for _ in protected_lanes)}
+                                   )
+                                   AND state IN (
+                                       {','.join('?' for _ in ACTIVE_JOB_STATES)}
+                                   )
+                                 ORDER BY enqueue_sequence DESC
+                                """,
+                                (
+                                    project,
+                                    task,
+                                    protected_job_action,
+                                    *protected_lanes,
+                                    *(state.value for state in ACTIVE_JOB_STATES),
+                                ),
+                            ).fetchall()
+                            live_replacement = any(
+                                _job_row_proves_live_authority(
+                                    replacement, now=timestamp
+                                )
+                                or (
+                                    str(replacement["state"])
+                                    == WorkflowJobState.RUNNING.value
+                                    and str(replacement["phase"])
+                                    == "quarantined"
+                                )
+                                for replacement in replacements
+                            )
+                        authority_retired = bool(
+                            WorkflowJobState.SUPERSEDED in states
+                            and not live_replacement
+                            and scheduled_deadline is not None
+                        )
+                        recurrence_due = authority_retired or bool(
+                            states == {WorkflowJobState.COMPLETED}
+                            and not live_replacement
                             and scheduled_deadline is not None
                             and timestamp >= scheduled_deadline
                         )

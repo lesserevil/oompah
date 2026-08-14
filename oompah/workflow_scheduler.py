@@ -505,6 +505,12 @@ class WorkflowJobScheduler:
                     snapshot_generation=generation,
                 )
             for decision in all_decisions:
+                protected_action = (
+                    decision.durable_jobs[0]
+                    if len(decision.durable_jobs) == 1
+                    and self._protected_event_lane_prefixes
+                    else None
+                )
                 cursor = self.store.activate_schedule(
                     project_id=decision.project_id,
                     task_id=decision.task_id,
@@ -516,6 +522,15 @@ class WorkflowJobScheduler:
                         ).timestamp()
                         if decision.next_reassessment_at is not None
                         else None
+                    ),
+                    protected_action=protected_action,
+                    protected_scheduling_lanes=(
+                        tuple(
+                            f"{prefix}{protected_action}"
+                            for prefix in self._protected_event_lane_prefixes
+                        )
+                        if protected_action is not None
+                        else ()
                     ),
                 )
                 if not cursor.accepted:
