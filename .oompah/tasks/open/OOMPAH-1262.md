@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:20.238127Z'
-updated_at: '2026-08-14T03:44:18.269759Z'
-work_branch: null
+updated_at: '2026-08-14T03:46:27.348176Z'
+work_branch: OOMPAH-1262
 target_branch: null
 review_url: null
 review_number: null
@@ -25,6 +25,18 @@ oompah.create_once:
   creation_marker: oompah-1231-prerequisite-authority-v1
   request_fingerprint: e38becde52d97174b7098c49b23a59fd1eae8ff01d7dbaf2d7272a97f3cae836
 oompah.lifecycle_revision: 1
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-1262
+  base_branch: epic-OOMPAH-1231
+  base_sha: 948ef6f207eabe4c26910d8fc276d6d36b659e76
+  head_sha: 68882b83d707a3cfb4988516dba17f1a838014dd
+  submitted_at: '2026-08-14T03:46:12.493223+00:00'
+  updated_at: '2026-08-14T03:46:12.493223+00:00'
+oompah.work_branch: OOMPAH-1262
 ---
 ## Summary
 
@@ -52,5 +64,10 @@ author: oompah
 created: 2026-08-14 03:44
 ---
 Frozen implementation rebased onto tree-identical merged main as exact commit 68882b83d707a3cfb4988516dba17f1a838014dd and pushed in PR 879 with squash auto-merge enabled. Broad affected batch passes 1,020 tests; final focused rerun passes 134; independent blocking review is GO on all five authority/race gates. The branch contains only the OOMPAH-1262 commit.
+---
+author: oompah
+created: 2026-08-14 03:46
+---
+Implemented strict durable external-prerequisite authority, execution-capability profile selection, restart-safe projection, jobless non-transient unavailable outcomes, and exact HTTP/ACP/runtime/profile race fencing. Exact head 68882b83d707a3cfb4988516dba17f1a838014dd is in PR 879 targeting the now-published epic-OOMPAH-1231 integration branch, with auto-merge enabled and CI running.
 ---
 <!-- COMMENTS:END -->
