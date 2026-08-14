@@ -1786,7 +1786,20 @@ def test_incident_standalone_delivery_ignores_benign_metadata_churn():
             FactDomain.INTEGRATION: _known(
                 FactDomain.INTEGRATION,
                 {"state": "ready", "mode": "standalone", "head_sha": "a" * 40},
-            )
+            ),
+            FactDomain.CONFIG: _known(
+                FactDomain.CONFIG,
+                {
+                    "version": 1,
+                    "accepted_submission_recovery_state": (
+                        "accepted_submission_exact"
+                    ),
+                    "accepted_submission_head": "a" * 40,
+                    "accepted_submission_branch_head": "a" * 40,
+                    "accepted_submission_review_head": "d" * 40,
+                    "accepted_submission_review_identity": "ambiguous",
+                },
+            ),
         },
     )
 
@@ -1794,6 +1807,72 @@ def test_incident_standalone_delivery_ignores_benign_metadata_churn():
 
     assert decision.reason_code == "standalone.delivery_eligible"
     assert decision.durable_jobs == ("standalone_delivery",)
+
+
+@pytest.mark.parametrize(
+    ("recovery_state", "reason", "disposition", "alert"),
+    [
+        (
+            "accepted_submission_branch_advanced",
+            "standalone.resubmission_required",
+            TaskDisposition.ACTION_REQUIRED,
+            AlertSeverity.WARNING,
+        ),
+        (
+            "accepted_submission_branch_unavailable",
+            "standalone.remote_identity_unavailable",
+            TaskDisposition.BLOCKED,
+            AlertSeverity.INFO,
+        ),
+        (
+            "accepted_submission_remote_ambiguous",
+            "standalone.remote_identity_ambiguous",
+            TaskDisposition.BLOCKED,
+            AlertSeverity.INFO,
+        ),
+    ],
+)
+def test_ready_standalone_remote_drift_decisions_are_jobless(
+    recovery_state,
+    reason,
+    disposition,
+    alert,
+):
+    issue = _issue(READY_TO_INTEGRATE)
+    accepted_head = "a" * 40
+    observed_head = "c" * 40
+    facts = _facts(
+        issue,
+        overrides={
+            FactDomain.INTEGRATION: _known(
+                FactDomain.INTEGRATION,
+                {
+                    "state": "ready",
+                    "mode": "standalone",
+                    "head_sha": accepted_head,
+                },
+            ),
+            FactDomain.CONFIG: _known(
+                FactDomain.CONFIG,
+                {
+                    "version": 1,
+                    "accepted_submission_recovery_state": recovery_state,
+                    "accepted_submission_head": accepted_head,
+                    "accepted_submission_branch_head": observed_head,
+                    "accepted_submission_review_head": observed_head,
+                },
+            ),
+        },
+    )
+
+    decision = evaluate_task(issue, facts)
+
+    assert decision.reason_code == reason
+    assert decision.disposition is disposition
+    assert decision.alert_level is alert
+    assert decision.durable_jobs == ()
+    assert decision.unmet_prerequisites[0].code == reason
+    assert decision.unmet_prerequisites[0].subject == accepted_head
 
 
 @pytest.mark.parametrize("retirement_pending", [False, True])

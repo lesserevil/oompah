@@ -27,6 +27,7 @@ from oompah.integration_workflow import (
     IntegrationRoute,
     IntegrationWorkflowController,
     IntegrationWorkflowHandler,
+    StandaloneDeliveryOutcome,
     classify_integration_result,
     schedule_project_historical_replay,
 )
@@ -302,6 +303,187 @@ async def test_standalone_review_capacity_wait_is_administrative_deferral():
 
 
 @pytest.mark.asyncio
+async def test_standalone_remote_head_drift_supersedes_exact_accepted_generation():
+    accepted_head = "a" * 40
+    observed_head = "b" * 40
+    selected = issue("TASK-DRIFT", head=accepted_head)
+    selected.parent_id = None
+    selected.integration = replace(selected.integration, mode="standalone")
+    tracker = Tracker([selected])
+    fact_collector = collector(tracker)
+    decision = evaluate_task(selected, fact_collector.collect(selected.identifier))
+    drift = StandaloneDeliveryOutcome(
+        accepted_head=accepted_head,
+        observed_branch_head=observed_head,
+        observed_review_head=observed_head,
+        review_id="14",
+        reason="remote branch advanced beyond the accepted submission",
+    )
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            _reconcile_one_standalone_ready_to_integrate_task=(
+                lambda *_args, **_kwargs: drift
+            ),
+        ),
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=fact_collector,
+        ),
+    )
+    context = SimpleNamespace(
+        job=SimpleNamespace(
+            project_id="project-1",
+            task_id=selected.identifier,
+            generation="generation-drift",
+            job_id="job-drift",
+            lease_token="lease-drift",
+            checkpoint={
+                "revalidation": {
+                    "evidence_revision": decision.evidence_revision,
+                    "details": {
+                        "task_branch": selected.integration.task_branch,
+                        "task_head": accepted_head,
+                        "task_target": "main",
+                    },
+                }
+            },
+        ),
+        check_interrupted=lambda: None,
+    )
+
+    with pytest.raises(WorkflowActionSuperseded) as raised:
+        await backend.apply_action("standalone_delivery", context)
+
+    assert accepted_head in str(raised.value)
+    assert observed_head in str(raised.value)
+    assert "review #14" in str(raised.value)
+    assert "explicit exact-head resubmission is required" in str(raised.value)
+    assert raised.value.replacement_generation == (
+        f"standalone-resubmission-required:{observed_head}"
+    )
+    assert selected.state == READY_TO_INTEGRATE
+    assert selected.integration.head_sha == accepted_head
+    assert selected.review_number is None
+
+
+@pytest.mark.asyncio
+async def test_standalone_drift_outcome_for_another_accepted_head_fails_closed():
+    accepted_head = "a" * 40
+    selected = issue("TASK-DRIFT-RACE", head=accepted_head)
+    selected.parent_id = None
+    selected.integration = replace(selected.integration, mode="standalone")
+    tracker = Tracker([selected])
+    fact_collector = collector(tracker)
+    decision = evaluate_task(selected, fact_collector.collect(selected.identifier))
+    foreign_drift = StandaloneDeliveryOutcome(
+        accepted_head="c" * 40,
+        observed_branch_head="b" * 40,
+        reason="a concurrent submission replaced the accepted head",
+    )
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            _reconcile_one_standalone_ready_to_integrate_task=(
+                lambda *_args, **_kwargs: foreign_drift
+            ),
+        ),
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=fact_collector,
+        ),
+    )
+    context = SimpleNamespace(
+        job=SimpleNamespace(
+            project_id="project-1",
+            task_id=selected.identifier,
+            generation="generation-drift-race",
+            job_id="job-drift-race",
+            lease_token="lease-drift-race",
+            checkpoint={
+                "revalidation": {
+                    "evidence_revision": decision.evidence_revision,
+                    "details": {
+                        "task_branch": selected.integration.task_branch,
+                        "task_head": accepted_head,
+                        "task_target": "main",
+                    },
+                }
+            },
+        ),
+        check_interrupted=lambda: None,
+    )
+
+    with pytest.raises(
+        WorkflowActionError,
+        match="waiting for an exact forge effect",
+    ):
+        await backend.apply_action("standalone_delivery", context)
+
+    assert selected.integration.head_sha == accepted_head
+
+
+@pytest.mark.asyncio
+async def test_concurrent_exact_resubmission_preserves_new_head_and_retires_old_job():
+    accepted_head = "a" * 40
+    observed_head = "b" * 40
+    selected = issue("TASK-DRIFT-RESUBMIT-RACE", head=accepted_head)
+    selected.parent_id = None
+    selected.integration = replace(selected.integration, mode="standalone")
+    tracker = Tracker([selected])
+    fact_collector = collector(tracker)
+    decision = evaluate_task(selected, fact_collector.collect(selected.identifier))
+
+    def deliver(*_args, **_kwargs):
+        selected.integration = replace(
+            selected.integration,
+            head_sha=observed_head,
+        )
+        return StandaloneDeliveryOutcome(
+            accepted_head=accepted_head,
+            observed_branch_head=observed_head,
+            reason="remote branch advanced beyond the accepted submission",
+        )
+
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            _reconcile_one_standalone_ready_to_integrate_task=deliver,
+        ),
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=fact_collector,
+        ),
+    )
+    context = SimpleNamespace(
+        job=SimpleNamespace(
+            project_id="project-1",
+            task_id=selected.identifier,
+            generation="generation-resubmit-race",
+            job_id="job-resubmit-race",
+            lease_token="lease-resubmit-race",
+            checkpoint={
+                "revalidation": {
+                    "evidence_revision": decision.evidence_revision,
+                    "details": {
+                        "task_branch": selected.integration.task_branch,
+                        "task_head": accepted_head,
+                        "task_target": "main",
+                    },
+                }
+            },
+        ),
+        check_interrupted=lambda: None,
+    )
+
+    with pytest.raises(WorkflowActionSuperseded):
+        await backend.apply_action("standalone_delivery", context)
+
+    assert selected.integration.head_sha == observed_head
+    assert selected.state == READY_TO_INTEGRATE
+
+
+@pytest.mark.asyncio
 async def test_capacity_deferrals_beyond_budget_preserve_standalone_attempts(
     tmp_path,
 ):
@@ -375,6 +557,151 @@ async def test_capacity_deferrals_beyond_budget_preserve_standalone_attempts(
     assert completed.disposition is WorkflowRunDisposition.COMPLETED
     assert store.get(queued.job_id).attempts == 1
     store.close()
+    integration_queue.close()
+
+
+@pytest.mark.asyncio
+async def test_standalone_drift_preserves_retry_budget_across_restart_and_resubmit(
+    tmp_path,
+):
+    accepted_head = "a" * 40
+    observed_head = "b" * 40
+    selected = issue("TASK-DRIFT-RESTART", head=accepted_head)
+    selected.parent_id = None
+    selected.integration = replace(selected.integration, mode="standalone")
+    tracker = Tracker([selected])
+    fact_collector = collector(tracker)
+    drifted = [True]
+    integration_queue = IntegrationQueueStore(
+        str(tmp_path / "standalone-drift-integration.sqlite3")
+    )
+
+    def deliver(_project_id, task_id, **_kwargs):
+        if drifted[0]:
+            return StandaloneDeliveryOutcome(
+                accepted_head=accepted_head,
+                observed_branch_head=observed_head,
+                observed_review_head=observed_head,
+                review_id="14",
+                reason="remote branch advanced beyond the accepted submission",
+            )
+        delivered = tracker.fetch_issue_detail(task_id)
+        delivered.state = "In Review"
+        delivered.review_number = "14"
+        delivered.review_head = observed_head
+        return None
+
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            integration_queue=integration_queue,
+            _reconcile_one_standalone_ready_to_integrate_task=deliver,
+        ),
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=fact_collector,
+        ),
+    )
+    database = tmp_path / "standalone-drift.sqlite3"
+    store = WorkflowJobStore(str(database))
+    old_decision = evaluate_task(
+        selected,
+        fact_collector.collect(selected.identifier),
+    )
+    stale = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id=selected.identifier,
+            generation="stale-accepted-generation",
+            action="standalone_delivery",
+            idempotency_key="stale-accepted-generation:standalone",
+            expected_evidence_revision=old_decision.evidence_revision,
+            expected_head_sha=accepted_head,
+            max_attempts=2,
+        )
+    )
+
+    first = await DurableWorkflowWorker(
+        store=store,
+        handlers={
+            "standalone_delivery": IntegrationActionHandler(
+                "standalone_delivery",
+                backend,
+                domain=WorkflowActionDomain.FORGE,
+            )
+        },
+        transition_services={},
+        worker_id="drift-worker",
+        retry_delay_seconds=0,
+    ).run_once()
+
+    assert first.disposition is WorkflowRunDisposition.SUPERSEDED
+    retired = store.get(stale.job_id)
+    assert retired.state is WorkflowJobState.SUPERSEDED
+    assert retired.attempts == 1
+    assert retired.max_attempts == 2
+    assert observed_head in str(retired.last_error or "")
+    assert selected.integration.head_sha == accepted_head
+    assert selected.state == READY_TO_INTEGRATE
+    store.close()
+
+    reopened = WorkflowJobStore(str(database))
+    idle = await DurableWorkflowWorker(
+        store=reopened,
+        handlers={
+            "standalone_delivery": IntegrationActionHandler(
+                "standalone_delivery",
+                backend,
+                domain=WorkflowActionDomain.FORGE,
+            )
+        },
+        transition_services={},
+        worker_id="restarted-drift-worker",
+        retry_delay_seconds=0,
+    ).run_once()
+    assert idle.disposition is WorkflowRunDisposition.IDLE
+    assert reopened.get(stale.job_id).state is WorkflowJobState.SUPERSEDED
+
+    # Model the only authorized adoption path: an explicit exact-head submit
+    # replaces the immutable integration record and creates a fresh decision.
+    selected.integration = replace(selected.integration, head_sha=observed_head)
+    drifted[0] = False
+    replacement_decision = evaluate_task(
+        selected,
+        fact_collector.collect(selected.identifier),
+    )
+    replacement = reopened.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id=selected.identifier,
+            generation="explicit-resubmission-generation",
+            action="standalone_delivery",
+            idempotency_key="explicit-resubmission-generation:standalone",
+            expected_evidence_revision=replacement_decision.evidence_revision,
+            expected_head_sha=observed_head,
+            max_attempts=2,
+        )
+    )
+    completed = await DurableWorkflowWorker(
+        store=reopened,
+        handlers={
+            "standalone_delivery": IntegrationActionHandler(
+                "standalone_delivery",
+                backend,
+                domain=WorkflowActionDomain.FORGE,
+            )
+        },
+        transition_services={},
+        worker_id="resubmitted-drift-worker",
+        retry_delay_seconds=0,
+    ).run_once()
+
+    assert completed.disposition is WorkflowRunDisposition.COMPLETED
+    assert reopened.get(replacement.job_id).state is WorkflowJobState.COMPLETED
+    assert selected.integration.head_sha == observed_head
+    assert selected.review_head == observed_head
+    assert selected.state == "In Review"
+    reopened.close()
     integration_queue.close()
 
 

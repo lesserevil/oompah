@@ -15558,7 +15558,7 @@ class Orchestrator:
             return entry
         return None
 
-    def _workflow_shadow_review(self, issue: Issue) -> ReviewRequest | None:
+    def _workflow_shadow_reviews(self, issue: Issue) -> tuple[ReviewRequest, ...]:
         project_id = str(issue.project_id or "legacy")
         branch = str(
             assigned_work_branch(issue)
@@ -15567,16 +15567,17 @@ class Orchestrator:
             or issue.identifier
             or ""
         )
-        return next(
-            (
-                review
-                for review in (getattr(self, "_reviews_cache", {}) or {}).get(
-                    project_id, ()
-                )
-                if str(getattr(review, "source_branch", "") or "") == branch
-            ),
-            None,
+        return tuple(
+            review
+            for review in (getattr(self, "_reviews_cache", {}) or {}).get(
+                project_id, ()
+            )
+            if str(getattr(review, "source_branch", "") or "") == branch
         )
+
+    def _workflow_shadow_review(self, issue: Issue) -> ReviewRequest | None:
+        reviews = self._workflow_shadow_reviews(issue)
+        return reviews[0] if reviews else None
 
     def _accepted_submission_recovery_authority(
         self,
@@ -15672,6 +15673,101 @@ class Orchestrator:
             observed,
             current_claim,
         )
+
+    def _ready_standalone_submission_recovery_facts(
+        self,
+        issue: Issue,
+        integration: Any,
+    ) -> dict[str, Any]:
+        """Project accepted-vs-remote authority for one Ready standalone task.
+
+        The accepted integration head is immutable submission authority.  A
+        stable remote branch observation may prove that authority historical,
+        but neither the branch nor an open review may silently replace it.
+        Ambiguous review identity parks delivery until a later clean fact cut.
+        """
+
+        accepted_head = str(
+            getattr(integration, "head_sha", "") or ""
+        ).strip().lower()
+        task_branch = str(
+            getattr(integration, "task_branch", None)
+            or assigned_work_branch(issue)
+            or issue.work_branch
+            or issue.branch_name
+            or ""
+        ).strip()
+        project = self.project_store.get(str(issue.project_id or ""))
+        target_branch = str(
+            getattr(integration, "base_branch", None)
+            or issue.target_branch
+            or getattr(project, "default_branch", None)
+            or ""
+        ).strip()
+        (
+            _authorized,
+            recovery_state,
+            observed_branch_head,
+            _claim,
+        ) = self._accepted_submission_recovery_authority(
+            issue,
+            task_branch=task_branch,
+            accepted_head=accepted_head,
+            target_branch=target_branch,
+        )
+        facts: dict[str, Any] = {
+            "accepted_submission_recovery_state": recovery_state,
+            "accepted_submission_head": accepted_head,
+        }
+        if observed_branch_head:
+            facts["accepted_submission_branch_head"] = observed_branch_head
+
+        reviews = self._workflow_shadow_reviews(issue)
+        if not reviews:
+            return facts
+        if len(reviews) != 1:
+            facts["accepted_submission_review_count"] = len(reviews)
+            return facts
+
+        review = reviews[0]
+        review_id = str(getattr(review, "id", "") or "").strip()
+        review_head = str(
+            getattr(review, "head_sha", "") or ""
+        ).strip().lower()
+        facts["accepted_submission_review_id"] = review_id
+        if review_head:
+            facts["accepted_submission_review_head"] = review_head
+
+        try:
+            expected_repository = extract_repo_slug(
+                str(getattr(project, "repo_url", "") or "")
+            ).strip().casefold()
+        except Exception:  # noqa: BLE001 - remote identity fails closed
+            expected_repository = ""
+        source_repository = str(
+            getattr(review, "source_repository", "") or ""
+        ).strip().casefold()
+        target_repository = str(
+            getattr(review, "target_repository", "") or ""
+        ).strip().casefold()
+        review_identity_exact = bool(
+            project is not None
+            and str(getattr(review, "state", "") or "").strip().lower()
+            == "open"
+            and str(getattr(review, "source_branch", "") or "").strip()
+            == task_branch
+            and str(getattr(review, "target_branch", "") or "").strip()
+            == target_branch
+            and expected_repository
+            and source_repository == expected_repository
+            and target_repository == expected_repository
+            and re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", review_head)
+            and observed_branch_head
+            and review_head == observed_branch_head
+        )
+        if not review_identity_exact:
+            facts["accepted_submission_review_identity"] = "ambiguous"
+        return facts
 
     def _workflow_shadow_sources(self, issue: Issue) -> dict[FactDomain, Any]:
         """Build read-only fact adapters over the current legacy runtime."""
@@ -16100,6 +16196,22 @@ class Orchestrator:
             integration_head = str(
                 getattr(integration, "head_sha", "") or ""
             ).strip().lower()
+            integration_mode = str(
+                getattr(integration, "mode", "") or ""
+            ).strip().lower()
+            if (
+                canonicalize_status(current.state) == READY_TO_INTEGRATE
+                and integration_state == "ready"
+                and integration_mode == "standalone"
+                and integration_head
+                and accepted_submission_branch(current)
+            ):
+                value.update(
+                    self._ready_standalone_submission_recovery_facts(
+                        current,
+                        integration,
+                    )
+                )
             if (
                 canonicalize_status(current.state)
                 in {OPEN, IN_PROGRESS, NEEDS_CI_FIX, NEEDS_REBASE}
@@ -23658,7 +23770,7 @@ class Orchestrator:
         workflow_generation: str | None = None,
         workflow_authority_check: Callable[[], bool] | None = None,
         workflow_local_authority_check: Callable[[], bool] | None = None,
-    ) -> str | None:
+    ) -> str | StandaloneDeliveryOutcome | None:
         """Deliver one exact standalone generation without entering the sweep."""
 
         project = self.project_store.get(str(project_id))
@@ -23691,8 +23803,10 @@ class Orchestrator:
         workflow_generation: str | None,
         workflow_authority_check: Callable[[], bool] | None,
         workflow_local_authority_check: Callable[[], bool] | None,
-    ) -> str | None:
+    ) -> str | StandaloneDeliveryOutcome | None:
         """Shared delivery body over an explicitly supplied candidate scope."""
+
+        from oompah.integration_workflow import StandaloneDeliveryOutcome
 
         for project in projects:
             project_id = str(project.id)
@@ -24084,38 +24198,76 @@ class Orchestrator:
                     submitted_head
                     and str(branch_head).strip().lower() != submitted_head
                 ):
-                    tracked_review_id = str(issue.review_number or "").strip()
-                    if tracked_review_id:
-                        try:
-                            advanced_review = provider.find_pr_for_branch(
-                                repo_slug,
-                                task_branch,
-                            )
-                        except Exception:  # noqa: BLE001 - fallback alert below
-                            advanced_review = None
-                        if advanced_review is not None:
-                            replaced, _replacement_reason = (
-                                self._replace_standalone_open_review_generation_owned(
-                                    project,
-                                    tracker,
-                                    provider,
-                                    authority,
-                                    repo_slug=repo_slug,
-                                    work_branch=task_branch,
-                                    expected_review=advanced_review,
-                                )
-                            )
-                            if replaced:
-                                self._clear_standalone_delivery_alert(
-                                    project_id,
-                                    task_id,
-                                )
-                                return
+                    observed_branch_head = str(branch_head).strip().lower()
                     reason = (
                         f"remote branch {task_branch} advanced from accepted "
-                        f"submitted head {submitted_head} to {branch_head}; "
+                        f"submitted head {submitted_head} to "
+                        f"{observed_branch_head}; "
                         "submit the new exact head before review"
                     )
+                    # A typed terminal outcome is safe only after the mutable
+                    # branch observation is a valid immutable revision and a
+                    # second authority check proves the same remote head.  A
+                    # malformed, missing, or racing observation remains a
+                    # transient failure for the durable adapter to retry.
+                    if not re.fullmatch(
+                        r"[0-9a-f]{40}|[0-9a-f]{64}",
+                        observed_branch_head,
+                    ):
+                        self._arm_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                            reason,
+                            authority=authority,
+                        )
+                        logger.info(
+                            "Deferred standalone review for %s: %s",
+                            task_id,
+                            reason,
+                        )
+                        continue
+                    if (
+                        authority.head_sha
+                        and authority.head_sha != observed_branch_head
+                    ):
+                        # A prior attempt may have bound this reusable claim to
+                        # the formerly exact head before the remote advanced.
+                        # Retire only that local operation generation, then
+                        # claim the unchanged tracker evidence again so the
+                        # stable new remote observation can be reported rather
+                        # than looping as an unclassified transient failure.
+                        self._retire_exact_standalone_delivery_authority(authority)
+                        authority = self._claim_standalone_delivery_authority(
+                            project,
+                            issue,
+                            dependency_revision=dependency_state.revision,
+                            allows_parent=bool(str(issue.parent_id or "").strip()),
+                            workflow_generation=workflow_generation,
+                            workflow_authority_check=workflow_authority_check,
+                            workflow_local_authority_check=(
+                                workflow_local_authority_check
+                            ),
+                        )
+                        if authority is None:
+                            continue
+                    if not self._set_standalone_delivery_head(
+                        authority,
+                        task_branch,
+                        observed_branch_head,
+                        lambda: provider.get_branch_head_sha(
+                            repo_slug,
+                            task_branch,
+                        ),
+                    ) or not self._standalone_delivery_authorized(
+                        authority,
+                        tracker,
+                    ):
+                        self._record_superseded_standalone_delivery(
+                            authority,
+                            "delivery authority changed while proving remote "
+                            "submission drift",
+                        )
+                        continue
                     self._arm_standalone_delivery_alert(
                         project_id,
                         task_id,
@@ -24127,7 +24279,11 @@ class Orchestrator:
                         task_id,
                         reason,
                     )
-                    continue
+                    return StandaloneDeliveryOutcome(
+                        accepted_head=submitted_head,
+                        observed_branch_head=observed_branch_head,
+                        reason=reason,
+                    )
 
                 if not self._set_standalone_delivery_head(
                     authority,
@@ -24252,6 +24408,88 @@ class Orchestrator:
                     )
                     if review_disposition != "exact":
                         if review_state == "open" and review_disposition == "replacement":
+                            accepted_delivery_head = str(
+                                authority.head_sha or submitted_head or ""
+                            ).strip().lower()
+                            if review_head != accepted_delivery_head:
+                                # A review-head advance is the same immutable
+                                # authority break as a branch-head advance. It
+                                # may race immediately after the exact branch
+                                # observation above, so prove one stable review
+                                # and branch generation without checkpointing it
+                                # into accepted integration metadata.
+                                try:
+                                    observed_branch_before = str(
+                                        provider.get_branch_head_sha(
+                                            repo_slug,
+                                            task_branch,
+                                        )
+                                        or ""
+                                    ).strip().lower()
+                                    confirmed_review = provider.find_pr_for_branch(
+                                        repo_slug,
+                                        task_branch,
+                                    )
+                                    observed_branch_after = str(
+                                        provider.get_branch_head_sha(
+                                            repo_slug,
+                                            task_branch,
+                                        )
+                                        or ""
+                                    ).strip().lower()
+                                except Exception:  # noqa: BLE001 - retry transient race
+                                    continue
+                                current_issue = self._fresh_standalone_delivery_issue(
+                                    authority,
+                                    tracker,
+                                )
+                                stable_review_drift = bool(
+                                    re.fullmatch(
+                                        r"[0-9a-f]{40}|[0-9a-f]{64}",
+                                        review_head,
+                                    )
+                                    and observed_branch_before == review_head
+                                    and observed_branch_after == review_head
+                                    and self._standalone_review_observation(
+                                        confirmed_review
+                                    )
+                                    == self._standalone_review_observation(existing_pr)
+                                    and current_issue is not None
+                                    and self._standalone_delivery_evidence_revision(
+                                        current_issue
+                                    )
+                                    == authority.evidence_revision
+                                    and self._standalone_delivery_locally_authorized(
+                                        authority
+                                    )
+                                )
+                                if not stable_review_drift:
+                                    continue
+                                reason = (
+                                    f"open review #{getattr(existing_pr, 'id', '?')} "
+                                    f"advanced from accepted submitted head "
+                                    f"{accepted_delivery_head} to {review_head}; "
+                                    "submit the new exact head before review"
+                                )
+                                # Full remote-head authorization intentionally
+                                # fails after the drift. The stable two-read
+                                # proof and exact tracker evidence above fence
+                                # this diagnostic without mutating authority.
+                                self._arm_standalone_delivery_alert(
+                                    project_id,
+                                    task_id,
+                                    reason,
+                                )
+                                return StandaloneDeliveryOutcome(
+                                    accepted_head=accepted_delivery_head,
+                                    observed_branch_head=review_head,
+                                    reason=reason,
+                                    observed_review_head=review_head,
+                                    review_id=str(
+                                        getattr(existing_pr, "id", "") or ""
+                                    ).strip()
+                                    or None,
+                                )
                             replaced, replacement_reason = (
                                 self._replace_standalone_open_review_generation_owned(
                                     project,

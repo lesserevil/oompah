@@ -16,7 +16,7 @@ import hashlib
 import inspect
 import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Protocol
@@ -103,6 +103,47 @@ INTEGRATION_ACTIONS = frozenset(
         "terminal_audit_done",
     }
 )
+
+
+@dataclass(frozen=True, slots=True)
+class StandaloneDeliveryOutcome:
+    """Typed non-success result from one scoped standalone delivery attempt.
+
+    The accepted submission remains immutable when its mutable remote branch
+    advances.  Returning this evidence to the durable workflow adapter lets it
+    retire the stale job without treating a known authority change as a
+    transient forge failure or adopting the unsubmitted remote head.
+    """
+
+    accepted_head: str
+    observed_branch_head: str
+    reason: str
+    observed_review_head: str | None = None
+    review_id: str | None = None
+    disposition: str = field(default="resubmission_required", init=False)
+
+    def __post_init__(self) -> None:
+        accepted = str(self.accepted_head or "").strip().lower()
+        observed = str(self.observed_branch_head or "").strip().lower()
+        reason = str(self.reason or "").strip()
+        if not accepted or not observed or not reason:
+            raise ValueError(
+                "standalone delivery drift requires accepted head, "
+                "observed branch head, and reason"
+            )
+        object.__setattr__(self, "accepted_head", accepted)
+        object.__setattr__(self, "observed_branch_head", observed)
+        object.__setattr__(self, "reason", reason)
+        object.__setattr__(
+            self,
+            "observed_review_head",
+            str(self.observed_review_head or "").strip().lower() or None,
+        )
+        object.__setattr__(
+            self,
+            "review_id",
+            str(self.review_id or "").strip() or None,
+        )
 
 
 def _historical_replay_identity(
@@ -3451,6 +3492,48 @@ class OrchestratorIntegrationActionBackend:
             return None
         return str(revalidation.get("head_sha", "") or "").strip() or None
 
+    @staticmethod
+    def _standalone_resubmission_supersession(
+        outcome: Any,
+        *,
+        expected_head: str,
+    ) -> tuple[str, str, str | None, str | None] | None:
+        """Validate one typed accepted-vs-remote drift observation.
+
+        The scoped orchestrator call is allowed to report that the mutable
+        task branch has advanced beyond the immutable accepted submission.
+        Treat that as superseding evidence only when the typed result remains
+        bound to this job's exact accepted head and both heads are complete Git
+        identities.  Partial/provider-ambiguous observations intentionally
+        retain the ordinary bounded retry path; they cannot retire exact
+        submission authority or authorize the newer code.
+        """
+
+        if not isinstance(outcome, StandaloneDeliveryOutcome):
+            return None
+        disposition = getattr(outcome.disposition, "value", outcome.disposition)
+        if str(disposition or "").strip() != "resubmission_required":
+            return None
+        accepted_head = str(outcome.accepted_head or "").strip().lower()
+        observed_head = str(outcome.observed_branch_head or "").strip().lower()
+        required_head = str(expected_head or "").strip().lower()
+        exact_sha = r"[0-9a-f]{40}|[0-9a-f]{64}"
+        if (
+            not re.fullmatch(exact_sha, required_head)
+            or accepted_head != required_head
+            or not re.fullmatch(exact_sha, observed_head)
+            or observed_head == accepted_head
+        ):
+            return None
+        review_head = str(outcome.observed_review_head or "").strip().lower() or None
+        if review_head is not None and not re.fullmatch(exact_sha, review_head):
+            return None
+        reason = str(outcome.reason or "").strip()
+        if not reason:
+            return None
+        review_id = str(outcome.review_id or "").strip() or None
+        return observed_head, reason, review_head, review_id
+
     @classmethod
     def _queue_generation_is_current(
         cls, context: WorkflowJobContext, row: Any | None
@@ -5626,6 +5709,28 @@ class OrchestratorIntegrationActionBackend:
                     _workflow_authority_locally_current
                 ),
             )
+            supersession = self._standalone_resubmission_supersession(
+                delivery_outcome,
+                expected_head=expected_head,
+            )
+            if supersession is not None:
+                observed_head, reason, review_head, review_id = supersession
+                review_evidence = ""
+                if review_head is not None:
+                    review_label = f" #{review_id}" if review_id else ""
+                    review_evidence = (
+                        f"; review{review_label} "
+                        f"observed head {review_head}"
+                    )
+                raise WorkflowActionSuperseded(
+                    "standalone delivery accepted head "
+                    f"{expected_head} was superseded by remote branch head "
+                    f"{observed_head}{review_evidence}; explicit exact-head "
+                    f"resubmission is required ({reason})",
+                    replacement_generation=(
+                        f"standalone-resubmission-required:{observed_head}"
+                    ),
+                )
             observation = await asyncio.to_thread(
                 self._standalone_observation,
                 action,
