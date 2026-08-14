@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1259
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Rematerialize dead recurring scheduler generations during restart reconstruction
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T23:58:37.536440Z'
-updated_at: '2026-08-14T00:38:06.887027Z'
+updated_at: '2026-08-14T07:43:37.893085Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,6 +37,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1259
     digest: 97cbe51f2cc16cdac084c2b5d8fff6f1183294f28d813cad98cf8117f9e60766
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6e2bdab27888
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1259
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 97cbe51f2cc16cdac084c2b5d8fff6f1183294f28d813cad98cf8117f9e60766
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #876 merged as eb61ed2ad and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:43:31.435730+00:00'
+    selected_ref: origin/OOMPAH-1259
+    selected_sha: fb8a2ba298f396ef36a06430faaae6344142e7cb
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -82,7 +103,7 @@ oompah.terminal_audit:
     selected_ref: origin/OOMPAH-1259
     selected_sha: fb8a2ba298f396ef36a06430faaae6344142e7cb
   attempt_history: []
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 ---
 ## Summary
 
