@@ -77,6 +77,7 @@ from oompah.issue_enhancer import (
 )
 from oompah.intake_summary import build_intake_summary
 from oompah.integration import (
+    ACCEPTED_SUBMISSION_STATES,
     IntegrationRecord,
     accepted_submission_branch,
     is_direct_epic_maintenance_issue,
@@ -15329,7 +15330,62 @@ def _prerequisite_continuation(
     head = issue_exact_head(issue) or record.source_head_sha
     current_status = _prerequisite_resolution_source_status(issue)
     target_branch = None
-    if live_review is not None:
+    integration_state = _integration_value(issue, "state")
+    if integration_state == "integrated":
+        raise _PrerequisiteResolutionRequestError(
+            "integration_already_integrated",
+            "Integrated submission evidence cannot be reopened by prerequisite "
+            "resolution.",
+        )
+    if integration_state == "blocked":
+        if current_status not in {NEEDS_CI_FIX, NEEDS_REBASE}:
+            raise _PrerequisiteResolutionRequestError(
+                "integration_gate_status_mismatch",
+                "Blocked submission evidence can only preserve Needs CI Fix "
+                "or Needs Rebase.",
+            )
+        branch = accepted_submission_branch(issue)
+        head = str(_integration_value(issue, "head_sha") or "").lower() or None
+        if not branch or not head:
+            raise _PrerequisiteResolutionRequestError(
+                "continuation_evidence_invalid",
+                "Blocked submission continuation lacks an exact branch and head.",
+            )
+        status = current_status
+        review_id = None
+        review_head = None
+    elif integration_state == "needs_human":
+        if current_status != NEEDS_HUMAN:
+            raise _PrerequisiteResolutionRequestError(
+                "integration_gate_status_mismatch",
+                "Needs-human submission evidence can only preserve Needs Human.",
+            )
+        branch = accepted_submission_branch(issue)
+        head = str(_integration_value(issue, "head_sha") or "").lower() or None
+        if not branch or not head:
+            raise _PrerequisiteResolutionRequestError(
+                "continuation_evidence_invalid",
+                "Needs-human submission continuation lacks an exact branch and head.",
+            )
+        status = current_status
+        review_id = None
+        review_head = None
+    elif integration_state in {
+        "ready",
+        "queued",
+        "integrating",
+    }:
+        branch = accepted_submission_branch(issue)
+        if not branch:
+            raise _PrerequisiteResolutionRequestError(
+                "continuation_evidence_invalid",
+                "Ready submission continuation lacks an exact branch and head.",
+            )
+        head = str(_integration_value(issue, "head_sha") or "").lower() or None
+        status = READY_TO_INTEGRATE
+        review_id = None
+        review_head = None
+    elif live_review is not None:
         head = str(live_review.head_sha).strip().lower()
         if (
             str(getattr(issue, "review_number", None) or "").strip()
@@ -15349,60 +15405,6 @@ def _prerequisite_continuation(
         target_branch = str(
             getattr(live_review, "target_branch", None) or ""
         ).strip()
-    elif _integration_value(issue, "state") in {
-        "ready",
-        "queued",
-        "integrating",
-    }:
-        branch = accepted_submission_branch(issue)
-        if not branch:
-            raise _PrerequisiteResolutionRequestError(
-                "continuation_evidence_invalid",
-                "Ready submission continuation lacks an exact branch and head.",
-            )
-        head = str(_integration_value(issue, "head_sha") or "").lower() or None
-        status = READY_TO_INTEGRATE
-        review_id = None
-        review_head = None
-    elif _integration_value(issue, "state") == "blocked":
-        if current_status not in {NEEDS_CI_FIX, NEEDS_REBASE}:
-            raise _PrerequisiteResolutionRequestError(
-                "integration_gate_status_mismatch",
-                "Blocked submission evidence can only preserve Needs CI Fix "
-                "or Needs Rebase.",
-            )
-        branch = accepted_submission_branch(issue)
-        head = str(_integration_value(issue, "head_sha") or "").lower() or None
-        if not branch or not head:
-            raise _PrerequisiteResolutionRequestError(
-                "continuation_evidence_invalid",
-                "Blocked submission continuation lacks an exact branch and head.",
-            )
-        status = current_status
-        review_id = None
-        review_head = None
-    elif _integration_value(issue, "state") == "needs_human":
-        if current_status != NEEDS_HUMAN:
-            raise _PrerequisiteResolutionRequestError(
-                "integration_gate_status_mismatch",
-                "Needs-human submission evidence can only preserve Needs Human.",
-            )
-        branch = accepted_submission_branch(issue)
-        head = str(_integration_value(issue, "head_sha") or "").lower() or None
-        if not branch or not head:
-            raise _PrerequisiteResolutionRequestError(
-                "continuation_evidence_invalid",
-                "Needs-human submission continuation lacks an exact branch and head.",
-            )
-        status = current_status
-        review_id = None
-        review_head = None
-    elif _integration_value(issue, "state") == "integrated":
-        raise _PrerequisiteResolutionRequestError(
-            "integration_already_integrated",
-            "Integrated submission evidence cannot be reopened by prerequisite "
-            "resolution.",
-        )
     else:
         if current_status in {OPEN, IN_PROGRESS}:
             status = current_status
@@ -15765,12 +15767,14 @@ async def api_resolve_implementation_prerequisite(
         if committed is not None:
             return JSONResponse(committed, status_code=200)
         _prerequisite_resolution_source_status(issue)
-        live_review = await _run_control_api_io(
-            _live_prerequisite_review,
-            project,
-            issue,
-            fields.get("pipeline_id"),
-        )
+        live_review = None
+        if _integration_value(issue, "state") not in ACCEPTED_SUBMISSION_STATES:
+            live_review = await _run_control_api_io(
+                _live_prerequisite_review,
+                project,
+                issue,
+                fields.get("pipeline_id"),
+            )
         result = await _run_control_api_io(
             _schedule_prerequisite_resolution,
             orch,

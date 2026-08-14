@@ -568,6 +568,48 @@ def test_accepted_submission_resumes_ready_to_integrate(monkeypatch):
     assert schedule.call_args.kwargs["expected_head_sha"] == _HEAD
 
 
+@pytest.mark.parametrize(
+    ("status", "integration_state", "resume_status"),
+    [
+        ("Needs CI Fix", "blocked", "Needs CI Fix"),
+        ("Needs Human", "needs_human", "Needs Human"),
+    ],
+)
+def test_submission_state_outranks_stale_live_review(
+    monkeypatch,
+    status,
+    integration_state,
+    resume_status,
+):
+    trigger = RecoveryTrigger(RecoveryTriggerKind.OPERATOR, "runner-online")
+    issue, record = _issue(trigger)
+    issue.state = status
+    issue.work_branch = "TASK-1"
+    issue.target_branch = "main"
+    issue.head_sha = _HEAD
+    issue.review_number = "20"
+    issue.review_head = _HEAD
+    issue.integration = SimpleNamespace(
+        state=integration_state,
+        task_branch="TASK-1",
+        head_sha=_HEAD,
+    )
+    _orch, _tracker, _schedule, _store = _setup(monkeypatch, issue)
+    detect = MagicMock()
+    monkeypatch.setattr(server_module, "detect_provider", detect)
+
+    response = _post(
+        _body(issue, record, operator_action="runner-online")
+    )
+
+    assert response.status_code == 202, response.text
+    continuation = response.json()["continuation"]
+    assert continuation["resume_status"] == resume_status
+    assert continuation["review_id"] is None
+    assert continuation["target_branch"] is None
+    detect.assert_not_called()
+
+
 @pytest.mark.parametrize("status", ["Needs CI Fix", "Needs Rebase"])
 def test_blocked_submission_preserves_its_exact_repair_status(
     monkeypatch,

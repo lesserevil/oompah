@@ -924,6 +924,56 @@ class OrchestratorImplementationEffects:
             raise PrerequisiteSourceChangedError(
                 "prerequisite continuation branch changed"
             )
+        integration = getattr(issue, "integration", None)
+        integration_state = _text(
+            integration.get("state")
+            if isinstance(integration, Mapping)
+            else getattr(integration, "state", None)
+        ).lower()
+        integration_head = _text(
+            integration.get("head_sha")
+            if isinstance(integration, Mapping)
+            else getattr(integration, "head_sha", None)
+        ).lower()
+        accepted_branch = accepted_submission_branch(issue)
+        current_status = canonicalize_status(getattr(issue, "state", None))
+        if integration_state == "integrated":
+            raise PrerequisiteSourceChangedError(
+                "integrated submission cannot resume prerequisite work"
+            )
+        if integration_state in {"ready", "queued", "integrating"}:
+            if (
+                continuation.resume_status != READY_TO_INTEGRATE
+                or not accepted_branch
+                or accepted_branch != continuation.work_branch
+                or integration_head != expected_head
+            ):
+                raise PrerequisiteSourceChangedError(
+                    "accepted submission authority changed before resolution"
+                )
+            return
+        if integration_state == "blocked":
+            if (
+                continuation.resume_status not in {NEEDS_CI_FIX, NEEDS_REBASE}
+                or current_status != continuation.resume_status
+                or accepted_branch != continuation.work_branch
+                or integration_head != expected_head
+            ):
+                raise PrerequisiteSourceChangedError(
+                    "blocked submission authority changed before resolution"
+                )
+            return
+        if integration_state == "needs_human":
+            if (
+                continuation.resume_status != NEEDS_HUMAN
+                or current_status != NEEDS_HUMAN
+                or accepted_branch != continuation.work_branch
+                or integration_head != expected_head
+            ):
+                raise PrerequisiteSourceChangedError(
+                    "needs-human submission authority changed before resolution"
+                )
+            return
         if continuation.resume_status == "In Review":
             project_store = getattr(self.orchestrator, "project_store", None)
             get_project = getattr(project_store, "get", None)
@@ -970,65 +1020,6 @@ class OrchestratorImplementationEffects:
             ):
                 raise PrerequisiteSourceChangedError(
                     "live pipeline authority changed before resolution"
-                )
-            return
-        if continuation.resume_status == READY_TO_INTEGRATE:
-            accepted_branch = accepted_submission_branch(issue)
-            integration = getattr(issue, "integration", None)
-            integration_head = _text(
-                integration.get("head_sha")
-                if isinstance(integration, Mapping)
-                else getattr(integration, "head_sha", None)
-            ).lower()
-            integration_state = _text(
-                integration.get("state")
-                if isinstance(integration, Mapping)
-                else getattr(integration, "state", None)
-            ).lower()
-            if (
-                not accepted_branch
-                or accepted_branch != continuation.work_branch
-                or integration_head != expected_head
-                or integration_state
-                not in {"ready", "queued", "integrating"}
-            ):
-                raise PrerequisiteSourceChangedError(
-                    "accepted submission authority changed before resolution"
-                )
-            return
-        integration = getattr(issue, "integration", None)
-        integration_state = _text(
-            integration.get("state")
-            if isinstance(integration, Mapping)
-            else getattr(integration, "state", None)
-        ).lower()
-        integration_head = _text(
-            integration.get("head_sha")
-            if isinstance(integration, Mapping)
-            else getattr(integration, "head_sha", None)
-        ).lower()
-        accepted_branch = accepted_submission_branch(issue)
-        current_status = canonicalize_status(getattr(issue, "state", None))
-        if continuation.resume_status in {NEEDS_CI_FIX, NEEDS_REBASE}:
-            if (
-                integration_state != "blocked"
-                or current_status != continuation.resume_status
-                or accepted_branch != continuation.work_branch
-                or integration_head != expected_head
-            ):
-                raise PrerequisiteSourceChangedError(
-                    "blocked submission authority changed before resolution"
-                )
-            return
-        if continuation.resume_status == NEEDS_HUMAN:
-            if (
-                integration_state != "needs_human"
-                or current_status != NEEDS_HUMAN
-                or accepted_branch != continuation.work_branch
-                or integration_head != expected_head
-            ):
-                raise PrerequisiteSourceChangedError(
-                    "needs-human submission authority changed before resolution"
                 )
             return
         if expected_head and expected_head != record.source_head_sha and (

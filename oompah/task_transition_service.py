@@ -886,6 +886,26 @@ class TransitionJournal:
         with self._admit_use(), self._lock:
             return self._latest_event_locked(transition_id)
 
+    def effect_was_attempted(self, transition_id: str) -> bool:
+        """Return whether immutable history proves the transition began its write."""
+
+        normalized_transition_id = _required_text(
+            transition_id,
+            "transition_id",
+        )
+        with self._admit_use(), self._lock:
+            row = self._conn.execute(
+                """
+                SELECT 1 FROM task_transition_events
+                 WHERE transition_id = ? AND phase = ? LIMIT 1
+                """,
+                (
+                    normalized_transition_id,
+                    TransitionPhase.APPLYING.value,
+                ),
+            ).fetchone()
+        return row is not None
+
     def latest_committed_task_transition(
         self,
         project_id: str,
@@ -1889,6 +1909,8 @@ class TaskTransitionService:
         self,
         intent: TransitionIntent,
         issue: Issue | None,
+        *,
+        effect_was_attempted: bool,
     ) -> str | None:
         """Verify that an observed target status is this intent's exact effect."""
 
@@ -1912,6 +1934,13 @@ class TaskTransitionService:
                     if observed_head is None
                     else "transition.head_mismatch"
                 )
+        if (
+            intent.expected_status == intent.requested_status
+            and issue_authority_version(issue) == intent.expected_version
+        ):
+            return None
+        if not effect_was_attempted:
+            return "transition.stale_version"
         before = replace(issue, state=intent.expected_status)
         candidates = [before]
         observed_revision = getattr(issue, "lifecycle_revision", None)
@@ -3051,9 +3080,14 @@ class TaskTransitionService:
 
             observed_status = canonicalize_status(issue.state)
             if observed_status == intent.requested_status:
+                effect_was_attempted = await asyncio.to_thread(
+                    self.journal.effect_was_attempted,
+                    transition_id,
+                )
                 applied_conflict = self._authorized_recovery_applied_conflict(
                     intent,
                     issue,
+                    effect_was_attempted=effect_was_attempted,
                 )
                 if applied_conflict is not None:
                     outcome = self._outcome(

@@ -2567,7 +2567,7 @@ async def test_ready_continuation_cannot_erase_blocked_submission_status(
         await ProductionImplementationWorkflowBackend(effects).execute(context)
 
     assert rejected.value.category is WorkflowFailureCategory.STALE_EVIDENCE
-    assert "accepted submission authority changed" in str(rejected.value)
+    assert "blocked submission authority changed" in str(rejected.value)
     assert (
         tracker.metadata[issue.identifier][
             PREREQUISITE_RESOLUTION_METADATA_KEY
@@ -2627,6 +2627,140 @@ async def test_blocked_continuation_preserves_exact_branch_head_and_status(
     assert intent is None
     assert tracker.status_writes == []
     effects.receipts.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    (
+        "integration_state",
+        "task_status",
+        "continuation_status",
+        "review_continuation",
+        "error_fragment",
+    ),
+    [
+        ("blocked", "Needs CI Fix", OPEN, False, "blocked submission authority"),
+        (
+            "blocked",
+            "Needs CI Fix",
+            IN_PROGRESS,
+            False,
+            "blocked submission authority",
+        ),
+        (
+            "blocked",
+            "Needs CI Fix",
+            IN_REVIEW,
+            True,
+            "blocked submission authority",
+        ),
+        ("needs_human", NEEDS_HUMAN, OPEN, False, "needs-human submission authority"),
+        (
+            "needs_human",
+            NEEDS_HUMAN,
+            IN_PROGRESS,
+            False,
+            "needs-human submission authority",
+        ),
+        (
+            "needs_human",
+            NEEDS_HUMAN,
+            IN_REVIEW,
+            True,
+            "needs-human submission authority",
+        ),
+        ("integrated", READY_TO_INTEGRATE, OPEN, False, "integrated submission"),
+        (
+            "integrated",
+            READY_TO_INTEGRATE,
+            IN_PROGRESS,
+            False,
+            "integrated submission",
+        ),
+    ],
+)
+async def test_persisted_legacy_continuation_cannot_erase_integration_state(
+    tmp_path,
+    integration_state,
+    task_status,
+    continuation_status,
+    review_continuation,
+    error_fragment,
+):
+    issue = make_issue(status=task_status)
+    issue.integration = SimpleNamespace(
+        state=integration_state,
+        task_branch=issue.work_branch,
+        head_sha=HEAD_A,
+    )
+    if review_continuation:
+        issue.review_number = "20"
+        issue.review_head = HEAD_A
+    expected_authority = issue_authority_version(issue)
+    _record, payload = prerequisite_resolution_payload(
+        issue,
+        expected_authority=expected_authority,
+    )
+    payload["expected_status"] = task_status
+    payload["continuation"] = PrerequisiteContinuation(
+        resume_status=continuation_status,
+        work_branch=issue.work_branch,
+        head_sha=HEAD_A,
+        review_id="20" if review_continuation else None,
+        review_head_sha=HEAD_A if review_continuation else None,
+        target_branch=issue.target_branch if review_continuation else None,
+        pipeline_id="62564237" if review_continuation else None,
+        pipeline_head_sha=HEAD_A if review_continuation else None,
+    ).to_dict()
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    if review_continuation:
+        orch._implementation_prerequisite_review_resolver = MagicMock()
+    generation = "legacy-{}-{}".format(
+        integration_state,
+        continuation_status.lower().replace(" ", "-"),
+    )
+    jobs, _context = make_context(
+        tmp_path,
+        generation=generation,
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=expected_authority,
+    )
+    job_store_path = jobs.path
+    jobs.close()
+    restarted_jobs = WorkflowJobStore(job_store_path)
+    persisted = restarted_jobs.list_jobs(
+        project_id="project-a",
+        task_id=issue.identifier,
+        generation=generation,
+    )
+    assert len(persisted) == 1
+    context = WorkflowJobContext(
+        persisted[0],
+        asyncio.Event(),
+        asyncio.Event(),
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    try:
+        with pytest.raises(WorkflowActionError) as rejected:
+            await ProductionImplementationWorkflowBackend(effects).execute(context)
+
+        assert rejected.value.category is WorkflowFailureCategory.STALE_EVIDENCE
+        assert error_fragment in str(rejected.value)
+        assert (
+            tracker.metadata[issue.identifier][
+                PREREQUISITE_RESOLUTION_METADATA_KEY
+            ]
+            is None
+        )
+        assert tracker.status_writes == []
+        if review_continuation:
+            orch._implementation_prerequisite_review_resolver.assert_not_called()
+    finally:
+        restarted_jobs.close()
+        effects.receipts.close()
 
 
 @pytest.mark.asyncio

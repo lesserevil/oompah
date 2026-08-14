@@ -2613,7 +2613,8 @@ async def test_expired_authorized_recovery_uses_compensation_lane(
 
     outcome = await getattr(service, entrypoint)(replacement)
 
-    assert outcome.disposition is TransitionDisposition.ALREADY_APPLIED
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == "transition.stale_version"
     assert tracker.updates == [("TASK-1", "Open")]
     recovered = journal.latest_event(started.transition_id)
     assert recovered.phase is TransitionPhase.APPLIED
@@ -2687,8 +2688,6 @@ async def test_prerequisite_recovery_rejects_unrelated_matching_target_status(
         original,
         state="In Review",
         lifecycle_revision=5,
-        assignment_id="replacement-generation",
-        head_sha="f" * 40,
     )
     tracker = FakeTracker(replacement)
     service = _service(tmp_path, tracker)
@@ -2707,9 +2706,123 @@ async def test_prerequisite_recovery_rejects_unrelated_matching_target_status(
     outcome = await service.recover_authorized(intent)
 
     assert outcome.disposition is TransitionDisposition.REJECTED
-    assert outcome.reason_code == "transition.head_mismatch"
+    assert outcome.reason_code == "transition.stale_version"
     assert tracker.issue == replacement
     assert tracker.updates == []
+
+
+@pytest.mark.asyncio
+async def test_prerequisite_recovery_retry_without_apply_cannot_infer_effect(
+    tmp_path,
+):
+    clock = [100.0]
+    journal = TransitionJournal(
+        str(tmp_path / "transitions.sqlite3"),
+        clock=lambda: clock[0],
+    )
+    original = _issue(state="Needs Human", lifecycle_revision=4)
+    intent = _intent(
+        original,
+        requested_status="In Review",
+        actor="project-owner",
+        authority=TransitionAuthority.PROJECT_OWNER,
+        reason_code="implementation.prerequisite_resolution",
+        idempotency_key="prerequisite-resolution-read-retry",
+        originating_job="prerequisite-resolution-read-retry",
+        evidence_generation=None,
+        exact_head=original.head_sha,
+    )
+    started = journal.begin(intent, lease_ttl_seconds=10)
+    journal.append(
+        started.transition_id,
+        TransitionPhase.RETRY_SCHEDULED,
+        "transition.tracker_read_failed",
+    )
+    tracker = FakeTracker(
+        replace(
+            original,
+            state="In Review",
+            lifecycle_revision=5,
+        )
+    )
+    clock[0] = 111.0
+    service = _service(
+        tmp_path,
+        tracker,
+        journal=journal,
+        claim_ttl_seconds=10,
+    )
+
+    outcome = await service.recover_authorized(intent)
+
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == "transition.stale_version"
+    assert tracker.updates == []
+
+
+@pytest.mark.asyncio
+async def test_prerequisite_recovery_infers_own_effect_only_after_durable_apply(
+    tmp_path,
+):
+    clock = [100.0]
+    journal = TransitionJournal(
+        str(tmp_path / "transitions.sqlite3"),
+        clock=lambda: clock[0],
+    )
+    original = _issue(state="Needs Human", lifecycle_revision=4)
+    intent = _intent(
+        original,
+        requested_status="In Review",
+        actor="project-owner",
+        authority=TransitionAuthority.PROJECT_OWNER,
+        reason_code="implementation.prerequisite_resolution",
+        idempotency_key="prerequisite-resolution-abandoned",
+        originating_job="prerequisite-resolution-abandoned",
+        evidence_generation=None,
+        exact_head=original.head_sha,
+    )
+    started = journal.begin(intent, lease_ttl_seconds=10)
+    journal.append(
+        started.transition_id,
+        TransitionPhase.APPLYING,
+        intent.reason_code,
+    )
+    journal.append(
+        started.transition_id,
+        TransitionPhase.RETRY_SCHEDULED,
+        "transition.tracker_write_failed",
+    )
+    tracker = FakeTracker(
+        replace(
+            original,
+            state="In Review",
+            lifecycle_revision=5,
+        )
+    )
+    clock[0] = 111.0
+    service = _service(
+        tmp_path,
+        tracker,
+        journal=journal,
+        claim_ttl_seconds=10,
+    )
+    replacement = replace(
+        intent,
+        idempotency_key="prerequisite-resolution-replacement",
+        originating_job="prerequisite-resolution-replacement",
+    )
+
+    outcome = await service.execute(replacement)
+
+    # The abandoned APPLYING intent may reconstruct its own effect, but the
+    # distinct replacement intent has no attempted write and must not inherit
+    # that authority merely because it requests the same target status.
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == "transition.stale_version"
+    assert tracker.updates == []
+    recovered = journal.latest_event(started.transition_id)
+    assert recovered.phase is TransitionPhase.RECOVERED
+    assert recovered.outcome.reason_code == "transition.already_applied"
 
 
 @pytest.mark.asyncio
