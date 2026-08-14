@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T01:17:47.268102Z'
-updated_at: '2026-08-14T01:18:06.601760Z'
+updated_at: '2026-08-14T01:35:26.635640Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,5 +43,10 @@ author: oompah
 created: 2026-08-14 01:18
 ---
 Filed from the live TRICKLE-136 audit after confirming no existing task covers this exact Ready-to-Integrate accepted-head drift. Closest prior fixes address different lifecycle cuts and intentionally retain mismatched-head fences.
+---
+author: oompah
+created: 2026-08-14 01:35
+---
+Claimed for direct implementation while OOMPAH-1260 exact-head CI runs. Working branch/worktree: OOMPAH-1261 at /home/shedwards/src/oompah-1261. Oompah project remains paused; no service scheduling is being used.
 ---
 <!-- COMMENTS:END -->
