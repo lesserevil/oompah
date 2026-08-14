@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T15:00:01.939071Z'
-updated_at: '2026-08-14T07:44:57.924558Z'
+updated_at: '2026-08-14T07:45:05.285989Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,7 +46,21 @@ oompah.terminal_audit:
     created_at: '2026-08-14T07:44:51.628907+00:00'
     selected_ref: origin/main
     selected_sha: 948ef6f207eabe4c26910d8fc276d6d36b659e76
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1246
+    target_state: Merged
+    evidence_fingerprint: 7c100939f59efcbdc46338081d112be94406d8fab62aba91bd1b8c9b985e08e9
+    workflow_revision: null
+    selected_ref: origin/main
+    selected_sha: 948ef6f207eabe4c26910d8fc276d6d36b659e76
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-14T07:45:03.950688+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -72,5 +86,12 @@ author: oompah
 created: 2026-08-13 15:05
 ---
 Root cause fixed on PR #868: GitLab find_pr_for_branch now hydrates an open MR missing diff_refs from the exact detail endpoint, matching list_open_reviews behavior. If detail is unavailable it retains partial identity and callers remain fail-closed. Tests: 44 GitLab SCM cases and 3 standalone exact-review/restart cases pass.
+---
+author: oompah
+created: 2026-08-14 07:45
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner convergence: PR #868 merged as 83196da17 and that landed tree is contained by origin/main; this stale non-terminal projection requires no further implementation.
 ---
 <!-- COMMENTS:END -->
