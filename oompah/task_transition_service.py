@@ -1999,11 +1999,9 @@ class TaskTransitionService:
             or self._write_lock
         )
         if inspect.iscoroutinefunction(fetch) or inspect.iscoroutinefunction(update):
-            context = (
-                write_lock()
-                if write_lock is not None
-                else contextlib.nullcontext()
-            )
+            context = write_lock() if write_lock is not None else None
+            if context is None:
+                context = contextlib.nullcontext()
             with context:
                 observed = (
                     await fetch(intent.task_id)
@@ -2026,11 +2024,9 @@ class TaskTransitionService:
                 return issue, None, None
 
         def commit() -> tuple[Issue | None, str | None, Exception | None]:
-            context = (
-                write_lock()
-                if write_lock is not None
-                else contextlib.nullcontext()
-            )
+            context = write_lock() if write_lock is not None else None
+            if context is None:
+                context = contextlib.nullcontext()
             with context:
                 observed = fetch(intent.task_id)
                 if isinstance(observed, Issue) and not observed.project_id:

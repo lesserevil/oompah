@@ -544,6 +544,61 @@ async def test_authorized_recovery_journals_and_verifies_compensating_status(tmp
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("async_tracker", [False, True])
+async def test_legacy_authorized_recovery_accepts_none_lock_context(
+    tmp_path,
+    async_tracker,
+):
+    issue = _issue(state="Proposed", project_id=None)
+
+    if async_tracker:
+
+        class LegacyTracker(FakeTracker):
+            async def fetch_issue_detail(self, identifier: str):
+                return super().fetch_issue_detail(identifier)
+
+            async def update_issue(self, identifier: str, **fields: str) -> None:
+                super().update_issue(identifier, **fields)
+
+    else:
+        LegacyTracker = FakeTracker
+
+    tracker = LegacyTracker(issue)
+    lock_requests = 0
+
+    def absent_project_lock():
+        nonlocal lock_requests
+        lock_requests += 1
+        return None
+
+    service = TaskTransitionService(
+        project_id="__legacy__",
+        tracker=tracker,
+        journal=TransitionJournal(str(tmp_path / "transitions.sqlite3")),
+        mutation_write_lock=absent_project_lock,
+    )
+    intent = _intent(
+        replace(issue, project_id="__legacy__"),
+        project_id="__legacy__",
+        requested_status="Backlog",
+        authority=TransitionAuthority.SYSTEM,
+        actor="oompah",
+        reason_code="intake.proposed_promoted",
+        idempotency_key=f"legacy-intake:{async_tracker}",
+        originating_job="orchestrator:intake.proposed_promoted",
+        evidence_generation=None,
+        exact_head=None,
+    )
+
+    outcome = await service.recover_authorized(intent)
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert outcome.applied_status == "Backlog"
+    assert tracker.updates == [("TASK-1", "Backlog")]
+    assert lock_requests == 1
+
+
+@pytest.mark.asyncio
 async def test_authorized_recovery_rejects_unapproved_authority_or_reason(tmp_path):
     issue = _issue(state="Merged")
     tracker = FakeTracker(issue)
