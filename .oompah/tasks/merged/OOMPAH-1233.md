@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1233
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Recognize landed standalone submissions after source branch deletion
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T10:25:26.660518Z'
-updated_at: '2026-08-13T10:47:09.861319Z'
+updated_at: '2026-08-14T07:38:27.681679Z'
 work_branch: OOMPAH-1233
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 6b34eecc-c88d-485e-86a2-e62b75d7493a
   request_fingerprint: aa782013cdbafb0b5c541f0295c2ecb65e5297e67b4c97a81dbdd9875bbac022
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.integration:
   version: 2
   state: ready
@@ -48,6 +48,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1233
     digest: eac24b5776ffc0a8b16c1ac77eb7b116efde8db1afc5fa39605cc3df8d59460c
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-c723977e7748
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1233
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: eac24b5776ffc0a8b16c1ac77eb7b116efde8db1afc5fa39605cc3df8d59460c
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #859 merged as a2e09035c and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:38:23.451110+00:00'
+    selected_ref: d93f9a2fe38c8237901b3589fca8550a63333cc8
+    selected_sha: d93f9a2fe38c8237901b3589fca8550a63333cc8
+    applied: false
   version: 1
   pending_chain:
   - version: 1
