@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:20.238127Z'
-updated_at: '2026-08-14T02:41:09.889683Z'
+updated_at: '2026-08-14T02:52:10.973929Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,3 +36,11 @@ Introduce a typed durable implementation-prerequisite record and strict trusted-
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-14 02:52
+---
+Claimed for direct implementation on stacked branch OOMPAH-1262 in /home/shedwards/src/oompah-1262, based on the exact review-ready OOMPAH-1261 head. Oompah remains paused. The parent commit will be rebased away onto equivalent main after OOMPAH-1261 lands; only OOMPAH-1262-specific commits will remain.
+---
+<!-- COMMENTS:END -->
