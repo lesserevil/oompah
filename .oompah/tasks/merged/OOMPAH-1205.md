@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1205
 type: bug
-status: In Validation
+status: Merged
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-121 identifier=TRICKLE-121 run_id=6fb92a00160243d3ae918f5d6e89ab70
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:27:25.590177Z'
-updated_at: '2026-08-14T03:41:18.048381Z'
+updated_at: '2026-08-14T03:41:21.980742Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.terminal_audit:
   queued_comment_posted: true
   oompah.terminal_audit_tracker_projections:
