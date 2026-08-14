@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T01:17:47.268102Z'
-updated_at: '2026-08-14T01:35:26.635640Z'
+updated_at: '2026-08-14T01:38:04.647747Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,5 +48,10 @@ author: oompah
 created: 2026-08-14 01:35
 ---
 Claimed for direct implementation while OOMPAH-1260 exact-head CI runs. Working branch/worktree: OOMPAH-1261 at /home/shedwards/src/oompah-1261. Oompah project remains paused; no service scheduling is being used.
+---
+author: oompah
+created: 2026-08-14 01:38
+---
+Correction from exact live audit: TRICKLE-136's current review is GitLab MR !14, not !19. Accepted head is 835ae43684ab47660a77e2a04a10b414a0f0181d; remote branch and MR !14 head are fea95f192d66fbf07f0188ad632e42c0ceb21d52. The heads diverge. The MR is open, non-draft, conflict-free, and pending only on the required offline macOS runner.
 ---
 <!-- COMMENTS:END -->
