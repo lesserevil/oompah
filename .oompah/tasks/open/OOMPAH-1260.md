@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T00:43:53.961262Z'
-updated_at: '2026-08-14T01:04:38.570415Z'
+updated_at: '2026-08-14T01:29:31.493070Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,5 +47,10 @@ author: oompah
 created: 2026-08-14 01:04
 ---
 Root cause confirmed: same-generation recurring revalidation was terminally superseding the row, while immediate terminal recovery correctly rearmed it on every scan. Implemented an exact-deadline RETRY_WAIT handoff that restores the pre-effect attempt budget and remains active restart authority; genuine generation changes and non-recurring stale jobs still supersede. Store/worker/scheduler focused suite currently passes (205 tests). Adding the cross-component restart/churn regression before full gate and deployment. All projects remain temporarily paused for containment; only Trickle will be resumed after live acceptance.
+---
+author: oompah
+created: 2026-08-14 01:29
+---
+Implementation committed and pushed as 2cdb4eafb999baf7c329c585a01ea3618b235191; PR #877 opened. Full Makefile gate passed: 20,369 passed, 7 skipped, 2 xfailed. Independent race review found no blockers.
 ---
 <!-- COMMENTS:END -->
