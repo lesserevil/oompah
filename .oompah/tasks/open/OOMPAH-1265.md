@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-14T06:03:20.214715Z'
+updated_at: '2026-08-14T07:34:38.666127Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,10 @@ author: oompah
 created: 2026-08-14 06:03
 ---
 Added finish-order dependency on OOMPAH-1266 (not hard-start): lifecycle acceptance/test-only work may begin after existing OOMPAH-1264 hard-start clears, but final OOMPAH-1265 integration follows the landed late-submit authority repair because both touch server/continuation observability boundaries.
+---
+author: oompah
+created: 2026-08-14 07:34
+---
+Claimed for direct implementation in /home/shedwards/src/oompah-1265 on branch OOMPAH-1265 from landed OOMPAH-1264 epic head 2ff3966dd. Oompah remains paused. Beginning production-shaped test-first lifecycle acceptance in parallel while OOMPAH-1266 completes its bounded integration-authority gate; final integration remains finish-ordered after OOMPAH-1266.
 ---
 <!-- COMMENTS:END -->
