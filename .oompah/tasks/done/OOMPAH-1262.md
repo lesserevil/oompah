@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:20.238127Z'
-updated_at: '2026-08-14T03:54:02.040677Z'
+updated_at: '2026-08-14T03:54:12.551550Z'
 work_branch: OOMPAH-1262
 target_branch: null
 review_url: null
@@ -65,7 +65,22 @@ oompah.terminal_audit:
     created_at: '2026-08-14T03:53:58.211593+00:00'
     selected_ref: 68882b83d707a3cfb4988516dba17f1a838014dd
     selected_sha: 68882b83d707a3cfb4988516dba17f1a838014dd
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1262
+    target_state: Done
+    evidence_fingerprint: c6b858d24feb80128617efd8a53d95dfc4377991948d333c91930576eee4fb85
+    workflow_revision: null
+    selected_ref: 68882b83d707a3cfb4988516dba17f1a838014dd
+    selected_sha: 68882b83d707a3cfb4988516dba17f1a838014dd
+    landing_revision: null
+    audit_ids:
+    - audit-6d2cf1570435
+    kind: override
+    applied: true
+    retired_at: '2026-08-14T03:54:05.948492+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -73,7 +88,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1262
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -89,6 +104,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-14T03:46:35.203687+00:00'
     selected_ref: 68882b83d707a3cfb4988516dba17f1a838014dd
     selected_sha: 68882b83d707a3cfb4988516dba17f1a838014dd
+    updated_at: '2026-08-14T03:54:05.948455+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -132,5 +148,17 @@ author: oompah
 created: 2026-08-14 03:53
 ---
 Terminal evidence: PR 879 merged into epic-OOMPAH-1231 as bf53cfb7a35c8c9773557712b55cbe09d5de6ef6. The squash tree exactly equals reviewed task head 68882b83d707a3cfb4988516dba17f1a838014dd. GitHub Actions run 31767684898 passed on Python 3.11, 3.12, and 3.13; local broad/focused suites and independent blocking review also passed.
+---
+author: oompah
+created: 2026-08-14 03:54
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project is intentionally paused; project-owner terminal override records independently verified landing on the shared epic branch, exact tree equivalence, passing three-version CI, and completed independent review.
+---
+author: oompah
+created: 2026-08-14 03:54
+---
+Completed on epic-OOMPAH-1231 via PR 879 with exact-tree verification and successful CI on Python 3.11/3.12/3.13.
 ---
 <!-- COMMENTS:END -->
