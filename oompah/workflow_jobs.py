@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import sqlite3
 import threading
@@ -257,9 +258,10 @@ def _schedule_reassessment_deadline(value: object) -> float | None:
     if _REASSESSMENT_GENERATION_MARKER not in raw:
         return None
     try:
-        return float(raw.rsplit(_REASSESSMENT_GENERATION_MARKER, 1)[1])
+        deadline = float(raw.rsplit(_REASSESSMENT_GENERATION_MARKER, 1)[1])
     except ValueError:
         return None
+    return deadline if math.isfinite(deadline) else None
 
 
 def _job_row_proves_live_authority(
@@ -515,6 +517,12 @@ class WorkflowJob:
     @property
     def is_terminal(self) -> bool:
         return self.state in TERMINAL_JOB_STATES
+
+    @property
+    def reassessment_deadline(self) -> float | None:
+        """Return the durable recurring-generation deadline, when present."""
+
+        return _schedule_reassessment_deadline(self.generation)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -6747,6 +6755,95 @@ class WorkflowJobStore:
                         "deferral_count": prior_deferrals + 1,
                         "retry_delay_seconds": retry_delay,
                         "retry_at": retry_at,
+                    },
+                    now=timestamp,
+                )
+                self._conn.commit()
+                return self._from_row(row)
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def defer_owned_until(
+        self,
+        job_id: str,
+        lease_token: str,
+        *,
+        reason: str,
+        retry_at: float,
+        now: float | None = None,
+    ) -> WorkflowJob:
+        """Release a pre-effect lease until one exact authoritative deadline.
+
+        A fresh worker cut can ask to reassess the same durable generation
+        without naming a replacement generation.  Persist that bounded wait
+        as active ``RETRY_WAIT`` authority so restart reconstruction remains
+        truthful and world scans cannot amplify the same transient mismatch
+        into a stream of replacement jobs.
+        """
+
+        message = _required_text(reason, "reason")
+        deadline = float(retry_at)
+        if not math.isfinite(deadline):
+            raise ValueError("retry_at must be finite")
+        with self._authority_mutation_guard():
+            timestamp = float(self._clock() if now is None else now)
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                owned = self._owned_row_locked(job_id, lease_token, now=timestamp)
+                restored_attempts = max(int(owned["attempts"]) - 1, 0)
+                deadline_due = deadline <= timestamp
+                next_state = (
+                    WorkflowJobState.SUPERSEDED
+                    if deadline_due
+                    else WorkflowJobState.RETRY_WAIT
+                )
+                replacement = (
+                    f"reassess:{str(owned['generation'])}"
+                    if deadline_due
+                    else None
+                )
+                cursor = self._conn.execute(
+                    """
+                    UPDATE workflow_jobs
+                       SET state = ?, attempts = ?,
+                           lease_owner = NULL, lease_token = NULL,
+                           lease_expires_at = NULL, retry_at = ?,
+                           failure_category = NULL, last_error = ?,
+                           superseded_by_generation = ?, updated_at = ?,
+                           completed_at = ?
+                     WHERE job_id = ? AND state = ? AND lease_token = ?
+                    """,
+                    (
+                        next_state.value,
+                        restored_attempts,
+                        None if deadline_due else deadline,
+                        message,
+                        replacement,
+                        timestamp,
+                        timestamp if deadline_due else None,
+                        job_id,
+                        WorkflowJobState.RUNNING.value,
+                        lease_token,
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    raise WorkflowJobLeaseLost(
+                        f"workflow job lease is no longer owned: {job_id}"
+                    )
+                row = self._row_locked(job_id)
+                self._append_event_locked(
+                    row,
+                    (
+                        "reassessment_due"
+                        if deadline_due
+                        else "reassessment_deferred"
+                    ),
+                    payload={
+                        "reason": message,
+                        "restored_attempts": restored_attempts,
+                        "retry_at": deadline,
+                        "replacement_generation": replacement,
                     },
                     now=timestamp,
                 )

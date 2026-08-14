@@ -904,6 +904,33 @@ class DurableWorkflowWorker:
             if not self._is_current(context.job, revalidation):
                 replacement = str(revalidation.generation or "unknown").strip()
                 if replacement == context.job.generation:
+                    deadline = context.job.reassessment_deadline
+                    if deadline is not None:
+                        deferred = await asyncio.to_thread(
+                            self.store.defer_owned_until,
+                            context.job.job_id,
+                            str(context.job.lease_token or ""),
+                            reason="workflow evidence changed before reassessment",
+                            retry_at=deadline,
+                        )
+                        deadline_due = (
+                            deferred.state is WorkflowJobState.SUPERSEDED
+                        )
+                        return WorkflowRunResult(
+                            (
+                                WorkflowRunDisposition.SUPERSEDED
+                                if deadline_due
+                                else WorkflowRunDisposition.RETRY_SCHEDULED
+                            ),
+                            deferred.job_id,
+                            deferred.state,
+                            (
+                                "workflow reassessment deadline is due"
+                                if deadline_due
+                                else "workflow evidence changed before reassessment"
+                            ),
+                            deferred.attempts,
+                        )
                     replacement = f"reassess:{replacement}"
                 superseded = await asyncio.to_thread(
                     self.store.supersede,
