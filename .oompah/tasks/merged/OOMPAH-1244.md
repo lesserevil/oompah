@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T14:34:54.048407Z'
-updated_at: '2026-08-14T07:41:39.695516Z'
+updated_at: '2026-08-14T07:41:44.652529Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,7 +53,23 @@ oompah.terminal_audit:
     created_at: '2026-08-14T07:41:36.112895+00:00'
     selected_ref: origin/OOMPAH-1244
     selected_sha: 84d03e811aaabe1a0cfa7bd851261f4c49bac765
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1244
+    target_state: Merged
+    evidence_fingerprint: 43620d7f3d9ed22fbf1cb4fb05cde1146f1843414d129e2bb60df599f718fb45
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1244
+    selected_sha: 84d03e811aaabe1a0cfa7bd851261f4c49bac765
+    landing_revision: null
+    audit_ids:
+    - audit-57a82a4889eb
+    - audit-27d3a4d92676
+    kind: override
+    applied: true
+    retired_at: '2026-08-14T07:41:43.529965+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -61,7 +77,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1244
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -77,12 +93,13 @@ oompah.terminal_audit:
     eligible_at: '2026-08-13T16:35:43.939700+00:00'
     selected_ref: origin/OOMPAH-1244
     selected_sha: 84d03e811aaabe1a0cfa7bd851261f4c49bac765
+    updated_at: '2026-08-14T07:41:43.529918+00:00'
   - version: 1
     audit_id: audit-27d3a4d92676
     project_id: proj-14849f1b
     task_id: OOMPAH-1244
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -98,6 +115,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-57a82a4889eb
     selected_ref: origin/OOMPAH-1244
     selected_sha: 84d03e811aaabe1a0cfa7bd851261f4c49bac765
+    updated_at: '2026-08-14T07:41:43.529948+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -164,5 +182,12 @@ author: oompah
 created: 2026-08-13 16:35
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-14 07:41
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner convergence: PR #870 merged as 10bc0072c and that landed tree is contained by origin/main; this stale non-terminal projection requires no further implementation.
 ---
 <!-- COMMENTS:END -->
