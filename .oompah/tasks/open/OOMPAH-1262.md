@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:20.238127Z'
-updated_at: '2026-08-14T03:33:46.635519Z'
+updated_at: '2026-08-14T03:44:18.269759Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,5 +47,10 @@ author: oompah
 created: 2026-08-14 03:33
 ---
 Implementation checkpoint: strict prerequisite schema, append-once/non-authoritative staging, project+runtime fenced finalization, profile capability config/API/store ingestion, restart fact projection, jobless non-transient admissions, capable successor selection, running-successor suppression, and final profile admission fencing are implemented. Focused schema/profile/API/decision slice passes 264 tests. Independent race review accepted lock ordering and caught one remaining fail-open projection issue: malformed scalar/list metadata must remain distinguishable from absence across native/GitHub/GitLab adapters. That fix plus targeted HTTP/ACP replacement, crash/finalize, restart, and profile-removal regressions are in progress before branch freeze.
+---
+author: oompah
+created: 2026-08-14 03:44
+---
+Frozen implementation rebased onto tree-identical merged main as exact commit 68882b83d707a3cfb4988516dba17f1a838014dd and pushed in PR 879 with squash auto-merge enabled. Broad affected batch passes 1,020 tests; final focused rerun passes 134; independent blocking review is GO on all five authority/race gates. The branch contains only the OOMPAH-1262 commit.
 ---
 <!-- COMMENTS:END -->
