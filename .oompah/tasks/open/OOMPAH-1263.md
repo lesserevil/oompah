@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:37.692542Z'
-updated_at: '2026-08-14T04:09:17.446937Z'
+updated_at: '2026-08-14T04:26:39.927405Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-08-14 04:09
 ---
 Implementation checkpoint: exact managed zero-job lane retirement and publication rollback/restart fencing are implemented; six focused store regressions pass. Decision classification now keeps dependency waits quiet, retains real operator/platform warnings, gives accepted submissions precedence, and schedules exact outgoing-source revocation before parking. Nested topology final-lease fencing and runtime race coverage are in progress in parallel.
+---
+author: oompah
+created: 2026-08-14 04:26
+---
+Implemented stable structured prerequisite parking: exact blocked prerequisites now classify dependency waits as non-alerting Blocked and capability/operator failures as Action Required warnings; accepted submissions and current replacement generations retain precedence. Zero-job park cuts durably retire managed implementation work plus exact fact, imperative, and nested-repair event lanes while preserving the prerequisite-resolution lane. Added outgoing-run revocation and nested-repair mutation fencing, fail-closed publication rollback, restart/current-replacement behavior, and same-task tracker-drift retry protection. Focused consolidated verification: 789 passed across workflow runtime, store, scheduler/controller, decision, adapter, duplicate-preflight, implementation workflow, and nested topology suites. Branch remains local and unsubmitted for parent integration.
 ---
 <!-- COMMENTS:END -->
