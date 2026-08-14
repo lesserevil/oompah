@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1232
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Rearm runnable workflow jobs when blocking evidence changes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T10:08:08.871557Z'
-updated_at: '2026-08-13T10:57:03.496646Z'
+updated_at: '2026-08-14T07:38:11.631541Z'
 work_branch: OOMPAH-1232
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: c5389a39-0475-4191-ada8-e49be43cf34d
   request_fingerprint: 93e69203bf22fff1b3823d66fe5518d3cdd5e33c5e812ee0770173ee78c214c4
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.integration:
   version: 2
   state: ready
@@ -48,6 +48,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1232
     digest: 91c76a4b83a3ac13b0ab1a27475648c7f0e5e7be0b010e8e2683d6dd6852c2fd
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f38f4a834124
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1232
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 91c76a4b83a3ac13b0ab1a27475648c7f0e5e7be0b010e8e2683d6dd6852c2fd
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #860 merged as ad8990577 and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:38:06.719901+00:00'
+    selected_ref: 3ab523c787c6856073f95e8dbbabace2820ac07c
+    selected_sha: 3ab523c787c6856073f95e8dbbabace2820ac07c
+    applied: false
   version: 1
   pending_chain:
   - version: 1
