@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1263
 type: bug
-status: Open
+status: In Validation
 priority: 1
 title: Park external blockers and retire every stale durable lane
 parent: OOMPAH-1231
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:37.692542Z'
-updated_at: '2026-08-14T04:28:20.166435Z'
+updated_at: '2026-08-14T04:46:52.847789Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -26,7 +26,39 @@ oompah.create_once:
   creation_marker: oompah-1231-park-retirement-v1
   request_fingerprint: 98432ed9fc5b6f6b2f2c9c65ea49a82baf69aba3719cebb46325f1817bfe1024
 oompah.start_blocked_by: *id001
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-2e91e427a457
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1263
+    digest: ec9ccef497f001bd8aee3f8893969a73d67c26899de61e5f59e875c48ecd3884
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2e91e427a457
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1263
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ec9ccef497f001bd8aee3f8893969a73d67c26899de61e5f59e875c48ecd3884
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-14T04:46:48.047549+00:00'
+    eligible_at: '2026-08-14T04:46:48.047549+00:00'
+    selected_ref: origin/OOMPAH-1263
+    selected_sha: 987c46cb8075073aac18a09c140eafe9526190fd
+  attempt_history: []
 ---
 ## Summary
 
@@ -64,5 +96,10 @@ author: oompah
 created: 2026-08-14 04:28
 ---
 Frozen branch pushed at exact head 987c46cb8075073aac18a09c140eafe9526190fd in PR 880 targeting epic-OOMPAH-1231. Focused verification passes 789 tests and diff check is clean. Auto-merge is intentionally disabled until GitHub CI completes.
+---
+author: oompah
+created: 2026-08-14 04:46
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
