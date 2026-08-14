@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1262
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Define structured external-prerequisite and profile capability authority
 parent: OOMPAH-1231
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:20.238127Z'
-updated_at: '2026-08-14T02:39:20.238127Z'
+updated_at: '2026-08-14T02:41:09.889683Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: oompah-1231-prerequisite-authority-v1
   request_fingerprint: e38becde52d97174b7098c49b23a59fd1eae8ff01d7dbaf2d7272a97f3cae836
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
