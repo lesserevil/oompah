@@ -7,11 +7,12 @@ title: Park external blockers and retire every stale durable lane
 parent: OOMPAH-1231
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-1262
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:37.692542Z'
-updated_at: '2026-08-14T02:39:37.692542Z'
+updated_at: '2026-08-14T02:40:45.831358Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +25,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: oompah-1231-park-retirement-v1
   request_fingerprint: 98432ed9fc5b6f6b2f2c9c65ea49a82baf69aba3719cebb46325f1817bfe1024
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 

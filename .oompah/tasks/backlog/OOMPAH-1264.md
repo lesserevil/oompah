@@ -7,11 +7,12 @@ title: Resolve external prerequisites with exact CAS and one fresh generation
 parent: OOMPAH-1231
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-1262
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:54.222347Z'
-updated_at: '2026-08-14T02:39:54.222347Z'
+updated_at: '2026-08-14T02:40:50.646102Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +25,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: oompah-1231-resolution-cas-v1
   request_fingerprint: 1f4866dfd9890e09cbc705a0030d9bf030cc49ba6b22639e33bb93bbf52f65e5
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
