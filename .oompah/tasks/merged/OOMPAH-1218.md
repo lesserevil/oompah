@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1218
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Bind implementation status transitions to the runtime assignment generation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:05:12.348049Z'
-updated_at: '2026-08-13T04:20:36.540209Z'
+updated_at: '2026-08-14T07:31:02.813226Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 66453f65-1c85-4433-8a62-ff21f1ab7692
   request_fingerprint: 6542d304c132be47711a84d6318b1765ff5b184392b0e5f9fa3f7fab496bbda0
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.terminal_audit:
   queued_comment_posted: true
   oompah.terminal_audit_tracker_projections:
@@ -38,6 +38,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1218
     digest: 6f7fbc4acb15103753351c80143989af0e0d85c135031c14e997d1a2c5ac5cb7
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-a90fc1577672
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1218
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6f7fbc4acb15103753351c80143989af0e0d85c135031c14e997d1a2c5ac5cb7
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #849 merged as eb281f1ea and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:30:59.279072+00:00'
+    selected_ref: origin/OOMPAH-1218
+    selected_sha: 212cf88af1f4bd163fd68c8a9812472a5d9e7e9b
+    applied: false
   version: 1
   pending_chain:
   - version: 1
