@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:09.835377Z'
-updated_at: '2026-08-14T07:36:48.428935Z'
+updated_at: '2026-08-14T07:36:55.816530Z'
 work_branch: OOMPAH-1194
 target_branch: null
 review_url: null
@@ -62,7 +62,25 @@ oompah.terminal_audit:
     created_at: '2026-08-14T07:36:41.941411+00:00'
     selected_ref: dc5b5998d013228a1409bd05a25b49f40787921a
     selected_sha: dc5b5998d013228a1409bd05a25b49f40787921a
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1194
+    target_state: Merged
+    evidence_fingerprint: cf4bb18a00cbb7a23542aa399caa0f1ebe21ff421c8e410cd9a783f0c045f951
+    workflow_revision: null
+    selected_ref: dc5b5998d013228a1409bd05a25b49f40787921a
+    selected_sha: dc5b5998d013228a1409bd05a25b49f40787921a
+    landing_revision: null
+    audit_ids:
+    - audit-cad206e88330
+    - audit-a71c9fb75593
+    - audit-7fe08b784459
+    - audit-598b35e5dd5a
+    kind: override
+    applied: true
+    retired_at: '2026-08-14T07:36:54.256292+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -112,7 +130,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1194
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -128,12 +146,13 @@ oompah.terminal_audit:
     eligible_at: '2026-08-14T07:36:19.948209+00:00'
     selected_ref: dc5b5998d013228a1409bd05a25b49f40787921a
     selected_sha: dc5b5998d013228a1409bd05a25b49f40787921a
+    updated_at: '2026-08-14T07:36:54.256242+00:00'
   - version: 1
     audit_id: audit-598b35e5dd5a
     project_id: proj-14849f1b
     task_id: OOMPAH-1194
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -149,6 +168,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-7fe08b784459
     selected_ref: dc5b5998d013228a1409bd05a25b49f40787921a
     selected_sha: dc5b5998d013228a1409bd05a25b49f40787921a
+    updated_at: '2026-08-14T07:36:54.256273+00:00'
   attempt_history: []
 oompah.integration:
   version: 2
@@ -222,5 +242,12 @@ author: oompah
 created: 2026-08-14 07:36
 ---
 PR #842 merged as 7140e7082 with supported-Python CI passing; the landed tree is contained by origin/main and no implementation remains.
+---
+author: oompah
+created: 2026-08-14 07:36
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner convergence: PR #842 merged as 7140e7082 and that landed tree is contained by origin/main; supported-Python CI passed and the fresh terminal request supersedes the stale audit fingerprint.
 ---
 <!-- COMMENTS:END -->
