@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1241
 type: bug
-status: Open
+status: Merged
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-141'
 parent: null
@@ -11,14 +11,39 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T13:47:10.437674Z'
-updated_at: '2026-08-13T16:07:42.976214Z'
+updated_at: '2026-08-14T07:43:59.054151Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6b3c26d8253a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1241
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: be2c164edc90e4a4decefc1d3532f391726fe45d97b3170b3b8cca086a103dac
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #867 merged as b3ed5d636 and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:43:53.152748+00:00'
+    selected_ref: origin/main
+    selected_sha: 948ef6f207eabe4c26910d8fc276d6d36b659e76
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
