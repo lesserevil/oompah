@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import json
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
 import pytest
@@ -602,6 +603,45 @@ def test_resolution_store_rejects_concurrent_replacement_and_malformed_history()
             accept_current=lambda: True,
         )
 
+
+def test_resolution_store_concurrent_replacement_has_one_exact_winner():
+    record = _record()
+    tracker = _Tracker(record.to_dict())
+    lock = threading.Lock()
+    contenders = (
+        _resolution(record, generation="resolution-left"),
+        _resolution(record, generation="resolution-right"),
+    )
+
+    def resolve(contender):
+        try:
+            return save_resolution(
+                tracker,
+                _issue(),
+                record,
+                contender,
+                lock=lock,
+                accept_current=lambda: True,
+            )
+        except PrerequisiteResolutionConflictError as exc:
+            return exc
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = tuple(pool.map(resolve, contenders))
+
+    winners = [
+        outcome
+        for outcome in outcomes
+        if isinstance(outcome, ImplementationPrerequisiteResolution)
+    ]
+    conflicts = [
+        outcome
+        for outcome in outcomes
+        if isinstance(outcome, PrerequisiteResolutionConflictError)
+    ]
+    assert len(winners) == 1
+    assert len(conflicts) == 1
+    assert tracker.metadata[RESOLUTION_METADATA_KEY] == winners[0].to_dict()
 
 def _profile(name, capabilities, **constraints):
     return SimpleNamespace(
