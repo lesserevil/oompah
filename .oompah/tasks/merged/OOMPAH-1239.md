@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1239
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Bypass recursive topology preflight for authoritative epic-rebase helpers
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T13:08:46.480588Z'
-updated_at: '2026-08-13T13:32:28.808935Z'
+updated_at: '2026-08-14T07:40:35.951890Z'
 work_branch: OOMPAH-1239
 target_branch: null
 review_url: null
@@ -47,6 +47,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1239
     digest: 78fa9e5f8fc26fc487661c116d3f107f00eaaaf8cda79ac7c9f9703cfefa8351
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-2c2833a0f5f6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1239
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 78fa9e5f8fc26fc487661c116d3f107f00eaaaf8cda79ac7c9f9703cfefa8351
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #866 merged as f7ea216ec and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:40:30.590372+00:00'
+    selected_ref: f8d9349aee9aeb493a676bd56bdceca289d7aaa7
+    selected_sha: f8d9349aee9aeb493a676bd56bdceca289d7aaa7
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -92,7 +113,7 @@ oompah.terminal_audit:
     selected_ref: f8d9349aee9aeb493a676bd56bdceca289d7aaa7
     selected_sha: f8d9349aee9aeb493a676bd56bdceca289d7aaa7
   attempt_history: []
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 ---
 ## Summary
 
