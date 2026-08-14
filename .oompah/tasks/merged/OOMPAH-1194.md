@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1194
 type: bug
-status: In Validation
+status: Merged
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-134'
 parent: null
@@ -11,14 +11,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:09.835377Z'
-updated_at: '2026-08-14T07:36:32.683552Z'
+updated_at: '2026-08-14T07:36:48.428935Z'
 work_branch: OOMPAH-1194
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.terminal_audit:
   queued_comment_posted: true
   oompah.terminal_audit_tracker_projections:
@@ -42,6 +42,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1194
     digest: cf4bb18a00cbb7a23542aa399caa0f1ebe21ff421c8e410cd9a783f0c045f951
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-b69832794186
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1194
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cf4bb18a00cbb7a23542aa399caa0f1ebe21ff421c8e410cd9a783f0c045f951
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #842 merged as 7140e7082 and that landed tree is
+      contained by origin/main; supported-Python CI passed and the fresh terminal
+      request supersedes the stale audit fingerprint.'
+    created_at: '2026-08-14T07:36:41.941411+00:00'
+    selected_ref: dc5b5998d013228a1409bd05a25b49f40787921a
+    selected_sha: dc5b5998d013228a1409bd05a25b49f40787921a
+    applied: false
   version: 1
   pending_chain:
   - version: 1
