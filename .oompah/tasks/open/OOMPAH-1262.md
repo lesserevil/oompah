@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:20.238127Z'
-updated_at: '2026-08-14T02:52:10.973929Z'
+updated_at: '2026-08-14T03:33:46.635519Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-14 02:52
 ---
 Claimed for direct implementation on stacked branch OOMPAH-1262 in /home/shedwards/src/oompah-1262, based on the exact review-ready OOMPAH-1261 head. Oompah remains paused. The parent commit will be rebased away onto equivalent main after OOMPAH-1261 lands; only OOMPAH-1262-specific commits will remain.
+---
+author: oompah
+created: 2026-08-14 03:33
+---
+Implementation checkpoint: strict prerequisite schema, append-once/non-authoritative staging, project+runtime fenced finalization, profile capability config/API/store ingestion, restart fact projection, jobless non-transient admissions, capable successor selection, running-successor suppression, and final profile admission fencing are implemented. Focused schema/profile/API/decision slice passes 264 tests. Independent race review accepted lock ordering and caught one remaining fail-open projection issue: malformed scalar/list metadata must remain distinguishable from absence across native/GitHub/GitLab adapters. That fix plus targeted HTTP/ACP replacement, crash/finalize, restart, and profile-removal regressions are in progress before branch freeze.
 ---
 <!-- COMMENTS:END -->
