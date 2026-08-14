@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1260
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Prevent recurring scheduler churn after superseded evidence revalidation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T00:43:53.961262Z'
-updated_at: '2026-08-14T01:49:25.192054Z'
+updated_at: '2026-08-14T03:22:55.102889Z'
 work_branch: OOMPAH-1260
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: dd002099-ee31-4cf1-a637-09386bf4bc3d
   request_fingerprint: 8659dfa3f103dbd0aa12b6c34378cca3b4feee5d6e7337fa88ef20a251491586
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.integration:
   version: 2
   state: ready
@@ -50,6 +50,28 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1260
     digest: 566bbc72ccb601f9e7f9c42c0b2f321243cafa6284022c68dd0c248c86b4631e
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-7d05d3ff4da6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1260
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 566bbc72ccb601f9e7f9c42c0b2f321243cafa6284022c68dd0c248c86b4631e
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner terminal closure while Oompah scheduling remains intentionally
+      paused: PR 877 merged; full exact-head Makefile gate passed 20,369 tests with
+      7 skipped and 2 expected failures; deployed revision 5a0ae9f completed live
+      TRICKLE-134 deadline-fencing acceptance before the next main deployment.'
+    created_at: '2026-08-14T03:22:51.536500+00:00'
+    selected_ref: 2cdb4eafb999baf7c329c585a01ea3618b235191
+    selected_sha: 2cdb4eafb999baf7c329c585a01ea3618b235191
+    applied: false
   version: 1
   pending_chain:
   - version: 1
