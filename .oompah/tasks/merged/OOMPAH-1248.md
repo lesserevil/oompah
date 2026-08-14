@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T15:31:19.680451Z'
-updated_at: '2026-08-14T07:45:15.453619Z'
+updated_at: '2026-08-14T07:45:20.611143Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,7 +46,21 @@ oompah.terminal_audit:
     created_at: '2026-08-14T07:45:11.350579+00:00'
     selected_ref: origin/main
     selected_sha: 948ef6f207eabe4c26910d8fc276d6d36b659e76
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1248
+    target_state: Merged
+    evidence_fingerprint: c4e06cd3d0a1952c26476a330350da6137b32d8f9669547b484788a55d2443d9
+    workflow_revision: null
+    selected_ref: origin/main
+    selected_sha: 948ef6f207eabe4c26910d8fc276d6d36b659e76
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-14T07:45:19.319813+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -67,5 +81,12 @@ author: oompah
 created: 2026-08-13 15:37
 ---
 Implemented on PR #869. Agent-sourced ACTIVE authority now expires when its start transition is complete and no exact live RunningEntry remains; transition-in-flight and direct-owner authority remain protected. This lets TRICKLE-141 enter durable recovery immediately after deploy. Focused suite: 550 passed; hosted CI in progress.
+---
+author: oompah
+created: 2026-08-14 07:45
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner convergence: PR #869 merged as 254291a69 and that landed tree is contained by origin/main; this stale non-terminal projection requires no further implementation.
 ---
 <!-- COMMENTS:END -->
