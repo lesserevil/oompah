@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1251
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Stamp managed project identity before epic-rebase publication validation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:48:58.587882Z'
-updated_at: '2026-08-13T17:04:20.790211Z'
+updated_at: '2026-08-14T07:42:23.507182Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,6 +37,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1251
     digest: b68758816ecef626e0a1f7fc312f8689f342b4656126a86582266592cfd8b545
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-18921417aa8b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1251
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b68758816ecef626e0a1f7fc312f8689f342b4656126a86582266592cfd8b545
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #871 merged as eba3ba84a and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:42:19.969935+00:00'
+    selected_ref: origin/main
+    selected_sha: eba3ba84ac1e1f8cc576a9b546e28743e64c209d
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -82,7 +103,7 @@ oompah.terminal_audit:
     selected_ref: origin/main
     selected_sha: eba3ba84ac1e1f8cc576a9b546e28743e64c209d
   attempt_history: []
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 ---
 ## Summary
 
