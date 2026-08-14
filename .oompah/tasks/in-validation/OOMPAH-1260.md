@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T00:43:53.961262Z'
-updated_at: '2026-08-14T01:48:20.748357Z'
+updated_at: '2026-08-14T01:48:41.340519Z'
 work_branch: OOMPAH-1260
 target_branch: null
 review_url: null
@@ -137,5 +137,10 @@ author: oompah
 created: 2026-08-14 01:48
 ---
 Live acceptance passed on deployed main 5a0ae9f886796123d6a7a1dd095f6b823fb4cd7f. After resuming only Trickle, TRICKLE-134 created one current recurring job at sequence 18858; worker revalidation moved it to retry_wait with attempts restored to 0 and retry_at 1786672861.54279. Across successive scheduler cuts the row count and max sequence remained stable, with no additional superseded generation. Restart reconstruction is complete, liveness published, admission remains open, and every project except Trickle remains paused.
+---
+author: oompah
+created: 2026-08-14 01:48
+---
+Correction to the preceding live note: a later scheduler cut at 01:48:18 UTC invalidated acceptance. TRICKLE-134 advanced from 136 rows/max sequence 18858 to 138 rows/max sequence 18865 before retry_at 1786672861.54279, and the retry_wait row disappeared. Trickle is paused again for containment. OOMPAH-1260 remains In Validation while the second deadline-bypass/authority-rotation path is fixed.
 ---
 <!-- COMMENTS:END -->
