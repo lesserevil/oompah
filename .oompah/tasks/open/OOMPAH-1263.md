@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:37.692542Z'
-updated_at: '2026-08-14T04:26:39.927405Z'
+updated_at: '2026-08-14T04:28:20.166435Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,5 +59,10 @@ author: oompah
 created: 2026-08-14 04:26
 ---
 Implemented stable structured prerequisite parking: exact blocked prerequisites now classify dependency waits as non-alerting Blocked and capability/operator failures as Action Required warnings; accepted submissions and current replacement generations retain precedence. Zero-job park cuts durably retire managed implementation work plus exact fact, imperative, and nested-repair event lanes while preserving the prerequisite-resolution lane. Added outgoing-run revocation and nested-repair mutation fencing, fail-closed publication rollback, restart/current-replacement behavior, and same-task tracker-drift retry protection. Focused consolidated verification: 789 passed across workflow runtime, store, scheduler/controller, decision, adapter, duplicate-preflight, implementation workflow, and nested topology suites. Branch remains local and unsubmitted for parent integration.
+---
+author: oompah
+created: 2026-08-14 04:28
+---
+Frozen branch pushed at exact head 987c46cb8075073aac18a09c140eafe9526190fd in PR 880 targeting epic-OOMPAH-1231. Focused verification passes 789 tests and diff check is clean. Auto-merge is intentionally disabled until GitHub CI completes.
 ---
 <!-- COMMENTS:END -->
