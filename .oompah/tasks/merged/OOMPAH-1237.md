@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1237
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Allow authoritative nested epic targets through dispatch validation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T12:43:52.537888Z'
-updated_at: '2026-08-13T13:03:05.544544Z'
+updated_at: '2026-08-14T07:40:02.995392Z'
 work_branch: OOMPAH-1237
 target_branch: null
 review_url: null
@@ -47,6 +47,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1237
     digest: 199c93af2ef9784e0e416f63684b606d9c0e559517abf54ad18a2c3fffc0aaf0
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d87a4d5e4103
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1237
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 199c93af2ef9784e0e416f63684b606d9c0e559517abf54ad18a2c3fffc0aaf0
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #864 merged as 3b5a5fb00 and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:39:59.233345+00:00'
+    selected_ref: 6232cba0fb65d5099259424d7b5b298f37054a45
+    selected_sha: 6232cba0fb65d5099259424d7b5b298f37054a45
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -92,7 +113,7 @@ oompah.terminal_audit:
     selected_ref: 6232cba0fb65d5099259424d7b5b298f37054a45
     selected_sha: 6232cba0fb65d5099259424d7b5b298f37054a45
   attempt_history: []
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 ---
 ## Summary
 
