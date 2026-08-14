@@ -285,6 +285,96 @@ def test_resolution_rejects_tamper_unknown_fields_and_split_heads():
     assert ImplementationPrerequisiteResolution.from_raw(split_heads) is None
 
 
+@pytest.mark.parametrize(
+    "trigger_evidence",
+    [
+        {
+            "kind": "profile-capability",
+            "capability": "linux",
+            "profile_name": "mac-runner",
+            "profile_revision": "e" * 64,
+        },
+        {
+            "kind": "profile-capability",
+            "capability": "macos",
+            "profile_name": "mac-runner",
+            "profile_revision": "short",
+        },
+        {
+            "kind": "operator",
+            "action": "macos",
+        },
+    ],
+)
+def test_resolution_rejects_trigger_evidence_that_does_not_match_record(
+    trigger_evidence,
+):
+    with pytest.raises(ValueError):
+        new_resolution(
+            _record(),
+            expected_task_authority="d" * 64,
+            workflow_generation="resolution-generation",
+            actor="project-owner",
+            reason="Named prerequisite resolved.",
+            trigger_evidence=trigger_evidence,
+            continuation=PrerequisiteContinuation(
+                resume_status="Open",
+                head_sha="b" * 40,
+            ),
+            now=NOW,
+        )
+
+
+@pytest.mark.parametrize(
+    ("record", "evidence"),
+    [
+        (
+            lambda: _record(
+                declaration=_declaration(
+                    "dependency", "release-gate", "task:oompah/OOMPAH-7"
+                )
+            ),
+            {
+                "kind": "task",
+                "project_id": "oompah",
+                "task_identifier": "OOMPAH-7",
+                "status": "Done",
+                "task_authority": "f" * 64,
+            },
+        ),
+        (
+            lambda: _record(
+                declaration=_declaration(
+                    "credentials",
+                    "signing-key",
+                    "operator:signing-key-installed",
+                )
+            ),
+            {"kind": "operator", "action": "signing-key-installed"},
+        ),
+    ],
+)
+def test_resolution_accepts_exact_task_and_operator_trigger_evidence(
+    record,
+    evidence,
+):
+    resolved = new_resolution(
+        record(),
+        expected_task_authority="d" * 64,
+        workflow_generation="resolution-generation",
+        actor="project-owner",
+        reason="Named prerequisite resolved.",
+        trigger_evidence=evidence,
+        continuation=PrerequisiteContinuation(
+            resume_status="Open",
+            head_sha="b" * 40,
+        ),
+        now=NOW,
+    )
+
+    assert dict(resolved.trigger_evidence) == evidence
+
+
 class _Tracker:
     def __init__(self, raw=None):
         self.metadata = {} if raw is None else {METADATA_KEY: raw}

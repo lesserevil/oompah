@@ -640,6 +640,77 @@ class ImplementationPrerequisiteRecord:
 _CONTINUATION_STATUSES = frozenset(
     {"Open", "In Progress", "In Review", "Ready to Integrate"}
 )
+_SATISFIED_TRIGGER_TASK_STATUSES = frozenset({"Done", "Merged", "Archived"})
+
+
+def canonical_resolution_trigger_evidence(
+    trigger: RecoveryTrigger,
+    raw: object,
+) -> dict[str, Any]:
+    """Validate evidence proving the record's one named recovery trigger."""
+
+    if not isinstance(trigger, RecoveryTrigger) or not isinstance(raw, Mapping):
+        raise TypeError("resolution trigger evidence must be a typed object")
+    evidence = dict(raw)
+    if trigger.kind is RecoveryTriggerKind.TASK:
+        expected_keys = {
+            "kind",
+            "project_id",
+            "task_identifier",
+            "status",
+            "task_authority",
+        }
+        if set(evidence) != expected_keys or evidence.get("kind") != "task":
+            raise ValueError("task trigger evidence has an invalid shape")
+        if (
+            evidence.get("project_id") != trigger.project_id
+            or evidence.get("task_identifier") != trigger.value
+            or evidence.get("status") not in _SATISFIED_TRIGGER_TASK_STATUSES
+            or type(evidence.get("task_authority")) is not str
+            or _DIGEST_RE.fullmatch(evidence["task_authority"]) is None
+        ):
+            raise ValueError("task trigger evidence does not prove the named task")
+    elif trigger.kind is RecoveryTriggerKind.PROFILE_CAPABILITY:
+        expected_keys = {
+            "kind",
+            "capability",
+            "profile_name",
+            "profile_revision",
+        }
+        if (
+            set(evidence) != expected_keys
+            or evidence.get("kind") != "profile-capability"
+            or evidence.get("capability") != trigger.value
+            or type(evidence.get("profile_name")) is not str
+            or _IDENTITY_RE.fullmatch(evidence["profile_name"]) is None
+            or type(evidence.get("profile_revision")) is not str
+            or _DIGEST_RE.fullmatch(evidence["profile_revision"]) is None
+        ):
+            raise ValueError(
+                "profile trigger evidence does not prove the named capability"
+            )
+    else:
+        if set(evidence) != {"kind", "action"} or (
+            evidence.get("kind") != "operator"
+            or evidence.get("action") != trigger.value
+        ):
+            raise ValueError(
+                "operator trigger evidence does not prove the named action"
+            )
+    try:
+        encoded = json.dumps(
+            evidence,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        )
+        canonical = json.loads(encoded)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("trigger_evidence must be canonical JSON") from exc
+    if not isinstance(canonical, dict):  # pragma: no cover - shape proved above
+        raise ValueError("trigger_evidence must be an object")
+    return canonical
 
 
 @dataclass(frozen=True)
@@ -789,22 +860,10 @@ class ImplementationPrerequisiteResolution:
             raise TypeError("recovery_trigger must be typed")
         if not isinstance(self.continuation, PrerequisiteContinuation):
             raise TypeError("continuation must be typed")
-        if not isinstance(self.trigger_evidence, Mapping):
-            raise TypeError("trigger_evidence must be an object")
-        try:
-            canonical_evidence = json.loads(
-                json.dumps(
-                    dict(self.trigger_evidence),
-                    sort_keys=True,
-                    separators=(",", ":"),
-                    ensure_ascii=True,
-                    allow_nan=False,
-                )
-            )
-        except (TypeError, ValueError) as exc:
-            raise ValueError("trigger_evidence must be canonical JSON") from exc
-        if not isinstance(canonical_evidence, dict) or not canonical_evidence:
-            raise ValueError("trigger_evidence must be a non-empty object")
+        canonical_evidence = canonical_resolution_trigger_evidence(
+            self.recovery_trigger,
+            self.trigger_evidence,
+        )
         object.__setattr__(self, "trigger_evidence", canonical_evidence)
         if (
             not isinstance(self.resolved_at, datetime)
