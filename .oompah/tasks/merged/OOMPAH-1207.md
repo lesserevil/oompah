@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1207
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Restart reconstruction recognizes protected imperative implementation jobs
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:28:41.440593Z'
-updated_at: '2026-08-13T02:59:12.521573Z'
+updated_at: '2026-08-14T07:30:14.253979Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,6 +37,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1207
     digest: 6a2d89d1b8e58b16d1963ea3fabedd5d634aa38094a37fa6afd43d5930ab07c1
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6a186a9da2ad
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1207
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6a2d89d1b8e58b16d1963ea3fabedd5d634aa38094a37fa6afd43d5930ab07c1
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #846 merged as 683b5f34a and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:30:10.055453+00:00'
+    selected_ref: origin/main
+    selected_sha: 683b5f34a3c30eed0a608cddbd8ffe1c7874ab34
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -82,7 +103,7 @@ oompah.terminal_audit:
     selected_ref: origin/main
     selected_sha: 683b5f34a3c30eed0a608cddbd8ffe1c7874ab34
   attempt_history: []
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 ---
 ## Summary
 
