@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T18:57:41.903878Z'
-updated_at: '2026-08-13T22:29:30.524553Z'
+updated_at: '2026-08-14T03:42:36.455055Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,6 +38,29 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1257
     digest: 3eb871a6638e2c13f9dd8629c0576974c33d71f13fd8ab157c187a3298c35e1a
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-3b3ed616d55f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1257
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3eb871a6638e2c13f9dd8629c0576974c33d71f13fd8ab157c187a3298c35e1a
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner terminal closure while Oompah scheduling remains intentionally
+      paused: PR 874 head 525c7a2e merged as c3e791d9; all Python 3.11, 3.12, and
+      3.13 CI jobs passed; the merge is included in deployed main 948ef6f; queued
+      terminal audits have zero attempts and no recorded error or unresolved review
+      blocker.'
+    created_at: '2026-08-14T03:42:34.390811+00:00'
+    selected_ref: origin/OOMPAH-1257
+    selected_sha: 525c7a2e09384a6b0b13f3020e81f70dd54c48a5
+    applied: false
   version: 1
   pending_chain:
   - version: 1
