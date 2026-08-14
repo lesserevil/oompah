@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T18:13:35.579127Z'
-updated_at: '2026-08-14T03:42:18.361931Z'
+updated_at: '2026-08-14T03:42:23.564166Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,7 +59,23 @@ oompah.terminal_audit:
     created_at: '2026-08-14T03:42:11.309375+00:00'
     selected_ref: origin/OOMPAH-1255
     selected_sha: 24ae869d94a828afa9c13b5d9b15f86d8d995847
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1255
+    target_state: Merged
+    evidence_fingerprint: 009f4916dbca6a26974577789d55909c6de11318f1bb23a8ce6d300feddf19f4
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1255
+    selected_sha: 24ae869d94a828afa9c13b5d9b15f86d8d995847
+    landing_revision: null
+    audit_ids:
+    - audit-8f9db42cad50
+    - audit-0002fec1d997
+    kind: override
+    applied: true
+    retired_at: '2026-08-14T03:42:22.369628+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -67,7 +83,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1255
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -83,12 +99,13 @@ oompah.terminal_audit:
     eligible_at: '2026-08-13T18:30:28.101348+00:00'
     selected_ref: origin/OOMPAH-1255
     selected_sha: 24ae869d94a828afa9c13b5d9b15f86d8d995847
+    updated_at: '2026-08-14T03:42:22.369581+00:00'
   - version: 1
     audit_id: audit-0002fec1d997
     project_id: proj-14849f1b
     task_id: OOMPAH-1255
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -104,6 +121,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-8f9db42cad50
     selected_ref: origin/OOMPAH-1255
     selected_sha: 24ae869d94a828afa9c13b5d9b15f86d8d995847
+    updated_at: '2026-08-14T03:42:22.369610+00:00'
   attempt_history: []
 oompah.lifecycle_revision: 2
 ---
@@ -133,5 +151,12 @@ author: oompah
 created: 2026-08-13 18:52
 ---
 Live acceptance passed after deployment at revision 535bccdcf: TRICKLE-141 published candidate b4add27840872ec39ea08bcb4c68895a4ff978db through the guarded server CAS path (published=true, recovered=false); origin/TRICKLE-130 now names that exact SHA; an independent Opus audit passed and advanced TRICKLE-141 to Done. The false duplicate-authority rejection is resolved.
+---
+author: oompah
+created: 2026-08-14 03:42
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Project-owner terminal closure while Oompah scheduling remains intentionally paused: PR 873 head 24ae869d merged as 535bccdc; all Python 3.11, 3.12, and 3.13 CI jobs passed; the merge is included in deployed main 948ef6f; queued terminal audits have zero attempts and no recorded error or unresolved review blocker.
 ---
 <!-- COMMENTS:END -->
