@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1222
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Do not exhaust standalone delivery while waiting for review capacity
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T06:00:42.489158Z'
-updated_at: '2026-08-13T07:23:48.586775Z'
+updated_at: '2026-08-14T07:35:30.588586Z'
 work_branch: OOMPAH-1222
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: a69d81a1-c7cc-428e-96e5-30861dd2eeb2
   request_fingerprint: 282feaf6d1cba4c5475da05bde8327339074a59963c881e2aca2041aea61e268
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.integration:
   version: 2
   state: ready
@@ -48,6 +48,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1222
     digest: 5e06d7ce3a28044a1ae5cca0249a3fd0f7bede31eb772f32e0361f845c9a7d75
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-34a3aa1edd99
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1222
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5e06d7ce3a28044a1ae5cca0249a3fd0f7bede31eb772f32e0361f845c9a7d75
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #852 merged as 629792f2a and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:35:24.055889+00:00'
+    selected_ref: 3769a6310e406692118d04c115b81254859de829
+    selected_sha: 3769a6310e406692118d04c115b81254859de829
+    applied: false
   version: 1
   pending_chain:
   - version: 1
