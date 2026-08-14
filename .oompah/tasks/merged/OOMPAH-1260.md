@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T00:43:53.961262Z'
-updated_at: '2026-08-14T03:22:55.102889Z'
+updated_at: '2026-08-14T03:23:06.533386Z'
 work_branch: OOMPAH-1260
 target_branch: null
 review_url: null
@@ -71,7 +71,23 @@ oompah.terminal_audit:
     created_at: '2026-08-14T03:22:51.536500+00:00'
     selected_ref: 2cdb4eafb999baf7c329c585a01ea3618b235191
     selected_sha: 2cdb4eafb999baf7c329c585a01ea3618b235191
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1260
+    target_state: Merged
+    evidence_fingerprint: 566bbc72ccb601f9e7f9c42c0b2f321243cafa6284022c68dd0c248c86b4631e
+    workflow_revision: null
+    selected_ref: 2cdb4eafb999baf7c329c585a01ea3618b235191
+    selected_sha: 2cdb4eafb999baf7c329c585a01ea3618b235191
+    landing_revision: null
+    audit_ids:
+    - audit-8762e515d125
+    - audit-ce4e9b2b5984
+    kind: override
+    applied: true
+    retired_at: '2026-08-14T03:23:00.261786+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -79,7 +95,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1260
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -95,12 +111,13 @@ oompah.terminal_audit:
     eligible_at: '2026-08-14T01:40:35.710686+00:00'
     selected_ref: 2cdb4eafb999baf7c329c585a01ea3618b235191
     selected_sha: 2cdb4eafb999baf7c329c585a01ea3618b235191
+    updated_at: '2026-08-14T03:23:00.261735+00:00'
   - version: 1
     audit_id: audit-ce4e9b2b5984
     project_id: proj-14849f1b
     task_id: OOMPAH-1260
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -116,6 +133,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-8762e515d125
     selected_ref: 2cdb4eafb999baf7c329c585a01ea3618b235191
     selected_sha: 2cdb4eafb999baf7c329c585a01ea3618b235191
+    updated_at: '2026-08-14T03:23:00.261766+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -169,5 +187,17 @@ author: oompah
 created: 2026-08-14 01:49
 ---
 Further diagnosis of the 01:48 rotation: it was an authoritative evidence change, not same-evidence churn. The expected evidence revision changed from eee7bafd... to 25efc623...; sequence 18858 was correctly superseded by the newer decision, sequence 18862 was atomically rolled back because snapshot publication did not commit, and current sequence 18865 is retry_wait with attempts=0 at its new exact deadline. Trickle resumed for an extended stable-evidence observation window; other projects remain paused.
+---
+author: oompah
+created: 2026-08-14 03:22
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Project-owner terminal closure while Oompah scheduling remains intentionally paused: PR 877 merged; full exact-head Makefile gate passed 20,369 tests with 7 skipped and 2 expected failures; deployed revision 5a0ae9f completed live TRICKLE-134 deadline-fencing acceptance before the next main deployment.
+---
+author: oompah
+created: 2026-08-14 03:23
+---
+Merged and live-validated: recurring same-evidence revalidation remains deadline-fenced without per-scan churn.
 ---
 <!-- COMMENTS:END -->
