@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1243
 type: task
-status: Open
+status: Merged
 priority: null
 title: Ignore forge events delivered after epic event-router shutdown
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T14:32:43.240296Z'
-updated_at: '2026-08-13T14:40:15.022058Z'
+updated_at: '2026-08-14T07:44:18.373320Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,32 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 29621f3b-9c54-46af-b7b6-06d19d37bdc2
   request_fingerprint: c895038d585d523bed9b8f71df06ee02ebfa99a7fb4c824628559e0de21425d7
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-686d5ff9c434
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1243
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fea9c013447f77bd2dc0710db245eae759a0f23836cef0474ce6bf0db1dc36cf
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #868 merged as 83196da17 and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:44:14.772002+00:00'
+    selected_ref: origin/main
+    selected_sha: 948ef6f207eabe4c26910d8fc276d6d36b659e76
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
