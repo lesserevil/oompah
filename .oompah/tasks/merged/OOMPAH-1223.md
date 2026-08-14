@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1223
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Block nested child dispatch until inferred parent hierarchy is dispatchable
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:08:25.770498Z'
-updated_at: '2026-08-13T08:13:37.778636Z'
+updated_at: '2026-08-14T07:35:54.720037Z'
 work_branch: OOMPAH-1223
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 61f0d7b2-4ea4-49b9-b849-6b612fb4815b
   request_fingerprint: 9864e04fd65f31463c553e326207516f963ec46c2898d76407f6279da6ba9829
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.integration:
   version: 2
   state: ready
@@ -48,6 +48,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1223
     digest: 32c98be40957bc3783a01f698dcdf40f370d8d7e7ac5f2c27965d4323fdc8392
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-8396f8c8c370
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1223
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 32c98be40957bc3783a01f698dcdf40f370d8d7e7ac5f2c27965d4323fdc8392
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #853 merged as cb84fab5b and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:35:48.304903+00:00'
+    selected_ref: 9110278408b23f4ad74e33aa8367a4f12ce24045
+    selected_sha: 9110278408b23f4ad74e33aa8367a4f12ce24045
+    applied: false
   version: 1
   pending_chain:
   - version: 1
