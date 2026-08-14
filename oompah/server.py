@@ -2333,7 +2333,14 @@ def _exact_implementation_running_entry(
 ) -> Any | None:
     """Return only the runtime owned by this authenticated project/task."""
 
-    entry = getattr(orch, "_current_running_entry", lambda _id: None)(issue.id)
+    if issue is None:
+        return None
+
+    issue_id = getattr(issue, "id", None)
+    if issue_id is None:
+        return None
+
+    entry = getattr(orch, "_current_running_entry", lambda _id: None)(issue_id)
     if entry is None or getattr(entry, "is_auditor", False):
         return None
     entry_issue = getattr(entry, "issue", None)
@@ -2356,6 +2363,7 @@ def _observe_task_handoff_mutation(
     message: str | None = None,
     label: str | None = None,
     status: str | None = None,
+    entry: Any = None,
 ) -> bool:
     """Publish worker handoff mutations to the live authority owner.
 
@@ -2375,6 +2383,7 @@ def _observe_task_handoff_mutation(
             label=label,
             status=status,
             tracker=tracker,
+            entry=entry,
         )
     )
 
@@ -7408,6 +7417,16 @@ async def api_task_handoff(request: Request):
                 {"error": {"code": "issue_not_found", "message": "task is not in the granted project"}},
                 status_code=404,
             )
+        task_handoff_entry = _exact_implementation_running_entry(
+            orch, issue, project_id
+        )
+        if task_handoff_entry is not None and str(
+            getattr(task_handoff_entry, "task_handoff_token", None) or ""
+        ) != str(token or ""):
+            # The registry accepted the capability, but a replacement runtime
+            # now owns the task. It may not inherit the older token's comment
+            # as prerequisite authority.
+            task_handoff_entry = None
 
         # Reads do not need an operation permit. For mutations, acquire the
         # ticket before entering the action branch, but admit it only in the
@@ -7613,6 +7632,7 @@ async def api_task_handoff(request: Request):
                     project_id=project_id,
                     message=text,
                     tracker=tracker,
+                    entry=task_handoff_entry,
                 )
                 return result
 
@@ -7846,6 +7866,7 @@ async def api_task_handoff(request: Request):
                             project_id=project_id,
                             status=status,
                             tracker=tracker,
+                            entry=task_handoff_entry,
                         )
                     if durable_handoff and not observed:
                         entry = _exact_implementation_running_entry(
@@ -7912,6 +7933,7 @@ async def api_task_handoff(request: Request):
                             project_id=project_id,
                             status=status,
                             tracker=tracker,
+                            entry=task_handoff_entry,
                         )
                 summary = str(body.get("summary") or "").strip()
                 if summary:
@@ -8066,6 +8088,7 @@ async def api_task_handoff(request: Request):
                             project_id=project_id,
                             status=status_from_label,
                             tracker=tracker,
+                            entry=task_handoff_entry,
                         )
                     if not observed:
                         entry = _exact_implementation_running_entry(
@@ -8122,6 +8145,7 @@ async def api_task_handoff(request: Request):
                     project_id=project_id,
                     label=label,
                     tracker=tracker,
+                    entry=task_handoff_entry,
                 )
             _api_cache.invalidate("issues:all")
             _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
@@ -19585,6 +19609,25 @@ def _validate_profile_payload_acp_aware(
     """
     out = dict(body)
     warnings: list[str] = []
+
+    if "execution_capabilities" in body:
+        from oompah.implementation_prerequisite import (
+            canonical_execution_capabilities,
+            normalize_execution_capability,
+        )
+
+        raw_capabilities = body["execution_capabilities"]
+        if not isinstance(raw_capabilities, list) or any(
+            normalize_execution_capability(value) is None
+            for value in raw_capabilities
+        ):
+            raise ValueError(
+                "execution_capabilities must be a list of exact lowercase slugs"
+            )
+        canonical_capabilities = canonical_execution_capabilities(raw_capabilities)
+        if len(canonical_capabilities) != len(raw_capabilities):
+            raise ValueError("execution_capabilities must not contain duplicates")
+        out["execution_capabilities"] = list(canonical_capabilities)
 
     # Resolve effective mode / provider_id / model_role across the
     # body and the existing record so partial PATCHes validate

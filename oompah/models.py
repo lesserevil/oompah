@@ -315,6 +315,12 @@ class Issue:
     # intake metadata so scheduler and API paths do not need an N+1 metadata
     # read for every Open task.
     duplicate_screening: dict[str, Any] | None = None
+    # Append-once external implementation prerequisite authority. Tracker
+    # adapters project this raw record so restart reconciliation never relies
+    # on rereading untrusted handoff prose.
+    # Preserve malformed raw metadata so strict restart projection can
+    # quarantine it instead of confusing corruption with absence.
+    implementation_prerequisite: Any = None
     # Versioned private-branch submission state (oompah.integration).
     integration: IntegrationRecord | None = None
     # Server-issued identity for an auto-filed shared-epic rebase helper.
@@ -1524,6 +1530,10 @@ class AgentProfile:
     max_turns: int | None = None
     keywords: list[str] = field(default_factory=list)
     issue_types: list[str] = field(default_factory=list)
+    # Execution-environment capabilities (for example ``macos`` or
+    # ``hardware-key``). These are scheduling authority and are deliberately
+    # distinct from Focus.capabilities, which control server tool exposure.
+    execution_capabilities: list[str] = field(default_factory=list)
     min_priority: int | None = None
     max_priority: int | None = None
     # Execution mode for this profile. Default is "auto": api if a
@@ -1565,6 +1575,8 @@ class AgentProfile:
             d["keywords"] = list(self.keywords)
         if self.issue_types:
             d["issue_types"] = list(self.issue_types)
+        if self.execution_capabilities:
+            d["execution_capabilities"] = list(self.execution_capabilities)
         if self.min_priority is not None:
             d["min_priority"] = self.min_priority
         if self.max_priority is not None:
@@ -1601,6 +1613,10 @@ class AgentProfile:
             max_turns=_opt_int(d.get("max_turns")),
             keywords=[str(k) for k in (d.get("keywords") or [])],
             issue_types=[str(t) for t in (d.get("issue_types") or [])],
+            execution_capabilities=[
+                str(capability)
+                for capability in (d.get("execution_capabilities") or [])
+            ],
             min_priority=_opt_int(d.get("min_priority")),
             max_priority=_opt_int(d.get("max_priority")),
             mode=str(d.get("mode", "auto") or "auto"),
@@ -1708,6 +1724,13 @@ class RunningEntry:
     handoff_status_open: bool = False
     handoff_finalized: bool = False
     handoff_requested_focus: str | None = None
+    # Exact structured prerequisite/profile authority accepted at the
+    # authenticated task-handoff mutation boundary.
+    implementation_prerequisite_id: str | None = None
+    required_execution_capability: str | None = None
+    required_execution_profile_revision: str | None = None
+    prerequisite_admission_blocked: str | None = None
+    handoff_requested_profile: str | None = None
     # Set when operator submission or another accepted lifecycle transition
     # withdraws this dispatch while it is still starting or running.  The
     # worker-exit path uses this tombstone to quarantine the run instead of

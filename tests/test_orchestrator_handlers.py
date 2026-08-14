@@ -9401,6 +9401,94 @@ class TestContributorAuditorReservationOrchestration:
         assert entry.provider_contact_permitted is False
         assert entry.provider_started is False
 
+    def test_contributor_contact_rejects_capability_profile_removal_without_retry_authority(
+        self, tmp_path
+    ):
+        from oompah.implementation_prerequisite import (
+            freeze_execution_profile_snapshot,
+        )
+        from oompah.roles import Candidate
+
+        implementation = _provider(
+            pid="implementation-capability",
+            models=["implementation-model"],
+            default_model="implementation-model",
+        )
+        auditor = _provider(
+            pid="auditor-capability",
+            name="auditor-capability",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        auditor.model_costs = {
+            "audit-model": {
+                "cost_per_1k_input": 0.01,
+                "cost_per_1k_output": 0.01,
+            }
+        }
+        orch = _make_orchestrator(tmp_path)
+        self._wire(
+            orch,
+            [implementation, auditor],
+            [Candidate(auditor.id, "audit-model")],
+        )
+        orch.config.budget_limit = 100.0
+        capable = _profile(
+            "standard", execution_capabilities=["macos"], mode="cli"
+        )
+        orch.config.agent_profiles = [capable]
+        issue = _make_issue("capability-profile-race")
+        self._running(orch, issue, "capability-profile-race-run")
+        entry = orch.state.running[issue.id]
+        entry.provider_id = implementation.id
+        entry.model_name = "implementation-model"
+        entry.required_execution_capability = "macos"
+        entry.required_execution_profile_revision = (
+            freeze_execution_profile_snapshot([capable]).revision
+        )
+        entry.implementation_prerequisite_id = "a" * 64
+        assert asyncio.run(
+            orch._stage_work_contributor_launch(
+                issue,
+                run_id=entry.run_id,
+                provider_id=implementation.id,
+                provider_name=implementation.name,
+                model="implementation-model",
+            )
+        ) is None
+        orch._pending_agent_profiles = [_profile("standard", mode="cli")]
+
+        error = orch._begin_provider_contact(
+            issue,
+            entry.run_id,
+            transport="API",
+            contributor_candidate=Candidate(
+                implementation.id, "implementation-model"
+            ),
+        )
+
+        assert "execution-capability profile authority changed" in error
+        assert entry.prerequisite_admission_blocked == "blocked-capability"
+        assert entry.provider_contact_permitted is False
+        assert entry.provider_started is False
+
+        # The transport denial retires against the durable prerequisite; it
+        # must not manufacture a generic transient retry.
+        orch.workflow_runtime = SimpleNamespace()
+        orch._schedule_retry = MagicMock()
+        orch._schedule_implementation_workflow_event = MagicMock()
+        orch._notify_observers = MagicMock()
+        orch.tracker.fetch_issue_detail.return_value = issue
+        asyncio.run(
+            orch._on_worker_exit(
+                issue.id,
+                "error",
+                error,
+            )
+        )
+        orch._schedule_retry.assert_not_called()
+        orch._schedule_implementation_workflow_event.assert_not_called()
+
     def test_auditor_contact_rejects_role_mutation_between_inspect_and_cas(self, tmp_path):
         """The contact CAS cannot reuse a stale independent-auditor snapshot."""
         from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY

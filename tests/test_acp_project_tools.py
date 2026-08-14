@@ -496,6 +496,43 @@ class TestExecOompahTaskCommand:
             author="oompah",
         )
 
+    def test_task_scoped_comment_keeps_pre_io_exact_running_entry(self):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        issue = Issue(
+            id="issue-240",
+            identifier="owner/repo#240",
+            title="Task",
+            state="In Progress",
+            project_id="proj",
+        )
+        original = SimpleNamespace(issue=issue, is_auditor=False)
+        replacement = SimpleNamespace(issue=issue, is_auditor=False)
+        current = {"entry": original}
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        tracker.add_comment.side_effect = lambda *_args, **_kwargs: current.update(
+            entry=replacement
+        )
+        coordination = MagicMock()
+        coordination._current_running_entry.side_effect = (
+            lambda _issue_id: current["entry"]
+        )
+
+        result = _exec_oompah_task_command(
+            "oompah task comment owner/repo#240 --message 'Focus handoff: developer'",
+            tracker,
+            "proj",
+            task_identifier="owner/repo#240",
+            coordination_service=coordination,
+        )
+
+        assert result == "Comment posted."
+        assert (
+            coordination._observe_task_handoff_mutation.call_args.kwargs["entry"]
+            is original
+        )
+
     def test_set_status_with_summary_routes_through_transition_service(self):
         from oompah.acp_tools import _exec_oompah_task_command
 

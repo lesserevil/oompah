@@ -89,6 +89,20 @@ def _validate(
         raise AgentProfileError(
             f"mode={mode!r} requires provider_id"
         )
+    from oompah.implementation_prerequisite import (
+        canonical_execution_capabilities,
+        normalize_execution_capability,
+    )
+
+    capabilities = profile.execution_capabilities
+    if not isinstance(capabilities, list) or any(
+        normalize_execution_capability(value) is None for value in capabilities
+    ):
+        raise AgentProfileError(
+            "execution_capabilities must be a list of exact lowercase slugs"
+        )
+    if len(canonical_execution_capabilities(capabilities)) != len(capabilities):
+        raise AgentProfileError("execution_capabilities must not contain duplicates")
 
 
 class AgentProfileStore:
@@ -264,6 +278,13 @@ class AgentProfileStore:
         (which is run through ``AgentProfile.from_dict``).
         """
         if isinstance(profile, dict):
+            if (
+                "execution_capabilities" in profile
+                and not isinstance(profile["execution_capabilities"], list)
+            ):
+                raise AgentProfileError(
+                    "execution_capabilities must be a list of exact lowercase slugs"
+                )
             profile = AgentProfile.from_dict(profile)
         with self._lock:
             _validate(profile, existing_names=self._profiles.keys())
@@ -286,6 +307,13 @@ class AgentProfileStore:
         can pass ``name="new-name"`` as a kwarg to rename the profile
         without colliding with the lookup argument.
         """
+        if (
+            "execution_capabilities" in fields
+            and not isinstance(fields["execution_capabilities"], list)
+        ):
+            raise AgentProfileError(
+                "execution_capabilities must be a list of exact lowercase slugs"
+            )
         with self._lock:
             existing = self._profiles.get(_profile_name)
             if existing is None:

@@ -314,6 +314,7 @@ class GitLabIssueTracker:
         duplicate_screening = metadata.get("duplicate_screening")
         if not isinstance(duplicate_screening, dict):
             duplicate_screening = None
+        implementation_prerequisite = metadata.get("implementation_prerequisite")
         integration = parse_integration_record(metadata.get("integration"))
         start_dependencies = metadata.get("start_blocked_by") or []
         if not isinstance(start_dependencies, list):
@@ -392,6 +393,7 @@ class GitLabIssueTracker:
             issue_number=str(iid),
             requestor_login=(data.get("author") or {}).get("username"),
             duplicate_screening=duplicate_screening,
+            implementation_prerequisite=implementation_prerequisite,
             integration=integration,
             epic_rebase_target=(
                 metadata.get("epic_rebase_target")
@@ -407,6 +409,9 @@ class GitLabIssueTracker:
                 metadata.get("create_once")
                 if isinstance(metadata.get("create_once"), dict)
                 else None
+            ),
+            assignment_id=(
+                str(metadata.get("agent_run_id") or "").strip() or None
             ),
         )
 

@@ -1353,6 +1353,11 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
     )
     if not isinstance(duplicate_screening, dict):
         duplicate_screening = None
+    implementation_prerequisite = (
+        meta.get("implementation_prerequisite")
+        if "implementation_prerequisite" in meta
+        else meta.get("oompah.implementation_prerequisite")
+    )
     integration = parse_integration_record(
         meta.get("integration") or meta.get("oompah.integration")
     )
@@ -1404,6 +1409,7 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         closed_at=_gh_timestamp(gh_issue.get("closed_at")),
         intake=intake,
         duplicate_screening=duplicate_screening,
+        implementation_prerequisite=implementation_prerequisite,
         integration=integration,
         epic_rebase_target=(
             meta.get("epic_rebase_target")

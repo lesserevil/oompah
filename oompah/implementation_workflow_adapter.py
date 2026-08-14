@@ -879,8 +879,33 @@ class OrchestratorImplementationEffects:
                     override_profile=_text(payload.get("profile")) or None,
                     workflow_generation=context.job.generation,
                     status_managed_by_workflow=True,
+                    required_execution_capability=(
+                        _text(payload.get("required_execution_capability"))
+                        or None
+                    ),
+                    implementation_prerequisite_id=(
+                        _text(payload.get("implementation_prerequisite_id"))
+                        or None
+                    ),
                 )
                 if dispatched is False:
+                    required_capability = _text(
+                        payload.get("required_execution_capability")
+                    )
+                    admission = (
+                        self.orchestrator._implementation_prerequisite_admission(
+                            issue
+                        )
+                        if required_capability
+                        else None
+                    )
+                    if admission is not None and not admission.dispatchable:
+                        raise WorkflowActionError(
+                            "implementation prerequisite remains unavailable: "
+                            f"{admission.kind.value}",
+                            category=WorkflowFailureCategory.POLICY,
+                            retryable=False,
+                        )
                     # _dispatch repeats the owner fence at its final admission
                     # boundary. Resolve a claim which won that narrower race
                     # the same way as one observed before admission.
@@ -1083,12 +1108,34 @@ class OrchestratorImplementationEffects:
             issue = await asyncio.to_thread(self._issue, context.job.task_id)
             async with self._dispatch_lane():
                 await self._admit_dispatch(issue, durable_recovery=True)
-                await self.orchestrator._dispatch(
+                dispatched = await self.orchestrator._dispatch(
                     issue,
                     attempt=None,
+                    override_profile=_text(payload.get("profile")) or None,
                     workflow_generation=context.job.generation,
                     status_managed_by_workflow=True,
+                    required_execution_capability=(
+                        _text(payload.get("required_execution_capability"))
+                        or None
+                    ),
+                    implementation_prerequisite_id=(
+                        _text(payload.get("implementation_prerequisite_id"))
+                        or None
+                    ),
                 )
+                if dispatched is False:
+                    admission = (
+                        self.orchestrator._implementation_prerequisite_admission(
+                            issue
+                        )
+                    )
+                    if admission is not None and not admission.dispatchable:
+                        raise WorkflowActionError(
+                            "implementation prerequisite remains unavailable: "
+                            f"{admission.kind.value}",
+                            category=WorkflowFailureCategory.POLICY,
+                            retryable=False,
+                        )
             entry = self._running(issue, context.job.generation)
             if entry is None:
                 raise WorkflowActionError(

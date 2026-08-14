@@ -2334,6 +2334,9 @@ class OompahMarkdownTracker:
                 if isinstance(meta.get("oompah.duplicate_screening"), dict)
                 else None
             ),
+            implementation_prerequisite=(
+                meta.get("oompah.implementation_prerequisite")
+            ),
             integration=parse_integration_record(meta.get("oompah.integration")),
             epic_rebase_target=(
                 meta.get("oompah.epic_rebase_target")
