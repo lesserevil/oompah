@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1264
 type: feature
-status: Open
+status: In Validation
 priority: 1
 title: Resolve external prerequisites with exact CAS and one fresh generation
 parent: OOMPAH-1231
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:54.222347Z'
-updated_at: '2026-08-14T07:32:46.952950Z'
+updated_at: '2026-08-14T07:33:13.802967Z'
 work_branch: OOMPAH-1264
 target_branch: null
 review_url: null
@@ -26,7 +26,7 @@ oompah.create_once:
   creation_marker: oompah-1231-resolution-cas-v1
   request_fingerprint: 1f4866dfd9890e09cbc705a0030d9bf030cc49ba6b22639e33bb93bbf52f65e5
 oompah.start_blocked_by: *id001
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.integration:
   version: 2
   state: ready
@@ -39,6 +39,38 @@ oompah.integration:
   submitted_at: '2026-08-14T07:32:37.869357+00:00'
   updated_at: '2026-08-14T07:32:37.869357+00:00'
 oompah.work_branch: OOMPAH-1264
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-30ff280f670a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1264
+    digest: 49a50d8320e9eca5362acb0860974cf6158c97cf27e203b7f938153b0c624c74
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-30ff280f670a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1264
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 49a50d8320e9eca5362acb0860974cf6158c97cf27e203b7f938153b0c624c74
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-14T07:33:08.996014+00:00'
+    eligible_at: '2026-08-14T07:33:08.996014+00:00'
+    selected_ref: 038e10c2de1f1515ea19e7a63dbc2d3745137407
+    selected_sha: 038e10c2de1f1515ea19e7a63dbc2d3745137407
+  attempt_history: []
 ---
 ## Summary
 
@@ -81,5 +113,10 @@ author: oompah
 created: 2026-08-14 07:32
 ---
 Implemented exact owner-authenticated prerequisite resolution with blocker/run/task-authority CAS, idempotent receipts, one fresh continuation generation, profile/dependency/operator triggers, and stale provider/review/integration fencing. Independent review signed off exact head 038e10c2; full local gate passed 20,568 tests plus 21/21 mutation scan, and hosted CI passed Python 3.11, 3.12, and 3.13.
+---
+author: oompah
+created: 2026-08-14 07:33
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
