@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:07:17.780951Z'
-updated_at: '2026-08-13T16:07:39.434602Z'
+updated_at: '2026-08-14T07:47:02.423869Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,3 +36,11 @@ Live scheduling bug reproduced on TRICKLE-141 after the Trickle GitLab migration
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-14 07:47
+---
+Claimed for direct implementation in /home/shedwards/src/oompah-1249 on branch OOMPAH-1249 from origin/main 948ef6f2. Oompah remains paused. Implementing managed-clone credential-route sanitation with fail-closed proof, linked-worktree coverage, isolated server-owned transport preservation, and restricted rebase preflight acceptance.
+---
+<!-- COMMENTS:END -->
