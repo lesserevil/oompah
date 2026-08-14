@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:54.222347Z'
-updated_at: '2026-08-14T04:36:22.053586Z'
+updated_at: '2026-08-14T04:55:06.967789Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-08-14 04:36
 ---
 Frozen clean local stack at 342696588b65fc9640312430496147e5f2907e20 (8 task commits) after integrating the owner API/CLI. Final combined suite passes 1,137 tests with two pre-existing warnings. Final admission re-reads task/profile trigger truth and exact live review/pipeline identity under ordered locks; same-project and non-reentrant lock cases are covered. Awaiting OOMPAH-1263 epic integration before rebase/push.
+---
+author: oompah
+created: 2026-08-14 04:55
+---
+Rebased exact prerequisite-resolution and fresh-continuation implementation onto landed OOMPAH-1263 parking authority at ae57ba61bae24db3f17f390b1b5ace43f313c23d. Conflict resolution preserves the distinct implementation_park and implementation-prerequisite-resolution lanes. Joint conflict-sensitive verification passes 1,796 tests; branch is clean at a1dd8c9633f747886196dc2fe63f0b79c1b02a1d and is being published for hosted CI.
 ---
 <!-- COMMENTS:END -->
