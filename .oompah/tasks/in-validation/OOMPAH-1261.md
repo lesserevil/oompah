@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1261
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Recover Ready-to-Integrate work when the remote review head advances past the
   accepted submission
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T01:17:47.268102Z'
-updated_at: '2026-08-14T03:02:50.057800Z'
+updated_at: '2026-08-14T03:06:36.382004Z'
 work_branch: OOMPAH-1261
 target_branch: null
 review_url: null
@@ -25,7 +25,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 5cf07b32-4562-410f-b82c-de37c40187c0
   request_fingerprint: 1a91df46d5640339a0e28cc8b1c15a2ac70f7a10c937d3194305fd4c9011d4a0
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.integration:
   version: 2
   state: ready
@@ -38,6 +38,64 @@ oompah.integration:
   submitted_at: '2026-08-14T03:02:42.864361+00:00'
   updated_at: '2026-08-14T03:02:42.864361+00:00'
 oompah.work_branch: OOMPAH-1261
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-2fffd6e870fa
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1261
+    digest: d80e5755eb28e942ed5aa9b73deab29bc876814f3c7c5c1cd20c08a54493bc46
+  - version: 1
+    audit_id: audit-d1141d6cec50
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1261
+    digest: d80e5755eb28e942ed5aa9b73deab29bc876814f3c7c5c1cd20c08a54493bc46
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2fffd6e870fa
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1261
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d80e5755eb28e942ed5aa9b73deab29bc876814f3c7c5c1cd20c08a54493bc46
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-14T03:06:31.579686+00:00'
+    eligible_at: '2026-08-14T03:06:31.579686+00:00'
+    selected_ref: ee95f1e9f5e7d632c1e12c91870e96ebb5ff36f4
+    selected_sha: ee95f1e9f5e7d632c1e12c91870e96ebb5ff36f4
+  - version: 1
+    audit_id: audit-d1141d6cec50
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1261
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d80e5755eb28e942ed5aa9b73deab29bc876814f3c7c5c1cd20c08a54493bc46
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-14T03:06:31.579686+00:00'
+    prerequisite_audit_id: audit-2fffd6e870fa
+    selected_ref: ee95f1e9f5e7d632c1e12c91870e96ebb5ff36f4
+    selected_sha: ee95f1e9f5e7d632c1e12c91870e96ebb5ff36f4
+  attempt_history: []
 ---
 ## Summary
 
@@ -85,5 +143,10 @@ author: oompah
 created: 2026-08-14 03:02
 ---
 Implemented authoritative remote-head recovery for Ready to Integrate work, including exact-head resubmission decisions, fail-closed ambiguity handling, stale-cache protection, typed late-drift supersession, and regression coverage. Exact pushed head ee95f1e9f5e7d632c1e12c91870e96ebb5ff36f4 is under GitHub PR 878 with auto-merge enabled; all focused checks pass and the full CI matrix is running.
+---
+author: oompah
+created: 2026-08-14 03:06
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
