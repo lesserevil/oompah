@@ -47,6 +47,7 @@ from oompah.implementation_workflow import (
     IMPERATIVE_IMPLEMENTATION_LANE,
     IMPLEMENTATION_ACTIONS,
     IMPLEMENTATION_ORDERING_NAMESPACE,
+    ImplementationDecisionBatch,
     ImplementationWorkflowController,
 )
 from oompah.integration_workflow import (
@@ -3428,6 +3429,17 @@ class WorkflowRuntime:
                     binding.implementation_controller._latest = (
                         implementation_checkpoint
                     )
+                implementation_park_batch = ImplementationDecisionBatch(
+                    tuple(
+                        task_decision
+                        for task_decision in implementation_batch.tasks
+                        if (
+                            task_decision.decision.reason_code
+                            == "implementation.external_prerequisite"
+                            and not task_decision.decision.durable_jobs
+                        )
+                    )
+                )
                 review_checkpoint = (
                     binding.review_controller.projection_checkpoint()
                 )
@@ -3538,6 +3550,11 @@ class WorkflowRuntime:
                     )
                 record_phase("liveness_facts", phase_started, project_id=project_id)
                 domains = (
+                    (
+                        "implementation_park",
+                        binding.implementation_controller,
+                        implementation_park_batch,
+                    ),
                     ("review", binding.review_controller, review_batch),
                     ("integration", binding.integration_controller, integration_batch),
                     ("epic", binding.epic_controller, epic_batch),
@@ -3546,6 +3563,9 @@ class WorkflowRuntime:
                     (project_id, issue.identifier)
                     for issue in task_issues
                     if issue.state == IN_REVIEW
+                } | {
+                    (decision.project_id, decision.task_id)
+                    for decision in implementation_park_batch.decisions
                 } | {
                     (decision.project_id, decision.task_id)
                     for decision in integration_batch.decisions
@@ -3565,6 +3585,9 @@ class WorkflowRuntime:
                         "issues": issues,
                         "task_issues": task_issues,
                         "implementation_batch": implementation_batch,
+                        "implementation_park_batch": (
+                            implementation_park_batch
+                        ),
                         "implementation_checkpoint": implementation_checkpoint,
                         "review_batch": review_batch,
                         "review_checkpoint": review_checkpoint,
@@ -3858,45 +3881,56 @@ class WorkflowRuntime:
                 # held by this observation. Absolute reassessment timestamps
                 # remain outside semantic revisions; SLO changes do not.
                 self._bind_policy_epoch(observation.policy_epoch)
-            membership = self.store.reconcile_snapshot_membership(
-                snapshot_generation=generation,
-                authoritative_project_ids=authoritative_projects,
-                expected_identities=expected_identities,
-                evaluated_identities=evaluated_identities,
-            )
-            if not membership.accepted:
-                reject_domains()
-                with self._lock:
-                    self._last_reconcile = report
-                return report
-
-            for project_id, task_id, status in lifecycle_final_tasks:
-                self.store.record_lifecycle_final_authority(
-                    project_id=project_id,
-                    task_id=task_id,
-                    status=status,
-                    snapshot_generation=generation,
+            # Capture event-lane authority and apply every durable scheduler cut
+            # under one short store fence. Once an event job is superseded it can
+            # no longer advance, so later publication preflight remains responsive
+            # without making a failed rollback resurrect worker progress that
+            # raced an earlier, unfenced capture.
+            with self.store.snapshot_authority_guard():
+                authority = self.store.capture_snapshot_authority(
+                    authoritative_project_ids=authoritative_projects,
+                    evaluated_identities=evaluated_identities,
+                    full_project_scope=True,
                 )
-
-            reconciled: list[tuple[dict[str, Any], str, Any, Any, Any]] = []
-            for item, name, controller, batch in all_domains:
-                result = controller.scheduler.reconcile_accepted(
-                    batch.decisions,
+                membership = self.store.reconcile_snapshot_membership(
                     snapshot_generation=generation,
-                    record_metrics=False,
+                    authoritative_project_ids=authoritative_projects,
+                    expected_identities=expected_identities,
+                    evaluated_identities=evaluated_identities,
                 )
-                if not result.snapshot_accepted:
-                    break
-                reconciled.append((item, name, controller, batch, result))
-            if len(reconciled) != len(all_domains):
-                reject_domains()
-                if self.store.snapshot_generation_is_current(generation):
-                    self.store.restore_snapshot_authority(
-                        authority, snapshot_generation=generation
+                if not membership.accepted:
+                    reject_domains()
+                    with self._lock:
+                        self._last_reconcile = report
+                    return report
+
+                for project_id, task_id, status in lifecycle_final_tasks:
+                    self.store.record_lifecycle_final_authority(
+                        project_id=project_id,
+                        task_id=task_id,
+                        status=status,
+                        snapshot_generation=generation,
                     )
-                with self._lock:
-                    self._last_reconcile = report
-                return report
+
+                reconciled: list[tuple[dict[str, Any], str, Any, Any, Any]] = []
+                for item, name, controller, batch in all_domains:
+                    result = controller.scheduler.reconcile_accepted(
+                        batch.decisions,
+                        snapshot_generation=generation,
+                        record_metrics=False,
+                    )
+                    if not result.snapshot_accepted:
+                        break
+                    reconciled.append((item, name, controller, batch, result))
+                if len(reconciled) != len(all_domains):
+                    reject_domains()
+                    if self.store.snapshot_generation_is_current(generation):
+                        self.store.restore_snapshot_authority(
+                            authority, snapshot_generation=generation
+                        )
+                    with self._lock:
+                        self._last_reconcile = report
+                    return report
 
             projection_decisions: tuple[WorkDecision, ...] = ()
             proven_actions: dict[tuple[str, str], set[str]] = {}
@@ -3938,9 +3972,14 @@ class WorkflowRuntime:
             tracker_scoped_publication_exclusions: set[tuple[str, str]] = set()
             durable_publication_identities = {
                 (decision.project_id, decision.task_id.casefold())
-                for _item, _name, _controller, batch in all_domains
+                for _item, domain_name, _controller, batch in all_domains
                 for decision in batch.decisions
-                if decision.durable_jobs
+                # A prerequisite park has no replacement job by design, but
+                # its zero-job decision retires existing durable lanes. Treat
+                # that authority cut as a protected effect so same-task tracker
+                # drift forces reevaluation instead of excluding the task and
+                # publishing an obsolete park.
+                if decision.durable_jobs or domain_name == "implementation_park"
             }
 
             def accept_task_scoped_tracker_delta(

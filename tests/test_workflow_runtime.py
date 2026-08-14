@@ -3289,6 +3289,211 @@ def accepted_projection_wiring():
     }
 
 
+def test_runtime_prerequisite_park_retires_managed_and_auxiliary_lanes(tmp_path):
+    task = replace(
+        make_issue("TRICKLE-139", state="In Progress"),
+        integration=None,
+    )
+    store = WorkflowJobStore(str(tmp_path / "park-jobs.sqlite3"))
+    tracker = NativeTracker([task])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    binding.collector.sources[FactDomain.CONFIG] = lambda _issue: {
+        "implementation_prerequisite_admission": {
+            "kind": "blocked-dependency",
+            "record_id": "a" * 64,
+            "subject": "upstream-task",
+            "recovery_trigger": {
+                "kind": "task",
+                "project_id": "project-2",
+                "value": "TASK-9",
+            },
+        }
+    }
+
+    old_snapshot = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(old_snapshot)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=old_snapshot,
+        authoritative_project_ids=("project-1",),
+        expected_identities=(("project-1", task.identifier),),
+    ).accepted
+    old_cursor = store.activate_schedule(
+        project_id="project-1",
+        task_id=task.identifier,
+        decision_revision="old-standalone-delivery",
+        snapshot_generation=old_snapshot,
+    )
+    standalone = WorkflowJobSpec(
+        project_id="project-1",
+        task_id=task.identifier,
+        generation=old_cursor.job_generation,
+        action="standalone_delivery",
+        idempotency_key="old-standalone-job",
+    )
+    assert store.reconcile_schedule(
+        project_id="project-1",
+        task_id=task.identifier,
+        snapshot_generation=old_snapshot,
+        job_generation=old_cursor.job_generation,
+        specs=(standalone,),
+        record_authority_cut=True,
+        authority_kind="managed_decision",
+    ).accepted
+    assert store.publish_snapshot_generation(old_snapshot, lambda: None)[0]
+    running_standalone = store.claim_next(
+        lease_owner="old-standalone",
+        lease_seconds=30,
+        project_id="project-1",
+        task_id=task.identifier,
+        actions=("standalone_delivery",),
+    )
+    assert running_standalone is not None and running_standalone.lease_token
+    exhausted_standalone = store.fail(
+        running_standalone.job_id,
+        running_standalone.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="old standalone delivery exhausted",
+        retryable=False,
+    )
+    nested = store.materialize_event(
+        project_id="project-1",
+        task_id=task.identifier,
+        decision_revision="nested-repair-1",
+        action="nested_dispatch_topology_repair",
+        idempotency_namespace="nested-test",
+        scheduling_lane="nested-dispatch-topology",
+    ).job
+    assert nested is not None
+    nested_running = store.claim_next(
+        lease_owner="nested-repair",
+        lease_seconds=30,
+        project_id="project-1",
+        task_id=task.identifier,
+        actions=("nested_dispatch_topology_repair",),
+    )
+    assert nested_running is not None and nested_running.lease_token
+    nested_wait = store.fail(
+        nested_running.job_id,
+        nested_running.lease_token,
+        category=WorkflowFailureCategory.TRANSIENT,
+        error="retry topology repair",
+        retryable=True,
+        retry_delay_seconds=3600,
+    )
+    resolution = store.materialize_event(
+        project_id="project-1",
+        task_id=task.identifier,
+        decision_revision="resolution-1",
+        action="implementation_prerequisite_resolution",
+        idempotency_namespace="resolution-test",
+        scheduling_lane="event:implementation-prerequisite-resolution",
+    ).job
+    assert resolution is not None
+
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+    )
+    asyncio.run(runtime.start())
+
+    first = runtime.reconcile()
+    second = runtime.reconcile()
+
+    assert first["projects"]["project-1"]["implementation_park"][
+        "snapshot_accepted"
+    ] is True
+    assert second["projects"]["project-1"]["implementation_park"][
+        "snapshot_accepted"
+    ] is True
+    assert store.get(nested_wait.job_id).state is WorkflowJobState.SUPERSEDED
+    assert store.get(resolution.job_id).state is WorkflowJobState.QUEUED
+    assert store.get(exhausted_standalone.job_id).state is (
+        WorkflowJobState.EXHAUSTED
+    )
+    assert store.current_exhausted_jobs(
+        project_id="project-1", task_id=task.identifier
+    ) == ()
+    runtime.close()
+    store.close()
+
+
+def test_prerequisite_park_retries_same_task_drift_before_publication(tmp_path):
+    task = replace(
+        make_issue("TRICKLE-PREREQUISITE-DRIFT", state="In Progress"),
+        integration=None,
+    )
+    tracker = ScopedMutationTracker([task])
+    store = WorkflowJobStore(str(tmp_path / "park-drift-jobs.sqlite3"))
+    binding, journal = make_binding(tmp_path, tracker, store)
+
+    def config_facts(_issue):
+        if tracker._generation == 1:  # noqa: SLF001 - exact test authority cut
+            return {
+                "implementation_prerequisite_admission": {
+                    "kind": "blocked-dependency",
+                    "record_id": "b" * 64,
+                    "subject": "upstream-task",
+                    "recovery_trigger": {
+                        "kind": "task",
+                        "project_id": "project-2",
+                        "value": "TASK-10",
+                    },
+                }
+            }
+        return {"version": tracker._generation}  # noqa: SLF001
+
+    binding.collector.sources[FactDomain.CONFIG] = config_facts
+    nested = store.materialize_event(
+        project_id="project-1",
+        task_id=task.identifier,
+        decision_revision="nested-repair-before-drift",
+        action="nested_dispatch_topology_repair",
+        idempotency_namespace="nested-drift-test",
+        scheduling_lane="nested-dispatch-topology",
+    ).job
+    assert nested is not None
+
+    original_publish = store.publish_snapshot_generation
+    publication_calls = 0
+
+    def mutate_task_at_first_publication(generation, publish, **kwargs):
+        nonlocal publication_calls
+        publication_calls += 1
+        if publication_calls == 1:
+            tracker.mutate(task.identifier)
+        return original_publish(generation, publish, **kwargs)
+
+    store.publish_snapshot_generation = mutate_task_at_first_publication
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+    )
+    asyncio.run(runtime.start())
+
+    report = runtime.reconcile()
+
+    assert publication_calls == 2
+    assert report["projects"]["project-1"]["snapshot"]["published"] is True
+    assert report["reconciliation_phases"]["scoped_publication_retries"] == 1
+    assert report["reconciliation_phases"][
+        "tracker_scoped_publication_advances"
+    ] == 0
+    assert store.get(nested.job_id).state is WorkflowJobState.QUEUED
+    retirement = store._conn.execute(  # noqa: SLF001 - exact proof absence
+        "SELECT 1 FROM workflow_job_retirements WHERE job_id = ?",
+        (nested.job_id,),
+    ).fetchone()
+    assert retirement is None
+    runtime.close()
+    store.close()
+
+
 def test_due_batch_reports_saturation_until_claimable_suffix_drains(tmp_path):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     tracker = NativeTracker([])

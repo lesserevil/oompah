@@ -97,7 +97,10 @@ _DURABLE_RETIREMENT_PROOF_PREDICATE = """
             'managed_decision', 'managed_zero_job'
         )
         AND retirement.snapshot_generation IS NOT NULL
-        AND job.workflow_managed = 1
+        AND (
+            job.workflow_managed = 1
+            OR retirement.authority_kind = 'managed_zero_job'
+        )
         AND EXISTS (
             SELECT 1
               FROM workflow_snapshot_publications publication
@@ -2400,8 +2403,14 @@ class WorkflowJobStore:
             jobs = tuple(
                 dict(row)
                 for row in self._conn.execute(
-                    f"SELECT * FROM workflow_jobs WHERE {where} AND workflow_managed = 1",
-                    params,
+                    f"SELECT * FROM workflow_jobs WHERE {where} AND ("
+                    "workflow_managed = 1 OR state IN (?, ?, ?))",
+                    (
+                        *params,
+                        WorkflowJobState.QUEUED.value,
+                        WorkflowJobState.RUNNING.value,
+                        WorkflowJobState.RETRY_WAIT.value,
+                    ),
                 ).fetchall()
             )
             retirements = tuple(
@@ -2489,9 +2498,56 @@ class WorkflowJobStore:
                     ).fetchall()
                 }
 
+                staged_event_retirements = {
+                    str(row["job_id"])
+                    for row in self._conn.execute(
+                        "SELECT job_id FROM workflow_job_retirements "
+                        "WHERE snapshot_generation = ? "
+                        "AND authority_kind = 'managed_zero_job'",
+                        (snapshot,),
+                    ).fetchall()
+                }
+                captured_event_job_ids = tuple(
+                    str(row["job_id"])
+                    for row in authority.jobs
+                    if not bool(row["workflow_managed"])
+                    and str(row["job_id"]) in staged_event_retirements
+                )
+                post_capture_lane_jobs: dict[
+                    tuple[str, str, str], set[str]
+                ] = {}
+                if captured_event_job_ids:
+                    for row in self._conn.execute(
+                        """
+                        SELECT DISTINCT job.job_id, job.project_id,
+                               job.task_id, job.scheduling_lane
+                          FROM workflow_job_events event
+                          JOIN workflow_jobs job ON job.job_id = event.job_id
+                         WHERE event.sequence > ?
+                        """,
+                        (authority.job_event_sequence,),
+                    ).fetchall():
+                        lane_key = (
+                            str(row["project_id"]),
+                            str(row["task_id"]),
+                            str(row["scheduling_lane"]),
+                        )
+                        post_capture_lane_jobs.setdefault(lane_key, set()).add(
+                            str(row["job_id"])
+                        )
+                current_job_scope = "workflow_managed = 1"
+                current_job_params: tuple[Any, ...] = params
+                if captured_event_job_ids:
+                    current_job_scope += (
+                        " OR job_id IN ("
+                        + ",".join("?" for _ in captured_event_job_ids)
+                        + ")"
+                    )
+                    current_job_params = (*params, *captured_event_job_ids)
                 current_jobs = self._conn.execute(
-                    f"SELECT * FROM workflow_jobs WHERE {where} AND workflow_managed = 1",
-                    params,
+                    f"SELECT * FROM workflow_jobs WHERE {where} AND ("
+                    f"{current_job_scope})",
+                    current_job_params,
                 ).fetchall()
                 for current in current_jobs:
                     job_id = str(current["job_id"])
@@ -2507,6 +2563,20 @@ class WorkflowJobStore:
                         continue
                     if job_id in rearmed_after_capture:
                         continue
+                    if not bool(current["workflow_managed"]):
+                        lane_key = (
+                            str(current["project_id"]),
+                            str(current["task_id"]),
+                            str(current["scheduling_lane"]),
+                        )
+                        if post_capture_lane_jobs.get(lane_key, {job_id}) - {
+                            job_id
+                        }:
+                            # A new immutable event generation won after the
+                            # staged park. Rollback may remove the obsolete cut,
+                            # but it must not reactivate its predecessor beside
+                            # that current replacement.
+                            continue
                     prior = before_jobs.get(job_id)
                     if prior is not None:
                         columns = [
@@ -4757,6 +4827,7 @@ class WorkflowJobStore:
         decision_revision: str,
         snapshot_generation: int | None,
         workflow_managed: bool | None = None,
+        scheduling_lanes: Sequence[str] = (),
         excluded_job_ids: Sequence[str] = (),
         now: float,
     ) -> int:
@@ -4809,9 +4880,12 @@ class WorkflowJobStore:
                 )
             snapshot_generation = int(snapshot_generation)
             if authority_kind in {"managed_decision", "managed_zero_job"}:
-                if workflow_managed is not True:
+                if workflow_managed is not True and not (
+                    authority_kind == "managed_zero_job"
+                    and workflow_managed is False
+                ):
                     raise ValueError(
-                        "managed retirement proof must select managed jobs"
+                        "managed retirement proof has an invalid job scope"
                     )
                 cursor = self._conn.execute(
                     """
@@ -4873,6 +4947,19 @@ class WorkflowJobStore:
         if workflow_managed is not None:
             clauses.append("workflow_managed = ?")
             values.append(int(workflow_managed))
+        lanes = tuple(
+            sorted(
+                {
+                    _required_text(lane, "retired_scheduling_lane")
+                    for lane in scheduling_lanes
+                }
+            )
+        )
+        if lanes:
+            clauses.append(
+                f"scheduling_lane IN ({','.join('?' for _ in lanes)})"
+            )
+            values.extend(lanes)
         excluded = tuple(
             _required_text(job_id, "excluded job_id") for job_id in excluded_job_ids
         )
@@ -5137,6 +5224,7 @@ class WorkflowJobStore:
         specs: Sequence[WorkflowJobSpec],
         record_authority_cut: bool = False,
         authority_kind: str | None = None,
+        retired_scheduling_lanes: Sequence[str] = (),
         reason: str = "superseded by a newer workflow decision",
         now: float | None = None,
     ) -> WorkflowScheduleWrite:
@@ -5163,6 +5251,24 @@ class WorkflowJobStore:
         if normalized_authority_kind != expected_authority_kind:
             raise ValueError(
                 "managed authority_kind does not match the scheduled job cut"
+            )
+        if isinstance(retired_scheduling_lanes, (str, bytes)):
+            raise TypeError("retired_scheduling_lanes must be a sequence")
+        retired_lanes = tuple(
+            sorted(
+                {
+                    _required_text(lane, "retired_scheduling_lane")
+                    for lane in retired_scheduling_lanes
+                }
+            )
+        )
+        if retired_lanes and normalized_specs:
+            raise ValueError(
+                "retired scheduling lanes require a zero-job schedule"
+            )
+        if retired_lanes and not record_authority_cut:
+            raise ValueError(
+                "retired scheduling lanes require a durable authority cut"
             )
         if any(not isinstance(spec, WorkflowJobSpec) for spec in normalized_specs):
             raise TypeError("specs must contain WorkflowJobSpec values")
@@ -5281,6 +5387,65 @@ class WorkflowJobStore:
                         now=timestamp,
                     )
                     superseded += 1
+                if retired_lanes:
+                    event_rows = self._conn.execute(
+                        f"""
+                        SELECT * FROM workflow_jobs
+                         WHERE project_id = ? AND task_id = ?
+                           AND workflow_managed = 0
+                           AND scheduling_lane IN (
+                               {','.join('?' for _ in retired_lanes)}
+                           )
+                           AND state IN (
+                               {','.join('?' for _ in ACTIVE_JOB_STATES)}
+                           )
+                         ORDER BY enqueue_sequence
+                        """,
+                        (
+                            project,
+                            task,
+                            *retired_lanes,
+                            *(state.value for state in ACTIVE_JOB_STATES),
+                        ),
+                    ).fetchall()
+                    if any(
+                        str(row["state"]) == WorkflowJobState.RUNNING.value
+                        and str(row["phase"]) == "quarantined"
+                        for row in event_rows
+                    ):
+                        raise WorkflowJobStoreError(
+                            "zero-job retirement cannot fence a quarantined event"
+                        )
+                    for selected in event_rows:
+                        self._conn.execute(
+                            """
+                            UPDATE workflow_jobs
+                               SET state = ?, lease_owner = NULL, lease_token = NULL,
+                                   lease_expires_at = NULL, retry_at = NULL,
+                                   superseded_by_generation = ?, last_error = ?,
+                                   updated_at = ?, completed_at = ?
+                             WHERE job_id = ?
+                            """,
+                            (
+                                WorkflowJobState.SUPERSEDED.value,
+                                generation,
+                                message,
+                                timestamp,
+                                timestamp,
+                                selected["job_id"],
+                            ),
+                        )
+                        updated = self._row_locked(str(selected["job_id"]))
+                        self._append_event_locked(
+                            updated,
+                            "superseded",
+                            payload={
+                                "replacement_generation": generation,
+                                "reason": message,
+                            },
+                            now=timestamp,
+                        )
+                        superseded += 1
                 self._conn.execute(
                     """
                     UPDATE workflow_schedule_cursors
@@ -5308,6 +5473,17 @@ class WorkflowJobStore:
                         excluded_job_ids=tuple(authoritative_job_ids),
                         now=timestamp,
                     )
+                    if retired_lanes:
+                        self._record_job_retirements_locked(
+                            project_id=project,
+                            task_id=task,
+                            authority_kind=normalized_authority_kind,
+                            decision_revision=str(cursor["decision_revision"]),
+                            snapshot_generation=snapshot,
+                            workflow_managed=False,
+                            scheduling_lanes=retired_lanes,
+                            now=timestamp,
+                        )
                 if owns_transaction:
                     self._conn.commit()
                 return WorkflowScheduleWrite(

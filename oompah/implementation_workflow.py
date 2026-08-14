@@ -78,6 +78,11 @@ IMPLEMENTATION_DISPOSITION_SCHEMA_VERSION = 1
 DEFAULT_IMPLEMENTATION_DECISION_LIMIT = 1000
 FACT_IMPLEMENTATION_LANE = "event:implementation:fact"
 IMPERATIVE_IMPLEMENTATION_LANE = "event:implementation:imperative"
+IMPLEMENTATION_PREREQUISITE_PARK_LANES = (
+    FACT_IMPLEMENTATION_LANE,
+    IMPERATIVE_IMPLEMENTATION_LANE,
+    "nested-dispatch-topology",
+)
 DIRECT_OWNER_REVOCATION_LANE_PREFIX = "event:implementation:direct-owner-revocation"
 IMPLEMENTATION_ORDERING_NAMESPACE = "implementation-decision"
 DIRECT_OWNER_REVOCATION_ORDERING_PREFIX = "implementation-direct-owner-revocation"
@@ -535,7 +540,13 @@ class ImplementationWorkflowController:
         self.collector = collector
         self.store = store
         self.scheduler = scheduler or WorkflowJobScheduler(
-            store=store, decision_limit=decision_limit
+            store=store,
+            decision_limit=decision_limit,
+            zero_job_retired_lanes_by_reason={
+                "implementation.external_prerequisite": (
+                    IMPLEMENTATION_PREREQUISITE_PARK_LANES
+                )
+            },
         )
         self.decision_limit = decision_limit
         self._latest: dict[str, ImplementationTaskDecision] = {}

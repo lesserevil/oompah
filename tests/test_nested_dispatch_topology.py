@@ -801,6 +801,106 @@ def test_claimed_repair_retires_if_exact_helper_authority_wins_race(tmp_path):
     orchestrator.project_store.advance_nested_dispatch_topology.assert_not_called()
 
 
+def test_startup_recovery_cancels_repair_for_parked_prerequisite(tmp_path):
+    orchestrator, _tracker, child, _nested, _topology = (
+        _oompah_770_796_fixture(tmp_path)
+    )
+    evidence = orchestrator._collect_nested_dispatch_evidence(child)
+    assert evidence is not None
+    orchestrator._schedule_nested_dispatch_repair(evidence)
+    orchestrator._implementation_prerequisite_parks_auxiliary_work = MagicMock(
+        return_value=True
+    )
+    orchestrator._post_dispatch_refresh = MagicMock()
+
+    result = orchestrator._recover_queued_nested_dispatch_repairs()
+
+    jobs = orchestrator.workflow_job_store.list_jobs(
+        project_id="proj-1",
+        task_id=child.identifier,
+        actions=("nested_dispatch_topology_repair",),
+    )
+    assert result["retired"] == 1
+    assert result["driven"] == 0
+    assert jobs[0].state is WorkflowJobState.CANCELLED
+    orchestrator.project_store.advance_nested_dispatch_topology.assert_not_called()
+
+
+def test_claimed_repair_cannot_mutate_after_prerequisite_park_wins(tmp_path):
+    orchestrator, tracker, child, _nested, _topology = (
+        _oompah_770_796_fixture(tmp_path)
+    )
+    evidence = orchestrator._collect_nested_dispatch_evidence(child)
+    assert evidence is not None
+    orchestrator._schedule_nested_dispatch_repair(evidence)
+    tracker.fetch_issue_detail.return_value = child
+    orchestrator._implementation_prerequisite_parks_auxiliary_work = MagicMock(
+        return_value=True
+    )
+    orchestrator.project_store.project_write_lock.return_value = MagicMock(
+        __enter__=MagicMock(return_value=None),
+        __exit__=MagicMock(return_value=False),
+    )
+
+    assert orchestrator._drive_nested_dispatch_repair(evidence) is True
+
+    jobs = orchestrator.workflow_job_store.list_jobs(
+        project_id="proj-1",
+        task_id=child.identifier,
+        actions=("nested_dispatch_topology_repair",),
+    )
+    assert jobs[0].state is WorkflowJobState.CANCELLED
+    orchestrator.project_store.advance_nested_dispatch_topology.assert_not_called()
+
+
+def test_published_zero_job_cut_fences_repair_before_project_mutation(tmp_path):
+    orchestrator, _tracker, child, _nested, _topology = (
+        _oompah_770_796_fixture(tmp_path)
+    )
+    evidence = orchestrator._collect_nested_dispatch_evidence(child)
+    assert evidence is not None
+    orchestrator._schedule_nested_dispatch_repair(evidence)
+    store = orchestrator.workflow_job_store
+    claim_next = store.claim_next
+
+    def claim_then_park(**kwargs):
+        claimed = claim_next(**kwargs)
+        assert claimed is not None
+        snapshot = store.allocate_snapshot_generation()
+        assert store.accept_snapshot_generation(snapshot)
+        cursor = store.activate_schedule(
+            project_id="proj-1",
+            task_id=child.identifier,
+            decision_revision="implementation-prerequisite-park",
+            snapshot_generation=snapshot,
+        )
+        assert store.reconcile_schedule(
+            project_id="proj-1",
+            task_id=child.identifier,
+            snapshot_generation=snapshot,
+            job_generation=cursor.job_generation,
+            specs=(),
+            record_authority_cut=True,
+            authority_kind="managed_zero_job",
+            retired_scheduling_lanes=("nested-dispatch-topology",),
+        ).accepted
+        assert store.publish_snapshot_generation(snapshot, lambda: None)[0]
+        return claimed
+
+    store.claim_next = MagicMock(side_effect=claim_then_park)
+
+    assert orchestrator._drive_nested_dispatch_repair(evidence) is True
+
+    jobs = store.list_jobs(
+        project_id="proj-1",
+        task_id=child.identifier,
+        actions=("nested_dispatch_topology_repair",),
+    )
+    assert jobs[0].state is WorkflowJobState.SUPERSEDED
+    orchestrator.project_store.project_write_lock.assert_called_once_with("proj-1")
+    orchestrator.project_store.advance_nested_dispatch_topology.assert_not_called()
+
+
 def test_first_wait_materializes_repair_with_stabilized_task_authority(tmp_path):
     orchestrator, _tracker, child, _nested, _topology = (
         _oompah_770_796_fixture(tmp_path)
