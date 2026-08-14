@@ -620,6 +620,38 @@ async def test_authorized_recovery_accepts_exact_authority_reason_pairs(
 
 
 @pytest.mark.asyncio
+async def test_workflow_execute_routes_prerequisite_owner_continuation_through_recovery(
+    tmp_path,
+):
+    issue = _issue(state="Needs Human")
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+    intent = _intent(
+        issue,
+        requested_status="In Review",
+        authority=TransitionAuthority.PROJECT_OWNER,
+        actor="project-owner",
+        reason_code="implementation.prerequisite_resolution",
+        idempotency_key="prerequisite-resolution:record-1:generation-1",
+        originating_job="prerequisite-resolution-job",
+        evidence_generation="resolution-generation-1",
+        exact_head="a" * 40,
+    )
+
+    first = await service.execute(intent)
+    replay = await service.execute(intent)
+
+    assert first.disposition is TransitionDisposition.APPLIED
+    assert first.applied_status == "In Review"
+    assert replay.disposition in {
+        TransitionDisposition.APPLIED,
+        TransitionDisposition.ALREADY_APPLIED,
+    }
+    assert replay.replayed is True
+    assert tracker.updates == [("TASK-1", "In Review")]
+
+
+@pytest.mark.asyncio
 async def test_container_cycle_recovery_accepts_only_exact_system_reason(tmp_path):
     issue = _issue(state="Needs Human")
     tracker = FakeTracker(issue)

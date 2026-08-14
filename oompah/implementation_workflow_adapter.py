@@ -41,6 +41,22 @@ from oompah.implementation_workflow import (
     ImplementationWorkflowHandler,
 )
 from oompah.integration import accepted_submission_branch
+from oompah.implementation_prerequisite import (
+    ImplementationPrerequisiteRecord,
+    ImplementationPrerequisiteResolution,
+    MalformedPrerequisiteRecordError,
+    MalformedPrerequisiteResolutionError,
+    PrerequisiteConflictError,
+    PrerequisiteContinuation,
+    PrerequisitePersistenceError,
+    PrerequisiteResolutionConflictError,
+    PrerequisiteSourceChangedError,
+    load_record as load_implementation_prerequisite,
+    load_resolution as load_implementation_prerequisite_resolution,
+    new_resolution as new_implementation_prerequisite_resolution,
+    resolution_is_current,
+    save_resolution as save_implementation_prerequisite_resolution,
+)
 from oompah.statuses import (
     DUPLICATE_CANDIDATE,
     IN_PROGRESS,
@@ -596,6 +612,8 @@ class OrchestratorImplementationEffects:
             return ImplementationOwnershipSource.DUPLICATE_INVESTIGATOR
         if action is ImplementationAction.RECOVERY:
             return ImplementationOwnershipSource.RECOVERY
+        if action is ImplementationAction.PREREQUISITE_RESOLUTION:
+            return ImplementationOwnershipSource.PROJECT_OWNER
         return ImplementationOwnershipSource.AGENT
 
     @staticmethod
@@ -610,6 +628,9 @@ class OrchestratorImplementationEffects:
             ImplementationAction.AUTHORITY_REVOCATION: ImplementationState.REVOKED,
             ImplementationAction.RETRY: ImplementationState.RETRY_WAIT,
             ImplementationAction.RECOVERY: ImplementationState.ACTIVE,
+            ImplementationAction.PREREQUISITE_RESOLUTION: (
+                ImplementationState.COMPLETED
+            ),
         }[action]
 
     def _disposition(
@@ -661,6 +682,153 @@ class OrchestratorImplementationEffects:
             retry_at=_text(payload.get("retry_at")) or None,
             incomplete_sessions=int(payload.get("incomplete_sessions") or 0),
         )
+
+    def _prerequisite_resolution_for_context(
+        self,
+        issue: Any,
+        context: WorkflowJobContext,
+        *,
+        now: datetime,
+    ) -> tuple[
+        ImplementationPrerequisiteRecord,
+        ImplementationPrerequisiteResolution,
+    ]:
+        """Rebuild the exact job-bound owner receipt from immutable payload."""
+
+        payload = context.job.payload or {}
+        record = load_implementation_prerequisite(self._tracker(), issue)
+        if record is None:
+            raise WorkflowActionError(
+                "implementation prerequisite is absent or malformed",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=False,
+            )
+        exact_source = {
+            "record_id": record.record_id,
+            "source_run_id": record.source_run_id,
+            "source_assignment_id": record.source_assignment_id,
+            "source_generation": record.source_generation,
+        }
+        if any(
+            _text(payload.get(name)) != expected
+            for name, expected in exact_source.items()
+        ):
+            raise WorkflowActionError(
+                "prerequisite resolution source identity is stale",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=False,
+            )
+        expected_authority = _text(payload.get("expected_task_authority"))
+        if (
+            not expected_authority
+            or expected_authority != _text(context.job.expected_evidence_revision)
+        ):
+            raise WorkflowActionError(
+                "prerequisite resolution task authority is not the job fence",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=False,
+            )
+        continuation = PrerequisiteContinuation.from_raw(
+            payload.get("continuation")
+        )
+        trigger_evidence = payload.get("trigger_evidence")
+        actor = _text(payload.get("actor"))
+        reason = _text(payload.get("reason"))
+        if (
+            continuation is None
+            or not isinstance(trigger_evidence, Mapping)
+            or not trigger_evidence
+            or not actor
+            or not reason
+        ):
+            raise WorkflowActionError(
+                "prerequisite resolution payload is incomplete",
+                category=WorkflowFailureCategory.POLICY,
+                retryable=False,
+            )
+        expected_head = _text(context.job.expected_head_sha).lower()
+        continuation_head = _text(continuation.head_sha).lower()
+        if expected_head != continuation_head:
+            raise WorkflowActionError(
+                "prerequisite continuation head is not the job fence",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=False,
+            )
+        try:
+            resolution = new_implementation_prerequisite_resolution(
+                record,
+                expected_task_authority=expected_authority,
+                workflow_generation=context.job.generation,
+                actor=actor,
+                reason=reason,
+                trigger_evidence=trigger_evidence,
+                continuation=continuation,
+                now=now,
+            )
+        except (TypeError, ValueError) as exc:
+            raise WorkflowActionError(
+                "prerequisite resolution payload is malformed",
+                category=WorkflowFailureCategory.POLICY,
+                retryable=False,
+            ) from exc
+        return record, resolution
+
+    def _persist_prerequisite_resolution(
+        self,
+        issue: Any,
+        context: WorkflowJobContext,
+    ) -> ImplementationPrerequisiteResolution:
+        """CAS one exact owner resolution into tracker metadata."""
+
+        tracker = self._tracker()
+        lock_source = getattr(tracker, "owner_control_lock", None)
+        if not callable(lock_source):
+            raise WorkflowActionError(
+                "bounded prerequisite owner control is unavailable",
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            )
+        record, resolution = self._prerequisite_resolution_for_context(
+            issue,
+            context,
+            now=datetime.now(timezone.utc),
+        )
+
+        def accept_current() -> bool:
+            self._assert_job_current(context)
+            current = self._issue(context.job.task_id)
+            return (
+                issue_authority_version(current)
+                == resolution.expected_task_authority
+            )
+
+        try:
+            return save_implementation_prerequisite_resolution(
+                tracker,
+                issue,
+                record,
+                resolution,
+                lock=lock_source(),
+                accept_current=accept_current,
+            )
+        except (
+            MalformedPrerequisiteRecordError,
+            MalformedPrerequisiteResolutionError,
+            PrerequisiteConflictError,
+            PrerequisiteResolutionConflictError,
+            PrerequisiteSourceChangedError,
+        ) as exc:
+            raise WorkflowActionError(
+                str(exc),
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=False,
+            ) from exc
+        except PrerequisitePersistenceError as exc:
+            raise WorkflowActionError(
+                str(exc),
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            ) from exc
 
     @staticmethod
     def _entry_lease(entry: Any) -> str:
@@ -771,6 +939,21 @@ class OrchestratorImplementationEffects:
                         else None
                     ),
                 )
+        if action is ImplementationAction.PREREQUISITE_RESOLUTION:
+            record, expected = self._prerequisite_resolution_for_context(
+                issue,
+                context,
+                now=datetime.now(timezone.utc),
+            )
+            existing = load_implementation_prerequisite_resolution(
+                self._tracker(), issue
+            )
+            if (
+                resolution_is_current(record, existing)
+                and existing is not None
+                and existing.resolution_id == expected.resolution_id
+            ):
+                return self._disposition(context, issue=issue)
         return None
 
     async def observe(
@@ -1370,13 +1553,21 @@ class OrchestratorImplementationEffects:
             disposition = self._disposition(context, issue=issue)
         elif action is ImplementationAction.RETRY:
             disposition = self._disposition(context, issue=issue)
+        elif action is ImplementationAction.PREREQUISITE_RESOLUTION:
+            await asyncio.to_thread(
+                self._persist_prerequisite_resolution,
+                issue,
+                context,
+            )
+            self._assert_job_current(context)
+            disposition = self._disposition(context, issue=issue)
         else:  # pragma: no cover - enum exhaustiveness
             raise AssertionError(action)
         return await asyncio.to_thread(self.receipts.record, context, disposition)
 
 
 class ProductionImplementationWorkflowBackend:
-    """Generation/head-fenced backend for all nine implementation actions."""
+    """Generation/head-fenced backend for every implementation action."""
 
     def __init__(
         self,
@@ -1397,6 +1588,11 @@ class ProductionImplementationWorkflowBackend:
         }.get(action)
         if action is ImplementationAction.WORKER_EXIT:
             requested = _text(payload.get("requested_status")) or None
+        if action is ImplementationAction.PREREQUISITE_RESOLUTION:
+            continuation = PrerequisiteContinuation.from_raw(
+                payload.get("continuation")
+            )
+            requested = continuation.resume_status if continuation else None
         return requested
 
     async def revalidate(self, context: WorkflowJobContext) -> RevalidationResult:
@@ -1447,6 +1643,20 @@ class ProductionImplementationWorkflowBackend:
                     and assessment.record is not None
                     and assessment.record.claim_id == context.job.generation
                 )
+            elif action is ImplementationAction.PREREQUISITE_RESOLUTION:
+                record = load_implementation_prerequisite(
+                    self.effects._tracker(), issue
+                )
+                resolution = load_implementation_prerequisite_resolution(
+                    self.effects._tracker(), issue
+                )
+                exact_effect = bool(
+                    record is not None
+                    and resolution_is_current(record, resolution)
+                    and resolution is not None
+                    and resolution.workflow_generation
+                    == context.job.generation
+                )
             if not exact_effect:
                 receipt = await asyncio.to_thread(
                     self.effects.receipts.get, context
@@ -1494,6 +1704,9 @@ class ProductionImplementationWorkflowBackend:
             ImplementationAction.AUTHORITY_REVOCATION: "revoked",
             ImplementationAction.RETRY: "retry_scheduled",
             ImplementationAction.RECOVERY: "recovered",
+            ImplementationAction.PREREQUISITE_RESOLUTION: (
+                "prerequisite_resolved"
+            ),
         }[ImplementationAction(context.job.action)]
         return ImplementationExecutionResult(status, status, disposition)
 
@@ -1601,6 +1814,15 @@ class ProductionImplementationWorkflowBackend:
             if not evidence_generation:
                 raise WorkflowActionError(
                     "direct-owner transition has no durable claim identity",
+                    category=WorkflowFailureCategory.POLICY,
+                    retryable=False,
+                )
+            authority = TransitionAuthority.PROJECT_OWNER
+        if action is ImplementationAction.PREREQUISITE_RESOLUTION:
+            actor = _text(payload.get("actor"))
+            if not actor:
+                raise WorkflowActionError(
+                    "prerequisite resolution transition has no owner identity",
                     category=WorkflowFailureCategory.POLICY,
                     retryable=False,
                 )

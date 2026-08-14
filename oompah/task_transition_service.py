@@ -229,6 +229,7 @@ def _is_authorized_recovery_intent(intent: TransitionIntent) -> bool:
         and intent.reason_code
         in {
             "audit.owner_override_recovered",
+            "implementation.prerequisite_resolution",
             "provenance.owner_revision_authorized",
         }
     ) or (
@@ -1898,6 +1899,9 @@ class TaskTransitionService:
 
     async def _execute_admitted(self, intent: TransitionIntent) -> TransitionOutcome:
         """Journal, fence, apply, and verify one status transition."""
+
+        if _is_authorized_recovery_intent(intent):
+            return await self._recover_authorized_admitted(intent)
 
         if intent.project_id != self.project_id:
             return TransitionOutcome(
