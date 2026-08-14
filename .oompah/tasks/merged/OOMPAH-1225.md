@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1225
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Refresh GitLab review CI when MR list omits head_pipeline
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T08:09:49.181773Z'
-updated_at: '2026-08-13T08:49:45.691085Z'
+updated_at: '2026-08-14T07:37:16.355912Z'
 work_branch: OOMPAH-1225
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: gitlab-mr-list-missing-head-pipeline-ci-refresh
   request_fingerprint: 5b4e407fccdecbfa7bacb307fae8f5032d210c7257893900acc7ce2a0133e5c8
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.integration:
   version: 2
   state: ready
@@ -48,6 +48,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1225
     digest: eb1dc9a93689313bda2b33de034da6990901e41c94e2969e34b5ea2d42766f65
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-7712ceba86b2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1225
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: eb1dc9a93689313bda2b33de034da6990901e41c94e2969e34b5ea2d42766f65
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #854 merged as 00ae3d84e and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:37:12.725162+00:00'
+    selected_ref: 69fb55edca7c6c2f5d04e2839266968c07bd5049
+    selected_sha: 69fb55edca7c6c2f5d04e2839266968c07bd5049
+    applied: false
   version: 1
   pending_chain:
   - version: 1
