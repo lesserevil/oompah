@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1244
 type: bug
-status: In Validation
+status: Merged
 priority: 2
 title: '[backend:acp_agent] ACP backend ''claude'' crashed during run_turn: OSError:
   configured provider authentication artifact is unavailable'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T14:34:54.048407Z'
-updated_at: '2026-08-13T16:35:49.231080Z'
+updated_at: '2026-08-14T07:41:39.695516Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.terminal_audit:
   queued_comment_posted: true
   oompah.terminal_audit_tracker_projections:
@@ -33,6 +33,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1244
     digest: 43620d7f3d9ed22fbf1cb4fb05cde1146f1843414d129e2bb60df599f718fb45
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-fffdb2a40b59
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1244
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 43620d7f3d9ed22fbf1cb4fb05cde1146f1843414d129e2bb60df599f718fb45
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #870 merged as 10bc0072c and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:41:36.112895+00:00'
+    selected_ref: origin/OOMPAH-1244
+    selected_sha: 84d03e811aaabe1a0cfa7bd851261f4c49bac765
+    applied: false
   version: 1
   pending_chain:
   - version: 1
