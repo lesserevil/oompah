@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:20.238127Z'
-updated_at: '2026-08-14T03:46:43.539705Z'
+updated_at: '2026-08-14T03:53:45.446113Z'
 work_branch: OOMPAH-1262
 target_branch: null
 review_url: null
@@ -106,5 +106,10 @@ author: oompah
 created: 2026-08-14 03:46
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-14 03:53
+---
+Terminal evidence: PR 879 merged into epic-OOMPAH-1231 as bf53cfb7a35c8c9773557712b55cbe09d5de6ef6. The squash tree exactly equals reviewed task head 68882b83d707a3cfb4988516dba17f1a838014dd. GitHub Actions run 31767684898 passed on Python 3.11, 3.12, and 3.13; local broad/focused suites and independent blocking review also passed.
 ---
 <!-- COMMENTS:END -->
