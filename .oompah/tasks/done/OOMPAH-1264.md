@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1264
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Resolve external prerequisites with exact CAS and one fresh generation
 parent: OOMPAH-1231
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:54.222347Z'
-updated_at: '2026-08-14T07:33:13.802967Z'
+updated_at: '2026-08-14T07:33:37.157011Z'
 work_branch: OOMPAH-1264
 target_branch: null
 review_url: null
@@ -26,7 +26,7 @@ oompah.create_once:
   creation_marker: oompah-1231-resolution-cas-v1
   request_fingerprint: 1f4866dfd9890e09cbc705a0030d9bf030cc49ba6b22639e33bb93bbf52f65e5
 oompah.start_blocked_by: *id001
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.integration:
   version: 2
   state: ready
@@ -47,6 +47,28 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1264
     digest: 49a50d8320e9eca5362acb0860974cf6158c97cf27e203b7f938153b0c624c74
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-169824cc83ad
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1264
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 49a50d8320e9eca5362acb0860974cf6158c97cf27e203b7f938153b0c624c74
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence for paused direct work: PR #881 merged exact reviewed
+      head 038e10c2 into epic-OOMPAH-1231 as 2ff3966dd; hosted CI passed Python 3.11/3.12/3.13,
+      local full gate passed 20,568 tests, independent review signed off, and exact
+      tree equality is proven.'
+    created_at: '2026-08-14T07:33:33.542854+00:00'
+    selected_ref: 038e10c2de1f1515ea19e7a63dbc2d3745137407
+    selected_sha: 038e10c2de1f1515ea19e7a63dbc2d3745137407
+    applied: false
   version: 1
   pending_chain:
   - version: 1
