@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1234
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Wake queued nested topology repairs independently of implementation retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T11:02:41.641589Z'
-updated_at: '2026-08-13T11:34:57.275575Z'
+updated_at: '2026-08-14T07:38:58.246202Z'
 work_branch: OOMPAH-1234
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: cd7a3378-bd51-43b7-a1c4-f5b7ee908979
   request_fingerprint: 77a790dd37017add0acfd675dc561e5750a30bcfb90c6a44ed4551f6572ecedb
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.integration:
   version: 2
   state: ready
@@ -48,6 +48,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1234
     digest: 1a4f8b1e10a129013da0bfbe60bf0468d921f838095cbc9b1ca455ccafa4f042
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-7f9e7e0f917b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1234
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1a4f8b1e10a129013da0bfbe60bf0468d921f838095cbc9b1ca455ccafa4f042
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #861 merged as f16b042c1 and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:38:54.405692+00:00'
+    selected_ref: c3a50bc6c4df16d3c52aaf1110e50a2e502521e8
+    selected_sha: c3a50bc6c4df16d3c52aaf1110e50a2e502521e8
+    applied: false
   version: 1
   pending_chain:
   - version: 1
