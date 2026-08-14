@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1266
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Fence late task submission from regressing landed integration authority
 parent: OOMPAH-1231
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-14T04:54:34.556175Z'
+updated_at: '2026-08-14T04:56:16.826612Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: o1263-post-merge-submit-provenance-regression
   request_fingerprint: 9a9d8d03687f81678f5061a4c7f6ca12b789b64399e6fd9b92b89ef14dc3e4b5
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -35,3 +36,11 @@ A pull-request closed+merged webhook can stage terminal evidence before a delaye
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-14 04:56
+---
+Claimed directly on branch OOMPAH-1266 in /home/shedwards/src/oompah-1266 from origin/epic-OOMPAH-1231. Reproducing the webhook-before-submit metadata regression and implementing the smallest monotonic integration-authority fence with same-generation retry idempotency and replacement fail-closed coverage. I will not push, submit, or change terminal status.
+---
+<!-- COMMENTS:END -->
