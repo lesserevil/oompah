@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1191
 type: bug
-status: In Validation
+status: Merged
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-140'
 parent: null
@@ -11,14 +11,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T22:41:57.033700Z'
-updated_at: '2026-08-13T05:48:37.176233Z'
+updated_at: '2026-08-14T07:28:59.983066Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.terminal_audit:
   queued_comment_posted: true
   oompah.terminal_audit_tracker_projections:
@@ -32,6 +32,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1191
     digest: fc049f390ddcd11b482b9f697e28cfcec3a38657d07caf7b8d6b590d36ec8c94
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f6782db5bfad
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1191
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fc049f390ddcd11b482b9f697e28cfcec3a38657d07caf7b8d6b590d36ec8c94
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #844 merged as 5f88d74b9 and that landed tree is
+      contained by origin/main; this stale In Validation projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:28:53.299377+00:00'
+    selected_ref: origin/main
+    selected_sha: 5f88d74b9668dbf611767fdbd0cd1ef9d1750587
+    applied: false
   version: 1
   pending_chain:
   - version: 1
