@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T00:43:53.961262Z'
-updated_at: '2026-08-14T01:29:31.493070Z'
-work_branch: null
+updated_at: '2026-08-14T01:29:42.793873Z'
+work_branch: OOMPAH-1260
 target_branch: null
 review_url: null
 review_number: null
@@ -25,6 +25,18 @@ oompah.create_once:
   creation_marker: dd002099-ee31-4cf1-a637-09386bf4bc3d
   request_fingerprint: 8659dfa3f103dbd0aa12b6c34378cca3b4feee5d6e7337fa88ef20a251491586
 oompah.lifecycle_revision: 1
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1260
+  base_branch: main
+  base_sha: eb61ed2adae7447952c31b30198849642f7a7ba6
+  head_sha: 2cdb4eafb999baf7c329c585a01ea3618b235191
+  submitted_at: '2026-08-14T01:29:33.421530+00:00'
+  updated_at: '2026-08-14T01:29:33.421530+00:00'
+oompah.work_branch: OOMPAH-1260
 ---
 ## Summary
 
@@ -52,5 +64,10 @@ author: oompah
 created: 2026-08-14 01:29
 ---
 Implementation committed and pushed as 2cdb4eafb999baf7c329c585a01ea3618b235191; PR #877 opened. Full Makefile gate passed: 20,369 passed, 7 skipped, 2 xfailed. Independent race review found no blockers.
+---
+author: oompah
+created: 2026-08-14 01:29
+---
+Implemented exact-deadline durable deferral for same-generation recurring revalidation, with restart and multi-scan integration coverage; PR #877.
 ---
 <!-- COMMENTS:END -->
