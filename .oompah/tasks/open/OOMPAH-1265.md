@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-14T07:55:16.892253Z'
+updated_at: '2026-08-14T08:28:39.211206Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-08-14 07:55
 ---
 Test-first lifecycle checkpoint frozen locally at ea243c8f6 (two commits, clean). Production-shaped TRICKLE-123/132/139/143 acceptance exposed and fixed replacement-after-receipt transition fencing plus truthful 409 handoff-authority conflicts. Combined prerequisite/handoff/adapter suite passes 326 tests. Task detail now exposes exact non-secret resolution CAS fields outside the global alert surface; dashboard/detail tests pass 39 tests; concrete project-owner recovery is documented in docs/external-prerequisites.md. Final integration remains finish-ordered after OOMPAH-1266 and is not pushed/submitted.
+---
+author: oompah
+created: 2026-08-14 08:28
+---
+Independent bounded review signed off exact clean head d30f77126271de8e22e8aff43a8653d6d8671afa. Post-cut prerequisite ABA fencing is enforced inside the status-write lane; structured handoffs invalidate the authoritative issue snapshot and project/projectless detail caches then refresh+broadcast on accepted and durable-conflict paths; cross-scope records are malformed/non-resolvable and UI suppresses the CLI affordance. Reviewer reran 353 focused tests with no blockers. Branch remains local/unsubmitted pending finish-order integration after OOMPAH-1266.
 ---
 <!-- COMMENTS:END -->
