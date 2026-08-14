@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1261
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Recover Ready-to-Integrate work when the remote review head advances past the
   accepted submission
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T01:17:47.268102Z'
-updated_at: '2026-08-14T03:21:16.760145Z'
+updated_at: '2026-08-14T03:23:14.941377Z'
 work_branch: OOMPAH-1261
 target_branch: null
 review_url: null
@@ -25,7 +25,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 5cf07b32-4562-410f-b82c-de37c40187c0
   request_fingerprint: 1a91df46d5640339a0e28cc8b1c15a2ac70f7a10c937d3194305fd4c9011d4a0
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.integration:
   version: 2
   state: ready
@@ -51,6 +51,28 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1261
     digest: d80e5755eb28e942ed5aa9b73deab29bc876814f3c7c5c1cd20c08a54493bc46
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-475fb136df92
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1261
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d80e5755eb28e942ed5aa9b73deab29bc876814f3c7c5c1cd20c08a54493bc46
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner terminal closure while Oompah scheduling remains intentionally
+      paused: PR 878 merged after exact-head Python 3.11, 3.12, and 3.13 CI passed;
+      deployed revision 948ef6f; live TRICKLE-136 tracker and MR remain aligned on
+      fea95f with no stale standalone-delivery authority.'
+    created_at: '2026-08-14T03:23:09.531506+00:00'
+    selected_ref: ee95f1e9f5e7d632c1e12c91870e96ebb5ff36f4
+    selected_sha: ee95f1e9f5e7d632c1e12c91870e96ebb5ff36f4
+    applied: false
   version: 1
   pending_chain:
   - version: 1
