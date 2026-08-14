@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T14:32:43.240296Z'
-updated_at: '2026-08-14T07:44:18.373320Z'
+updated_at: '2026-08-14T07:44:23.378019Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,7 +46,21 @@ oompah.terminal_audit:
     created_at: '2026-08-14T07:44:14.772002+00:00'
     selected_ref: origin/main
     selected_sha: 948ef6f207eabe4c26910d8fc276d6d36b659e76
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1243
+    target_state: Merged
+    evidence_fingerprint: fea9c013447f77bd2dc0710db245eae759a0f23836cef0474ce6bf0db1dc36cf
+    workflow_revision: null
+    selected_ref: origin/main
+    selected_sha: 948ef6f207eabe4c26910d8fc276d6d36b659e76
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-14T07:44:22.237504+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -67,5 +81,12 @@ author: oompah
 created: 2026-08-13 14:40
 ---
 Implemented an explicit EpicWorkflowEventRouter close/admission fence. Already accepted work drains exactly once; late events and shared-pool shutdown races resolve as restart-reconciled no-ops instead of escaping RuntimeError. Added deterministic close/late-delivery tests. Focused suite: 103 passed; terminal mutation and secret scans passed.
+---
+author: oompah
+created: 2026-08-14 07:44
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner convergence: PR #868 merged as 83196da17 and that landed tree is contained by origin/main; this stale non-terminal projection requires no further implementation.
 ---
 <!-- COMMENTS:END -->
