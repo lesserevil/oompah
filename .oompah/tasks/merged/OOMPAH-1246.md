@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1246
 type: task
-status: Open
+status: Merged
 priority: null
 title: Revalidate exact forge review evidence before exhausting standalone delivery
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T15:00:01.939071Z'
-updated_at: '2026-08-14T07:44:52.987634Z'
+updated_at: '2026-08-14T07:44:57.924558Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 7d3b2549-01ae-4e85-8efb-80b56a2d9519
   request_fingerprint: b2836bda8b9365c832a0da4bc545e530aadd3517de23c2d355a7213e697398dd
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.terminal_audit:
   oompah.terminal_override_records:
   - version: 1
