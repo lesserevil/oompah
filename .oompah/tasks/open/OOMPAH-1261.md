@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T01:17:47.268102Z'
-updated_at: '2026-08-14T01:40:07.168028Z'
+updated_at: '2026-08-14T01:40:19.109506Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,5 +58,10 @@ author: oompah
 created: 2026-08-14 01:40
 ---
 Live in-flight workaround completed safely while Trickle remained paused: a fresh exact-head clone verified branch and MR !14 at fea95f192d66fbf07f0188ad632e42c0ceb21d52,  rebound TRICKLE-136, and the server detail now confirms ready/standalone authority at that exact head. The temporary clone was moved to trash. This unblocks the existing task after resume; OOMPAH-1261 remains required to prevent retry exhaustion before explicit resubmission.
+---
+author: oompah
+created: 2026-08-14 01:40
+---
+Clarification: the successful operator action was oompah task submit for TRICKLE-136 from the fresh exact-head clone. No worker handoff credential or stale managed worktree was used.
 ---
 <!-- COMMENTS:END -->
