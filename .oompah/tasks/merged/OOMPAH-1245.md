@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1245
 type: task
-status: Open
+status: Merged
 priority: null
 title: Let durable recovery supersede stale legacy completion fences
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T14:50:06.067428Z'
-updated_at: '2026-08-13T14:56:12.653545Z'
+updated_at: '2026-08-14T07:44:41.583254Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,32 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: bb86dbc1-ab9d-4037-9411-584095a6a09e
   request_fingerprint: 1e18cd3b9004114671d1096d0b56bd194ec13a61fee1e22960cc1cb9455ab236
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-1180ab9ea845
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1245
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 929ff8ffd468a5860a76840d4c888a90c7a64a04f4a94047e0de4ce25fc7d720
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #868 merged as 83196da17 and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:44:38.110590+00:00'
+    selected_ref: origin/main
+    selected_sha: 948ef6f207eabe4c26910d8fc276d6d36b659e76
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
