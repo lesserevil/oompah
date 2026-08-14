@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1261
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Recover Ready-to-Integrate work when the remote review head advances past the
   accepted submission
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T01:17:47.268102Z'
-updated_at: '2026-08-14T01:17:47.268102Z'
+updated_at: '2026-08-14T01:18:06.601760Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,6 +25,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 5cf07b32-4562-410f-b82c-de37c40187c0
   request_fingerprint: 1a91df46d5640339a0e28cc8b1c15a2ac70f7a10c937d3194305fd4c9011d4a0
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -36,3 +37,11 @@ Bug reproduced by TRICKLE-136: the accepted integration submission records head 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-14 01:18
+---
+Filed from the live TRICKLE-136 audit after confirming no existing task covers this exact Ready-to-Integrate accepted-head drift. Closest prior fixes address different lifecycle cuts and intentionally retain mismatched-head fences.
+---
+<!-- COMMENTS:END -->
