@@ -2337,6 +2337,9 @@ class OompahMarkdownTracker:
             implementation_prerequisite=(
                 meta.get("oompah.implementation_prerequisite")
             ),
+            implementation_prerequisite_resolution=(
+                meta.get("oompah.implementation_prerequisite_resolution")
+            ),
             integration=parse_integration_record(meta.get("oompah.integration")),
             epic_rebase_target=(
                 meta.get("oompah.epic_rebase_target")

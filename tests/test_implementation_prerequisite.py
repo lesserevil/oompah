@@ -7,19 +7,26 @@ import pytest
 
 from oompah.implementation_prerequisite import (
     METADATA_KEY,
+    RESOLUTION_METADATA_KEY,
     ImplementationPrerequisiteRecord,
+    ImplementationPrerequisiteResolution,
     MalformedPrerequisiteRecordError,
+    MalformedPrerequisiteResolutionError,
     PrerequisiteAdmissionKind,
+    PrerequisiteContinuation,
     PrerequisiteConflictError,
     PrerequisiteKind,
     PrerequisiteReadbackError,
+    PrerequisiteResolutionConflictError,
     PrerequisiteSourceChangedError,
     RecoveryTriggerKind,
     freeze_execution_profile_snapshot,
     new_record,
+    new_resolution,
     parse_prerequisite_declaration,
     project_prerequisite_admission,
     save_record,
+    save_resolution,
     select_execution_profile_name,
     select_profile_name,
 )
@@ -60,6 +67,39 @@ def _record(*, declaration=None, now: datetime = NOW, run_id: str = "run-1"):
         source_task_authority="a" * 64,
         source_head_sha="b" * 40,
         source_profile_revision="c" * 64,
+        now=now,
+    )
+
+
+def _resolution(
+    record=None,
+    *,
+    generation: str = "resolution-generation-1",
+    task_authority: str = "d" * 64,
+    now: datetime = NOW,
+):
+    record = record or _record()
+    return new_resolution(
+        record,
+        expected_task_authority=task_authority,
+        workflow_generation=generation,
+        actor="project-owner",
+        reason="The named prerequisite is now satisfied.",
+        trigger_evidence={
+            "kind": "profile-capability",
+            "capability": "macos",
+            "profile_name": "mac-runner",
+            "profile_revision": "e" * 64,
+        },
+        continuation=PrerequisiteContinuation(
+            resume_status="In Review",
+            work_branch="TRICKLE-143",
+            head_sha="b" * 40,
+            review_id="20",
+            review_head_sha="b" * 40,
+            pipeline_id="62564237",
+            pipeline_head_sha="b" * 40,
+        ),
         now=now,
     )
 
@@ -219,6 +259,32 @@ def test_record_rejects_tamper_future_schema_unknown_keys_and_noncanonical_time(
     assert all(ImplementationPrerequisiteRecord.from_raw(case) is None for case in cases)
 
 
+def test_resolution_round_trip_preserves_trickle_review_and_pipeline_identity():
+    resolution = _resolution()
+
+    restored = ImplementationPrerequisiteResolution.from_raw(resolution.to_dict())
+
+    assert restored == resolution
+    assert restored.continuation.resume_status == "In Review"
+    assert restored.continuation.review_id == "20"
+    assert restored.continuation.pipeline_id == "62564237"
+    assert restored.continuation.head_sha == "b" * 40
+
+
+def test_resolution_rejects_tamper_unknown_fields_and_split_heads():
+    raw = _resolution().to_dict()
+    tampered = dict(raw)
+    tampered["source_run_id"] = "replacement-run"
+    unknown = dict(raw)
+    unknown["future"] = True
+    split_heads = json.loads(json.dumps(raw))
+    split_heads["continuation"]["pipeline_head_sha"] = "f" * 40
+
+    assert ImplementationPrerequisiteResolution.from_raw(tampered) is None
+    assert ImplementationPrerequisiteResolution.from_raw(unknown) is None
+    assert ImplementationPrerequisiteResolution.from_raw(split_heads) is None
+
+
 class _Tracker:
     def __init__(self, raw=None):
         self.metadata = {} if raw is None else {METADATA_KEY: raw}
@@ -239,7 +305,11 @@ class _Tracker:
 
 
 def _issue():
-    return SimpleNamespace(identifier="TRICKLE-143", implementation_prerequisite=None)
+    return SimpleNamespace(
+        identifier="TRICKLE-143",
+        implementation_prerequisite=None,
+        implementation_prerequisite_resolution=None,
+    )
 
 
 def test_store_absent_write_exact_readback_and_lost_response_recovery():
@@ -356,6 +426,93 @@ def test_crash_before_finalize_leaves_only_non_authoritative_staging():
     assert ImplementationPrerequisiteRecord.from_raw(raw) is None
 
 
+def test_resolution_store_exact_cas_is_idempotent_and_recovers_lost_response():
+    record = _record()
+    resolution = _resolution(record)
+    tracker = _Tracker(record.to_dict())
+    tracker.raise_after_write = True
+    issue = _issue()
+
+    saved = save_resolution(
+        tracker,
+        issue,
+        record,
+        resolution,
+        lock=threading.Lock(),
+        accept_current=lambda: True,
+    )
+    replay = save_resolution(
+        tracker,
+        issue,
+        record,
+        resolution,
+        lock=threading.Lock(),
+        accept_current=lambda: False,
+    )
+
+    assert saved == resolution
+    assert replay == resolution
+    assert issue.implementation_prerequisite_resolution == resolution.to_dict()
+    assert [write[1] for write in tracker.writes] == [RESOLUTION_METADATA_KEY]
+
+
+def test_resolution_store_rejects_stale_task_and_blocker_authority():
+    record = _record()
+    resolution = _resolution(record)
+    stale_task = _Tracker(record.to_dict())
+    with pytest.raises(PrerequisiteSourceChangedError, match="task authority"):
+        save_resolution(
+            stale_task,
+            _issue(),
+            record,
+            resolution,
+            lock=threading.Lock(),
+            accept_current=lambda: False,
+        )
+    assert stale_task.writes == []
+
+    replacement = _record(run_id="replacement")
+    stale_record = _Tracker(replacement.to_dict())
+    with pytest.raises(PrerequisiteSourceChangedError, match="changed"):
+        save_resolution(
+            stale_record,
+            _issue(),
+            record,
+            resolution,
+            lock=threading.Lock(),
+            accept_current=lambda: True,
+        )
+    assert stale_record.writes == []
+
+
+def test_resolution_store_rejects_concurrent_replacement_and_malformed_history():
+    record = _record()
+    first = _resolution(record)
+    tracker = _Tracker(record.to_dict())
+    tracker.metadata[RESOLUTION_METADATA_KEY] = first.to_dict()
+
+    with pytest.raises(PrerequisiteResolutionConflictError):
+        save_resolution(
+            tracker,
+            _issue(),
+            record,
+            _resolution(record, generation="replacement-generation"),
+            lock=threading.Lock(),
+            accept_current=lambda: True,
+        )
+
+    tracker.metadata[RESOLUTION_METADATA_KEY] = {"state": "staged"}
+    with pytest.raises(MalformedPrerequisiteResolutionError):
+        save_resolution(
+            tracker,
+            _issue(),
+            record,
+            first,
+            lock=threading.Lock(),
+            accept_current=lambda: True,
+        )
+
+
 def _profile(name, capabilities, **constraints):
     return SimpleNamespace(
         name=name,
@@ -467,6 +624,36 @@ def test_durable_capability_record_projects_exact_capable_profile():
     assert disposition.dispatchable is True
 
 
+def test_only_exact_committed_resolution_ends_prerequisite_admission():
+    record = _record()
+    resolution = _resolution(record)
+    issue = SimpleNamespace(
+        id="143",
+        identifier="TRICKLE-143",
+        project_id="trickle",
+        issue_type="task",
+        title="Task",
+        description="",
+        priority=2,
+        implementation_prerequisite=record.to_dict(),
+        implementation_prerequisite_resolution=resolution.to_dict(),
+    )
+    snapshot = freeze_execution_profile_snapshot([])
+
+    assert project_prerequisite_admission(issue, snapshot) is None
+
+    issue.implementation_prerequisite_resolution = {"state": "staged"}
+    assert project_prerequisite_admission(issue, snapshot).dispatchable is False
+
+    issue.implementation_prerequisite_resolution = _resolution(
+        record, generation="stale-job"
+    ).to_dict()
+    # A different job-bound resolution is still exact for this record; the
+    # first committed receipt wins at the store CAS, while admission consumes
+    # whichever exact committed receipt the tracker projects.
+    assert project_prerequisite_admission(issue, snapshot) is None
+
+
 def test_staged_or_cross_task_record_projects_malformed_jobless_admission():
     record = _record()
     issue = SimpleNamespace(
@@ -488,7 +675,10 @@ def test_github_projection_preserves_malformed_prerequisite(malformed):
     from oompah.github_tracker import _gh_issue_to_issue
 
     body = "<!-- oompah:metadata\n" + json.dumps(
-        {"implementation_prerequisite": malformed}
+        {
+            "implementation_prerequisite": malformed,
+            "implementation_prerequisite_resolution": malformed,
+        }
     ) + "\n-->"
     issue = _gh_issue_to_issue(
         {
@@ -502,6 +692,7 @@ def test_github_projection_preserves_malformed_prerequisite(malformed):
         "repo",
     )
     assert issue.implementation_prerequisite == malformed
+    assert issue.implementation_prerequisite_resolution == malformed
 
 
 @pytest.mark.parametrize("malformed", ["scalar", ["list"]])
@@ -511,7 +702,10 @@ def test_gitlab_projection_preserves_malformed_prerequisite(malformed):
     tracker = GitLabIssueTracker.__new__(GitLabIssueTracker)
     tracker.project = "group/sub/project"
     description = "<!-- oompah:metadata\n" + json.dumps(
-        {"implementation_prerequisite": malformed}
+        {
+            "implementation_prerequisite": malformed,
+            "implementation_prerequisite_resolution": malformed,
+        }
     ) + "\n-->"
     issue = tracker._issue(
         {
@@ -524,6 +718,7 @@ def test_gitlab_projection_preserves_malformed_prerequisite(malformed):
         }
     )
     assert issue.implementation_prerequisite == malformed
+    assert issue.implementation_prerequisite_resolution == malformed
 
 
 @pytest.mark.parametrize("malformed", ["scalar", ["list"]])
@@ -540,8 +735,10 @@ def test_native_projection_preserves_malformed_prerequisite(malformed):
                 "title": "Task",
                 "status": "Open",
                 "oompah.implementation_prerequisite": malformed,
+                "oompah.implementation_prerequisite_resolution": malformed,
             },
             "body": "## Summary\nTask body\n",
         }
     )
     assert issue.implementation_prerequisite == malformed
+    assert issue.implementation_prerequisite_resolution == malformed

@@ -321,6 +321,10 @@ class Issue:
     # Preserve malformed raw metadata so strict restart projection can
     # quarantine it instead of confusing corruption with absence.
     implementation_prerequisite: Any = None
+    # Immutable project-owner resolution of the exact prerequisite record.
+    # Malformed and stale raw values remain projected so admission fails
+    # closed instead of silently waking work.
+    implementation_prerequisite_resolution: Any = None
     # Versioned private-branch submission state (oompah.integration).
     integration: IntegrationRecord | None = None
     # Server-issued identity for an auto-filed shared-epic rebase helper.
