@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:09.835377Z'
-updated_at: '2026-08-13T00:31:43.176931Z'
+updated_at: '2026-08-14T07:36:32.683552Z'
 work_branch: OOMPAH-1194
 target_branch: null
 review_url: null
@@ -32,6 +32,16 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1194
     digest: 7e7d8e7d0f17344513c3b12b35e933f54eafa6a2c6f652415ddf601bb1cfd7c0
+  - version: 1
+    audit_id: audit-7fe08b784459
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1194
+    digest: cf4bb18a00cbb7a23542aa399caa0f1ebe21ff421c8e410cd9a783f0c045f951
+  - version: 1
+    audit_id: audit-598b35e5dd5a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1194
+    digest: cf4bb18a00cbb7a23542aa399caa0f1ebe21ff421c8e410cd9a783f0c045f951
   version: 1
   pending_chain:
   - version: 1
@@ -39,7 +49,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1194
     target_state: Done
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -60,7 +70,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1194
     target_state: Merged
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -76,6 +86,48 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-cad206e88330
     selected_ref: origin/main
     selected_sha: 7140e70827fb1ead3135a559a5202089548a13f6
+  - version: 1
+    audit_id: audit-7fe08b784459
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1194
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cf4bb18a00cbb7a23542aa399caa0f1ebe21ff421c8e410cd9a783f0c045f951
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Validation
+    created_at: '2026-08-14T07:36:19.948209+00:00'
+    eligible_at: '2026-08-14T07:36:19.948209+00:00'
+    selected_ref: dc5b5998d013228a1409bd05a25b49f40787921a
+    selected_sha: dc5b5998d013228a1409bd05a25b49f40787921a
+  - version: 1
+    audit_id: audit-598b35e5dd5a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1194
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cf4bb18a00cbb7a23542aa399caa0f1ebe21ff421c8e410cd9a783f0c045f951
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Validation
+    created_at: '2026-08-14T07:36:19.948209+00:00'
+    prerequisite_audit_id: audit-7fe08b784459
+    selected_ref: dc5b5998d013228a1409bd05a25b49f40787921a
+    selected_sha: dc5b5998d013228a1409bd05a25b49f40787921a
   attempt_history: []
 oompah.integration:
   version: 2
@@ -144,5 +196,10 @@ author: oompah
 created: 2026-08-13 00:31
 ---
 Fixed managed network Git transport authority: server-owned fetch/push/ls-remote now use the configured project repo URL, ignore stale local origins and ambient rewrites, preserve tracking and cleanup semantics, and cover the exact epic private-dispatch failure path. PR #842 merged; CI passed on Python 3.11, 3.12, and 3.13.
+---
+author: oompah
+created: 2026-08-14 07:36
+---
+PR #842 merged as 7140e7082 with supported-Python CI passing; the landed tree is contained by origin/main and no implementation remains.
 ---
 <!-- COMMENTS:END -->
