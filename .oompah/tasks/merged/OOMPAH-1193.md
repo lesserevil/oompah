@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1193
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Continue truncated restart reconstruction before worker admission
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:19:53.793903Z'
-updated_at: '2026-08-12T23:53:31.109562Z'
+updated_at: '2026-08-14T07:30:02.146842Z'
 work_branch: OOMPAH-1193
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 75888359-5bee-46fc-b1ce-ff1e9f0b0769
   request_fingerprint: d14c77f040ab8fb1e911e1c3f202433dd4507180144720fc99796278236e6765
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.integration:
   version: 2
   state: ready
@@ -48,6 +48,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1193
     digest: 4f0f7ab63e0f00033ae3ef03651752a6f3431fe453d7da598638c3544ca51c14
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-df507cff3fda
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1193
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4f0f7ab63e0f00033ae3ef03651752a6f3431fe453d7da598638c3544ca51c14
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #841 merged as f8bb14cdc and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:29:58.453995+00:00'
+    selected_ref: 1744e1cf730bae9b846ad850bdd1808d9563831c
+    selected_sha: 1744e1cf730bae9b846ad850bdd1808d9563831c
+    applied: false
   version: 1
   pending_chain:
   - version: 1
