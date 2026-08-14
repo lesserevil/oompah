@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T23:58:37.536440Z'
-updated_at: '2026-08-14T07:43:37.893085Z'
+updated_at: '2026-08-14T07:43:45.436645Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,7 +57,23 @@ oompah.terminal_audit:
     created_at: '2026-08-14T07:43:31.435730+00:00'
     selected_ref: origin/OOMPAH-1259
     selected_sha: fb8a2ba298f396ef36a06430faaae6344142e7cb
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1259
+    target_state: Merged
+    evidence_fingerprint: 97cbe51f2cc16cdac084c2b5d8fff6f1183294f28d813cad98cf8117f9e60766
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1259
+    selected_sha: fb8a2ba298f396ef36a06430faaae6344142e7cb
+    landing_revision: null
+    audit_ids:
+    - audit-2d740494729a
+    - audit-d715f4745539
+    kind: override
+    applied: true
+    retired_at: '2026-08-14T07:43:43.300725+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -65,7 +81,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1259
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -81,12 +97,13 @@ oompah.terminal_audit:
     eligible_at: '2026-08-14T00:29:44.030455+00:00'
     selected_ref: origin/OOMPAH-1259
     selected_sha: fb8a2ba298f396ef36a06430faaae6344142e7cb
+    updated_at: '2026-08-14T07:43:43.300682+00:00'
   - version: 1
     audit_id: audit-d715f4745539
     project_id: proj-14849f1b
     task_id: OOMPAH-1259
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -102,6 +119,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-2d740494729a
     selected_ref: origin/OOMPAH-1259
     selected_sha: fb8a2ba298f396ef36a06430faaae6344142e7cb
+    updated_at: '2026-08-14T07:43:43.300708+00:00'
   attempt_history: []
 oompah.lifecycle_revision: 2
 ---
@@ -131,5 +149,12 @@ author: oompah
 created: 2026-08-14 00:38
 ---
 Completed and live-verified. PR #876 merged to main at eb61ed2adae7447952c31b30198849642f7a7ba6 after all Python 3.11/3.12/3.13 CI gates passed. The managed service auto-restarted on that exact revision with only Trickle resumed. Restart reconstruction converged (required=materialized, initially 11/11 and currently 10/10; pending=false), and TRICKLE-134's superseded recurring child_landing_verification generation was immediately rematerialized and executed on successive current generations. Focused scheduler suite: 41 passed; combined scheduler/store/runtime/epic suite: 419 passed; terminal mutation scan: 21/21. Branch/worktree were pushed, merged, and pruned.
+---
+author: oompah
+created: 2026-08-14 07:43
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner convergence: PR #876 merged as eb61ed2ad and that landed tree is contained by origin/main; this stale non-terminal projection requires no further implementation.
 ---
 <!-- COMMENTS:END -->
