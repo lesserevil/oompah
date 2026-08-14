@@ -110,6 +110,42 @@ def _facts(issue, *, overrides=None, landings=()):
 
 
 @pytest.mark.parametrize(
+    "admission_kind",
+    ("blocked-dependency", "blocked-operator", "blocked-capability", "malformed"),
+)
+@pytest.mark.parametrize("status", (OPEN, IN_PROGRESS))
+def test_durable_implementation_prerequisite_is_jobless_non_transient(
+    status, admission_kind
+):
+    issue = _issue(status)
+    facts = _facts(
+        issue,
+        overrides={
+            FactDomain.CONFIG: _known(
+                FactDomain.CONFIG,
+                {
+                    "implementation_prerequisite_admission": {
+                        "kind": admission_kind,
+                        "subject": "external-resource",
+                    }
+                },
+            ),
+            FactDomain.IMPLEMENTATION_AUTHORITY: _known(
+                FactDomain.IMPLEMENTATION_AUTHORITY,
+                {"state": "missing"},
+            ),
+        },
+    )
+
+    decision = evaluate_task(issue, facts, now=NOW)
+
+    assert decision.disposition is TaskDisposition.BLOCKED
+    assert decision.reason_code == "implementation.external_prerequisite"
+    assert decision.durable_jobs == ()
+    assert decision.alert_level is AlertSeverity.INFO
+
+
+@pytest.mark.parametrize(
     ("status", "disposition", "reason", "owner", "alert"),
     [
         (

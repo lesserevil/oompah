@@ -112,6 +112,18 @@ from oompah.integration import (
     requeue_standalone_review_generation,
     review_generation_requeue_marker,
 )
+from oompah.implementation_prerequisite import (
+    ImplementationPrerequisiteRecord,
+    PrerequisiteAdmissionKind,
+    RecoveryTriggerKind,
+    freeze_execution_profile_snapshot,
+    new_record as new_implementation_prerequisite_record,
+    parse_prerequisite_declaration,
+    project_prerequisite_admission,
+    save_record as save_implementation_prerequisite_record,
+    select_execution_profile_name,
+    select_profile_name,
+)
 from oompah.git_credentials import git_credential_environment, redact_git_output
 from oompah.integration_executor import (
     IntegrationCandidateAuthority,
@@ -2806,6 +2818,10 @@ class Orchestrator:
         # against HTTP threads racing with the dispatch loop.
         self._pending_agent_profiles: list[AgentProfile] | None = None
         self._pending_profiles_lock: threading.Lock = threading.Lock()
+        self._implementation_prerequisite_locks_guard = threading.Lock()
+        self._implementation_prerequisite_locks: dict[
+            tuple[str, str], threading.Lock
+        ] = {}
 
         # Error watcher registry (oompah-zlz_2-0nc): keyed by project_id
         # (or ``None`` for the global / unscoped watcher).  Populated by
@@ -7222,16 +7238,20 @@ class Orchestrator:
                     raise
             if store_profiles:
                 config.agent_profiles = store_profiles
-            with self._project_trackers_lock:
-                self.config = config
-                self._project_tracker_generation += 1
-                self._project_trackers.clear()
-                with self._stale_cache_lock:
-                    self._stale_caches.clear()
-                self._reviews_cache = {}
-                self._unmerged_review_branches = set()
-                self._merged_branches = set()
-                self._merged_branches_dirty = True
+            with self._pending_profiles_lock:
+                with self._project_trackers_lock:
+                    self.config = config
+                    self._project_tracker_generation += 1
+                    self._project_trackers.clear()
+                    with self._stale_cache_lock:
+                        self._stale_caches.clear()
+                    self._reviews_cache = {}
+                    self._unmerged_review_branches = set()
+                    self._merged_branches = set()
+                    self._merged_branches_dirty = True
+                # File-watcher reload supersedes an API-path profile swap in
+                # the same authority transaction as publishing the new config.
+                self._pending_agent_profiles = None
             # Keep the diagnostic registry and its listeners while making its
             # authority mode part of the same cut as config, tracker, and epoch.
             self.workflow_shadow.reconfigure(
@@ -7261,10 +7281,6 @@ class Orchestrator:
             self._work_decision_snapshot_complete = False
             # Reset last full sync so the new interval takes effect immediately.
             self._last_full_sync = 0.0
-        # File-watcher reload supersedes any pending API-path profile swap —
-        # the new ServiceConfig already carries the authoritative profile list.
-        with self._pending_profiles_lock:
-            self._pending_agent_profiles = None
         # Re-arm the profile-drift alert against the freshly-loaded
         # config so a WORKFLOW.md edit (or a UI write that resolved
         # the drift) updates the dashboard banner immediately
@@ -7323,7 +7339,7 @@ class Orchestrator:
         """
         # Normalize / defensive copy so the caller can't mutate the queued
         # list out from under us between queue and apply.
-        snapshot = list(profiles)
+        snapshot = [AgentProfile.from_dict(profile.to_dict()) for profile in profiles]
         with self._pending_profiles_lock:
             self._pending_agent_profiles = snapshot
         logger.info(
@@ -7354,14 +7370,15 @@ class Orchestrator:
         """
         with self._pending_profiles_lock:
             pending = self._pending_agent_profiles
+            if pending is None:
+                return False
+            before_names = [p.name for p in self.config.agent_profiles]
+            after_names = [p.name for p in pending]
+            # Selection and final provider admission read this same lock, so
+            # clearing the pending cut and publishing it are one authority
+            # transaction rather than a stale-list window.
+            self.config.agent_profiles = pending
             self._pending_agent_profiles = None
-        if pending is None:
-            return False
-        before_names = [p.name for p in self.config.agent_profiles]
-        after_names = [p.name for p in pending]
-        # Atomic re-assignment of the list attribute (Python guarantees a
-        # single-instruction store for attribute writes).
-        self.config.agent_profiles = pending
         logger.info(
             "Agent profiles reloaded: before=%s after=%s",
             before_names,
@@ -7371,6 +7388,81 @@ class Orchestrator:
         # snapshot refreshes without waiting for the next tick to publish.
         self._notify_observers()
         return True
+
+    def _latest_execution_profile_authority(
+        self,
+    ) -> tuple[Any, tuple[AgentProfile, ...]]:
+        """Freeze the latest pending-or-active profile cut for one decision."""
+
+        with self._pending_profiles_lock:
+            return self._execution_profile_authority_locked()
+
+    def _execution_profile_authority_locked(
+        self,
+    ) -> tuple[Any, tuple[AgentProfile, ...]]:
+        """Return the latest profile cut while `_pending_profiles_lock` is held."""
+
+        source = (
+            self._pending_agent_profiles
+            if self._pending_agent_profiles is not None
+            else self.config.agent_profiles
+        )
+        profiles = tuple(
+            AgentProfile.from_dict(profile.to_dict()) for profile in source
+        )
+        return freeze_execution_profile_snapshot(profiles), profiles
+
+    def _profile_for_execution_capability(
+        self,
+        issue: Issue,
+        capability: str,
+    ) -> tuple[AgentProfile | None, str]:
+        """Return one applicable capable profile and its immutable revision."""
+
+        snapshot, profiles = self._latest_execution_profile_authority()
+        selected_name = select_execution_profile_name(snapshot, issue, capability)
+        selected = next(
+            (profile for profile in profiles if profile.name == selected_name),
+            None,
+        )
+        return selected, snapshot.revision
+
+    def _implementation_prerequisite_admission(self, issue: Issue) -> Any:
+        """Return the latest typed admission cut for one projected issue."""
+
+        snapshot, _profiles = self._latest_execution_profile_authority()
+        return project_prerequisite_admission(issue, snapshot)
+
+    def _implementation_prerequisite_lock(
+        self, project_id: str, identifier: str
+    ) -> threading.Lock:
+        """Return one append-only metadata writer lock for a managed task."""
+
+        guard = getattr(self, "_implementation_prerequisite_locks_guard", None)
+        if guard is None:
+            self._implementation_prerequisite_locks_guard = threading.Lock()
+            self._implementation_prerequisite_locks = {}
+            guard = self._implementation_prerequisite_locks_guard
+        key = (str(project_id), str(identifier))
+        with guard:
+            return self._implementation_prerequisite_locks.setdefault(
+                key, threading.Lock()
+            )
+
+    @contextlib.contextmanager
+    def _implementation_prerequisite_finalize_fence(self, project_id: str):
+        """Fence the staged-to-authoritative prerequisite promotion.
+
+        Project mutation authority serializes tracker and worktree changes;
+        retry authority serializes replacement of the exact RunningEntry.
+        A crash before this fence leaves only an intentionally unparsable
+        staged value, while a finalized record was accepted inside both
+        authorities.
+        """
+
+        with self.project_store.project_write_lock(project_id):
+            with self._retry_authority_lock:
+                yield
 
     def set_prompt_template(self, template: str) -> None:
         self._prompt_template = template
@@ -8248,18 +8340,57 @@ class Orchestrator:
                             "authority disappeared"
                         )
                     if entry is not None:
-                        # A granted permit is the transport admission
-                        # linearization point. Concurrent retirement consults
-                        # this permit before it can roll an audit back, so the
-                        # adjacent Popen/socket edge cannot be forgotten as an
-                        # unadmitted attempt.
-                        entry.provider_contact_permitted = True
-                        entry.provider_admission_generation = None
-                        entry.provider_configuration_signature = admitted_signature
-                        entry.admitted_per_token_billed = admitted_per_token_billed
-                        entry.admitted_cost_per_1k_input = admitted_input_rate
-                        entry.admitted_cost_per_1k_output = admitted_output_rate
-                        admitted_entry = entry
+                        with self._pending_profiles_lock:
+                            profile_snapshot, _profiles = (
+                                self._execution_profile_authority_locked()
+                            )
+                            required_capability = str(
+                                getattr(
+                                    entry,
+                                    "required_execution_capability",
+                                    None,
+                                )
+                                or ""
+                            )
+                            if required_capability:
+                                required_revision = str(
+                                    getattr(
+                                        entry,
+                                        "required_execution_profile_revision",
+                                        None,
+                                    )
+                                    or ""
+                                )
+                                selected_name = select_execution_profile_name(
+                                    profile_snapshot,
+                                    entry.issue,
+                                    required_capability,
+                                )
+                                if (
+                                    profile_snapshot.revision != required_revision
+                                    or selected_name != entry.agent_profile_name
+                                ):
+                                    entry.prerequisite_admission_blocked = (
+                                        "blocked-capability"
+                                        if selected_name is None
+                                        else "profile-authority-changed"
+                                    )
+                                    return (
+                                        f"{transport} provider launch was blocked "
+                                        "because execution-capability profile "
+                                        "authority changed after dispatch"
+                                    )
+                            # A granted permit is the transport admission
+                            # linearization point. Profile replacement shares
+                            # the adjacent lock, so it either wins before this
+                            # capability check or follows an admitted run.
+                            entry.provider_contact_permitted = True
+                            entry.provider_admission_generation = None
+                            entry.provider_configuration_signature = admitted_signature
+                            entry.admitted_per_token_billed = admitted_per_token_billed
+                            entry.admitted_cost_per_1k_input = admitted_input_rate
+                            entry.admitted_cost_per_1k_output = admitted_output_rate
+                            admitted_entry = entry
 
         if admitted_entry is not None and admitted_entry.is_auditor:
             # Reservation is intentionally only capacity until the contact
@@ -16166,6 +16297,26 @@ class Orchestrator:
                     self._duplicate_preflight_limit() > 0
                 ),
             }
+            prerequisite_admission = None
+            prerequisite_record = None
+            if getattr(current, "implementation_prerequisite", None) is not None:
+                profile_snapshot, _profiles = (
+                    self._latest_execution_profile_authority()
+                )
+                prerequisite_admission = project_prerequisite_admission(
+                    current, profile_snapshot
+                )
+                prerequisite_record = ImplementationPrerequisiteRecord.from_raw(
+                    current.implementation_prerequisite
+                )
+                if prerequisite_admission is not None:
+                    value["implementation_prerequisite_admission"] = (
+                        prerequisite_admission.to_dict()
+                    )
+                if prerequisite_record is not None:
+                    value["implementation_prerequisite"] = (
+                        prerequisite_record.to_dict()
+                    )
             accepted_submission_recovery_parked = False
             integration = getattr(current, "integration", None)
             if is_direct_epic_maintenance_issue(current):
@@ -16291,10 +16442,64 @@ class Orchestrator:
                         "expected_status": current.state,
                         "reason": "recover accepted validation submission",
                     }
+            prerequisite_running = self._workflow_shadow_running_entry(
+                current, auditor=False
+            )
+            prerequisite_consumed_by_running = bool(
+                prerequisite_record is not None
+                and prerequisite_running is not None
+                and str(
+                    getattr(
+                        prerequisite_running,
+                        "implementation_prerequisite_id",
+                        None,
+                    )
+                    or ""
+                )
+                == prerequisite_record.record_id
+            )
+            if (
+                prerequisite_admission is not None
+                and prerequisite_admission.kind
+                is PrerequisiteAdmissionKind.CAPABLE_PROFILE
+                and prerequisite_record is not None
+                and "implementation_pending_action" not in value
+                and not accepted_submission_recovery_parked
+                and not prerequisite_consumed_by_running
+                and canonicalize_status(current.state)
+                in {OPEN, IN_PROGRESS, NEEDS_CI_FIX, NEEDS_REBASE}
+            ):
+                current_head = issue_exact_head(current)
+                value["implementation_pending_action"] = (
+                    "focus_handoff"
+                    if canonicalize_status(current.state) == IN_PROGRESS
+                    else "implementation_start"
+                )
+                value["implementation_pending_payload"] = {
+                    "focus": prerequisite_record.source_focus,
+                    "prior_generation": prerequisite_record.source_generation,
+                    "prior_run_id": prerequisite_record.source_run_id,
+                    "expected_status": current.state,
+                    "work_branch": str(
+                        current.work_branch or current.branch_name or ""
+                    ),
+                    "head_sha": str(
+                        current_head or prerequisite_record.source_head_sha
+                    ),
+                    "profile": str(prerequisite_admission.profile_name or ""),
+                    "required_execution_capability": (
+                        prerequisite_record.recovery_trigger.value
+                    ),
+                    "implementation_prerequisite_id": (
+                        prerequisite_record.record_id
+                    ),
+                    "reason": "recover durable implementation prerequisite",
+                }
             if (
                 canonicalize_status(current.state) == IN_PROGRESS
                 and "implementation_pending_action" not in value
                 and not accepted_submission_recovery_parked
+                and prerequisite_admission is None
             ):
                 running = self._workflow_shadow_running_entry(
                     current, auditor=False
@@ -55652,55 +55857,12 @@ class Orchestrator:
         if not profiles:
             return None
 
-        title_lower = (issue.title or "").lower()
-        desc_lower = (issue.description or "").lower()
-        text = f"{title_lower} {desc_lower}"
-
-        best = None
-        best_score = -1
-
-        for profile in profiles:
-            score = 0
-
-            # Issue type match
-            if profile.issue_types:
-                if issue.issue_type in profile.issue_types:
-                    score += 10
-                else:
-                    continue  # type specified but doesn't match — skip
-
-            # Keyword match
-            if profile.keywords:
-                matched = sum(1 for kw in profile.keywords if kw.lower() in text)
-                if matched > 0:
-                    score += matched * 5
-                else:
-                    if not profile.issue_types:
-                        continue  # keywords specified but none matched and no type match
-
-            # Priority range
-            if profile.min_priority is not None or profile.max_priority is not None:
-                pri = issue.priority if issue.priority is not None else 2
-                if profile.min_priority is not None and pri < profile.min_priority:
-                    continue
-                if profile.max_priority is not None and pri > profile.max_priority:
-                    continue
-                score += 3
-
-            # Default fallback (no constraints)
-            if (
-                not profile.issue_types
-                and not profile.keywords
-                and profile.min_priority is None
-                and profile.max_priority is None
-            ):
-                score = 0  # lowest priority, but valid
-
-            if score > best_score:
-                best_score = score
-                best = profile
-
-        return best
+        snapshot = freeze_execution_profile_snapshot(profiles)
+        selected_name = select_profile_name(snapshot, issue)
+        return next(
+            (profile for profile in profiles if profile.name == selected_name),
+            None,
+        )
 
     def _get_profile_by_name(self, name: str) -> AgentProfile | None:
         """Look up an agent profile by name."""
@@ -58517,6 +58679,132 @@ class Orchestrator:
             is not None
         ]
 
+    def _handoff_entry_is_exact_current(
+        self,
+        entry: RunningEntry,
+        *,
+        identifier: str,
+        project_id: str,
+    ) -> bool:
+        """Check one token-resolved runtime object without task re-discovery."""
+
+        entry_issue = getattr(entry, "issue", None)
+        if (
+            entry_issue is None
+            or getattr(entry, "is_auditor", False)
+            or str(getattr(entry, "identifier", "") or "") != identifier
+            or str(getattr(entry_issue, "identifier", "") or "") != identifier
+            or str(getattr(entry_issue, "project_id", "") or "") != project_id
+            or not str(getattr(entry, "run_id", "") or "").strip()
+            or not str(getattr(entry, "assignment_id", "") or "").strip()
+            or not str(getattr(entry, "authority_generation", "") or "").strip()
+        ):
+            return False
+        with self._retry_authority_lock:
+            return self.state.running.get(entry_issue.id) is entry
+
+    def _persist_handoff_implementation_prerequisite(
+        self,
+        *,
+        entry: RunningEntry,
+        declaration: Any,
+        tracker: Any,
+        identifier: str,
+        project_id: str,
+    ) -> ImplementationPrerequisiteRecord | None:
+        """Bind one declaration to exact live runtime and worktree authority."""
+
+        if not self._handoff_entry_is_exact_current(
+            entry, identifier=identifier, project_id=project_id
+        ):
+            return None
+        source_head = self._worktree_head(str(entry.workspace_path or ""))
+        if not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", source_head):
+            return None
+        fresh = tracker.fetch_issue_detail(identifier)
+        if fresh is None:
+            return None
+        if not fresh.project_id:
+            fresh.project_id = project_id
+        entry_issue = entry.issue
+        source_task_authority = issue_authority_version(entry_issue)
+        if (
+            str(fresh.project_id or "") != project_id
+            or str(fresh.id or "") != str(entry_issue.id or "")
+            or str(fresh.identifier or "") != identifier
+            or str(fresh.assignment_id or "") != str(entry.assignment_id or "")
+            or issue_authority_version(fresh) != source_task_authority
+            or not self._handoff_entry_is_exact_current(
+                entry, identifier=identifier, project_id=project_id
+            )
+            or self._worktree_head(str(entry.workspace_path or "")) != source_head
+        ):
+            return None
+
+        profile_snapshot, _profiles = self._latest_execution_profile_authority()
+        record = new_implementation_prerequisite_record(
+            declaration,
+            project_id=project_id,
+            task_id=str(entry_issue.id),
+            task_identifier=identifier,
+            source_run_id=str(entry.run_id),
+            source_assignment_id=str(entry.assignment_id),
+            source_generation=str(entry.authority_generation),
+            source_focus=str(entry.focus_name or "").strip().casefold(),
+            source_task_authority=source_task_authority,
+            source_head_sha=source_head,
+            source_profile_revision=profile_snapshot.revision,
+            # RunningEntry.started_at is immutable for this exact event, so a
+            # retry reconstructs the same display timestamp.
+            now=entry.started_at,
+        )
+
+        def accept_staged() -> bool:
+            if (
+                not self._handoff_entry_is_exact_current(
+                    entry, identifier=identifier, project_id=project_id
+                )
+                or self._worktree_head(str(entry.workspace_path or ""))
+                != source_head
+            ):
+                return False
+            accepted = tracker.fetch_issue_detail(identifier)
+            if accepted is None:
+                return False
+            if not accepted.project_id:
+                accepted.project_id = project_id
+            return bool(
+                str(accepted.project_id or "") == project_id
+                and str(accepted.id or "") == str(entry_issue.id or "")
+                and str(accepted.assignment_id or "")
+                == str(entry.assignment_id or "")
+                and issue_authority_version(accepted) == source_task_authority
+            )
+
+        saved = save_implementation_prerequisite_record(
+            tracker,
+            fresh,
+            record,
+            lock=self._implementation_prerequisite_lock(project_id, identifier),
+            accept_staged=accept_staged,
+            finalize_fence=self._implementation_prerequisite_finalize_fence(
+                project_id
+            ),
+        )
+        entry.implementation_prerequisite_id = saved.record_id
+        if (
+            declaration.recovery_trigger.kind
+            is RecoveryTriggerKind.PROFILE_CAPABILITY
+        ):
+            capability = declaration.recovery_trigger.value
+            selected_name = select_execution_profile_name(
+                profile_snapshot, fresh, capability
+            )
+            entry.required_execution_capability = capability
+            entry.required_execution_profile_revision = profile_snapshot.revision
+            entry.handoff_requested_profile = selected_name
+        return saved
+
     def _observe_task_handoff_mutation(
         self,
         *,
@@ -58527,6 +58815,7 @@ class Orchestrator:
         label: str | None = None,
         status: str | None = None,
         tracker: Any = None,
+        entry: RunningEntry | None = None,
     ) -> bool:
         """Record a worker handoff generation at the mutation boundary.
 
@@ -58542,20 +58831,24 @@ class Orchestrator:
         expected_project = str(project_id or "").strip()
         if not identifier:
             return False
-        entry = None
-        for _issue_id, candidate in self._running_items_snapshot():
-            candidate_issue = getattr(candidate, "issue", None)
-            candidate_project = str(
-                getattr(candidate_issue, "project_id", None) or ""
-            ).strip()
-            if expected_project and candidate_project != expected_project:
-                continue
-            if str(getattr(candidate, "identifier", "") or "").strip() == identifier:
-                entry = candidate
-                break
-            if str(getattr(candidate_issue, "identifier", "") or "").strip() == identifier:
-                entry = candidate
-                break
+        supplied_entry = entry
+        if entry is None:
+            # Backward compatibility for ordinary focus handoffs from legacy
+            # in-process callers. Structured prerequisites are rejected below
+            # unless the authenticated boundary supplied the exact object.
+            for _issue_id, candidate in self._running_items_snapshot():
+                candidate_issue = getattr(candidate, "issue", None)
+                candidate_project = str(
+                    getattr(candidate_issue, "project_id", None) or ""
+                ).strip()
+                if expected_project and candidate_project != expected_project:
+                    continue
+                if str(getattr(candidate, "identifier", "") or "").strip() == identifier:
+                    entry = candidate
+                    break
+                if str(getattr(candidate_issue, "identifier", "") or "").strip() == identifier:
+                    entry = candidate
+                    break
         if entry is None or getattr(entry, "is_auditor", False):
             return False
 
@@ -58570,6 +58863,19 @@ class Orchestrator:
             )
             if parsed is None:
                 return False
+            declaration = parse_prerequisite_declaration(message or "")
+            if declaration is not None:
+                if supplied_entry is None or tracker is None or not expected_project:
+                    return False
+                persisted = self._persist_handoff_implementation_prerequisite(
+                    entry=supplied_entry,
+                    declaration=declaration,
+                    tracker=tracker,
+                    identifier=identifier,
+                    project_id=expected_project,
+                )
+                if persisted is None:
+                    return False
             if not getattr(entry, "handoff_pending", False):
                 entry.handoff_generation = uuid.uuid4().hex
                 entry.handoff_focus_name = focus
@@ -58635,6 +58941,13 @@ class Orchestrator:
                         or ""
                     ),
                     "head_sha": str(issue_exact_head(entry.issue) or ""),
+                    "profile": str(entry.handoff_requested_profile or ""),
+                    "required_execution_capability": str(
+                        entry.required_execution_capability or ""
+                    ),
+                    "implementation_prerequisite_id": str(
+                        entry.implementation_prerequisite_id or ""
+                    ),
                     "lease_expires_at": (
                         datetime.now(timezone.utc) + timedelta(hours=1)
                     ).isoformat(),
@@ -59099,6 +59412,8 @@ class Orchestrator:
         retry_entry: RetryEntry | None = None,
         workflow_generation: str | None = None,
         status_managed_by_workflow: bool = False,
+        required_execution_capability: str | None = None,
+        implementation_prerequisite_id: str | None = None,
     ) -> bool:
         """Dispatch a worker for an issue and report whether it was admitted."""
         duplicate_preflight = duplicate_preflight_claim is not None
@@ -59484,6 +59799,7 @@ class Orchestrator:
 
         # Resolve profile and compute natural_profile_name for default_first_dispatch.
         natural_profile_name: str | None = None
+        capability_profile_revision: str | None = None
 
         # Auditor profiles are server-owned and bound to the persisted
         # provider/model candidate. They never pass through ordinary focus
@@ -59497,6 +59813,23 @@ class Orchestrator:
                 max_turns=self.config.max_turns,
                 mode="auto",
             )
+        elif required_execution_capability:
+            profile, capability_profile_revision = (
+                self._profile_for_execution_capability(
+                    issue, required_execution_capability
+                )
+            )
+            if profile is None:
+                logger.info(
+                    "Skipping dispatch of %s: no applicable profile has "
+                    "execution capability %s",
+                    issue.identifier,
+                    required_execution_capability,
+                )
+                await _compensate_before_admission(
+                    "required execution capability is unavailable"
+                )
+                return False
         # Use escalated profile if provided, otherwise match normally
         elif override_profile:
             profile = self._get_profile_by_name(override_profile)
@@ -60457,6 +60790,21 @@ class Orchestrator:
                             assignment_id=assignment_id,
                             run_id=run_id,
                             authority_generation=authority_generation,
+                            required_execution_capability=(
+                                required_execution_capability
+                                if implementation_dispatch
+                                else None
+                            ),
+                            required_execution_profile_revision=(
+                                capability_profile_revision
+                                if implementation_dispatch
+                                else None
+                            ),
+                            implementation_prerequisite_id=(
+                                implementation_prerequisite_id
+                                if implementation_dispatch
+                                else None
+                            ),
                             auditor_authority_generation=(
                                 auditor_registration_generation
                             ),
@@ -67777,7 +68125,16 @@ class Orchestrator:
                 )
             )
             requested_exit_status = ""
-            if actionable_handoff_failure or self._is_task_handoff_failure(error):
+            prerequisite_admission_blocked = str(
+                entry.prerequisite_admission_blocked or ""
+            ).strip()
+            if prerequisite_admission_blocked:
+                # The durable prerequisite record remains the sole recovery
+                # authority.  A profile cut that changes at final transport
+                # admission must retire jobless; generic retry scheduling
+                # would turn an external prerequisite into transient churn.
+                common_payload["reason"] = prerequisite_admission_blocked
+            elif actionable_handoff_failure or self._is_task_handoff_failure(error):
                 requested_exit_status = NEEDS_HUMAN
                 common_payload["reason"] = "task_handoff_failed"
             elif reason == "ask_question":
@@ -67788,7 +68145,9 @@ class Orchestrator:
                     f"🤚 **Question from agent:**\n\n{question_text}",
                     project_id=project_id,
                 )
-            if requested_exit_status:
+            if prerequisite_admission_blocked:
+                pass
+            elif requested_exit_status:
                 self._schedule_implementation_workflow_event(
                     project_id=project_id,
                     identifier=entry.identifier,
@@ -67831,6 +68190,13 @@ class Orchestrator:
                             entry.authority_generation or ""
                         ),
                         "prior_run_id": str(entry.run_id or ""),
+                        "profile": str(entry.handoff_requested_profile or ""),
+                        "required_execution_capability": str(
+                            entry.required_execution_capability or ""
+                        ),
+                        "implementation_prerequisite_id": str(
+                            entry.implementation_prerequisite_id or ""
+                        ),
                         "lease_expires_at": (
                             datetime.now(timezone.utc) + timedelta(hours=1)
                         ).isoformat(),

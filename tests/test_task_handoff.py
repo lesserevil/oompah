@@ -5947,3 +5947,70 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         )
         assert valid is False
         assert "revoked" in reason.lower()
+def test_http_comment_keeps_pre_io_exact_running_entry():
+    from fastapi.testclient import TestClient
+
+    import oompah.server as server
+    from oompah.server import app
+    from oompah.task_handoff import (
+        TASK_HANDOFF_HEADER,
+        issue_task_handoff_token,
+        revoke_task_handoff_token,
+    )
+
+    issue = Issue(
+        id="http-comment-race",
+        identifier="TASK-1",
+        title="Task",
+        state="In Progress",
+        project_id="proj-a",
+    )
+    token = issue_task_handoff_token(
+        project_id="proj-a",
+        task_identifier="TASK-1",
+        allowed_actions={"comment"},
+    )
+    original = SimpleNamespace(
+        issue=issue,
+        is_auditor=False,
+        task_handoff_token=token,
+    )
+    replacement = SimpleNamespace(
+        issue=issue,
+        is_auditor=False,
+        task_handoff_token="replacement-token",
+    )
+    current = {"entry": original}
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    tracker.add_comment.side_effect = lambda *_args, **_kwargs: current.update(
+        entry=replacement
+    )
+    orch = MagicMock()
+    orch._tracker_for_project.return_value = tracker
+    orch.project_store.get.return_value = None
+    orch._current_running_entry.side_effect = lambda _issue_id: current["entry"]
+
+    old_orch = server._orchestrator
+    old_creds = server._http_credentials
+    server._orchestrator = orch
+    server._http_credentials = None
+    try:
+        with TestClient(app, raise_server_exceptions=False) as client:
+            response = client.post(
+                "/api/v1/task-handoff",
+                headers={TASK_HANDOFF_HEADER: token},
+                json={
+                    "action": "comment",
+                    "project_id": "proj-a",
+                    "identifier": "TASK-1",
+                    "message": "Focus handoff: developer",
+                },
+            )
+    finally:
+        server._orchestrator = old_orch
+        server._http_credentials = old_creds
+        revoke_task_handoff_token(token)
+
+    assert response.status_code == 200, response.text
+    assert orch._observe_task_handoff_mutation.call_args.kwargs["entry"] is original

@@ -34,12 +34,17 @@ from oompah.duplicate_screening import (
 from oompah.events import EventBus, EventType
 from oompah.integration import IntegrationRecord
 from oompah.models import (
+    AgentProfile,
     BlockerRef,
     Issue,
     OrchestratorState,
     OwnerClaim,
     Project,
     RunningEntry,
+)
+from oompah.implementation_prerequisite import (
+    new_record as new_implementation_prerequisite_record,
+    parse_prerequisite_declaration,
 )
 from oompah.orchestrator import Orchestrator, _acp_text_activity_detail
 from oompah import orchestrator as orchestrator_module
@@ -207,6 +212,8 @@ def _orch(tracker: _Tracker, *, slots: int = 3, preflight_limit: int = 1):
     # Retry authority attributes added by OOMPAH-661; not present when
     # Orchestrator is constructed via __new__ without __init__.
     orch._retry_authority_lock = threading.RLock()
+    orch._pending_profiles_lock = threading.RLock()
+    orch._pending_agent_profiles = None
     orch._retry_dispatching = {}
     orch._retry_schedule_builders = {}
     orch._post_retirement_retry_tokens = {}
@@ -1535,6 +1542,85 @@ def test_workflow_source_does_not_replay_consumed_handoff_on_successor():
         focus_name="feature",
         run_id="successor-run",
         authority_generation="successor-generation",
+    )
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert "implementation_pending_action" not in config
+
+
+def _durable_macos_prerequisite(issue: Issue):
+    declaration = parse_prerequisite_declaration(
+        "Focus handoff: developer\n"
+        "External prerequisite: platform: physical-macos-verification\n"
+        "Recovery trigger: profile-capability:macos"
+    )
+    assert declaration is not None
+    return new_implementation_prerequisite_record(
+        declaration,
+        project_id=str(issue.project_id),
+        task_id=str(issue.id),
+        task_identifier=issue.identifier,
+        source_run_id="source-run",
+        source_assignment_id="source-assignment",
+        source_generation="source-generation",
+        source_focus="developer",
+        source_task_authority="a" * 64,
+        source_head_sha="b" * 40,
+        source_profile_revision="c" * 64,
+        now=datetime(2026, 8, 14, tzinfo=timezone.utc),
+    )
+
+
+def test_workflow_source_reconstructs_capable_prerequisite_after_restart():
+    issue = _issue(state="In Progress")
+    issue.implementation_prerequisite = _durable_macos_prerequisite(issue).to_dict()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    orch.config.agent_profiles = [
+        AgentProfile(name="default", command="runner", mode="cli"),
+        AgentProfile(
+            name="mac-runner",
+            command="runner",
+            mode="cli",
+            execution_capabilities=["macos"],
+        ),
+    ]
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert config["implementation_pending_action"] == "focus_handoff"
+    assert config["implementation_pending_payload"]["profile"] == "mac-runner"
+    assert config["implementation_pending_payload"][
+        "required_execution_capability"
+    ] == "macos"
+
+
+def test_workflow_source_does_not_republish_consumed_prerequisite():
+    issue = _issue(state="In Progress")
+    record = _durable_macos_prerequisite(issue)
+    issue.implementation_prerequisite = record.to_dict()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    orch.config.agent_profiles = [
+        AgentProfile(
+            name="mac-runner",
+            command="runner",
+            mode="cli",
+            execution_capabilities=["macos"],
+        )
+    ]
+    orch.state.running[issue.id] = RunningEntry(
+        worker_task=None,
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        focus_name="developer",
+        run_id="successor-run",
+        authority_generation="successor-generation",
+        implementation_prerequisite_id=record.record_id,
     )
 
     config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)

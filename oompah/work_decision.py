@@ -114,6 +114,7 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "evidence.task_status_mismatch",
         "implementation.active",
         "implementation.action_scheduled",
+        "implementation.external_prerequisite",
         "implementation.recovery_scheduled",
         "implementation.submission_recovery_parked",
         "intake.awaiting_decision",
@@ -731,6 +732,11 @@ def _implementation_decision(
     )
     if pending_action not in IMPLEMENTATION_ACTION_JOBS:
         pending_action = ""
+    prerequisite_wait = _implementation_prerequisite_wait(
+        task, facts, config_value
+    )
+    if prerequisite_wait is not None and pending_action != "validation_submission":
+        return prerequisite_wait
     authority = facts.fact(FactDomain.IMPLEMENTATION_AUTHORITY)
     authority_value = (
         _mapping(authority.value) if authority.state is FactState.KNOWN else None
@@ -838,6 +844,40 @@ def _implementation_decision(
         actions=(PermittedAction.RECOVER_IMPLEMENTATION,),
         alert=AlertSeverity.INFO,
         durable_jobs=("implementation_recovery",),
+    )
+
+
+def _implementation_prerequisite_wait(
+    task: _TaskView,
+    facts: WorkflowFacts,
+    config_value: Mapping[str, Any] | None,
+) -> WorkDecision | None:
+    """Keep non-capable durable prerequisites jobless and non-transient."""
+
+    admission = _mapping(
+        (config_value or {}).get("implementation_prerequisite_admission")
+    )
+    if admission is None:
+        return None
+    kind = str(admission.get("kind") or "malformed").strip()
+    if kind == "capable-profile":
+        return None
+    subject = str(admission.get("subject") or task.task_id).strip() or task.task_id
+    return _decision(
+        task,
+        facts,
+        disposition=TaskDisposition.BLOCKED,
+        reason_code="implementation.external_prerequisite",
+        owner=WorkflowOwner.DISPATCHER,
+        prerequisites=(
+            UnmetPrerequisite(
+                "implementation.external_prerequisite",
+                subject,
+                kind,
+            ),
+        ),
+        actions=(PermittedAction.WAIT_DEPENDENCY,),
+        alert=AlertSeverity.INFO,
     )
 
 
@@ -2563,6 +2603,11 @@ def _evaluate_task_default_policy(
                 actions=(PermittedAction.RECONCILE_IMPLEMENTATION,),
                 alert=AlertSeverity.INFO,
             )
+        prerequisite_wait = _implementation_prerequisite_wait(
+            view, facts, config_value
+        )
+        if prerequisite_wait is not None:
+            return prerequisite_wait
         if hard_start:
             return _decision(
                 view,

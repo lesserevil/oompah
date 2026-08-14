@@ -50,7 +50,12 @@ from oompah.task_transition_service import (
     issue_authority_version,
 )
 from oompah.workflow_runtime import WorkflowRuntime, WorkflowRuntimeError
-from oompah.workflow_jobs import WorkflowJobSpec, WorkflowJobState, WorkflowJobStore
+from oompah.workflow_jobs import (
+    WorkflowFailureCategory,
+    WorkflowJobSpec,
+    WorkflowJobState,
+    WorkflowJobStore,
+)
 from oompah.workflow_worker import (
     DurableWorkflowWorker,
     VerificationResult,
@@ -410,6 +415,40 @@ async def test_start_dispatches_exact_generation_without_direct_status_write(tmp
     assert outcome.reason_code == "transition.applied"
     assert tracker.status_writes == [(issue.identifier, IN_PROGRESS)]
     journal.close()
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_start_unavailable_prerequisite_is_policy_not_transient_retry(tmp_path):
+    issue = make_issue()
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+
+    async def blocked_dispatch(*_args, **_kwargs):
+        orch.dispatches.append((issue.identifier, None, None, _kwargs))
+        return False
+
+    orch._dispatch = blocked_dispatch
+    orch._implementation_prerequisite_admission = lambda _issue: SimpleNamespace(
+        dispatchable=False,
+        kind=SimpleNamespace(value="blocked-capability"),
+    )
+    _jobs, context = make_context(
+        tmp_path,
+        payload={
+            "required_execution_capability": "macos",
+            "implementation_prerequisite_id": "a" * 64,
+        },
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    with pytest.raises(WorkflowActionError) as raised:
+        await effects.apply(context)
+
+    assert raised.value.category is WorkflowFailureCategory.POLICY
+    assert raised.value.retryable is False
+    assert orch.running == {}
+    assert len(orch.dispatches) == 1
     effects.receipts.close()
 
 

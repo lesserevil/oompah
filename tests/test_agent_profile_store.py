@@ -35,6 +35,7 @@ class TestAgentProfileSerialization:
             max_turns=42,
             keywords=["bug", "ui"],
             issue_types=["bug"],
+            execution_capabilities=["arm64", "macos"],
             min_priority=0,
             max_priority=2,
             mode="api",
@@ -51,6 +52,7 @@ class TestAgentProfileSerialization:
         assert "max_turns" not in d
         assert "keywords" not in d
         assert "issue_types" not in d
+        assert "execution_capabilities" not in d
         assert "min_priority" not in d
 
     def test_from_dict_lenient(self):
@@ -68,6 +70,53 @@ class TestAgentProfileSerialization:
         # Bad value -> None (no crash).
         p = AgentProfile.from_dict({"name": "x", "max_turns": "garbage"})
         assert p.max_turns is None
+
+    def test_execution_capabilities_round_trip_is_distinct_field(self):
+        profile = AgentProfile.from_dict(
+            {
+                "name": "mac",
+                "command": "claude",
+                "mode": "cli",
+                "execution_capabilities": ["macos", "arm64"],
+            }
+        )
+
+        assert profile.execution_capabilities == ["macos", "arm64"]
+        assert profile.to_dict()["execution_capabilities"] == ["macos", "arm64"]
+
+    @pytest.mark.parametrize(
+        "capabilities",
+        [["MacOS"], ["macos", "macos"], ["macos", True]],
+    )
+    def test_store_rejects_noncanonical_execution_capabilities(
+        self, tmp_path, capabilities
+    ):
+        store = AgentProfileStore(path=str(tmp_path / "profiles.json"))
+        with pytest.raises(AgentProfileError):
+            store.create(
+                AgentProfile(
+                    name="bad",
+                    command="claude",
+                    mode="cli",
+                    execution_capabilities=capabilities,
+                )
+            )
+
+    def test_unrelated_patch_preserves_execution_capabilities(self, tmp_path):
+        store = AgentProfileStore(path=str(tmp_path / "profiles.json"))
+        store.create(
+            AgentProfile(
+                name="mac",
+                command="claude",
+                mode="cli",
+                execution_capabilities=["macos"],
+            )
+        )
+
+        updated = store.update("mac", max_turns=7)
+
+        assert updated is not None
+        assert updated.execution_capabilities == ["macos"]
 
 
 # ---------------------------------------------------------------------------

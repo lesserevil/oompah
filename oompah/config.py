@@ -1535,6 +1535,14 @@ class ServiceConfig:
         for p in raw_profiles:
             if not isinstance(p, dict):
                 continue
+            raw_execution_capabilities = p.get("execution_capabilities", []) or []
+            if not isinstance(raw_execution_capabilities, list):
+                logger.warning(
+                    "Agent profile %r execution_capabilities must be a list; "
+                    "ignoring malformed value",
+                    p.get("name", "default"),
+                )
+                raw_execution_capabilities = []
             workflow_profiles.append(
                 AgentProfile(
                     name=str(p.get("name", "default")),
@@ -1555,6 +1563,10 @@ class ServiceConfig:
                     else None,
                     keywords=[str(k) for k in (p.get("keywords", []) or [])],
                     issue_types=[str(t) for t in (p.get("issue_types", []) or [])],
+                    execution_capabilities=[
+                        str(capability)
+                        for capability in raw_execution_capabilities
+                    ],
                     min_priority=_coerce_int(p.get("min_priority"), None)
                     if p.get("min_priority") is not None
                     else None,
@@ -1587,6 +1599,20 @@ class ServiceConfig:
         # the same fallback-on-typo behaviour as WORKFLOW.md profiles.
         for p in profiles:
             p.mode = _parse_profile_mode(p.mode)
+            from oompah.implementation_prerequisite import (
+                canonical_execution_capabilities,
+            )
+
+            canonical_capabilities = canonical_execution_capabilities(
+                p.execution_capabilities
+            )
+            if len(canonical_capabilities) != len(p.execution_capabilities):
+                logger.warning(
+                    "Agent profile %r has invalid or duplicate execution "
+                    "capabilities; retaining only exact lowercase slugs",
+                    p.name,
+                )
+            p.execution_capabilities = list(canonical_capabilities)
         # Drift detection (oompah-zlz_2-hye). Compare the parsed
         # WORKFLOW.md block (workflow_profiles) against the effective
         # profiles resolved by the store. They will be identical

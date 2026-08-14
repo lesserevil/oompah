@@ -108,6 +108,50 @@ class TestFromWorkflowMigration:
         cfg = ServiceConfig.from_workflow(wf)
         assert cfg.agent_profiles[0].mode == "auto"
 
+    def test_workflow_capabilities_migrate_and_participate_in_drift(self, isolate_store_path):
+        wf = WorkflowDefinition(
+            config={
+                "agent": {
+                    "profiles": [
+                        {
+                            "name": "mac",
+                            "mode": "cli",
+                            "command": "claude",
+                            "execution_capabilities": ["macos", "arm64"],
+                        }
+                    ]
+                }
+            },
+            prompt_template="",
+        )
+
+        cfg = ServiceConfig.from_workflow(wf)
+
+        assert cfg.agent_profiles[0].execution_capabilities == ["arm64", "macos"]
+        with open(isolate_store_path) as handle:
+            stored = json.load(handle)
+        assert stored[0]["execution_capabilities"] == ["macos", "arm64"]
+
+    def test_json_capabilities_are_canonicalized_on_config_load(self, isolate_store_path):
+        with open(isolate_store_path, "w") as handle:
+            json.dump(
+                [
+                    {
+                        "name": "mac",
+                        "command": "claude",
+                        "mode": "cli",
+                        "execution_capabilities": ["macos", "macos", "MacOS"],
+                    }
+                ],
+                handle,
+            )
+
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="")
+        )
+
+        assert cfg.agent_profiles[0].execution_capabilities == ["macos"]
+
 
 class TestStoreReloadAfterCRUD:
     """After a write through AgentProfileStore, a fresh ServiceConfig.from_workflow

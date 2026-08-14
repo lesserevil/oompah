@@ -67,6 +67,37 @@ class TestListAgentProfiles:
 
 
 class TestCreateAgentProfile:
+    def test_create_execution_capabilities_round_trip(self, api_with_store):
+        client, store = api_with_store
+        resp = client.post(
+            "/api/v1/agent-profiles",
+            json={
+                "name": "mac-runner",
+                "command": "runner",
+                "mode": "cli",
+                "execution_capabilities": ["macos", "arm64"],
+            },
+        )
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["execution_capabilities"] == ["arm64", "macos"]
+        assert store.get("mac-runner").execution_capabilities == ["arm64", "macos"]
+
+    @pytest.mark.parametrize("capabilities", ["macos", ["MacOS"], ["macos", "macos"]])
+    def test_create_rejects_malformed_execution_capabilities(
+        self, api_with_store, capabilities
+    ):
+        client, _store = api_with_store
+        resp = client.post(
+            "/api/v1/agent-profiles",
+            json={
+                "name": "bad-runner",
+                "command": "runner",
+                "mode": "cli",
+                "execution_capabilities": capabilities,
+            },
+        )
+        assert resp.status_code == 400
+
     def test_create_minimal(self, api_with_store):
         client, store = api_with_store
         resp = client.post(
@@ -169,6 +200,24 @@ class TestCreateAgentProfile:
 
 
 class TestUpdateAgentProfile:
+    def test_unrelated_patch_preserves_execution_capabilities(self, api_with_store):
+        client, store = api_with_store
+        store.create(
+            {
+                "name": "mac-runner",
+                "command": "old",
+                "mode": "cli",
+                "execution_capabilities": ["macos"],
+            }
+        )
+        resp = client.patch(
+            "/api/v1/agent-profiles/mac-runner",
+            json={"command": "new"},
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["execution_capabilities"] == ["macos"]
+        assert store.get("mac-runner").execution_capabilities == ["macos"]
+
     def test_patch_partial(self, api_with_store):
         client, store = api_with_store
         store.create({"name": "p1", "command": "c", "mode": "cli"})

@@ -148,9 +148,16 @@ def _exact_implementation_running_entry(
 ) -> Any | None:
     """Return only the runtime owned by this managed project/task."""
 
+    if issue is None:
+        return None
+
+    issue_id = getattr(issue, "id", None)
+    if issue_id is None:
+        return None
+
     entry = getattr(
         coordination_service, "_current_running_entry", lambda _id: None
-    )(issue.id)
+    )(issue_id)
     if entry is None or getattr(entry, "is_auditor", False):
         return None
     entry_issue = getattr(entry, "issue", None)
@@ -198,6 +205,9 @@ def _schedule_durable_task_status(
     observer = getattr(
         coordination_service, "_observe_task_handoff_mutation", None
     )
+    entry = _exact_implementation_running_entry(
+        coordination_service, issue, project_id
+    )
     if canonicalize_status(requested_status) == OPEN and callable(observer):
         if observer(
             identifier=identifier,
@@ -205,6 +215,7 @@ def _schedule_durable_task_status(
             project_id=project_id,
             status=requested_status,
             tracker=task_tracker,
+            entry=entry,
         ):
             return True
     if canonicalize_status(issue.state) == canonicalize_status(requested_status):
@@ -215,9 +226,6 @@ def _schedule_durable_task_status(
         issue_exact_head,
     )
 
-    entry = _exact_implementation_running_entry(
-        coordination_service, issue, project_id
-    )
     head = issue_exact_head(issue)
     job = coordination_service._schedule_implementation_workflow_event(
         project_id=project_id,
@@ -858,7 +866,7 @@ def _target_for_task_status(status: str | None) -> TargetState | None:
 
 def _task_evidence_fingerprint(issue: Any, project_id: str) -> Any:
     """Build the canonical, auditor-independent evidence fingerprint for ACP callers.
-    
+
     OOMPAH-663: This is the canonical fingerprint path used by all ACP owner-override
     requests. It uses the same compute_issue_evidence_fingerprint function as the
     orchestrator integration path and API override path to ensure consistent,
@@ -1116,6 +1124,18 @@ def _exec_oompah_task_command(
             )
             if denial is not None:
                 return denial
+            # Bind any structured prerequisite to the exact live runtime
+            # before comment persistence yields to tracker I/O.  Looking the
+            # entry up afterwards could attribute a late worker's declaration
+            # to its replacement generation.
+            comment_entry = None
+            if task_identifier:
+                comment_issue = task_tracker.fetch_issue_detail(args.identifier)
+                comment_entry = _exact_implementation_running_entry(
+                    coordination_service,
+                    comment_issue,
+                    project_id,
+                )
             task_tracker.add_comment(
                 args.identifier,
                 args.message,
@@ -1129,6 +1149,7 @@ def _exec_oompah_task_command(
                     project_id=project_id,
                     message=args.message,
                     tracker=task_tracker,
+                    entry=comment_entry,
                 )
             return "Comment posted."
 
@@ -1203,12 +1224,18 @@ def _exec_oompah_task_command(
                     coordination_service, "_observe_task_handoff_mutation", None
                 )
                 if task_identifier and callable(observer):
+                    entry = _exact_implementation_running_entry(
+                        coordination_service,
+                        task_tracker.fetch_issue_detail(args.identifier),
+                        project_id,
+                    )
                     observer(
                         identifier=args.identifier,
                         action="set-status",
                         project_id=project_id,
                         status=args.status,
                         tracker=task_tracker,
+                        entry=entry,
                     )
             if getattr(args, "summary", None):
                 task_tracker.add_comment(
@@ -1282,12 +1309,18 @@ def _exec_oompah_task_command(
                 coordination_service, "_observe_task_handoff_mutation", None
             )
             if task_identifier and callable(observer) and status_from_label is None:
+                entry = _exact_implementation_running_entry(
+                    coordination_service,
+                    task_tracker.fetch_issue_detail(args.identifier),
+                    project_id,
+                )
                 observer(
                     identifier=args.identifier,
                     action="add-label",
                     project_id=project_id,
                     label=args.label,
                     tracker=task_tracker,
+                    entry=entry,
                 )
             return f"Label added: {args.label}"
 
