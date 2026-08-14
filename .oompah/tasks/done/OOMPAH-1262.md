@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1262
 type: task
-status: In Validation
+status: Done
 priority: 1
 title: Define structured external-prerequisite and profile capability authority
 parent: OOMPAH-1231
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:20.238127Z'
-updated_at: '2026-08-14T03:53:45.446113Z'
+updated_at: '2026-08-14T03:54:02.040677Z'
 work_branch: OOMPAH-1262
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: oompah-1231-prerequisite-authority-v1
   request_fingerprint: e38becde52d97174b7098c49b23a59fd1eae8ff01d7dbaf2d7272a97f3cae836
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.integration:
   version: 2
   state: ready
@@ -45,6 +45,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1262
     digest: c6b858d24feb80128617efd8a53d95dfc4377991948d333c91930576eee4fb85
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d9f06fee5636
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1262
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c6b858d24feb80128617efd8a53d95dfc4377991948d333c91930576eee4fb85
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Project is intentionally paused; project-owner terminal override records
+      independently verified landing on the shared epic branch, exact tree equivalence,
+      passing three-version CI, and completed independent review.
+    created_at: '2026-08-14T03:53:58.211593+00:00'
+    selected_ref: 68882b83d707a3cfb4988516dba17f1a838014dd
+    selected_sha: 68882b83d707a3cfb4988516dba17f1a838014dd
+    applied: false
   version: 1
   pending_chain:
   - version: 1
