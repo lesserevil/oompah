@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1220
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Defer shared-child Merged transitions until the parent rollup is terminal
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:40:53.600135Z'
-updated_at: '2026-08-13T05:14:05.680736Z'
+updated_at: '2026-08-14T07:31:22.877041Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 6491613b-cadb-45fd-bc25-919e0fd32fb0
   request_fingerprint: 84197b591728a766bfc9e0854826f9a889ab47127f7218b3446c07dbbdb06975
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.terminal_audit:
   queued_comment_posted: true
   oompah.terminal_audit_tracker_projections:
@@ -38,6 +38,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1220
     digest: 8231b40aa08d0a923924c7216e3fc11824b3a4e007d36ff53263660a3e62aef7
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-aa466db3c57b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1220
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8231b40aa08d0a923924c7216e3fc11824b3a4e007d36ff53263660a3e62aef7
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #850 merged as 4f3e4a26b and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:31:18.872172+00:00'
+    selected_ref: origin/OOMPAH-1220
+    selected_sha: 1f8b7fa9344b14b9c4cacde9cd8e4c1cb7594896
+    applied: false
   version: 1
   pending_chain:
   - version: 1
