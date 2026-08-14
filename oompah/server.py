@@ -78,9 +78,18 @@ from oompah.issue_enhancer import (
 from oompah.intake_summary import build_intake_summary
 from oompah.integration import (
     IntegrationRecord,
+    accepted_submission_branch,
     is_direct_epic_maintenance_issue,
     task_submit_required_message,
     validate_submission_branch,
+)
+from oompah.implementation_prerequisite import (
+    ImplementationPrerequisiteRecord,
+    ImplementationPrerequisiteResolution,
+    PrerequisiteContinuation,
+    RecoveryTriggerKind,
+    resolution_is_current,
+    select_execution_profile_name,
 )
 from oompah.coordination import CoordinationStore
 from oompah.container_dependency_graph import (
@@ -15049,6 +15058,648 @@ async def api_terminal_provenance_action(
             "changed": result.changed,
         }
     )
+
+
+_PREREQUISITE_RESOLUTION_REQUIRED_FIELDS = (
+    "record_id",
+    "source_run_id",
+    "source_assignment_id",
+    "source_generation",
+    "task_authority",
+    "reason",
+)
+_PREREQUISITE_RESOLUTION_OPTIONAL_FIELDS = frozenset(
+    {"issue_key", "actor", "actor_login", "operator_action", "pipeline_id"}
+)
+
+
+class _PrerequisiteResolutionRequestError(RuntimeError):
+    """Structured rejection from the owner prerequisite-resolution boundary."""
+
+    def __init__(self, code: str, message: str, status_code: int = 409) -> None:
+        super().__init__(message)
+        self.code = code
+        self.status_code = status_code
+
+
+def _prerequisite_resolution_body(
+    body: Mapping[str, Any],
+) -> dict[str, str]:
+    """Return one strict canonical owner request or raise a validation error."""
+
+    allowed = set(_PREREQUISITE_RESOLUTION_REQUIRED_FIELDS) | set(
+        _PREREQUISITE_RESOLUTION_OPTIONAL_FIELDS
+    )
+    unknown = sorted(set(body) - allowed)
+    if unknown:
+        raise _PrerequisiteResolutionRequestError(
+            "validation",
+            "unknown prerequisite-resolution fields: " + ", ".join(unknown),
+            400,
+        )
+    normalized: dict[str, str] = {}
+    for field in _PREREQUISITE_RESOLUTION_REQUIRED_FIELDS:
+        value = body.get(field)
+        if type(value) is not str or not value.strip() or value != value.strip():
+            raise _PrerequisiteResolutionRequestError(
+                "validation",
+                f"{field} is required and must be canonical non-empty text",
+                400,
+            )
+        normalized[field] = value
+    for field in _PREREQUISITE_RESOLUTION_OPTIONAL_FIELDS:
+        value = body.get(field)
+        if value is None:
+            continue
+        if type(value) is not str or not value.strip() or value != value.strip():
+            raise _PrerequisiteResolutionRequestError(
+                "validation",
+                f"{field} must be canonical non-empty text when supplied",
+                400,
+            )
+        normalized[field] = value
+    if re.fullmatch(r"[0-9a-f]{64}", normalized["record_id"]) is None:
+        raise _PrerequisiteResolutionRequestError(
+            "validation", "record_id must be an exact SHA-256 digest", 400
+        )
+    if re.fullmatch(r"[0-9a-f]{64}", normalized["task_authority"]) is None:
+        raise _PrerequisiteResolutionRequestError(
+            "validation", "task_authority must be an exact SHA-256 digest", 400
+        )
+    return normalized
+
+
+def _prerequisite_resolution_owner(
+    body: dict[str, Any], request: Request, project: Any
+) -> str:
+    """Bind prerequisite resolution to an authenticated Basic project owner."""
+
+    principal = _authenticated_principal(request)
+    if (
+        principal is None
+        or not principal.is_authenticated
+        or principal.source != "basic"
+    ):
+        raise _PrerequisiteResolutionRequestError(
+            "authentication",
+            "Prerequisite resolution requires an authenticated project owner.",
+            401,
+        )
+    actor, conflict = _resolve_authorization_actor(body, request)
+    if conflict is not None:
+        detail = json.loads(conflict.body).get("error", {})
+        raise _PrerequisiteResolutionRequestError(
+            str(detail.get("code") or "actor_mismatch"),
+            str(detail.get("message") or "actor does not match authenticated principal"),
+            conflict.status_code,
+        )
+    if not actor or not is_project_owner(actor, project):
+        raise _PrerequisiteResolutionRequestError(
+            "owner_required",
+            "Only an authenticated project owner may resolve an implementation prerequisite.",
+            403,
+        )
+    return actor
+
+
+def _prerequisite_resolution_record(issue: Any) -> ImplementationPrerequisiteRecord:
+    """Load the blocker and reject malformed or cross-task durable authority."""
+
+    record = ImplementationPrerequisiteRecord.from_raw(
+        getattr(issue, "implementation_prerequisite", None)
+    )
+    if record is None:
+        raise _PrerequisiteResolutionRequestError(
+            "prerequisite_missing",
+            "The task has no valid implementation prerequisite to resolve.",
+        )
+    if (
+        record.project_id != str(getattr(issue, "project_id", "") or "")
+        or record.task_id != str(getattr(issue, "id", "") or "")
+        or record.task_identifier
+        != str(getattr(issue, "identifier", "") or "")
+    ):
+        raise _PrerequisiteResolutionRequestError(
+            "prerequisite_scope_mismatch",
+            "The durable prerequisite does not belong to this exact project task.",
+        )
+    return record
+
+
+def _prerequisite_exact_source(
+    record: ImplementationPrerequisiteRecord, request_fields: Mapping[str, str]
+) -> None:
+    """Apply the exact blocker/run/assignment/generation compare-and-swap."""
+
+    expected = {
+        "record_id": record.record_id,
+        "source_run_id": record.source_run_id,
+        "source_assignment_id": record.source_assignment_id,
+        "source_generation": record.source_generation,
+    }
+    changed = [name for name, value in expected.items() if request_fields[name] != value]
+    if changed:
+        raise _PrerequisiteResolutionRequestError(
+            "stale_prerequisite",
+            "The blocker source changed; refresh the task before resolving it.",
+        )
+
+
+def _integration_value(issue: Any, field: str) -> str | None:
+    integration = getattr(issue, "integration", None)
+    if isinstance(integration, Mapping):
+        value = integration.get(field)
+    else:
+        value = getattr(integration, field, None)
+    normalized = str(value or "").strip()
+    return normalized or None
+
+
+def _live_prerequisite_review(project: Any, issue: Any) -> ReviewRequest | None:
+    """Read and validate the exact live review named by task authority."""
+
+    review_id = str(getattr(issue, "review_number", None) or "").strip()
+    review_head = str(getattr(issue, "review_head", None) or "").strip().lower()
+    if not review_id and not review_head:
+        return None
+    if not review_id or not review_head:
+        raise _PrerequisiteResolutionRequestError(
+            "review_evidence_malformed",
+            "Review continuation requires both review identity and exact head.",
+        )
+    provider = detect_provider(
+        project.repo_url, access_token=getattr(project, "access_token", None)
+    )
+    if provider is None:
+        raise _PrerequisiteResolutionRequestError(
+            "review_evidence_unavailable",
+            "The review provider is unavailable; no generic implementation restart was scheduled.",
+            503,
+        )
+    review = provider.get_review(extract_repo_slug(project.repo_url), review_id)
+    if (
+        review is None
+        or str(review.id) != review_id
+        or str(review.state).strip().lower() != "open"
+        or str(review.head_sha or "").strip().lower() != review_head
+    ):
+        raise _PrerequisiteResolutionRequestError(
+            "stale_review_evidence",
+            "The named live review no longer matches the task's exact review head.",
+        )
+    task_branch = str(
+        getattr(issue, "work_branch", None)
+        or getattr(issue, "branch_name", None)
+        or ""
+    ).strip()
+    if task_branch and str(review.source_branch or "").strip() != task_branch:
+        raise _PrerequisiteResolutionRequestError(
+            "stale_review_evidence",
+            "The live review source branch no longer matches task authority.",
+        )
+    if issue_exact_head(issue) != review_head:
+        raise _PrerequisiteResolutionRequestError(
+            "stale_review_evidence",
+            "The live review head no longer matches the task's exact head.",
+        )
+    return review
+
+
+def _prerequisite_continuation(
+    issue: Any,
+    *,
+    record: ImplementationPrerequisiteRecord,
+    live_review: ReviewRequest | None,
+    pipeline_id: str | None,
+) -> PrerequisiteContinuation:
+    """Derive the only allowed continuation phase from durable live evidence."""
+
+    branch = str(
+        getattr(issue, "work_branch", None)
+        or getattr(issue, "branch_name", None)
+        or ""
+    ).strip() or None
+    head = issue_exact_head(issue) or record.source_head_sha
+    if live_review is not None:
+        head = str(live_review.head_sha).strip().lower()
+        if (
+            str(getattr(issue, "review_number", None) or "").strip()
+            != str(live_review.id)
+            or str(getattr(issue, "review_head", None) or "").strip().lower()
+            != head
+            or issue_exact_head(issue) != head
+        ):
+            raise _PrerequisiteResolutionRequestError(
+                "stale_review_evidence",
+                "The task's review authority changed before resolution scheduling.",
+            )
+        branch = str(live_review.source_branch or "").strip() or branch
+        status = IN_REVIEW
+        review_id = str(live_review.id)
+        review_head = head
+    elif accepted_submission_branch(issue):
+        branch = accepted_submission_branch(issue)
+        head = str(_integration_value(issue, "head_sha") or "").lower() or None
+        status = READY_TO_INTEGRATE
+        review_id = None
+        review_head = None
+    else:
+        status = (
+            IN_PROGRESS
+            if canonicalize_status(getattr(issue, "state", None)) == IN_PROGRESS
+            else OPEN
+        )
+        review_id = None
+        review_head = None
+    if pipeline_id and not head:
+        raise _PrerequisiteResolutionRequestError(
+            "pipeline_head_missing",
+            "pipeline_id can only be bound to an exact continuation head.",
+            400,
+        )
+    try:
+        return PrerequisiteContinuation(
+            resume_status=status,
+            work_branch=branch,
+            head_sha=head,
+            review_id=review_id,
+            review_head_sha=review_head,
+            pipeline_id=pipeline_id,
+            pipeline_head_sha=head if pipeline_id else None,
+        )
+    except (TypeError, ValueError) as exc:
+        raise _PrerequisiteResolutionRequestError(
+            "continuation_evidence_invalid",
+            f"The task's continuation evidence is invalid: {exc}",
+        ) from exc
+
+
+def _prerequisite_trigger_evidence(
+    orch: Any,
+    issue: Any,
+    record: ImplementationPrerequisiteRecord,
+    fields: Mapping[str, str],
+) -> dict[str, Any]:
+    """Validate the record's named trigger against the latest authority cut."""
+
+    trigger = record.recovery_trigger
+    operator_action = fields.get("operator_action")
+    if trigger.kind is RecoveryTriggerKind.OPERATOR:
+        if operator_action != trigger.value:
+            raise _PrerequisiteResolutionRequestError(
+                "operator_action_mismatch",
+                f"operator_action must exactly match {trigger.value!r}.",
+                400,
+            )
+        return {"kind": "operator", "action": trigger.value}
+    if operator_action is not None:
+        raise _PrerequisiteResolutionRequestError(
+            "operator_action_unexpected",
+            "operator_action is only valid for an operator recovery trigger.",
+            400,
+        )
+    if trigger.kind is RecoveryTriggerKind.PROFILE_CAPABILITY:
+        snapshot, _profiles = orch._latest_execution_profile_authority()
+        selected = select_execution_profile_name(snapshot, issue, trigger.value)
+        if selected is None:
+            raise _PrerequisiteResolutionRequestError(
+                "profile_capability_unavailable",
+                "No currently applicable agent profile provides the named capability.",
+            )
+        return {
+            "kind": "profile-capability",
+            "capability": trigger.value,
+            "profile_name": selected,
+            "profile_revision": snapshot.revision,
+        }
+    if trigger.kind is not RecoveryTriggerKind.TASK or not trigger.project_id:
+        raise _PrerequisiteResolutionRequestError(
+            "trigger_invalid", "The durable recovery trigger is malformed."
+        )
+    project = orch.project_store.get(trigger.project_id)
+    if project is None:
+        raise _PrerequisiteResolutionRequestError(
+            "trigger_project_missing",
+            "The task-qualified recovery project does not exist.",
+        )
+    try:
+        trigger_tracker = orch._tracker_for_project(trigger.project_id)
+        trigger_identifier = _canonicalize_project_issue_identifier(
+            trigger_tracker, trigger.value
+        )
+        trigger_issue = trigger_tracker.fetch_issue_detail(trigger_identifier)
+    except Exception as exc:  # noqa: BLE001 - external tracker boundary
+        raise _PrerequisiteResolutionRequestError(
+            "trigger_task_unavailable",
+            "The task-qualified recovery trigger could not be read.",
+            503,
+        ) from exc
+    if trigger_issue is None:
+        raise _PrerequisiteResolutionRequestError(
+            "trigger_task_missing", "The task-qualified recovery trigger was not found."
+        )
+    trigger_issue.project_id = trigger.project_id
+    terminal_status = canonicalize_status(trigger_issue.state)
+    if not is_terminal_status(terminal_status):
+        raise _PrerequisiteResolutionRequestError(
+            "trigger_task_not_terminal",
+            "The task-qualified recovery trigger has not reached a terminal state.",
+        )
+    return {
+        "kind": "task",
+        "project_id": trigger.project_id,
+        "task_identifier": trigger.value,
+        "status": terminal_status,
+        "task_authority": issue_authority_version(trigger_issue),
+    }
+
+
+def _prerequisite_resolution_controller(orch: Any, project_id: str) -> Any:
+    runtime = getattr(orch, "workflow_runtime", None)
+    binding = (
+        getattr(runtime, "project_bindings", {}).get(project_id)
+        if runtime is not None
+        else None
+    )
+    controller = getattr(binding, "implementation_controller", None)
+    if controller is None:
+        raise _PrerequisiteResolutionRequestError(
+            "workflow_unavailable",
+            "The durable implementation workflow is unavailable for this project.",
+            503,
+        )
+    return controller
+
+
+def _committed_prerequisite_replay(
+    orch: Any,
+    issue: Any,
+    record: ImplementationPrerequisiteRecord,
+    fields: Mapping[str, str],
+    actor: str,
+) -> dict[str, Any] | None:
+    """Return an exact committed replay before checking the now-changed CAS."""
+
+    resolution = ImplementationPrerequisiteResolution.from_raw(
+        getattr(issue, "implementation_prerequisite_resolution", None)
+    )
+    if not resolution_is_current(record, resolution):
+        return None
+    assert resolution is not None
+    requested_pipeline = fields.get("pipeline_id")
+    exact = bool(
+        resolution.record_id == fields["record_id"]
+        and resolution.source_run_id == fields["source_run_id"]
+        and resolution.source_assignment_id == fields["source_assignment_id"]
+        and resolution.source_generation == fields["source_generation"]
+        and resolution.expected_task_authority == fields["task_authority"]
+        and resolution.actor == actor
+        and resolution.reason == fields["reason"]
+        and resolution.continuation.pipeline_id == requested_pipeline
+        and (
+            resolution.recovery_trigger.kind is not RecoveryTriggerKind.OPERATOR
+            or fields.get("operator_action") == resolution.recovery_trigger.value
+        )
+    )
+    if not exact:
+        raise _PrerequisiteResolutionRequestError(
+            "resolution_conflict",
+            "This prerequisite already has a different committed resolution.",
+        )
+    job_id = None
+    try:
+        controller = _prerequisite_resolution_controller(orch, record.project_id)
+        jobs = controller.store.list_jobs(
+            project_id=record.project_id,
+            task_id=record.task_identifier,
+            generation=resolution.workflow_generation,
+            limit=1,
+            newest_first=True,
+        )
+        if jobs:
+            job_id = jobs[0].job_id
+    except Exception:  # noqa: BLE001 - receipt remains replay authority
+        job_id = None
+    return {
+        "ok": True,
+        "resolved": True,
+        "replayed": True,
+        "job_id": job_id,
+        "generation": resolution.workflow_generation,
+        "resolution_id": resolution.resolution_id,
+        "resume_status": resolution.continuation.resume_status,
+        "continuation": resolution.continuation.to_dict(),
+    }
+
+
+def _schedule_prerequisite_resolution(
+    orch: Any,
+    project_id: str,
+    tracker: Any,
+    identifier: str,
+    fields: Mapping[str, str],
+    actor: str,
+    live_review: ReviewRequest | None,
+) -> dict[str, Any]:
+    """Fence exact task authority and publish at most one live resolution job."""
+
+    from oompah.implementation_workflow import (
+        PREREQUISITE_RESOLUTION_LANE,
+        ImplementationAction,
+    )
+
+    with orch._implementation_prerequisite_lock(project_id, identifier):
+        lock_source = getattr(tracker, "owner_control_lock", None)
+        mutation_lock = (
+            lock_source()
+            if callable(lock_source)
+            else orch.project_store.project_write_lock(project_id)
+        )
+        with mutation_lock:
+            fresh = tracker.fetch_issue_detail(identifier)
+            if fresh is None:
+                raise _PrerequisiteResolutionRequestError(
+                    "not_found", "Task was not found in this project.", 404
+                )
+            fresh.project_id = project_id
+            record = _prerequisite_resolution_record(fresh)
+            _prerequisite_exact_source(record, fields)
+            committed = _committed_prerequisite_replay(
+                orch, fresh, record, fields, actor
+            )
+            if committed is not None:
+                return committed
+            current_authority = issue_authority_version(fresh)
+            if current_authority != fields["task_authority"]:
+                raise _PrerequisiteResolutionRequestError(
+                    "stale_task_authority",
+                    "The task changed after the supplied authority revision; refresh and retry.",
+                )
+            continuation = _prerequisite_continuation(
+                fresh,
+                record=record,
+                live_review=live_review,
+                pipeline_id=fields.get("pipeline_id"),
+            )
+            trigger_evidence = _prerequisite_trigger_evidence(
+                orch, fresh, record, fields
+            )
+            payload = {
+                "record_id": record.record_id,
+                "source_run_id": record.source_run_id,
+                "source_assignment_id": record.source_assignment_id,
+                "source_generation": record.source_generation,
+                "expected_task_authority": fields["task_authority"],
+                "actor": actor,
+                "reason": fields["reason"],
+                "trigger_evidence": trigger_evidence,
+                "continuation": continuation.to_dict(),
+                "expected_status": fresh.state,
+            }
+            controller = _prerequisite_resolution_controller(orch, project_id)
+            active = controller.store.list_jobs(
+                project_id=project_id,
+                task_id=fresh.identifier,
+                states=("queued", "running", "retry_wait"),
+                scheduling_lanes=(PREREQUISITE_RESOLUTION_LANE,),
+                newest_first=True,
+                limit=2,
+            )
+            if active:
+                live = active[0]
+                same = bool(
+                    live.action == ImplementationAction.PREREQUISITE_RESOLUTION.value
+                    and dict(live.payload or {}) == payload
+                    and live.expected_evidence_revision == fields["task_authority"]
+                    and live.expected_head_sha == continuation.head_sha
+                )
+                if not same:
+                    raise _PrerequisiteResolutionRequestError(
+                        "resolution_in_progress_conflict",
+                        "A different live prerequisite resolution already owns this task.",
+                    )
+                return {
+                    "ok": True,
+                    "resolved": False,
+                    "replayed": True,
+                    "job_id": live.job_id,
+                    "generation": live.generation,
+                    "resume_status": continuation.resume_status,
+                    "continuation": continuation.to_dict(),
+                }
+            job = orch._schedule_implementation_workflow_event(
+                project_id=project_id,
+                identifier=fresh.identifier,
+                action=ImplementationAction.PREREQUISITE_RESOLUTION,
+                payload=payload,
+                expected_evidence_revision=fields["task_authority"],
+                expected_head_sha=continuation.head_sha,
+                priority=0,
+            )
+            if job is None:
+                raise _PrerequisiteResolutionRequestError(
+                    "workflow_unavailable",
+                    "The prerequisite resolution could not be durably scheduled.",
+                    503,
+                )
+            return {
+                "ok": True,
+                "resolved": False,
+                "replayed": False,
+                "job_id": job.job_id,
+                "generation": job.generation,
+                "resume_status": continuation.resume_status,
+                "continuation": continuation.to_dict(),
+            }
+
+
+@app.post(
+    "/api/v1/projects/{project_id}/tasks/{identifier}/implementation-prerequisite/resolve"
+)
+async def api_resolve_implementation_prerequisite(
+    project_id: str, identifier: str, request: Request
+):
+    """Validate and schedule one exact project-owner prerequisite resolution."""
+
+    try:
+        raw_body, error = await _owner_claim_request_body(request)
+        if error is not None:
+            return error
+        assert raw_body is not None
+        fields = _prerequisite_resolution_body(raw_body)
+        orch = _get_orchestrator()
+        project = await _run_control_api_io(orch.project_store.get, project_id)
+        if project is None:
+            raise _PrerequisiteResolutionRequestError(
+                "not_found", "Project was not found.", 404
+            )
+        actor = _prerequisite_resolution_owner(raw_body, request, project)
+        resolved_identifier = _resolve_identifier(identifier, raw_body)
+        if not resolved_identifier:
+            raise _PrerequisiteResolutionRequestError(
+                "validation", "issue_key must identify one project task.", 400
+            )
+        tracker = await _run_control_api_io(orch._tracker_for_project, project_id)
+        resolved_identifier = _canonicalize_project_issue_identifier(
+            tracker, resolved_identifier
+        )
+        issue = await _run_control_api_io(
+            tracker.fetch_issue_detail, resolved_identifier
+        )
+        if issue is None:
+            raise _PrerequisiteResolutionRequestError(
+                "not_found", "Task was not found in this project.", 404
+            )
+        issue.project_id = project_id
+        record = _prerequisite_resolution_record(issue)
+        _prerequisite_exact_source(record, fields)
+        committed = _committed_prerequisite_replay(
+            orch, issue, record, fields, actor
+        )
+        if committed is not None:
+            return JSONResponse(committed, status_code=200)
+        live_review = await _run_control_api_io(
+            _live_prerequisite_review, project, issue
+        )
+        result = await _run_control_api_io(
+            _schedule_prerequisite_resolution,
+            orch,
+            project_id,
+            tracker,
+            resolved_identifier,
+            fields,
+            actor,
+            live_review,
+        )
+        _api_cache.invalidate("issues:all")
+        _api_cache.invalidate_prefix(
+            f"detail:{project_id}:{resolved_identifier}"
+        )
+        request_refresh = getattr(orch, "request_refresh", None)
+        if callable(request_refresh):
+            await _run_control_api_io(request_refresh)
+        return JSONResponse(result, status_code=200 if result["resolved"] else 202)
+    except _PrerequisiteResolutionRequestError as exc:
+        return JSONResponse(
+            {"error": {"code": exc.code, "message": str(exc)}},
+            status_code=exc.status_code,
+        )
+    except Exception as exc:  # noqa: BLE001 - tracker/workflow boundaries
+        logger.exception(
+            "Implementation prerequisite resolution failed for %s/%s (%s)",
+            project_id,
+            identifier,
+            type(exc).__name__,
+        )
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "unavailable",
+                    "message": "The prerequisite resolution could not be scheduled.",
+                }
+            },
+            status_code=503,
+        )
 
 
 _BATCH_UPDATE_MAX_TASKS = 200

@@ -94,7 +94,6 @@ class TestRouteCategory:
         for cat in denied:
             assert cat not in EXPOSED_CATEGORIES
 
-
 # ---------------------------------------------------------------------------
 # 2. EXPOSED_CATEGORIES
 # ---------------------------------------------------------------------------
@@ -468,6 +467,10 @@ class TestClassifyRouteAdminMutation:
             ("POST", "/api/v1/projects/{project_id}/state-branch/migrate"),
             ("POST", "/api/v1/projects/{project_id}/bootstrap/apply"),
             ("POST", "/api/v1/projects/{project_id}/issue-templates/apply"),
+            (
+                "POST",
+                "/api/v1/projects/{project_id}/tasks/{identifier}/implementation-prerequisite/resolve",
+            ),
             # Agent profiles
             ("POST", "/api/v1/agent-profiles"),
             ("PATCH", "/api/v1/agent-profiles/{name}"),
