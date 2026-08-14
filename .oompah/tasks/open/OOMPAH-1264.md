@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:54.222347Z'
-updated_at: '2026-08-14T04:09:20.196937Z'
+updated_at: '2026-08-14T04:36:22.053586Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-08-14 04:09
 ---
 Implementation checkpoint: immutable project-owner resolution receipt and exact blocker/run/task-authority CAS are committed locally at 587aab590a7d352c988f35c7cbdf3a80c40c37e2. Lost-response idempotency, conflicting/stale/malformed authority, exact continuation evidence, and native/GitHub/GitLab projections pass 64 focused tests. Distinct resolution-lane workflow and authenticated API/CLI slices are in progress.
+---
+author: oompah
+created: 2026-08-14 04:36
+---
+Frozen clean local stack at 342696588b65fc9640312430496147e5f2907e20 (8 task commits) after integrating the owner API/CLI. Final combined suite passes 1,137 tests with two pre-existing warnings. Final admission re-reads task/profile trigger truth and exact live review/pipeline identity under ordered locks; same-project and non-reentrant lock cases are covered. Awaiting OOMPAH-1263 epic integration before rebase/push.
 ---
 <!-- COMMENTS:END -->
