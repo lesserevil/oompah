@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-14T07:34:38.666127Z'
+updated_at: '2026-08-14T07:55:16.892253Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,5 +51,10 @@ author: oompah
 created: 2026-08-14 07:34
 ---
 Claimed for direct implementation in /home/shedwards/src/oompah-1265 on branch OOMPAH-1265 from landed OOMPAH-1264 epic head 2ff3966dd. Oompah remains paused. Beginning production-shaped test-first lifecycle acceptance in parallel while OOMPAH-1266 completes its bounded integration-authority gate; final integration remains finish-ordered after OOMPAH-1266.
+---
+author: oompah
+created: 2026-08-14 07:55
+---
+Test-first lifecycle checkpoint frozen locally at ea243c8f6 (two commits, clean). Production-shaped TRICKLE-123/132/139/143 acceptance exposed and fixed replacement-after-receipt transition fencing plus truthful 409 handoff-authority conflicts. Combined prerequisite/handoff/adapter suite passes 326 tests. Task detail now exposes exact non-secret resolution CAS fields outside the global alert surface; dashboard/detail tests pass 39 tests; concrete project-owner recovery is documented in docs/external-prerequisites.md. Final integration remains finish-ordered after OOMPAH-1266 and is not pushed/submitted.
 ---
 <!-- COMMENTS:END -->
