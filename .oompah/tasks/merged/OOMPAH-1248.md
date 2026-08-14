@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1248
 type: task
-status: Open
+status: Merged
 priority: null
 title: Retire durable implementation lease when its exact worker is gone
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T15:31:19.680451Z'
-updated_at: '2026-08-13T15:37:07.267843Z'
+updated_at: '2026-08-14T07:45:15.453619Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,32 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: f0218931-be6f-4cb5-95a6-07fed101a5ec
   request_fingerprint: b8c144c366a6c34f419914e1ef22c69b9883f976f51482a4780e034c793f6a83
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-39df7e788cee
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1248
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c4e06cd3d0a1952c26476a330350da6137b32d8f9669547b484788a55d2443d9
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #869 merged as 254291a69 and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:45:11.350579+00:00'
+    selected_ref: origin/main
+    selected_sha: 948ef6f207eabe4c26910d8fc276d6d36b659e76
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
