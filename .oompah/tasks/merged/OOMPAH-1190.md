@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1190
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Sanitize legacy username-only userinfo in managed canonical remotes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T22:25:20.676127Z'
-updated_at: '2026-08-12T22:37:45.085000Z'
+updated_at: '2026-08-14T03:40:46.602693Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: f01ec846-9ac5-473d-aaae-428603c060fd
   request_fingerprint: 2e8962baf19d5e1b07cb1196d198039e040e6b841ecc623363ed710f3e25669b
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.terminal_audit:
   queued_comment_posted: true
   oompah.terminal_audit_tracker_projections:
@@ -38,6 +38,29 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1190
     digest: 3b276b96baece8ebefb59526ee4b021278b859dd5820df5e8a6a47d286b89e5d
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-7a3966cb8d0a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1190
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3b276b96baece8ebefb59526ee4b021278b859dd5820df5e8a6a47d286b89e5d
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner terminal closure while Oompah scheduling remains intentionally
+      paused: PR 839 head ad14380b merged as 28938503; all Python 3.11, 3.12, and
+      3.13 CI jobs passed; the merge is included in deployed main 948ef6f; queued
+      terminal audits have zero attempts and no recorded error or unresolved review
+      blocker.'
+    created_at: '2026-08-14T03:40:42.387259+00:00'
+    selected_ref: origin/OOMPAH-1190
+    selected_sha: ad14380b0004fc42fe0e4e5d9f3e8f57cb12990d
+    applied: false
   version: 1
   pending_chain:
   - version: 1
