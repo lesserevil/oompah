@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:54.222347Z'
-updated_at: '2026-08-14T07:33:37.157011Z'
+updated_at: '2026-08-14T07:33:42.553977Z'
 work_branch: OOMPAH-1264
 target_branch: null
 review_url: null
@@ -68,7 +68,22 @@ oompah.terminal_audit:
     created_at: '2026-08-14T07:33:33.542854+00:00'
     selected_ref: 038e10c2de1f1515ea19e7a63dbc2d3745137407
     selected_sha: 038e10c2de1f1515ea19e7a63dbc2d3745137407
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1264
+    target_state: Done
+    evidence_fingerprint: 49a50d8320e9eca5362acb0860974cf6158c97cf27e203b7f938153b0c624c74
+    workflow_revision: null
+    selected_ref: 038e10c2de1f1515ea19e7a63dbc2d3745137407
+    selected_sha: 038e10c2de1f1515ea19e7a63dbc2d3745137407
+    landing_revision: null
+    audit_ids:
+    - audit-30ff280f670a
+    kind: override
+    applied: true
+    retired_at: '2026-08-14T07:33:41.412578+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -76,7 +91,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1264
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -92,6 +107,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-14T07:33:08.996014+00:00'
     selected_ref: 038e10c2de1f1515ea19e7a63dbc2d3745137407
     selected_sha: 038e10c2de1f1515ea19e7a63dbc2d3745137407
+    updated_at: '2026-08-14T07:33:41.412541+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -140,5 +156,12 @@ author: oompah
 created: 2026-08-14 07:33
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-14 07:33
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Owner convergence for paused direct work: PR #881 merged exact reviewed head 038e10c2 into epic-OOMPAH-1231 as 2ff3966dd; hosted CI passed Python 3.11/3.12/3.13, local full gate passed 20,568 tests, independent review signed off, and exact tree equality is proven.
 ---
 <!-- COMMENTS:END -->
