@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1192
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Allow durable workflow START to publish runtime before its status transition
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T22:43:52.044640Z'
-updated_at: '2026-08-12T23:03:18.026409Z'
+updated_at: '2026-08-14T03:41:02.199849Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: b17dd9ae-fd84-4b5c-aef8-36b5f938a21d
   request_fingerprint: 3e7a6e731a0e094248063262aa779f0695cd5a17277458467868e8239b1b3a66
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.terminal_audit:
   queued_comment_posted: true
   oompah.terminal_audit_tracker_projections:
@@ -38,6 +38,29 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1192
     digest: b39e46f1de9cadc6a5e155cb59be63904dbc9f78cb89254fb9486690e17e769a
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-7995cd7306f5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1192
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b39e46f1de9cadc6a5e155cb59be63904dbc9f78cb89254fb9486690e17e769a
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner terminal closure while Oompah scheduling remains intentionally
+      paused: PR 840 head 7820d212 merged as 81c63ce5; all Python 3.11, 3.12, and
+      3.13 CI jobs passed; the merge is included in deployed main 948ef6f; queued
+      terminal audits have zero attempts and no recorded error or unresolved review
+      blocker.'
+    created_at: '2026-08-14T03:40:58.009925+00:00'
+    selected_ref: origin/OOMPAH-1192
+    selected_sha: 7820d212e4bd7224ec205aae2493ed5f22130fde
+    applied: false
   version: 1
   pending_chain:
   - version: 1
