@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1238
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Return immutable helper identity after atomic epic-rebase creation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T12:43:56.637636Z'
-updated_at: '2026-08-13T13:14:14.863447Z'
+updated_at: '2026-08-14T07:40:18.519291Z'
 work_branch: OOMPAH-1238
 target_branch: null
 review_url: null
@@ -47,6 +47,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1238
     digest: ac37dfe7aba4a36d021def862e5663c998a8ddfdc8f00b39edb443f7ca693460
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-dd9841774fda
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1238
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ac37dfe7aba4a36d021def862e5663c998a8ddfdc8f00b39edb443f7ca693460
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #865 merged as 362082b49 and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:40:14.933341+00:00'
+    selected_ref: ab11ea173f0ca4a31345111b9f3ac854d3666fc2
+    selected_sha: ab11ea173f0ca4a31345111b9f3ac854d3666fc2
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -92,7 +113,7 @@ oompah.terminal_audit:
     selected_ref: ab11ea173f0ca4a31345111b9f3ac854d3666fc2
     selected_sha: ab11ea173f0ca4a31345111b9f3ac854d3666fc2
   attempt_history: []
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 ---
 ## Summary
 
