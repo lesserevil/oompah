@@ -23,6 +23,7 @@ from oompah.integration import (
     review_generation_requeue_marker,
 )
 from oompah.models import BlockerRef, Issue, Project
+from oompah.integration_workflow import StandaloneDeliveryOutcome
 from oompah.orchestrator import Orchestrator
 from oompah.provenance_suppression import ProvenanceGuardedTracker
 from oompah.quality_gate import BranchQualityGate, QualityGateOwner, QualityGateResult
@@ -1618,8 +1619,8 @@ def test_reconciled_review_head_is_regated_then_readopted_exactly(harness):
     ) in [call.args[:3] for call in tracker.set_metadata_field.call_args_list]
 
 
-def test_open_review_late_advance_converges_and_regates_before_adoption(harness):
-    """A PR B->C race after B's gate remains Ready until C is checkpointed."""
+def test_open_review_late_advance_requires_explicit_resubmission(harness):
+    """A PR B->C race cannot checkpoint C as accepted without submit."""
 
     orch, project, tracker, provider, _detect, gate = harness
     old_head = "a" * 40
@@ -1696,33 +1697,29 @@ def test_open_review_late_advance_converges_and_regates_before_adoption(harness)
     assert task.integration.head_sha == gated_head
     tracker.update_issue.assert_not_called()
 
-    # The next sweep durably replaces B with C and returns without reusing B's pass.
-    orch._reconcile_standalone_ready_to_integrate_tasks()
-    assert task.state == READY_TO_INTEGRATE
-    assert task.integration.head_sha == advanced_head
-    assert task.integration.base_sha == advanced_base
-    assert task.integration.wait_generation == review_generation_requeue_marker(
-        review_id,
-        advanced_head,
-        advanced_base,
+    # The next exact attempt proves C, but cannot silently replace accepted B.
+    outcome = orch._reconcile_one_standalone_ready_to_integrate_task(
+        project.id,
+        task.identifier,
+        expected_task_branch=task.work_branch,
+        expected_head_sha=gated_head,
     )
+    assert isinstance(outcome, StandaloneDeliveryOutcome)
+    assert outcome.disposition == "resubmission_required"
+    assert outcome.accepted_head == gated_head
+    assert outcome.observed_branch_head == advanced_head
+    assert task.state == READY_TO_INTEGRATE
+    assert task.integration.head_sha == gated_head
+    assert task.integration.base_sha == gated_base
     assert gated_generations == [(gated_head, gated_base)]
-
-    # Only C's own gate can clear the checkpoint and publish In Review.
-    orch._reconcile_standalone_ready_to_integrate_tasks()
-    assert gated_generations == [
-        (gated_head, gated_base),
-        (advanced_head, advanced_base),
-    ]
-    assert task.state == IN_REVIEW
-    assert task.review_head == advanced_head
-    assert task.integration.head_sha == advanced_head
-    assert task.integration.base_sha == advanced_base
-    assert task.integration.wait_reason is None
-    assert task.integration.wait_generation is None
     provider.create_review.assert_not_called()
-    tracker.update_issue.assert_called_once_with(task.identifier, status=IN_REVIEW)
-    assert not _delivery_alerts(orch)
+    tracker.update_issue.assert_not_called()
+    assert not [
+        call
+        for call in tracker.set_metadata_field.call_args_list
+        if len(call.args) >= 2 and call.args[1] == "oompah.integration"
+    ]
+    assert len(_delivery_alerts(orch)) == 1
 
 
 def test_unmarked_submission_base_advance_checkpoints_and_regates(harness):
@@ -2838,7 +2835,7 @@ def test_changed_remote_head_cancels_stale_gate_result(harness):
 
 def test_remote_head_must_match_accepted_submission_before_gate(harness):
     """A newer remote tip cannot replace the exact head accepted by submit."""
-    orch, _project, tracker, provider, _detect, gate = harness
+    orch, project, tracker, provider, _detect, gate = harness
     task = _issue("TASK-SUBMITTED-HEAD", branch="feature/submitted-head")
     task.integration = IntegrationRecord(
         state="ready",
@@ -2848,8 +2845,20 @@ def test_remote_head_must_match_accepted_submission_before_gate(harness):
     tracker.fetch_issues_by_states.return_value = [task]
     provider.get_branch_head_sha.return_value = "b" * 40
 
-    orch._reconcile_standalone_ready_to_integrate_tasks()
+    outcome = orch._reconcile_one_standalone_ready_to_integrate_task(
+        project.id,
+        task.identifier,
+        expected_task_branch="feature/submitted-head",
+        expected_head_sha="a" * 40,
+    )
 
+    assert isinstance(outcome, StandaloneDeliveryOutcome)
+    assert outcome.disposition == "resubmission_required"
+    assert outcome.accepted_head == "a" * 40
+    assert outcome.observed_branch_head == "b" * 40
+    assert outcome.observed_review_head is None
+    assert outcome.review_id is None
+    assert "advanced from accepted submitted head" in outcome.reason
     gate.assert_not_called()
     provider.find_pr_for_branch.assert_not_called()
     provider.create_review.assert_not_called()
@@ -2857,6 +2866,69 @@ def test_remote_head_must_match_accepted_submission_before_gate(harness):
     alerts = _delivery_alerts(orch)
     assert len(alerts) == 1
     assert "advanced from accepted submitted head" in alerts[0]["message"]
+
+
+def test_review_head_race_cannot_requeue_unsubmitted_generation(harness):
+    """A review advance after the branch read remains explicit-submit work."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    accepted_head = "a" * 40
+    advanced_head = "c" * 40
+    accepted_base = "d" * 40
+    advanced_base = "e" * 40
+    review_id = "101"
+    task = _issue("TASK-REVIEW-RACE", branch="feature/review-race")
+    task.review_number = review_id
+    task.review_url = f"https://github.com/org/repo/pull/{review_id}"
+    task.review_head = accepted_head
+    task.integration = replace(
+        task.integration,
+        head_sha=accepted_head,
+        base_sha=accepted_base,
+        wait_reason=REVIEW_GENERATION_REQUEUE_WAIT_REASON,
+        wait_generation=review_generation_requeue_marker(
+            review_id,
+            accepted_head,
+            accepted_base,
+        ),
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    advanced_review = _review(
+        task.identifier,
+        review_id=review_id,
+        source_branch=task.work_branch,
+        head_sha=advanced_head,
+        base_sha=advanced_base,
+    )
+    provider.find_pr_for_branch.return_value = advanced_review
+    provider.get_branch_head_sha.side_effect = [
+        accepted_head,
+        advanced_head,
+        advanced_head,
+    ]
+
+    outcome = orch._reconcile_one_standalone_ready_to_integrate_task(
+        project.id,
+        task.identifier,
+        expected_task_branch=task.work_branch,
+        expected_head_sha=accepted_head,
+    )
+
+    assert isinstance(outcome, StandaloneDeliveryOutcome)
+    assert outcome.disposition == "resubmission_required"
+    assert outcome.accepted_head == accepted_head
+    assert outcome.observed_branch_head == advanced_head
+    assert outcome.observed_review_head == advanced_head
+    assert outcome.review_id == review_id
+    assert task.integration.head_sha == accepted_head
+    assert task.integration.base_sha == accepted_base
+    assert not [
+        call
+        for call in tracker.set_metadata_field.call_args_list
+        if len(call.args) >= 2 and call.args[1] == "oompah.integration"
+    ]
+    gate.assert_not_called()
+    tracker.update_issue.assert_not_called()
 
 
 def test_oompah_818_old_merged_review_cannot_terminalize_new_submission(harness):

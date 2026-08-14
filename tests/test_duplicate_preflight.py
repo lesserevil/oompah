@@ -44,6 +44,7 @@ from oompah.models import (
 from oompah.orchestrator import Orchestrator, _acp_text_activity_detail
 from oompah import orchestrator as orchestrator_module
 from oompah.projects import ProjectError, ProjectStore
+from oompah.scm import ReviewRequest
 from oompah.statuses import (
     DONE,
     DUPLICATE_CANDIDATE,
@@ -672,6 +673,152 @@ def test_workflow_source_does_not_reschedule_a_live_duplicate_claim():
 
     assert config["duplicate_screening_state"] == "running"
     assert "implementation_pending_action" not in config
+
+
+def _ready_standalone_submission() -> Issue:
+    issue = _issue(state=READY_TO_INTEGRATE)
+    issue.work_branch = "TASK-1"
+    issue.target_branch = "main"
+    issue.integration = IntegrationRecord(
+        state="ready",
+        mode="standalone",
+        head_sha="a" * 40,
+        task_branch="TASK-1",
+        base_branch="main",
+        base_sha="b" * 40,
+    )
+    return issue
+
+
+def _ready_standalone_review(*, head_sha: str = "c" * 40) -> ReviewRequest:
+    return ReviewRequest(
+        id="42",
+        title="TASK-1",
+        url="https://github.com/org/repo/pull/42",
+        author="agent",
+        state="open",
+        source_branch="TASK-1",
+        target_branch="main",
+        created_at="2026-08-14T00:00:00Z",
+        updated_at="2026-08-14T00:00:00Z",
+        head_sha=head_sha,
+        source_repository="org/repo",
+        target_repository="org/repo",
+    )
+
+
+def test_ready_standalone_config_projects_exact_accepted_remote_head():
+    issue = _ready_standalone_submission()
+    orch = _orch(_Tracker([issue]))
+    orch.project_store.get.return_value = Project(
+        id="project-1",
+        name="project",
+        repo_url="https://github.com/org/repo.git",
+        repo_path="/repo",
+        default_branch="main",
+    )
+    orch.project_store.remote_branch_head.return_value = "a" * 40
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert config["accepted_submission_recovery_state"] == (
+        "accepted_submission_exact"
+    )
+    assert config["accepted_submission_head"] == "a" * 40
+    assert config["accepted_submission_branch_head"] == "a" * 40
+
+
+def test_ready_standalone_config_projects_advanced_remote_generation():
+    issue = _ready_standalone_submission()
+    orch = _orch(_Tracker([issue]))
+    orch.project_store.get.return_value = Project(
+        id="project-1",
+        name="project",
+        repo_url="https://github.com/org/repo.git",
+        repo_path="/repo",
+        default_branch="main",
+    )
+    orch.project_store.remote_branch_head.return_value = "c" * 40
+    orch._reviews_cache = {
+        "project-1": [_ready_standalone_review(head_sha="c" * 40)]
+    }
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert config["accepted_submission_recovery_state"] == (
+        "accepted_submission_branch_advanced"
+    )
+    assert config["accepted_submission_head"] == "a" * 40
+    assert config["accepted_submission_branch_head"] == "c" * 40
+    assert config["accepted_submission_review_head"] == "c" * 40
+    assert config["accepted_submission_review_id"] == "42"
+
+
+def test_ready_standalone_config_fails_closed_when_remote_is_unavailable():
+    issue = _ready_standalone_submission()
+    orch = _orch(_Tracker([issue]))
+    orch.project_store.remote_branch_head.side_effect = ProjectError(
+        "remote observation raced"
+    )
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert config["accepted_submission_recovery_state"] == (
+        "accepted_submission_branch_unavailable"
+    )
+    assert config["accepted_submission_head"] == "a" * 40
+    assert "accepted_submission_branch_head" not in config
+
+
+def test_ready_standalone_config_preserves_decisive_branch_drift_with_stale_review():
+    issue = _ready_standalone_submission()
+    orch = _orch(_Tracker([issue]))
+    orch.project_store.get.return_value = Project(
+        id="project-1",
+        name="project",
+        repo_url="https://github.com/org/repo.git",
+        repo_path="/repo",
+        default_branch="main",
+    )
+    orch.project_store.remote_branch_head.return_value = "c" * 40
+    orch._reviews_cache = {
+        "project-1": [_ready_standalone_review(head_sha="d" * 40)]
+    }
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert config["accepted_submission_recovery_state"] == (
+        "accepted_submission_branch_advanced"
+    )
+    assert config["accepted_submission_head"] == "a" * 40
+    assert config["accepted_submission_branch_head"] == "c" * 40
+    assert config["accepted_submission_review_head"] == "d" * 40
+    assert config["accepted_submission_review_identity"] == "ambiguous"
+
+
+def test_ready_standalone_exact_branch_ignores_stale_review_cache_for_scheduling():
+    issue = _ready_standalone_submission()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    orch.project_store.get.return_value = Project(
+        id="project-1",
+        name="project",
+        repo_url="https://github.com/org/repo.git",
+        repo_path="/repo",
+        default_branch="main",
+    )
+    orch.project_store.remote_branch_head.return_value = "a" * 40
+    orch._reviews_cache = {
+        "project-1": [_ready_standalone_review(head_sha="d" * 40)]
+    }
+
+    facts = orch._workflow_shadow_sources(issue)
+    config = facts[FactDomain.CONFIG](issue)
+
+    assert config["accepted_submission_recovery_state"] == (
+        "accepted_submission_exact"
+    )
+    assert config["accepted_submission_review_identity"] == "ambiguous"
 
 
 def test_workflow_source_recovers_accepted_submission_before_event_publication():

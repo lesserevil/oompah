@@ -161,6 +161,9 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "rollup.waiting_parent_landing",
         "rollup.waiting_children",
         "standalone.delivery_eligible",
+        "standalone.remote_identity_ambiguous",
+        "standalone.remote_identity_unavailable",
+        "standalone.resubmission_required",
         "terminal.final",
         "terminal.immediate_target_landing_proven",
         "terminal.preserve_verified_merged",
@@ -1432,6 +1435,82 @@ def _integration_decision(
         )
     )
     if mode == "standalone" and state == "ready" and exact_standalone_route:
+        config = facts.fact(FactDomain.CONFIG)
+        config_value = (
+            _mapping(config.value) if config.state is FactState.KNOWN else None
+        )
+        recovery_state = str(
+            (config_value or {}).get("accepted_submission_recovery_state") or ""
+        ).strip()
+        accepted_head = str(
+            (config_value or {}).get("accepted_submission_head")
+            or value.get("head_sha")
+            or ""
+        ).strip()
+        observed_branch_head = str(
+            (config_value or {}).get("accepted_submission_branch_head") or ""
+        ).strip()
+        observed_review_head = str(
+            (config_value or {}).get("accepted_submission_review_head") or ""
+        ).strip()
+        if recovery_state == "accepted_submission_branch_advanced":
+            observed = observed_branch_head or observed_review_head
+            return _decision(
+                task,
+                facts,
+                disposition=TaskDisposition.ACTION_REQUIRED,
+                reason_code="standalone.resubmission_required",
+                owner=WorkflowOwner.OPERATOR,
+                prerequisites=(
+                    UnmetPrerequisite(
+                        "standalone.resubmission_required",
+                        accepted_head or task.task_id,
+                        observed or recovery_state,
+                    ),
+                ),
+                actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
+                alert=AlertSeverity.WARNING,
+            )
+        if recovery_state == "accepted_submission_remote_ambiguous":
+            return _decision(
+                task,
+                facts,
+                disposition=TaskDisposition.BLOCKED,
+                reason_code="standalone.remote_identity_ambiguous",
+                owner=WorkflowOwner.INTEGRATOR,
+                prerequisites=(
+                    UnmetPrerequisite(
+                        "standalone.remote_identity_ambiguous",
+                        accepted_head or task.task_id,
+                        observed_review_head
+                        or observed_branch_head
+                        or recovery_state,
+                    ),
+                ),
+                actions=(PermittedAction.CLAIM_INTEGRATION,),
+                alert=AlertSeverity.INFO,
+            )
+        if recovery_state in {
+            "accepted_submission_branch_unavailable",
+            "accepted_submission_claim_changed",
+            "accepted_submission_claim_retiring",
+        }:
+            return _decision(
+                task,
+                facts,
+                disposition=TaskDisposition.BLOCKED,
+                reason_code="standalone.remote_identity_unavailable",
+                owner=WorkflowOwner.INTEGRATOR,
+                prerequisites=(
+                    UnmetPrerequisite(
+                        "standalone.remote_identity_unavailable",
+                        accepted_head or task.task_id,
+                        recovery_state,
+                    ),
+                ),
+                actions=(PermittedAction.CLAIM_INTEGRATION,),
+                alert=AlertSeverity.INFO,
+            )
         return _decision(
             task,
             facts,
