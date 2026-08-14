@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1227
 type: task
-status: Open
+status: Merged
 priority: null
 title: Hydrate immutable GitLab MR identity before review merge
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:16:04.050669Z'
-updated_at: '2026-08-13T09:47:30.645078Z'
+updated_at: '2026-08-14T07:29:33.726703Z'
 work_branch: OOMPAH-1227
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 7ebb5290-c5a2-488e-9586-76491c07d68c
   request_fingerprint: 344cc165d4c7e22ad84d51c59e84eaa4c68fa512d3bfc1da15c5cc44f2e06548
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.integration:
   version: 2
   state: ready
@@ -35,6 +35,31 @@ oompah.integration:
   submitted_at: '2026-08-13T09:47:21.308990+00:00'
   updated_at: '2026-08-13T09:47:21.308990+00:00'
 oompah.work_branch: OOMPAH-1227
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-dcd196f20717
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1227
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 66af1616c951ff2737e29c959515faf06dbb08e50130bd6ab80d3092b50cc336
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #856 merged as 04f76e840 with all hosted checks
+      passing, and the landed tree is contained by origin/main; this stale Open projection
+      requires no further implementation.'
+    created_at: '2026-08-14T07:29:27.171052+00:00'
+    selected_ref: 7887a5d9eb293c686e649dc70e275042a69ee70f
+    selected_sha: 7887a5d9eb293c686e649dc70e275042a69ee70f
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
