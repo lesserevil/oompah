@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T22:41:57.033700Z'
-updated_at: '2026-08-14T07:28:59.983066Z'
+updated_at: '2026-08-14T07:29:07.428937Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -52,7 +52,23 @@ oompah.terminal_audit:
     created_at: '2026-08-14T07:28:53.299377+00:00'
     selected_ref: origin/main
     selected_sha: 5f88d74b9668dbf611767fdbd0cd1ef9d1750587
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1191
+    target_state: Merged
+    evidence_fingerprint: fc049f390ddcd11b482b9f697e28cfcec3a38657d07caf7b8d6b590d36ec8c94
+    workflow_revision: null
+    selected_ref: origin/main
+    selected_sha: 5f88d74b9668dbf611767fdbd0cd1ef9d1750587
+    landing_revision: null
+    audit_ids:
+    - audit-279f36055070
+    - audit-7709dfbfe186
+    kind: override
+    applied: true
+    retired_at: '2026-08-14T07:29:05.527409+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -60,7 +76,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1191
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -76,12 +92,13 @@ oompah.terminal_audit:
     eligible_at: '2026-08-13T01:55:31.525192+00:00'
     selected_ref: origin/main
     selected_sha: 5f88d74b9668dbf611767fdbd0cd1ef9d1750587
+    updated_at: '2026-08-14T07:29:05.527367+00:00'
   - version: 1
     audit_id: audit-7709dfbfe186
     project_id: proj-14849f1b
     task_id: OOMPAH-1191
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -97,6 +114,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-279f36055070
     selected_ref: origin/main
     selected_sha: 5f88d74b9668dbf611767fdbd0cd1ef9d1750587
+    updated_at: '2026-08-14T07:29:05.527392+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -210,5 +228,12 @@ Source: `backend:orchestrator`
 Message: ACP worker failed issue_id=TRICKLE-140
 
 Source issue: `TRICKLE-140`
+---
+author: oompah
+created: 2026-08-14 07:29
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner convergence: PR #844 merged as 5f88d74b9 and that landed tree is contained by origin/main; this stale In Validation projection requires no further implementation.
 ---
 <!-- COMMENTS:END -->
