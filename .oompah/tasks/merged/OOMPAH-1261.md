@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T01:17:47.268102Z'
-updated_at: '2026-08-14T03:23:14.941377Z'
+updated_at: '2026-08-14T03:23:24.666382Z'
 work_branch: OOMPAH-1261
 target_branch: null
 review_url: null
@@ -72,7 +72,23 @@ oompah.terminal_audit:
     created_at: '2026-08-14T03:23:09.531506+00:00'
     selected_ref: ee95f1e9f5e7d632c1e12c91870e96ebb5ff36f4
     selected_sha: ee95f1e9f5e7d632c1e12c91870e96ebb5ff36f4
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1261
+    target_state: Merged
+    evidence_fingerprint: d80e5755eb28e942ed5aa9b73deab29bc876814f3c7c5c1cd20c08a54493bc46
+    workflow_revision: null
+    selected_ref: ee95f1e9f5e7d632c1e12c91870e96ebb5ff36f4
+    selected_sha: ee95f1e9f5e7d632c1e12c91870e96ebb5ff36f4
+    landing_revision: null
+    audit_ids:
+    - audit-2fffd6e870fa
+    - audit-d1141d6cec50
+    kind: override
+    applied: true
+    retired_at: '2026-08-14T03:23:18.647365+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -80,7 +96,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1261
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -96,12 +112,13 @@ oompah.terminal_audit:
     eligible_at: '2026-08-14T03:06:31.579686+00:00'
     selected_ref: ee95f1e9f5e7d632c1e12c91870e96ebb5ff36f4
     selected_sha: ee95f1e9f5e7d632c1e12c91870e96ebb5ff36f4
+    updated_at: '2026-08-14T03:23:18.647315+00:00'
   - version: 1
     audit_id: audit-d1141d6cec50
     project_id: proj-14849f1b
     task_id: OOMPAH-1261
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -117,6 +134,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-2fffd6e870fa
     selected_ref: ee95f1e9f5e7d632c1e12c91870e96ebb5ff36f4
     selected_sha: ee95f1e9f5e7d632c1e12c91870e96ebb5ff36f4
+    updated_at: '2026-08-14T03:23:18.647344+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -175,5 +193,17 @@ author: oompah
 created: 2026-08-14 03:21
 ---
 Acceptance complete: PR 878 merged after all Python 3.11/3.12/3.13 CI lanes passed. Main and the running service are at 948ef6f207eabe4c26910d8fc276d6d36b659e76. Live TRICKLE-136 now remains In Review on exact tracker/MR head fea95f192d66fbf07f0188ad632e42c0ceb21d52; its older retained worktree is non-authoritative and no stale standalone-delivery job is active. The OOMPAH-1261 worktree plus local/remote branches were pruned.
+---
+author: oompah
+created: 2026-08-14 03:23
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Project-owner terminal closure while Oompah scheduling remains intentionally paused: PR 878 merged after exact-head Python 3.11, 3.12, and 3.13 CI passed; deployed revision 948ef6f; live TRICKLE-136 tracker and MR remain aligned on fea95f with no stale standalone-delivery authority.
+---
+author: oompah
+created: 2026-08-14 03:23
+---
+Merged and live-validated: authoritative remote-head recovery is deployed and the completed branch/worktree have been pruned.
 ---
 <!-- COMMENTS:END -->
