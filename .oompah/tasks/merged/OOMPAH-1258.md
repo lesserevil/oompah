@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1258
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Complete direct epic maintenance through the durable workflow
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T22:41:28.315466Z'
-updated_at: '2026-08-14T00:38:09.804663Z'
+updated_at: '2026-08-14T03:42:57.781578Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,6 +37,29 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1258
     digest: 61674f78694d73f3c6a4a98f80402124d74c8245301a979f60e24af6cb4f2202
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-8a13d4e570f6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1258
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 61674f78694d73f3c6a4a98f80402124d74c8245301a979f60e24af6cb4f2202
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner terminal closure while Oompah scheduling remains intentionally
+      paused: PR 875 head 9a02dea4 merged as c72efadf; all Python 3.11, 3.12, and
+      3.13 CI jobs passed; the merge is included in deployed main 948ef6f; queued
+      terminal audits have zero attempts and no recorded error or unresolved review
+      blocker.'
+    created_at: '2026-08-14T03:42:53.494725+00:00'
+    selected_ref: origin/OOMPAH-1258
+    selected_sha: 9a02dea4bb32e6f176a63badea7c51550e2f948b
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -82,7 +105,7 @@ oompah.terminal_audit:
     selected_ref: origin/OOMPAH-1258
     selected_sha: 9a02dea4bb32e6f176a63badea7c51550e2f948b
   attempt_history: []
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 ---
 ## Summary
 
