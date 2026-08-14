@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1189
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Use managed authenticated remote for native state-branch claims
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-12T21:09:00.853491Z'
-updated_at: '2026-08-12T22:20:25.070470Z'
+updated_at: '2026-08-14T03:40:29.088601Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,7 +25,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: scheduling-state-branch-canonical-auth-20260812
   request_fingerprint: a3aa7f1c53b8557fa4553c1a9f238cd5489828892b0581957135e622aa99fc99
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.terminal_audit:
   queued_comment_posted: true
   oompah.terminal_audit_tracker_projections:
@@ -39,6 +39,29 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1189
     digest: 1942f60e33127ab06bfb6dfefcce916b95ea98361685d4c5ba1b5145178451b2
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f1124e114720
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1189
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1942f60e33127ab06bfb6dfefcce916b95ea98361685d4c5ba1b5145178451b2
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner terminal closure while Oompah scheduling remains intentionally
+      paused: PR 838 head 9843b466f merged as 63ece73c; all Python 3.11, 3.12, and
+      3.13 CI jobs passed; the merge is included in deployed main 948ef6f; queued
+      terminal audits have zero attempts and no recorded error or unresolved review
+      blocker.'
+    created_at: '2026-08-14T03:40:25.466760+00:00'
+    selected_ref: origin/OOMPAH-1189
+    selected_sha: 9843b466f31d479c65462ceb2e1d34c98e22132a
+    applied: false
   version: 1
   pending_chain:
   - version: 1
