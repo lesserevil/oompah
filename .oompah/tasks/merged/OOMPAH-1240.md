@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1240
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Recognize persisted exact rebase helper during effect verification
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T13:41:09.711627Z'
-updated_at: '2026-08-13T14:23:49.047944Z'
+updated_at: '2026-08-14T07:41:08.485315Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 25732016-0297-4ace-8199-742af8cd985b
   request_fingerprint: 4aeb6b9dfd027b62fd73fa1488530a9fcc234dd203b9ffad5767533742151387
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.terminal_audit:
   queued_comment_posted: true
   oompah.terminal_audit_tracker_projections:
@@ -38,6 +38,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1240
     digest: 6cebaafc3b3a2908df46ce0d409fee309357dd7497b201b8907320f49cd37af0
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-bf2024f28a0a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1240
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6cebaafc3b3a2908df46ce0d409fee309357dd7497b201b8907320f49cd37af0
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #867 merged as b3ed5d636 and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:41:04.767955+00:00'
+    selected_ref: origin/OOMPAH-1240
+    selected_sha: b5737d1bfa2159ba02adf986c36c944ef511eda0
+    applied: false
   version: 1
   pending_chain:
   - version: 1
