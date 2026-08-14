@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1262
 type: task
-status: Open
+status: In Validation
 priority: 1
 title: Define structured external-prerequisite and profile capability authority
 parent: OOMPAH-1231
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:20.238127Z'
-updated_at: '2026-08-14T03:46:27.348176Z'
+updated_at: '2026-08-14T03:46:43.539705Z'
 work_branch: OOMPAH-1262
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: oompah-1231-prerequisite-authority-v1
   request_fingerprint: e38becde52d97174b7098c49b23a59fd1eae8ff01d7dbaf2d7272a97f3cae836
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.integration:
   version: 2
   state: ready
@@ -37,6 +37,38 @@ oompah.integration:
   submitted_at: '2026-08-14T03:46:12.493223+00:00'
   updated_at: '2026-08-14T03:46:12.493223+00:00'
 oompah.work_branch: OOMPAH-1262
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-6d2cf1570435
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1262
+    digest: c6b858d24feb80128617efd8a53d95dfc4377991948d333c91930576eee4fb85
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-6d2cf1570435
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1262
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c6b858d24feb80128617efd8a53d95dfc4377991948d333c91930576eee4fb85
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-14T03:46:35.203687+00:00'
+    eligible_at: '2026-08-14T03:46:35.203687+00:00'
+    selected_ref: 68882b83d707a3cfb4988516dba17f1a838014dd
+    selected_sha: 68882b83d707a3cfb4988516dba17f1a838014dd
+  attempt_history: []
 ---
 ## Summary
 
@@ -69,5 +101,10 @@ author: oompah
 created: 2026-08-14 03:46
 ---
 Implemented strict durable external-prerequisite authority, execution-capability profile selection, restart-safe projection, jobless non-transient unavailable outcomes, and exact HTTP/ACP/runtime/profile race fencing. Exact head 68882b83d707a3cfb4988516dba17f1a838014dd is in PR 879 targeting the now-published epic-OOMPAH-1231 integration branch, with auto-merge enabled and CI running.
+---
+author: oompah
+created: 2026-08-14 03:46
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
