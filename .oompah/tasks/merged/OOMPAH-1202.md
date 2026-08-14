@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1202
 type: bug
-status: In Validation
+status: Merged
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-124 identifier=TRICKLE-124 run_id=5ec1b92404db430e9971b34803104ae8
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T00:37:46.158982Z'
-updated_at: '2026-08-13T01:13:59.435396Z'
+updated_at: '2026-08-14T07:30:47.575359Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.terminal_audit:
   queued_comment_posted: true
   oompah.terminal_audit_tracker_projections:
@@ -34,6 +34,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1202
     digest: 964a381cf343e46f2a0c06d6f0642fd123ae146b5f4afe538976b0424605ea6d
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d3284768af2c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1202
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 964a381cf343e46f2a0c06d6f0642fd123ae146b5f4afe538976b0424605ea6d
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #843 merged as 07d742c9c and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:30:44.081120+00:00'
+    selected_ref: origin/main
+    selected_sha: 07d742c9cb37155beb22e8007937125f3ad053aa
+    applied: false
   version: 1
   pending_chain:
   - version: 1
