@@ -416,6 +416,53 @@ async def test_stale_revalidation_supersedes_without_external_effect(
 
 
 @pytest.mark.asyncio
+async def test_same_generation_recurring_revalidation_waits_for_exact_deadline(
+    store, clock
+):
+    generation = "g1:reassess=1100.000000"
+    queued = store.enqueue(
+        job_spec(
+            generation=generation,
+            evidence_revision="facts-g1",
+            head_sha="a" * 40,
+        )
+    )
+    handler = ScriptedHandler()
+    handler.generation = generation
+    handler.current = False
+
+    result = await worker(store, handler).run_once()
+    waiting = store.get(queued.job_id)
+
+    assert result.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+    assert waiting.state is WorkflowJobState.RETRY_WAIT
+    assert waiting.generation == generation
+    assert waiting.attempts == 0
+    assert waiting.retry_at == 1100
+    assert waiting.superseded_by_generation is None
+    assert handler.inspect_calls == 0
+    assert handler.apply_calls == 0
+
+    clock.advance(99)
+    assert (await worker(store, handler).run_once()).disposition is (
+        WorkflowRunDisposition.IDLE
+    )
+    assert store.get(queued.job_id).state is WorkflowJobState.RETRY_WAIT
+
+
+@pytest.mark.asyncio
+async def test_nonrecurring_same_generation_revalidation_remains_superseded(store):
+    queued = store.enqueue(job_spec())
+    handler = ScriptedHandler()
+    handler.current = False
+
+    result = await worker(store, handler).run_once()
+
+    assert result.disposition is WorkflowRunDisposition.SUPERSEDED
+    assert store.get(queued.job_id).state is WorkflowJobState.SUPERSEDED
+
+
+@pytest.mark.asyncio
 async def test_effect_already_applied_skips_apply_and_still_verifies(store):
     store.enqueue(job_spec())
     handler = ScriptedHandler()

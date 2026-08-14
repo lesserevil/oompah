@@ -341,6 +341,92 @@ def test_administrative_deferral_preserves_checkpoint_and_failure_budget(
     assert store.events(queued.job_id)[-1].payload["deferral_count"] == 2
 
 
+def test_reassessment_deferral_preserves_exact_deadline_and_failure_budget(
+    store, clock
+):
+    queued = store.enqueue(spec(max_attempts=1))
+    running = claim(store)
+    assert running is not None
+
+    waiting = store.defer_owned_until(
+        running.job_id,
+        running.lease_token,
+        reason="fresh evidence asks for same-generation reassessment",
+        retry_at=clock.now + 90,
+    )
+
+    assert waiting.state is WorkflowJobState.RETRY_WAIT
+    assert waiting.attempts == 0
+    assert waiting.generation == queued.generation
+    assert waiting.retry_at == clock.now + 90
+    assert waiting.last_error == (
+        "fresh evidence asks for same-generation reassessment"
+    )
+    event = store.events(queued.job_id)[-1]
+    assert event.event_type == "reassessment_deferred"
+    assert event.payload == {
+        "reason": "fresh evidence asks for same-generation reassessment",
+        "replacement_generation": None,
+        "restored_attempts": 0,
+        "retry_at": clock.now + 90,
+    }
+
+
+def test_due_reassessment_deferral_retires_generation_for_scheduler_rotation(
+    store, clock
+):
+    queued = store.enqueue(spec(max_attempts=1))
+    running = claim(store)
+    assert running is not None
+
+    due = store.defer_owned_until(
+        running.job_id,
+        running.lease_token,
+        reason="same-generation reassessment deadline is due",
+        retry_at=clock.now,
+    )
+
+    assert due.state is WorkflowJobState.SUPERSEDED
+    assert due.attempts == 0
+    assert due.retry_at is None
+    assert due.superseded_by_generation == f"reassess:{queued.generation}"
+    assert store.events(queued.job_id)[-1].event_type == "reassessment_due"
+
+
+def test_reassessment_deferral_survives_restart_and_reclaims_at_exact_deadline(
+    tmp_path, clock
+):
+    path = str(tmp_path / "reassessment-restart.sqlite3")
+    first = WorkflowJobStore(path, clock=clock)
+    queued = first.enqueue(spec(generation="g1:reassess=1090.000000"))
+    running = claim(first)
+    assert running is not None
+    first.defer_owned_until(
+        running.job_id,
+        running.lease_token,
+        reason="wait for authoritative recurring deadline",
+        retry_at=1090,
+    )
+    first.close()
+
+    reopened = WorkflowJobStore(path, clock=clock)
+    try:
+        waiting = reopened.get(queued.job_id)
+        assert waiting.state is WorkflowJobState.RETRY_WAIT
+        assert waiting.reassessment_deadline == 1090
+        assert waiting.retry_at == 1090
+        assert claim(reopened) is None
+
+        clock.advance(90)
+        reclaimed = claim(reopened)
+        assert reclaimed is not None
+        assert reclaimed.job_id == queued.job_id
+        assert reclaimed.generation == queued.generation
+        assert reclaimed.attempts == 1
+    finally:
+        reopened.close()
+
+
 def test_administrative_deferral_fences_aba_lease_across_restart(tmp_path, clock):
     path = str(tmp_path / "administrative-restart.sqlite3")
     store = WorkflowJobStore(path, clock=clock)

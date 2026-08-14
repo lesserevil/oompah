@@ -23,6 +23,9 @@ from oompah.workflow_jobs import (
 from oompah.workflow_reasons import AlertSeverity
 from oompah.workflow_scheduler import WorkflowJobScheduler
 from oompah.workflow_worker import (
+    DurableWorkflowWorker,
+    RevalidationResult,
+    WorkflowActionDomain,
     WorkflowRunDisposition,
     WorkflowRunResult,
 )
@@ -90,6 +93,31 @@ def direct_spec(
         action=action,
         idempotency_key=key,
         priority=priority,
+    )
+
+
+class SameGenerationReassessmentHandler:
+    """Return a fresh negative decision without naming newer authority."""
+
+    domain = WorkflowActionDomain.TRACKER
+
+    async def revalidate(self, context):
+        return RevalidationResult(
+            generation=context.job.generation,
+            evidence_revision=context.job.expected_evidence_revision,
+            head_sha=context.job.expected_head_sha,
+            current=False,
+        )
+
+
+def reassessment_worker(store: WorkflowJobStore) -> DurableWorkflowWorker:
+    return DurableWorkflowWorker(
+        store=store,
+        handlers={
+            "implementation_recovery": SameGenerationReassessmentHandler()
+        },
+        transition_services={},
+        worker_id="reassessment-worker",
     )
 
 
@@ -282,6 +310,95 @@ def test_completed_recurring_action_rearms_only_after_reassessment_deadline(
         job_generation=current.job_generation,
         idempotency_keys=(jobs[-1].idempotency_key,),
     )
+
+
+@pytest.mark.asyncio
+async def test_same_generation_reassessment_does_not_amplify_before_deadline(
+    tmp_path, clock
+):
+    path = str(tmp_path / "recurring-reassessment.sqlite3")
+
+    def recurring(deadline: float) -> WorkDecision:
+        return replace(
+            decision(),
+            next_reassessment_at=datetime.fromtimestamp(
+                deadline, tz=timezone.utc
+            ).isoformat(),
+            decision_revision=None,
+        )
+
+    first_store = WorkflowJobStore(path, clock=clock)
+    first_scheduler = WorkflowJobScheduler(store=first_store)
+    first = first_scheduler.reconcile((recurring(1100),))
+    original = first_store.list_jobs()[0]
+
+    deferred = await reassessment_worker(first_store).run_once()
+    waiting = first_store.get(original.job_id)
+
+    assert first.jobs_created == 1
+    assert deferred.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+    assert waiting.state is WorkflowJobState.RETRY_WAIT
+    assert waiting.retry_at == 1100
+    assert waiting.attempts == 0
+
+    # Production world cuts compute a fresh absolute deadline each time. The
+    # semantic scheduling revision deliberately excludes that timestamp, so
+    # every pre-deadline scan must retain the original generation and job.
+    for advance in (10, 20, 30):
+        clock.advance(advance)
+        replay = first_scheduler.reconcile((recurring(clock.now + 100),))
+        assert replay.jobs_created == 0
+        assert replay.jobs_materialized == 1
+        assert replay.schedules_materialized == 1
+        assert replay.truncated is False
+        assert first_store.list_jobs() == (waiting,)
+    first_store.close()
+
+    reopened = WorkflowJobStore(path, clock=clock)
+    try:
+        restarted_scheduler = WorkflowJobScheduler(store=reopened)
+        restarted = restarted_scheduler.reconcile((recurring(clock.now + 100),))
+        persisted = reopened.get(original.job_id)
+
+        assert restarted.jobs_created == 0
+        assert restarted.jobs_materialized == 1
+        assert restarted.schedules_materialized == 1
+        assert persisted.state is WorkflowJobState.RETRY_WAIT
+        assert persisted.retry_at == 1100
+        assert len(reopened.list_jobs()) == 1
+
+        clock.advance(39)
+        assert (
+            await reassessment_worker(reopened).run_once()
+        ).disposition is WorkflowRunDisposition.IDLE
+        before_due = restarted_scheduler.reconcile(
+            (recurring(clock.now + 100),)
+        )
+        assert before_due.jobs_created == 0
+        assert before_due.jobs_materialized == 1
+        assert len(reopened.list_jobs()) == 1
+
+        clock.advance(1)
+        due = await reassessment_worker(reopened).run_once()
+        retired = reopened.get(original.job_id)
+        assert due.disposition is WorkflowRunDisposition.SUPERSEDED
+        assert retired.state is WorkflowJobState.SUPERSEDED
+        assert retired.superseded_by_generation == (
+            f"reassess:{original.generation}"
+        )
+
+        replacement = restarted_scheduler.reconcile(
+            (recurring(clock.now + 100),)
+        )
+        jobs = reopened.list_jobs()
+        assert replacement.jobs_created == 1
+        assert replacement.jobs_materialized == 1
+        assert replacement.schedules_materialized == 1
+        assert len(jobs) == 2
+        assert jobs[-1].state is WorkflowJobState.QUEUED
+        assert jobs[-1].generation != original.generation
+    finally:
+        reopened.close()
 
 
 def test_superseded_current_action_rearms_immediately_for_unchanged_decision(
