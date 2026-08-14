@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T23:58:37.536440Z'
-updated_at: '2026-08-14T00:29:48.988927Z'
+updated_at: '2026-08-14T00:38:06.887027Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -105,5 +105,10 @@ author: oompah
 created: 2026-08-14 00:29
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-14 00:38
+---
+Completed and live-verified. PR #876 merged to main at eb61ed2adae7447952c31b30198849642f7a7ba6 after all Python 3.11/3.12/3.13 CI gates passed. The managed service auto-restarted on that exact revision with only Trickle resumed. Restart reconstruction converged (required=materialized, initially 11/11 and currently 10/10; pending=false), and TRICKLE-134's superseded recurring child_landing_verification generation was immediately rematerialized and executed on successive current generations. Focused scheduler suite: 41 passed; combined scheduler/store/runtime/epic suite: 419 passed; terminal mutation scan: 21/21. Branch/worktree were pushed, merged, and pruned.
 ---
 <!-- COMMENTS:END -->

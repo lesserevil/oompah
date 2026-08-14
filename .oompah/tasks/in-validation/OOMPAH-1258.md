@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T22:41:28.315466Z'
-updated_at: '2026-08-13T23:46:19.617707Z'
+updated_at: '2026-08-14T00:38:09.804663Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -110,5 +110,10 @@ author: oompah
 created: 2026-08-13 23:46
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-14 00:38
+---
+Live acceptance is complete after OOMPAH-1259 deployed. The durable direct_epic_maintenance_completion job for TRICKLE-141 is completed, TRICKLE-141 is Done, and parent TRICKLE-130 carries epic:rebased. Restart reconstruction now converges with pending=false, proving the completion can survive and recover across restart.
 ---
 <!-- COMMENTS:END -->
