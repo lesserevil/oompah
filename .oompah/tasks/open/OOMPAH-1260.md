@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1260
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Prevent recurring scheduler churn after superseded evidence revalidation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T00:43:53.961262Z'
-updated_at: '2026-08-14T00:43:53.961262Z'
+updated_at: '2026-08-14T00:44:51.831904Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: dd002099-ee31-4cf1-a637-09386bf4bc3d
   request_fingerprint: 8659dfa3f103dbd0aa12b6c34378cca3b4feee5d6e7337fa88ef20a251491586
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -35,3 +36,11 @@ Bug exposed by live acceptance of OOMPAH-1259: a recurring managed child_landing
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-14 00:44
+---
+Claimed for direct implementation from live post-deployment acceptance. Oompah remains paused; only Trickle remains resumed. Reproduced stable expected_evidence_revision with per-scan spec revisions, claim-time supersession, and immediate scheduler rotation creating a ~30-second livelock.
+---
+<!-- COMMENTS:END -->
