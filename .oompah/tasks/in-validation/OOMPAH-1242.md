@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T14:32:41.192085Z'
-updated_at: '2026-08-13T15:14:50.882682Z'
+updated_at: '2026-08-14T07:41:19.871225Z'
 work_branch: OOMPAH-1242
 target_branch: null
 review_url: null
@@ -48,6 +48,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1242
     digest: fc85e2fc2123055f28b8967c545a620c690793e6fd88b2612b8ecd86a4d7f07f
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-94a601de302f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1242
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fc85e2fc2123055f28b8967c545a620c690793e6fd88b2612b8ecd86a4d7f07f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #868 merged as 83196da17 and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:41:18.513705+00:00'
+    selected_ref: f10263212cf4f759f81fd2fd034ce383956dfd8f
+    selected_sha: f10263212cf4f759f81fd2fd034ce383956dfd8f
+    applied: false
   version: 1
   pending_chain:
   - version: 1
