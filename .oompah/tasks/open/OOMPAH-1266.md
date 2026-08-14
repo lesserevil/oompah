@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-14T04:56:16.826612Z'
+updated_at: '2026-08-14T05:13:15.343511Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,10 @@ author: oompah
 created: 2026-08-14 04:56
 ---
 Claimed directly on branch OOMPAH-1266 in /home/shedwards/src/oompah-1266 from origin/epic-OOMPAH-1231. Reproducing the webhook-before-submit metadata regression and implementing the smallest monotonic integration-authority fence with same-generation retry idempotency and replacement fail-closed coverage. I will not push, submit, or change terminal status.
+---
+author: oompah
+created: 2026-08-14 05:13
+---
+Implementation complete on local branch OOMPAH-1266 at 91a0d0842784bd42aba8324c86a4a6b026b4dbba. The submit path now preserves exact integrated tracker authority, rejects changed head/base generations, repairs the queue-first restart gap, and avoids queue rearm, lifecycle regression, duplicate coordination, or validation reflow after landing. Integrated queue rows are immutable under exact retry/replacement races, and landed retry retirement is generation-fenced so a successor worker survives. Regression coverage includes webhook-before-submit, submit-before-webhook, lost-response retry, restart gap, mismatched head/base, concurrent replacement, terminal fingerprint stability, and durable authority retirement. Verification: 928 tests passed across submission, handoff, queue, webhook, integration/review workflow, implementation fencing, and terminal fingerprint/transition suites. Focused Ruff checks pass for the directly changed queue/adapter and their new tests; the broad server/test invocation reports pre-existing lint debt outside this change. Per coordination instructions, this commit is local only: not pushed, submitted, or status-transitioned.
 ---
 <!-- COMMENTS:END -->
