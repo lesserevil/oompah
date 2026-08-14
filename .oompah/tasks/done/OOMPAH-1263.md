@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1263
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Park external blockers and retire every stale durable lane
 parent: OOMPAH-1231
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:37.692542Z'
-updated_at: '2026-08-14T04:48:00.621439Z'
+updated_at: '2026-08-14T04:53:35.266986Z'
 work_branch: OOMPAH-1263
 target_branch: null
 review_url: null
@@ -26,7 +26,7 @@ oompah.create_once:
   creation_marker: oompah-1231-park-retirement-v1
   request_fingerprint: 98432ed9fc5b6f6b2f2c9c65ea49a82baf69aba3719cebb46325f1817bfe1024
 oompah.start_blocked_by: *id001
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.terminal_audit:
   queued_comment_posted: true
   oompah.terminal_audit_tracker_projections:
@@ -35,6 +35,33 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1263
     digest: ec9ccef497f001bd8aee3f8893969a73d67c26899de61e5f59e875c48ecd3884
+  - version: 1
+    audit_id: audit-93416b9e3515
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1263
+    digest: 6a2a797a5eb2d6a4eb9f9ce6b729d1c2c1f73357d271bb5e212e6c70357d5d33
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-a1405a25a540
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1263
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6a2a797a5eb2d6a4eb9f9ce6b729d1c2c1f73357d271bb5e212e6c70357d5d33
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Project-owner recovery after a post-merge submission changed the auditable
+      integration projection; PR 880 is merged into epic-OOMPAH-1231, the landed tree
+      equals reviewed head 987c46cb8075073aac18a09c140eafe9526190fd, and GitHub Actions
+      run 31770033759 passed all supported Python versions.
+    created_at: '2026-08-14T04:53:31.814697+00:00'
+    selected_ref: 987c46cb8075073aac18a09c140eafe9526190fd
+    selected_sha: 987c46cb8075073aac18a09c140eafe9526190fd
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -42,7 +69,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1263
     target_state: Done
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -57,6 +84,27 @@ oompah.terminal_audit:
     created_at: '2026-08-14T04:46:48.047549+00:00'
     eligible_at: '2026-08-14T04:46:48.047549+00:00'
     selected_ref: origin/OOMPAH-1263
+    selected_sha: 987c46cb8075073aac18a09c140eafe9526190fd
+  - version: 1
+    audit_id: audit-93416b9e3515
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1263
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6a2a797a5eb2d6a4eb9f9ce6b729d1c2c1f73357d271bb5e212e6c70357d5d33
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Validation
+    created_at: '2026-08-14T04:53:24.952732+00:00'
+    eligible_at: '2026-08-14T04:53:24.952732+00:00'
+    selected_ref: 987c46cb8075073aac18a09c140eafe9526190fd
     selected_sha: 987c46cb8075073aac18a09c140eafe9526190fd
   attempt_history: []
 oompah.integration:
