@@ -810,6 +810,7 @@ def test_prerequisite_resolution_uses_protected_lane_and_fresh_exhausted_generat
             "head_sha": "c" * 40,
             "review_id": None,
             "review_head_sha": None,
+            "target_branch": None,
             "pipeline_id": None,
             "pipeline_head_sha": None,
         },

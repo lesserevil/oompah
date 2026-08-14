@@ -9,6 +9,7 @@ import threading
 from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
+import pytest
 
 import oompah.server as server_module
 from oompah.implementation_prerequisite import (
@@ -100,6 +101,7 @@ def _setup(monkeypatch, issue: Issue, *, profiles=(), active_jobs=()):
         status_actor_login="owner",
         tracker_owner=None,
         status_label_authorized_logins=[],
+        default_branch="main",
     )
     project_store = MagicMock()
     project_store.get.side_effect = lambda project_id: (
@@ -150,7 +152,7 @@ def test_profile_capability_owner_resolution_schedules_exact_payload(monkeypatch
     trigger = RecoveryTrigger(RecoveryTriggerKind.PROFILE_CAPABILITY, "macos")
     issue, record = _issue(trigger)
     profile = AgentProfile(
-        name="mac-runner",
+        name="Mac Runner",
         command="codex",
         execution_capabilities=["macos"],
     )
@@ -175,6 +177,7 @@ def test_profile_capability_owner_resolution_schedules_exact_payload(monkeypatch
             "head_sha": _HEAD,
             "review_id": None,
             "review_head_sha": None,
+            "target_branch": None,
             "pipeline_id": None,
             "pipeline_head_sha": None,
         },
@@ -193,7 +196,7 @@ def test_profile_capability_owner_resolution_schedules_exact_payload(monkeypatch
         "trigger_evidence": {
             "kind": "profile-capability",
             "capability": "macos",
-            "profile_name": "mac-runner",
+            "profile_name": "Mac Runner",
             "profile_revision": freeze_execution_profile_snapshot((profile,)).revision,
         },
         "continuation": response.json()["continuation"],
@@ -321,6 +324,7 @@ def test_equal_live_event_replays_and_conflicting_event_is_rejected(monkeypatch)
             "head_sha": _HEAD,
             "review_id": None,
             "review_head_sha": None,
+            "target_branch": None,
             "pipeline_id": None,
             "pipeline_head_sha": None,
         },
@@ -368,6 +372,7 @@ def test_review_continuation_and_pipeline_are_bound_to_live_exact_head(
         state="open",
         head_sha=_HEAD,
         source_branch="TASK-1",
+        target_branch="main",
         pipeline_id="62564237",
         pipeline_head_sha=_HEAD,
     )
@@ -387,6 +392,7 @@ def test_review_continuation_and_pipeline_are_bound_to_live_exact_head(
     assert continuation["resume_status"] == "In Review"
     assert continuation["review_id"] == "20"
     assert continuation["review_head_sha"] == _HEAD
+    assert continuation["target_branch"] == "main"
     assert continuation["pipeline_id"] == "62564237"
     assert continuation["pipeline_head_sha"] == _HEAD
     assert schedule.call_args.kwargs["expected_head_sha"] == _HEAD
@@ -406,6 +412,7 @@ def test_stale_pipeline_identity_is_rejected_before_scheduling(monkeypatch):
         state="open",
         head_sha=_HEAD,
         source_branch="TASK-1",
+        target_branch="main",
         pipeline_id="replacement-pipeline",
         pipeline_head_sha=_HEAD,
     )
@@ -422,6 +429,64 @@ def test_stale_pipeline_identity_is_rejected_before_scheduling(monkeypatch):
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "stale_pipeline_evidence"
+    schedule.assert_not_called()
+
+
+def test_retargeted_review_is_rejected_before_scheduling(monkeypatch):
+    trigger = RecoveryTrigger(RecoveryTriggerKind.OPERATOR, "runner-online")
+    issue, record = _issue(trigger)
+    issue.work_branch = "TASK-1"
+    issue.target_branch = "main"
+    issue.head_sha = _HEAD
+    issue.review_number = "20"
+    issue.review_head = _HEAD
+    _orch, _tracker, schedule, _store = _setup(monkeypatch, issue)
+    provider = MagicMock()
+    provider.get_review.return_value = SimpleNamespace(
+        id="20",
+        state="open",
+        head_sha=_HEAD,
+        source_branch="TASK-1",
+        target_branch="release",
+        pipeline_id=None,
+        pipeline_head_sha=None,
+    )
+    monkeypatch.setattr(
+        server_module,
+        "detect_provider",
+        lambda *_args, **_kwargs: provider,
+    )
+
+    response = _post(
+        _body(issue, record, operator_action="runner-online")
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "stale_review_evidence"
+    schedule.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "status",
+    ["In Validation", "Done", "Merged", "Archived"],
+)
+def test_resolution_cannot_reopen_audit_or_terminal_status(
+    monkeypatch,
+    status,
+):
+    trigger = RecoveryTrigger(RecoveryTriggerKind.OPERATOR, "runner-online")
+    issue, record = _issue(trigger)
+    issue.state = status
+    _orch, _tracker, schedule, _store = _setup(monkeypatch, issue)
+
+    response = _post(
+        _body(issue, record, operator_action="runner-online")
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == (
+        "resolution_source_status_rejected"
+    )
     schedule.assert_not_called()
 
 
@@ -471,7 +536,7 @@ def test_committed_resolution_replays_before_changed_task_authority(monkeypatch)
         now=datetime(2026, 8, 14, 1, tzinfo=timezone.utc),
     )
     issue.implementation_prerequisite_resolution = resolution.to_dict()
-    issue.state = "Open"
+    issue.state = "Done"
     historical = SimpleNamespace(job_id="historical-job")
     _orch, _tracker, schedule, store = _setup(monkeypatch, issue)
     store.list_jobs.return_value = (historical,)
@@ -501,3 +566,67 @@ def test_accepted_submission_resumes_ready_to_integrate(monkeypatch):
     assert response.json()["continuation"]["work_branch"] == "TASK-1"
     assert response.json()["continuation"]["head_sha"] == _HEAD
     assert schedule.call_args.kwargs["expected_head_sha"] == _HEAD
+
+
+@pytest.mark.parametrize("status", ["Needs CI Fix", "Needs Rebase"])
+def test_blocked_submission_preserves_its_exact_repair_status(
+    monkeypatch,
+    status,
+):
+    trigger = RecoveryTrigger(RecoveryTriggerKind.OPERATOR, "runner-online")
+    issue, record = _issue(trigger)
+    issue.state = status
+    issue.integration = SimpleNamespace(
+        state="blocked",
+        task_branch="TASK-1",
+        head_sha=_HEAD,
+    )
+    _orch, _tracker, schedule, _store = _setup(monkeypatch, issue)
+
+    response = _post(
+        _body(issue, record, operator_action="runner-online")
+    )
+
+    assert response.status_code == 202, response.text
+    continuation = response.json()["continuation"]
+    assert continuation["resume_status"] == status
+    assert continuation["work_branch"] == "TASK-1"
+    assert continuation["head_sha"] == _HEAD
+    assert schedule.call_args.kwargs["payload"]["expected_status"] == status
+
+
+def test_needs_human_submission_preserves_needs_human(monkeypatch):
+    trigger = RecoveryTrigger(RecoveryTriggerKind.OPERATOR, "runner-online")
+    issue, record = _issue(trigger)
+    issue.integration = SimpleNamespace(
+        state="needs_human",
+        task_branch="TASK-1",
+        head_sha=_HEAD,
+    )
+    _orch, _tracker, _schedule, _store = _setup(monkeypatch, issue)
+
+    response = _post(
+        _body(issue, record, operator_action="runner-online")
+    )
+
+    assert response.status_code == 202, response.text
+    assert response.json()["continuation"]["resume_status"] == "Needs Human"
+
+
+def test_integrated_submission_cannot_be_reopened(monkeypatch):
+    trigger = RecoveryTrigger(RecoveryTriggerKind.OPERATOR, "runner-online")
+    issue, record = _issue(trigger)
+    issue.integration = SimpleNamespace(
+        state="integrated",
+        task_branch="TASK-1",
+        head_sha=_HEAD,
+    )
+    _orch, _tracker, schedule, _store = _setup(monkeypatch, issue)
+
+    response = _post(
+        _body(issue, record, operator_action="runner-online")
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "integration_already_integrated"
+    schedule.assert_not_called()

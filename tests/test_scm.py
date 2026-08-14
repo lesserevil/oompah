@@ -1293,6 +1293,7 @@ class TestGitHubReviewQueueState:
         assert review is not None
         assert review.state == "merged"
         assert review.head_sha == "a" * 40
+        assert review.target_branch == "main"
         assert provider.last_review_fetch_ok is True
 
     def test_get_review_distinguishes_confirmed_missing_from_provider_failure(self):
@@ -4460,6 +4461,7 @@ class TestGitLabGetReview:
         assert result.title == "Detailed MR"
         assert result.author == "eve"
         assert result.source_branch == "fix/something"
+        assert result.target_branch == "main"
         assert result.labels == ["bug", "wontfix"]
         assert result.head_sha == "a" * 40
         assert result.base_sha == "b" * 40

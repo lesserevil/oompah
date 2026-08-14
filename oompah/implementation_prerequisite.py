@@ -637,9 +637,18 @@ class ImplementationPrerequisiteRecord:
             return None
 
 
-_CONTINUATION_STATUSES = frozenset(
-    {"Open", "In Progress", "In Review", "Ready to Integrate"}
+PREREQUISITE_RESOLUTION_SOURCE_STATUSES = frozenset(
+    {
+        "Open",
+        "In Progress",
+        "Needs Human",
+        "Needs CI Fix",
+        "Needs Rebase",
+        "In Review",
+        "Ready to Integrate",
+    }
 )
+_CONTINUATION_STATUSES = PREREQUISITE_RESOLUTION_SOURCE_STATUSES
 _SATISFIED_TRIGGER_TASK_STATUSES = frozenset({"Done", "Merged", "Archived"})
 
 
@@ -682,7 +691,8 @@ def canonical_resolution_trigger_evidence(
             or evidence.get("kind") != "profile-capability"
             or evidence.get("capability") != trigger.value
             or type(evidence.get("profile_name")) is not str
-            or _IDENTITY_RE.fullmatch(evidence["profile_name"]) is None
+            or not evidence["profile_name"]
+            or evidence["profile_name"] != evidence["profile_name"].strip()
             or type(evidence.get("profile_revision")) is not str
             or _DIGEST_RE.fullmatch(evidence["profile_revision"]) is None
         ):
@@ -722,13 +732,19 @@ class PrerequisiteContinuation:
     head_sha: str | None = None
     review_id: str | None = None
     review_head_sha: str | None = None
+    target_branch: str | None = None
     pipeline_id: str | None = None
     pipeline_head_sha: str | None = None
 
     def __post_init__(self) -> None:
         if self.resume_status not in _CONTINUATION_STATUSES:
             raise ValueError("resume_status is not a supported continuation phase")
-        for name in ("work_branch", "review_id", "pipeline_id"):
+        for name in (
+            "work_branch",
+            "review_id",
+            "target_branch",
+            "pipeline_id",
+        ):
             value = getattr(self, name)
             if value is not None and (
                 type(value) is not str
@@ -752,6 +768,8 @@ class PrerequisiteContinuation:
             raise ValueError("pipeline_id requires pipeline_head_sha")
         if self.pipeline_id is not None and self.review_id is None:
             raise ValueError("pipeline identity requires exact review identity")
+        if self.target_branch is not None and self.review_id is None:
+            raise ValueError("target_branch requires exact review identity")
         exact_heads = {
             value
             for value in (
@@ -765,6 +783,8 @@ class PrerequisiteContinuation:
             raise ValueError("continuation evidence must identify one exact head")
         if self.resume_status == "In Review" and self.review_id is None:
             raise ValueError("In Review continuation requires exact review identity")
+        if self.resume_status == "In Review" and self.target_branch is None:
+            raise ValueError("In Review continuation requires exact target branch")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -773,6 +793,7 @@ class PrerequisiteContinuation:
             "head_sha": self.head_sha,
             "review_id": self.review_id,
             "review_head_sha": self.review_head_sha,
+            "target_branch": self.target_branch,
             "pipeline_id": self.pipeline_id,
             "pipeline_head_sha": self.pipeline_head_sha,
         }
@@ -785,6 +806,7 @@ class PrerequisiteContinuation:
             "head_sha",
             "review_id",
             "review_head_sha",
+            "target_branch",
             "pipeline_id",
             "pipeline_head_sha",
         }:

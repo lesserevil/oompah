@@ -89,7 +89,7 @@ def _resolution(
         trigger_evidence={
             "kind": "profile-capability",
             "capability": "macos",
-            "profile_name": "mac-runner",
+            "profile_name": "Mac Runner",
             "profile_revision": "e" * 64,
         },
         continuation=PrerequisiteContinuation(
@@ -98,6 +98,7 @@ def _resolution(
             head_sha="b" * 40,
             review_id="20",
             review_head_sha="b" * 40,
+            target_branch="main",
             pipeline_id="62564237",
             pipeline_head_sha="b" * 40,
         ),
@@ -268,6 +269,7 @@ def test_resolution_round_trip_preserves_trickle_review_and_pipeline_identity():
     assert restored == resolution
     assert restored.continuation.resume_status == "In Review"
     assert restored.continuation.review_id == "20"
+    assert restored.continuation.target_branch == "main"
     assert restored.continuation.pipeline_id == "62564237"
     assert restored.continuation.head_sha == "b" * 40
 

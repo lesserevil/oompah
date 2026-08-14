@@ -51,6 +51,7 @@ from oompah.implementation_prerequisite import (
     PrerequisitePersistenceError,
     PrerequisiteResolutionConflictError,
     PrerequisiteSourceChangedError,
+    PREREQUISITE_RESOLUTION_SOURCE_STATUSES,
     RecoveryTriggerKind,
     load_record as load_implementation_prerequisite,
     load_resolution as load_implementation_prerequisite_resolution,
@@ -64,6 +65,7 @@ from oompah.statuses import (
     IN_PROGRESS,
     IN_VALIDATION,
     NEEDS_CI_FIX,
+    NEEDS_HUMAN,
     NEEDS_REBASE,
     OPEN,
     READY_TO_INTEGRATE,
@@ -731,6 +733,17 @@ class OrchestratorImplementationEffects:
                 category=WorkflowFailureCategory.STALE_EVIDENCE,
                 retryable=False,
             )
+        expected_status = canonicalize_status(payload.get("expected_status"))
+        if (
+            expected_status not in PREREQUISITE_RESOLUTION_SOURCE_STATUSES
+            or canonicalize_status(getattr(issue, "state", None))
+            != expected_status
+        ):
+            raise WorkflowActionError(
+                "prerequisite resolution source status is stale or unauthorized",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=False,
+            )
         continuation = PrerequisiteContinuation.from_raw(
             payload.get("continuation")
         )
@@ -912,11 +925,20 @@ class OrchestratorImplementationEffects:
                 "prerequisite continuation branch changed"
             )
         if continuation.resume_status == "In Review":
+            project_store = getattr(self.orchestrator, "project_store", None)
+            get_project = getattr(project_store, "get", None)
+            project = (
+                get_project(self.project_id) if callable(get_project) else None
+            )
+            task_target = _text(getattr(issue, "target_branch", None)) or _text(
+                getattr(project, "default_branch", None)
+            )
             if (
                 _text(getattr(issue, "review_number", None))
                 != _text(continuation.review_id)
                 or _text(getattr(issue, "review_head", None)).lower()
                 != _text(continuation.review_head_sha).lower()
+                or task_target != _text(continuation.target_branch)
             ):
                 raise PrerequisiteSourceChangedError(
                     "task review authority changed before resolution"
@@ -929,6 +951,8 @@ class OrchestratorImplementationEffects:
                 or _text(getattr(review, "state", None)).lower() != "open"
                 or _text(getattr(review, "head_sha", None)).lower()
                 != _text(continuation.review_head_sha).lower()
+                or _text(getattr(review, "target_branch", None))
+                != _text(continuation.target_branch)
                 or (
                     continuation.work_branch is not None
                     and _text(getattr(review, "source_branch", None))
@@ -956,13 +980,55 @@ class OrchestratorImplementationEffects:
                 if isinstance(integration, Mapping)
                 else getattr(integration, "head_sha", None)
             ).lower()
+            integration_state = _text(
+                integration.get("state")
+                if isinstance(integration, Mapping)
+                else getattr(integration, "state", None)
+            ).lower()
             if (
                 not accepted_branch
                 or accepted_branch != continuation.work_branch
                 or integration_head != expected_head
+                or integration_state
+                not in {"ready", "queued", "integrating"}
             ):
                 raise PrerequisiteSourceChangedError(
                     "accepted submission authority changed before resolution"
+                )
+            return
+        integration = getattr(issue, "integration", None)
+        integration_state = _text(
+            integration.get("state")
+            if isinstance(integration, Mapping)
+            else getattr(integration, "state", None)
+        ).lower()
+        integration_head = _text(
+            integration.get("head_sha")
+            if isinstance(integration, Mapping)
+            else getattr(integration, "head_sha", None)
+        ).lower()
+        accepted_branch = accepted_submission_branch(issue)
+        current_status = canonicalize_status(getattr(issue, "state", None))
+        if continuation.resume_status in {NEEDS_CI_FIX, NEEDS_REBASE}:
+            if (
+                integration_state != "blocked"
+                or current_status != continuation.resume_status
+                or accepted_branch != continuation.work_branch
+                or integration_head != expected_head
+            ):
+                raise PrerequisiteSourceChangedError(
+                    "blocked submission authority changed before resolution"
+                )
+            return
+        if continuation.resume_status == NEEDS_HUMAN:
+            if (
+                integration_state != "needs_human"
+                or current_status != NEEDS_HUMAN
+                or accepted_branch != continuation.work_branch
+                or integration_head != expected_head
+            ):
+                raise PrerequisiteSourceChangedError(
+                    "needs-human submission authority changed before resolution"
                 )
             return
         if expected_head and expected_head != record.source_head_sha and (
@@ -994,6 +1060,18 @@ class OrchestratorImplementationEffects:
                 != resolution.expected_task_authority
             ):
                 return False
+            expected_status = canonicalize_status(
+                (context.job.payload or {}).get("expected_status")
+            )
+            if (
+                expected_status
+                not in PREREQUISITE_RESOLUTION_SOURCE_STATUSES
+                or canonicalize_status(getattr(current, "state", None))
+                != expected_status
+            ):
+                raise PrerequisiteSourceChangedError(
+                    "prerequisite resolution source status changed"
+                )
             self._assert_prerequisite_trigger_current(
                 current,
                 record,

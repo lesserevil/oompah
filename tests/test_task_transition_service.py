@@ -2621,6 +2621,182 @@ async def test_expired_authorized_recovery_uses_compensation_lane(
 
 
 @pytest.mark.asyncio
+async def test_prerequisite_recovery_final_cas_does_not_overwrite_replacement(
+    tmp_path,
+):
+    original = _issue(state="Needs Human")
+    tracker = FakeTracker(original)
+    lock = threading.Lock()
+    journal = TransitionJournal(str(tmp_path / "transitions.sqlite3"))
+    service = _service(
+        tmp_path,
+        tracker,
+        journal=journal,
+        mutation_write_lock=lambda: lock,
+    )
+    intent = _intent(
+        original,
+        requested_status="In Review",
+        actor="project-owner",
+        authority=TransitionAuthority.PROJECT_OWNER,
+        reason_code="implementation.prerequisite_resolution",
+        idempotency_key="prerequisite-resolution-1",
+        originating_job="prerequisite-resolution-1",
+        evidence_generation=None,
+        exact_head=original.head_sha,
+    )
+    prevalidated = threading.Event()
+    allow_final_cas = threading.Event()
+    original_append = journal.append
+
+    def pause_after_prevalidation(*args, **kwargs):
+        result = original_append(*args, **kwargs)
+        if args[1] is TransitionPhase.APPLYING:
+            prevalidated.set()
+            assert allow_final_cas.wait(timeout=3)
+        return result
+
+    journal.append = pause_after_prevalidation
+
+    task = asyncio.create_task(service.recover_authorized(intent))
+    assert await asyncio.to_thread(prevalidated.wait, 1)
+    replacement = replace(
+        original,
+        state="Done",
+        title="Concurrent replacement",
+        assignment_id="replacement-generation",
+        head_sha="f" * 40,
+    )
+    with lock:
+        tracker.issue = replacement
+    allow_final_cas.set()
+    outcome = await asyncio.wait_for(task, timeout=2)
+
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == "transition.stale_status"
+    assert tracker.issue == replacement
+    assert tracker.updates == []
+
+
+@pytest.mark.asyncio
+async def test_prerequisite_recovery_rejects_unrelated_matching_target_status(
+    tmp_path,
+):
+    original = _issue(state="Needs Human", lifecycle_revision=4)
+    replacement = replace(
+        original,
+        state="In Review",
+        lifecycle_revision=5,
+        assignment_id="replacement-generation",
+        head_sha="f" * 40,
+    )
+    tracker = FakeTracker(replacement)
+    service = _service(tmp_path, tracker)
+    intent = _intent(
+        original,
+        requested_status="In Review",
+        actor="project-owner",
+        authority=TransitionAuthority.PROJECT_OWNER,
+        reason_code="implementation.prerequisite_resolution",
+        idempotency_key="prerequisite-resolution-replacement",
+        originating_job="prerequisite-resolution-replacement",
+        evidence_generation=None,
+        exact_head=original.head_sha,
+    )
+
+    outcome = await service.recover_authorized(intent)
+
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == "transition.head_mismatch"
+    assert tracker.issue == replacement
+    assert tracker.updates == []
+
+
+@pytest.mark.asyncio
+async def test_prerequisite_recovery_commits_once_under_nonreentrant_lock(
+    tmp_path,
+):
+    issue = _issue(state="Needs Human", lifecycle_revision=4)
+    write_lock = threading.Lock()
+
+    class LockCheckingTracker(FakeTracker):
+        def update_issue(self, identifier: str, **fields: str) -> None:
+            assert write_lock.locked()
+            prior_revision = self.issue.lifecycle_revision
+            super().update_issue(identifier, **fields)
+            self.issue = replace(
+                self.issue,
+                lifecycle_revision=prior_revision + 1,
+            )
+
+    tracker = LockCheckingTracker(issue)
+    service = _service(
+        tmp_path,
+        tracker,
+        mutation_write_lock=lambda: write_lock,
+    )
+    intent = _intent(
+        issue,
+        requested_status="In Review",
+        actor="project-owner",
+        authority=TransitionAuthority.PROJECT_OWNER,
+        reason_code="implementation.prerequisite_resolution",
+        idempotency_key="prerequisite-resolution-1",
+        originating_job="prerequisite-resolution-1",
+        evidence_generation=None,
+        exact_head=issue.head_sha,
+    )
+
+    outcome = await asyncio.wait_for(
+        service.recover_authorized(intent),
+        timeout=2,
+    )
+    replay = await asyncio.wait_for(
+        service.recover_authorized(intent),
+        timeout=2,
+    )
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert replay.disposition is TransitionDisposition.APPLIED
+    assert replay.transition_id == outcome.transition_id
+    assert replay.replayed is True
+    assert tracker.issue.lifecycle_revision == 5
+    assert tracker.updates == [("TASK-1", "In Review")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "status",
+    ["In Validation", "Done", "Merged", "Archived"],
+)
+async def test_prerequisite_recovery_cannot_reopen_audit_or_terminal_status(
+    tmp_path,
+    status,
+):
+    issue = _issue(state=status)
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+    intent = _intent(
+        issue,
+        requested_status="Open",
+        actor="project-owner",
+        authority=TransitionAuthority.PROJECT_OWNER,
+        reason_code="implementation.prerequisite_resolution",
+        idempotency_key=f"prerequisite-{status}",
+        originating_job=f"prerequisite-{status}",
+        evidence_generation=None,
+        exact_head=issue.head_sha,
+    )
+
+    outcome = await service.recover_authorized(intent)
+
+    assert outcome.disposition is TransitionDisposition.REJECTED
+    assert outcome.reason_code == "transition.recovery_source_status_rejected"
+    assert tracker.issue == issue
+    assert tracker.updates == []
+
+
+@pytest.mark.asyncio
 async def test_expired_recovery_fences_conflicting_newer_intent(tmp_path):
     clock = [100.0]
     journal = TransitionJournal(

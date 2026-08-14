@@ -86,6 +86,7 @@ from oompah.integration import (
 from oompah.implementation_prerequisite import (
     ImplementationPrerequisiteRecord,
     ImplementationPrerequisiteResolution,
+    PREREQUISITE_RESOLUTION_SOURCE_STATUSES,
     PrerequisiteContinuation,
     RecoveryTriggerKind,
     resolution_is_current,
@@ -15215,6 +15216,34 @@ def _integration_value(issue: Any, field: str) -> str | None:
     return normalized or None
 
 
+def _prerequisite_resolution_source_status(issue: Any) -> str:
+    """Reject lifecycle phases not owned by implementation continuation."""
+
+    status = canonicalize_status(getattr(issue, "state", None))
+    if status not in PREREQUISITE_RESOLUTION_SOURCE_STATUSES:
+        raise _PrerequisiteResolutionRequestError(
+            "resolution_source_status_rejected",
+            "Implementation prerequisite resolution cannot reopen this task "
+            "phase; terminal revisions require terminal-provenance rearm and "
+            "audit-controlled validation must finish through its own workflow.",
+        )
+    return status
+
+
+def _prerequisite_review_target(project: Any, issue: Any) -> str:
+    target = str(
+        getattr(issue, "target_branch", None)
+        or getattr(project, "default_branch", None)
+        or ""
+    ).strip()
+    if not target:
+        raise _PrerequisiteResolutionRequestError(
+            "review_target_unavailable",
+            "The task and project do not identify an exact review target branch.",
+        )
+    return target
+
+
 def _live_prerequisite_review(
     project: Any,
     issue: Any,
@@ -15241,11 +15270,14 @@ def _live_prerequisite_review(
             503,
         )
     review = provider.get_review(extract_repo_slug(project.repo_url), review_id)
+    expected_target = _prerequisite_review_target(project, issue)
     if (
         review is None
         or str(review.id) != review_id
         or str(review.state).strip().lower() != "open"
         or str(review.head_sha or "").strip().lower() != review_head
+        or str(getattr(review, "target_branch", None) or "").strip()
+        != expected_target
     ):
         raise _PrerequisiteResolutionRequestError(
             "stale_review_evidence",
@@ -15295,6 +15327,8 @@ def _prerequisite_continuation(
         or ""
     ).strip() or None
     head = issue_exact_head(issue) or record.source_head_sha
+    current_status = _prerequisite_resolution_source_status(issue)
+    target_branch = None
     if live_review is not None:
         head = str(live_review.head_sha).strip().lower()
         if (
@@ -15312,18 +15346,73 @@ def _prerequisite_continuation(
         status = IN_REVIEW
         review_id = str(live_review.id)
         review_head = head
-    elif accepted_submission_branch(issue):
+        target_branch = str(
+            getattr(live_review, "target_branch", None) or ""
+        ).strip()
+    elif _integration_value(issue, "state") in {
+        "ready",
+        "queued",
+        "integrating",
+    }:
         branch = accepted_submission_branch(issue)
+        if not branch:
+            raise _PrerequisiteResolutionRequestError(
+                "continuation_evidence_invalid",
+                "Ready submission continuation lacks an exact branch and head.",
+            )
         head = str(_integration_value(issue, "head_sha") or "").lower() or None
         status = READY_TO_INTEGRATE
         review_id = None
         review_head = None
-    else:
-        status = (
-            IN_PROGRESS
-            if canonicalize_status(getattr(issue, "state", None)) == IN_PROGRESS
-            else OPEN
+    elif _integration_value(issue, "state") == "blocked":
+        if current_status not in {NEEDS_CI_FIX, NEEDS_REBASE}:
+            raise _PrerequisiteResolutionRequestError(
+                "integration_gate_status_mismatch",
+                "Blocked submission evidence can only preserve Needs CI Fix "
+                "or Needs Rebase.",
+            )
+        branch = accepted_submission_branch(issue)
+        head = str(_integration_value(issue, "head_sha") or "").lower() or None
+        if not branch or not head:
+            raise _PrerequisiteResolutionRequestError(
+                "continuation_evidence_invalid",
+                "Blocked submission continuation lacks an exact branch and head.",
+            )
+        status = current_status
+        review_id = None
+        review_head = None
+    elif _integration_value(issue, "state") == "needs_human":
+        if current_status != NEEDS_HUMAN:
+            raise _PrerequisiteResolutionRequestError(
+                "integration_gate_status_mismatch",
+                "Needs-human submission evidence can only preserve Needs Human.",
+            )
+        branch = accepted_submission_branch(issue)
+        head = str(_integration_value(issue, "head_sha") or "").lower() or None
+        if not branch or not head:
+            raise _PrerequisiteResolutionRequestError(
+                "continuation_evidence_invalid",
+                "Needs-human submission continuation lacks an exact branch and head.",
+            )
+        status = current_status
+        review_id = None
+        review_head = None
+    elif _integration_value(issue, "state") == "integrated":
+        raise _PrerequisiteResolutionRequestError(
+            "integration_already_integrated",
+            "Integrated submission evidence cannot be reopened by prerequisite "
+            "resolution.",
         )
+    else:
+        if current_status in {OPEN, IN_PROGRESS}:
+            status = current_status
+        elif current_status == NEEDS_HUMAN:
+            status = OPEN
+        else:
+            raise _PrerequisiteResolutionRequestError(
+                "continuation_evidence_invalid",
+                "The current task phase lacks exact review or submission evidence.",
+            )
         review_id = None
         review_head = None
     if pipeline_id and not head:
@@ -15339,6 +15428,7 @@ def _prerequisite_continuation(
             head_sha=head,
             review_id=review_id,
             review_head_sha=review_head,
+            target_branch=target_branch,
             pipeline_id=pipeline_id,
             pipeline_head_sha=head if pipeline_id else None,
         )
@@ -15544,6 +15634,7 @@ def _schedule_prerequisite_resolution(
             )
             if committed is not None:
                 return committed
+            _prerequisite_resolution_source_status(fresh)
             current_authority = issue_authority_version(fresh)
             if current_authority != fields["task_authority"]:
                 raise _PrerequisiteResolutionRequestError(
@@ -15673,6 +15764,7 @@ async def api_resolve_implementation_prerequisite(
         )
         if committed is not None:
             return JSONResponse(committed, status_code=200)
+        _prerequisite_resolution_source_status(issue)
         live_review = await _run_control_api_io(
             _live_prerequisite_review,
             project,

@@ -29,12 +29,15 @@ import threading
 import time
 import uuid
 from collections.abc import Callable, Iterable, Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Protocol
 
 from oompah.integration import direct_epic_maintenance_handoff_ready
+from oompah.implementation_prerequisite import (
+    PREREQUISITE_RESOLUTION_SOURCE_STATUSES,
+)
 from oompah.models import Issue
 from oompah.statuses import (
     ARCHIVED,
@@ -1851,6 +1854,170 @@ class TaskTransitionService:
 
         return await asyncio.to_thread(commit)
 
+    def _authorized_recovery_commit_conflict(
+        self,
+        intent: TransitionIntent,
+        issue: Issue | None,
+    ) -> str | None:
+        """Re-prove one compensation's exact task authority in its write lane."""
+
+        if issue is None:
+            return "transition.task_missing"
+        if issue.project_id and str(issue.project_id) != intent.project_id:
+            return "transition.project_mismatch"
+        if (
+            intent.reason_code == "implementation.prerequisite_resolution"
+            and intent.expected_status
+            not in PREREQUISITE_RESOLUTION_SOURCE_STATUSES
+        ):
+            return "transition.recovery_source_status_rejected"
+        if canonicalize_status(issue.state) != intent.expected_status:
+            return "transition.stale_status"
+        if issue_authority_version(issue) != intent.expected_version:
+            return "transition.stale_version"
+        if intent.exact_head:
+            observed_head = issue_exact_head(issue)
+            if observed_head != intent.exact_head:
+                return (
+                    "transition.head_missing"
+                    if observed_head is None
+                    else "transition.head_mismatch"
+                )
+        return None
+
+    def _authorized_recovery_applied_conflict(
+        self,
+        intent: TransitionIntent,
+        issue: Issue | None,
+    ) -> str | None:
+        """Verify that an observed target status is this intent's exact effect."""
+
+        if issue is None:
+            return "transition.task_missing"
+        if issue.project_id and str(issue.project_id) != intent.project_id:
+            return "transition.project_mismatch"
+        if (
+            intent.reason_code == "implementation.prerequisite_resolution"
+            and intent.expected_status
+            not in PREREQUISITE_RESOLUTION_SOURCE_STATUSES
+        ):
+            return "transition.recovery_source_status_rejected"
+        if canonicalize_status(issue.state) != intent.requested_status:
+            return "transition.stale_status"
+        if intent.exact_head:
+            observed_head = issue_exact_head(issue)
+            if observed_head != intent.exact_head:
+                return (
+                    "transition.head_missing"
+                    if observed_head is None
+                    else "transition.head_mismatch"
+                )
+        before = replace(issue, state=intent.expected_status)
+        candidates = [before]
+        observed_revision = getattr(issue, "lifecycle_revision", None)
+        if (
+            isinstance(observed_revision, int)
+            and not isinstance(observed_revision, bool)
+            and observed_revision > 0
+        ):
+            candidates.append(
+                replace(before, lifecycle_revision=observed_revision - 1)
+            )
+        if any(
+            issue_authority_version(candidate) == intent.expected_version
+            for candidate in candidates
+        ):
+            return None
+        return "transition.stale_version"
+
+    @staticmethod
+    def _authorized_recovery_effect_matches(
+        intent: TransitionIntent,
+        before: Issue | None,
+        after: Issue | None,
+    ) -> bool:
+        """Verify only the status effect, including native revision semantics."""
+
+        if before is None or after is None:
+            return False
+        if canonicalize_status(after.state) != intent.requested_status:
+            return False
+        expected = replace(before, state=intent.requested_status)
+        if issue_authority_version(after) == issue_authority_version(expected):
+            return True
+        prior_revision = getattr(before, "lifecycle_revision", None)
+        if isinstance(prior_revision, bool) or not isinstance(prior_revision, int):
+            prior_revision = 0
+        incremented = replace(
+            expected,
+            lifecycle_revision=prior_revision + 1,
+        )
+        return issue_authority_version(after) == issue_authority_version(
+            incremented
+        )
+
+    async def _commit_authorized_recovery_update(
+        self,
+        intent: TransitionIntent,
+    ) -> tuple[Issue | None, str | None, Exception | None]:
+        """Final-CAS an authorized recovery and its status write atomically."""
+
+        fetch = self.tracker.fetch_issue_detail
+        update = self.tracker.update_issue
+        write_lock = (
+            self._mutation_write_lock
+            or self._direct_owner_write_lock
+            or self._write_lock
+        )
+        if inspect.iscoroutinefunction(fetch) or inspect.iscoroutinefunction(update):
+            context = (
+                write_lock()
+                if write_lock is not None
+                else contextlib.nullcontext()
+            )
+            with context:
+                observed = (
+                    await fetch(intent.task_id)
+                    if inspect.iscoroutinefunction(fetch)
+                    else fetch(intent.task_id)
+                )
+                if isinstance(observed, Issue) and not observed.project_id:
+                    observed.project_id = self.project_id
+                issue = observed if isinstance(observed, Issue) else None
+                conflict = self._authorized_recovery_commit_conflict(intent, issue)
+                if conflict is not None:
+                    return issue, conflict, None
+                try:
+                    if inspect.iscoroutinefunction(update):
+                        await update(intent.task_id, status=intent.requested_status)
+                    else:
+                        update(intent.task_id, status=intent.requested_status)
+                except Exception as exc:  # noqa: BLE001 - verify exact readback
+                    return issue, None, exc
+                return issue, None, None
+
+        def commit() -> tuple[Issue | None, str | None, Exception | None]:
+            context = (
+                write_lock()
+                if write_lock is not None
+                else contextlib.nullcontext()
+            )
+            with context:
+                observed = fetch(intent.task_id)
+                if isinstance(observed, Issue) and not observed.project_id:
+                    observed.project_id = self.project_id
+                issue = observed if isinstance(observed, Issue) else None
+                conflict = self._authorized_recovery_commit_conflict(intent, issue)
+                if conflict is not None:
+                    return issue, conflict, None
+                try:
+                    update(intent.task_id, status=intent.requested_status)
+                except Exception as exc:  # noqa: BLE001 - verify exact readback
+                    return issue, None, exc
+                return issue, None, None
+
+        return await asyncio.to_thread(commit)
+
     def _outcome(
         self,
         transition_id: str,
@@ -2883,8 +3050,27 @@ class TaskTransitionService:
                 return outcome
 
             observed_status = canonicalize_status(issue.state)
-            observed_version = issue_authority_version(issue)
             if observed_status == intent.requested_status:
+                applied_conflict = self._authorized_recovery_applied_conflict(
+                    intent,
+                    issue,
+                )
+                if applied_conflict is not None:
+                    outcome = self._outcome(
+                        transition_id,
+                        intent,
+                        TransitionDisposition.REJECTED,
+                        applied_conflict,
+                        issue,
+                    )
+                    await asyncio.to_thread(
+                        self.journal.append,
+                        transition_id,
+                        TransitionPhase.REJECTED,
+                        outcome.reason_code,
+                        outcome,
+                    )
+                    return outcome
                 outcome = self._outcome(
                     transition_id,
                     intent,
@@ -2901,13 +3087,14 @@ class TaskTransitionService:
                     outcome,
                 )
                 return outcome
-            stale_reason = None
+            stale_reason = self._authorized_recovery_commit_conflict(
+                intent,
+                issue,
+            )
             stale_details: dict[str, Any] = {}
-            if observed_status != intent.expected_status:
-                stale_reason = "transition.stale_status"
+            if stale_reason == "transition.stale_status":
                 stale_details["expected_status"] = intent.expected_status
-            elif observed_version != intent.expected_version:
-                stale_reason = "transition.stale_version"
+            elif stale_reason == "transition.stale_version":
                 stale_details["expected_version"] = intent.expected_version
             if stale_reason is not None:
                 outcome = self._outcome(
@@ -2933,11 +3120,38 @@ class TaskTransitionService:
                 TransitionPhase.APPLYING,
                 intent.reason_code,
             )
+            committed_issue: Issue | None = None
             try:
-                await self._update(intent.task_id, intent.requested_status)
+                committed_issue, commit_conflict, write_error = (
+                    await self._commit_authorized_recovery_update(intent)
+                )
+                if commit_conflict is not None:
+                    outcome = self._outcome(
+                        transition_id,
+                        intent,
+                        TransitionDisposition.REJECTED,
+                        commit_conflict,
+                        committed_issue or issue,
+                    )
+                    await asyncio.to_thread(
+                        self.journal.append,
+                        transition_id,
+                        TransitionPhase.REJECTED,
+                        outcome.reason_code,
+                        outcome,
+                    )
+                    return outcome
+                if write_error is not None:
+                    raise write_error
             except Exception as exc:  # noqa: BLE001 - verify ambiguous write
                 latest, _ = await self._try_fetch(intent.task_id)
-                if latest and canonicalize_status(latest.state) == intent.requested_status:
+                if (
+                    self._authorized_recovery_effect_matches(
+                        intent,
+                        committed_issue,
+                        latest,
+                    )
+                ):
                     outcome = self._outcome(
                         transition_id,
                         intent,
@@ -2973,7 +3187,11 @@ class TaskTransitionService:
                 return outcome
 
             latest, _ = await self._try_fetch(intent.task_id)
-            if latest is None or canonicalize_status(latest.state) != intent.requested_status:
+            if not self._authorized_recovery_effect_matches(
+                intent,
+                committed_issue,
+                latest,
+            ):
                 outcome = self._outcome(
                     transition_id,
                     intent,
