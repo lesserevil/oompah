@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T01:17:47.268102Z'
-updated_at: '2026-08-14T01:38:04.647747Z'
+updated_at: '2026-08-14T01:40:07.168028Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,5 +53,10 @@ author: oompah
 created: 2026-08-14 01:38
 ---
 Correction from exact live audit: TRICKLE-136's current review is GitLab MR !14, not !19. Accepted head is 835ae43684ab47660a77e2a04a10b414a0f0181d; remote branch and MR !14 head are fea95f192d66fbf07f0188ad632e42c0ceb21d52. The heads diverge. The MR is open, non-draft, conflict-free, and pending only on the required offline macOS runner.
+---
+author: oompah
+created: 2026-08-14 01:40
+---
+Live in-flight workaround completed safely while Trickle remained paused: a fresh exact-head clone verified branch and MR !14 at fea95f192d66fbf07f0188ad632e42c0ceb21d52,  rebound TRICKLE-136, and the server detail now confirms ready/standalone authority at that exact head. The temporary clone was moved to trash. This unblocks the existing task after resume; OOMPAH-1261 remains required to prevent retry exhaustion before explicit resubmission.
 ---
 <!-- COMMENTS:END -->
