@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:16:04.050669Z'
-updated_at: '2026-08-14T07:29:33.726703Z'
+updated_at: '2026-08-14T07:29:41.640181Z'
 work_branch: OOMPAH-1227
 target_branch: null
 review_url: null
@@ -56,7 +56,21 @@ oompah.terminal_audit:
     created_at: '2026-08-14T07:29:27.171052+00:00'
     selected_ref: 7887a5d9eb293c686e649dc70e275042a69ee70f
     selected_sha: 7887a5d9eb293c686e649dc70e275042a69ee70f
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1227
+    target_state: Merged
+    evidence_fingerprint: 66af1616c951ff2737e29c959515faf06dbb08e50130bd6ab80d3092b50cc336
+    workflow_revision: null
+    selected_ref: 7887a5d9eb293c686e649dc70e275042a69ee70f
+    selected_sha: 7887a5d9eb293c686e649dc70e275042a69ee70f
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-14T07:29:39.509488+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -87,5 +101,12 @@ author: oompah
 created: 2026-08-13 09:47
 ---
 Hydrate incomplete GitLab merge-request identity from the exact detail endpoint and fail closed when immutable head/base identity remains unavailable. Focused provider tests and hosted CI on Python 3.11, 3.12, and 3.13 pass.
+---
+author: oompah
+created: 2026-08-14 07:29
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner convergence: PR #856 merged as 04f76e840 with all hosted checks passing, and the landed tree is contained by origin/main; this stale Open projection requires no further implementation.
 ---
 <!-- COMMENTS:END -->
