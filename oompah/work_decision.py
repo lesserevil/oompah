@@ -732,10 +732,24 @@ def _implementation_decision(
     )
     if pending_action not in IMPLEMENTATION_ACTION_JOBS:
         pending_action = ""
+    submission_recovery_state = str(
+        (config_value or {}).get("accepted_submission_recovery_state") or ""
+    ).strip()
     prerequisite_wait = _implementation_prerequisite_wait(
         task, facts, config_value
     )
-    if prerequisite_wait is not None and pending_action != "validation_submission":
+    prerequisite_retirement_pending = bool(
+        (config_value or {}).get(
+            "implementation_prerequisite_retirement_pending"
+        )
+        and pending_action == "authority_revocation"
+    )
+    if (
+        prerequisite_wait is not None
+        and pending_action != "validation_submission"
+        and not submission_recovery_state.startswith("accepted_submission_")
+        and not prerequisite_retirement_pending
+    ):
         return prerequisite_wait
     authority = facts.fact(FactDomain.IMPLEMENTATION_AUTHORITY)
     authority_value = (
@@ -751,6 +765,7 @@ def _implementation_decision(
     }
     if pending_action and (
         pending_action in authority_independent_actions
+        or prerequisite_retirement_pending
         or (authority_value is not None and _valid_lease(authority_value, now))
     ):
         return _decision(
@@ -763,9 +778,6 @@ def _implementation_decision(
             alert=AlertSeverity.INFO,
             durable_jobs=(pending_action,),
         )
-    submission_recovery_state = str(
-        (config_value or {}).get("accepted_submission_recovery_state") or ""
-    ).strip()
     if submission_recovery_state.startswith("accepted_submission_"):
         # Accepted integration metadata is stronger than an expired or absent
         # implementer lease.  Exact/landed evidence publishes
@@ -862,22 +874,68 @@ def _implementation_prerequisite_wait(
     kind = str(admission.get("kind") or "malformed").strip()
     if kind == "capable-profile":
         return None
+    if bool(
+        (config_value or {}).get(
+            "implementation_prerequisite_replacement_active"
+        )
+    ):
+        # A current implementation generation which does not match the
+        # prerequisite's captured source/consumer won the race. It remains
+        # authoritative until it exits; parking on stale source evidence must
+        # never revoke or hide that replacement.
+        return None
     subject = str(admission.get("subject") or task.task_id).strip() or task.task_id
+    trigger = _mapping(admission.get("recovery_trigger"))
+    trigger_kind = str((trigger or {}).get("kind") or "").strip()
+    trigger_value = str((trigger or {}).get("value") or "").strip()
+    trigger_project = str((trigger or {}).get("project_id") or "").strip()
+    if kind == "blocked-dependency":
+        prerequisite_code = "implementation.external_dependency"
+        prerequisite_subject = (
+            f"{trigger_project}/{trigger_value}"
+            if trigger_project and trigger_value
+            else trigger_value or subject
+        )
+        disposition = TaskDisposition.BLOCKED
+        owner = WorkflowOwner.DISPATCHER
+        action = PermittedAction.WAIT_DEPENDENCY
+        alert = AlertSeverity.NONE
+    elif kind == "blocked-capability":
+        prerequisite_code = "implementation.execution_capability_unavailable"
+        prerequisite_subject = trigger_value or subject
+        disposition = TaskDisposition.ACTION_REQUIRED
+        owner = WorkflowOwner.OPERATOR
+        action = PermittedAction.RESOLVE_OPERATOR_ACTION
+        alert = AlertSeverity.WARNING
+    elif kind == "blocked-operator":
+        prerequisite_code = "implementation.operator_prerequisite"
+        prerequisite_subject = trigger_value or subject
+        disposition = TaskDisposition.ACTION_REQUIRED
+        owner = WorkflowOwner.OPERATOR
+        action = PermittedAction.RESOLVE_OPERATOR_ACTION
+        alert = AlertSeverity.WARNING
+    else:
+        prerequisite_code = "implementation.prerequisite_record_malformed"
+        prerequisite_subject = subject
+        disposition = TaskDisposition.ACTION_REQUIRED
+        owner = WorkflowOwner.OPERATOR
+        action = PermittedAction.RESOLVE_OPERATOR_ACTION
+        alert = AlertSeverity.WARNING
     return _decision(
         task,
         facts,
-        disposition=TaskDisposition.BLOCKED,
+        disposition=disposition,
         reason_code="implementation.external_prerequisite",
-        owner=WorkflowOwner.DISPATCHER,
+        owner=owner,
         prerequisites=(
             UnmetPrerequisite(
-                "implementation.external_prerequisite",
-                subject,
-                kind,
+                prerequisite_code,
+                prerequisite_subject,
+                trigger_kind or kind,
             ),
         ),
-        actions=(PermittedAction.WAIT_DEPENDENCY,),
-        alert=AlertSeverity.INFO,
+        actions=(action,),
+        alert=alert,
     )
 
 
@@ -2602,6 +2660,24 @@ def _evaluate_task_default_policy(
                 ),
                 actions=(PermittedAction.RECONCILE_IMPLEMENTATION,),
                 alert=AlertSeverity.INFO,
+            )
+        if (
+            pending_action == "authority_revocation"
+            and bool(
+                config_value.get(
+                    "implementation_prerequisite_retirement_pending"
+                )
+            )
+        ):
+            return _decision(
+                view,
+                facts,
+                disposition=TaskDisposition.RETRY_SCHEDULED,
+                reason_code="implementation.action_scheduled",
+                owner=WorkflowOwner.DISPATCHER,
+                actions=(PermittedAction.RECONCILE_IMPLEMENTATION,),
+                alert=AlertSeverity.INFO,
+                durable_jobs=(pending_action,),
             )
         prerequisite_wait = _implementation_prerequisite_wait(
             view, facts, config_value

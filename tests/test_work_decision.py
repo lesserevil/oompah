@@ -110,12 +110,45 @@ def _facts(issue, *, overrides=None, landings=()):
 
 
 @pytest.mark.parametrize(
-    "admission_kind",
-    ("blocked-dependency", "blocked-operator", "blocked-capability", "malformed"),
+    ("admission_kind", "trigger", "disposition", "owner", "action", "alert"),
+    (
+        (
+            "blocked-dependency",
+            {"kind": "task", "project_id": "project-2", "value": "TASK-9"},
+            TaskDisposition.BLOCKED,
+            WorkflowOwner.DISPATCHER,
+            PermittedAction.WAIT_DEPENDENCY,
+            AlertSeverity.NONE,
+        ),
+        (
+            "blocked-operator",
+            {"kind": "operator", "value": "renew-credential"},
+            TaskDisposition.ACTION_REQUIRED,
+            WorkflowOwner.OPERATOR,
+            PermittedAction.RESOLVE_OPERATOR_ACTION,
+            AlertSeverity.WARNING,
+        ),
+        (
+            "blocked-capability",
+            {"kind": "profile-capability", "value": "macos-hardware"},
+            TaskDisposition.ACTION_REQUIRED,
+            WorkflowOwner.OPERATOR,
+            PermittedAction.RESOLVE_OPERATOR_ACTION,
+            AlertSeverity.WARNING,
+        ),
+        (
+            "malformed",
+            None,
+            TaskDisposition.ACTION_REQUIRED,
+            WorkflowOwner.OPERATOR,
+            PermittedAction.RESOLVE_OPERATOR_ACTION,
+            AlertSeverity.WARNING,
+        ),
+    ),
 )
 @pytest.mark.parametrize("status", (OPEN, IN_PROGRESS))
 def test_durable_implementation_prerequisite_is_jobless_non_transient(
-    status, admission_kind
+    status, admission_kind, trigger, disposition, owner, action, alert
 ):
     issue = _issue(status)
     facts = _facts(
@@ -127,6 +160,7 @@ def test_durable_implementation_prerequisite_is_jobless_non_transient(
                     "implementation_prerequisite_admission": {
                         "kind": admission_kind,
                         "subject": "external-resource",
+                        "recovery_trigger": trigger,
                     }
                 },
             ),
@@ -139,10 +173,14 @@ def test_durable_implementation_prerequisite_is_jobless_non_transient(
 
     decision = evaluate_task(issue, facts, now=NOW)
 
-    assert decision.disposition is TaskDisposition.BLOCKED
+    assert decision.disposition is disposition
     assert decision.reason_code == "implementation.external_prerequisite"
     assert decision.durable_jobs == ()
-    assert decision.alert_level is AlertSeverity.INFO
+    assert decision.responsible_owner is owner
+    assert decision.permitted_actions == (action,)
+    assert decision.alert_level is alert
+    if admission_kind == "blocked-dependency":
+        assert decision.unmet_prerequisites[0].subject == "project-2/TASK-9"
 
 
 @pytest.mark.parametrize(
@@ -454,6 +492,116 @@ def test_in_progress_accepted_submission_parks_without_recovery_job(
     assert decision.disposition is TaskDisposition.BLOCKED
     assert decision.durable_jobs == ()
     assert decision.action_required is False
+
+
+def test_accepted_submission_park_precedes_external_prerequisite():
+    issue = _issue(IN_PROGRESS)
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.CONFIG: _known(
+                    FactDomain.CONFIG,
+                    {
+                        "accepted_submission_recovery_state": (
+                            "accepted_submission_branch_advanced"
+                        ),
+                        "implementation_prerequisite_admission": {
+                            "kind": "blocked-capability",
+                            "subject": "macos",
+                            "recovery_trigger": {
+                                "kind": "profile-capability",
+                                "value": "macos",
+                            },
+                        },
+                    },
+                ),
+                FactDomain.IMPLEMENTATION_AUTHORITY: _known(
+                    FactDomain.IMPLEMENTATION_AUTHORITY,
+                    {"lease_expires_at": None},
+                ),
+            },
+        ),
+    )
+
+    assert decision.reason_code == "implementation.submission_recovery_parked"
+    assert decision.disposition is TaskDisposition.BLOCKED
+    assert decision.durable_jobs == ()
+
+
+@pytest.mark.parametrize("status", (OPEN, IN_PROGRESS))
+def test_blocked_prerequisite_retires_its_exact_outgoing_run_before_park(status):
+    issue = _issue(status)
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.CONFIG: _known(
+                    FactDomain.CONFIG,
+                    {
+                        "implementation_pending_action": "authority_revocation",
+                        "implementation_prerequisite_retirement_pending": True,
+                        "implementation_prerequisite_admission": {
+                            "kind": "blocked-capability",
+                            "subject": "macos",
+                            "recovery_trigger": {
+                                "kind": "profile-capability",
+                                "value": "macos",
+                            },
+                        },
+                    },
+                ),
+                FactDomain.IMPLEMENTATION_AUTHORITY: _known(
+                    FactDomain.IMPLEMENTATION_AUTHORITY,
+                    {"owner_id": "source-run", "actively_working": True},
+                ),
+            },
+        ),
+    )
+
+    assert decision.reason_code == "implementation.action_scheduled"
+    assert decision.disposition is TaskDisposition.RETRY_SCHEDULED
+    assert decision.durable_jobs == ("authority_revocation",)
+
+
+def test_current_replacement_authority_wins_prerequisite_park_race():
+    issue = _issue(IN_PROGRESS)
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.CONFIG: _known(
+                    FactDomain.CONFIG,
+                    {
+                        "implementation_prerequisite_replacement_active": True,
+                        "implementation_prerequisite_admission": {
+                            "kind": "blocked-capability",
+                            "subject": "macos",
+                            "recovery_trigger": {
+                                "kind": "profile-capability",
+                                "value": "macos",
+                            },
+                        },
+                    },
+                ),
+                FactDomain.IMPLEMENTATION_AUTHORITY: _known(
+                    FactDomain.IMPLEMENTATION_AUTHORITY,
+                    {
+                        "owner_id": "replacement-run",
+                        "active_job_id": "replacement-run",
+                        "actively_working": True,
+                    },
+                ),
+            },
+        ),
+    )
+
+    assert decision.reason_code == "implementation.active"
+    assert decision.disposition is TaskDisposition.OWNED
+    assert decision.durable_jobs == ()
 
 
 def test_open_accepted_submission_preempts_dispatch_and_dependencies():

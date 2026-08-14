@@ -349,6 +349,11 @@ _AUDIT_START_CHECKPOINT_FAILURE_PREFIX = (
 _RETRY_ATTEMPTS_VERSION_STATE_KEY = "retry_attempts_version"
 _NESTED_DISPATCH_REPAIR_ACTION = "nested_dispatch_topology_repair"
 _NESTED_DISPATCH_REPAIR_LANE = "nested-dispatch-topology"
+_IMPLEMENTATION_PREREQUISITE_PARK_LANES = (
+    "event:implementation:fact",
+    "event:implementation:imperative",
+    _NESTED_DISPATCH_REPAIR_LANE,
+)
 _NESTED_DISPATCH_REPAIR_COMPATIBLE_RUNNING_ACTIONS = (
     "implementation_start",
     "implementation_recovery",
@@ -2017,6 +2022,11 @@ class Orchestrator:
                 config.workflow_liveness_snapshot_stale_seconds
             ),
             liveness_slo_seconds=config.workflow_liveness_slo_seconds,
+            zero_job_retired_lanes_by_reason={
+                "implementation.external_prerequisite": (
+                    _IMPLEMENTATION_PREREQUISITE_PARK_LANES
+                )
+            },
         )
         # The controller is the sole owner of why-not-progressing answers.
         # Read consumers take immutable copies from this cache; they never
@@ -16458,6 +16468,92 @@ class Orchestrator:
                 )
                 == prerequisite_record.record_id
             )
+            prerequisite_is_blocked = bool(
+                prerequisite_admission is not None
+                and prerequisite_admission.kind
+                is not PrerequisiteAdmissionKind.CAPABLE_PROFILE
+            )
+            if prerequisite_is_blocked:
+                running_matches_source = bool(
+                    prerequisite_record is not None
+                    and prerequisite_running is not None
+                    and str(
+                        getattr(
+                            prerequisite_running, "authority_generation", None
+                        )
+                        or ""
+                    )
+                    == prerequisite_record.source_generation
+                    and str(
+                        getattr(prerequisite_running, "run_id", None) or ""
+                    )
+                    == prerequisite_record.source_run_id
+                    and str(
+                        getattr(prerequisite_running, "assignment_id", None)
+                        or ""
+                    )
+                    == prerequisite_record.source_assignment_id
+                )
+                if (
+                    prerequisite_running is not None
+                    and (running_matches_source or prerequisite_consumed_by_running)
+                    and "implementation_pending_action" not in value
+                    and not accepted_submission_recovery_parked
+                ):
+                    value["implementation_pending_action"] = (
+                        "authority_revocation"
+                    )
+                    value["implementation_prerequisite_retirement_pending"] = (
+                        True
+                    )
+                    value["implementation_pending_payload"] = {
+                        "authority_kind": "implementation_prerequisite",
+                        "implementation_prerequisite_id": (
+                            prerequisite_record.record_id
+                            if prerequisite_record is not None
+                            else ""
+                        ),
+                        "prior_generation": str(
+                            getattr(
+                                prerequisite_running,
+                                "authority_generation",
+                                None,
+                            )
+                            or ""
+                        ),
+                        "prior_run_id": str(
+                            getattr(prerequisite_running, "run_id", None) or ""
+                        ),
+                        "expected_status": current.state,
+                        "work_branch": str(
+                            current.work_branch or current.branch_name or ""
+                        ),
+                        "head_sha": str(issue_exact_head(current) or ""),
+                        "reason": (
+                            "park unavailable implementation prerequisite"
+                        ),
+                    }
+                else:
+                    owner_claim = self._owner_claim_for_issue(
+                        current.id, current.project_id
+                    )
+                    live_owner_claim = bool(
+                        owner_claim is not None
+                        and (
+                            owner_claim.retirement_pending
+                            or owner_claim.expires_at > time.time()
+                        )
+                    )
+                    if (
+                        prerequisite_running is not None
+                        or live_owner_claim
+                    ):
+                        # The structured record describes an older source.
+                        # Current replacement authority wins this race and is
+                        # never revoked or hidden on behalf of stale evidence.
+                        value[
+                            "implementation_prerequisite_replacement_active"
+                        ] = True
             if (
                 prerequisite_admission is not None
                 and prerequisite_admission.kind
@@ -41840,6 +41936,59 @@ class Orchestrator:
                     reason="nested dispatch topology generation advanced",
                 )
 
+    def _implementation_prerequisite_parks_auxiliary_work(
+        self, issue: Issue
+    ) -> bool:
+        """Return whether exact prerequisite authority fences auxiliary jobs.
+
+        A replacement runtime or direct-owner claim which won after the
+        prerequisite source was captured remains authoritative. Accepted
+        submission evidence is also stronger. Every other non-capable record
+        is a stable park, including the short revocation phase for its exact
+        outgoing source.
+        """
+
+        if getattr(issue, "implementation_prerequisite", None) is None:
+            return False
+        admission = self._implementation_prerequisite_admission(issue)
+        if (
+            admission is None
+            or admission.kind is PrerequisiteAdmissionKind.CAPABLE_PROFILE
+        ):
+            return False
+        integration = getattr(issue, "integration", None)
+        if (
+            str(getattr(integration, "state", "") or "").strip().lower()
+            in {"ready", "queued", "integrating"}
+            and accepted_submission_branch(issue)
+        ):
+            return False
+        record = ImplementationPrerequisiteRecord.from_raw(
+            getattr(issue, "implementation_prerequisite", None)
+        )
+        running = self._workflow_shadow_running_entry(issue, auditor=False)
+        if running is not None:
+            if record is None:
+                return False
+            consumes_record = str(
+                getattr(running, "implementation_prerequisite_id", None) or ""
+            ) == record.record_id
+            is_source = bool(
+                str(getattr(running, "authority_generation", None) or "")
+                == record.source_generation
+                and str(getattr(running, "run_id", None) or "")
+                == record.source_run_id
+                and str(getattr(running, "assignment_id", None) or "")
+                == record.source_assignment_id
+            )
+            return consumes_record or is_source
+        claim = self._owner_claim_for_issue(issue.id, issue.project_id)
+        if claim is not None and (
+            claim.retirement_pending or claim.expires_at > time.time()
+        ):
+            return False
+        return True
+
     def _recover_queued_nested_dispatch_repairs(
         self,
         *,
@@ -41912,6 +42061,18 @@ class Orchestrator:
                         continue
                     if not current.project_id:
                         current.project_id = project_id
+                    if self._implementation_prerequisite_parks_auxiliary_work(
+                        current
+                    ):
+                        self.workflow_job_store.cancel(
+                            job.job_id,
+                            generation=job.generation,
+                            reason=(
+                                "implementation prerequisite parks auxiliary work"
+                            ),
+                        )
+                        result["retired"] += 1
+                        continue
                     if self._has_epic_rebase_publish_authority(current):
                         # Exact rebase helpers own the divergent nested branch
                         # itself.  An ordinary topology fast-forward repair is
@@ -42046,66 +42207,87 @@ class Orchestrator:
         if job is None or not job.lease_token:
             return False
         try:
+            # Project mutation fences precede durable-store fences everywhere
+            # in publication. Preserve that lock order while serializing the
+            # final lease check and topology mutation with a managed park cut.
+            # If parking won, the lease is gone; if this exact repair won, it
+            # completes before the later park becomes authoritative.
             with self.project_store.project_write_lock(evidence.project_id):
-                tracker = self._tracker_for_project(evidence.project_id)
-                invalidate = getattr(tracker, "invalidate_read_cache", None)
-                if callable(invalidate):
-                    invalidate()
-                current = tracker.fetch_issue_detail(evidence.task_id)
-                if not isinstance(current, Issue):
-                    raise ProjectError("nested dispatch task is unavailable")
-                if not current.project_id:
-                    current.project_id = evidence.project_id
-                if self._has_epic_rebase_publish_authority(current):
-                    self.workflow_job_store.cancel_owned(
-                        job.job_id,
-                        job.lease_token,
-                        reason="exact epic rebase helper owns nested topology",
-                    )
-                    return True
-                fresh = self._collect_nested_dispatch_evidence(current)
-                if fresh is None or fresh.generation != job.generation:
-                    self.workflow_job_store.cancel_owned(
-                        job.job_id,
-                        job.lease_token,
-                        reason="nested dispatch generation changed before repair",
-                    )
-                    return True
-                if fresh.ready:
+                with self.workflow_job_store.snapshot_authority_guard():
+                    if not self.workflow_job_store.owns_live_lease(
+                        job.job_id, job.lease_token
+                    ):
+                        return True
+                    tracker = self._tracker_for_project(evidence.project_id)
+                    invalidate = getattr(tracker, "invalidate_read_cache", None)
+                    if callable(invalidate):
+                        invalidate()
+                    current = tracker.fetch_issue_detail(evidence.task_id)
+                    if not isinstance(current, Issue):
+                        raise ProjectError("nested dispatch task is unavailable")
+                    if not current.project_id:
+                        current.project_id = evidence.project_id
+                    if self._implementation_prerequisite_parks_auxiliary_work(
+                        current
+                    ):
+                        self.workflow_job_store.cancel_owned(
+                            job.job_id,
+                            job.lease_token,
+                            reason=(
+                                "implementation prerequisite parks auxiliary work"
+                            ),
+                        )
+                        return True
+                    if self._has_epic_rebase_publish_authority(current):
+                        self.workflow_job_store.cancel_owned(
+                            job.job_id,
+                            job.lease_token,
+                            reason="exact epic rebase helper owns nested topology",
+                        )
+                        return True
+                    fresh = self._collect_nested_dispatch_evidence(current)
+                    if fresh is None or fresh.generation != job.generation:
+                        self.workflow_job_store.cancel_owned(
+                            job.job_id,
+                            job.lease_token,
+                            reason="nested dispatch generation changed before repair",
+                        )
+                        return True
+                    if fresh.ready:
+                        self.workflow_job_store.complete(
+                            job.job_id,
+                            job.lease_token,
+                            result_transition={"already_reachable": True},
+                        )
+                        return True
+                    if fresh.topology is None:
+                        raise ProjectError(fresh.detail or fresh.reason_code)
+                    try:
+                        repaired = self.project_store.advance_nested_dispatch_topology(
+                            evidence.project_id,
+                            expected=fresh.topology,
+                        )
+                    except ProjectError:
+                        if not self.project_store.nested_dispatch_head_reachable(
+                            evidence.project_id,
+                            ancestor=fresh.topology.target_head,
+                            descendant=fresh.topology.nested_head,
+                        ):
+                            self._request_nested_epic_lineage_repair(fresh)
+                        raise
                     self.workflow_job_store.complete(
                         job.job_id,
                         job.lease_token,
-                        result_transition={"already_reachable": True},
+                        result_transition={
+                            "nested_branch": repaired.nested_branch,
+                            "nested_head": repaired.nested_head,
+                            "private_branch": repaired.private_branch,
+                            "private_head": (
+                                repaired.private_remote_head
+                                or repaired.private_local_head
+                            ),
+                        },
                     )
-                    return True
-                if fresh.topology is None:
-                    raise ProjectError(fresh.detail or fresh.reason_code)
-                try:
-                    repaired = self.project_store.advance_nested_dispatch_topology(
-                        evidence.project_id,
-                        expected=fresh.topology,
-                    )
-                except ProjectError:
-                    if not self.project_store.nested_dispatch_head_reachable(
-                        evidence.project_id,
-                        ancestor=fresh.topology.target_head,
-                        descendant=fresh.topology.nested_head,
-                    ):
-                        self._request_nested_epic_lineage_repair(fresh)
-                    raise
-                self.workflow_job_store.complete(
-                    job.job_id,
-                    job.lease_token,
-                    result_transition={
-                        "nested_branch": repaired.nested_branch,
-                        "nested_head": repaired.nested_head,
-                        "private_branch": repaired.private_branch,
-                        "private_head": (
-                            repaired.private_remote_head
-                            or repaired.private_local_head
-                        ),
-                    },
-                )
         except Exception as exc:  # noqa: BLE001 - durable retry owns recovery
             try:
                 self.workflow_job_store.fail(

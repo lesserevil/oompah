@@ -1828,6 +1828,72 @@ async def test_general_revocation_cannot_terminate_a_replacement_worker(tmp_path
 
 
 @pytest.mark.asyncio
+async def test_prerequisite_park_revokes_its_exact_outgoing_worker(tmp_path):
+    issue = make_issue(status=IN_PROGRESS)
+    orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
+    outgoing = SimpleNamespace(
+        issue=issue,
+        run_id="source-run",
+        authority_generation="source-generation",
+    )
+    orch.running[issue.id] = outgoing
+    _jobs, context = make_context(
+        tmp_path,
+        action=ImplementationAction.AUTHORITY_REVOCATION,
+        payload={
+            "authority_kind": "implementation_prerequisite",
+            "implementation_prerequisite_id": "a" * 64,
+            "prior_generation": "source-generation",
+            "prior_run_id": "source-run",
+            "reason": "park unavailable implementation prerequisite",
+        },
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    result = await ProductionImplementationWorkflowBackend(effects).execute(context)
+
+    assert result.status == "revoked"
+    assert issue.id not in orch.running
+    assert orch.cancelled[-1]["reason"] == (
+        "park unavailable implementation prerequisite"
+    )
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_prerequisite_park_supersedes_when_replacement_wins_apply_race(
+    tmp_path,
+):
+    issue = make_issue(status=IN_PROGRESS)
+    orch = FakeOrchestrator(tmp_path, {"project-a": Tracker(issue)})
+    replacement = SimpleNamespace(
+        issue=issue,
+        run_id="replacement-run",
+        authority_generation="replacement-generation",
+    )
+    orch.running[issue.id] = replacement
+    _jobs, context = make_context(
+        tmp_path,
+        action=ImplementationAction.AUTHORITY_REVOCATION,
+        payload={
+            "authority_kind": "implementation_prerequisite",
+            "implementation_prerequisite_id": "a" * 64,
+            "prior_generation": "source-generation",
+            "prior_run_id": "source-run",
+        },
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    with pytest.raises(WorkflowActionSuperseded) as raised:
+        await effects.apply(context)
+
+    assert raised.value.replacement_generation == "replacement-generation"
+    assert orch.running[issue.id] is replacement
+    assert orch.cancelled == []
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
 async def test_revocation_cannot_terminate_same_task_id_in_another_project(tmp_path):
     issue = make_issue(project="project-a", status=IN_PROGRESS)
     foreign = make_issue(project="project-b", status=IN_PROGRESS)

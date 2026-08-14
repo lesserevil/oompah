@@ -1293,6 +1293,25 @@ class OrchestratorImplementationEffects:
                         != expected_run
                     )
                 ):
+                    if (
+                        _text(payload.get("authority_kind"))
+                        == "implementation_prerequisite"
+                    ):
+                        raise WorkflowActionSuperseded(
+                            "current replacement implementation won the "
+                            "prerequisite park race",
+                            replacement_generation=(
+                                _text(
+                                    getattr(
+                                        running,
+                                        "authority_generation",
+                                        None,
+                                    )
+                                )
+                                or _text(getattr(running, "run_id", None))
+                                or f"replacement:{context.job.generation}"
+                            ),
+                        )
                     raise WorkflowActionError(
                         "revocation no longer owns the live implementation generation",
                         category=WorkflowFailureCategory.STALE_EVIDENCE,

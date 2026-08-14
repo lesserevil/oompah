@@ -577,6 +577,9 @@ class UniversalTotalityLivenessController:
         liveness_max_project_records: int = DEFAULT_MAX_PROJECT_RECORDS,
         liveness_snapshot_stale_seconds: int = DEFAULT_SNAPSHOT_STALE_SECONDS,
         liveness_slo_seconds: Mapping[str, int] | None = None,
+        zero_job_retired_lanes_by_reason: Mapping[
+            str, Sequence[str]
+        ] | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         if isinstance(decision_limit, bool) or not 1 <= int(decision_limit) <= MAX_CONTROLLER_LIMIT:
@@ -589,7 +592,12 @@ class UniversalTotalityLivenessController:
             )
         self.store = store
         self.scheduler = scheduler or WorkflowJobScheduler(
-            store=store, decision_limit=int(decision_limit), max_attempts=int(max_attempts)
+            store=store,
+            decision_limit=int(decision_limit),
+            max_attempts=int(max_attempts),
+            zero_job_retired_lanes_by_reason=(
+                zero_job_retired_lanes_by_reason
+            ),
         )
         self.facts_provider = facts_provider
         self.decision_limit = int(decision_limit)

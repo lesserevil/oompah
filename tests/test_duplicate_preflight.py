@@ -1628,6 +1628,77 @@ def test_workflow_source_does_not_republish_consumed_prerequisite():
     assert "implementation_pending_action" not in config
 
 
+def test_workflow_source_retires_exact_run_before_blocked_prerequisite_park():
+    issue = _issue(state="In Progress")
+    record = _durable_macos_prerequisite(issue)
+    issue.implementation_prerequisite = record.to_dict()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    orch.state.running[issue.id] = RunningEntry(
+        worker_task=None,
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        focus_name="developer",
+        assignment_id=record.source_assignment_id,
+        run_id=record.source_run_id,
+        authority_generation=record.source_generation,
+        implementation_prerequisite_id=record.record_id,
+    )
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert config["implementation_pending_action"] == "authority_revocation"
+    assert config["implementation_prerequisite_retirement_pending"] is True
+    assert config["implementation_pending_payload"]["prior_run_id"] == (
+        record.source_run_id
+    )
+    assert config["implementation_pending_payload"]["prior_generation"] == (
+        record.source_generation
+    )
+    assert config["implementation_pending_payload"][
+        "implementation_prerequisite_id"
+    ] == record.record_id
+
+
+def test_workflow_source_preserves_replacement_that_won_prerequisite_park_race():
+    issue = _issue(state="In Progress")
+    record = _durable_macos_prerequisite(issue)
+    issue.implementation_prerequisite = record.to_dict()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    orch.state.running[issue.id] = RunningEntry(
+        worker_task=None,
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        focus_name="replacement",
+        assignment_id="replacement-assignment",
+        run_id="replacement-run",
+        authority_generation="replacement-generation",
+    )
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert "implementation_pending_action" not in config
+    assert config["implementation_prerequisite_replacement_active"] is True
+    assert orch._implementation_prerequisite_parks_auxiliary_work(issue) is False
+
+
+def test_blocked_prerequisite_parks_auxiliary_work_without_a_newer_owner():
+    issue = _issue(state="In Progress")
+    record = _durable_macos_prerequisite(issue)
+    issue.implementation_prerequisite = record.to_dict()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+
+    assert orch._implementation_prerequisite_parks_auxiliary_work(issue) is True
+
+
 @pytest.mark.asyncio
 async def test_project_pause_wins_at_final_dispatch_boundary():
     issue = _issue()

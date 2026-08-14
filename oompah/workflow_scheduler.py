@@ -16,6 +16,7 @@ import threading
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from types import MappingProxyType
 from typing import Any
 
 from oompah.work_decision import WorkDecision, decision_scheduling_revision
@@ -123,6 +124,7 @@ class WorkflowJobScheduler:
         max_attempts: int = 5,
         policy_epoch: str = "standalone-v1",
         protected_event_lane_prefixes: Sequence[str] = (),
+        zero_job_retired_lanes_by_reason: Mapping[str, Sequence[str]] | None = None,
     ) -> None:
         self.store = store
         self.worker = worker
@@ -144,6 +146,30 @@ class WorkflowJobScheduler:
                     if str(prefix or "").strip()
                 }
             )
+        )
+        retired_lane_policy: dict[str, tuple[str, ...]] = {}
+        for reason_code, raw_lanes in (
+            zero_job_retired_lanes_by_reason or {}
+        ).items():
+            reason = str(reason_code or "").strip()
+            if not reason:
+                raise ValueError("zero-job retirement reason_code is required")
+            if isinstance(raw_lanes, (str, bytes)):
+                raise TypeError("zero-job retired lanes must be a sequence")
+            lanes = tuple(
+                sorted(
+                    {
+                        str(lane or "").strip()
+                        for lane in raw_lanes
+                        if str(lane or "").strip()
+                    }
+                )
+            )
+            if not lanes:
+                raise ValueError("zero-job retired lanes cannot be empty")
+            retired_lane_policy[reason] = lanes
+        self._zero_job_retired_lanes_by_reason = MappingProxyType(
+            retired_lane_policy
         )
         # Publication transactions hold this lock while reconcile re-enters it
         # so scheduler metrics can be restored with the durable job-store cut.
@@ -188,6 +214,17 @@ class WorkflowJobScheduler:
 
         return decision_scheduling_revision(
             decision, policy_epoch=self.policy_epoch
+        )
+
+    def retired_scheduling_lanes(
+        self, decision: WorkDecision
+    ) -> tuple[str, ...]:
+        """Return exact event lanes retired by one stable zero-job decision."""
+
+        if decision.durable_jobs:
+            return ()
+        return self._zero_job_retired_lanes_by_reason.get(
+            decision.reason_code, ()
         )
 
     def begin_scan(self) -> int:
@@ -558,6 +595,9 @@ class WorkflowJobScheduler:
                     ),
                     authority_kind=(
                         "managed_decision" if specs else "managed_zero_job"
+                    ),
+                    retired_scheduling_lanes=(
+                        self.retired_scheduling_lanes(decision)
                     ),
                 )
                 if not write.accepted:
