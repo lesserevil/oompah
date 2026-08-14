@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:37.692542Z'
-updated_at: '2026-08-14T04:53:35.266986Z'
+updated_at: '2026-08-14T04:53:40.457800Z'
 work_branch: OOMPAH-1263
 target_branch: null
 review_url: null
@@ -61,7 +61,23 @@ oompah.terminal_audit:
     created_at: '2026-08-14T04:53:31.814697+00:00'
     selected_ref: 987c46cb8075073aac18a09c140eafe9526190fd
     selected_sha: 987c46cb8075073aac18a09c140eafe9526190fd
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1263
+    target_state: Done
+    evidence_fingerprint: 6a2a797a5eb2d6a4eb9f9ce6b729d1c2c1f73357d271bb5e212e6c70357d5d33
+    workflow_revision: null
+    selected_ref: 987c46cb8075073aac18a09c140eafe9526190fd
+    selected_sha: 987c46cb8075073aac18a09c140eafe9526190fd
+    landing_revision: null
+    audit_ids:
+    - audit-2e91e427a457
+    - audit-93416b9e3515
+    kind: override
+    applied: true
+    retired_at: '2026-08-14T04:53:39.269113+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -90,7 +106,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1263
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -106,6 +122,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-14T04:53:24.952732+00:00'
     selected_ref: 987c46cb8075073aac18a09c140eafe9526190fd
     selected_sha: 987c46cb8075073aac18a09c140eafe9526190fd
+    updated_at: '2026-08-14T04:53:39.269076+00:00'
   attempt_history: []
 oompah.integration:
   version: 2
@@ -171,5 +188,12 @@ author: oompah
 created: 2026-08-14 04:48
 ---
 Completed durable prerequisite parking and exact stale-lane retirement in PR 880; all focused and three-version CI gates passed.
+---
+author: oompah
+created: 2026-08-14 04:53
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner recovery after a post-merge submission changed the auditable integration projection; PR 880 is merged into epic-OOMPAH-1231, the landed tree equals reviewed head 987c46cb8075073aac18a09c140eafe9526190fd, and GitHub Actions run 31770033759 passed all supported Python versions.
 ---
 <!-- COMMENTS:END -->
