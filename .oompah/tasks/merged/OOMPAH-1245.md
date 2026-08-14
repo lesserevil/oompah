@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T14:50:06.067428Z'
-updated_at: '2026-08-14T07:44:41.583254Z'
+updated_at: '2026-08-14T07:44:46.863181Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,7 +46,21 @@ oompah.terminal_audit:
     created_at: '2026-08-14T07:44:38.110590+00:00'
     selected_ref: origin/main
     selected_sha: 948ef6f207eabe4c26910d8fc276d6d36b659e76
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1245
+    target_state: Merged
+    evidence_fingerprint: 929ff8ffd468a5860a76840d4c888a90c7a64a04f4a94047e0de4ce25fc7d720
+    workflow_revision: null
+    selected_ref: origin/main
+    selected_sha: 948ef6f207eabe4c26910d8fc276d6d36b659e76
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-14T07:44:45.636955+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -72,5 +86,12 @@ author: oompah
 created: 2026-08-13 14:56
 ---
 Implemented on PR #868: exact durable recovery may release only an ownerless In Progress legacy completion fence. Accepted submissions, live owners, terminal/provenance fences, and ordinary dispatch remain blocked. Regression set: 4 focused admission tests plus 173 adjacent workflow tests pass; terminal mutation and secret scans pass.
+---
+author: oompah
+created: 2026-08-14 07:44
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner convergence: PR #868 merged as 83196da17 and that landed tree is contained by origin/main; this stale non-terminal projection requires no further implementation.
 ---
 <!-- COMMENTS:END -->
