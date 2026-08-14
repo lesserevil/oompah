@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:37.692542Z'
-updated_at: '2026-08-14T04:46:52.847789Z'
+updated_at: '2026-08-14T04:47:19.665411Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -101,5 +101,10 @@ author: oompah
 created: 2026-08-14 04:46
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-14 04:47
+---
+Terminal evidence: PR 880 merged into epic-OOMPAH-1231 as ae57ba61bae24db3f17f390b1b5ace43f313c23d. Its tree exactly equals reviewed head 987c46cb8075073aac18a09c140eafe9526190fd. GitHub Actions run 31770033759 passed on Python 3.11, 3.12, and 3.13; 789 focused tests passed locally.
 ---
 <!-- COMMENTS:END -->
