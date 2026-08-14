@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1264
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Resolve external prerequisites with exact CAS and one fresh generation
 parent: OOMPAH-1231
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:54.222347Z'
-updated_at: '2026-08-14T02:40:50.646102Z'
+updated_at: '2026-08-14T02:41:21.517459Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -26,6 +26,7 @@ oompah.create_once:
   creation_marker: oompah-1231-resolution-cas-v1
   request_fingerprint: 1f4866dfd9890e09cbc705a0030d9bf030cc49ba6b22639e33bb93bbf52f65e5
 oompah.start_blocked_by: *id001
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 

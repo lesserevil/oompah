@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1263
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Park external blockers and retire every stale durable lane
 parent: OOMPAH-1231
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:37.692542Z'
-updated_at: '2026-08-14T02:40:45.831358Z'
+updated_at: '2026-08-14T02:41:17.682416Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -26,6 +26,7 @@ oompah.create_once:
   creation_marker: oompah-1231-park-retirement-v1
   request_fingerprint: 98432ed9fc5b6f6b2f2c9c65ea49a82baf69aba3719cebb46325f1817bfe1024
 oompah.start_blocked_by: *id001
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 

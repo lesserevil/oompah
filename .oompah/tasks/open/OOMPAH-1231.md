@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T10:05:01.537298Z'
-updated_at: '2026-08-14T02:40:23.963400Z'
+updated_at: '2026-08-14T02:41:30.050006Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,10 @@ author: oompah
 created: 2026-08-14 02:28
 ---
 Claimed for direct systemic implementation after OOMPAH-1261 lands. Oompah remains paused; no scheduler dispatch is authorized. Parallel root-cause review is mapping external-prerequisite classification, truthful jobless parking, explicit recovery rearm, and stale durable-authority retirement against the live Trickle reproductions.
+---
+author: oompah
+created: 2026-08-14 02:41
+---
+Decomposed direct implementation into OOMPAH-1262 typed prerequisite/profile authority, OOMPAH-1263 stable parking and durable-lane retirement, OOMPAH-1264 exact CAS resolution and one-generation continuation, and OOMPAH-1265 production-shaped restart/race/observability acceptance. 1263 and 1264 hard-start after 1262 and can proceed in parallel; 1265 hard-starts after both. All children are Open, but Oompah remains paused and they are reserved for direct implementation.
 ---
 <!-- COMMENTS:END -->

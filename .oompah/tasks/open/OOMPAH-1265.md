@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1265
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Prove external-prerequisite lifecycle convergence and observability
 parent: OOMPAH-1231
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-14T02:41:04.599586Z'
+updated_at: '2026-08-14T02:41:26.079420Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,6 +27,7 @@ oompah.create_once:
   creation_marker: oompah-1231-lifecycle-acceptance-v1
   request_fingerprint: 4f48f1f0e957c03ae28cb1f4f01e0f52c4c6c9020d902bc67d1cfb4f69389377
 oompah.start_blocked_by: *id001
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
