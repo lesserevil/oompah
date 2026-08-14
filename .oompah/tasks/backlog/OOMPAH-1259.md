@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T23:58:37.536440Z'
-updated_at: '2026-08-13T23:58:37.536440Z'
+updated_at: '2026-08-14T00:15:15.971744Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Bug: restart reconstruction can deadlock all workflow-worker admission when a re
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-14 00:15
+---
+Implementation checkpoint: reproduced the live restart deadlock as an unchanged recurring managed decision whose only current job was Superseded before its reassessment deadline. The scheduler now rotates that dead generation immediately only when no exact live replacement owns execution; protected event replacements and quarantined calls remain exclusive, completed jobs retain deadline semantics, and Cancelled/Exhausted rows remain fenced. Verification so far: 148 scheduler/store tests passed; 418 combined job-store/scheduler/runtime/epic tests passed; terminal mutation scan 21/21 passed; secret scan passed. Awaiting independent exact-diff review before commit.
+---
+<!-- COMMENTS:END -->
