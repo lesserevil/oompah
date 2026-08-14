@@ -6,14 +6,15 @@ priority: 1
 title: Prove external-prerequisite lifecycle convergence and observability
 parent: OOMPAH-1231
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-1266
 start_blocked_by: &id001
 - OOMPAH-1263
 - OOMPAH-1264
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-14T02:41:26.079420Z'
+updated_at: '2026-08-14T06:03:20.214715Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,3 +40,11 @@ Add production-shaped cross-component acceptance for the complete external-prere
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-14 06:03
+---
+Added finish-order dependency on OOMPAH-1266 (not hard-start): lifecycle acceptance/test-only work may begin after existing OOMPAH-1264 hard-start clears, but final OOMPAH-1265 integration follows the landed late-submit authority repair because both touch server/continuation observability boundaries.
+---
+<!-- COMMENTS:END -->
