@@ -750,6 +750,8 @@ class PrerequisiteContinuation:
             raise ValueError("review_id requires review_head_sha")
         if self.pipeline_id is not None and self.pipeline_head_sha is None:
             raise ValueError("pipeline_id requires pipeline_head_sha")
+        if self.pipeline_id is not None and self.review_id is None:
+            raise ValueError("pipeline identity requires exact review identity")
         exact_heads = {
             value
             for value in (

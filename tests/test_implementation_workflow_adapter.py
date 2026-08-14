@@ -31,7 +31,12 @@ from oompah.implementation_workflow_adapter import (
 from oompah.implementation_prerequisite import (
     METADATA_KEY as PREREQUISITE_METADATA_KEY,
     RESOLUTION_METADATA_KEY as PREREQUISITE_RESOLUTION_METADATA_KEY,
+    ImplementationPrerequisiteDeclaration,
+    PrerequisiteKind,
     PrerequisiteContinuation,
+    RecoveryTrigger,
+    RecoveryTriggerKind,
+    freeze_execution_profile_snapshot,
     new_record as new_prerequisite_record,
     parse_prerequisite_declaration,
 )
@@ -77,6 +82,15 @@ from oompah.workflow_worker import (
 
 HEAD_A = "a" * 40
 HEAD_B = "b" * 40
+_CAPABLE_PROFILE = SimpleNamespace(
+    name="mac-runner",
+    execution_capabilities=["macos"],
+    issue_types=[],
+    keywords=[],
+    min_priority=None,
+    max_priority=None,
+)
+_PROFILE_SNAPSHOT = freeze_execution_profile_snapshot((_CAPABLE_PROFILE,))
 
 
 class Tracker:
@@ -136,13 +150,37 @@ class FakeOrchestrator:
         self.state = SimpleNamespace(owner_claims={}, reject_streak={})
         self._owner_claims_lock = threading.RLock()
         self._project_write_lock = threading.RLock()
+        # Match production: final profile admission must not attempt to
+        # reacquire this non-reentrant authority fence.
+        self._pending_profiles_lock = threading.Lock()
         self.project_store = SimpleNamespace(
-            project_write_lock=lambda _project_id: self._project_write_lock
+            project_write_lock=lambda _project_id: self._project_write_lock,
+            get=lambda project_id: SimpleNamespace(
+                id=project_id,
+                repo_url="https://gitlab.example/group/project.git",
+                access_token=None,
+            ),
         )
         self.config = SimpleNamespace(
             workflow_engine_mode="off",
             parallel_epic_children_enabled=True,
         )
+        self._implementation_prerequisite_review_resolver = (
+            lambda _project_id, issue, review_id: SimpleNamespace(
+                id=review_id,
+                state="open",
+                head_sha=issue.review_head,
+                source_branch=issue.work_branch,
+                pipeline_id="62564237",
+                pipeline_head_sha=issue.review_head,
+            )
+        )
+
+    def _latest_execution_profile_authority(self):
+        return _PROFILE_SNAPSHOT, (_CAPABLE_PROFILE,)
+
+    def _execution_profile_authority_locked(self):
+        return self._latest_execution_profile_authority()
 
     def _tracker_for_project(self, project_id):
         return self.trackers[project_id]
@@ -294,6 +332,17 @@ def prerequisite_resolution_payload(issue, *, expected_authority):
         now=datetime(2026, 8, 14, tzinfo=timezone.utc),
     )
     issue.implementation_prerequisite = record.to_dict()
+    review_id = str(issue.review_number or "").strip() or None
+    review_head = str(issue.review_head or "").strip() or None
+    continuation = PrerequisiteContinuation(
+        resume_status=IN_REVIEW if review_id else OPEN,
+        work_branch=issue.work_branch,
+        head_sha=HEAD_A,
+        review_id=review_id,
+        review_head_sha=review_head,
+        pipeline_id="62564237" if review_id else None,
+        pipeline_head_sha=review_head if review_id else None,
+    )
     return record, {
         "record_id": record.record_id,
         "source_run_id": record.source_run_id,
@@ -306,17 +355,9 @@ def prerequisite_resolution_payload(issue, *, expected_authority):
             "kind": "profile-capability",
             "capability": "macos",
             "profile_name": "mac-runner",
-            "profile_revision": "f" * 64,
+            "profile_revision": _PROFILE_SNAPSHOT.revision,
         },
-        "continuation": PrerequisiteContinuation(
-            resume_status=IN_REVIEW,
-            work_branch=issue.work_branch,
-            head_sha=HEAD_A,
-            review_id="20",
-            review_head_sha=HEAD_A,
-            pipeline_id="62564237",
-            pipeline_head_sha=HEAD_A,
-        ).to_dict(),
+        "continuation": continuation.to_dict(),
         "expected_status": NEEDS_HUMAN,
         "head_sha": HEAD_A,
     }
@@ -2211,6 +2252,181 @@ async def test_prerequisite_resolution_rejects_task_authority_race(tmp_path):
         await backend.execute(context)
 
     assert rejected.value.category is WorkflowFailureCategory.STALE_EVIDENCE
+    assert (
+        tracker.metadata[issue.identifier][
+            PREREQUISITE_RESOLUTION_METADATA_KEY
+        ]
+        is None
+    )
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_prerequisite_resolution_rejects_profile_change_after_schedule(
+    tmp_path,
+):
+    issue = make_issue(status=NEEDS_HUMAN)
+    expected_authority = issue_authority_version(issue)
+    _record, payload = prerequisite_resolution_payload(
+        issue, expected_authority=expected_authority
+    )
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    unavailable = freeze_execution_profile_snapshot(())
+    orch._latest_execution_profile_authority = lambda: (unavailable, ())
+    _jobs, context = make_context(
+        tmp_path,
+        generation="stale-profile-resolution",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=expected_authority,
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    with pytest.raises(WorkflowActionError) as rejected:
+        await ProductionImplementationWorkflowBackend(effects).execute(context)
+
+    assert rejected.value.category is WorkflowFailureCategory.STALE_EVIDENCE
+    assert "profile capability authority changed" in str(rejected.value)
+    assert (
+        tracker.metadata[issue.identifier][
+            PREREQUISITE_RESOLUTION_METADATA_KEY
+        ]
+        is None
+    )
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("same_project", [False, True])
+async def test_prerequisite_resolution_rejects_dependency_change_after_schedule(
+    tmp_path,
+    same_project,
+):
+    issue = make_issue(status=NEEDS_HUMAN)
+    dependency_project = "project-a" if same_project else "dependency-project"
+    trigger = RecoveryTrigger(
+        RecoveryTriggerKind.TASK,
+        "DEP-1",
+        project_id=dependency_project,
+    )
+    record = new_prerequisite_record(
+        ImplementationPrerequisiteDeclaration(
+            PrerequisiteKind.DEPENDENCY,
+            "external-dependency",
+            trigger,
+        ),
+        project_id="project-a",
+        task_id=issue.id,
+        task_identifier=issue.identifier,
+        source_run_id="run-1",
+        source_assignment_id="assignment-1",
+        source_generation="source-generation-1",
+        source_focus="developer",
+        source_task_authority="d" * 64,
+        source_head_sha=HEAD_A,
+        source_profile_revision="e" * 64,
+        now=datetime(2026, 8, 14, tzinfo=timezone.utc),
+    )
+    issue.implementation_prerequisite = record.to_dict()
+    dependency = make_issue(
+        project=dependency_project,
+        identifier="DEP-1",
+        status="Done",
+    )
+    expected_authority = issue_authority_version(issue)
+    payload = {
+        "record_id": record.record_id,
+        "source_run_id": record.source_run_id,
+        "source_assignment_id": record.source_assignment_id,
+        "source_generation": record.source_generation,
+        "expected_task_authority": expected_authority,
+        "actor": "project-owner",
+        "reason": "Dependency completed.",
+        "trigger_evidence": {
+            "kind": "task",
+            "project_id": dependency_project,
+            "task_identifier": "DEP-1",
+            "status": "Done",
+            "task_authority": issue_authority_version(dependency),
+        },
+        "continuation": PrerequisiteContinuation(
+            resume_status=OPEN,
+            work_branch=issue.work_branch,
+            head_sha=HEAD_A,
+        ).to_dict(),
+        "expected_status": NEEDS_HUMAN,
+    }
+    tracker = Tracker(issue, dependency) if same_project else Tracker(issue)
+    dependency_tracker = tracker if same_project else Tracker(dependency)
+    orch = FakeOrchestrator(
+        tmp_path,
+        {
+            "project-a": tracker,
+            dependency_project: dependency_tracker,
+        },
+    )
+    _jobs, context = make_context(
+        tmp_path,
+        generation="stale-dependency-resolution",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=expected_authority,
+    )
+    dependency.state = OPEN
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    with pytest.raises(WorkflowActionError) as rejected:
+        await ProductionImplementationWorkflowBackend(effects).execute(context)
+
+    assert rejected.value.category is WorkflowFailureCategory.STALE_EVIDENCE
+    assert "task-qualified prerequisite authority changed" in str(rejected.value)
+    assert (
+        tracker.metadata[issue.identifier][
+            PREREQUISITE_RESOLUTION_METADATA_KEY
+        ]
+        is None
+    )
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_prerequisite_resolution_rejects_review_pipeline_change_after_schedule(
+    tmp_path,
+):
+    issue = make_issue(status=NEEDS_HUMAN)
+    issue.review_number = "20"
+    issue.review_head = HEAD_A
+    expected_authority = issue_authority_version(issue)
+    _record, payload = prerequisite_resolution_payload(
+        issue, expected_authority=expected_authority
+    )
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    orch._implementation_prerequisite_review_resolver = (
+        lambda _project_id, current, review_id: SimpleNamespace(
+            id=review_id,
+            state="open",
+            head_sha=current.review_head,
+            source_branch=current.work_branch,
+            pipeline_id="replacement-pipeline",
+            pipeline_head_sha=current.review_head,
+        )
+    )
+    _jobs, context = make_context(
+        tmp_path,
+        generation="stale-pipeline-resolution",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=expected_authority,
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    with pytest.raises(WorkflowActionError) as rejected:
+        await ProductionImplementationWorkflowBackend(effects).execute(context)
+
+    assert rejected.value.category is WorkflowFailureCategory.STALE_EVIDENCE
+    assert "live pipeline authority changed" in str(rejected.value)
     assert (
         tracker.metadata[issue.identifier][
             PREREQUISITE_RESOLUTION_METADATA_KEY

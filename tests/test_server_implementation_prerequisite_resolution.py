@@ -364,7 +364,12 @@ def test_review_continuation_and_pipeline_are_bound_to_live_exact_head(
     _orch, _tracker, schedule, _store = _setup(monkeypatch, issue)
     provider = MagicMock()
     provider.get_review.return_value = SimpleNamespace(
-        id="20", state="open", head_sha=_HEAD, source_branch="TASK-1"
+        id="20",
+        state="open",
+        head_sha=_HEAD,
+        source_branch="TASK-1",
+        pipeline_id="62564237",
+        pipeline_head_sha=_HEAD,
     )
     monkeypatch.setattr(server_module, "detect_provider", lambda *_args, **_kwargs: provider)
 
@@ -385,6 +390,39 @@ def test_review_continuation_and_pipeline_are_bound_to_live_exact_head(
     assert continuation["pipeline_id"] == "62564237"
     assert continuation["pipeline_head_sha"] == _HEAD
     assert schedule.call_args.kwargs["expected_head_sha"] == _HEAD
+
+
+def test_stale_pipeline_identity_is_rejected_before_scheduling(monkeypatch):
+    trigger = RecoveryTrigger(RecoveryTriggerKind.OPERATOR, "runner-online")
+    issue, record = _issue(trigger)
+    issue.work_branch = "TASK-1"
+    issue.head_sha = _HEAD
+    issue.review_number = "20"
+    issue.review_head = _HEAD
+    _orch, _tracker, schedule, _store = _setup(monkeypatch, issue)
+    provider = MagicMock()
+    provider.get_review.return_value = SimpleNamespace(
+        id="20",
+        state="open",
+        head_sha=_HEAD,
+        source_branch="TASK-1",
+        pipeline_id="replacement-pipeline",
+        pipeline_head_sha=_HEAD,
+    )
+    monkeypatch.setattr(server_module, "detect_provider", lambda *_args, **_kwargs: provider)
+
+    response = _post(
+        _body(
+            issue,
+            record,
+            operator_action="runner-online",
+            pipeline_id="62564237",
+        )
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "stale_pipeline_evidence"
+    schedule.assert_not_called()
 
 
 def test_cross_scope_durable_record_is_rejected(monkeypatch):

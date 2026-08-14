@@ -15215,7 +15215,11 @@ def _integration_value(issue: Any, field: str) -> str | None:
     return normalized or None
 
 
-def _live_prerequisite_review(project: Any, issue: Any) -> ReviewRequest | None:
+def _live_prerequisite_review(
+    project: Any,
+    issue: Any,
+    pipeline_id: str | None = None,
+) -> ReviewRequest | None:
     """Read and validate the exact live review named by task authority."""
 
     review_id = str(getattr(issue, "review_number", None) or "").strip()
@@ -15261,6 +15265,17 @@ def _live_prerequisite_review(project: Any, issue: Any) -> ReviewRequest | None:
         raise _PrerequisiteResolutionRequestError(
             "stale_review_evidence",
             "The live review head no longer matches the task's exact head.",
+        )
+    if pipeline_id is not None and (
+        str(getattr(review, "pipeline_id", None) or "").strip() != pipeline_id
+        or str(getattr(review, "pipeline_head_sha", None) or "")
+        .strip()
+        .lower()
+        != review_head
+    ):
+        raise _PrerequisiteResolutionRequestError(
+            "stale_pipeline_evidence",
+            "The named pipeline is not the provider's exact current review-head pipeline.",
         )
     return review
 
@@ -15659,7 +15674,10 @@ async def api_resolve_implementation_prerequisite(
         if committed is not None:
             return JSONResponse(committed, status_code=200)
         live_review = await _run_control_api_io(
-            _live_prerequisite_review, project, issue
+            _live_prerequisite_review,
+            project,
+            issue,
+            fields.get("pipeline_id"),
         )
         result = await _run_control_api_io(
             _schedule_prerequisite_resolution,
