@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1236
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Unify durable epic source authority with persisted nested branches
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T12:12:00.430229Z'
-updated_at: '2026-08-13T12:33:54.999258Z'
+updated_at: '2026-08-14T07:39:31.701587Z'
 work_branch: OOMPAH-1236
 target_branch: null
 review_url: null
@@ -47,6 +47,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1236
     digest: a0a3cc0593bf3f25f7753316cc817fccf10b29f7272f98a3b7e1ed75904f805b
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-837c297f247b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1236
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a0a3cc0593bf3f25f7753316cc817fccf10b29f7272f98a3b7e1ed75904f805b
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #863 merged as c32afe078 and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:39:25.594191+00:00'
+    selected_ref: 15213aac3bf4f9715a6aa860bc567fa9eaea8060
+    selected_sha: 15213aac3bf4f9715a6aa860bc567fa9eaea8060
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -92,7 +113,7 @@ oompah.terminal_audit:
     selected_ref: 15213aac3bf4f9715a6aa860bc567fa9eaea8060
     selected_sha: 15213aac3bf4f9715a6aa860bc567fa9eaea8060
   attempt_history: []
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 ---
 ## Summary
 
