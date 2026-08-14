@@ -2282,6 +2282,46 @@ async def test_prerequisite_resolution_saga_resumes_review_once_across_restart(
     jobs.close()
 
 
+@pytest.mark.asyncio
+async def test_resolution_preserves_source_head_when_tracker_cannot_project_it(
+    tmp_path,
+):
+    issue = make_issue(status=NEEDS_HUMAN, head=None)
+    expected_authority = issue_authority_version(issue)
+    _record, payload = prerequisite_resolution_payload(
+        issue, expected_authority=expected_authority
+    )
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    _jobs, context = make_context(
+        tmp_path,
+        generation="source-head-resolution",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=expected_authority,
+        head=HEAD_A,
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    backend = ProductionImplementationWorkflowBackend(effects)
+
+    revalidation = await backend.revalidate(context)
+    result = await backend.execute(context)
+    intent = await backend.build_transition(
+        context,
+        VerificationResult(True, {"disposition": result.disposition.to_dict()}),
+    )
+
+    assert revalidation.current is True
+    assert revalidation.head_sha == HEAD_A
+    raw = tracker.metadata[issue.identifier][
+        PREREQUISITE_RESOLUTION_METADATA_KEY
+    ]
+    assert raw["continuation"]["head_sha"] == HEAD_A
+    assert intent is not None
+    assert intent.exact_head is None
+    effects.receipts.close()
+
+
 def test_shadow_handler_construction_is_zero_write_and_total(tmp_path):
     issue = make_issue()
     tracker = Tracker(issue)

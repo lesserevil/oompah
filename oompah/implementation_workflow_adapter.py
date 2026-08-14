@@ -1604,13 +1604,30 @@ class ProductionImplementationWorkflowBackend:
         expected_head = _text(context.job.expected_head_sha).lower()
         observed_head = _text(issue_exact_head(issue)).lower()
         payload = context.job.payload or {}
+        action = ImplementationAction(context.job.action)
+        if (
+            action is ImplementationAction.PREREQUISITE_RESOLUTION
+            and expected_head
+            and not observed_head
+        ):
+            record = load_implementation_prerequisite(
+                self.effects._tracker(), issue
+            )
+            if (
+                record is not None
+                and record.record_id == _text(payload.get("record_id"))
+            ):
+                # The append-once blocker is the only restart projection of a
+                # mid-implementation head on trackers that do not expose a
+                # direct task-head field. Preserve and fence that exact source
+                # rather than degrading the continuation to generic Open work.
+                observed_head = record.source_head_sha
         workspace_path = _text(payload.get("workspace_path"))
         retry_head = getattr(self.effects.orchestrator, "_retry_issue_head", None)
         if expected_head and not observed_head and workspace_path and callable(retry_head):
             observed_head = _text(retry_head(issue, workspace_path)).lower()
         head_current = not expected_head or expected_head == observed_head
         evidence_current = not expected_evidence or expected_evidence == observed_evidence
-        action = ImplementationAction(context.job.action)
         requested_status = self._requested_status(action, payload)
         expected_status = _text(payload.get("expected_status"))
         observed_status = canonicalize_status(issue.state)
@@ -1827,6 +1844,22 @@ class ProductionImplementationWorkflowBackend:
                     retryable=False,
                 )
             authority = TransitionAuthority.PROJECT_OWNER
+        exact_transition_head = (
+            context.job.expected_head_sha
+            if _HEAD_RE.fullmatch(_text(context.job.expected_head_sha).lower())
+            else None
+        )
+        if (
+            action is ImplementationAction.PREREQUISITE_RESOLUTION
+            and _text(issue_exact_head(issue)).lower()
+            != _text(exact_transition_head).lower()
+        ):
+            # The immutable prerequisite receipt still preserves and fences a
+            # source head which some task trackers cannot project directly.
+            # Do not ask the generic transition service to compare that head
+            # against a field the tracker cannot expose; the record/job/task
+            # authority CAS already guards this owner-only recovery.
+            exact_transition_head = None
         return TransitionIntent(
             project_id=context.job.project_id,
             task_id=context.job.task_id,
@@ -1839,11 +1872,7 @@ class ProductionImplementationWorkflowBackend:
             idempotency_key=f"{context.job.idempotency_key}:transition",
             originating_job=context.job.job_id,
             evidence_generation=evidence_generation,
-            exact_head=(
-                context.job.expected_head_sha
-                if _HEAD_RE.fullmatch(_text(context.job.expected_head_sha).lower())
-                else None
-            ),
+            exact_head=exact_transition_head,
         )
 
     async def compensate_transition_failure(
