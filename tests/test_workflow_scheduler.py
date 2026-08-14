@@ -284,6 +284,321 @@ def test_completed_recurring_action_rearms_only_after_reassessment_deadline(
     )
 
 
+def test_superseded_current_action_rearms_immediately_for_unchanged_decision(
+    store, clock
+):
+    scheduler = WorkflowJobScheduler(store=store)
+    current = replace(
+        decision(),
+        next_reassessment_at=datetime.fromtimestamp(
+            1100, tz=timezone.utc
+        ).isoformat(),
+        decision_revision=None,
+    )
+    first_result = scheduler.reconcile((current,))
+    first = store.list_jobs()[0]
+    store.supersede(
+        first.job_id,
+        generation=first.generation,
+        replacement_generation=f"reassess:{first.generation}",
+        reason="fresh worker evidence changed",
+    )
+
+    replacement_result = scheduler.reconcile((current,))
+    jobs = store.list_jobs()
+    cursor = store.schedule_cursor(
+        project_id=first.project_id, task_id=first.task_id
+    )
+
+    assert first_result.jobs_created == 1
+    assert replacement_result.jobs_created == 1
+    assert replacement_result.jobs_materialized == 1
+    assert replacement_result.truncated is False
+    assert len(jobs) == 2
+    assert jobs[-1].state is WorkflowJobState.QUEUED
+    assert jobs[-1].generation != first.generation
+    assert cursor is not None
+    assert cursor.job_generation == jobs[-1].generation
+
+
+def test_superseded_recurring_action_rearms_after_store_restart(tmp_path, clock):
+    path = str(tmp_path / "superseded-restart.sqlite3")
+    current = replace(
+        decision(),
+        next_reassessment_at=datetime.fromtimestamp(
+            1100, tz=timezone.utc
+        ).isoformat(),
+        decision_revision=None,
+    )
+    first_store = WorkflowJobStore(path, clock=clock)
+    first_scheduler = WorkflowJobScheduler(store=first_store)
+    first_scheduler.reconcile((current,))
+    original = first_store.list_jobs()[0]
+    first_store.supersede(
+        original.job_id,
+        generation=original.generation,
+        replacement_generation=f"reassess:{original.generation}",
+        reason="fresh worker evidence changed",
+    )
+    first_store.close()
+
+    reopened = WorkflowJobStore(path, clock=clock)
+    try:
+        recovered = WorkflowJobScheduler(store=reopened).reconcile((current,))
+        jobs = reopened.list_jobs()
+
+        assert recovered.jobs_required == 1
+        assert recovered.jobs_created == 1
+        assert recovered.jobs_materialized == 1
+        assert recovered.schedules_materialized == 1
+        assert recovered.truncated is False
+        assert len(jobs) == 2
+        assert jobs[-1].state is WorkflowJobState.QUEUED
+        assert jobs[-1].generation != original.generation
+        assert jobs[-1].idempotency_key != original.idempotency_key
+    finally:
+        reopened.close()
+
+
+def test_cancelled_recurring_action_remains_explicitly_revoked(store, clock):
+    scheduler = WorkflowJobScheduler(store=store)
+    current = replace(
+        decision(),
+        next_reassessment_at=datetime.fromtimestamp(
+            1010, tz=timezone.utc
+        ).isoformat(),
+        decision_revision=None,
+    )
+    scheduler.reconcile((current,))
+    first = store.list_jobs()[0]
+    store.cancel(
+        first.job_id,
+        generation=first.generation,
+        reason="operator revoked current execution authority",
+    )
+
+    clock.advance(60)
+    replay = scheduler.reconcile((current,))
+
+    assert replay.jobs_created == 0
+    assert replay.jobs_materialized == 0
+    assert replay.truncated is True
+    assert len(store.list_jobs()) == 1
+    assert store.get(first.job_id).state is WorkflowJobState.CANCELLED
+
+
+def test_completed_protected_event_releases_superseded_managed_rearm(
+    store, clock
+):
+    scheduler = WorkflowJobScheduler(
+        store=store,
+        protected_event_lane_prefixes=("epic-event:",),
+    )
+    current = replace(
+        decision(jobs=("child_landing_verification",)),
+        next_reassessment_at=datetime.fromtimestamp(
+            1100, tz=timezone.utc
+        ).isoformat(),
+        decision_revision=None,
+    )
+    scheduler.reconcile((current,))
+    managed = store.list_jobs()[0]
+    event = store.materialize_event(
+        project_id=current.project_id,
+        task_id=current.task_id,
+        decision_revision="event-revision",
+        action="child_landing_verification",
+        idempotency_namespace="epic-action:child_landing_verification",
+        scheduling_lane="epic-event:child_landing_verification",
+    )
+    assert event.job is not None
+
+    protected = scheduler.reconcile((current,))
+    assert protected.jobs_created == 0
+    assert protected.jobs_materialized == 1
+    assert len(store.list_jobs()) == 2
+
+    claimed = store.claim_next(
+        lease_owner="event-worker",
+        lease_seconds=30,
+        generation=event.job.generation,
+        now=clock.now,
+    )
+    assert claimed is not None and claimed.job_id == event.job.job_id
+    store.complete(claimed.job_id, claimed.lease_token, now=clock.now)
+
+    replacement = scheduler.reconcile((current,))
+    jobs = store.list_jobs()
+
+    assert store.get(managed.job_id).state is WorkflowJobState.SUPERSEDED
+    assert replacement.jobs_created == 1
+    assert replacement.jobs_materialized == 1
+    assert replacement.truncated is False
+    assert len(jobs) == 3
+    assert jobs[-1].state is WorkflowJobState.QUEUED
+    assert jobs[-1].generation != managed.generation
+
+
+def test_latest_protected_event_prevents_managed_rearm_across_supersession_chain(
+    store, clock
+):
+    scheduler = WorkflowJobScheduler(
+        store=store,
+        protected_event_lane_prefixes=("epic-event:",),
+    )
+    current = replace(
+        decision(jobs=("child_landing_verification",)),
+        next_reassessment_at=datetime.fromtimestamp(
+            1100, tz=timezone.utc
+        ).isoformat(),
+        decision_revision=None,
+    )
+    scheduler.reconcile((current,))
+    managed = store.list_jobs()[0]
+    event_b = store.materialize_event(
+        project_id=current.project_id,
+        task_id=current.task_id,
+        decision_revision="event-b",
+        action="child_landing_verification",
+        idempotency_namespace="epic-action:child_landing_verification",
+        scheduling_lane="epic-event:child_landing_verification",
+    )
+    event_c = store.materialize_event(
+        project_id=current.project_id,
+        task_id=current.task_id,
+        decision_revision="event-c",
+        action="child_landing_verification",
+        idempotency_namespace="epic-action:child_landing_verification",
+        scheduling_lane="epic-event:child_landing_verification",
+    )
+    assert event_b.job is not None and event_c.job is not None
+    assert store.get(managed.job_id).state is WorkflowJobState.SUPERSEDED
+    assert store.get(event_b.job.job_id).state is WorkflowJobState.SUPERSEDED
+    assert store.get(event_c.job.job_id).state is WorkflowJobState.QUEUED
+
+    protected = scheduler.reconcile((current,))
+
+    assert protected.jobs_created == 0
+    assert protected.jobs_materialized == 1
+    assert protected.truncated is False
+    assert len(store.list_jobs()) == 3
+
+    claimed = store.claim_next(
+        lease_owner="event-worker",
+        lease_seconds=30,
+        generation=event_c.job.generation,
+        now=clock.now,
+    )
+    assert claimed is not None and claimed.job_id == event_c.job.job_id
+    store.complete(claimed.job_id, claimed.lease_token, now=clock.now)
+
+    replacement = scheduler.reconcile((current,))
+
+    assert replacement.jobs_created == 1
+    assert replacement.jobs_materialized == 1
+    assert replacement.truncated is False
+    assert len(store.list_jobs()) == 4
+    assert store.list_jobs()[-1].state is WorkflowJobState.QUEUED
+
+
+def test_protected_event_defers_completed_managed_rearm_past_deadline(
+    store, clock
+):
+    scheduler = WorkflowJobScheduler(
+        store=store,
+        protected_event_lane_prefixes=("epic-event:",),
+    )
+    current = replace(
+        decision(jobs=("child_landing_verification",)),
+        next_reassessment_at=datetime.fromtimestamp(
+            1010, tz=timezone.utc
+        ).isoformat(),
+        decision_revision=None,
+    )
+    scheduler.reconcile((current,))
+    managed = store.list_jobs()[0]
+    claimed = store.claim_next(
+        lease_owner="managed-worker",
+        lease_seconds=30,
+        generation=managed.generation,
+        now=clock.now,
+    )
+    assert claimed is not None and claimed.job_id == managed.job_id
+    store.complete(claimed.job_id, claimed.lease_token, now=clock.now)
+    event = store.materialize_event(
+        project_id=current.project_id,
+        task_id=current.task_id,
+        decision_revision="event-after-managed-completion",
+        action="child_landing_verification",
+        idempotency_namespace="epic-action:child_landing_verification",
+        scheduling_lane="epic-event:child_landing_verification",
+    )
+    assert event.job is not None
+
+    clock.advance(60)
+    protected = scheduler.reconcile((current,))
+
+    assert protected.jobs_created == 0
+    assert protected.jobs_materialized == 1
+    assert protected.truncated is False
+    assert len(store.list_jobs()) == 2
+
+    event_claim = store.claim_next(
+        lease_owner="event-worker",
+        lease_seconds=30,
+        generation=event.job.generation,
+        now=clock.now,
+    )
+    assert event_claim is not None and event_claim.job_id == event.job.job_id
+    store.complete(event_claim.job_id, event_claim.lease_token, now=clock.now)
+
+    replacement = scheduler.reconcile((current,))
+
+    assert replacement.jobs_created == 1
+    assert replacement.jobs_materialized == 1
+    assert replacement.truncated is False
+    assert len(store.list_jobs()) == 3
+    assert store.list_jobs()[-1].state is WorkflowJobState.QUEUED
+
+
+def test_exhausted_recurring_action_remains_fenced_after_deadline(store, clock):
+    scheduler = WorkflowJobScheduler(store=store)
+    current = replace(
+        decision(),
+        next_reassessment_at=datetime.fromtimestamp(
+            1010, tz=timezone.utc
+        ).isoformat(),
+        decision_revision=None,
+    )
+    scheduler.reconcile((current,))
+    first = store.list_jobs()[0]
+    claimed = store.claim_next(
+        lease_owner="worker-1", lease_seconds=30, now=clock.now
+    )
+    assert claimed is not None
+    store.fail(
+        claimed.job_id,
+        claimed.lease_token,
+        category=WorkflowFailureCategory.PERMANENT,
+        error="terminal failure",
+        retryable=False,
+        now=clock.now,
+    )
+
+    clock.advance(60)
+    replay = scheduler.reconcile((current,))
+    cursor = store.schedule_cursor(
+        project_id=first.project_id, task_id=first.task_id
+    )
+
+    assert replay.jobs_created == 0
+    assert replay.jobs_materialized == 0
+    assert replay.truncated is True
+    assert len(store.list_jobs()) == 1
+    assert store.get(first.job_id).state is WorkflowJobState.EXHAUSTED
+    assert cursor is not None and cursor.job_generation == first.generation
+
+
 def test_completed_action_without_reassessment_deadline_remains_terminal(
     store, clock
 ):
