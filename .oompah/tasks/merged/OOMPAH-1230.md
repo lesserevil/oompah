@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1230
 type: bug
-status: In Validation
+status: Merged
 priority: 2
 title: '[backend:task_transition_service] Task transition mutation guard failed project=proj-3e4e9214
   task=TRICKLE-140 reason=implementation.validation_submission'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:58:05.284702Z'
-updated_at: '2026-08-13T10:16:25.643493Z'
+updated_at: '2026-08-14T07:37:55.268816Z'
 work_branch: OOMPAH-1230
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.integration:
   version: 2
   state: ready
@@ -43,6 +43,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1230
     digest: 2f258e8911067244b19b2022d1efbf0999338a11c3b215cb0c5e248d40032db2
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-b86e7f5f34d6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1230
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2f258e8911067244b19b2022d1efbf0999338a11c3b215cb0c5e248d40032db2
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #858 merged as c02da55a7 and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:37:50.393033+00:00'
+    selected_ref: 320593caf587c69ada8e35b54e1b458929b34c63
+    selected_sha: 320593caf587c69ada8e35b54e1b458929b34c63
+    applied: false
   version: 1
   pending_chain:
   - version: 1
