@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T13:47:10.437674Z'
-updated_at: '2026-08-14T07:43:59.054151Z'
+updated_at: '2026-08-14T07:44:07.121871Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,7 +40,21 @@ oompah.terminal_audit:
     created_at: '2026-08-14T07:43:53.152748+00:00'
     selected_ref: origin/main
     selected_sha: 948ef6f207eabe4c26910d8fc276d6d36b659e76
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1241
+    target_state: Merged
+    evidence_fingerprint: be2c164edc90e4a4decefc1d3532f391726fe45d97b3170b3b8cca086a103dac
+    workflow_revision: null
+    selected_ref: origin/main
+    selected_sha: 948ef6f207eabe4c26910d8fc276d6d36b659e76
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-14T07:44:05.002327+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -134,5 +148,12 @@ author: oompah
 created: 2026-08-13 16:07
 ---
 Root cause refined live after provider-auth recovery: TRICKLE-141 reaches implementation dispatch, but direct epic-maintenance allocation refuses Oompah's managed Trickle clone because its common .git/config retains an HTTP userinfo remote and local credential helpers from pre-migration/adoption state. The dedicated sandbox would strip these and disable network, but the earlier security preflight correctly refuses to launch. Permanent managed-clone sanitation is tracked as OOMPAH-1249; immediate scoped workaround will normalize only Oompah's managed clone to the canonical credential-free project URL and remove its local helpers, preserving server-owned token transport.
+---
+author: oompah
+created: 2026-08-14 07:44
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner convergence: PR #867 merged as b3ed5d636 and that landed tree is contained by origin/main; this stale non-terminal projection requires no further implementation.
 ---
 <!-- COMMENTS:END -->
