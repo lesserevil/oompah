@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:39:37.692542Z'
-updated_at: '2026-08-14T02:41:17.682416Z'
+updated_at: '2026-08-14T03:17:42.666117Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,3 +38,11 @@ Consume exact structured prerequisite authority to publish a stable jobless work
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-14 03:17
+---
+Live regression reproduced during the 948ef6f restart: TRICKLE-138 and TRICKLE-139 had current jobless Needs Human decisions, but unmanaged nested_dispatch_topology_repair rows survived and TRICKLE-138 advanced from attempt 3 to 5. Exact rows 18391/18392 were safely cancelled by generation CAS while Trickle was paused, then verified terminal with retry_at cleared. Scope must explicitly retire stale auxiliary/unmanaged lanes such as nested-dispatch-topology when current structured prerequisite or zero-job authority parks the task; authority_revocation currently covers implementation ownership only and is insufficient. Add restart/reclaim regressions for this exact shape.
+---
+<!-- COMMENTS:END -->
