@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1231
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Park externally blocked implementations instead of hourly redispatch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T10:05:01.537298Z'
-updated_at: '2026-08-13T10:05:01.537298Z'
+updated_at: '2026-08-14T02:28:39.917276Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 9223d5cd-d749-49ea-a7e0-726e1ad3b254
   request_fingerprint: 205b96c1d8811c203aa3609d81dd100bd7f854e623e5c3e9e43572037c3fb0d8
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -35,3 +36,11 @@ Bug reproduced live on TRICKLE-123. A task whose own durable handoffs repeatedly
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-14 02:28
+---
+Claimed for direct systemic implementation after OOMPAH-1261 lands. Oompah remains paused; no scheduler dispatch is authorized. Parallel root-cause review is mapping external-prerequisite classification, truthful jobless parking, explicit recovery rearm, and stale durable-authority retirement against the live Trickle reproductions.
+---
+<!-- COMMENTS:END -->
