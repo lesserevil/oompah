@@ -1358,6 +1358,11 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         if "implementation_prerequisite" in meta
         else meta.get("oompah.implementation_prerequisite")
     )
+    implementation_prerequisite_resolution = (
+        meta.get("implementation_prerequisite_resolution")
+        if "implementation_prerequisite_resolution" in meta
+        else meta.get("oompah.implementation_prerequisite_resolution")
+    )
     integration = parse_integration_record(
         meta.get("integration") or meta.get("oompah.integration")
     )
@@ -1410,6 +1415,9 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         intake=intake,
         duplicate_screening=duplicate_screening,
         implementation_prerequisite=implementation_prerequisite,
+        implementation_prerequisite_resolution=(
+            implementation_prerequisite_resolution
+        ),
         integration=integration,
         epic_rebase_target=(
             meta.get("epic_rebase_target")

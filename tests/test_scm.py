@@ -1293,6 +1293,7 @@ class TestGitHubReviewQueueState:
         assert review is not None
         assert review.state == "merged"
         assert review.head_sha == "a" * 40
+        assert review.target_branch == "main"
         assert provider.last_review_fetch_ok is True
 
     def test_get_review_distinguishes_confirmed_missing_from_provider_failure(self):
@@ -3867,7 +3868,11 @@ class TestGitLabListOpenReviews:
             "diff_refs": {"base_sha": "b" * 40},
             "source_project_id": 21,
             "target_project_id": 21,
-            "head_pipeline": {"status": "success"},
+            "head_pipeline": {
+                "id": 62564237,
+                "sha": "a" * 40,
+                "status": "success",
+            },
             "changes_count": 5,
         }
         base.update(overrides)
@@ -4292,6 +4297,7 @@ class TestGitLabFindPrForBranch:
             "diff_refs": {"base_sha": "b" * 40},
             "source_project_id": 21,
             "target_project_id": 21,
+            "head_pipeline": {"id": 62564237, "sha": "a" * 40},
         }
         base.update(overrides)
         return base
@@ -4441,6 +4447,7 @@ class TestGitLabGetReview:
             "diff_refs": {"base_sha": "b" * 40},
             "source_project_id": 21,
             "target_project_id": 21,
+            "head_pipeline": {"id": 62564237, "sha": "a" * 40},
         }
         base.update(overrides)
         return base
@@ -4454,11 +4461,14 @@ class TestGitLabGetReview:
         assert result.title == "Detailed MR"
         assert result.author == "eve"
         assert result.source_branch == "fix/something"
+        assert result.target_branch == "main"
         assert result.labels == ["bug", "wontfix"]
         assert result.head_sha == "a" * 40
         assert result.base_sha == "b" * 40
         assert result.source_repository == "g/p"
         assert result.target_repository == "g/p"
+        assert result.pipeline_id == "62564237"
+        assert result.pipeline_head_sha == "a" * 40
         assert p.last_review_fetch_ok is True
 
     @pytest.mark.parametrize("missing", ["source_project_id", "target_project_id"])

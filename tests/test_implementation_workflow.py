@@ -16,6 +16,7 @@ from oompah.implementation_workflow import (
     IMPERATIVE_IMPLEMENTATION_LANE,
     IMPLEMENTATION_ACTIONS,
     IMPLEMENTATION_ORDERING_NAMESPACE,
+    PREREQUISITE_RESOLUTION_LANE,
     ImplementationAction,
     ImplementationDisposition,
     ImplementationExecutionResult,
@@ -784,6 +785,83 @@ def test_direct_owner_revocation_cannot_supersede_valid_reopen_event(tmp_path):
         revocation.scheduling_lane
         == "event:implementation:direct-owner-revocation:claim-before-reopen"
     )
+    store.close()
+
+
+def test_prerequisite_resolution_uses_protected_lane_and_fresh_exhausted_generation(
+    tmp_path,
+):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = ImplementationWorkflowController(
+        collector=collector([issue()]), store=store
+    )
+    payload = {
+        "record_id": "a" * 64,
+        "source_run_id": "run-1",
+        "source_assignment_id": "assignment-1",
+        "source_generation": "source-generation-1",
+        "expected_task_authority": "b" * 64,
+        "actor": "project-owner",
+        "reason": "Named prerequisite is satisfied.",
+        "trigger_evidence": {"kind": "operator", "action": "approved"},
+        "continuation": {
+            "resume_status": "Open",
+            "work_branch": "TASK-1",
+            "head_sha": "c" * 40,
+            "review_id": None,
+            "review_head_sha": None,
+            "target_branch": None,
+            "pipeline_id": None,
+            "pipeline_head_sha": None,
+        },
+    }
+
+    first = controller.schedule_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        expected_evidence_revision="b" * 64,
+        expected_head_sha="c" * 40,
+        max_attempts=1,
+    )
+    replay = controller.schedule_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        expected_evidence_revision="b" * 64,
+        expected_head_sha="c" * 40,
+        max_attempts=1,
+    )
+
+    assert replay.job_id == first.job_id
+    assert first.scheduling_lane == PREREQUISITE_RESOLUTION_LANE
+    leased = store.claim_next(lease_owner="worker", lease_seconds=30)
+    assert leased is not None
+    exhausted = store.fail(
+        leased.job_id,
+        leased.lease_token,
+        category="transient",
+        error="provider unavailable",
+        retryable=True,
+    )
+    assert exhausted.state is WorkflowJobState.EXHAUSTED
+
+    replacement = controller.schedule_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        expected_evidence_revision="b" * 64,
+        expected_head_sha="c" * 40,
+        max_attempts=1,
+    )
+
+    assert replacement.job_id != first.job_id
+    assert replacement.generation != first.generation
+    assert store.get(first.job_id).state is WorkflowJobState.EXHAUSTED
+    assert replacement.state is WorkflowJobState.QUEUED
     store.close()
 
 

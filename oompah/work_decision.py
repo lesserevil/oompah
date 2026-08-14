@@ -74,6 +74,7 @@ IMPLEMENTATION_ACTION_JOBS = frozenset(
         "authority_revocation",
         "implementation_retry",
         "implementation_recovery",
+        "prerequisite_resolution",
     }
 )
 

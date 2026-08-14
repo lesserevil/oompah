@@ -237,6 +237,11 @@ def _build_rules() -> list[_RouteRule]:  # noqa: PLR0915  (long but intentional)
         ("POST", "/api/v1/projects/{project_id}/state-branch/migrate", RouteCategory.ADMIN_MUTATION),
         ("POST", "/api/v1/projects/{project_id}/bootstrap/apply", RouteCategory.ADMIN_MUTATION),
         ("POST", "/api/v1/projects/{project_id}/issue-templates/apply", RouteCategory.ADMIN_MUTATION),
+        (
+            "POST",
+            "/api/v1/projects/{project_id}/tasks/{identifier}/implementation-prerequisite/resolve",
+            RouteCategory.ADMIN_MUTATION,
+        ),
         # Agent-profile management
         ("POST", "/api/v1/agent-profiles", RouteCategory.ADMIN_MUTATION),
         ("PATCH", "/api/v1/agent-profiles/{name}", RouteCategory.ADMIN_MUTATION),

@@ -998,6 +998,69 @@ class TestCmdTerminalProvenance:
         assert "actor_login" not in http_mock.call_args.kwargs["data"]
 
 
+class TestCmdResolvePrerequisite:
+    def test_posts_exact_project_scoped_resolution(self, capsys):
+        args = _make_args(
+            subcommand="resolve-prerequisite",
+            identifier="owner/repo#5",
+            project="proj-1",
+            record_id="a" * 64,
+            source_run_id="run-1",
+            source_assignment_id="assignment-1",
+            source_generation="generation-1",
+            task_authority="b" * 64,
+            reason="The named runner is online.",
+            operator_action="runner-online",
+            pipeline_id="pipeline-9",
+        )
+        with _make_http_mock(
+            {
+                "job_id": "job-1",
+                "generation": "workflow-1",
+                "resume_status": "In Review",
+                "replayed": False,
+            }
+        ) as http_mock:
+            task_cli._cmd_resolve_prerequisite("http://localhost:8080", args)
+
+        assert http_mock.call_args.args == (
+            "POST",
+            "http://localhost:8080/api/v1/projects/proj-1/tasks/5/implementation-prerequisite/resolve",
+        )
+        assert http_mock.call_args.kwargs["data"] == {
+            "issue_key": "owner/repo#5",
+            "record_id": "a" * 64,
+            "source_run_id": "run-1",
+            "source_assignment_id": "assignment-1",
+            "source_generation": "generation-1",
+            "task_authority": "b" * 64,
+            "reason": "The named runner is online.",
+            "operator_action": "runner-online",
+            "pipeline_id": "pipeline-9",
+        }
+        assert "Prerequisite resolution queued" in capsys.readouterr().out
+
+    def test_requires_exact_source_fields_before_http(self):
+        args = _make_args(
+            subcommand="resolve-prerequisite",
+            identifier="TASK-1",
+            project="proj-1",
+            record_id="",
+            source_run_id="run-1",
+            source_assignment_id="assignment-1",
+            source_generation="generation-1",
+            task_authority="b" * 64,
+            reason="Resolved.",
+            operator_action=None,
+            pipeline_id=None,
+        )
+        with _make_http_mock() as http_mock, pytest.raises(
+            SystemExit, match="--record-id is required"
+        ):
+            task_cli._cmd_resolve_prerequisite("http://localhost:8080", args)
+        http_mock.assert_not_called()
+
+
 class TestCmdAddLabel:
     def test_posts_to_labels_endpoint(self):
         args = _make_args(
@@ -1706,6 +1769,35 @@ class TestBuildParser:
         assert args.action == "new-revision"
         assert args.project == "proj-1"
         assert args.reason == "Corrected implementation is requested"
+
+    def test_resolve_prerequisite_subcommand_parses(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(
+            [
+                "resolve-prerequisite",
+                "TASK-1",
+                "--project",
+                "proj-1",
+                "--record-id",
+                "a" * 64,
+                "--source-run-id",
+                "run-1",
+                "--source-assignment-id",
+                "assignment-1",
+                "--source-generation",
+                "generation-1",
+                "--task-authority",
+                "b" * 64,
+                "--reason",
+                "Runner is available",
+                "--operator-action",
+                "runner-online",
+            ]
+        )
+        assert args.subcommand == "resolve-prerequisite"
+        assert args.project == "proj-1"
+        assert args.source_run_id == "run-1"
+        assert args.operator_action == "runner-online"
 
     def test_submit_subcommand_parses(self):
         parser = task_cli.build_parser()

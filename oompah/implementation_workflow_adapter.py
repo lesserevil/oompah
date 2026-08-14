@@ -41,17 +41,38 @@ from oompah.implementation_workflow import (
     ImplementationWorkflowHandler,
 )
 from oompah.integration import accepted_submission_branch
+from oompah.implementation_prerequisite import (
+    ImplementationPrerequisiteRecord,
+    ImplementationPrerequisiteResolution,
+    MalformedPrerequisiteRecordError,
+    MalformedPrerequisiteResolutionError,
+    PrerequisiteConflictError,
+    PrerequisiteContinuation,
+    PrerequisitePersistenceError,
+    PrerequisiteResolutionConflictError,
+    PrerequisiteSourceChangedError,
+    PREREQUISITE_RESOLUTION_SOURCE_STATUSES,
+    RecoveryTriggerKind,
+    load_record as load_implementation_prerequisite,
+    load_resolution as load_implementation_prerequisite_resolution,
+    new_resolution as new_implementation_prerequisite_resolution,
+    resolution_is_current,
+    save_resolution as save_implementation_prerequisite_resolution,
+    select_execution_profile_name,
+)
 from oompah.statuses import (
     DUPLICATE_CANDIDATE,
     IN_PROGRESS,
     IN_VALIDATION,
     NEEDS_CI_FIX,
+    NEEDS_HUMAN,
     NEEDS_REBASE,
     OPEN,
     READY_TO_INTEGRATE,
     canonicalize_status,
     is_terminal_status,
 )
+from oompah.scm import detect_provider, extract_repo_slug
 from oompah.task_transition_service import (
     TransitionAuthority,
     TransitionIntent,
@@ -596,6 +617,8 @@ class OrchestratorImplementationEffects:
             return ImplementationOwnershipSource.DUPLICATE_INVESTIGATOR
         if action is ImplementationAction.RECOVERY:
             return ImplementationOwnershipSource.RECOVERY
+        if action is ImplementationAction.PREREQUISITE_RESOLUTION:
+            return ImplementationOwnershipSource.PROJECT_OWNER
         return ImplementationOwnershipSource.AGENT
 
     @staticmethod
@@ -610,6 +633,9 @@ class OrchestratorImplementationEffects:
             ImplementationAction.AUTHORITY_REVOCATION: ImplementationState.REVOKED,
             ImplementationAction.RETRY: ImplementationState.RETRY_WAIT,
             ImplementationAction.RECOVERY: ImplementationState.ACTIVE,
+            ImplementationAction.PREREQUISITE_RESOLUTION: (
+                ImplementationState.COMPLETED
+            ),
         }[action]
 
     def _disposition(
@@ -661,6 +687,453 @@ class OrchestratorImplementationEffects:
             retry_at=_text(payload.get("retry_at")) or None,
             incomplete_sessions=int(payload.get("incomplete_sessions") or 0),
         )
+
+    def _prerequisite_resolution_for_context(
+        self,
+        issue: Any,
+        context: WorkflowJobContext,
+        *,
+        now: datetime,
+    ) -> tuple[
+        ImplementationPrerequisiteRecord,
+        ImplementationPrerequisiteResolution,
+    ]:
+        """Rebuild the exact job-bound owner receipt from immutable payload."""
+
+        payload = context.job.payload or {}
+        record = load_implementation_prerequisite(self._tracker(), issue)
+        if record is None:
+            raise WorkflowActionError(
+                "implementation prerequisite is absent or malformed",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=False,
+            )
+        exact_source = {
+            "record_id": record.record_id,
+            "source_run_id": record.source_run_id,
+            "source_assignment_id": record.source_assignment_id,
+            "source_generation": record.source_generation,
+        }
+        if any(
+            _text(payload.get(name)) != expected
+            for name, expected in exact_source.items()
+        ):
+            raise WorkflowActionError(
+                "prerequisite resolution source identity is stale",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=False,
+            )
+        expected_authority = _text(payload.get("expected_task_authority"))
+        if (
+            not expected_authority
+            or expected_authority != _text(context.job.expected_evidence_revision)
+        ):
+            raise WorkflowActionError(
+                "prerequisite resolution task authority is not the job fence",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=False,
+            )
+        expected_status = canonicalize_status(payload.get("expected_status"))
+        if (
+            expected_status not in PREREQUISITE_RESOLUTION_SOURCE_STATUSES
+            or canonicalize_status(getattr(issue, "state", None))
+            != expected_status
+        ):
+            raise WorkflowActionError(
+                "prerequisite resolution source status is stale or unauthorized",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=False,
+            )
+        continuation = PrerequisiteContinuation.from_raw(
+            payload.get("continuation")
+        )
+        trigger_evidence = payload.get("trigger_evidence")
+        actor = _text(payload.get("actor"))
+        reason = _text(payload.get("reason"))
+        if (
+            continuation is None
+            or not isinstance(trigger_evidence, Mapping)
+            or not trigger_evidence
+            or not actor
+            or not reason
+        ):
+            raise WorkflowActionError(
+                "prerequisite resolution payload is incomplete",
+                category=WorkflowFailureCategory.POLICY,
+                retryable=False,
+            )
+        expected_head = _text(context.job.expected_head_sha).lower()
+        continuation_head = _text(continuation.head_sha).lower()
+        if expected_head != continuation_head:
+            raise WorkflowActionError(
+                "prerequisite continuation head is not the job fence",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=False,
+            )
+        try:
+            resolution = new_implementation_prerequisite_resolution(
+                record,
+                expected_task_authority=expected_authority,
+                workflow_generation=context.job.generation,
+                actor=actor,
+                reason=reason,
+                trigger_evidence=trigger_evidence,
+                continuation=continuation,
+                now=now,
+            )
+        except (TypeError, ValueError) as exc:
+            raise WorkflowActionError(
+                "prerequisite resolution payload is malformed",
+                category=WorkflowFailureCategory.POLICY,
+                retryable=False,
+            ) from exc
+        return record, resolution
+
+    def _assert_prerequisite_trigger_current(
+        self,
+        issue: Any,
+        record: ImplementationPrerequisiteRecord,
+        resolution: ImplementationPrerequisiteResolution,
+    ) -> None:
+        """Re-read the named trigger at the final receipt publication fence."""
+
+        evidence = dict(resolution.trigger_evidence)
+        trigger = record.recovery_trigger
+        if trigger.kind is RecoveryTriggerKind.OPERATOR:
+            # The exact named action is an immutable authenticated owner
+            # assertion. The strict receipt schema already bound it to the
+            # record; there is no mutable external truth to re-read.
+            if evidence != {"kind": "operator", "action": trigger.value}:
+                raise PrerequisiteSourceChangedError(
+                    "named operator prerequisite evidence changed"
+                )
+            return
+        if trigger.kind is RecoveryTriggerKind.TASK:
+            project_id = _text(trigger.project_id)
+            dependency_tracker = self.orchestrator._tracker_for_project(
+                project_id
+            )
+            dependency = dependency_tracker.fetch_issue_detail(trigger.value)
+            if dependency is None:
+                raise PrerequisiteSourceChangedError(
+                    "task-qualified prerequisite is no longer available"
+                )
+            dependency_project = _text(getattr(dependency, "project_id", None))
+            if dependency_project and dependency_project != project_id:
+                raise PrerequisiteSourceChangedError(
+                    "task-qualified prerequisite crossed project scope"
+                )
+            dependency.project_id = project_id
+            if (
+                _text(dependency.identifier) != trigger.value
+                or canonicalize_status(dependency.state)
+                not in {"Done", "Merged", "Archived"}
+                or evidence.get("project_id") != project_id
+                or evidence.get("task_identifier") != trigger.value
+                or evidence.get("status")
+                != canonicalize_status(dependency.state)
+                or evidence.get("task_authority")
+                != issue_authority_version(dependency)
+            ):
+                raise PrerequisiteSourceChangedError(
+                    "task-qualified prerequisite authority changed"
+                )
+            return
+        # The caller holds ``_pending_profiles_lock`` through receipt commit.
+        # Production uses a non-reentrant lock, so consume its lock-aware
+        # authority helper rather than reacquiring through the public reader.
+        locked_authority = getattr(
+            self.orchestrator,
+            "_execution_profile_authority_locked",
+            None,
+        )
+        if callable(locked_authority):
+            snapshot, _profiles = locked_authority()
+        else:
+            snapshot, _profiles = (
+                self.orchestrator._latest_execution_profile_authority()
+            )
+        selected = select_execution_profile_name(snapshot, issue, trigger.value)
+        if (
+            evidence.get("kind") != "profile-capability"
+            or evidence.get("capability") != trigger.value
+            or evidence.get("profile_revision") != snapshot.revision
+            or evidence.get("profile_name") != selected
+            or selected is None
+        ):
+            raise PrerequisiteSourceChangedError(
+                "profile capability authority changed before resolution"
+            )
+
+    def _live_resolution_review(
+        self,
+        issue: Any,
+        continuation: PrerequisiteContinuation,
+    ) -> Any:
+        """Fetch one authoritative live review at the final receipt fence."""
+
+        resolver = getattr(
+            self.orchestrator,
+            "_implementation_prerequisite_review_resolver",
+            None,
+        )
+        if callable(resolver):
+            return resolver(self.project_id, issue, continuation.review_id)
+        project_store = getattr(self.orchestrator, "project_store", None)
+        get_project = getattr(project_store, "get", None)
+        project = get_project(self.project_id) if callable(get_project) else None
+        if project is None:
+            raise PrerequisiteSourceChangedError(
+                "review project is unavailable during prerequisite resolution"
+            )
+        provider = detect_provider(
+            project.repo_url,
+            access_token=getattr(project, "access_token", None),
+        )
+        if provider is None:
+            raise PrerequisiteSourceChangedError(
+                "review provider is unavailable during prerequisite resolution"
+            )
+        return provider.get_review(
+            extract_repo_slug(project.repo_url),
+            _text(continuation.review_id),
+        )
+
+    def _assert_prerequisite_continuation_current(
+        self,
+        issue: Any,
+        record: ImplementationPrerequisiteRecord,
+        resolution: ImplementationPrerequisiteResolution,
+    ) -> None:
+        """Re-read review/pipeline or accepted-submission continuation truth."""
+
+        continuation = resolution.continuation
+        issue_head = _text(issue_exact_head(issue)).lower()
+        expected_head = _text(continuation.head_sha).lower()
+        if expected_head and issue_head and issue_head != expected_head:
+            raise PrerequisiteSourceChangedError(
+                "prerequisite continuation head changed"
+            )
+        task_branch = _text(
+            getattr(issue, "work_branch", None)
+            or getattr(issue, "branch_name", None)
+        )
+        if continuation.work_branch and task_branch and (
+            continuation.work_branch != task_branch
+        ):
+            raise PrerequisiteSourceChangedError(
+                "prerequisite continuation branch changed"
+            )
+        integration = getattr(issue, "integration", None)
+        integration_state = _text(
+            integration.get("state")
+            if isinstance(integration, Mapping)
+            else getattr(integration, "state", None)
+        ).lower()
+        integration_head = _text(
+            integration.get("head_sha")
+            if isinstance(integration, Mapping)
+            else getattr(integration, "head_sha", None)
+        ).lower()
+        accepted_branch = accepted_submission_branch(issue)
+        current_status = canonicalize_status(getattr(issue, "state", None))
+        if integration_state == "integrated":
+            raise PrerequisiteSourceChangedError(
+                "integrated submission cannot resume prerequisite work"
+            )
+        if integration_state in {"ready", "queued", "integrating"}:
+            if (
+                continuation.resume_status != READY_TO_INTEGRATE
+                or not accepted_branch
+                or accepted_branch != continuation.work_branch
+                or integration_head != expected_head
+            ):
+                raise PrerequisiteSourceChangedError(
+                    "accepted submission authority changed before resolution"
+                )
+            return
+        if integration_state == "blocked":
+            if (
+                continuation.resume_status not in {NEEDS_CI_FIX, NEEDS_REBASE}
+                or current_status != continuation.resume_status
+                or accepted_branch != continuation.work_branch
+                or integration_head != expected_head
+            ):
+                raise PrerequisiteSourceChangedError(
+                    "blocked submission authority changed before resolution"
+                )
+            return
+        if integration_state == "needs_human":
+            if (
+                continuation.resume_status != NEEDS_HUMAN
+                or current_status != NEEDS_HUMAN
+                or accepted_branch != continuation.work_branch
+                or integration_head != expected_head
+            ):
+                raise PrerequisiteSourceChangedError(
+                    "needs-human submission authority changed before resolution"
+                )
+            return
+        if continuation.resume_status == "In Review":
+            project_store = getattr(self.orchestrator, "project_store", None)
+            get_project = getattr(project_store, "get", None)
+            project = (
+                get_project(self.project_id) if callable(get_project) else None
+            )
+            task_target = _text(getattr(issue, "target_branch", None)) or _text(
+                getattr(project, "default_branch", None)
+            )
+            if (
+                _text(getattr(issue, "review_number", None))
+                != _text(continuation.review_id)
+                or _text(getattr(issue, "review_head", None)).lower()
+                != _text(continuation.review_head_sha).lower()
+                or task_target != _text(continuation.target_branch)
+            ):
+                raise PrerequisiteSourceChangedError(
+                    "task review authority changed before resolution"
+                )
+            review = self._live_resolution_review(issue, continuation)
+            if (
+                review is None
+                or _text(getattr(review, "id", None))
+                != _text(continuation.review_id)
+                or _text(getattr(review, "state", None)).lower() != "open"
+                or _text(getattr(review, "head_sha", None)).lower()
+                != _text(continuation.review_head_sha).lower()
+                or _text(getattr(review, "target_branch", None))
+                != _text(continuation.target_branch)
+                or (
+                    continuation.work_branch is not None
+                    and _text(getattr(review, "source_branch", None))
+                    != continuation.work_branch
+                )
+            ):
+                raise PrerequisiteSourceChangedError(
+                    "live review authority changed before resolution"
+                )
+            if continuation.pipeline_id is not None and (
+                _text(getattr(review, "pipeline_id", None))
+                != continuation.pipeline_id
+                or _text(getattr(review, "pipeline_head_sha", None)).lower()
+                != _text(continuation.pipeline_head_sha).lower()
+            ):
+                raise PrerequisiteSourceChangedError(
+                    "live pipeline authority changed before resolution"
+                )
+            return
+        if expected_head and expected_head != record.source_head_sha and (
+            expected_head != issue_head
+        ):
+            raise PrerequisiteSourceChangedError(
+                "generic continuation no longer owns its exact source head"
+            )
+
+    def _persist_prerequisite_resolution(
+        self,
+        issue: Any,
+        context: WorkflowJobContext,
+    ) -> ImplementationPrerequisiteResolution:
+        """CAS one exact owner resolution into tracker metadata."""
+
+        tracker = self._tracker()
+        record, resolution = self._prerequisite_resolution_for_context(
+            issue,
+            context,
+            now=datetime.now(timezone.utc),
+        )
+
+        def accept_current() -> bool:
+            self._assert_job_current(context)
+            current = self._issue(context.job.task_id)
+            if (
+                issue_authority_version(current)
+                != resolution.expected_task_authority
+            ):
+                return False
+            expected_status = canonicalize_status(
+                (context.job.payload or {}).get("expected_status")
+            )
+            if (
+                expected_status
+                not in PREREQUISITE_RESOLUTION_SOURCE_STATUSES
+                or canonicalize_status(getattr(current, "state", None))
+                != expected_status
+            ):
+                raise PrerequisiteSourceChangedError(
+                    "prerequisite resolution source status changed"
+                )
+            self._assert_prerequisite_trigger_current(
+                current,
+                record,
+                resolution,
+            )
+            self._assert_prerequisite_continuation_current(
+                current,
+                record,
+                resolution,
+            )
+            return True
+
+        try:
+            trackers = {self.project_id: tracker}
+            if record.recovery_trigger.kind is RecoveryTriggerKind.TASK:
+                dependency_project = _text(record.recovery_trigger.project_id)
+                trackers[dependency_project] = (
+                    self.orchestrator._tracker_for_project(dependency_project)
+                )
+            with contextlib.ExitStack() as locks:
+                entered_trackers: set[int] = set()
+                for project_id, guarded_tracker in sorted(trackers.items()):
+                    tracker_identity = id(guarded_tracker)
+                    if tracker_identity in entered_trackers:
+                        continue
+                    lock_source = getattr(
+                        guarded_tracker, "owner_control_lock", None
+                    )
+                    if not callable(lock_source):
+                        raise WorkflowActionError(
+                            "bounded prerequisite owner control is unavailable "
+                            f"for project {project_id}",
+                            category=WorkflowFailureCategory.TRANSIENT,
+                            retryable=True,
+                        )
+                    locks.enter_context(lock_source())
+                    entered_trackers.add(tracker_identity)
+                profile_lock = (
+                    getattr(self.orchestrator, "_pending_profiles_lock", None)
+                    if record.recovery_trigger.kind
+                    is RecoveryTriggerKind.PROFILE_CAPABILITY
+                    else None
+                )
+                if profile_lock is not None:
+                    locks.enter_context(profile_lock)
+                return save_implementation_prerequisite_resolution(
+                    tracker,
+                    issue,
+                    record,
+                    resolution,
+                    lock=contextlib.nullcontext(),
+                    accept_current=accept_current,
+                )
+        except (
+            MalformedPrerequisiteRecordError,
+            MalformedPrerequisiteResolutionError,
+            PrerequisiteConflictError,
+            PrerequisiteResolutionConflictError,
+            PrerequisiteSourceChangedError,
+        ) as exc:
+            raise WorkflowActionError(
+                str(exc),
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=False,
+            ) from exc
+        except PrerequisitePersistenceError as exc:
+            raise WorkflowActionError(
+                str(exc),
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            ) from exc
 
     @staticmethod
     def _entry_lease(entry: Any) -> str:
@@ -771,6 +1244,21 @@ class OrchestratorImplementationEffects:
                         else None
                     ),
                 )
+        if action is ImplementationAction.PREREQUISITE_RESOLUTION:
+            record, expected = self._prerequisite_resolution_for_context(
+                issue,
+                context,
+                now=datetime.now(timezone.utc),
+            )
+            existing = load_implementation_prerequisite_resolution(
+                self._tracker(), issue
+            )
+            if (
+                resolution_is_current(record, existing)
+                and existing is not None
+                and existing.resolution_id == expected.resolution_id
+            ):
+                return self._disposition(context, issue=issue)
         return None
 
     async def observe(
@@ -1370,13 +1858,21 @@ class OrchestratorImplementationEffects:
             disposition = self._disposition(context, issue=issue)
         elif action is ImplementationAction.RETRY:
             disposition = self._disposition(context, issue=issue)
+        elif action is ImplementationAction.PREREQUISITE_RESOLUTION:
+            await asyncio.to_thread(
+                self._persist_prerequisite_resolution,
+                issue,
+                context,
+            )
+            self._assert_job_current(context)
+            disposition = self._disposition(context, issue=issue)
         else:  # pragma: no cover - enum exhaustiveness
             raise AssertionError(action)
         return await asyncio.to_thread(self.receipts.record, context, disposition)
 
 
 class ProductionImplementationWorkflowBackend:
-    """Generation/head-fenced backend for all nine implementation actions."""
+    """Generation/head-fenced backend for every implementation action."""
 
     def __init__(
         self,
@@ -1397,6 +1893,11 @@ class ProductionImplementationWorkflowBackend:
         }.get(action)
         if action is ImplementationAction.WORKER_EXIT:
             requested = _text(payload.get("requested_status")) or None
+        if action is ImplementationAction.PREREQUISITE_RESOLUTION:
+            continuation = PrerequisiteContinuation.from_raw(
+                payload.get("continuation")
+            )
+            requested = continuation.resume_status if continuation else None
         return requested
 
     async def revalidate(self, context: WorkflowJobContext) -> RevalidationResult:
@@ -1408,13 +1909,30 @@ class ProductionImplementationWorkflowBackend:
         expected_head = _text(context.job.expected_head_sha).lower()
         observed_head = _text(issue_exact_head(issue)).lower()
         payload = context.job.payload or {}
+        action = ImplementationAction(context.job.action)
+        if (
+            action is ImplementationAction.PREREQUISITE_RESOLUTION
+            and expected_head
+            and not observed_head
+        ):
+            record = load_implementation_prerequisite(
+                self.effects._tracker(), issue
+            )
+            if (
+                record is not None
+                and record.record_id == _text(payload.get("record_id"))
+            ):
+                # The append-once blocker is the only restart projection of a
+                # mid-implementation head on trackers that do not expose a
+                # direct task-head field. Preserve and fence that exact source
+                # rather than degrading the continuation to generic Open work.
+                observed_head = record.source_head_sha
         workspace_path = _text(payload.get("workspace_path"))
         retry_head = getattr(self.effects.orchestrator, "_retry_issue_head", None)
         if expected_head and not observed_head and workspace_path and callable(retry_head):
             observed_head = _text(retry_head(issue, workspace_path)).lower()
         head_current = not expected_head or expected_head == observed_head
         evidence_current = not expected_evidence or expected_evidence == observed_evidence
-        action = ImplementationAction(context.job.action)
         requested_status = self._requested_status(action, payload)
         expected_status = _text(payload.get("expected_status"))
         observed_status = canonicalize_status(issue.state)
@@ -1446,6 +1964,20 @@ class ProductionImplementationWorkflowBackend:
                     assessment.state is ScreeningState.RUNNING
                     and assessment.record is not None
                     and assessment.record.claim_id == context.job.generation
+                )
+            elif action is ImplementationAction.PREREQUISITE_RESOLUTION:
+                record = load_implementation_prerequisite(
+                    self.effects._tracker(), issue
+                )
+                resolution = load_implementation_prerequisite_resolution(
+                    self.effects._tracker(), issue
+                )
+                exact_effect = bool(
+                    record is not None
+                    and resolution_is_current(record, resolution)
+                    and resolution is not None
+                    and resolution.workflow_generation
+                    == context.job.generation
                 )
             if not exact_effect:
                 receipt = await asyncio.to_thread(
@@ -1494,6 +2026,9 @@ class ProductionImplementationWorkflowBackend:
             ImplementationAction.AUTHORITY_REVOCATION: "revoked",
             ImplementationAction.RETRY: "retry_scheduled",
             ImplementationAction.RECOVERY: "recovered",
+            ImplementationAction.PREREQUISITE_RESOLUTION: (
+                "prerequisite_resolved"
+            ),
         }[ImplementationAction(context.job.action)]
         return ImplementationExecutionResult(status, status, disposition)
 
@@ -1605,6 +2140,31 @@ class ProductionImplementationWorkflowBackend:
                     retryable=False,
                 )
             authority = TransitionAuthority.PROJECT_OWNER
+        if action is ImplementationAction.PREREQUISITE_RESOLUTION:
+            actor = _text(payload.get("actor"))
+            if not actor:
+                raise WorkflowActionError(
+                    "prerequisite resolution transition has no owner identity",
+                    category=WorkflowFailureCategory.POLICY,
+                    retryable=False,
+                )
+            authority = TransitionAuthority.PROJECT_OWNER
+        exact_transition_head = (
+            context.job.expected_head_sha
+            if _HEAD_RE.fullmatch(_text(context.job.expected_head_sha).lower())
+            else None
+        )
+        if (
+            action is ImplementationAction.PREREQUISITE_RESOLUTION
+            and _text(issue_exact_head(issue)).lower()
+            != _text(exact_transition_head).lower()
+        ):
+            # The immutable prerequisite receipt still preserves and fences a
+            # source head which some task trackers cannot project directly.
+            # Do not ask the generic transition service to compare that head
+            # against a field the tracker cannot expose; the record/job/task
+            # authority CAS already guards this owner-only recovery.
+            exact_transition_head = None
         return TransitionIntent(
             project_id=context.job.project_id,
             task_id=context.job.task_id,
@@ -1617,11 +2177,7 @@ class ProductionImplementationWorkflowBackend:
             idempotency_key=f"{context.job.idempotency_key}:transition",
             originating_job=context.job.job_id,
             evidence_generation=evidence_generation,
-            exact_head=(
-                context.job.expected_head_sha
-                if _HEAD_RE.fullmatch(_text(context.job.expected_head_sha).lower())
-                else None
-            ),
+            exact_head=exact_transition_head,
         )
 
     async def compensate_transition_failure(

@@ -317,6 +317,11 @@ class ReviewRequest:
     draft: bool = False
     reviewers: list[str] = field(default_factory=list)
     ci_status: CIStatus = CIStatus.UNKNOWN
+    # Exact provider pipeline attached to this review head when the forge
+    # exposes one (currently GitLab ``head_pipeline``). Empty means the
+    # provider did not publish a stable pipeline identity.
+    pipeline_id: str = ""
+    pipeline_head_sha: str = ""
     ci_warnings: list[CapabilityWarning] = field(default_factory=list)
     additions: int = 0
     deletions: int = 0
@@ -370,6 +375,8 @@ class ReviewRequest:
             "draft": self.draft,
             "reviewers": self.reviewers,
             "ci_status": self.ci_status,
+            "pipeline_id": self.pipeline_id,
+            "pipeline_head_sha": self.pipeline_head_sha,
             "ci_warnings": self.ci_warnings,
             "additions": self.additions,
             "deletions": self.deletions,
@@ -3582,6 +3589,8 @@ class GitLabProvider(SCMProvider):
                 draft=mr.get("draft", False) or mr.get("work_in_progress", False),
                 reviewers=reviewers,
                 ci_status=ci_status,
+                pipeline_id=str(pipeline.get("id") or ""),
+                pipeline_head_sha=str(pipeline.get("sha") or ""),
                 ci_warnings=ci_warnings,
                 additions=mr.get("changes_count", 0) if isinstance(mr.get("changes_count"), int) else 0,
                 deletions=0,
@@ -3796,6 +3805,10 @@ class GitLabProvider(SCMProvider):
             description=_truncate(mr.get("description", "") or "", 500),
             labels=mr.get("labels") or [],
             draft=mr.get("draft", False) or mr.get("work_in_progress", False),
+            pipeline_id=str((mr.get("head_pipeline") or {}).get("id") or ""),
+            pipeline_head_sha=str(
+                (mr.get("head_pipeline") or {}).get("sha") or ""
+            ),
             needs_rebase=bool(mr.get("has_conflicts", False))
             or (mr.get("diverged_commits_count") or 0) > 0,
             has_conflicts=bool(mr.get("has_conflicts", False)),
@@ -3848,6 +3861,10 @@ class GitLabProvider(SCMProvider):
             description=_truncate(mr.get("description", "") or "", 500),
             labels=mr.get("labels") or [],
             draft=mr.get("draft", False) or mr.get("work_in_progress", False),
+            pipeline_id=str((mr.get("head_pipeline") or {}).get("id") or ""),
+            pipeline_head_sha=str(
+                (mr.get("head_pipeline") or {}).get("sha") or ""
+            ),
             needs_rebase=bool(mr.get("has_conflicts", False))
             or (mr.get("diverged_commits_count") or 0) > 0,
             has_conflicts=bool(mr.get("has_conflicts", False)),

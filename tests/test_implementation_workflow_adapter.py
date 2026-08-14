@@ -28,6 +28,18 @@ from oompah.implementation_workflow_adapter import (
     ProductionImplementationWorkflowBackend,
     build_implementation_workflow_handlers,
 )
+from oompah.implementation_prerequisite import (
+    METADATA_KEY as PREREQUISITE_METADATA_KEY,
+    RESOLUTION_METADATA_KEY as PREREQUISITE_RESOLUTION_METADATA_KEY,
+    ImplementationPrerequisiteDeclaration,
+    PrerequisiteKind,
+    PrerequisiteContinuation,
+    RecoveryTrigger,
+    RecoveryTriggerKind,
+    freeze_execution_profile_snapshot,
+    new_record as new_prerequisite_record,
+    parse_prerequisite_declaration,
+)
 from oompah.integration import IntegrationRecord
 from oompah.integration_queue import IntegrationQueueStore
 from oompah.models import Issue, OwnerClaim
@@ -37,6 +49,7 @@ from oompah.statuses import (
     BACKLOG,
     DUPLICATE_CANDIDATE,
     IN_PROGRESS,
+    IN_REVIEW,
     NEEDS_HUMAN,
     OPEN,
     READY_TO_INTEGRATE,
@@ -69,12 +82,31 @@ from oompah.workflow_worker import (
 
 HEAD_A = "a" * 40
 HEAD_B = "b" * 40
+_CAPABLE_PROFILE = SimpleNamespace(
+    name="Mac Runner",
+    execution_capabilities=["macos"],
+    issue_types=[],
+    keywords=[],
+    min_priority=None,
+    max_priority=None,
+)
+_PROFILE_SNAPSHOT = freeze_execution_profile_snapshot((_CAPABLE_PROFILE,))
 
 
 class Tracker:
     def __init__(self, *issues: Issue) -> None:
         self.issues = {issue.identifier: issue for issue in issues}
         self.status_writes: list[tuple[str, str]] = []
+        self.metadata = {
+            issue.identifier: {
+                PREREQUISITE_METADATA_KEY: issue.implementation_prerequisite,
+                PREREQUISITE_RESOLUTION_METADATA_KEY: (
+                    issue.implementation_prerequisite_resolution
+                ),
+            }
+            for issue in issues
+        }
+        self._owner_lock = threading.RLock()
 
     def fetch_issue_detail(self, identifier: str) -> Issue | None:
         return self.issues.get(identifier)
@@ -85,6 +117,21 @@ class Tracker:
     def update_issue(self, identifier: str, *, status: str, **_kwargs):
         self.status_writes.append((identifier, status))
         self.issues[identifier].state = status
+
+    def get_metadata(self, identifier):
+        return dict(self.metadata[identifier])
+
+    def set_metadata_field(self, identifier, key, value):
+        self.metadata[identifier][key] = value
+        if key == PREREQUISITE_METADATA_KEY:
+            self.issues[identifier].implementation_prerequisite = value
+        elif key == PREREQUISITE_RESOLUTION_METADATA_KEY:
+            self.issues[
+                identifier
+            ].implementation_prerequisite_resolution = value
+
+    def owner_control_lock(self):
+        return self._owner_lock
 
 
 class FakeOrchestrator:
@@ -103,13 +150,38 @@ class FakeOrchestrator:
         self.state = SimpleNamespace(owner_claims={}, reject_streak={})
         self._owner_claims_lock = threading.RLock()
         self._project_write_lock = threading.RLock()
+        # Match production: final profile admission must not attempt to
+        # reacquire this non-reentrant authority fence.
+        self._pending_profiles_lock = threading.Lock()
         self.project_store = SimpleNamespace(
-            project_write_lock=lambda _project_id: self._project_write_lock
+            project_write_lock=lambda _project_id: self._project_write_lock,
+            get=lambda project_id: SimpleNamespace(
+                id=project_id,
+                repo_url="https://gitlab.example/group/project.git",
+                access_token=None,
+            ),
         )
         self.config = SimpleNamespace(
             workflow_engine_mode="off",
             parallel_epic_children_enabled=True,
         )
+        self._implementation_prerequisite_review_resolver = (
+            lambda _project_id, issue, review_id: SimpleNamespace(
+                id=review_id,
+                state="open",
+                head_sha=issue.review_head,
+                source_branch=issue.work_branch,
+                target_branch=issue.target_branch,
+                pipeline_id="62564237",
+                pipeline_head_sha=issue.review_head,
+            )
+        )
+
+    def _latest_execution_profile_authority(self):
+        return _PROFILE_SNAPSHOT, (_CAPABLE_PROFILE,)
+
+    def _execution_profile_authority_locked(self):
+        return self._latest_execution_profile_authority()
 
     def _tracker_for_project(self, project_id):
         return self.trackers[project_id]
@@ -233,6 +305,64 @@ def make_context(
         )
     )
     return store, WorkflowJobContext(job, asyncio.Event(), asyncio.Event())
+
+
+def prerequisite_resolution_payload(issue, *, expected_authority):
+    declaration = parse_prerequisite_declaration(
+        "\n".join(
+            (
+                "Focus handoff: developer",
+                "External prerequisite: platform: physical-macos-validation",
+                "Recovery trigger: profile-capability:macos",
+            )
+        )
+    )
+    assert declaration is not None
+    record = new_prerequisite_record(
+        declaration,
+        project_id=str(issue.project_id),
+        task_id=str(issue.id),
+        task_identifier=issue.identifier,
+        source_run_id="run-143",
+        source_assignment_id="assignment-143",
+        source_generation="generation-143",
+        source_focus="developer",
+        source_task_authority="d" * 64,
+        source_head_sha=HEAD_A,
+        source_profile_revision="e" * 64,
+        now=datetime(2026, 8, 14, tzinfo=timezone.utc),
+    )
+    issue.implementation_prerequisite = record.to_dict()
+    review_id = str(issue.review_number or "").strip() or None
+    review_head = str(issue.review_head or "").strip() or None
+    continuation = PrerequisiteContinuation(
+        resume_status=IN_REVIEW if review_id else OPEN,
+        work_branch=issue.work_branch,
+        head_sha=HEAD_A,
+        review_id=review_id,
+        review_head_sha=review_head,
+        target_branch=issue.target_branch if review_id else None,
+        pipeline_id="62564237" if review_id else None,
+        pipeline_head_sha=review_head if review_id else None,
+    )
+    return record, {
+        "record_id": record.record_id,
+        "source_run_id": record.source_run_id,
+        "source_assignment_id": record.source_assignment_id,
+        "source_generation": record.source_generation,
+        "expected_task_authority": expected_authority,
+        "actor": "project-owner",
+        "reason": "The macOS prerequisite has been satisfied.",
+        "trigger_evidence": {
+            "kind": "profile-capability",
+            "capability": "macos",
+            "profile_name": "Mac Runner",
+            "profile_revision": _PROFILE_SNAPSHOT.revision,
+        },
+        "continuation": continuation.to_dict(),
+        "expected_status": NEEDS_HUMAN,
+        "head_sha": HEAD_A,
+    }
 
 
 def disposition(context, *, owner="worker-1"):
@@ -2049,6 +2179,689 @@ async def test_production_backend_executes_every_implementation_action(
     assert result.disposition.generation == context.job.generation
     assert tracker.status_writes == []
     assert await effects.observe(context) == result.disposition
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_prerequisite_resolution_preserves_trickle_review_continuation(
+    tmp_path,
+):
+    issue = make_issue(status=NEEDS_HUMAN)
+    issue.review_number = "20"
+    issue.review_head = HEAD_A
+    expected_authority = issue_authority_version(issue)
+    record, payload = prerequisite_resolution_payload(
+        issue, expected_authority=expected_authority
+    )
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    _jobs, context = make_context(
+        tmp_path,
+        generation="resolution-generation",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=expected_authority,
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    backend = ProductionImplementationWorkflowBackend(effects)
+
+    result = await backend.execute(context)
+    intent = await backend.build_transition(
+        context,
+        VerificationResult(True, {"disposition": result.disposition.to_dict()}),
+    )
+
+    raw = tracker.metadata[issue.identifier][
+        PREREQUISITE_RESOLUTION_METADATA_KEY
+    ]
+    assert raw["record_id"] == record.record_id
+    assert raw["workflow_generation"] == context.job.generation
+    assert raw["continuation"] == payload["continuation"]
+    assert raw["continuation"]["review_id"] == "20"
+    assert raw["continuation"]["pipeline_id"] == "62564237"
+    assert result.status == "prerequisite_resolved"
+    assert result.disposition.state is ImplementationState.COMPLETED
+    assert intent is not None
+    assert intent.authority is TransitionAuthority.PROJECT_OWNER
+    assert intent.expected_version == expected_authority
+    assert intent.requested_status == IN_REVIEW
+    assert intent.reason_code == "implementation.prerequisite_resolution"
+    assert tracker.status_writes == []
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_prerequisite_resolution_rejects_task_authority_race(tmp_path):
+    issue = make_issue(status=NEEDS_HUMAN)
+    expected_authority = issue_authority_version(issue)
+    _record, payload = prerequisite_resolution_payload(
+        issue, expected_authority=expected_authority
+    )
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    _jobs, context = make_context(
+        tmp_path,
+        generation="resolution-generation",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=expected_authority,
+    )
+    issue.state = OPEN
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    backend = ProductionImplementationWorkflowBackend(effects)
+
+    with pytest.raises(WorkflowActionError) as rejected:
+        await backend.execute(context)
+
+    assert rejected.value.category is WorkflowFailureCategory.STALE_EVIDENCE
+    assert (
+        tracker.metadata[issue.identifier][
+            PREREQUISITE_RESOLUTION_METADATA_KEY
+        ]
+        is None
+    )
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_prerequisite_resolution_rejects_profile_change_after_schedule(
+    tmp_path,
+):
+    issue = make_issue(status=NEEDS_HUMAN)
+    expected_authority = issue_authority_version(issue)
+    _record, payload = prerequisite_resolution_payload(
+        issue, expected_authority=expected_authority
+    )
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    unavailable = freeze_execution_profile_snapshot(())
+    orch._latest_execution_profile_authority = lambda: (unavailable, ())
+    _jobs, context = make_context(
+        tmp_path,
+        generation="stale-profile-resolution",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=expected_authority,
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    with pytest.raises(WorkflowActionError) as rejected:
+        await ProductionImplementationWorkflowBackend(effects).execute(context)
+
+    assert rejected.value.category is WorkflowFailureCategory.STALE_EVIDENCE
+    assert "profile capability authority changed" in str(rejected.value)
+    assert (
+        tracker.metadata[issue.identifier][
+            PREREQUISITE_RESOLUTION_METADATA_KEY
+        ]
+        is None
+    )
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("same_project", [False, True])
+async def test_prerequisite_resolution_rejects_dependency_change_after_schedule(
+    tmp_path,
+    same_project,
+):
+    issue = make_issue(status=NEEDS_HUMAN)
+    dependency_project = "project-a" if same_project else "dependency-project"
+    trigger = RecoveryTrigger(
+        RecoveryTriggerKind.TASK,
+        "DEP-1",
+        project_id=dependency_project,
+    )
+    record = new_prerequisite_record(
+        ImplementationPrerequisiteDeclaration(
+            PrerequisiteKind.DEPENDENCY,
+            "external-dependency",
+            trigger,
+        ),
+        project_id="project-a",
+        task_id=issue.id,
+        task_identifier=issue.identifier,
+        source_run_id="run-1",
+        source_assignment_id="assignment-1",
+        source_generation="source-generation-1",
+        source_focus="developer",
+        source_task_authority="d" * 64,
+        source_head_sha=HEAD_A,
+        source_profile_revision="e" * 64,
+        now=datetime(2026, 8, 14, tzinfo=timezone.utc),
+    )
+    issue.implementation_prerequisite = record.to_dict()
+    dependency = make_issue(
+        project=dependency_project,
+        identifier="DEP-1",
+        status="Done",
+    )
+    expected_authority = issue_authority_version(issue)
+    payload = {
+        "record_id": record.record_id,
+        "source_run_id": record.source_run_id,
+        "source_assignment_id": record.source_assignment_id,
+        "source_generation": record.source_generation,
+        "expected_task_authority": expected_authority,
+        "actor": "project-owner",
+        "reason": "Dependency completed.",
+        "trigger_evidence": {
+            "kind": "task",
+            "project_id": dependency_project,
+            "task_identifier": "DEP-1",
+            "status": "Done",
+            "task_authority": issue_authority_version(dependency),
+        },
+        "continuation": PrerequisiteContinuation(
+            resume_status=OPEN,
+            work_branch=issue.work_branch,
+            head_sha=HEAD_A,
+        ).to_dict(),
+        "expected_status": NEEDS_HUMAN,
+    }
+    tracker = Tracker(issue, dependency) if same_project else Tracker(issue)
+    dependency_tracker = tracker if same_project else Tracker(dependency)
+    orch = FakeOrchestrator(
+        tmp_path,
+        {
+            "project-a": tracker,
+            dependency_project: dependency_tracker,
+        },
+    )
+    _jobs, context = make_context(
+        tmp_path,
+        generation="stale-dependency-resolution",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=expected_authority,
+    )
+    dependency.state = OPEN
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    with pytest.raises(WorkflowActionError) as rejected:
+        await ProductionImplementationWorkflowBackend(effects).execute(context)
+
+    assert rejected.value.category is WorkflowFailureCategory.STALE_EVIDENCE
+    assert "task-qualified prerequisite authority changed" in str(rejected.value)
+    assert (
+        tracker.metadata[issue.identifier][
+            PREREQUISITE_RESOLUTION_METADATA_KEY
+        ]
+        is None
+    )
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_prerequisite_resolution_rejects_review_pipeline_change_after_schedule(
+    tmp_path,
+):
+    issue = make_issue(status=NEEDS_HUMAN)
+    issue.review_number = "20"
+    issue.review_head = HEAD_A
+    expected_authority = issue_authority_version(issue)
+    _record, payload = prerequisite_resolution_payload(
+        issue, expected_authority=expected_authority
+    )
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    orch._implementation_prerequisite_review_resolver = (
+        lambda _project_id, current, review_id: SimpleNamespace(
+            id=review_id,
+            state="open",
+                head_sha=current.review_head,
+                source_branch=current.work_branch,
+                target_branch=current.target_branch,
+                pipeline_id="replacement-pipeline",
+            pipeline_head_sha=current.review_head,
+        )
+    )
+    _jobs, context = make_context(
+        tmp_path,
+        generation="stale-pipeline-resolution",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=expected_authority,
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    with pytest.raises(WorkflowActionError) as rejected:
+        await ProductionImplementationWorkflowBackend(effects).execute(context)
+
+    assert rejected.value.category is WorkflowFailureCategory.STALE_EVIDENCE
+    assert "live pipeline authority changed" in str(rejected.value)
+    assert (
+        tracker.metadata[issue.identifier][
+            PREREQUISITE_RESOLUTION_METADATA_KEY
+        ]
+        is None
+    )
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_prerequisite_resolution_rejects_review_retarget_after_schedule(
+    tmp_path,
+):
+    issue = make_issue(status=NEEDS_HUMAN)
+    issue.review_number = "20"
+    issue.review_head = HEAD_A
+    expected_authority = issue_authority_version(issue)
+    _record, payload = prerequisite_resolution_payload(
+        issue, expected_authority=expected_authority
+    )
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    orch._implementation_prerequisite_review_resolver = (
+        lambda _project_id, current, review_id: SimpleNamespace(
+            id=review_id,
+            state="open",
+            head_sha=current.review_head,
+            source_branch=current.work_branch,
+            target_branch="release",
+            pipeline_id="62564237",
+            pipeline_head_sha=current.review_head,
+        )
+    )
+    _jobs, context = make_context(
+        tmp_path,
+        generation="retargeted-review-resolution",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=expected_authority,
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    with pytest.raises(WorkflowActionError) as rejected:
+        await ProductionImplementationWorkflowBackend(effects).execute(context)
+
+    assert rejected.value.category is WorkflowFailureCategory.STALE_EVIDENCE
+    assert "live review authority changed" in str(rejected.value)
+    assert (
+        tracker.metadata[issue.identifier][
+            PREREQUISITE_RESOLUTION_METADATA_KEY
+        ]
+        is None
+    )
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "status",
+    ["In Validation", "Done", "Merged", "Archived"],
+)
+async def test_prerequisite_worker_rejects_terminal_source_even_with_exact_cas(
+    tmp_path,
+    status,
+):
+    issue = make_issue(status=NEEDS_HUMAN)
+    _record, payload = prerequisite_resolution_payload(
+        issue,
+        expected_authority=issue_authority_version(issue),
+    )
+    issue.state = status
+    current_authority = issue_authority_version(issue)
+    payload["expected_task_authority"] = current_authority
+    payload["expected_status"] = status
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    _jobs, context = make_context(
+        tmp_path,
+        generation=f"terminal-source-{status.lower().replace(' ', '-')}",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=current_authority,
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    with pytest.raises(WorkflowActionError) as rejected:
+        await ProductionImplementationWorkflowBackend(effects).execute(context)
+
+    assert rejected.value.category is WorkflowFailureCategory.STALE_EVIDENCE
+    assert "source status is stale or unauthorized" in str(rejected.value)
+    assert (
+        tracker.metadata[issue.identifier][
+            PREREQUISITE_RESOLUTION_METADATA_KEY
+        ]
+        is None
+    )
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["Needs CI Fix", "Needs Rebase"])
+async def test_ready_continuation_cannot_erase_blocked_submission_status(
+    tmp_path,
+    status,
+):
+    issue = make_issue(status=status)
+    issue.integration = SimpleNamespace(
+        state="blocked",
+        task_branch=issue.work_branch,
+        head_sha=HEAD_A,
+    )
+    expected_authority = issue_authority_version(issue)
+    _record, payload = prerequisite_resolution_payload(
+        issue,
+        expected_authority=expected_authority,
+    )
+    payload["expected_status"] = status
+    payload["continuation"] = PrerequisiteContinuation(
+        resume_status=READY_TO_INTEGRATE,
+        work_branch=issue.work_branch,
+        head_sha=HEAD_A,
+    ).to_dict()
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    _jobs, context = make_context(
+        tmp_path,
+        generation=f"blocked-source-{status.lower().replace(' ', '-')}",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=expected_authority,
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    with pytest.raises(WorkflowActionError) as rejected:
+        await ProductionImplementationWorkflowBackend(effects).execute(context)
+
+    assert rejected.value.category is WorkflowFailureCategory.STALE_EVIDENCE
+    assert "blocked submission authority changed" in str(rejected.value)
+    assert (
+        tracker.metadata[issue.identifier][
+            PREREQUISITE_RESOLUTION_METADATA_KEY
+        ]
+        is None
+    )
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["Needs CI Fix", "Needs Rebase"])
+async def test_blocked_continuation_preserves_exact_branch_head_and_status(
+    tmp_path,
+    status,
+):
+    issue = make_issue(status=status)
+    issue.integration = SimpleNamespace(
+        state="blocked",
+        task_branch=issue.work_branch,
+        head_sha=HEAD_A,
+    )
+    expected_authority = issue_authority_version(issue)
+    _record, payload = prerequisite_resolution_payload(
+        issue,
+        expected_authority=expected_authority,
+    )
+    payload["expected_status"] = status
+    payload["continuation"] = PrerequisiteContinuation(
+        resume_status=status,
+        work_branch=issue.work_branch,
+        head_sha=HEAD_A,
+    ).to_dict()
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    _jobs, context = make_context(
+        tmp_path,
+        generation=f"blocked-preserved-{status.lower().replace(' ', '-')}",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=expected_authority,
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    backend = ProductionImplementationWorkflowBackend(effects)
+
+    result = await backend.execute(context)
+    intent = await backend.build_transition(
+        context,
+        VerificationResult(True, {"disposition": result.disposition.to_dict()}),
+    )
+
+    raw = tracker.metadata[issue.identifier][
+        PREREQUISITE_RESOLUTION_METADATA_KEY
+    ]
+    assert raw["continuation"]["resume_status"] == status
+    assert raw["continuation"]["work_branch"] == issue.work_branch
+    assert raw["continuation"]["head_sha"] == HEAD_A
+    assert intent is None
+    assert tracker.status_writes == []
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    (
+        "integration_state",
+        "task_status",
+        "continuation_status",
+        "review_continuation",
+        "error_fragment",
+    ),
+    [
+        ("blocked", "Needs CI Fix", OPEN, False, "blocked submission authority"),
+        (
+            "blocked",
+            "Needs CI Fix",
+            IN_PROGRESS,
+            False,
+            "blocked submission authority",
+        ),
+        (
+            "blocked",
+            "Needs CI Fix",
+            IN_REVIEW,
+            True,
+            "blocked submission authority",
+        ),
+        ("needs_human", NEEDS_HUMAN, OPEN, False, "needs-human submission authority"),
+        (
+            "needs_human",
+            NEEDS_HUMAN,
+            IN_PROGRESS,
+            False,
+            "needs-human submission authority",
+        ),
+        (
+            "needs_human",
+            NEEDS_HUMAN,
+            IN_REVIEW,
+            True,
+            "needs-human submission authority",
+        ),
+        ("integrated", READY_TO_INTEGRATE, OPEN, False, "integrated submission"),
+        (
+            "integrated",
+            READY_TO_INTEGRATE,
+            IN_PROGRESS,
+            False,
+            "integrated submission",
+        ),
+    ],
+)
+async def test_persisted_legacy_continuation_cannot_erase_integration_state(
+    tmp_path,
+    integration_state,
+    task_status,
+    continuation_status,
+    review_continuation,
+    error_fragment,
+):
+    issue = make_issue(status=task_status)
+    issue.integration = SimpleNamespace(
+        state=integration_state,
+        task_branch=issue.work_branch,
+        head_sha=HEAD_A,
+    )
+    if review_continuation:
+        issue.review_number = "20"
+        issue.review_head = HEAD_A
+    expected_authority = issue_authority_version(issue)
+    _record, payload = prerequisite_resolution_payload(
+        issue,
+        expected_authority=expected_authority,
+    )
+    payload["expected_status"] = task_status
+    payload["continuation"] = PrerequisiteContinuation(
+        resume_status=continuation_status,
+        work_branch=issue.work_branch,
+        head_sha=HEAD_A,
+        review_id="20" if review_continuation else None,
+        review_head_sha=HEAD_A if review_continuation else None,
+        target_branch=issue.target_branch if review_continuation else None,
+        pipeline_id="62564237" if review_continuation else None,
+        pipeline_head_sha=HEAD_A if review_continuation else None,
+    ).to_dict()
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    if review_continuation:
+        orch._implementation_prerequisite_review_resolver = MagicMock()
+    generation = "legacy-{}-{}".format(
+        integration_state,
+        continuation_status.lower().replace(" ", "-"),
+    )
+    jobs, _context = make_context(
+        tmp_path,
+        generation=generation,
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=expected_authority,
+    )
+    job_store_path = jobs.path
+    jobs.close()
+    restarted_jobs = WorkflowJobStore(job_store_path)
+    persisted = restarted_jobs.list_jobs(
+        project_id="project-a",
+        task_id=issue.identifier,
+        generation=generation,
+    )
+    assert len(persisted) == 1
+    context = WorkflowJobContext(
+        persisted[0],
+        asyncio.Event(),
+        asyncio.Event(),
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+
+    try:
+        with pytest.raises(WorkflowActionError) as rejected:
+            await ProductionImplementationWorkflowBackend(effects).execute(context)
+
+        assert rejected.value.category is WorkflowFailureCategory.STALE_EVIDENCE
+        assert error_fragment in str(rejected.value)
+        assert (
+            tracker.metadata[issue.identifier][
+                PREREQUISITE_RESOLUTION_METADATA_KEY
+            ]
+            is None
+        )
+        assert tracker.status_writes == []
+        if review_continuation:
+            orch._implementation_prerequisite_review_resolver.assert_not_called()
+    finally:
+        restarted_jobs.close()
+        effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_prerequisite_resolution_saga_resumes_review_once_across_restart(
+    tmp_path,
+):
+    issue = make_issue(status=NEEDS_HUMAN)
+    issue.review_number = "20"
+    issue.review_head = HEAD_A
+    expected_authority = issue_authority_version(issue)
+    _record, payload = prerequisite_resolution_payload(
+        issue, expected_authority=expected_authority
+    )
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    orch.workflow_job_store.close()
+    jobs, _context = make_context(
+        tmp_path,
+        generation="resolution-generation",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=expected_authority,
+    )
+    orch.workflow_job_store = jobs
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    handler = ImplementationWorkflowHandler(
+        ProductionImplementationWorkflowBackend(effects)
+    )
+    journal = TransitionJournal(str(tmp_path / "resolution-transitions.sqlite3"))
+    transition_service = TaskTransitionService(
+        project_id="project-a",
+        tracker=tracker,
+        journal=journal,
+    )
+    worker = DurableWorkflowWorker(
+        store=jobs,
+        handlers={ImplementationAction.PREREQUISITE_RESOLUTION.value: handler},
+        transition_services={"project-a": transition_service},
+        worker_id="resolution-worker",
+        lease_seconds=10,
+        heartbeat_seconds=1,
+    )
+
+    first = await worker.run_once()
+    replay = await worker.run_once()
+
+    assert first.disposition is WorkflowRunDisposition.COMPLETED
+    assert replay.disposition is WorkflowRunDisposition.IDLE
+    assert issue.state == IN_REVIEW
+    assert tracker.status_writes == [(issue.identifier, IN_REVIEW)]
+    completed = jobs.list_jobs()[0]
+    assert completed.state is WorkflowJobState.COMPLETED
+    assert (
+        completed.checkpoint["transition_intent"]["reason_code"]
+        == "implementation.prerequisite_resolution"
+    )
+    assert completed.checkpoint["verification"]["disposition"]["state"] == (
+        ImplementationState.COMPLETED.value
+    )
+    journal.close()
+    effects.receipts.close()
+    jobs.close()
+
+
+@pytest.mark.asyncio
+async def test_resolution_preserves_source_head_when_tracker_cannot_project_it(
+    tmp_path,
+):
+    issue = make_issue(status=NEEDS_HUMAN, head=None)
+    expected_authority = issue_authority_version(issue)
+    _record, payload = prerequisite_resolution_payload(
+        issue, expected_authority=expected_authority
+    )
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    _jobs, context = make_context(
+        tmp_path,
+        generation="source-head-resolution",
+        action=ImplementationAction.PREREQUISITE_RESOLUTION,
+        payload=payload,
+        evidence=expected_authority,
+        head=HEAD_A,
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    backend = ProductionImplementationWorkflowBackend(effects)
+
+    revalidation = await backend.revalidate(context)
+    result = await backend.execute(context)
+    intent = await backend.build_transition(
+        context,
+        VerificationResult(True, {"disposition": result.disposition.to_dict()}),
+    )
+
+    assert revalidation.current is True
+    assert revalidation.head_sha == HEAD_A
+    raw = tracker.metadata[issue.identifier][
+        PREREQUISITE_RESOLUTION_METADATA_KEY
+    ]
+    assert raw["continuation"]["head_sha"] == HEAD_A
+    assert intent is not None
+    assert intent.exact_head is None
     effects.receipts.close()
 
 

@@ -16,6 +16,10 @@ Usage::
         [--audit-override --override-reason "..."]
     oompah task terminal-provenance <identifier> <retain|new-revision>
         --project <id> --reason "..."
+    oompah task resolve-prerequisite <identifier> --project <id>
+        --record-id <digest> --source-run-id <id>
+        --source-assignment-id <id> --source-generation <generation>
+        --task-authority <digest> --reason "..."
     oompah task add-label <identifier> <label>
     oompah task remove-label <identifier> <label>
     oompah task set-dependency <identifier> --depends-on <dep-id> [--hard-start]
@@ -766,6 +770,56 @@ def _cmd_terminal_provenance(base_url: str, args: argparse.Namespace) -> None:
         )
 
 
+def _cmd_resolve_prerequisite(base_url: str, args: argparse.Namespace) -> None:
+    """Resolve one exact durable implementation prerequisite as project owner."""
+
+    identifier = str(getattr(args, "identifier", "") or "").strip()
+    project_id = str(getattr(args, "project", "") or "").strip()
+    if not project_id:
+        raise SystemExit("--project is required for resolve-prerequisite")
+    required = {
+        "record_id": "--record-id",
+        "source_run_id": "--source-run-id",
+        "source_assignment_id": "--source-assignment-id",
+        "source_generation": "--source-generation",
+        "task_authority": "--task-authority",
+        "reason": "--reason",
+    }
+    data: dict[str, Any] = {"issue_key": identifier}
+    for field, flag in required.items():
+        value = getattr(args, field, None)
+        normalized = value.strip() if isinstance(value, str) else ""
+        if not normalized:
+            raise SystemExit(f"{flag} is required for resolve-prerequisite")
+        data[field] = normalized
+    for field in ("operator_action", "pipeline_id"):
+        value = getattr(args, field, None)
+        if isinstance(value, str) and value.strip():
+            data[field] = value.strip()
+
+    path = (
+        f"/api/v1/projects/{urllib.parse.quote(project_id, safe='')}"
+        f"/tasks/{_encode_path_id(identifier)}"
+        "/implementation-prerequisite/resolve"
+    )
+    result = _http("POST", f"{base_url}{path}", data=data)
+    replayed = "yes" if result.get("replayed") else "no"
+    if result.get("resolved"):
+        print(
+            f"Prerequisite resolution already committed: {identifier} "
+            f"(generation: {result.get('generation') or 'unknown'}, "
+            f"resume: {result.get('resume_status') or 'unknown'})"
+        )
+        return
+    print(
+        f"Prerequisite resolution queued: {identifier} "
+        f"(job: {result.get('job_id') or 'unknown'}, "
+        f"generation: {result.get('generation') or 'unknown'}, "
+        f"resume: {result.get('resume_status') or 'unknown'}, "
+        f"replayed: {replayed})"
+    )
+
+
 def _print_status_result(result: dict[str, Any], requested_status: str) -> None:
     """Print a stable status result for API and task-handoff responses."""
 
@@ -1469,6 +1523,41 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional legacy actor; authenticated server principal is authoritative",
     )
 
+    # --- resolve-prerequisite ---
+    p_resolution = sub.add_parser(
+        "resolve-prerequisite",
+        help="Resolve one exact implementation prerequisite (project owner only)",
+    )
+    p_resolution.add_argument("identifier", help="Task identifier")
+    p_resolution.add_argument(
+        "--project", "--project-id", dest="project", required=True,
+        metavar="PROJECT_ID",
+    )
+    p_resolution.add_argument("--record-id", required=True, metavar="DIGEST")
+    p_resolution.add_argument("--source-run-id", required=True, metavar="RUN_ID")
+    p_resolution.add_argument(
+        "--source-assignment-id", required=True, metavar="ASSIGNMENT_ID"
+    )
+    p_resolution.add_argument(
+        "--source-generation", required=True, metavar="GENERATION"
+    )
+    p_resolution.add_argument(
+        "--task-authority", required=True, metavar="DIGEST",
+        help="Exact task authority revision observed with the blocker",
+    )
+    p_resolution.add_argument(
+        "--reason", required=True, metavar="REASON",
+        help="Auditable project-owner reason",
+    )
+    p_resolution.add_argument(
+        "--operator-action", default=None, metavar="ACTION",
+        help="Exact named action for an operator recovery trigger",
+    )
+    p_resolution.add_argument(
+        "--pipeline-id", default=None, metavar="PIPELINE_ID",
+        help="Optional pipeline identity bound server-side to the exact continuation head",
+    )
+
     # --- submit ---
     p_submit = sub.add_parser(
         "submit",
@@ -1655,6 +1744,7 @@ _DISPATCH: dict[str, Any] = {
     "child-create": _cmd_child_create,
     "set-status": _cmd_set_status,
     "terminal-provenance": _cmd_terminal_provenance,
+    "resolve-prerequisite": _cmd_resolve_prerequisite,
     "submit": _cmd_submit,
     "publish-rebase": _cmd_publish_rebase,
     "add-label": _cmd_add_label,
@@ -1726,6 +1816,7 @@ def main(argv: list[str] | None = None) -> None:
         "child-create": _cmd_child_create,
         "set-status": _cmd_set_status,
         "terminal-provenance": _cmd_terminal_provenance,
+        "resolve-prerequisite": _cmd_resolve_prerequisite,
         "submit": _cmd_submit,
         "publish-rebase": _cmd_publish_rebase,
         "add-label": _cmd_add_label,

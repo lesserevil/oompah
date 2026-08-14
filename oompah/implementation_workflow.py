@@ -83,9 +83,13 @@ IMPLEMENTATION_PREREQUISITE_PARK_LANES = (
     IMPERATIVE_IMPLEMENTATION_LANE,
     "nested-dispatch-topology",
 )
+PREREQUISITE_RESOLUTION_LANE = "event:implementation-prerequisite-resolution"
 DIRECT_OWNER_REVOCATION_LANE_PREFIX = "event:implementation:direct-owner-revocation"
 IMPLEMENTATION_ORDERING_NAMESPACE = "implementation-decision"
 DIRECT_OWNER_REVOCATION_ORDERING_PREFIX = "implementation-direct-owner-revocation"
+PREREQUISITE_RESOLUTION_ORDERING_NAMESPACE = (
+    "implementation-prerequisite-resolution"
+)
 
 
 class ImplementationAction(str, Enum):
@@ -98,6 +102,7 @@ class ImplementationAction(str, Enum):
     AUTHORITY_REVOCATION = "authority_revocation"
     RETRY = "implementation_retry"
     RECOVERY = "implementation_recovery"
+    PREREQUISITE_RESOLUTION = "prerequisite_resolution"
 
 
 IMPLEMENTATION_ACTIONS = IMPLEMENTATION_ACTION_JOBS
@@ -110,6 +115,7 @@ class ImplementationOwnershipSource(str, Enum):
     DIRECT_OWNER = "direct_owner"
     DUPLICATE_INVESTIGATOR = "duplicate_investigator"
     RECOVERY = "recovery"
+    PROJECT_OWNER = "project_owner"
 
 
 class ImplementationState(str, Enum):
@@ -300,6 +306,9 @@ class ImplementationDisposition:
                 ImplementationOwnershipSource.DUPLICATE_INVESTIGATOR
             ),
             ImplementationAction.RECOVERY: ImplementationOwnershipSource.RECOVERY,
+            ImplementationAction.PREREQUISITE_RESOLUTION: (
+                ImplementationOwnershipSource.PROJECT_OWNER
+            ),
         }.get(self.action)
         if required_source is not None and self.ownership_source is not required_source:
             return False
@@ -313,6 +322,9 @@ class ImplementationDisposition:
             ImplementationAction.AUTHORITY_REVOCATION: ImplementationState.REVOKED,
             ImplementationAction.RETRY: ImplementationState.RETRY_WAIT,
             ImplementationAction.RECOVERY: ImplementationState.ACTIVE,
+            ImplementationAction.PREREQUISITE_RESOLUTION: (
+                ImplementationState.COMPLETED
+            ),
         }[self.action]
         if self.state is not required_state and not (
             allow_incomplete and self.state is ImplementationState.INCOMPLETE
@@ -415,6 +427,7 @@ _SUCCESS_RESULTS = frozenset(
         "revoked",
         "retry_scheduled",
         "recovered",
+        "prerequisite_resolved",
     }
 )
 _ADVISORY_RESULTS = frozenset({"advisory_denied", "peer_denied"})
@@ -935,14 +948,21 @@ class ImplementationWorkflowController:
         direct_owner_claim_id = (
             _optional_text(normalized_payload.get("claim_id")) or "absent"
         )
+        prerequisite_resolution = bool(
+            normalized_action is ImplementationAction.PREREQUISITE_RESOLUTION
+        )
         scheduling_lane = (
             f"{DIRECT_OWNER_REVOCATION_LANE_PREFIX}:{direct_owner_claim_id}"
             if direct_owner_revocation
+            else PREREQUISITE_RESOLUTION_LANE
+            if prerequisite_resolution
             else IMPERATIVE_IMPLEMENTATION_LANE
         )
         ordering_namespace = (
             f"{DIRECT_OWNER_REVOCATION_ORDERING_PREFIX}:{direct_owner_claim_id}"
             if direct_owner_revocation
+            else PREREQUISITE_RESOLUTION_ORDERING_NAMESPACE
+            if prerequisite_resolution
             else IMPLEMENTATION_ORDERING_NAMESPACE
         )
         head = _optional_text(expected_head_sha or normalized_payload.get("head_sha"))
@@ -960,13 +980,19 @@ class ImplementationWorkflowController:
             task_id=task,
             decision_revision=revision,
             action=normalized_action.value,
-            idempotency_namespace="implementation",
+            idempotency_namespace=(
+                "implementation-prerequisite-resolution"
+                if prerequisite_resolution
+                else "implementation"
+            ),
             scheduling_lane=scheduling_lane,
             ordering_namespace=ordering_namespace,
             source_generation=source_generation,
             source_revision=revision,
             supersede_scheduling_lanes=(
-                () if direct_owner_revocation else (FACT_IMPLEMENTATION_LANE,)
+                ()
+                if direct_owner_revocation or prerequisite_resolution
+                else (FACT_IMPLEMENTATION_LANE,)
             ),
             payload=normalized_payload,
             expected_evidence_revision=_optional_text(expected_evidence_revision),

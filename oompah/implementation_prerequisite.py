@@ -23,7 +23,9 @@ if TYPE_CHECKING:
 
 
 METADATA_KEY = "oompah.implementation_prerequisite"
+RESOLUTION_METADATA_KEY = "oompah.implementation_prerequisite_resolution"
 SCHEMA_VERSION = 1
+RESOLUTION_SCHEMA_VERSION = 1
 _STAGING_SCHEMA_VERSION = 1
 
 _PREREQUISITE_RE = re.compile(
@@ -47,6 +49,7 @@ _OPERATOR_TRIGGER_RE = re.compile(
 _HEAD_RE = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 _DIGEST_RE = re.compile(r"[0-9a-f]{64}")
 _FOCUS_RE = re.compile(r"[a-z0-9][a-z0-9._-]{0,127}")
+_IDENTITY_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:#/-]{0,255}")
 _SECRETISH_SUBJECT_RE = re.compile(
     r"(?:sk-|ghp_|github_pat_|glpat-|xox[baprs]-|akia)", re.IGNORECASE
 )
@@ -108,6 +111,14 @@ class PrerequisiteReadbackError(PrerequisitePersistenceError):
 
 class PrerequisiteSourceChangedError(PrerequisitePersistenceError):
     """The exact live source changed before the staged append committed."""
+
+
+class PrerequisiteResolutionConflictError(PrerequisitePersistenceError):
+    """A different resolution already owns the immutable prerequisite."""
+
+
+class MalformedPrerequisiteResolutionError(PrerequisitePersistenceError):
+    """Existing resolution metadata cannot safely participate in a CAS."""
 
 
 def _canonical_json(value: Mapping[str, Any]) -> str:
@@ -626,6 +637,410 @@ class ImplementationPrerequisiteRecord:
             return None
 
 
+PREREQUISITE_RESOLUTION_SOURCE_STATUSES = frozenset(
+    {
+        "Open",
+        "In Progress",
+        "Needs Human",
+        "Needs CI Fix",
+        "Needs Rebase",
+        "In Review",
+        "Ready to Integrate",
+    }
+)
+_CONTINUATION_STATUSES = PREREQUISITE_RESOLUTION_SOURCE_STATUSES
+_SATISFIED_TRIGGER_TASK_STATUSES = frozenset({"Done", "Merged", "Archived"})
+
+
+def canonical_resolution_trigger_evidence(
+    trigger: RecoveryTrigger,
+    raw: object,
+) -> dict[str, Any]:
+    """Validate evidence proving the record's one named recovery trigger."""
+
+    if not isinstance(trigger, RecoveryTrigger) or not isinstance(raw, Mapping):
+        raise TypeError("resolution trigger evidence must be a typed object")
+    evidence = dict(raw)
+    if trigger.kind is RecoveryTriggerKind.TASK:
+        expected_keys = {
+            "kind",
+            "project_id",
+            "task_identifier",
+            "status",
+            "task_authority",
+        }
+        if set(evidence) != expected_keys or evidence.get("kind") != "task":
+            raise ValueError("task trigger evidence has an invalid shape")
+        if (
+            evidence.get("project_id") != trigger.project_id
+            or evidence.get("task_identifier") != trigger.value
+            or evidence.get("status") not in _SATISFIED_TRIGGER_TASK_STATUSES
+            or type(evidence.get("task_authority")) is not str
+            or _DIGEST_RE.fullmatch(evidence["task_authority"]) is None
+        ):
+            raise ValueError("task trigger evidence does not prove the named task")
+    elif trigger.kind is RecoveryTriggerKind.PROFILE_CAPABILITY:
+        expected_keys = {
+            "kind",
+            "capability",
+            "profile_name",
+            "profile_revision",
+        }
+        if (
+            set(evidence) != expected_keys
+            or evidence.get("kind") != "profile-capability"
+            or evidence.get("capability") != trigger.value
+            or type(evidence.get("profile_name")) is not str
+            or not evidence["profile_name"]
+            or evidence["profile_name"] != evidence["profile_name"].strip()
+            or type(evidence.get("profile_revision")) is not str
+            or _DIGEST_RE.fullmatch(evidence["profile_revision"]) is None
+        ):
+            raise ValueError(
+                "profile trigger evidence does not prove the named capability"
+            )
+    else:
+        if set(evidence) != {"kind", "action"} or (
+            evidence.get("kind") != "operator"
+            or evidence.get("action") != trigger.value
+        ):
+            raise ValueError(
+                "operator trigger evidence does not prove the named action"
+            )
+    try:
+        encoded = json.dumps(
+            evidence,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        )
+        canonical = json.loads(encoded)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("trigger_evidence must be canonical JSON") from exc
+    if not isinstance(canonical, dict):  # pragma: no cover - shape proved above
+        raise ValueError("trigger_evidence must be an object")
+    return canonical
+
+
+@dataclass(frozen=True)
+class PrerequisiteContinuation:
+    """Exact phase and repository evidence preserved across a parked wait."""
+
+    resume_status: str
+    work_branch: str | None = None
+    head_sha: str | None = None
+    review_id: str | None = None
+    review_head_sha: str | None = None
+    target_branch: str | None = None
+    pipeline_id: str | None = None
+    pipeline_head_sha: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.resume_status not in _CONTINUATION_STATUSES:
+            raise ValueError("resume_status is not a supported continuation phase")
+        for name in (
+            "work_branch",
+            "review_id",
+            "target_branch",
+            "pipeline_id",
+        ):
+            value = getattr(self, name)
+            if value is not None and (
+                type(value) is not str
+                or value != value.strip()
+                or _IDENTITY_RE.fullmatch(value) is None
+            ):
+                raise ValueError(f"{name} must be canonical identity text")
+        for name in ("head_sha", "review_head_sha", "pipeline_head_sha"):
+            value = getattr(self, name)
+            if value is not None and (
+                type(value) is not str or _HEAD_RE.fullmatch(value) is None
+            ):
+                raise ValueError(f"{name} must be an exact lowercase git object id")
+        if self.review_id is None and self.review_head_sha is not None:
+            raise ValueError("review_head_sha requires review_id")
+        if self.pipeline_id is None and self.pipeline_head_sha is not None:
+            raise ValueError("pipeline_head_sha requires pipeline_id")
+        if self.review_id is not None and self.review_head_sha is None:
+            raise ValueError("review_id requires review_head_sha")
+        if self.pipeline_id is not None and self.pipeline_head_sha is None:
+            raise ValueError("pipeline_id requires pipeline_head_sha")
+        if self.pipeline_id is not None and self.review_id is None:
+            raise ValueError("pipeline identity requires exact review identity")
+        if self.target_branch is not None and self.review_id is None:
+            raise ValueError("target_branch requires exact review identity")
+        exact_heads = {
+            value
+            for value in (
+                self.head_sha,
+                self.review_head_sha,
+                self.pipeline_head_sha,
+            )
+            if value is not None
+        }
+        if len(exact_heads) > 1:
+            raise ValueError("continuation evidence must identify one exact head")
+        if self.resume_status == "In Review" and self.review_id is None:
+            raise ValueError("In Review continuation requires exact review identity")
+        if self.resume_status == "In Review" and self.target_branch is None:
+            raise ValueError("In Review continuation requires exact target branch")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "resume_status": self.resume_status,
+            "work_branch": self.work_branch,
+            "head_sha": self.head_sha,
+            "review_id": self.review_id,
+            "review_head_sha": self.review_head_sha,
+            "target_branch": self.target_branch,
+            "pipeline_id": self.pipeline_id,
+            "pipeline_head_sha": self.pipeline_head_sha,
+        }
+
+    @classmethod
+    def from_raw(cls, raw: object) -> PrerequisiteContinuation | None:
+        if not isinstance(raw, Mapping) or set(raw) != {
+            "resume_status",
+            "work_branch",
+            "head_sha",
+            "review_id",
+            "review_head_sha",
+            "target_branch",
+            "pipeline_id",
+            "pipeline_head_sha",
+        }:
+            return None
+        if type(raw.get("resume_status")) is not str:
+            return None
+        optional_names = set(raw) - {"resume_status"}
+        if any(
+            raw.get(name) is not None and type(raw.get(name)) is not str
+            for name in optional_names
+        ):
+            return None
+        try:
+            return cls(**dict(raw))
+        except (TypeError, ValueError):
+            return None
+
+
+@dataclass(frozen=True)
+class ImplementationPrerequisiteResolution:
+    """Committed owner authority resolving one exact prerequisite record.
+
+    The workflow generation is part of the immutable identity.  A retry may
+    replay this receipt, but a replacement job cannot appropriate it and an
+    exhausted historical row is never re-armed as new authority.
+    """
+
+    resolution_id: str
+    record_id: str
+    project_id: str
+    task_id: str
+    task_identifier: str
+    source_run_id: str
+    source_assignment_id: str
+    source_generation: str
+    expected_task_authority: str
+    workflow_generation: str
+    actor: str
+    reason: str
+    recovery_trigger: RecoveryTrigger
+    trigger_evidence: Mapping[str, Any]
+    continuation: PrerequisiteContinuation
+    resolved_at: datetime
+    schema_version: int = RESOLUTION_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if self.schema_version != RESOLUTION_SCHEMA_VERSION:
+            raise ValueError("unsupported prerequisite resolution schema")
+        string_fields = (
+            self.resolution_id,
+            self.record_id,
+            self.project_id,
+            self.task_id,
+            self.task_identifier,
+            self.source_run_id,
+            self.source_assignment_id,
+            self.source_generation,
+            self.expected_task_authority,
+            self.workflow_generation,
+            self.actor,
+            self.reason,
+        )
+        if any(
+            type(value) is not str or not value or value != value.strip()
+            for value in string_fields
+        ):
+            raise ValueError("resolution authority strings must be canonical text")
+        if _DIGEST_RE.fullmatch(self.resolution_id) is None:
+            raise ValueError("resolution_id must be a SHA-256 digest")
+        if _DIGEST_RE.fullmatch(self.record_id) is None:
+            raise ValueError("record_id must be a SHA-256 digest")
+        if _DIGEST_RE.fullmatch(self.expected_task_authority) is None:
+            raise ValueError("expected_task_authority must be an exact revision digest")
+        if not isinstance(self.recovery_trigger, RecoveryTrigger):
+            raise TypeError("recovery_trigger must be typed")
+        if not isinstance(self.continuation, PrerequisiteContinuation):
+            raise TypeError("continuation must be typed")
+        canonical_evidence = canonical_resolution_trigger_evidence(
+            self.recovery_trigger,
+            self.trigger_evidence,
+        )
+        object.__setattr__(self, "trigger_evidence", canonical_evidence)
+        if (
+            not isinstance(self.resolved_at, datetime)
+            or self.resolved_at.tzinfo is None
+            or self.resolved_at.utcoffset() is None
+        ):
+            raise ValueError("resolved_at must be timezone-aware")
+        if self.resolution_id != _sha256(self.identity_payload()):
+            raise ValueError("resolution_id does not match the immutable payload")
+
+    def identity_payload(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "record_id": self.record_id,
+            "project_id": self.project_id,
+            "task_id": self.task_id,
+            "task_identifier": self.task_identifier,
+            "source_run_id": self.source_run_id,
+            "source_assignment_id": self.source_assignment_id,
+            "source_generation": self.source_generation,
+            "expected_task_authority": self.expected_task_authority,
+            "workflow_generation": self.workflow_generation,
+            "actor": self.actor,
+            "reason": self.reason,
+            "recovery_trigger": self.recovery_trigger.to_dict(),
+            "trigger_evidence": dict(self.trigger_evidence),
+            "continuation": self.continuation.to_dict(),
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            **self.identity_payload(),
+            "resolution_id": self.resolution_id,
+            "resolved_at": _iso(self.resolved_at),
+        }
+
+    @classmethod
+    def from_raw(cls, raw: object) -> ImplementationPrerequisiteResolution | None:
+        if not isinstance(raw, Mapping):
+            return None
+        expected = {
+            "schema_version",
+            "resolution_id",
+            "record_id",
+            "project_id",
+            "task_id",
+            "task_identifier",
+            "source_run_id",
+            "source_assignment_id",
+            "source_generation",
+            "expected_task_authority",
+            "workflow_generation",
+            "actor",
+            "reason",
+            "recovery_trigger",
+            "trigger_evidence",
+            "continuation",
+            "resolved_at",
+        }
+        if set(raw) != expected or raw.get("schema_version") != RESOLUTION_SCHEMA_VERSION:
+            return None
+        string_names = expected - {
+            "schema_version",
+            "recovery_trigger",
+            "trigger_evidence",
+            "continuation",
+        }
+        if any(type(raw.get(name)) is not str for name in string_names):
+            return None
+        trigger = RecoveryTrigger.from_raw(raw.get("recovery_trigger"))
+        continuation = PrerequisiteContinuation.from_raw(raw.get("continuation"))
+        if trigger is None or continuation is None:
+            return None
+        try:
+            resolved_at = datetime.fromisoformat(raw["resolved_at"])
+        except ValueError:
+            return None
+        if resolved_at.tzinfo is None or _iso(resolved_at) != raw["resolved_at"]:
+            return None
+        try:
+            return cls(
+                **{
+                    key: raw[key]
+                    for key in expected
+                    if key
+                    not in {
+                        "recovery_trigger",
+                        "continuation",
+                        "resolved_at",
+                    }
+                },
+                recovery_trigger=trigger,
+                continuation=continuation,
+                resolved_at=resolved_at,
+            )
+        except (TypeError, ValueError):
+            return None
+
+
+def new_resolution(
+    record: ImplementationPrerequisiteRecord,
+    *,
+    expected_task_authority: str,
+    workflow_generation: str,
+    actor: str,
+    reason: str,
+    trigger_evidence: Mapping[str, Any],
+    continuation: PrerequisiteContinuation,
+    now: datetime,
+) -> ImplementationPrerequisiteResolution:
+    """Create a job-bound resolution after its trigger and CAS are fenced."""
+
+    if not isinstance(record, ImplementationPrerequisiteRecord):
+        raise TypeError("record must be typed")
+    if not isinstance(now, datetime) or now.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    payload = {
+        "schema_version": RESOLUTION_SCHEMA_VERSION,
+        "record_id": record.record_id,
+        "project_id": record.project_id,
+        "task_id": record.task_id,
+        "task_identifier": record.task_identifier,
+        "source_run_id": record.source_run_id,
+        "source_assignment_id": record.source_assignment_id,
+        "source_generation": record.source_generation,
+        "expected_task_authority": expected_task_authority,
+        "workflow_generation": workflow_generation,
+        "actor": actor,
+        "reason": reason,
+        "recovery_trigger": record.recovery_trigger.to_dict(),
+        "trigger_evidence": dict(trigger_evidence),
+        "continuation": continuation.to_dict(),
+    }
+    return ImplementationPrerequisiteResolution(
+        resolution_id=_sha256(payload),
+        record_id=record.record_id,
+        project_id=record.project_id,
+        task_id=record.task_id,
+        task_identifier=record.task_identifier,
+        source_run_id=record.source_run_id,
+        source_assignment_id=record.source_assignment_id,
+        source_generation=record.source_generation,
+        expected_task_authority=expected_task_authority,
+        workflow_generation=workflow_generation,
+        actor=actor,
+        reason=reason,
+        recovery_trigger=record.recovery_trigger,
+        trigger_evidence=trigger_evidence,
+        continuation=continuation,
+        resolved_at=now.astimezone(timezone.utc),
+    )
+
+
 @dataclass(frozen=True)
 class PrerequisiteAdmissionDisposition:
     """Typed, jobless-or-capable projection consumed by workflow policy.
@@ -719,6 +1134,13 @@ def project_prerequisite_admission(
             "invalid-durable-record",
             None,
         )
+    resolution_raw = getattr(
+        issue, "implementation_prerequisite_resolution", None
+    )
+    if resolution_raw is not None:
+        resolution = ImplementationPrerequisiteResolution.from_raw(resolution_raw)
+        if resolution_is_current(record, resolution):
+            return None
     trigger = record.recovery_trigger
     if trigger.kind is RecoveryTriggerKind.TASK:
         kind = PrerequisiteAdmissionKind.BLOCKED_DEPENDENCY
@@ -741,6 +1163,30 @@ def project_prerequisite_admission(
         record.record_id,
         record.subject,
         trigger,
+    )
+
+
+def resolution_is_current(
+    record: ImplementationPrerequisiteRecord,
+    resolution: ImplementationPrerequisiteResolution | None,
+) -> bool:
+    """Return whether one committed receipt resolves this exact record.
+
+    Staging wrappers, malformed values, and receipts for an older record are
+    deliberately false.  This is the shared OOMPAH-1263 parking contract.
+    """
+
+    return bool(
+        isinstance(record, ImplementationPrerequisiteRecord)
+        and isinstance(resolution, ImplementationPrerequisiteResolution)
+        and resolution.record_id == record.record_id
+        and resolution.project_id == record.project_id
+        and resolution.task_id == record.task_id
+        and resolution.task_identifier == record.task_identifier
+        and resolution.source_run_id == record.source_run_id
+        and resolution.source_assignment_id == record.source_assignment_id
+        and resolution.source_generation == record.source_generation
+        and resolution.recovery_trigger == record.recovery_trigger
     )
 
 
@@ -804,6 +1250,10 @@ def raw_record_for_issue(issue: Issue) -> object:
     return getattr(issue, "implementation_prerequisite", None)
 
 
+def raw_resolution_for_issue(issue: Issue) -> object:
+    return getattr(issue, "implementation_prerequisite_resolution", None)
+
+
 def set_issue_record(
     issue: Issue,
     record: object,
@@ -818,6 +1268,15 @@ def set_issue_record(
         issue.implementation_prerequisite = record
 
 
+def set_issue_resolution(issue: Issue, resolution: object) -> None:
+    if isinstance(resolution, ImplementationPrerequisiteResolution):
+        issue.implementation_prerequisite_resolution = resolution.to_dict()
+    elif isinstance(resolution, Mapping):
+        issue.implementation_prerequisite_resolution = dict(resolution)
+    else:
+        issue.implementation_prerequisite_resolution = resolution
+
+
 def load_record(tracker: Any, issue: Issue) -> ImplementationPrerequisiteRecord | None:
     """Load and project a record through the generic tracker metadata API."""
 
@@ -827,10 +1286,29 @@ def load_record(tracker: Any, issue: Issue) -> ImplementationPrerequisiteRecord 
     return ImplementationPrerequisiteRecord.from_raw(raw)
 
 
+def load_resolution(
+    tracker: Any, issue: Issue
+) -> ImplementationPrerequisiteResolution | None:
+    """Load a committed resolution through the generic metadata API."""
+
+    metadata = tracker.get_metadata(issue.identifier) or {}
+    raw = metadata.get(RESOLUTION_METADATA_KEY)
+    set_issue_resolution(issue, raw)
+    return ImplementationPrerequisiteResolution.from_raw(raw)
+
+
 def _read_exact_record(tracker: Any, identifier: str) -> tuple[object, ImplementationPrerequisiteRecord | None]:
     metadata = tracker.get_metadata(identifier) or {}
     raw = metadata.get(METADATA_KEY)
     return raw, ImplementationPrerequisiteRecord.from_raw(raw)
+
+
+def _read_exact_resolution(
+    tracker: Any, identifier: str
+) -> tuple[object, ImplementationPrerequisiteResolution | None]:
+    metadata = tracker.get_metadata(identifier) or {}
+    raw = metadata.get(RESOLUTION_METADATA_KEY)
+    return raw, ImplementationPrerequisiteResolution.from_raw(raw)
 
 
 def save_record(
@@ -919,6 +1397,87 @@ def save_record(
                     "implementation prerequisite final readback failed"
                 ) from final_error
         set_issue_record(issue, readback)
+        return readback
+
+
+def save_resolution(
+    tracker: Any,
+    issue: Issue,
+    record: ImplementationPrerequisiteRecord,
+    resolution: ImplementationPrerequisiteResolution,
+    *,
+    lock: AbstractContextManager[Any],
+    accept_current: Callable[[], bool],
+) -> ImplementationPrerequisiteResolution:
+    """Commit one exact resolution under record and task-authority CAS.
+
+    ``accept_current`` is evaluated while the caller's bounded owner-control
+    lock is held and must compare the freshly projected task authority with
+    ``resolution.expected_task_authority``.  The metadata write itself is
+    append-once: an identical lost-response retry succeeds, while concurrent
+    replacement and malformed history fail closed.
+    """
+
+    if not isinstance(record, ImplementationPrerequisiteRecord):
+        raise TypeError("record must be typed")
+    if not isinstance(resolution, ImplementationPrerequisiteResolution):
+        raise TypeError("resolution must be typed")
+    if not resolution_is_current(record, resolution):
+        raise PrerequisiteSourceChangedError(
+            "resolution does not identify the exact prerequisite source"
+        )
+    if not callable(accept_current):
+        raise TypeError("accept_current must be callable")
+    with lock:
+        raw_record, current_record = _read_exact_record(
+            tracker, issue.identifier
+        )
+        if raw_record is None or current_record is None:
+            raise MalformedPrerequisiteRecordError(
+                "current implementation prerequisite is absent or malformed"
+            )
+        if current_record.record_id != record.record_id:
+            raise PrerequisiteSourceChangedError(
+                "implementation prerequisite changed before resolution"
+            )
+        raw, existing = _read_exact_resolution(tracker, issue.identifier)
+        if raw is not None:
+            if existing is None:
+                raise MalformedPrerequisiteResolutionError(
+                    "existing prerequisite resolution metadata is malformed"
+                )
+            if existing.resolution_id != resolution.resolution_id:
+                raise PrerequisiteResolutionConflictError(
+                    "a different prerequisite resolution already owns the task"
+                )
+            set_issue_resolution(issue, existing)
+            return existing
+        if not accept_current():
+            raise PrerequisiteSourceChangedError(
+                "task authority changed before prerequisite resolution"
+            )
+        write_error: Exception | None = None
+        try:
+            tracker.set_metadata_field(
+                issue.identifier,
+                RESOLUTION_METADATA_KEY,
+                resolution.to_dict(),
+            )
+        except Exception as exc:  # exact readback resolves lost responses
+            write_error = exc
+        readback_raw, readback = _read_exact_resolution(
+            tracker, issue.identifier
+        )
+        if (
+            readback is None
+            or readback.resolution_id != resolution.resolution_id
+            or readback.to_dict() != resolution.to_dict()
+            or readback_raw != resolution.to_dict()
+        ):
+            raise PrerequisiteReadbackError(
+                "implementation prerequisite resolution readback failed"
+            ) from write_error
+        set_issue_resolution(issue, readback)
         return readback
 
 
