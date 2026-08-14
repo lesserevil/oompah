@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1221
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Accepted integration submissions must preempt implementation dispatch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T05:19:06.019608Z'
-updated_at: '2026-08-13T06:06:01.149784Z'
+updated_at: '2026-08-14T07:31:38.042168Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: e27c0303-bd1e-4eda-a993-267b894fdfa2
   request_fingerprint: 5111a3df750124b1bb3921dfea79e59f57e7038b91724e04203367574ce50d73
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.terminal_audit:
   queued_comment_posted: true
   oompah.terminal_audit_tracker_projections:
@@ -38,6 +38,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1221
     digest: 07abc04abb2cda0e368bc6198ef28ab814d73a0d759968559560e2fa29adc2ce
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6533e3ca4409
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1221
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 07abc04abb2cda0e368bc6198ef28ab814d73a0d759968559560e2fa29adc2ce
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner convergence: PR #851 merged as 4eb4dc678 and that landed tree is
+      contained by origin/main; this stale non-terminal projection requires no further
+      implementation.'
+    created_at: '2026-08-14T07:31:34.417082+00:00'
+    selected_ref: origin/OOMPAH-1221
+    selected_sha: 27c9bd1ae4fa35310ca8abaf4e56a844990d4963
+    applied: false
   version: 1
   pending_chain:
   - version: 1
