@@ -12,8 +12,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T01:17:47.268102Z'
-updated_at: '2026-08-14T02:16:08.324617Z'
-work_branch: null
+updated_at: '2026-08-14T03:02:50.057800Z'
+work_branch: OOMPAH-1261
 target_branch: null
 review_url: null
 review_number: null
@@ -26,6 +26,18 @@ oompah.create_once:
   creation_marker: 5cf07b32-4562-410f-b82c-de37c40187c0
   request_fingerprint: 1a91df46d5640339a0e28cc8b1c15a2ac70f7a10c937d3194305fd4c9011d4a0
 oompah.lifecycle_revision: 1
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1261
+  base_branch: main
+  base_sha: 5a0ae9f886796123d6a7a1dd095f6b823fb4cd7f
+  head_sha: ee95f1e9f5e7d632c1e12c91870e96ebb5ff36f4
+  submitted_at: '2026-08-14T03:02:42.864361+00:00'
+  updated_at: '2026-08-14T03:02:42.864361+00:00'
+oompah.work_branch: OOMPAH-1261
 ---
 ## Summary
 
@@ -68,5 +80,10 @@ author: oompah
 created: 2026-08-14 02:16
 ---
 Implementation frozen at commit 41bdebc829fcd1bb5e3a7957f671961bbf5ff33c. Accepted-versus-remote authority is projected before scheduling; advanced heads require explicit exact-head resubmission; unavailable identity is truthfully jobless/blocked; proven late drift supersedes without consuming retry budget; and stale review-cache data cannot deadlock an exact authoritative branch. Independent authority/race review found no silent-adoption path after two blockers were corrected. Focused suite passes 488 tests; full Makefile gate is running on the exact commit.
+---
+author: oompah
+created: 2026-08-14 03:02
+---
+Implemented authoritative remote-head recovery for Ready to Integrate work, including exact-head resubmission decisions, fail-closed ambiguity handling, stale-cache protection, typed late-drift supersession, and regression coverage. Exact pushed head ee95f1e9f5e7d632c1e12c91870e96ebb5ff36f4 is under GitHub PR 878 with auto-merge enabled; all focused checks pass and the full CI matrix is running.
 ---
 <!-- COMMENTS:END -->
