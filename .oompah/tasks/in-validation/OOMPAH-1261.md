@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T01:17:47.268102Z'
-updated_at: '2026-08-14T03:06:36.382004Z'
+updated_at: '2026-08-14T03:21:16.760145Z'
 work_branch: OOMPAH-1261
 target_branch: null
 review_url: null
@@ -148,5 +148,10 @@ author: oompah
 created: 2026-08-14 03:06
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-14 03:21
+---
+Acceptance complete: PR 878 merged after all Python 3.11/3.12/3.13 CI lanes passed. Main and the running service are at 948ef6f207eabe4c26910d8fc276d6d36b659e76. Live TRICKLE-136 now remains In Review on exact tracker/MR head fea95f192d66fbf07f0188ad632e42c0ceb21d52; its older retained worktree is non-authoritative and no stale standalone-delivery job is active. The OOMPAH-1261 worktree plus local/remote branches were pruned.
 ---
 <!-- COMMENTS:END -->
