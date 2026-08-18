@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-18T16:52:34.979011Z'
+updated_at: '2026-08-18T22:30:43.233440Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,5 +48,10 @@ author: oompah
 created: 2026-08-18 16:51
 ---
 Implemented in PR #883 (branch workflow-event-archival), auto-merge enabled pending CI. Schema V8 archive table + high-water fence; bounded maintenance job in non-lifecycle housekeeping (300s). Local suites green (test_workflow_jobs, test_workflow_retirement_architecture, test_orchestrator_handlers, test_storage_cleanup = 543 passed). Will restart service onto merged revision after CI merges.
+---
+author: oompah
+created: 2026-08-18 22:30
+---
+Follow-up fix in PR #884: existing stores kept their pre-V8 unconditional workflow_job_events DELETE trigger (CREATE TRIGGER IF NOT EXISTS won't replace it), so archival failed every sweep with IntegrityError and never made progress (20.1M hot events, 0 archived). Migration now drops+recreates the guarded trigger. Verified on the live DB: archival moved events successfully. Auto-merge enabled.
 ---
 <!-- COMMENTS:END -->
