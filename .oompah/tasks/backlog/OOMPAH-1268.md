@@ -2,7 +2,7 @@
 id: OOMPAH-1268
 type: task
 status: Backlog
-priority: null
+priority: 3
 title: Archive workflow_job_events for Archived tasks
 parent: null
 children: []
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-18T16:51:41.560843Z'
+updated_at: '2026-08-18T16:52:34.979011Z'
 work_branch: null
 target_branch: null
 review_url: null
