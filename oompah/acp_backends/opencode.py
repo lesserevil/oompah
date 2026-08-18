@@ -117,11 +117,13 @@ def _truncate(value: Any, limit: int = 1500) -> Any:
 
 
 class OpencodeAcpBackendSession(AcpBackendSession):
-    """Opencode-serve-driven session handle.
+    """Opencode-run-driven session handle.
 
     Mirrors the lifecycle of :class:`ClaudeAcpBackendSession` and
-    :class:`CodexAcpBackendSession` but drives the ``opencode serve``
-    subprocess via JSON-lines over stdin/stdout.
+    :class:`CodexAcpBackendSession` but drives a non-interactive
+    ``opencode run --format json`` subprocess, translating its JSON-line
+    event stream (``step_start`` / ``text`` / ``tool_use`` /
+    ``step_finish``) into :class:`BackendEvent` objects.
     """
 
     def __init__(self, options: AcpBackendOptions):
@@ -317,12 +319,11 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             ),
         )
 
-    # ---- run_turn: drive the opencode serve subprocess ----
+    # ---- run_turn: drive the opencode CLI ----
 
     async def run_turn(self) -> AsyncIterator[BackendEvent]:
-        """Spawn ``opencode serve``, send the prompt as JSON on stdin,
-        stream JSON-lines from stdout, yield :class:`BackendEvent`
-        objects until completion.
+        """Spawn ``opencode run --format json`` and translate its JSON-line
+        event stream into :class:`BackendEvent` instances.
 
         After run_turn returns, ``self.status`` is one of:
 
@@ -337,8 +338,8 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             return
 
         if self._options.isolate_remote_write:
-            # ``opencode serve`` retains a native execution surface in the
-            # provider-authenticated process.  Its catalog cannot yet prove
+            # The opencode CLI retains a native execution surface in the
+            # provider-authenticated process. Its catalog cannot yet prove
             # exclusive server-mediated execution, so shared-epic rebase work
             # must fail closed until an API/bridged implementation exists.
             self._last_error = (
@@ -349,10 +350,14 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             yield self._emit("acp_session_error", payload={"error": self._last_error})
             return
 
-        # Build the tool catalog before spawning so we can surface
-        # NotImplementedError early rather than mid-stream.
+        tools: list[Any] = []
+        tool_names: list[str] = []
         try:
             tools = self._build_tool_catalog()
+            tool_names = [
+                getattr(t, "name", getattr(t, "__name__", str(t)))
+                for t in tools
+            ]
         except NotImplementedError as exc:
             self._last_error = (
                 f"Opencode backend cannot bridge required tools: {exc}"
@@ -361,10 +366,13 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             self._status = "errored"
             return
         except Exception as exc:
+            # The opencode CLI can run without any tool injection.
+            # Failing open here keeps provider health-checks usable even when
+            # optional ACP tool bridges are unavailable.
             self._last_error = f"tool catalog build failed: {exc!r}"
             logger.warning(self._last_error)
-            self._status = "errored"
-            return
+            tools = []
+            tool_names = []
 
         # Compose env. opencode serve reads OPENAI_API_KEY from the
         # process env; if the provider configured a custom api_key it
@@ -377,7 +385,7 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         )
         # Track temporary worker runtime directory for cleanup (OOMPAH-686)
         self._worker_runtime_dir = agent_env.get("OOMPAH_WORKER_RUNTIME_DIR")
-        
+
         if self._options.task_handoff_token and not self._options.isolate_remote_write:
             agent_env[TASK_HANDOFF_TOKEN_ENV] = self._options.task_handoff_token
             if self._options.project_id:
@@ -389,11 +397,6 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         if api_key:
             agent_env["OPENAI_API_KEY"] = api_key
 
-        # Build the tool catalog names for the session_start event payload.
-        tool_names = [
-            getattr(t, "name", getattr(t, "__name__", str(t)))
-            for t in tools
-        ]
 
         # Emit session_start before spawning so consumers can wire up
         # loggers before the subprocess starts streaming.
@@ -411,8 +414,18 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             },
         )
 
-        # Spawn the opencode serve subprocess.
-        cmd = ["opencode", "serve"]
+        # Spawn an opencode CLI run in JSON event mode.
+        #
+        # NOTE: `opencode serve` starts an HTTP server and does not speak a
+        # stdin/stdout JSONL prompt protocol. For a single non-interactive turn,
+        # the supported surface is `opencode run --format json ...`.
+        cmd = ["opencode", "run", "--format", "json"]
+        if self._options.model is not None:
+            model = str(self._options.model).strip()
+            if model:
+                cmd.extend(["--model", model])
+        cmd.append(str(self._options.prompt or "").strip())
+
         admission_error = begin_transport_contact(self._options)
         if admission_error is not None:
             self._last_error = admission_error
@@ -422,7 +435,7 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         try:
             self._proc = await asyncio.create_subprocess_exec(
                 *cmd,
-                stdin=asyncio.subprocess.PIPE,
+                stdin=asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=agent_env,
@@ -447,27 +460,7 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         except Exception as exc:
             cancel_transport_contact(self._options)
             transport_permit = False
-            self._last_error = f"failed to spawn opencode serve: {exc!r}"
-            logger.warning(self._last_error)
-            self._status = "errored"
-            yield self._emit(
-                "acp_session_error", payload={"error": self._last_error},
-            )
-            return
-
-        # Send the initial prompt as a JSON message on stdin.
-        init_msg = {
-            "type": "init",
-            "prompt": self._options.prompt,
-            "model": self._options.model,
-            "tools": tool_names,
-        }
-        try:
-            stdin = self._proc.stdin
-            stdin.write((json.dumps(init_msg) + "\n").encode())
-            await stdin.drain()
-        except Exception as exc:
-            self._last_error = f"failed to send init message: {exc!r}"
+            self._last_error = f"failed to spawn opencode run: {exc!r}"
             logger.warning(self._last_error)
             self._status = "errored"
             yield self._emit(
@@ -481,8 +474,9 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         )
 
         try:
-            # Read JSON-lines from stdout.
+            # Read JSON-lines from stdout (`opencode run --format json`).
             stdout = self._proc.stdout
+            saw_terminal = False
             async for line in stdout:
                 if self._stop_requested:
                     self._status = "interrupted"
@@ -512,25 +506,18 @@ class OpencodeAcpBackendSession(AcpBackendSession):
                 async for be in self._translate_message(msg):
                     yield be
 
-                # After a result message, stop streaming.
-                msg_type = msg.get("type", "")
-                if msg_type == "result":
-                    break
+                msg_type = str(msg.get("type", "")).strip()
+                if msg_type == "step_finish":
+                    part = msg.get("part") or {}
+                    if isinstance(part, dict) and part.get("type") == "step-finish":
+                        saw_terminal = True
 
-            # Stream exhausted. If close() was called during iteration,
-            # _stop_requested will be True and the stream ended because
-            # of that — treat as interrupted, not succeeded.  We detect
-            # this by checking _stop_requested BEFORE calling wait()
-            # (wait() would return 0 even for an interrupted session).
             if self._stop_requested:
                 self._status = "interrupted"
                 return
 
-            # subprocess has closed its stdout — wait for it to finish.
             return_code = await self._proc.wait()
             if return_code != 0:
-                # Distinguish "user closed the session" from "crash":
-                # _killed_by_close is set by close() → terminate/kill.
                 if self._killed_by_close:
                     self._status = "interrupted"
                     return
@@ -546,7 +533,7 @@ class OpencodeAcpBackendSession(AcpBackendSession):
                     except Exception:
                         pass
                 self._last_error = (
-                    f"opencode serve exited with code {return_code}. "
+                    f"opencode run exited with code {return_code}. "
                     f"stderr: {'; '.join(stderr_lines[-5:])}"
                 )
                 logger.warning("Opencode ACP session failed: %s", self._last_error)
@@ -556,7 +543,6 @@ class OpencodeAcpBackendSession(AcpBackendSession):
                 self._status = "errored"
                 return
 
-            # Clean exit: emit the terminal result.
             yield self._emit(
                 "acp_result",
                 payload={
@@ -567,6 +553,7 @@ class OpencodeAcpBackendSession(AcpBackendSession):
                     "total_cost_usd": self._final_cost_usd,
                     "usage": self._cost_payload(),
                     "errors": None,
+                    "saw_terminal": saw_terminal,
                 },
             )
             self._status = "succeeded"
@@ -635,34 +622,37 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         """
         msg_type = msg.get("type", "")
 
-        if msg_type == "session_start":
-            # Capture session_id for the protocol consumer.
-            sid = msg.get("session_id")
+        if msg_type == "step_start":
+            sid = msg.get("sessionID")
             if isinstance(sid, str) and self._session_id is None:
                 self._session_id = sid
-            # Absorb any usage data.
-            usage = msg.get("usage")
-            if usage:
-                self._counters.absorb_usage(usage)
 
         elif msg_type == "text":
-            text = msg.get("text", "")
-            if text:
+            part = msg.get("part") or {}
+            if isinstance(part, dict):
+                text = part.get("text")
+            else:
+                text = None
+            if isinstance(text, str) and text:
                 self._counters.last_event = "text"
-                from oompah.duplicate_screening import (
-                    duplicate_preflight_text_payload,
-                )
+                from oompah.duplicate_screening import duplicate_preflight_text_payload
 
                 yield self._emit(
                     "acp_text", payload=duplicate_preflight_text_payload(text)
                 )
 
         elif msg_type == "tool_use":
+            part = msg.get("part") or {}
+            if not isinstance(part, dict):
+                part = {}
             self._counters.last_event = "tool_use"
             self._counters.turn_count += 1
-            tool_name = msg.get("tool", "?")
-            tool_input = _truncate(msg.get("input", {}))
-            tool_id = msg.get("id")
+            tool_name = part.get("tool") or "?"
+            state = part.get("state") or {}
+            if not isinstance(state, dict):
+                state = {}
+            tool_input = _truncate(state.get("input", {}))
+            tool_id = part.get("callID") or part.get("id")
             yield self._emit(
                 "acp_tool_use",
                 payload={
@@ -672,29 +662,25 @@ class OpencodeAcpBackendSession(AcpBackendSession):
                 },
             )
 
-        elif msg_type == "tool_result":
-            self._counters.last_event = "tool_result"
-            yield self._emit(
-                "acp_tool_result",
-                payload={
-                    "tool_use_id": msg.get("tool_use_id"),
-                    "is_error": bool(msg.get("is_error", False)),
-                    "content": _truncate(msg.get("content", "")),
-                },
-            )
-
-        elif msg_type in ("result", "error"):
-            # Terminal messages. Don't yield a BackendEvent here —
-            # run_turn itself emits the final result/error after the
-            # loop. Just absorb usage if present.
-            usage = msg.get("usage")
-            if usage:
-                self._counters.absorb_usage(usage)
-            cost = msg.get("total_cost_usd") or msg.get("cost_usd")
+        elif msg_type == "step_finish":
+            part = msg.get("part") or {}
+            if not isinstance(part, dict):
+                return
+            tokens = part.get("tokens") or {}
+            if isinstance(tokens, dict):
+                total = tokens.get("total")
+                input_t = tokens.get("input")
+                output_t = tokens.get("output")
+                self._counters.absorb_usage(
+                    {
+                        "input_tokens": input_t,
+                        "output_tokens": output_t,
+                        "total_tokens": total,
+                    }
+                )
+            cost = part.get("cost")
             if isinstance(cost, (int, float)):
                 self._final_cost_usd = float(cost)
-            if msg_type == "error":
-                self._last_error = msg.get("error", "unknown error")
 
 
 # ----------------------------------------------------------------------
