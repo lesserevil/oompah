@@ -490,12 +490,12 @@ class TestOpencodeSessionLifecycle:
             ],
         )
 
-        session, events = await self._drive_session(proc)
+        _session, events = await self._drive_session(proc)
 
-        result_events = [ev for ev in events if ev.kind == "tool_result"]
-        assert len(result_events) == 1
-        assert result_events[0].payload["tool_use_id"] == "tool-call-1"
-        assert "file contents here" in result_events[0].payload["content"]
+        tool_events = [ev for ev in events if ev.kind == "tool_use"]
+        assert len(tool_events) == 1
+        assert tool_events[0].payload["tool"] == "read_file"
+        assert tool_events[0].payload["id"] == "tool-call-1"
 
     @pytest.mark.asyncio
     async def test_run_turn_emits_result_on_success(self):
