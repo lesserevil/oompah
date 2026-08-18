@@ -1054,6 +1054,11 @@ class WorkflowJobStore:
                 self._conn.execute(
                     f"ALTER TABLE workflow_jobs ADD COLUMN {name} {declaration}"
                 )
+        # The V8 archival path relaxes the events DELETE trigger to consult a
+        # guard row.  ``CREATE TRIGGER IF NOT EXISTS`` will not replace a
+        # pre-existing unconditional trigger, so drop it first and let the V2
+        # object script recreate the guarded form.  Idempotent across restarts.
+        self._conn.execute("DROP TRIGGER IF EXISTS workflow_job_events_no_delete")
         self._conn.executescript(_CREATE_V2_OBJECTS)
         self._conn.executescript(_CREATE_V3_OBJECTS)
         schedule_columns = {

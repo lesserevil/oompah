@@ -4127,3 +4127,33 @@ def test_direct_event_delete_still_rejected_outside_archival(store, clock):
     assert event.job is not None
     with pytest.raises(sqlite3.IntegrityError, match="append-only"):
         store._conn.execute("DELETE FROM workflow_job_events")  # noqa: SLF001
+
+
+def test_migration_upgrades_legacy_unconditional_delete_trigger(tmp_path, clock):
+    database = str(tmp_path / "legacy.sqlite3")
+    store = WorkflowJobStore(database, clock=clock)
+    _archived_task_with_events(store, clock, project_id="p", task_id="OOMPAH-LEGACY")
+    # Simulate a pre-V8 store whose delete trigger is unconditional.
+    store._conn.execute(  # noqa: SLF001
+        "DROP TRIGGER IF EXISTS workflow_job_events_no_delete"
+    )
+    store._conn.executescript(  # noqa: SLF001
+        "CREATE TRIGGER workflow_job_events_no_delete "
+        "BEFORE DELETE ON workflow_job_events BEGIN "
+        "SELECT RAISE(ABORT, 'workflow job events are append-only'); END;"
+    )
+    store._conn.commit()  # noqa: SLF001
+    store.close()
+
+    reopened = WorkflowJobStore(database, clock=clock)
+    try:
+        sql = reopened._conn.execute(  # noqa: SLF001
+            "SELECT sql FROM sqlite_master "
+            "WHERE name = 'workflow_job_events_no_delete'"
+        ).fetchone()["sql"]
+        assert "workflow_job_events_delete_guard" in sql
+        # Archival now makes progress instead of raising IntegrityError.
+        result = reopened.archive_lifecycle_final_events()
+        assert result["events"] > 0
+    finally:
+        reopened.close()
