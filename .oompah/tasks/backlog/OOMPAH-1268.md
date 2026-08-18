@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-18T16:49:48.891025Z'
+updated_at: '2026-08-18T16:51:41.560843Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,3 +42,11 @@ Acceptance: append-only DELETE still blocked outside archival; archived events m
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-18 16:51
+---
+Implemented in PR #883 (branch workflow-event-archival), auto-merge enabled pending CI. Schema V8 archive table + high-water fence; bounded maintenance job in non-lifecycle housekeeping (300s). Local suites green (test_workflow_jobs, test_workflow_retirement_architecture, test_orchestrator_handlers, test_storage_cleanup = 543 passed). Will restart service onto merged revision after CI merges.
+---
+<!-- COMMENTS:END -->
