@@ -31,7 +31,7 @@ try:  # pragma: no cover - the service runtime is POSIX-only today
 except ImportError:  # pragma: no cover
     fcntl = None  # type: ignore[assignment]
 
-WORKFLOW_JOB_SCHEMA_VERSION = 7
+WORKFLOW_JOB_SCHEMA_VERSION = 8
 DEFAULT_SCAN_LIMIT = 100
 MAX_SCAN_LIMIT = 1000
 _MAX_ADMINISTRATIVE_BACKOFF_EXPONENT = 10
@@ -48,6 +48,13 @@ _AUTHORITY_RETIREMENT_KINDS = frozenset(
 _LIFECYCLE_FINAL_AUTHORITY_REVISIONS = frozenset(
     {"lifecycle-final:Merged", "lifecycle-final:Archived"}
 )
+_LIFECYCLE_FINAL_ARCHIVED_REVISION = "lifecycle-final:Archived"
+# Persisted high-water mark for the monotonic ``workflow_job_events.sequence``.
+# Archival relocates the tail of the ledger into cold storage, so ``MAX``
+# across the hot table alone can regress.  This meta key preserves the true
+# global maximum so the snapshot-authority ABA fence never observes a lower
+# sequence after archival.
+_JOB_EVENT_HIGHWATER_KEY = "workflow_job_events_highwater_sequence"
 
 # One exhausted ledger row stops being current only after an exact retirement
 # proof is published, or when a published durable lane cursor names another
@@ -743,12 +750,28 @@ CREATE INDEX IF NOT EXISTS workflow_jobs_task_idx
     ON workflow_jobs(project_id, task_id, generation, enqueue_sequence);
 CREATE INDEX IF NOT EXISTS workflow_job_events_job_idx
     ON workflow_job_events(job_id, sequence);
+CREATE INDEX IF NOT EXISTS workflow_job_events_task_idx
+    ON workflow_job_events(project_id, task_id, sequence);
 CREATE TRIGGER IF NOT EXISTS workflow_job_events_no_update
 BEFORE UPDATE ON workflow_job_events BEGIN
     SELECT RAISE(ABORT, 'workflow job events are append-only');
 END;
+-- Events are append-only.  The sole sanctioned exception is the archival
+-- maintenance path, which relocates rows for lifecycle-final Archived tasks
+-- into ``workflow_job_events_archive``.  That path sets a transaction-scoped
+-- guard flag in ``workflow_job_events_delete_guard`` before deleting; every
+-- other DELETE is rejected.
+CREATE TABLE IF NOT EXISTS workflow_job_events_delete_guard (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    allowed INTEGER NOT NULL DEFAULT 0
+);
+INSERT OR IGNORE INTO workflow_job_events_delete_guard(id, allowed) VALUES (1, 0);
 CREATE TRIGGER IF NOT EXISTS workflow_job_events_no_delete
-BEFORE DELETE ON workflow_job_events BEGIN
+BEFORE DELETE ON workflow_job_events
+WHEN NOT EXISTS (
+    SELECT 1 FROM workflow_job_events_delete_guard WHERE id = 1 AND allowed = 1
+)
+BEGIN
     SELECT RAISE(ABORT, 'workflow job events are append-only');
 END;
 """
@@ -863,6 +886,29 @@ CREATE TABLE IF NOT EXISTS workflow_rollout_domains (
     last_error TEXT,
     updated_at REAL NOT NULL
 );
+"""
+
+# Cold storage for workflow job events belonging to lifecycle-final Archived
+# tasks.  Rows are relocated here verbatim (original ``sequence`` preserved) so
+# the audit history survives while the hot ``workflow_job_events`` table stays
+# small.  The archive intentionally omits the append-only triggers: it is only
+# ever written by the sanctioned archival maintenance path.
+_CREATE_V8_OBJECTS = """
+CREATE TABLE IF NOT EXISTS workflow_job_events_archive (
+    sequence INTEGER PRIMARY KEY,
+    job_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    state TEXT NOT NULL,
+    phase TEXT NOT NULL,
+    lease_owner TEXT,
+    payload_json TEXT,
+    created_at REAL NOT NULL,
+    archived_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS workflow_job_events_archive_task_idx
+    ON workflow_job_events_archive(project_id, task_id, sequence);
 """
 
 _V2_COLUMNS: dict[str, str] = {
@@ -1034,6 +1080,26 @@ class WorkflowJobStore:
         self._conn.executescript(_CREATE_V5_OBJECTS)
         self._conn.executescript(_CREATE_V7_OBJECTS)
         self._conn.executescript(_CREATE_ROLLOUT_OBJECTS)
+        self._conn.executescript(_CREATE_V8_OBJECTS)
+        # Seed the persisted high-water mark from the live tables so an
+        # already-populated store adopts a correct global maximum before any
+        # archival can relocate the tail of the ledger.
+        highwater_row = self._conn.execute(
+            "SELECT value FROM schema_meta WHERE key = ?",
+            (_JOB_EVENT_HIGHWATER_KEY,),
+        ).fetchone()
+        if highwater_row is None:
+            observed = self._conn.execute(
+                "SELECT COALESCE(MAX(sequence), 0) AS sequence FROM ("
+                "  SELECT MAX(sequence) AS sequence FROM workflow_job_events"
+                "  UNION ALL"
+                "  SELECT MAX(sequence) AS sequence FROM workflow_job_events_archive"
+                ")"
+            ).fetchone()
+            self._conn.execute(
+                "INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)",
+                (_JOB_EVENT_HIGHWATER_KEY, str(int(observed["sequence"] or 0))),
+            )
         published_row = self._conn.execute(
             "SELECT value FROM schema_meta "
             "WHERE key = 'workflow_snapshot_published_generation'"
@@ -2416,7 +2482,17 @@ class WorkflowJobStore:
                 "SELECT COALESCE(MAX(sequence), 0) AS sequence "
                 "FROM workflow_job_events"
             ).fetchone()
-            job_event_sequence = int(event_row["sequence"] if event_row else 0)
+            highwater_row = self._conn.execute(
+                "SELECT value FROM schema_meta WHERE key = ?",
+                (_JOB_EVENT_HIGHWATER_KEY,),
+            ).fetchone()
+            live_sequence = int(event_row["sequence"] if event_row else 0)
+            persisted_highwater = (
+                int(highwater_row["value"]) if highwater_row is not None else 0
+            )
+            # Archival relocates the tail of the ledger into cold storage, so
+            # the persisted high-water mark is the authoritative global maximum.
+            job_event_sequence = max(live_sequence, persisted_highwater)
         return WorkflowSnapshotAuthority(
             projects,
             identities,
@@ -3646,7 +3722,7 @@ class WorkflowJobStore:
         now: float,
     ) -> None:
         clean_payload = _json_object(payload, "event payload")
-        self._conn.execute(
+        cursor = self._conn.execute(
             """
             INSERT INTO workflow_job_events(
                 job_id, project_id, task_id, event_type, state, phase,
@@ -3664,6 +3740,16 @@ class WorkflowJobStore:
                 _canonical_json(clean_payload) if clean_payload is not None else None,
                 now,
             ),
+        )
+        # Advance the persisted high-water mark so archival of the ledger tail
+        # can never regress the global sequence the ABA fence relies on.
+        self._conn.execute(
+            """
+            INSERT INTO schema_meta(key, value) VALUES(?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            WHERE CAST(excluded.value AS INTEGER) > CAST(schema_meta.value AS INTEGER)
+            """,
+            (_JOB_EVENT_HIGHWATER_KEY, str(int(cursor.lastrowid))),
         )
 
     def _row_locked(self, job_id: str) -> sqlite3.Row:
@@ -5126,6 +5212,122 @@ class WorkflowJobStore:
                 if owns_transaction:
                     self._conn.rollback()
                 raise
+
+    def archive_lifecycle_final_events(
+        self,
+        *,
+        max_tasks: int = 25,
+        max_events: int = 5000,
+        now: float | None = None,
+    ) -> dict[str, int]:
+        """Relocate job events for lifecycle-final Archived tasks into cold storage.
+
+        Events for tasks whose durable retirement proof is
+        ``lifecycle-final:Archived`` are copied verbatim (preserving their
+        original ``sequence``) into ``workflow_job_events_archive`` and removed
+        from the hot ``workflow_job_events`` table.  The persisted sequence
+        high-water mark guarantees the snapshot-authority ABA fence never
+        observes a lower maximum after the tail is relocated.
+
+        The scan is bounded by ``max_tasks`` (distinct Archived tasks per call)
+        and ``max_events`` (rows relocated per call) so the maintenance loop
+        makes steady, restart-safe progress against a large backlog.  Returns a
+        summary with ``tasks`` and ``events`` counts actually archived.
+        """
+
+        task_budget = max(1, int(max_tasks))
+        event_budget = max(1, int(max_events))
+        timestamp = float(self._clock() if now is None else now)
+        archived_tasks = 0
+        archived_events = 0
+        with self._authority_mutation_guard():
+            owns_transaction = not self._conn.in_transaction
+            if owns_transaction:
+                self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                candidates = self._conn.execute(
+                    """
+                    SELECT DISTINCT project_id, task_id
+                      FROM workflow_job_retirements
+                     WHERE authority_kind = 'lifecycle_final'
+                       AND decision_revision = ?
+                     ORDER BY project_id, task_id
+                     LIMIT ?
+                    """,
+                    (_LIFECYCLE_FINAL_ARCHIVED_REVISION, task_budget),
+                ).fetchall()
+
+                self._conn.execute(
+                    "UPDATE workflow_job_events_delete_guard "
+                    "SET allowed = 1 WHERE id = 1"
+                )
+                try:
+                    for candidate in candidates:
+                        if archived_events >= event_budget:
+                            break
+                        project = str(candidate["project_id"])
+                        task = str(candidate["task_id"])
+                        remaining = event_budget - archived_events
+                        rows = self._conn.execute(
+                            """
+                            SELECT sequence, job_id, project_id, task_id,
+                                   event_type, state, phase, lease_owner,
+                                   payload_json, created_at
+                              FROM workflow_job_events
+                             WHERE project_id = ? AND task_id = ?
+                             ORDER BY sequence
+                             LIMIT ?
+                            """,
+                            (project, task, remaining),
+                        ).fetchall()
+                        if not rows:
+                            continue
+                        self._conn.executemany(
+                            """
+                            INSERT OR IGNORE INTO workflow_job_events_archive(
+                                sequence, job_id, project_id, task_id,
+                                event_type, state, phase, lease_owner,
+                                payload_json, created_at, archived_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            [
+                                (
+                                    int(r["sequence"]),
+                                    r["job_id"],
+                                    r["project_id"],
+                                    r["task_id"],
+                                    r["event_type"],
+                                    r["state"],
+                                    r["phase"],
+                                    r["lease_owner"],
+                                    r["payload_json"],
+                                    float(r["created_at"]),
+                                    timestamp,
+                                )
+                                for r in rows
+                            ],
+                        )
+                        sequences = [int(r["sequence"]) for r in rows]
+                        placeholders = ",".join("?" for _ in sequences)
+                        self._conn.execute(
+                            "DELETE FROM workflow_job_events "
+                            f"WHERE sequence IN ({placeholders})",
+                            sequences,
+                        )
+                        archived_events += len(sequences)
+                        archived_tasks += 1
+                finally:
+                    self._conn.execute(
+                        "UPDATE workflow_job_events_delete_guard "
+                        "SET allowed = 0 WHERE id = 1"
+                    )
+                if owns_transaction:
+                    self._conn.commit()
+            except Exception:
+                if owns_transaction:
+                    self._conn.rollback()
+                raise
+        return {"tasks": archived_tasks, "events": archived_events}
 
     def reconcile_schedule(
         self,

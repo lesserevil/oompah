@@ -170,15 +170,21 @@ def test_runtime_housekeeping_schedules_owner_claim_retirement() -> None:
     orchestrator._maybe_cleanup_worktrees = Mock()
     orchestrator._maybe_cleanup_storage = Mock()
     orchestrator._reconcile_inactive_owner_claims = Mock()
+    orchestrator._archive_workflow_events = Mock()
     orchestrator._run_maintenance_job = Mock()
     orchestrator._update_repo_hygiene_health = Mock()
 
     orchestrator._run_non_lifecycle_housekeeping()
 
-    orchestrator._run_maintenance_job.assert_called_once_with(
+    orchestrator._run_maintenance_job.assert_any_call(
         "owner_claim_retirements",
         orchestrator._reconcile_inactive_owner_claims,
         min_interval_s=60.0,
+    )
+    orchestrator._run_maintenance_job.assert_any_call(
+        "workflow_event_archival",
+        orchestrator._archive_workflow_events,
+        min_interval_s=300.0,
     )
 
 

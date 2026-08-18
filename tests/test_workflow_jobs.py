@@ -3979,3 +3979,151 @@ def test_delayed_claim_uses_post_lock_time_for_retry_eligibility(store, clock):
 
     assert claimed is not None
     assert claimed.job_id == running.job_id
+
+
+def _archived_task_with_events(store, clock, *, project_id, task_id):
+    """Create a job with events for a task and stage Archived retirement proof."""
+    event = store.materialize_event(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="cleanup-generation",
+        action="epic_cleanup",
+        idempotency_namespace="epic-cleanup",
+        scheduling_lane="epic-event:epic_cleanup",
+    )
+    assert event.job is not None
+    running = claim(store, task_id=task_id)
+    assert running is not None
+    store.fail(
+        running.job_id,
+        running.lease_token,
+        error="terminal",
+        category=WorkflowFailureCategory.PERMANENT,
+        retryable=False,
+    )
+    snapshot = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(snapshot)
+    assert (
+        store.record_lifecycle_final_authority(
+            project_id=project_id,
+            task_id=task_id,
+            status="Archived",
+            snapshot_generation=snapshot,
+        )
+        >= 1
+    )
+    return event.job.job_id
+
+
+def _event_counts(store):
+    hot = store._conn.execute(  # noqa: SLF001 - test inspects storage
+        "SELECT COUNT(*) AS c FROM workflow_job_events"
+    ).fetchone()["c"]
+    cold = store._conn.execute(  # noqa: SLF001
+        "SELECT COUNT(*) AS c FROM workflow_job_events_archive"
+    ).fetchone()["c"]
+    return int(hot), int(cold)
+
+
+def test_archive_lifecycle_final_events_moves_rows_to_cold_storage(store, clock):
+    project_id = "project-arch"
+    task_id = "OOMPAH-ARCHIVED"
+    _archived_task_with_events(store, clock, project_id=project_id, task_id=task_id)
+
+    hot_before, cold_before = _event_counts(store)
+    assert hot_before > 0
+    assert cold_before == 0
+
+    result = store.archive_lifecycle_final_events()
+    assert result["tasks"] == 1
+    assert result["events"] == hot_before
+
+    hot_after, cold_after = _event_counts(store)
+    assert hot_after == 0
+    assert cold_after == hot_before
+
+    # Sequences are preserved verbatim in the cold table.
+    archived = store._conn.execute(  # noqa: SLF001
+        "SELECT sequence, task_id FROM workflow_job_events_archive ORDER BY sequence"
+    ).fetchall()
+    assert all(row["task_id"] == task_id for row in archived)
+    assert [row["sequence"] for row in archived] == sorted(
+        row["sequence"] for row in archived
+    )
+
+
+def test_archive_preserves_snapshot_authority_high_water(store, clock):
+    project_id = "project-hw"
+    task_id = "OOMPAH-HW"
+    _archived_task_with_events(store, clock, project_id=project_id, task_id=task_id)
+
+    before = store.capture_snapshot_authority(
+        authoritative_project_ids=(),
+        evaluated_identities=((project_id, task_id),),
+        full_project_scope=False,
+    ).job_event_sequence
+    assert before > 0
+
+    store.archive_lifecycle_final_events()
+
+    # After relocating every hot event, MAX(sequence) over the hot table is 0,
+    # but the persisted high-water mark keeps the ABA fence monotonic.
+    hot_after, cold_after = _event_counts(store)
+    assert hot_after == 0
+    assert cold_after > 0
+    after = store.capture_snapshot_authority(
+        authoritative_project_ids=(),
+        evaluated_identities=((project_id, task_id),),
+        full_project_scope=False,
+    ).job_event_sequence
+    assert after == before
+
+
+def test_archive_is_bounded_by_event_budget(store, clock):
+    project_id = "project-budget"
+    task_id = "OOMPAH-BUDGET"
+    _archived_task_with_events(store, clock, project_id=project_id, task_id=task_id)
+    hot_before, _ = _event_counts(store)
+    assert hot_before >= 2
+
+    result = store.archive_lifecycle_final_events(max_events=1)
+    assert result["events"] == 1
+    hot_after, cold_after = _event_counts(store)
+    assert cold_after == 1
+    assert hot_after == hot_before - 1
+
+
+def test_archive_skips_non_archived_tasks(store, clock):
+    project_id = "project-live"
+    task_id = "OOMPAH-LIVE"
+    event = store.materialize_event(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="cleanup-generation",
+        action="epic_cleanup",
+        idempotency_namespace="epic-cleanup",
+        scheduling_lane="epic-event:epic_cleanup",
+    )
+    assert event.job is not None
+
+    result = store.archive_lifecycle_final_events()
+    assert result == {"tasks": 0, "events": 0}
+    hot_after, cold_after = _event_counts(store)
+    assert hot_after > 0
+    assert cold_after == 0
+
+
+def test_direct_event_delete_still_rejected_outside_archival(store, clock):
+    project_id = "project-guard"
+    task_id = "OOMPAH-GUARD"
+    event = store.materialize_event(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="cleanup-generation",
+        action="epic_cleanup",
+        idempotency_namespace="epic-cleanup",
+        scheduling_lane="epic-event:epic_cleanup",
+    )
+    assert event.job is not None
+    with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+        store._conn.execute("DELETE FROM workflow_job_events")  # noqa: SLF001
