@@ -6329,6 +6329,34 @@ class Orchestrator:
                 return True
         return False
 
+    def _archive_workflow_events(self) -> int:
+        """Relocate durable job events for Archived tasks into cold storage.
+
+        Runs as bounded storage maintenance.  Returns the number of event rows
+        relocated this sweep so the maintenance gate can surface progress.
+        """
+
+        store = getattr(self, "workflow_job_store", None)
+        archiver = getattr(store, "archive_lifecycle_final_events", None)
+        if archiver is None:
+            return 0
+        try:
+            result = archiver()
+        except Exception as exc:  # noqa: BLE001 - retry on the next sweep
+            logger.warning(
+                "Workflow event archival deferred: %s", type(exc).__name__
+            )
+            return 0
+        events = int(result.get("events", 0))
+        if events:
+            logger.info(
+                "Workflow event archival relocated %d event(s) for %d "
+                "Archived task(s)",
+                events,
+                int(result.get("tasks", 0)),
+            )
+        return events
+
     def _reconcile_inactive_owner_claims(self) -> int:
         """Retry stale exact-claim retirement without superseding active work."""
 
@@ -14826,6 +14854,14 @@ class Orchestrator:
             "owner_claim_retirements",
             self._reconcile_inactive_owner_claims,
             min_interval_s=60.0,
+        )
+        # Relocate job events for lifecycle-final Archived tasks into cold
+        # storage so the hot durable-jobs ledger stays small.  This is pure
+        # storage maintenance: it neither decides nor mutates task lifecycle.
+        self._run_maintenance_job(
+            "workflow_event_archival",
+            self._archive_workflow_events,
+            min_interval_s=300.0,
         )
         self._update_repo_hygiene_health()
 
