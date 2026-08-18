@@ -1,0 +1,87 @@
+proj-14849f1b:dashboard-column:proj-14849f1b:Backlog:Open:26:bd2233ceccfa0d0a:
+  batch_id: batch-41327bd44d2248989351b0a98c84746f
+  request_hash: b4ae55345a996b06c1cfc7adea55900f19c739c0ffc810d19745779f1567eacd
+  committed_at: '2026-08-18T16:18:18.970327Z'
+  operation:
+    kind: whole_column_move
+    source_status: Backlog
+    scope: flat_board
+  results:
+  - identifier: OOMPAH-1195
+    status: Open
+    revision: 67405ec34cad6105b1b0b9657e741e2749343056da02560f042dd73a76dc7681
+  - identifier: OOMPAH-1196
+    status: Open
+    revision: 435f34b5d593c96ac418d81d7889e3ed9a325b4da5be853fc218c6a4cff94322
+  - identifier: OOMPAH-1197
+    status: Open
+    revision: 72571a47dc7e326a0d7e2bb390b277a5f03c0780b9f6c9991a6a2de0bb9d47ac
+  - identifier: OOMPAH-1198
+    status: Open
+    revision: 5ccd176be65939ba09fb9e1666319f2715dc374adbac3d338e56360231c1a676
+  - identifier: OOMPAH-1199
+    status: Open
+    revision: 6100f00a9f7df375a30d9554237f5080b16160479066fd490354dc630da40ed5
+  - identifier: OOMPAH-1200
+    status: Open
+    revision: b80ac5b9ec3f019491dd6f0307358ac2869a5eff5b258d53790d7cdab04ff1c1
+  - identifier: OOMPAH-1201
+    status: Open
+    revision: 7f96acb16eac1824eee965d8dbcd83c4d481304fbef8cd0873c50fb2749be5ae
+  - identifier: OOMPAH-1203
+    status: Open
+    revision: 5e13f498bc8ca20b5963e097a075052398117e787ab7e18f4fb9404aa7f06314
+  - identifier: OOMPAH-1204
+    status: Open
+    revision: 704402e6885afb0259d20d26356586b5fed69ff6133f3b6a5ca922ea74cd2f49
+  - identifier: OOMPAH-1206
+    status: Open
+    revision: 5729b763878f786fcb4cba4d717feaec176c8738bfff7d48198473f1a5cafad2
+  - identifier: OOMPAH-1208
+    status: Open
+    revision: 9380f09f91fdd283ef16865435812ca328f65d8b8473247a9ad5f05668fa0563
+  - identifier: OOMPAH-1211
+    status: Open
+    revision: 69fe6771bed5a4acbf86d301e636e7848bb6ceceb1510484ef718430a6ffc35d
+  - identifier: OOMPAH-1212
+    status: Open
+    revision: b5d458e070ffa314004f0fd5e2f777788e89ed58ce689201467e7d971b59122b
+  - identifier: OOMPAH-1213
+    status: Open
+    revision: b380671b51d0651fe70094420146d0945d620a92db5137a72952927a836b5d00
+  - identifier: OOMPAH-1214
+    status: Open
+    revision: 640a2a3eb42e0dc9635e2f2947a0a436ecc801408553d17b7c87e3a87f9bf281
+  - identifier: OOMPAH-1215
+    status: Open
+    revision: ca1a6ddf03592d9af6063f98396f0d187f54dcc3cbcf9d70ceb1c92dbde9e9cf
+  - identifier: OOMPAH-1216
+    status: Open
+    revision: 86830d575df1df9152315cee2f8b6da0ea67e69594c89dc8ae7004d55a940c02
+  - identifier: OOMPAH-1217
+    status: Open
+    revision: dc4f1407a732080ecac1f79619f1e2b5579267fa3763e576379a3834932abf16
+  - identifier: OOMPAH-1219
+    status: Open
+    revision: 38ab5c313777bb856d1bb403754797792d5e8911aee499944727d3f422077e93
+  - identifier: OOMPAH-1224
+    status: Open
+    revision: 4f3493c3aa25aedee79491eccba96c982f82eb6f76f57ef6d9879a28e46d8bfa
+  - identifier: OOMPAH-1252
+    status: Open
+    revision: 172b453758d2dd003db3bbd9b636e2041e43c3a849f334db268d44f005e2559f
+  - identifier: OOMPAH-1254
+    status: Open
+    revision: de9c79b7669dc34b2a6af3528a2f445bbdf243079f418d49fe1c425c1cab4da9
+  - identifier: OOMPAH-1256
+    status: Open
+    revision: 0798da550bb8f8f6067d9c7e1a6f67746a3748179478d1e68b97347f5884918e
+  - identifier: OOMPAH-1229
+    status: Open
+    revision: 4e250ade6a188d3291cc634add975c80e89a3d2d6d271cba66880faf23b43925
+  - identifier: OOMPAH-1250
+    status: Open
+    revision: 2dbd17255ed9f6457cd7b9304bbd1c99436ca56fdf4bf78ad777d85f711c087b
+  - identifier: OOMPAH-1267
+    status: Open
+    revision: 5880a2992e234995533743e51e3cbb082db1bb2284e9bc5a95c1dbcb75550ab5

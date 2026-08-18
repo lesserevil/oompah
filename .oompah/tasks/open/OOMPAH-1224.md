@@ -1,31 +1,40 @@
 ---
-id: OOMPAH-1252
+id: OOMPAH-1224
 type: bug
-status: Backlog
+status: Open
 priority: 2
-title: '[backend:server] Update issue API error: TaskTransitionNotApplied(''TRICKLE-142:
-  In Progress was not applied (rejected: transition.project_owner_authority_required)'')'
+title: '[backend:server] Issue detail API error: ProgrammingError(''Cannot operate
+  on a closed database.'')'
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
-created_at: '2026-08-13T17:11:27.677981Z'
-updated_at: '2026-08-13T17:11:27.677981Z'
+created_at: '2026-08-13T07:24:01.242921Z'
+updated_at: '2026-08-18T16:18:18.970327Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.lifecycle_revision: 1
+oompah.last_batch:
+  batch_id: batch-41327bd44d2248989351b0a98c84746f
+  actor: shedwards
+  committed_at: '2026-08-18T16:18:18.970327Z'
+  operation:
+    kind: whole_column_move
+    source_status: Backlog
+    scope: flat_board
 ---
 ## Summary
 
 ### Problem
 Oompah detected a backend error from `backend:server`:
 
-> Update issue API error: TaskTransitionNotApplied('TRICKLE-142: In Progress was not applied (rejected: transition.project_owner_authority_required)')
+> Issue detail API error: ProgrammingError('Cannot operate on a closed database.')
 
 ### Steps to Reproduce
 1. Run oompah with `backend:server` active.
@@ -35,7 +44,7 @@ Oompah detected a backend error from `backend:server`:
 ### Actual Behavior
 An error occurs in `backend:server` and is recorded by oompah's `error_watcher`:
 
-> Update issue API error: TaskTransitionNotApplied('TRICKLE-142: In Progress was not applied (rejected: transition.project_owner_authority_required)')
+> Issue detail API error: ProgrammingError('Cannot operate on a closed database.')
 
 ### Expected Behavior
 The operation in `backend:server` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
@@ -50,8 +59,8 @@ The operation in `backend:server` should complete successfully, or degrade grace
 - source_project: proj-14849f1b
 - tracker: provenanceguardedtracker
 - tracker_kind: provenanceguardedtracker
-- fingerprint: 9da02389c0ecf39f
-- dedup_fingerprint: 9da02389c0ecf39f
+- fingerprint: a55639a0defd4a2b
+- dedup_fingerprint: a55639a0defd4a2b
 
 ## Acceptance Criteria
 

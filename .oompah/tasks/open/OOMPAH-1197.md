@@ -1,32 +1,39 @@
 ---
-id: OOMPAH-1217
+id: OOMPAH-1197
 type: bug
-status: Backlog
+status: Open
 priority: 2
-title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
-  task-authority deadline issue_id=TRICKLE-122 identifier=TRICKLE-122 run_id=55adaba352c743fc8a2cfc754517629a
-  timeout_sec...'
+title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-119'
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
-created_at: '2026-08-13T04:00:53.373319Z'
-updated_at: '2026-08-13T04:00:53.373319Z'
+created_at: '2026-08-12T23:56:36.517429Z'
+updated_at: '2026-08-18T16:18:18.970327Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.lifecycle_revision: 1
+oompah.last_batch:
+  batch_id: batch-41327bd44d2248989351b0a98c84746f
+  actor: shedwards
+  committed_at: '2026-08-18T16:18:18.970327Z'
+  operation:
+    kind: whole_column_move
+    source_status: Backlog
+    scope: flat_board
 ---
 ## Summary
 
 ### Problem
 Oompah detected a backend error from `backend:orchestrator`:
 
-> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-122 identifier=TRICKLE-122 run_id=55adaba352c743fc8a2cfc754517629a timeout_seconds=5.0
+> ACP worker failed issue_id=TRICKLE-119
 
 ### Steps to Reproduce
 1. Run oompah with `backend:orchestrator` active.
@@ -36,7 +43,7 @@ Oompah detected a backend error from `backend:orchestrator`:
 ### Actual Behavior
 An error occurs in `backend:orchestrator` and is recorded by oompah's `error_watcher`:
 
-> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-122 identifier=TRICKLE-122 run_id=55adaba352c743fc8a2cfc754517629a timeout_seconds=5.0
+> ACP worker failed issue_id=TRICKLE-119
 
 ### Expected Behavior
 The operation in `backend:orchestrator` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
@@ -51,8 +58,9 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 - source_project: proj-14849f1b
 - tracker: provenanceguardedtracker
 - tracker_kind: provenanceguardedtracker
-- fingerprint: 73d371097ee3d9c9
-- dedup_fingerprint: 73d371097ee3d9c9
+- fingerprint: d274c7f10a0fe8d7
+- dedup_fingerprint: d274c7f10a0fe8d7
+- source_issue: TRICKLE-119
 
 ## Acceptance Criteria
 
@@ -60,3 +68,11 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-13 00:17
+---
+Duplicate task-specific occurrence of OOMPAH-1194. The canonical fix covers this failure: managed network Git used the stale local SSH origin instead of the project's configured HTTPS repo_url during Trickle workspace/epic refresh.
+---
+<!-- COMMENTS:END -->

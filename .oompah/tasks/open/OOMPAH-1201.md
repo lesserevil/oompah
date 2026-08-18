@@ -1,30 +1,39 @@
 ---
-id: OOMPAH-1196
+id: OOMPAH-1201
 type: bug
-status: Backlog
+status: Open
 priority: 2
-title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-135'
+title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-133'
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
-created_at: '2026-08-12T23:56:27.547026Z'
-updated_at: '2026-08-13T00:17:59.399710Z'
+created_at: '2026-08-12T23:57:47.623989Z'
+updated_at: '2026-08-18T16:18:18.970327Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.lifecycle_revision: 1
+oompah.last_batch:
+  batch_id: batch-41327bd44d2248989351b0a98c84746f
+  actor: shedwards
+  committed_at: '2026-08-18T16:18:18.970327Z'
+  operation:
+    kind: whole_column_move
+    source_status: Backlog
+    scope: flat_board
 ---
 ## Summary
 
 ### Problem
 Oompah detected a backend error from `backend:orchestrator`:
 
-> ACP worker failed issue_id=TRICKLE-135
+> ACP worker failed issue_id=TRICKLE-133
 
 ### Steps to Reproduce
 1. Run oompah with `backend:orchestrator` active.
@@ -34,7 +43,7 @@ Oompah detected a backend error from `backend:orchestrator`:
 ### Actual Behavior
 An error occurs in `backend:orchestrator` and is recorded by oompah's `error_watcher`:
 
-> ACP worker failed issue_id=TRICKLE-135
+> ACP worker failed issue_id=TRICKLE-133
 
 ### Expected Behavior
 The operation in `backend:orchestrator` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
@@ -49,9 +58,9 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 - source_project: proj-14849f1b
 - tracker: provenanceguardedtracker
 - tracker_kind: provenanceguardedtracker
-- fingerprint: 1bc81be69915050f
-- dedup_fingerprint: 1bc81be69915050f
-- source_issue: TRICKLE-135
+- fingerprint: 0a21d527a3d60b80
+- dedup_fingerprint: 0a21d527a3d60b80
+- source_issue: TRICKLE-133
 
 ## Acceptance Criteria
 
@@ -59,11 +68,3 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 
 ## Notes
 
-## Comments
-<!-- COMMENTS:BEGIN -->
-author: oompah
-created: 2026-08-13 00:17
----
-Duplicate task-specific occurrence of OOMPAH-1194. The canonical fix covers this failure: managed network Git used the stale local SSH origin instead of the project's configured HTTPS repo_url during Trickle workspace/epic refresh.
----
-<!-- COMMENTS:END -->

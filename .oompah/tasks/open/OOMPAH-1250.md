@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1250
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Restore GitLab external issue intake for native Markdown projects
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-13T16:21:54.348846Z'
+updated_at: '2026-08-18T16:18:18.970327Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,15 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: b14bdf4d-7f07-48e7-bea5-bd9a4c15a754
   request_fingerprint: 35c587882c8a948f1f7683918040d652db1c9e5eb82d33f59e8351c7a160037b
+oompah.lifecycle_revision: 1
+oompah.last_batch:
+  batch_id: batch-41327bd44d2248989351b0a98c84746f
+  actor: shedwards
+  committed_at: '2026-08-18T16:18:18.970327Z'
+  operation:
+    kind: whole_column_move
+    source_status: Backlog
+    scope: flat_board
 ---
 ## Summary
 

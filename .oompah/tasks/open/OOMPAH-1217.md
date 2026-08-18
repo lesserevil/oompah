@@ -1,10 +1,10 @@
 ---
-id: OOMPAH-1204
+id: OOMPAH-1217
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
-  task-authority deadline issue_id=TRICKLE-132 identifier=TRICKLE-132 run_id=15cd6b1be4e84f899592794059aca475
+  task-authority deadline issue_id=TRICKLE-122 identifier=TRICKLE-122 run_id=55adaba352c743fc8a2cfc754517629a
   timeout_sec...'
 parent: null
 children: []
@@ -12,21 +12,30 @@ blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
-created_at: '2026-08-13T01:25:06.282819Z'
-updated_at: '2026-08-13T01:25:06.282819Z'
+created_at: '2026-08-13T04:00:53.373319Z'
+updated_at: '2026-08-18T16:18:18.970327Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.lifecycle_revision: 1
+oompah.last_batch:
+  batch_id: batch-41327bd44d2248989351b0a98c84746f
+  actor: shedwards
+  committed_at: '2026-08-18T16:18:18.970327Z'
+  operation:
+    kind: whole_column_move
+    source_status: Backlog
+    scope: flat_board
 ---
 ## Summary
 
 ### Problem
 Oompah detected a backend error from `backend:orchestrator`:
 
-> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-132 identifier=TRICKLE-132 run_id=15cd6b1be4e84f899592794059aca475 timeout_seconds=5.0
+> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-122 identifier=TRICKLE-122 run_id=55adaba352c743fc8a2cfc754517629a timeout_seconds=5.0
 
 ### Steps to Reproduce
 1. Run oompah with `backend:orchestrator` active.
@@ -36,7 +45,7 @@ Oompah detected a backend error from `backend:orchestrator`:
 ### Actual Behavior
 An error occurs in `backend:orchestrator` and is recorded by oompah's `error_watcher`:
 
-> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-132 identifier=TRICKLE-132 run_id=15cd6b1be4e84f899592794059aca475 timeout_seconds=5.0
+> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=TRICKLE-122 identifier=TRICKLE-122 run_id=55adaba352c743fc8a2cfc754517629a timeout_seconds=5.0
 
 ### Expected Behavior
 The operation in `backend:orchestrator` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
@@ -51,8 +60,8 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 - source_project: proj-14849f1b
 - tracker: provenanceguardedtracker
 - tracker_kind: provenanceguardedtracker
-- fingerprint: 5adb6b016d461847
-- dedup_fingerprint: 5adb6b016d461847
+- fingerprint: 73d371097ee3d9c9
+- dedup_fingerprint: 73d371097ee3d9c9
 
 ## Acceptance Criteria
 

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1206
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue TRICKLE-121:
   All 2 dispatch candidates unavailable: prov-651d553c/sonnet: contributor_evidence_unavailable:
@@ -13,13 +13,22 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-13T01:28:18.549010Z'
+updated_at: '2026-08-18T16:18:18.970327Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.lifecycle_revision: 1
+oompah.last_batch:
+  batch_id: batch-41327bd44d2248989351b0a98c84746f
+  actor: shedwards
+  committed_at: '2026-08-18T16:18:18.970327Z'
+  operation:
+    kind: whole_column_move
+    source_status: Backlog
+    scope: flat_board
 ---
 ## Summary
 

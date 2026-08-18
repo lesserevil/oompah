@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1267
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Make restart replacement rollback test deterministic under concurrent gates
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T08:43:25.263614Z'
-updated_at: '2026-08-14T08:43:25.263614Z'
+updated_at: '2026-08-18T16:18:18.970327Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,15 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 74c46553-2c2b-43cf-a780-9f13e770c900
   request_fingerprint: c93c49f73d14f0dbd98db4eaf2f0bc6f44f4965a6f4e68ab29b4fa036d4eeecd
+oompah.lifecycle_revision: 1
+oompah.last_batch:
+  batch_id: batch-41327bd44d2248989351b0a98c84746f
+  actor: shedwards
+  committed_at: '2026-08-18T16:18:18.970327Z'
+  operation:
+    kind: whole_column_move
+    source_status: Backlog
+    scope: flat_board
 ---
 ## Summary
 
