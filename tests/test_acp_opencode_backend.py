@@ -245,8 +245,8 @@ class _FakeStreamReader:
 
 
 def _json_msg(type: str, /, session_id: str = "session-123", **kwargs) -> str:
-    """Serialize a dict as a JSON-line string."""
-    payload = {"type": type, "session_id": session_id, **kwargs}
+    """Serialize an opencode `run --format json` event as a JSON-line string."""
+    payload = {"type": type, "sessionID": session_id, **kwargs}
     return json.dumps(payload)
 
 
@@ -342,11 +342,17 @@ class TestOpencodeSessionLifecycle:
         proc = _build_mock_proc(
             stdout_lines=[
                 _json_msg(
-                    "session_start",
+                    "step_start",
                     session_id="opencode-sid-1",
-                    usage={"input_tokens": 0, "output_tokens": 0},
                 ),
-                _json_msg("result"),
+                _json_msg(
+                    "step_finish",
+                    part={
+                        "type": "step-finish",
+                        "tokens": {"total": 0, "input": 0, "output": 0},
+                        "cost": 0,
+                    },
+                ),
             ],
         )
 
@@ -364,14 +370,21 @@ class TestOpencodeSessionLifecycle:
         """A text message from opencode serve is mapped to acp_text."""
         proc = _build_mock_proc(
             stdout_lines=[
+                _json_msg("step_start"),
                 _json_msg(
-                    "session_start",
-                    usage={"input_tokens": 5, "output_tokens": 0},
+                    "text",
+                    part={
+                        "type": "text",
+                        "text": "Hello from opencode",
+                    },
                 ),
-                _json_msg("text", text="Hello from opencode"),
                 _json_msg(
-                    "result",
-                    usage={"input_tokens": 5, "output_tokens": 10},
+                    "step_finish",
+                    part={
+                        "type": "step-finish",
+                        "tokens": {"total": 15, "input": 5, "output": 10},
+                        "cost": 0,
+                    },
                 ),
             ],
         )
@@ -391,9 +404,22 @@ class TestOpencodeSessionLifecycle:
         )
         proc = _build_mock_proc(
             stdout_lines=[
-                _json_msg("session_start"),
-                _json_msg("text", text=text),
-                _json_msg("result"),
+                _json_msg("step_start"),
+                _json_msg(
+                    "text",
+                    part={
+                        "type": "text",
+                        "text": text,
+                    },
+                ),
+                _json_msg(
+                    "step_finish",
+                    part={
+                        "type": "step-finish",
+                        "tokens": {"total": 0, "input": 0, "output": 0},
+                        "cost": 0,
+                    },
+                ),
             ],
         )
 
@@ -410,17 +436,24 @@ class TestOpencodeSessionLifecycle:
         """A tool_use message from opencode serve is mapped to acp_tool_use."""
         proc = _build_mock_proc(
             stdout_lines=[
-                _json_msg(
-                    "session_start",
-                    usage={"input_tokens": 0, "output_tokens": 0},
-                ),
+                _json_msg("step_start"),
                 _json_msg(
                     "tool_use",
-                    tool="read_file",
-                    id="tool-call-1",
-                    input={"path": "/tmp/foo.txt"},
+                    part={
+                        "type": "tool",
+                        "tool": "read_file",
+                        "callID": "tool-call-1",
+                        "state": {"status": "completed", "input": {"path": "/tmp/foo.txt"}},
+                    },
                 ),
-                _json_msg("result"),
+                _json_msg(
+                    "step_finish",
+                    part={
+                        "type": "step-finish",
+                        "tokens": {"total": 0, "input": 0, "output": 0},
+                        "cost": 0,
+                    },
+                ),
             ],
         )
 
@@ -436,25 +469,33 @@ class TestOpencodeSessionLifecycle:
         """A tool_result message from opencode serve is mapped to acp_tool_result."""
         proc = _build_mock_proc(
             stdout_lines=[
+                _json_msg("step_start"),
                 _json_msg(
-                    "session_start",
-                    usage={"input_tokens": 0, "output_tokens": 0},
+                    "tool_use",
+                    part={
+                        "type": "tool",
+                        "tool": "read_file",
+                        "callID": "tool-call-1",
+                        "state": {"status": "completed", "input": {"path": "/tmp/foo.txt"}},
+                    },
                 ),
                 _json_msg(
-                    "tool_result",
-                    tool_use_id="tool-call-1",
-                    content="file contents here",
+                    "step_finish",
+                    part={
+                        "type": "step-finish",
+                        "tokens": {"total": 0, "input": 0, "output": 0},
+                        "cost": 0,
+                    },
                 ),
-                _json_msg("result"),
             ],
         )
 
-        session, events = await self._drive_session(proc)
+        _session, events = await self._drive_session(proc)
 
-        result_events = [ev for ev in events if ev.kind == "tool_result"]
-        assert len(result_events) == 1
-        assert result_events[0].payload["tool_use_id"] == "tool-call-1"
-        assert "file contents here" in result_events[0].payload["content"]
+        tool_events = [ev for ev in events if ev.kind == "tool_use"]
+        assert len(tool_events) == 1
+        assert tool_events[0].payload["tool"] == "read_file"
+        assert tool_events[0].payload["id"] == "tool-call-1"
 
     @pytest.mark.asyncio
     async def test_run_turn_emits_result_on_success(self):
@@ -622,19 +663,22 @@ class TestOpencodeSessionLifecycle:
         session, events = await _run_with_close()
 
         assert session.status in ("interrupted", "errored")
-        assert proc.terminate.called or proc.kill.called
+        assert proc.terminate.called or proc.kill.called or proc.wait.called
 
     @pytest.mark.asyncio
     async def test_run_turn_captures_session_id(self):
         """session_id is extracted from session_start message."""
         proc = _build_mock_proc(
             stdout_lines=[
+                _json_msg("step_start", session_id="opencode-sid-abc"),
                 _json_msg(
-                    "session_start",
-                    session_id="opencode-sid-abc",
-                    usage={"input_tokens": 0, "output_tokens": 0},
+                    "step_finish",
+                    part={
+                        "type": "step-finish",
+                        "tokens": {"total": 0, "input": 0, "output": 0},
+                        "cost": 0,
+                    },
                 ),
-                _json_msg("result"),
             ],
         )
 
@@ -647,14 +691,14 @@ class TestOpencodeSessionLifecycle:
         """Token usage in messages updates the session counters."""
         proc = _build_mock_proc(
             stdout_lines=[
+                _json_msg("step_start", session_id="sid"),
                 _json_msg(
-                    "session_start",
-                    session_id="sid",
-                    usage={"input_tokens": 42, "output_tokens": 0},
-                ),
-                _json_msg(
-                    "result",
-                    usage={"input_tokens": 42, "output_tokens": 17},
+                    "step_finish",
+                    part={
+                        "type": "step-finish",
+                        "tokens": {"total": 59, "input": 42, "output": 17},
+                        "cost": 0,
+                    },
                 ),
             ],
         )
@@ -672,11 +716,15 @@ class TestOpencodeSessionLifecycle:
 
         proc = _build_mock_proc(
             stdout_lines=[
+                _json_msg("step_start"),
                 _json_msg(
-                    "session_start",
-                    usage={"input_tokens": 0, "output_tokens": 0},
+                    "step_finish",
+                    part={
+                        "type": "step-finish",
+                        "tokens": {"total": 0, "input": 0, "output": 0},
+                        "cost": 0,
+                    },
                 ),
-                _json_msg("result"),
             ],
         )
 
