@@ -41,8 +41,23 @@ jobs:
 
       - name: Provision OS sandbox
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes bubblewrap iproute2
+          # GitHub-hosted runners intermittently stall talking to the Azure
+          # Ubuntu mirror.  Bound each apt call and retry so a flaky mirror
+          # fails fast (and can be re-triggered) instead of hanging the job
+          # until the overall timeout.
+          apt_get() {
+            for attempt in 1 2 3; do
+              if sudo timeout 180 apt-get "$@"; then
+                return 0
+              fi
+              echo "apt-get $* failed (attempt ${attempt}); retrying..." >&2
+              sleep 10
+            done
+            echo "apt-get $* failed after 3 attempts" >&2
+            return 1
+          }
+          apt_get update
+          apt_get install --yes bubblewrap iproute2
           if test -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns; then
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
