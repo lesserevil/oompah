@@ -12,7 +12,7 @@ def _hosted_ci_workflow() -> str:
 def test_hosted_ci_provisions_the_required_os_sandbox() -> None:
     workflow = _hosted_ci_workflow()
 
-    assert "sudo apt-get install --yes bubblewrap iproute2" in workflow
+    assert "apt_get install --yes bubblewrap iproute2" in workflow
     assert "kernel.apparmor_restrict_unprivileged_userns=0" in workflow
     assert "kernel.unprivileged_userns_clone=1" in workflow
     assert workflow.count("--unshare-user") >= 2
@@ -25,7 +25,7 @@ def test_hosted_ci_provisions_the_required_os_sandbox() -> None:
 def test_hosted_ci_uses_the_supported_makefile_gate() -> None:
     workflow = _hosted_ci_workflow()
 
-    assert 'python-version: ["3.11", "3.12", "3.13"]' in workflow
+    assert 'python-version: ["3.12"]' in workflow
     assert "UV_PYTHON: ${{ matrix.python-version }}" in workflow
     assert 'OOMPAH_PYTEST_WORKERS: "2"' in workflow
     assert "python -m pip install --upgrade pip uv" in workflow
