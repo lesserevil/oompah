@@ -2574,6 +2574,9 @@ class WorkflowJobStore:
                     f"SELECT * FROM workflow_jobs WHERE {where} AND workflow_managed = 1",
                     params,
                 ).fetchall()
+                # Collect affected job ids per task and emit a single aggregate
+                # rollback event per task below, rather than one event per job.
+                rolled_back: dict[tuple[str, str], list[str]] = {}
                 for current in current_jobs:
                     job_id = str(current["job_id"])
                     if (
@@ -2601,13 +2604,10 @@ class WorkflowJobStore:
                             + " WHERE job_id = ?",
                             tuple(prior[column] for column in columns) + (job_id,),
                         )
-                        restored = self._row_locked(job_id)
-                        self._append_event_locked(
-                            restored,
-                            "publication_rollback",
-                            payload={"snapshot_generation": snapshot},
-                            now=timestamp,
-                        )
+                        rolled_back.setdefault(
+                            (str(current["project_id"]), str(current["task_id"])),
+                            [],
+                        ).append(job_id)
                         continue
                     if str(current["state"]) in {
                         state.value for state in ACTIVE_JOB_STATES
@@ -2631,13 +2631,19 @@ class WorkflowJobStore:
                                 job_id,
                             ),
                         )
-                        superseded = self._row_locked(job_id)
-                        self._append_event_locked(
-                            superseded,
-                            "publication_rollback",
-                            payload={"snapshot_generation": snapshot},
-                            now=timestamp,
-                        )
+                        rolled_back.setdefault(
+                            (str(current["project_id"]), str(current["task_id"])),
+                            [],
+                        ).append(job_id)
+                for (proj, task), job_ids in sorted(rolled_back.items()):
+                    self._append_rollback_summary_locked(
+                        project_id=proj,
+                        task_id=task,
+                        job_ids=job_ids,
+                        snapshot=snapshot,
+                        reason=None,
+                        now=timestamp,
+                    )
 
                 self._conn.execute(
                     f"DELETE FROM workflow_schedule_cursors WHERE {where}", params
@@ -2791,6 +2797,7 @@ class WorkflowJobStore:
                             WorkflowJobState.RETRY_WAIT.value,
                         ),
                     ).fetchall()
+                    rolled_back_ids: list[str] = []
                     for selected in active_rows:
                         if (
                             str(selected["state"])
@@ -2817,16 +2824,15 @@ class WorkflowJobStore:
                                 selected["job_id"],
                             ),
                         )
-                        updated = self._row_locked(str(selected["job_id"]))
-                        self._append_event_locked(
-                            updated,
-                            "publication_rollback",
-                            payload={
-                                "snapshot_generation": snapshot,
-                                "reason": message,
-                            },
-                            now=timestamp,
-                        )
+                        rolled_back_ids.append(str(selected["job_id"]))
+                    self._append_rollback_summary_locked(
+                        project_id=project,
+                        task_id=task,
+                        job_ids=rolled_back_ids,
+                        snapshot=snapshot,
+                        reason=message,
+                        now=timestamp,
+                    )
                     self._conn.execute(
                         "DELETE FROM workflow_schedule_cursors "
                         "WHERE project_id = ? AND task_id = ?",
@@ -3748,6 +3754,67 @@ class WorkflowJobStore:
         )
         # Advance the persisted high-water mark so archival of the ledger tail
         # can never regress the global sequence the ABA fence relies on.
+        self._conn.execute(
+            """
+            INSERT INTO schema_meta(key, value) VALUES(?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            WHERE CAST(excluded.value AS INTEGER) > CAST(schema_meta.value AS INTEGER)
+            """,
+            (_JOB_EVENT_HIGHWATER_KEY, str(int(cursor.lastrowid))),
+        )
+
+    def _append_rollback_summary_locked(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        job_ids: Sequence[str],
+        snapshot: int,
+        reason: str | None,
+        now: float,
+    ) -> None:
+        """Record one aggregate ``publication_rollback`` event for a task.
+
+        The original implementation appended one event per superseded job.  A
+        publish/rollback livelock on a busy task (thousands of managed jobs)
+        could therefore append thousands of rows per rollback and, across
+        repeated supersessions, grow ``workflow_job_events`` without bound.
+
+        ``publication_rollback`` events are audit-only (never read back), so a
+        single summary row per task+snapshot preserves the forensic trail
+        while bounding growth to O(1) per rollback.  The affected job ids are
+        retained in the payload for diagnostics.
+        """
+
+        if not job_ids:
+            return
+        payload: dict[str, Any] = {
+            "snapshot_generation": snapshot,
+            "job_count": len(job_ids),
+            "job_ids": [str(job_id) for job_id in job_ids],
+        }
+        if reason is not None:
+            payload["reason"] = reason
+        clean_payload = _json_object(payload, "event payload")
+        cursor = self._conn.execute(
+            """
+            INSERT INTO workflow_job_events(
+                job_id, project_id, task_id, event_type, state, phase,
+                lease_owner, payload_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(job_ids[0]),
+                project_id,
+                task_id,
+                "publication_rollback",
+                WorkflowJobState.SUPERSEDED.value,
+                "publication_rollback",
+                None,
+                _canonical_json(clean_payload),
+                now,
+            ),
+        )
         self._conn.execute(
             """
             INSERT INTO schema_meta(key, value) VALUES(?, ?)

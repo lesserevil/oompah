@@ -4157,3 +4157,61 @@ def test_migration_upgrades_legacy_unconditional_delete_trigger(tmp_path, clock)
         assert result["events"] > 0
     finally:
         reopened.close()
+
+
+def test_publication_rollback_emits_single_aggregate_event_per_task(store):
+    project_id = "project-agg"
+    task_id = "TASK-ROLLBACK-AGG"
+    published = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(published)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=published,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_id),),
+    ).accepted
+    cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="managed-multi",
+        snapshot_generation=published,
+    )
+    specs = tuple(
+        WorkflowJobSpec(
+            project_id=project_id,
+            task_id=task_id,
+            generation=cursor.job_generation,
+            action="authority_revocation",
+            idempotency_key=f"rollback-agg:{index}",
+        )
+        for index in range(5)
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=published,
+        job_generation=cursor.job_generation,
+        specs=specs,
+    ).accepted
+    assert store.publish_snapshot_generation(published, lambda: None)[0]
+
+    checkpoint = store.capture_snapshot_authority(
+        authoritative_project_ids=(project_id,),
+        evaluated_identities=((project_id, task_id),),
+        full_project_scope=True,
+    )
+    failed_snapshot = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(failed_snapshot)
+    assert store.restore_snapshot_authority(
+        checkpoint, snapshot_generation=failed_snapshot
+    )
+
+    rows = store._conn.execute(  # noqa: SLF001 - assert bounded event emission
+        "SELECT payload_json FROM workflow_job_events "
+        "WHERE project_id = ? AND task_id = ? AND event_type = 'publication_rollback'",
+        (project_id, task_id),
+    ).fetchall()
+    # Exactly one aggregate event, not one per superseded job.
+    assert len(rows) == 1
+    payload = json.loads(rows[0]["payload_json"])
+    assert payload["job_count"] == len(specs)
+    assert len(payload["job_ids"]) == len(specs)
