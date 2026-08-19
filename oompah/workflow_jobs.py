@@ -5401,6 +5401,150 @@ class WorkflowJobStore:
                 raise
         return {"tasks": archived_tasks, "events": archived_events}
 
+    def archive_rollback_events(
+        self,
+        *,
+        max_events: int = 20000,
+        keep_recent: int = 1000,
+        now: float | None = None,
+    ) -> dict[str, int]:
+        """Relocate old ``publication_rollback`` audit events into cold storage.
+
+        ``publication_rollback`` events are audit-only: no code path reads them
+        back (the snapshot-authority ABA fence keys on ``rearmed`` events and
+        the global sequence high-water mark, not on rollback rows).  A historic
+        publish/rollback livelock can therefore leave the hot ledger dominated
+        by millions of rollback rows for otherwise-live tasks, which the
+        Archived-only maintenance path cannot reclaim.
+
+        This relocates the oldest rollback rows (by ``sequence``) into
+        ``workflow_job_events_archive`` and deletes them from the hot table,
+        retaining the newest ``keep_recent`` rollback rows for forensics.  The
+        scan is bounded by ``max_events`` per call so the maintenance loop makes
+        steady, restart-safe progress.  The persisted high-water mark keeps the
+        ABA fence monotonic after the relocation.  Returns the number of rows
+        relocated as ``{"events": n}``.
+        """
+
+        event_budget = max(1, int(max_events))
+        retained = max(0, int(keep_recent))
+        timestamp = float(self._clock() if now is None else now)
+        archived_events = 0
+        with self._authority_mutation_guard():
+            owns_transaction = not self._conn.in_transaction
+            if owns_transaction:
+                self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                # Determine the cutoff so the newest ``retained`` rollback rows
+                # stay in the hot table.  Only rows at or below the cutoff are
+                # eligible for relocation.
+                cutoff_row = self._conn.execute(
+                    """
+                    SELECT MIN(sequence) AS cutoff FROM (
+                        SELECT sequence FROM workflow_job_events
+                         WHERE event_type = 'publication_rollback'
+                         ORDER BY sequence DESC
+                         LIMIT ?
+                    )
+                    """,
+                    (retained,),
+                ).fetchone()
+                cutoff = cutoff_row["cutoff"] if cutoff_row else None
+                if retained == 0:
+                    # No retention window: everything is eligible.
+                    where_seq = ""
+                    seq_params: tuple[Any, ...] = ()
+                elif cutoff is None:
+                    # Fewer rollback rows than the retention window: nothing to do.
+                    if owns_transaction:
+                        self._conn.commit()
+                    return {"events": 0}
+                else:
+                    where_seq = "AND sequence < ?"
+                    seq_params = (int(cutoff),)
+
+                rows = self._conn.execute(
+                    f"""
+                    SELECT sequence, job_id, project_id, task_id,
+                           event_type, state, phase, lease_owner,
+                           payload_json, created_at
+                      FROM workflow_job_events
+                     WHERE event_type = 'publication_rollback' {where_seq}
+                     ORDER BY sequence
+                     LIMIT ?
+                    """,
+                    (*seq_params, event_budget),
+                ).fetchall()
+                if not rows:
+                    if owns_transaction:
+                        self._conn.commit()
+                    return {"events": 0}
+
+                self._conn.execute(
+                    "UPDATE workflow_job_events_delete_guard "
+                    "SET allowed = 1 WHERE id = 1"
+                )
+                try:
+                    self._conn.executemany(
+                        """
+                        INSERT OR IGNORE INTO workflow_job_events_archive(
+                            sequence, job_id, project_id, task_id,
+                            event_type, state, phase, lease_owner,
+                            payload_json, created_at, archived_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        [
+                            (
+                                int(r["sequence"]),
+                                r["job_id"],
+                                r["project_id"],
+                                r["task_id"],
+                                r["event_type"],
+                                r["state"],
+                                r["phase"],
+                                r["lease_owner"],
+                                r["payload_json"],
+                                float(r["created_at"]),
+                                timestamp,
+                            )
+                            for r in rows
+                        ],
+                    )
+                    sequences = [int(r["sequence"]) for r in rows]
+                    placeholders = ",".join("?" for _ in sequences)
+                    self._conn.execute(
+                        "DELETE FROM workflow_job_events "
+                        f"WHERE sequence IN ({placeholders})",
+                        sequences,
+                    )
+                    archived_events += len(sequences)
+                finally:
+                    self._conn.execute(
+                        "UPDATE workflow_job_events_delete_guard "
+                        "SET allowed = 0 WHERE id = 1"
+                    )
+                if owns_transaction:
+                    self._conn.commit()
+            except Exception:
+                if owns_transaction:
+                    self._conn.rollback()
+                raise
+        return {"events": archived_events}
+
+    def vacuum(self) -> None:
+        """Reclaim free pages after large archival deletes.
+
+        Runs outside any transaction under the authority guard.  SQLite does
+        not shrink the database file on DELETE alone; a periodic VACUUM returns
+        the freed space to the filesystem once archival has drained a large
+        backlog.
+        """
+
+        with self._authority_mutation_guard():
+            if self._conn.in_transaction:
+                self._conn.commit()
+            self._conn.execute("VACUUM")
+
     def reconcile_schedule(
         self,
         *,

@@ -6330,32 +6330,67 @@ class Orchestrator:
         return False
 
     def _archive_workflow_events(self) -> int:
-        """Relocate durable job events for Archived tasks into cold storage.
+        """Relocate durable job events into cold storage as bounded maintenance.
 
-        Runs as bounded storage maintenance.  Returns the number of event rows
-        relocated this sweep so the maintenance gate can surface progress.
+        Drains two audit-only backlogs from the hot ``workflow_job_events``
+        table: events for lifecycle-final Archived tasks, and old
+        ``publication_rollback`` rows for any task (a historic publish/rollback
+        livelock can leave millions behind).  When a sweep relocates a large
+        batch, a VACUUM reclaims the freed pages so the file actually shrinks.
+        Returns the number of rows relocated this sweep.
         """
 
         store = getattr(self, "workflow_job_store", None)
+        if store is None:
+            return 0
+        relocated = 0
         archiver = getattr(store, "archive_lifecycle_final_events", None)
-        if archiver is None:
-            return 0
-        try:
-            result = archiver()
-        except Exception as exc:  # noqa: BLE001 - retry on the next sweep
-            logger.warning(
-                "Workflow event archival deferred: %s", type(exc).__name__
-            )
-            return 0
-        events = int(result.get("events", 0))
-        if events:
-            logger.info(
-                "Workflow event archival relocated %d event(s) for %d "
-                "Archived task(s)",
-                events,
-                int(result.get("tasks", 0)),
-            )
-        return events
+        if archiver is not None:
+            try:
+                result = archiver()
+                events = int(result.get("events", 0))
+                relocated += events
+                if events:
+                    logger.info(
+                        "Workflow event archival relocated %d event(s) for %d "
+                        "Archived task(s)",
+                        events,
+                        int(result.get("tasks", 0)),
+                    )
+            except Exception as exc:  # noqa: BLE001 - retry on the next sweep
+                logger.warning(
+                    "Workflow event archival deferred: %s", type(exc).__name__
+                )
+        rollback_archiver = getattr(store, "archive_rollback_events", None)
+        if rollback_archiver is not None:
+            try:
+                result = rollback_archiver()
+                events = int(result.get("events", 0))
+                relocated += events
+                if events:
+                    logger.info(
+                        "Workflow rollback-event archival relocated %d "
+                        "audit event(s)",
+                        events,
+                    )
+            except Exception as exc:  # noqa: BLE001 - retry on the next sweep
+                logger.warning(
+                    "Workflow rollback-event archival deferred: %s",
+                    type(exc).__name__,
+                )
+        # Reclaim freed pages only after a substantial drain, since VACUUM
+        # rewrites the whole database file and is comparatively expensive.
+        if relocated >= 10000:
+            vacuum = getattr(store, "vacuum", None)
+            if vacuum is not None:
+                try:
+                    vacuum()
+                except Exception as exc:  # noqa: BLE001 - best effort
+                    logger.warning(
+                        "Workflow job-store VACUUM deferred: %s",
+                        type(exc).__name__,
+                    )
+        return relocated
 
     def _reconcile_inactive_owner_claims(self) -> int:
         """Retry stale exact-claim retirement without superseding active work."""

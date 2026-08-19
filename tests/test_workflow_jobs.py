@@ -4215,3 +4215,110 @@ def test_publication_rollback_emits_single_aggregate_event_per_task(store):
     payload = json.loads(rows[0]["payload_json"])
     assert payload["job_count"] == len(specs)
     assert len(payload["job_ids"]) == len(specs)
+
+
+def _seed_rollback_events(store, clock, *, project_id, task_id, count):
+    """Seed publication_rollback audit rows backed by real jobs."""
+    job_ids = []
+    for index in range(count):
+        job = store.enqueue(
+            spec(
+                key=f"rollback-seed:{project_id}:{task_id}:{index}",
+                project=project_id,
+                task=task_id,
+                generation=f"g-{index}",
+                action="authority_revocation",
+            )
+        )
+        job_ids.append(job.job_id)
+    for index, job_id in enumerate(job_ids):
+        row = store._conn.execute(  # noqa: SLF001
+            "SELECT * FROM workflow_jobs WHERE job_id = ?", (job_id,)
+        ).fetchone()
+        store._append_event_locked(  # noqa: SLF001
+            row,
+            "publication_rollback",
+            payload={"snapshot_generation": index},
+            now=clock.now,
+        )
+    store._conn.commit()  # noqa: SLF001
+
+
+def _rollback_counts(store):
+    hot = store._conn.execute(  # noqa: SLF001
+        "SELECT count(*) AS c FROM workflow_job_events "
+        "WHERE event_type = 'publication_rollback'"
+    ).fetchone()["c"]
+    cold = store._conn.execute(  # noqa: SLF001
+        "SELECT count(*) AS c FROM workflow_job_events_archive "
+        "WHERE event_type = 'publication_rollback'"
+    ).fetchone()["c"]
+    return int(hot), int(cold)
+
+
+def test_archive_rollback_events_relocates_old_audit_rows(store, clock):
+    _seed_rollback_events(
+        store, clock, project_id="p", task_id="TRICKLE-X", count=50
+    )
+    hot_before, cold_before = _rollback_counts(store)
+    assert hot_before == 50
+    assert cold_before == 0
+
+    result = store.archive_rollback_events(max_events=1000, keep_recent=10)
+    assert result["events"] == 40
+
+    hot_after, cold_after = _rollback_counts(store)
+    assert hot_after == 10
+    assert cold_after == 40
+
+
+def test_archive_rollback_events_respects_keep_recent(store, clock):
+    _seed_rollback_events(
+        store, clock, project_id="p", task_id="TRICKLE-Y", count=5
+    )
+    # Fewer rollback rows than the retention window: nothing is relocated.
+    result = store.archive_rollback_events(max_events=1000, keep_recent=10)
+    assert result["events"] == 0
+    hot_after, cold_after = _rollback_counts(store)
+    assert hot_after == 5
+    assert cold_after == 0
+
+
+def test_archive_rollback_events_is_bounded(store, clock):
+    _seed_rollback_events(
+        store, clock, project_id="p", task_id="TRICKLE-Z", count=50
+    )
+    result = store.archive_rollback_events(max_events=5, keep_recent=0)
+    assert result["events"] == 5
+    hot_after, cold_after = _rollback_counts(store)
+    assert hot_after == 45
+    assert cold_after == 5
+
+
+def test_archive_rollback_preserves_high_water(store, clock):
+    _seed_rollback_events(
+        store, clock, project_id="p", task_id="TRICKLE-HW", count=30
+    )
+    before = store.capture_snapshot_authority(
+        authoritative_project_ids=(),
+        evaluated_identities=(("p", "TRICKLE-HW"),),
+        full_project_scope=False,
+    ).job_event_sequence
+    store.archive_rollback_events(max_events=1000, keep_recent=0)
+    after = store.capture_snapshot_authority(
+        authoritative_project_ids=(),
+        evaluated_identities=(("p", "TRICKLE-HW"),),
+        full_project_scope=False,
+    ).job_event_sequence
+    assert after == before
+
+
+def test_vacuum_runs_without_error(store, clock):
+    _seed_rollback_events(
+        store, clock, project_id="p", task_id="TRICKLE-V", count=20
+    )
+    store.archive_rollback_events(max_events=1000, keep_recent=0)
+    store.vacuum()
+    hot, cold = _rollback_counts(store)
+    assert hot == 0
+    assert cold == 20
