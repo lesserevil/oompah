@@ -6363,15 +6363,25 @@ class Orchestrator:
                 )
         rollback_archiver = getattr(store, "archive_rollback_events", None)
         if rollback_archiver is not None:
+            # Drain in several bounded batches per sweep so a large historical
+            # backlog is cleared in a handful of maintenance cycles rather than
+            # hundreds.  Each call is individually bounded and lock-safe; we cap
+            # the per-sweep total to keep any single housekeeping pass short.
+            per_sweep_cap = 500000
+            drained = 0
             try:
-                result = rollback_archiver()
-                events = int(result.get("events", 0))
-                relocated += events
-                if events:
+                while drained < per_sweep_cap:
+                    result = rollback_archiver(max_events=50000)
+                    events = int(result.get("events", 0))
+                    if events == 0:
+                        break
+                    drained += events
+                relocated += drained
+                if drained:
                     logger.info(
                         "Workflow rollback-event archival relocated %d "
                         "audit event(s)",
-                        events,
+                        drained,
                     )
             except Exception as exc:  # noqa: BLE001 - retry on the next sweep
                 logger.warning(
