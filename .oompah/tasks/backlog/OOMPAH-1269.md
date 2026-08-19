@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-19T01:37:27.110739Z'
-updated_at: '2026-08-19T01:37:27.110739Z'
+updated_at: '2026-08-19T18:02:55.171714Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,3 +48,11 @@ Evidence files: oompah/workflow_runtime.py (~4669-4687), oompah/workflow_control
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-19 18:02
+---
+PR #885 bounds the damage: restore_snapshot_authority now emits ONE aggregate publication_rollback event per task+snapshot (job_count+job_ids) instead of one-per-job, so the ledger can't explode again (was ~4M events on TRICKLE-117). Root-cause churn (workflow_authority_revision advancing between capture and publish via owner-claim mutations) is currently quiescent (2 supersedes since restart, 0 owner claims) and remains open here for follow-up, along with reclaiming the ~20M historical rows. Auto-merge enabled.
+---
+<!-- COMMENTS:END -->
