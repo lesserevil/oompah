@@ -15,6 +15,9 @@ jobs:
     # verification without making public-runner availability a hard requirement
     # for local validation.
     runs-on: ubuntu-latest
+    # Bound the job so an intermittently deadlocking test fails fast instead of
+    # hanging for hours and blocking auto-merge; a hung run can be re-triggered.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
