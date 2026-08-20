@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:27.547026Z'
-updated_at: '2026-08-20T23:34:18.084372Z'
+updated_at: '2026-08-20T23:34:46.117837Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,13 +34,48 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 75b123cd266f65e601569764bab4c2a6bca862af2ba469b5473ec5062d33b77b:142324
-  claim_owner: b0161d82-55d7-4b08-9b68-ee54b4e13c9c
-  claimed_at: '2026-08-20T23:31:46.863904+00:00'
-  claim_expires_at: '2026-08-21T00:01:46.863904+00:00'
-  retry_count: 1
-  retry_after: null
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: inconclusive\n\
+    Matches: none\nEvidence: ** The canonical duplicate candidate, OOMPAH-1194, explicitly\
+    \ identified in a prior agent comment as covering this failure (root cause: \"\
+    managed network Git used the stale local SSH origin instead of the project's configured\
+    \ HTTPS repo_url during Trickle workspace/epic refresh\"), is not present in the\
+    \ supplied task corpus. The corpus comprises only 30 of 723 similarity candidates\
+    \ due to size constraints. Without access to OOMPAH-1194's current status or ability\
+    \ to query the tracker, I cannot confirm whether it remains an active issue or\
+    \ has reached a terminal state (Done/Merged/Archived). The prior comment strongly\
+    \ suggests OOMPAH-1194 is the correct duplicate target, but the supplied evidence\
+    \ is insufficient to complete the verification.\nLooking at this duplicate investigation\
+    \ task, I need to analyze whether OOMPAH-1196 is a duplicate of an existing active\
+    \ issue using only the supplied project task corpus.\n\n**Analysis of OOMPAH-1196:**\n\
+    - Title: `[backend:orchestrator] ACP worker failed issue_id=TRICKLE-135`\n- Status:\
+    \ Open\n- Error: \"ACP worker failed issue_id=TRICKLE-135\"\n- Fingerprint: 1bc81be69915050f\n\
+    \n**Key Prior Evidence:**\nA comment from oompah (2026-08-13 00:17) states:\n\
+    > \"Duplicate task-specific occurrence of OOMPAH-1194. The canonical fix covers\
+    \ this failure: managed network Git used the stale local SSH origin instead of\
+    \ the project's configured HTTPS repo_url during Trickle workspace/epic refresh.\"\
+    \n\nThis explicitly identifies **OOMPAH-1194** as the canonical issue.\n\n**Corpus\
+    \ Analysis:**\nThe supplied task corpus contains:\n- 723 total similarity candidates\n\
+    - Only 30 included in the provided sample\n- 693 omitted due to size constraints\n\
+    - No instance of OOMPAH-1194 in the visible tasks\n\nThe provided corpus includes\
+    \ OOMPAH-1, OOMPAH-10, OOMPAH-1000 through OOMPAH-1030, and OOMPAH-164, but **OOMPAH-1194\
+    \ is absent**.\n\n**Constraint:**\nPer instructions, I cannot run `oompah task`,\
+    \ HTTP queries, or any other tracker access\u2014only the supplied evidence is\
+    \ available.\n\n---\n\n**Focus handoff: duplicate_detector**\n\n**Duplicate preflight\
+    \ verdict: inconclusive**\n\n**Matches: none**\n\n**Evidence:** The canonical\
+    \ duplicate candidate, OOMPAH-1194, explicitly identified in a prior agent comment\
+    \ as covering this failure (root cause: \"managed network Git used the stale local\
+    \ SSH origin instead of the project's configured HTTPS repo_url during Trickle\
+    \ workspace/epic refresh\"), is not present in the supplied task corpus. The corpus\
+    \ comprises only 30 of 723 similarity candidates due to size constraints. Without\
+    \ access to OOMPAH-1194's current status or ability to query the tracker, I cannot\
+    \ confirm whether it remains an active issue or has reached a terminal state (Done/Merged/Archived).\
+    \ The prior comment strongly suggest"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 2
+  retry_after: '2026-08-20T23:36:09.704966+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
