@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-20T17:16:16.578930Z'
+updated_at: '2026-08-20T22:28:54.184896Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -63,5 +63,10 @@ CORRECTED ROOT-CAUSE DIRECTION (supersedes the initial GitLab status-label hypot
 - Internal escalation paths were ruled out for these tasks: no 'Container dependency cycle detected' log; no 'lacks landing evidence after epic ... merged' log for any TRICKLE-* (that landing-evidence path DID fire for oompah-project epics OOMPAH-691/521/765/584 and is worth a SEPARATE review).
 
 STILL TO PIN (needs a targeted repro): the exact writer that set these md-tracker tasks to Needs Human on the push — candidates: (a) an agent working the epic committing task-file status into the state branch / pushed branch, (b) webhook intake correlating pushed commits/branches to tasks, (c) an operator/script. Recommended next step before any behavior change: instrument the durable transition engine to record authority/actor/source for every transition INTO Needs Human, restart, and capture the next occurrence with an exact culprit. Then decide the guard (authorize external/push-driven Needs Human promotions, or auto-recover advanced shared-epic heads instead of escalating). No code change made yet per owner decision.
+---
+author: oompah
+created: 2026-08-20 22:28
+---
+DISPATCH UNBLOCKED. Root cause of the post-restart stall was NOT DB size: it was liveness coverage. OOMPAH_WORKFLOW_LIVENESS_MAX_TASK_RECORDS defaulted to 256 while there were 265 nonterminal tasks. In workflow_controller (~line 1132) full-coverage evaluation only happens when nonfinal_count <= max_task_records, so the universal totality scan evaluated 262/265 with 9 omitted every sweep, scan_complete stayed False, and the post-restart audit-priority boundary stayed 'restart_overdue', gating all dispatch. Raised OOMPAH_WORKFLOW_LIVENESS_MAX_TASK_RECORDS and OOMPAH_WORKFLOW_RUNTIME_DECISION_LIMIT to 1000 in the running service .env and restarted; scan now completes (evaluated=265/265, omitted=0), worker reports accepting=true active=3, and codex/opencode agents are running. Documented the coverage>=nonterminal-task-count requirement in .env.example via PR #891. Note: the earlier rollback-event drain (PRs #888/#890) still cleaned up ~19.9M publication_rollback rows and prevents the livelock recurring, but it relocated them into workflow_job_events_archive in the same DB file, so the file did NOT shrink (~4.4G); pruning/separate-file for the audit archive remains a separate follow-up.
 ---
 <!-- COMMENTS:END -->
