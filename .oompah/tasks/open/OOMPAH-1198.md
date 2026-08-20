@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:04.107366Z'
-updated_at: '2026-08-20T22:42:27.940140Z'
+updated_at: '2026-08-20T23:33:23.549011Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,23 +34,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: 'All 2 dispatch candidates unavailable: prov-651d553c/haiku: contributor_evidence_unavailable:
-    Cannot durably record exact contributor provider/model evidence before the bounded
-    task-authority deadline. The pre-provider runtime was retired for retry; no provider
-    or workspace was started.; prov-52e94e83/gpt-5.6-luna: contributor_evidence_unavailable:
-    Cannot durably record exact contributor provider/model evidence before the bounded
-    task-authority deadline. The pre-provider runtime was retired for retry; no provider
-    or workspace was started.'
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 39fc0d9e459f90a5fb198a5b97f5ce22b0fb290fe3843b96d8db04353a833e9c:142365
+  claim_owner: b0161d82-55d7-4b08-9b68-ee54b4e13c9c
+  claimed_at: '2026-08-20T23:33:03.133979+00:00'
+  claim_expires_at: '2026-08-21T00:03:03.133979+00:00'
   retry_count: 1
-  retry_after: '2026-08-20T22:43:21.323055+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d320a027-1eab-422b-9ec4-c6c71837f331
+oompah.agent_run_id: 234d5b2c-275b-4107-89a2-503c9fec093b
 oompah.work_contributors:
   runs:
   - run_id: 3c5e1f31236f4ba89bcebe5074b1098d--contributor-4256b9f40773
@@ -130,5 +124,10 @@ Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 1m 15s
+---
+author: oompah
+created: 2026-08-20 23:33
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
