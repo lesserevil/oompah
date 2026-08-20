@@ -1,56 +1,32 @@
 ---
-id: OOMPAH-1199
+id: OOMPAH-1273
 type: bug
-status: Open
+status: Backlog
 priority: 2
-title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-118'
+title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
+  task-authority deadline issue_id=OOMPAH-1198 identifier=OOMPAH-1198 run_id=3c5e1f31236f4ba89bcebe5074b1098d
+  timeout_sec...'
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
-created_at: '2026-08-12T23:57:22.979573Z'
-updated_at: '2026-08-20T22:41:40.426473Z'
+created_at: '2026-08-20T22:41:44.906086Z'
+updated_at: '2026-08-20T22:41:44.906086Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
-oompah.last_batch:
-  batch_id: batch-41327bd44d2248989351b0a98c84746f
-  actor: shedwards
-  committed_at: '2026-08-18T16:18:18.970327Z'
-  operation:
-    kind: whole_column_move
-    source_status: Backlog
-    scope: flat_board
-oompah.duplicate_screening:
-  schema_version: 1
-  task_fingerprint: f348c5a9e90fee3d78a728b6e63672cc153b5eaa514ea502e32897e7c65f23a0
-  detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
-  matched_identifiers: []
-  evidence: ''
-  claim_id: 9ddbb1053e6d931c25dc0ca34404da56d39273442c50a29d609bfba92c8e66eb:56492
-  claim_owner: b0161d82-55d7-4b08-9b68-ee54b4e13c9c
-  claimed_at: '2026-08-20T22:41:36.831911+00:00'
-  claim_expires_at: '2026-08-20T23:11:36.831911+00:00'
-  retry_count: 0
-  retry_after: null
-  owner_resolved_at: null
-  owner_login: null
-  owner_resolution_reason: ''
 ---
 ## Summary
 
 ### Problem
 Oompah detected a backend error from `backend:orchestrator`:
 
-> ACP worker failed issue_id=TRICKLE-118
+> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=OOMPAH-1198 identifier=OOMPAH-1198 run_id=3c5e1f31236f4ba89bcebe5074b1098d timeout_seconds=5.0
 
 ### Steps to Reproduce
 1. Run oompah with `backend:orchestrator` active.
@@ -60,7 +36,7 @@ Oompah detected a backend error from `backend:orchestrator`:
 ### Actual Behavior
 An error occurs in `backend:orchestrator` and is recorded by oompah's `error_watcher`:
 
-> ACP worker failed issue_id=TRICKLE-118
+> Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=OOMPAH-1198 identifier=OOMPAH-1198 run_id=3c5e1f31236f4ba89bcebe5074b1098d timeout_seconds=5.0
 
 ### Expected Behavior
 The operation in `backend:orchestrator` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
@@ -75,9 +51,8 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 - source_project: proj-14849f1b
 - tracker: provenanceguardedtracker
 - tracker_kind: provenanceguardedtracker
-- fingerprint: dae6798cb24a91d0
-- dedup_fingerprint: dae6798cb24a91d0
-- source_issue: TRICKLE-118
+- fingerprint: 3a2ab5d715fecce5
+- dedup_fingerprint: 3a2ab5d715fecce5
 
 ## Acceptance Criteria
 
