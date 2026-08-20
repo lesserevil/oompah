@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:47.623989Z'
-updated_at: '2026-08-20T23:41:09.612786Z'
+updated_at: '2026-08-20T23:41:51.851891Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -200,5 +200,10 @@ author: oompah
 created: 2026-08-20 23:41
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-20 23:41
+---
+**Understanding**: This is a backend orchestrator bug where ACP worker operations fail with 'ACP worker failed issue_id=TRICKLE-133'. The error is being caught by error_watcher but should either complete successfully or fail gracefully. Plan: (1) Explore orchestrator code and error handling, (2) Find where ACP worker failures are logged, (3) Identify root cause of TRICKLE-133 failure, (4) Implement fix with proper error handling, (5) Test to ensure error_watcher is not triggered for handled failures.
 ---
 <!-- COMMENTS:END -->
