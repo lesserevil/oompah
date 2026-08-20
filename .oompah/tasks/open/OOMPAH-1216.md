@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:51.761397Z'
-updated_at: '2026-08-20T22:56:12.078283Z'
+updated_at: '2026-08-20T22:56:33.066896Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,6 +46,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: 278c24c2-a50f-4216-9834-35032d2587c8
 ---
 ## Summary
 
@@ -86,3 +87,11 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-20 22:56
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
