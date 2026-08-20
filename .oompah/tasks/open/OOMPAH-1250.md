@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-18T16:18:18.970327Z'
+updated_at: '2026-08-20T23:03:34.797636Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,6 +33,34 @@ oompah.last_batch:
     kind: whole_column_move
     source_status: Backlog
     scope: flat_board
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 2517f579a77ef9ddf988d97408ecf08e7492118dc7bd2c3fadd51d0dbd586a34
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 3f5f142ab11a9f9fa1f35c941f6d882a4a310513675b9882c596acdfb4f94663:56510
+  claim_owner: b0161d82-55d7-4b08-9b68-ee54b4e13c9c
+  claimed_at: '2026-08-20T23:03:07.320246+00:00'
+  claim_expires_at: '2026-08-20T23:33:07.320246+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 44df3358-5eee-4c0d-acd4-08db699bcad3
+oompah.work_contributors:
+  runs:
+  - run_id: c39b31ff527f433f8499e69b01c975f0--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-1250
+    source_sha: null
+    completed_at: ''
 ---
 ## Summary
 
@@ -44,3 +72,16 @@ Revive the unlanded scope of archived OOMPAH-324. The current server parses and 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-20 23:03
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-20 23:03
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
