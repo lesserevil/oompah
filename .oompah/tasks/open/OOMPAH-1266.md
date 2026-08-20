@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-14T05:59:06.825374Z'
+updated_at: '2026-08-20T23:14:08.740667Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,6 +25,24 @@ oompah.create_once:
   creation_marker: o1263-post-merge-submit-provenance-regression
   request_fingerprint: 9a9d8d03687f81678f5061a4c7f6ca12b789b64399e6fd9b92b89ef14dc3e4b5
 oompah.lifecycle_revision: 1
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 9f3a0a5a59f2a06ff79051089822dbfee82b28352e54ad90889e4e0d3419a375
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: dd3fbf105ccacc952ea3824f07af8fedb56ca3fda78d294aee72927ea6729ac3:56515
+  claim_owner: b0161d82-55d7-4b08-9b68-ee54b4e13c9c
+  claimed_at: '2026-08-20T23:13:59.329503+00:00'
+  claim_expires_at: '2026-08-20T23:43:59.329503+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: aa8c36b6-ec6f-41fd-bdbc-e0bfbe778966
 ---
 ## Summary
 
@@ -52,5 +70,10 @@ author: oompah
 created: 2026-08-14 05:59
 ---
 Review blockers resolved on local branch OOMPAH-1266 at 2653bdd799f4d89b3629a5f11d065522df0f415d. The first-submit path now adopts an exact already-merged forge review under the task lock using two matching immutable observations (including merge SHA and repository identity); GitLab merged-list observations hydrate missing base identity from exact MR detail. Queue/tracker opposite crash windows reconcile through transactional queue CAS, including claim/finish races and a submit-vs-completion race, while mismatched nonterminal generations retire fail-closed. OOMPAH-628 explicit fresh-Ready reflow is preserved with durable tracker-vs-queue checkpoint ordering, and verified later Ready generations may replace historical integrated rows without weakening default landed authority. Rebase predecessor head+base authority is persisted in queue schema v7 and bound into integrated records so wrong-base retries fail and exact lost-201 retries remain idempotent. Terminal fingerprint migration is bounded to that service-authored accepted predecessor. Verification: 1,487 broad submission/queue/handoff/fencing/webhook/integration/review/terminal/SCM tests passed; 225 workflow-runtime/parallel-epic tests passed; task-status mutation scan passed; focused Ruff checks passed; commit hooks and paranoid secret scans passed. Per coordination instructions this commit remains local only: not pushed, submitted, status-transitioned, or deployed.
+---
+author: oompah
+created: 2026-08-20 23:14
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
