@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T08:43:25.263614Z'
-updated_at: '2026-08-18T16:18:18.970327Z'
+updated_at: '2026-08-20T23:14:36.887487Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,6 +33,24 @@ oompah.last_batch:
     kind: whole_column_move
     source_status: Backlog
     scope: flat_board
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: d12a8b6a59aa90f19f4ddbe2f11d1a7a62462ddc8014f5351f2e7cbea8ac64b7
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 8a21f1023f935c5377428c7775977f7e12c636570efea22996843d91dd0644b8:56516
+  claim_owner: b0161d82-55d7-4b08-9b68-ee54b4e13c9c
+  claimed_at: '2026-08-20T23:14:21.261962+00:00'
+  claim_expires_at: '2026-08-20T23:44:21.261962+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: a0bd438d-4957-45ba-a8cd-c652e69bc369
 ---
 ## Summary
 
@@ -44,3 +62,11 @@ Repeated concurrency bug: tests/test_restart_api.py::test_replacement_timeout_ro
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-20 23:14
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
