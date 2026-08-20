@@ -234,3 +234,54 @@ def test_stale_observation_cannot_overwrite_newer_status(tmp_path) -> None:
     assert raised.value.outcome.reason_code == "transition.stale_status"
     assert tracker.issue.state == "Needs Human"
     assert tracker.updates == []
+
+
+def test_needs_human_transition_emits_diagnostic(tmp_path, caplog) -> None:
+    tracker = _StatefulTracker(_issue())
+    orchestrator = _orchestrator(tmp_path, tracker)
+
+    with caplog.at_level("WARNING", logger="oompah.orchestrator"):
+        outcome = orchestrator._transition_issue_status(
+            tracker.fetch_issue_detail("OOMPAH-TEST"),
+            "Needs Human",
+            tracker=tracker,
+            actor="external-actor",
+            authority=TransitionAuthority.WATCHDOG,
+            reason_code="watchdog.test_needs_human_diagnostic",
+            originating_job="diagnostic-job",
+            idempotency_key="diagnostic-key",
+        )
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    diagnostics = [
+        record.getMessage()
+        for record in caplog.records
+        if "NEEDS_HUMAN transition diagnostic" in record.getMessage()
+    ]
+    assert len(diagnostics) == 1
+    message = diagnostics[0]
+    assert "task=OOMPAH-TEST" in message
+    assert "actor=external-actor" in message
+    assert "reason_code=watchdog.test_needs_human_diagnostic" in message
+    assert "originating_job=diagnostic-job" in message
+    assert "caller_stack:" in message
+
+
+def test_non_needs_human_transition_has_no_diagnostic(tmp_path, caplog) -> None:
+    tracker = _StatefulTracker(_issue())
+    orchestrator = _orchestrator(tmp_path, tracker)
+
+    with caplog.at_level("WARNING", logger="oompah.orchestrator"):
+        orchestrator._transition_issue_status(
+            tracker.fetch_issue_detail("OOMPAH-TEST"),
+            "In Progress",
+            tracker=tracker,
+            reason_code="dispatch.test_no_diagnostic",
+            evidence_generation="generation-1",
+        )
+
+    assert not [
+        record
+        for record in caplog.records
+        if "NEEDS_HUMAN transition diagnostic" in record.getMessage()
+    ]
