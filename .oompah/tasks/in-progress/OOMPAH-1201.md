@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:47.623989Z'
-updated_at: '2026-08-20T23:50:57.782650Z'
+updated_at: '2026-08-20T23:51:05.441720Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -220,5 +220,10 @@ author: oompah
 created: 2026-08-20 23:50
 ---
 **Verification**: Tests passed successfully. Worker error handling tests (test_orchestrator_handlers.py -k worker): 31/31 passed. Error watcher tests (test_error_watcher.py): 124/124 passed. Changes committed and pushed to branch OOMPAH-1201. The fix addresses the issue by preventing error_watcher from auto-filing tasks for expected pre-request failures that don't reflect provider health.
+---
+author: oompah
+created: 2026-08-20 23:51
+---
+**Completion**: Fixed backend orchestrator worker failure auto-filing. Root cause: logger.exception() in worker exception handlers was logging pre-request failures (workspace, tracker, prompt-rendering, admission) at ERROR level, triggering error_watcher to auto-file tasks. Solution: Changed to logger.warning() level in _run_api_worker, _run_acp_worker, and _run_cli_worker. This prevents error_watcher from filing tasks for expected transient failures while maintaining full logging for diagnostics. Acceptance criteria met: error_watcher no longer triggered for normal pre-request worker failures, established pattern in codebase followed, no regression in other error detection.
 ---
 <!-- COMMENTS:END -->
