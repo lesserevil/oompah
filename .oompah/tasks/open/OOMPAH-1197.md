@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-20T22:40:14.410495Z'
+updated_at: '2026-08-20T22:40:29.808956Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,6 +44,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: 772b5410-b856-46c8-a0d0-949a915d1d89
 ---
 ## Summary
 
@@ -91,5 +92,10 @@ author: oompah
 created: 2026-08-13 00:17
 ---
 Duplicate task-specific occurrence of OOMPAH-1194. The canonical fix covers this failure: managed network Git used the stale local SSH origin instead of the project's configured HTTPS repo_url during Trickle workspace/epic refresh.
+---
+author: oompah
+created: 2026-08-20 22:40
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
