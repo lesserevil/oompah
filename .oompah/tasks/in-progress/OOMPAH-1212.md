@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1212
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-135 identifier=TRICKLE-135 run_id=f8dbc1834cc84e3cb89495f55ce5c88b
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:42:36.055994Z'
-updated_at: '2026-08-20T23:58:53.229142Z'
+updated_at: '2026-08-20T23:59:10.141472Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -91,6 +91,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1212
     source_sha: 02bd5960434a5c65dce259894737a55ab7a8ea96
     completed_at: '2026-08-20T22:54:52.866843+00:00'
+  - run_id: 8b458485f69641f9932ad58ba9dbfc83--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: general
+    source_branch: OOMPAH-1212
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2353
