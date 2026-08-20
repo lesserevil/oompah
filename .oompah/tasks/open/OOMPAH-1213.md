@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:50:52.786229Z'
-updated_at: '2026-08-20T22:53:36.226006Z'
+updated_at: '2026-08-20T22:54:06.117317Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,6 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: 0d24f0f0-1902-4538-b2f6-8f4ca2dcaee3
 ---
 ## Summary
 
@@ -95,5 +96,10 @@ Duplicate error_watcher occurrence suppressed; this task already tracks the same
 Source: `backend:orchestrator`
 
 Message: Restart recovery persistence failed closed: restart recovery publication was not acknowledged
+---
+author: oompah
+created: 2026-08-20 22:54
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
