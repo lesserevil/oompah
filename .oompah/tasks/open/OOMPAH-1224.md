@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-20T23:00:59.754408Z'
+updated_at: '2026-08-20T23:01:17.015403Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,6 +46,16 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 158990ea-41c2-47eb-bedb-dae4d7f5ae38
+oompah.work_contributors:
+  runs:
+  - run_id: 43290814822749df83caa2eeaf2ec4ca--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-1224
+    source_sha: null
+    completed_at: ''
 ---
 ## Summary
 
@@ -92,5 +102,10 @@ author: oompah
 created: 2026-08-20 23:00
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-20 23:01
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
