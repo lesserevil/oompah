@@ -16,6 +16,7 @@ import shlex
 import subprocess
 import threading
 import time
+import traceback
 import urllib.parse
 import uuid
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -11989,6 +11990,36 @@ class Orchestrator:
             outcome.reason_code,
             outcome.transition_id,
         )
+        # OOMPAH-1270: transitions INTO Needs Human have repeatedly parked
+        # shared-epic children with no clear originator.  Emit a targeted
+        # diagnostic naming the actor/authority/reason/job and a compact caller
+        # stack so the next occurrence identifies the initiating subsystem.
+        if canonicalize_status(requested_status) == NEEDS_HUMAN:
+            try:
+                caller_stack = "".join(
+                    traceback.format_stack(limit=12)[:-1]
+                ).strip()
+            except Exception:  # noqa: BLE001 - diagnostics must never raise
+                caller_stack = "<unavailable>"
+            logger.warning(
+                "NEEDS_HUMAN transition diagnostic task=%s project=%s "
+                "from=%s disposition=%s actor=%s authority=%s reason_code=%s "
+                "originating_job=%s idempotency_key=%s transition_id=%s\n"
+                "caller_stack:\n%s",
+                issue.identifier,
+                effective_project_id,
+                issue.state,
+                outcome.disposition.value,
+                getattr(intent, "actor", None),
+                getattr(
+                    getattr(intent, "authority", None), "value", intent.authority
+                ),
+                getattr(intent, "reason_code", None),
+                getattr(intent, "originating_job", None),
+                getattr(intent, "idempotency_key", None),
+                outcome.transition_id,
+                caller_stack,
+            )
         committed = self._require_committed_transition(outcome)
         await self._retire_owner_claim_after_status_commit(
             issue=issue,
