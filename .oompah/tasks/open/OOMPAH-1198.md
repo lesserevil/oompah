@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:04.107366Z'
-updated_at: '2026-08-20T22:41:08.690905Z'
+updated_at: '2026-08-20T22:41:30.791048Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,6 +45,16 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: d320a027-1eab-422b-9ec4-c6c71837f331
+oompah.work_contributors:
+  runs:
+  - run_id: 3c5e1f31236f4ba89bcebe5074b1098d--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-1198
+    source_sha: null
+    completed_at: ''
 ---
 ## Summary
 
