@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:33.669681Z'
-updated_at: '2026-08-18T16:18:18.970327Z'
+updated_at: '2026-08-20T22:42:52.888520Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,6 +27,24 @@ oompah.last_batch:
     kind: whole_column_move
     source_status: Backlog
     scope: flat_board
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 59e66775c6aa1e847a26d8ef6fdb80e2ec5b490c64658963e7c6c04c34ac9c93
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: e084dc2722512166bf81f9da4715a0066a66dbe8e258b2a33f69e91fa5c07ca9:56493
+  claim_owner: b0161d82-55d7-4b08-9b68-ee54b4e13c9c
+  claimed_at: '2026-08-20T22:42:37.661671+00:00'
+  claim_expires_at: '2026-08-20T23:12:37.661671+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: adbe5cd6-8752-4c63-90f7-e996244b3bcc
 ---
 ## Summary
 
@@ -68,3 +86,11 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-20 22:42
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
