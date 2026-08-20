@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-20T03:44:19.586130Z'
+updated_at: '2026-08-20T17:16:16.578930Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,3 +49,19 @@ ACCEPTANCE: root cause of the bulk escalation identified with the exact label/au
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-20 17:16
+---
+IMMEDIATE REMEDIATION DONE: All 9 stuck tasks (TRICKLE-124/131/132/134/137/138/139/142/143) were transitioned Needs Human -> Open via 'oompah task set-status'. Verified: the Needs Human bucket is now empty and the transitions held (no immediate revert). This clears the operational impact.
+
+CORRECTED ROOT-CAUSE DIRECTION (supersedes the initial GitLab status-label hypothesis):
+- trickle (proj-3e4e9214) is tracker_kind=oompah_md on forge_kind=gitlab, with a state branch (oompah/state/proj-3e4e9214). Task status lives in git under .oompah/tasks, NOT in GitLab issue status labels.
+- Therefore _is_status_label_governed_tracker_kind() is False for trickle, so the existing forge status-label authorization/revert guard in server.py (~23468-23529) never runs for it. That guard only covers github_issues/gitlab_issues trackers.
+- The 08-13 18:21 bulk escalation was applied through the API/native update path ('oompah.server Update issue' -> durable transition engine), immediately after a GitLab Push Hook, moving TRICKLE-124/131/132/135/137 (Ready to Integrate), 138/139 (In Progress), 142/143 (Open) -> Needs Human. Two arrived as external Update-issue requests that were first rejected (illegal_edge/generation_required) then applied, confirming external origin.
+- Internal escalation paths were ruled out for these tasks: no 'Container dependency cycle detected' log; no 'lacks landing evidence after epic ... merged' log for any TRICKLE-* (that landing-evidence path DID fire for oompah-project epics OOMPAH-691/521/765/584 and is worth a SEPARATE review).
+
+STILL TO PIN (needs a targeted repro): the exact writer that set these md-tracker tasks to Needs Human on the push — candidates: (a) an agent working the epic committing task-file status into the state branch / pushed branch, (b) webhook intake correlating pushed commits/branches to tasks, (c) an operator/script. Recommended next step before any behavior change: instrument the durable transition engine to record authority/actor/source for every transition INTO Needs Human, restart, and capture the next occurrence with an exact culprit. Then decide the guard (authorize external/push-driven Needs Human promotions, or auto-recover advanced shared-epic heads instead of escalating). No code change made yet per owner decision.
+---
+<!-- COMMENTS:END -->
