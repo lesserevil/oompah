@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-20T23:00:31.644250Z'
+updated_at: '2026-08-20T23:00:59.754408Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,6 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: 158990ea-41c2-47eb-bedb-dae4d7f5ae38
 ---
 ## Summary
 
@@ -85,3 +86,11 @@ The operation in `backend:server` should complete successfully, or degrade grace
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-20 23:00
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
