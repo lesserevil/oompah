@@ -91,12 +91,12 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-20T16:51:53.326296Z'
+updated_at: '2026-08-20T16:52:02.321774Z'
 work_branch: epic-OOMPAH-763
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/749
 review_number: '749'
-review_head: null
+review_head: 6bcbeaf83da3e315fc26df72142ec99bc559797f
 merged_at: null
 oompah.terminal_audit:
   oompah.terminal_override_records:
@@ -157,6 +157,8 @@ oompah.terminal_audit:
 oompah.review_url: https://github.com/lesserevil/oompah/pull/749
 oompah.review_number: '749'
 oompah.work_branch: epic-OOMPAH-763
+oompah.target_branch: main
+oompah.review_head: 6bcbeaf83da3e315fc26df72142ec99bc559797f
 ---
 ## Summary
 
