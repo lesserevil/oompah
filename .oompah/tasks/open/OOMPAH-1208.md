@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:29:16.227300Z'
-updated_at: '2026-08-20T22:48:15.976141Z'
+updated_at: '2026-08-20T22:48:31.309977Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,6 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: 9396ee2f-9e23-436a-a9b2-a6bef7a86278
 ---
 ## Summary
 
@@ -104,5 +105,10 @@ Duplicate error_watcher occurrence suppressed; this task already tracks the same
 Source: `backend:server`
 
 Message: Update issue API error: TaskTransitionNotApplied('OOMPAH-1258: In Progress was not applied (rejected: transition.project_owner_authority_required)')
+---
+author: oompah
+created: 2026-08-20 22:48
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
