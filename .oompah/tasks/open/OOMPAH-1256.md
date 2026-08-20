@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-20T23:08:51.057786Z'
+updated_at: '2026-08-20T23:09:21.394227Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,6 +45,16 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: a680830d-0428-41d0-bd68-0f878c1fa761
+oompah.work_contributors:
+  runs:
+  - run_id: b1ecea5907d449078be81372d6dfdb31--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-1256
+    source_sha: null
+    completed_at: ''
 ---
 ## Summary
 
@@ -91,5 +101,10 @@ author: oompah
 created: 2026-08-20 23:08
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-20 23:09
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
