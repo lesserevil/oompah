@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-20T23:09:35.689381Z'
+updated_at: '2026-08-20T23:09:48.929434Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,6 +47,16 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 189f40f2-e934-4bf7-981f-32d6a2044edb
+oompah.work_contributors:
+  runs:
+  - run_id: 918690a581e24daa87b995a33ce25885--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-1265
+    source_sha: null
+    completed_at: ''
 ---
 ## Summary
 
@@ -79,5 +89,15 @@ author: oompah
 created: 2026-08-14 08:28
 ---
 Independent bounded review signed off exact clean head d30f77126271de8e22e8aff43a8653d6d8671afa. Post-cut prerequisite ABA fencing is enforced inside the status-write lane; structured handoffs invalidate the authoritative issue snapshot and project/projectless detail caches then refresh+broadcast on accepted and durable-conflict paths; cross-scope records are malformed/non-resolvable and UI suppresses the CLI affordance. Reviewer reran 353 focused tests with no blockers. Branch remains local/unsubmitted pending finish-order integration after OOMPAH-1266.
+---
+author: oompah
+created: 2026-08-20 23:09
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-20 23:09
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
