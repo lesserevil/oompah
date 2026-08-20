@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:47.623989Z'
-updated_at: '2026-08-20T23:46:58.582156Z'
+updated_at: '2026-08-20T23:49:24.074320Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -210,5 +210,10 @@ author: oompah
 created: 2026-08-20 23:46
 ---
 **Discovery**: Located the error in oompah/orchestrator.py line 64737-64740. The _run_acp_worker() function catches any exception at line 64717 and logs it using logger.exception() which creates an ERROR level log record. This ERROR record is intercepted by error_watcher which automatically creates a task. The issue is that logger.exception() should only be used for truly exceptional conditions; expected failures should be logged at WARNING level or not logged as errors. The error_watcher intercepts ERROR+ level logs and creates tasks for them.
+---
+author: oompah
+created: 2026-08-20 23:49
+---
+**Implementation**: Changed logger.exception() to logger.warning() in three worker exception handlers (_run_api_worker, _run_acp_worker, _run_cli_worker) to prevent error_watcher from auto-filing tasks for expected pre-request failures. These failures are transient (workspace, tracker, prompt-rendering, admission) and don't reflect provider health. The pattern is established in the codebase (see line 54100-54104 and 14244-14246) where similar expected errors are logged at WARNING level instead of ERROR.
 ---
 <!-- COMMENTS:END -->
