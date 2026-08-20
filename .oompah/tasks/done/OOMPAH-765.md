@@ -16,12 +16,12 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-07T14:43:24.230473Z'
+updated_at: '2026-08-20T16:56:02.768966Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/714
 review_number: '714'
-review_head: null
+review_head: c7bfbcc3b638b3ea28d241852af6345164ba86f6
 merged_at: null
 oompah.start_blocked_by: *id001
 oompah.target_branch: epic-OOMPAH-763
@@ -634,6 +634,7 @@ oompah.terminal_audit:
     candidate_rotation_count: 2
     ended_at: '2026-08-07T13:50:58.353323+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+oompah.review_head: c7bfbcc3b638b3ea28d241852af6345164ba86f6
 ---
 ## Summary
 
