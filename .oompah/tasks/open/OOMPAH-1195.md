@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:17.683117Z'
-updated_at: '2026-08-20T23:31:59.340813Z'
+updated_at: '2026-08-20T23:32:28.199035Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,13 +34,15 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 8e9fbe855042e27394d625c1de8b94707f0a5541b80c31ac192377c341ab5c73:142323
-  claim_owner: b0161d82-55d7-4b08-9b68-ee54b4e13c9c
-  claimed_at: '2026-08-20T23:31:16.623892+00:00'
-  claim_expires_at: '2026-08-21T00:01:16.623892+00:00'
-  retry_count: 1
-  retry_after: null
+  evidence: ACP provider launch was blocked because unhealthy=['Claude:health_unknown',
+    'Claude:health_unknown', 'Claude:health_unknown', 'Opencode/Switchyard:health_unknown'];
+    missing_audit_capability=['Codex']
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 2
+  retry_after: '2026-08-20T23:34:21.644412+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -148,5 +150,15 @@ author: oompah
 created: 2026-08-20 23:31
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-20 23:32
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: interrupted, Duration: 50s
+- Log: OOMPAH-1195__20260820T233219Z.jsonl
 ---
 <!-- COMMENTS:END -->
