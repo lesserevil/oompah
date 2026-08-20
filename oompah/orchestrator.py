@@ -63572,9 +63572,14 @@ class Orchestrator:
                         )
                     ),
                 )
-            logger.exception(
-                "API worker failed issue_id=%s",
+            # Log at WARNING level (not ERROR) to avoid triggering error_watcher
+            # for expected pre-request failures (workspace, tracker, prompt-
+            # rendering, admission). These are transient and don't reflect
+            # provider health.
+            logger.warning(
+                "API worker failed issue_id=%s: %s",
                 issue.id,
+                error_msg,
                 extra={"issue_id": issue.id},
             )
         finally:
@@ -64734,9 +64739,14 @@ class Orchestrator:
                         )
                     ),
                 )
-            logger.exception(
-                "ACP worker failed issue_id=%s",
+            # Log at WARNING level (not ERROR) to avoid triggering error_watcher
+            # for expected pre-request failures (workspace, tracker, prompt-
+            # rendering, admission). These are transient and don't reflect
+            # provider health.
+            logger.warning(
+                "ACP worker failed issue_id=%s: %s",
                 issue.id,
+                error_msg,
                 extra={"issue_id": issue.id},
             )
         finally:
@@ -65082,10 +65092,15 @@ class Orchestrator:
         except Exception as exc:
             exit_reason = "abnormal"
             error_msg = str(exc)
-            logger.exception(
-                "Worker unexpected error issue_id=%s issue_identifier=%s",
+            # Log at WARNING level (not ERROR) to avoid triggering error_watcher
+            # for expected pre-request failures (workspace, tracker, prompt-
+            # rendering, admission). These are transient and don't reflect
+            # provider health.
+            logger.warning(
+                "Worker unexpected error issue_id=%s issue_identifier=%s: %s",
                 issue.id,
                 issue.identifier,
+                error_msg,
                 extra={"issue_id": issue.id},
             )
         finally:
