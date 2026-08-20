@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:28:12.589940Z'
-updated_at: '2026-08-18T16:18:18.970327Z'
+updated_at: '2026-08-20T23:08:07.235017Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,6 +28,24 @@ oompah.last_batch:
     kind: whole_column_move
     source_status: Backlog
     scope: flat_board
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 6d9bcf7d6e2dbf8580d584bd801553c475a967e4a08c75ffe2ab04dbf7ee6bb8
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 9ce345e1aa181db2a51c8cf1d7d9922ee8e59a21a55bba12e5797af529e013ee:56512
+  claim_owner: b0161d82-55d7-4b08-9b68-ee54b4e13c9c
+  claimed_at: '2026-08-20T23:07:50.430913+00:00'
+  claim_expires_at: '2026-08-20T23:37:50.430913+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 4c1f93f3-2981-47c3-97a6-a235ffd97de3
 ---
 ## Summary
 
@@ -68,3 +86,11 @@ The operation in `backend:server` should complete successfully, or degrade grace
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-20 23:08
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
