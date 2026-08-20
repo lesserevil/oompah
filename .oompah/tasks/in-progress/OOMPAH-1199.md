@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1199
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-118'
 parent: null
@@ -11,14 +11,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:22.979573Z'
-updated_at: '2026-08-20T23:35:26.283575Z'
+updated_at: '2026-08-20T23:35:59.867768Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -87,6 +87,22 @@ oompah.work_contributors:
     source_branch: OOMPAH-1199
     source_sha: 02bd5960434a5c65dce259894737a55ab7a8ea96
     completed_at: '2026-08-20T22:43:32.884123+00:00'
+  - run_id: 387ca5c76f3a43a891a22fdb19290145--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: general
+    source_branch: OOMPAH-1199
+    source_sha: null
+    completed_at: ''
+  - run_id: 387ca5c76f3a43a891a22fdb19290145--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: general
+    source_branch: OOMPAH-1199
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1701
@@ -170,5 +186,14 @@ author: oompah
 created: 2026-08-20 23:35
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-20 23:35
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 34s
 ---
 <!-- COMMENTS:END -->
