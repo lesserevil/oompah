@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:37:50.327401Z'
-updated_at: '2026-08-18T16:18:18.970327Z'
+updated_at: '2026-08-20T23:02:28.724739Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,6 +33,34 @@ oompah.last_batch:
     kind: whole_column_move
     source_status: Backlog
     scope: flat_board
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: fd6a6bc927ee173374556df071e911a6dacc4d5de0740f7b52a5fe1dee158923
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 5e9079d3d3413e4b183d6d0b380b38c2713c8740590cbd78df2e33cf313d4454:56508
+  claim_owner: b0161d82-55d7-4b08-9b68-ee54b4e13c9c
+  claimed_at: '2026-08-20T23:02:13.541189+00:00'
+  claim_expires_at: '2026-08-20T23:32:13.541189+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: a909324a-f617-4bac-b3e6-44332c686479
+oompah.work_contributors:
+  runs:
+  - run_id: 190a7293314449c2ada31002bbbaa419--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-1229
+    source_sha: null
+    completed_at: ''
 ---
 ## Summary
 
@@ -50,5 +78,10 @@ author: oompah
 created: 2026-08-13 09:38
 ---
 Filed from PR #856's hosted Python 3.13 gate. Exact failure: the test asserted immediately after four portal.call(_broadcast, ...) invocations but the final zero-running envelope had not yet reached the patched send seam (3 observed). Python 3.11/3.12 passed. Rerunning the failed gate to confirm nondeterminism; scheduling fix separately so the live GitLab deadlock patch remains narrowly scoped.
+---
+author: oompah
+created: 2026-08-20 23:02
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
