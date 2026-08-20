@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1201
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-133'
 parent: null
@@ -11,14 +11,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:47.623989Z'
-updated_at: '2026-08-20T23:40:18.347261Z'
+updated_at: '2026-08-20T23:40:44.473042Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -96,6 +96,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1201
     source_sha: 02bd5960434a5c65dce259894737a55ab7a8ea96
     completed_at: '2026-08-20T22:47:13.335225+00:00'
+  - run_id: 5cda32d6ce4342a1aba181116903c418--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: general
+    source_branch: OOMPAH-1201
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1740
@@ -174,5 +182,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 30s
 - Log: OOMPAH-1201__20260820T224633Z.jsonl
+---
+author: oompah
+created: 2026-08-20 23:40
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
