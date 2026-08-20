@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:47.623989Z'
-updated_at: '2026-08-20T23:41:51.851891Z'
+updated_at: '2026-08-20T23:46:58.582156Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -205,5 +205,10 @@ author: oompah
 created: 2026-08-20 23:41
 ---
 **Understanding**: This is a backend orchestrator bug where ACP worker operations fail with 'ACP worker failed issue_id=TRICKLE-133'. The error is being caught by error_watcher but should either complete successfully or fail gracefully. Plan: (1) Explore orchestrator code and error handling, (2) Find where ACP worker failures are logged, (3) Identify root cause of TRICKLE-133 failure, (4) Implement fix with proper error handling, (5) Test to ensure error_watcher is not triggered for handled failures.
+---
+author: oompah
+created: 2026-08-20 23:46
+---
+**Discovery**: Located the error in oompah/orchestrator.py line 64737-64740. The _run_acp_worker() function catches any exception at line 64717 and logs it using logger.exception() which creates an ERROR level log record. This ERROR record is intercepted by error_watcher which automatically creates a task. The issue is that logger.exception() should only be used for truly exceptional conditions; expected failures should be logged at WARNING level or not logged as errors. The error_watcher intercepts ERROR+ level logs and creates tasks for them.
 ---
 <!-- COMMENTS:END -->
