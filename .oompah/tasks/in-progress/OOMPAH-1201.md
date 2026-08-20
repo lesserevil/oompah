@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:47.623989Z'
-updated_at: '2026-08-20T23:51:05.441720Z'
-work_branch: null
+updated_at: '2026-08-20T23:51:26.483199Z'
+work_branch: OOMPAH-1201
 target_branch: null
 review_url: null
 review_number: null
@@ -77,7 +77,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 55ae5430-2791-43aa-828c-929dea898f54
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 0d5bd79e400544d7974de22a21fbaf7b--contributor-a8b0475e7b09
@@ -128,6 +128,18 @@ oompah.task_costs:
     output_tokens: 1740
     cost_usd: 0.0
     recorded_at: '2026-08-20T22:47:13.222882+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1201
+  base_branch: main
+  base_sha: 02bd5960434a5c65dce259894737a55ab7a8ea96
+  head_sha: b6644c5739285af3b2da1d9d1e91077ed094845b
+  submitted_at: '2026-08-20T23:51:14.356402+00:00'
+  updated_at: '2026-08-20T23:51:14.356402+00:00'
+oompah.work_branch: OOMPAH-1201
 ---
 ## Summary
 
@@ -225,5 +237,10 @@ author: oompah
 created: 2026-08-20 23:51
 ---
 **Completion**: Fixed backend orchestrator worker failure auto-filing. Root cause: logger.exception() in worker exception handlers was logging pre-request failures (workspace, tracker, prompt-rendering, admission) at ERROR level, triggering error_watcher to auto-file tasks. Solution: Changed to logger.warning() level in _run_api_worker, _run_acp_worker, and _run_cli_worker. This prevents error_watcher from filing tasks for expected transient failures while maintaining full logging for diagnostics. Acceptance criteria met: error_watcher no longer triggered for normal pre-request worker failures, established pattern in codebase followed, no regression in other error detection.
+---
+author: oompah
+created: 2026-08-20 23:51
+---
+Fixed backend orchestrator worker failure auto-filing by changing worker exception logging from ERROR to WARNING level to prevent error_watcher auto-filing expected pre-request failures.
 ---
 <!-- COMMENTS:END -->
