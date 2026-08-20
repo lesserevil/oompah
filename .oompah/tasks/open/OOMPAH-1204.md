@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:25:06.282819Z'
-updated_at: '2026-08-20T22:48:46.672365Z'
+updated_at: '2026-08-20T23:53:36.613958Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,17 +36,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: 'RuntimeError: Codex exec exited with code 1:'
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: d50334af0ab37058bf9f2a3288015d487bda0759ad14f48e7e14e5eb26904c72:142420
+  claim_owner: b0161d82-55d7-4b08-9b68-ee54b4e13c9c
+  claimed_at: '2026-08-20T23:53:20.365722+00:00'
+  claim_expires_at: '2026-08-21T00:23:20.365722+00:00'
   retry_count: 1
-  retry_after: '2026-08-20T22:49:37.044434+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 6ce9ea97-e6b4-4b83-8108-c5a220884d8b
+oompah.agent_run_id: 62edba26-63b5-4ea7-a513-1ae94a9ebd98
 oompah.work_contributors:
   runs:
   - run_id: dd954c5651e849a6a9f6ef1d01e1d944--contributor-4256b9f40773
@@ -126,5 +126,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: error, Duration: 1m 14s
 - Log: OOMPAH-1204__20260820T224812Z.jsonl
+---
+author: oompah
+created: 2026-08-20 23:53
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
