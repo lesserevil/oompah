@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:47.623989Z'
-updated_at: '2026-08-20T23:49:24.074320Z'
+updated_at: '2026-08-20T23:50:57.782650Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -215,5 +215,10 @@ author: oompah
 created: 2026-08-20 23:49
 ---
 **Implementation**: Changed logger.exception() to logger.warning() in three worker exception handlers (_run_api_worker, _run_acp_worker, _run_cli_worker) to prevent error_watcher from auto-filing tasks for expected pre-request failures. These failures are transient (workspace, tracker, prompt-rendering, admission) and don't reflect provider health. The pattern is established in the codebase (see line 54100-54104 and 14244-14246) where similar expected errors are logged at WARNING level instead of ERROR.
+---
+author: oompah
+created: 2026-08-20 23:50
+---
+**Verification**: Tests passed successfully. Worker error handling tests (test_orchestrator_handlers.py -k worker): 31/31 passed. Error watcher tests (test_error_watcher.py): 124/124 passed. Changes committed and pushed to branch OOMPAH-1201. The fix addresses the issue by preventing error_watcher from auto-filing tasks for expected pre-request failures that don't reflect provider health.
 ---
 <!-- COMMENTS:END -->
