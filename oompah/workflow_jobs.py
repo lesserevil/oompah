@@ -5380,11 +5380,17 @@ class WorkflowJobStore:
                             ],
                         )
                         sequences = [int(r["sequence"]) for r in rows]
-                        placeholders = ",".join("?" for _ in sequences)
+                        # Range delete scoped to this task avoids SQLite's
+                        # bound-variable limit on a large IN-list.  Every one of
+                        # this task's events in [lo, hi] was just archived above
+                        # (selection was project+task ORDER BY sequence LIMIT).
+                        lo = min(sequences)
+                        hi = max(sequences)
                         self._conn.execute(
                             "DELETE FROM workflow_job_events "
-                            f"WHERE sequence IN ({placeholders})",
-                            sequences,
+                            "WHERE project_id = ? AND task_id = ? "
+                            "AND sequence >= ? AND sequence <= ?",
+                            (project, task, lo, hi),
                         )
                         archived_events += len(sequences)
                         archived_tasks += 1
@@ -5511,11 +5517,20 @@ class WorkflowJobStore:
                         ],
                     )
                     sequences = [int(r["sequence"]) for r in rows]
-                    placeholders = ",".join("?" for _ in sequences)
+                    # Delete by bounded sequence range rather than an IN-list:
+                    # the selected rollback rows are contiguous by ``sequence``
+                    # (ORDER BY sequence LIMIT), so a range predicate avoids
+                    # SQLite's bound-variable limit ("too many SQL variables")
+                    # that a large IN-list would hit.  The event_type filter
+                    # keeps any interleaved non-rollback rows untouched, and
+                    # every rollback row in [lo, hi] was just archived above.
+                    lo = min(sequences)
+                    hi = max(sequences)
                     self._conn.execute(
                         "DELETE FROM workflow_job_events "
-                        f"WHERE sequence IN ({placeholders})",
-                        sequences,
+                        "WHERE event_type = 'publication_rollback' "
+                        "AND sequence >= ? AND sequence <= ?",
+                        (lo, hi),
                     )
                     archived_events += len(sequences)
                 finally:

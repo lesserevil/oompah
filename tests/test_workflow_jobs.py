@@ -4295,6 +4295,23 @@ def test_archive_rollback_events_is_bounded(store, clock):
     assert cold_after == 5
 
 
+def test_archive_rollback_events_handles_batch_over_sqlite_variable_limit(
+    store, clock
+):
+    # Regression: a range delete (not an IN-list) must relocate a batch larger
+    # than SQLite's bound-variable limit without "too many SQL variables".
+    count = 1200
+    _seed_rollback_events(
+        store, clock, project_id="p", task_id="TRICKLE-BIG", count=count
+    )
+    result = store.archive_rollback_events(max_events=count, keep_recent=0)
+    assert result["events"] == count
+    hot_after, cold_after = _rollback_counts(store)
+    assert hot_after == 0
+    assert cold_after == count
+
+
+
 def test_archive_rollback_preserves_high_water(store, clock):
     _seed_rollback_events(
         store, clock, project_id="p", task_id="TRICKLE-HW", count=30
