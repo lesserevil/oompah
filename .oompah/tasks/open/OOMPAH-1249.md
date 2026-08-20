@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:07:17.780951Z'
-updated_at: '2026-08-20T23:02:56.501388Z'
+updated_at: '2026-08-20T23:03:01.366866Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,5 +60,10 @@ author: oompah
 created: 2026-08-14 07:47
 ---
 Claimed for direct implementation in /home/shedwards/src/oompah-1249 on branch OOMPAH-1249 from origin/main 948ef6f2. Oompah remains paused. Implementing managed-clone credential-route sanitation with fail-closed proof, linked-worktree coverage, isolated server-owned transport preservation, and restricted rebase preflight acceptance.
+---
+author: oompah
+created: 2026-08-20 23:03
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
