@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:04.107366Z'
-updated_at: '2026-08-20T22:41:30.791048Z'
+updated_at: '2026-08-20T22:42:27.940140Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,13 +34,19 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 51eb96a79609a25cce668131710f301bb321298146dde2f9eae8dcbc41fcc521:56491
-  claim_owner: b0161d82-55d7-4b08-9b68-ee54b4e13c9c
-  claimed_at: '2026-08-20T22:40:44.976291+00:00'
-  claim_expires_at: '2026-08-20T23:10:44.976291+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: 'All 2 dispatch candidates unavailable: prov-651d553c/haiku: contributor_evidence_unavailable:
+    Cannot durably record exact contributor provider/model evidence before the bounded
+    task-authority deadline. The pre-provider runtime was retired for retry; no provider
+    or workspace was started.; prov-52e94e83/gpt-5.6-luna: contributor_evidence_unavailable:
+    Cannot durably record exact contributor provider/model evidence before the bounded
+    task-authority deadline. The pre-provider runtime was retired for retry; no provider
+    or workspace was started.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 1
+  retry_after: '2026-08-20T22:43:21.323055+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -51,6 +57,14 @@ oompah.work_contributors:
     provider_id: prov-651d553c
     provider_name: Claude
     model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-1198
+    source_sha: null
+    completed_at: ''
+  - run_id: 3c5e1f31236f4ba89bcebe5074b1098d--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
     focus: duplicate_detector
     source_branch: OOMPAH-1198
     source_sha: null
@@ -107,5 +121,14 @@ author: oompah
 created: 2026-08-20 22:41
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-20 22:42
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 1m 15s
 ---
 <!-- COMMENTS:END -->
