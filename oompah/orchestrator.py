@@ -58029,10 +58029,13 @@ class Orchestrator:
                 # contributor_evidence_unavailable and starving implementation
                 # dispatch.  When configured it is authoritative (production
                 # raises it well above the derived control floor).
+                # Use the configured default (30.0) as the fallback instead of
+                # the derived floor (5.0), which was too aggressive for tracker
+                # write operations. See OOMPAH-1318.
                 configured_evidence_timeout = getattr(
                     self.config,
                     "contributor_evidence_persist_timeout_seconds",
-                    None,
+                    30.0,
                 )
                 if configured_evidence_timeout is not None:
                     persistence_timeout = max(

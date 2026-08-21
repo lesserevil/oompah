@@ -1013,3 +1013,28 @@ def test_forced_auditor_retirement_records_retry_before_releasing_claim(
         assert entry.branch_key not in orch._audit_branch_claims
 
     asyncio.run(scenario())
+
+
+def test_contributor_evidence_timeout_defaults_to_30_seconds(tmp_path) -> None:
+    """Verify that when contributor_evidence_persist_timeout_seconds is not
+    explicitly configured, it defaults to 30.0 seconds instead of falling back
+    to the derived floor of 5.0 seconds. Regression test for OOMPAH-1319."""
+    
+    async def scenario() -> None:
+        # Create an orchestrator without explicitly setting
+        # contributor_evidence_persist_timeout_seconds
+        orch = _orchestrator(tmp_path)
+        
+        # Verify that the config has the attribute with default value
+        assert hasattr(orch.config, 'contributor_evidence_persist_timeout_seconds')
+        assert orch.config.contributor_evidence_persist_timeout_seconds == 30.0
+        
+        # Also test with a fresh config to ensure the default is used
+        from oompah.config import ServiceConfig
+        config = ServiceConfig(
+            workspace_root=str(tmp_path / "workspaces"),
+            worker_termination_timeout_ms=100,
+        )
+        assert config.contributor_evidence_persist_timeout_seconds == 30.0
+    
+    asyncio.run(scenario())
