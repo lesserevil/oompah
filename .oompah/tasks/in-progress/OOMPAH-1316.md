@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:48:11.061409Z'
-updated_at: '2026-08-21T08:54:11.181784Z'
+updated_at: '2026-08-21T08:54:36.454453Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -201,5 +201,10 @@ author: oompah
 created: 2026-08-21 08:54
 ---
 IMPLEMENTATION: Changed logger.error() to logger.warning() on line 58066 of oompah/orchestrator.py. This timeout occurs when pre-provider contributor evidence write takes longer than the bounded deadline during task authority transitions. This is an expected, handled failure mode (already returns error message, releases authority gracefully). The similar cancelled timeout case already uses logger.warning(). By logging at WARNING instead of ERROR, error_watcher no longer auto-files this as a task.
+---
+author: oompah
+created: 2026-08-21 08:54
+---
+VERIFICATION: All tests pass. Ran: (1) test_pre_provider_evidence_timeout_releases_task_authority - PASSED, (2) test_contributor_evidence_takes_project_lock_before_policy_lock - PASSED, (3) all 21 tests in test_provider_retirement.py - PASSED, (4) all 146 error_watcher related tests - PASSED. The fix maintains backward compatibility while preventing spurious error task auto-filing.
 ---
 <!-- COMMENTS:END -->
