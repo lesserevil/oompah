@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:04.107366Z'
-updated_at: '2026-08-21T04:14:52.939671Z'
+updated_at: '2026-08-21T09:11:26.129313Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,104 +34,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: 'Focus handoff: duplicate_detector
-
-    Duplicate preflight verdict: inconclusive
-
-    Matches: none
-
-    Evidence: Duplicate preflight verdict: inconclusive
-
-    Matches: none
-
-    # Duplicate Investigation: OOMPAH-1198
-
-
-    Looking at the supplied task corpus and the current issue OOMPAH-1198, I need
-    to analyze whether this is a duplicate of an existing active task.
-
-
-    ## Analysis
-
-
-    **Current Task Details:**
-
-    - OOMPAH-1198: "[backend:orchestrator] ACP worker failed issue_id=TRICKLE-121"
-
-    - Error: ACP worker failure from backend:orchestrator
-
-    - Status: Open
-
-    - Error fingerprint: d7ccd2a175419549
-
-
-    **Critical Finding from Task Comments:**
-
-
-    The first oompah comment (2026-08-13 00:17) explicitly states:
-
-    > "Duplicate task-specific occurrence of OOMPAH-1194. The canonical fix covers
-    this failure: managed network Git used the stale local SSH origin instead of the
-    project''s configured HTTPS repo_url during Trickle workspace/epic refresh."
-
-
-    This is authoritative evidence from the oompah system identifying OOMPAH-1194
-    as the canonical task for this exact issue.
-
-
-    **Corpus Constraint:**
-
-
-    However, OOMPAH-1194 is **not present in the supplied task corpus**. The corpus
-    metadata shows:
-
-    - similarity_candidates_included: 29
-
-    - omitted_similarity_candidate_count: 728
-
-
-    OOMPAH-1194 is either in the omitted candidates or excluded due to being in a
-    terminal state (Done, Merged, or Archived), which would disqualify it as a duplicate
-    target per the instructions.
-
-
-    **Verification Issue:**
-
-
-    The instructions require:
-
-    - Exclude every candidate in a terminal state (Done, Merged, or Archived)
-
-    - Treat the supplied corpus as self-sufficient
-
-
-    I cannot verify OOMPAH-1194''s status from the supplied corpus alone, and I''m
-    forbidden from making network calls to check.
-
-
-    ---
-
-
-    Focus handoff: duplicate_detector
-
-
-    Duplicate preflight verdict: inconclusive
-
-
-    Matches: none
-
-
-    **Reason:** The oompah system''s own analysis on this task identifies OOMPAH-1194
-    as the canonical duplicate for this exact failure (managed network Git using stale
-    SSH origin vs HTTPS repo_url during Trickle operations). However, the referred
-    task OOMPAH-1194 is not included in the supplied authoritative task corpus, making
-    it imposs'
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: aa9f39a4273e1e88ede3e60fd93d78df7b654c6268b6b519a7693016f19d4f8f:145218
+  claim_owner: 94774825-4468-4d75-bdb4-5977b2bd9951
+  claimed_at: '2026-08-21T09:11:23.087392+00:00'
+  claim_expires_at: '2026-08-21T09:41:23.087392+00:00'
   retry_count: 1
-  retry_after: '2026-08-21T04:15:37.487980+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
