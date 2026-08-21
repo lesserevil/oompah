@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:12:08.566823Z'
-updated_at: '2026-08-21T09:59:10.789828Z'
+updated_at: '2026-08-21T09:59:18.911175Z'
 work_branch: OOMPAH-1320
 target_branch: null
 review_url: null
@@ -196,5 +196,10 @@ author: oompah
 created: 2026-08-21 09:51
 ---
 Verification: All tests pass. Ran 21 tests in test_provider_retirement.py (100% pass) and 381 tests in test_orchestrator_handlers.py (100% pass). The specific test test_pre_provider_evidence_timeout_releases_task_authority which directly tests this timeout behavior passes successfully. The fix correctly prevents error_watcher from being triggered on expected timeout handling.
+---
+author: oompah
+created: 2026-08-21 09:59
+---
+Fixed pre-provider contributor evidence timeout being auto-filed as error. Changed logger.error() to logger.warning() at orchestrator.py:58066 since the timeout is an expected, handled failure (error returned and properly handled by _on_worker_exit), not an unhandled exception. This prevents error_watcher from triggering on normal operation. All tests pass (21 provider retirement + 381 orchestrator handler tests).
 ---
 <!-- COMMENTS:END -->
