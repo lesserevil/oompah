@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1268
 type: task
-status: Open
+status: In Progress
 priority: 3
 title: Archive workflow_job_events for Archived tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-21T05:43:00.238791Z'
+updated_at: '2026-08-21T05:43:53.399257Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 3211e93d-73f6-4a41-99a7-1bdcaa479ed0
   request_fingerprint: 2efda9a8ba2e984ce57f567673ef41d1f8d9cc0aaaf21d0aff8871d9296ce4a0
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -92,6 +92,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1268
     source_sha: 2da1c8073e0617b21959af89a4443b9f50c9a1d7
     completed_at: '2026-08-21T02:15:37.375025+00:00'
+  - run_id: 3986d2996c2740a1ae79f6a96a54897b--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: general
+    source_branch: OOMPAH-1268
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1631
