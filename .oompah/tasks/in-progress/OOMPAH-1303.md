@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:15:51.064357Z'
-updated_at: '2026-08-21T13:54:56.914757Z'
+updated_at: '2026-08-21T13:55:20.771867Z'
 work_branch: OOMPAH-1303
 target_branch: null
 review_url: null
@@ -112,16 +112,16 @@ oompah.work_contributors:
     model_id: haiku
     focus: general
     source_branch: OOMPAH-1303
-    source_sha: null
-    completed_at: ''
+    source_sha: 4120b405573d0e12015006e1c1e7c66df2ffc20f
+    completed_at: '2026-08-21T13:55:15.553961+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2145
+  total_input_tokens: 412
+  total_output_tokens: 17177
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 2145
+      input_tokens: 412
+      output_tokens: 17177
       cost_usd: 0.0
   runs:
   - profile: default
@@ -130,6 +130,12 @@ oompah.task_costs:
     output_tokens: 2145
     cost_usd: 0.0
     recorded_at: '2026-08-21T08:01:23.832811+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 402
+    output_tokens: 15032
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T13:55:15.546606+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -337,5 +343,15 @@ author: oompah
 created: 2026-08-21 13:54
 ---
 Fixed pre-provider contributor evidence timeout to use configured 30-second default instead of derived 5-second minimum. Changed getattr() default from None to 30.0 to ensure the configured timeout is always applied. All tests pass (835+ verified). Error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' will no longer occur during normal operations.
+---
+author: oompah
+created: 2026-08-21 13:55
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 115, Tool calls: 49
+- Tokens: 402 in / 15.0K out [15.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 25m 59s
+- Log: OOMPAH-1303__20260821T133044Z.jsonl
 ---
 <!-- COMMENTS:END -->
