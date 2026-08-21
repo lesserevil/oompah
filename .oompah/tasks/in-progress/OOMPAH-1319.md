@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:12:05.791721Z'
-updated_at: '2026-08-21T15:38:36.729562Z'
+updated_at: '2026-08-21T15:41:27.818840Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -409,5 +409,22 @@ Changed:
 This ensures that when the config attribute isn't explicitly set for any reason, it falls back to a reasonable timeout (30.0 seconds) that matches the configured default, rather than the derived control floor (5.0 seconds).
 
 Added regression test: test_contributor_evidence_timeout_defaults_to_30_seconds
+---
+author: oompah
+created: 2026-08-21 15:41
+---
+**Verification:** All tests passing successfully.
+
+Test results:
+- test_provider_retirement.py: 22 passed (including new regression test)
+- test_config.py: 168 passed
+- All timeout/contributor related tests: 134 passed
+
+The fix is minimal and surgical:
+- Changed getattr() default from None to 30.0 seconds in orchestrator.py
+- This ensures the timeout falls back to the configured 30-second default instead of the derived 5-second control floor
+- Added regression test to prevent future regressions
+
+The error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' with timeout_seconds=5.0 will no longer occur - the timeout will now properly use the configured 30-second default.
 ---
 <!-- COMMENTS:END -->
