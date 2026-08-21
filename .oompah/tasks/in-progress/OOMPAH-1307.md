@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:18:21.022779Z'
-updated_at: '2026-08-21T08:08:12.164265Z'
+updated_at: '2026-08-21T08:14:54.504877Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -197,5 +197,10 @@ author: oompah
 created: 2026-08-21 08:08
 ---
 UNDERSTANDING: This is a timeout issue in backend:orchestrator. The error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' with timeout_seconds=5.0 is being triggered during normal operation on the provenanceguardedtracker. The error is unhandled, causing error_watcher to auto-file it as a task. Need to: (1) locate where this timeout occurs in the codebase, (2) understand why the operation takes >5 seconds, (3) either increase the timeout, fix the performance issue, or add graceful degradation. Starting with codebase exploration.
+---
+author: oompah
+created: 2026-08-21 08:14
+---
+DISCOVERY: Found the timeout logic in oompah/orchestrator.py _stage_work_contributor_launch() method (line 57834). The error occurs when persisting contributor evidence (tracker write) exceeds a deadline (default 5.0 seconds). The timeout is calculated from terminal_control_lock_timeout_seconds (default 5.0). A TimeoutError causes logger.error() to be called, which error_watcher is treating as an exception. Need to investigate: (1) why the tracker write is slow, (2) whether the timeout is too aggressive, (3) how to prevent error_watcher from flagging this as an issue.
 ---
 <!-- COMMENTS:END -->
