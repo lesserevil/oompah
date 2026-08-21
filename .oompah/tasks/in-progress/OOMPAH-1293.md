@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:40:39.902883Z'
-updated_at: '2026-08-21T16:30:16.827415Z'
+updated_at: '2026-08-21T16:32:03.616697Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -256,5 +256,10 @@ author: oompah
 created: 2026-08-21 16:30
 ---
 Implementation: Fixed the pre-provider contributor evidence timeout calculation in oompah/orchestrator.py _stage_work_contributor_launch(). Changed line 58023-58026 from 'max(min(control_timeout, termination_timeout/2.0), 0.05)' to 'max(termination_timeout, 5.0)'. This increases the default fallback timeout from 5.0s to 10.0s (when termination_timeout=10s), allowing persistence operations more time to complete. The configured 60-second timeout still overrides this fallback in production.
+---
+author: oompah
+created: 2026-08-21 16:32
+---
+Verification: All tests pass. Ran test_provider_retirement.py (21 tests) and test_implementation_workflow_adapter.py (73 tests) - 94 tests total all passing. The timeout calculation fix correctly gives persistence operations more time (10s default vs 5s before) while preserving the configured override behavior. Change is minimal and focused on the root cause.
 ---
 <!-- COMMENTS:END -->
