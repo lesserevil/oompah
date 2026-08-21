@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-21T05:45:47.614605Z'
+updated_at: '2026-08-21T06:11:07.553903Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -83,7 +83,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: ceca09f0-056b-488f-bd1e-960fcf5c7bf4
+oompah.agent_run_id: 42d4dd91-b130-4602-858d-0c0c3312bebd
 oompah.work_contributors:
   runs:
   - run_id: c39b31ff527f433f8499e69b01c975f0--contributor-a8b0475e7b09
@@ -256,5 +256,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: error, Duration: 2m 15s
 - Log: OOMPAH-1250__20260821T054515Z.jsonl
+---
+author: oompah
+created: 2026-08-21 06:11
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
