@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:01.940609Z'
-updated_at: '2026-08-21T05:54:19.640397Z'
+updated_at: '2026-08-21T06:03:07.705977Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -235,5 +235,28 @@ author: oompah
 created: 2026-08-21 05:54
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 06:03
+---
+## Understanding
+
+The issue is a backend orchestrator error where all dispatch candidates are failing with a 'contributor_evidence_unavailable' error. When the orchestrator tries to record contributor provider/model evidence (for provenance tracking), it times out before the task-authority deadline.
+
+**Root Cause Analysis:**
+1. The `_run_worker` method in orchestrator.py (line ~58085-58090) detects when contributor evidence persistence times out
+2. Instead of raising a `ProviderStartupError` (which would be properly caught and logged in the dispatch loop), it returns an error string
+3. This unhandled error bubbles up to the error_watcher which auto-files it as a task
+
+**Expected Fix:**
+1. Convert the contributor evidence timeout into a `ProviderStartupError` so it's handled gracefully
+2. This allows the orchestrator to try the next dispatch candidate instead of failing completely
+3. Error_watcher will not be triggered for this normal (retryable) failure mode
+
+**Planned Approach:**
+1. Locate where _run_worker returns the error string for contributor evidence timeout
+2. Convert it to raise ProviderStartupError instead
+3. Verify the error is now properly caught by the dispatch loop's ProviderStartupError handler
+4. Test to ensure all dispatch candidates are tried and error_watcher is not triggered
 ---
 <!-- COMMENTS:END -->
