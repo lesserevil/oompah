@@ -1013,3 +1013,82 @@ def test_forced_auditor_retirement_records_retry_before_releasing_claim(
         assert entry.branch_key not in orch._audit_branch_claims
 
     asyncio.run(scenario())
+
+
+def test_pre_provider_evidence_timeout_logs_warning_not_error(tmp_path, caplog):
+    """Contributor evidence timeout must log at WARNING, not ERROR.
+    
+    This is a transient failure (timeout waiting for tracker write) that is
+    retried and degraded gracefully. Logging at ERROR would trigger
+    error_watcher to auto-file duplicate bug tasks on each occurrence.
+    
+    Regression test for OOMPAH-1301.
+    """
+    import logging as _logging
+    
+    async def scenario() -> None:
+        orch = _orchestrator(tmp_path)
+        orch.config.terminal_control_lock_timeout_seconds = 0.1
+        orch.config.contributor_evidence_persist_timeout_seconds = 0.1
+        entry = _entry()
+        orch.state.running[entry.issue.id] = entry
+        orch.provider_store.get = MagicMock(return_value=None)
+        orch._reserve_auditor_for_contributor = AsyncMock(return_value=([], None))
+        orch._release_audit_budget_reservation = MagicMock(return_value=True)
+        persistence_started = threading.Event()
+        release_persistence = threading.Event()
+
+        def blocked_persistence(*_args, **_kwargs) -> None:
+            persistence_started.set()
+            release_persistence.wait(timeout=2)
+
+        orch._persist_work_contributor = blocked_persistence
+        
+        with caplog.at_level(_logging.DEBUG, logger="oompah.orchestrator"):
+            staging = asyncio.create_task(
+                orch._stage_work_contributor_launch(
+                    entry.issue,
+                    run_id=entry.run_id,
+                    provider_id="acp",
+                    provider_name="acp",
+                    model="sdk-managed",
+                )
+            )
+            assert await asyncio.to_thread(persistence_started.wait, 0.5)
+            submission_lane = asyncio.create_task(
+                orch.issue_transition_lock(entry.issue.id).acquire(
+                    timeout_seconds=0.2
+                )
+            )
+            error = await staging
+            assert "bounded task-authority deadline" in str(error)
+            assert await submission_lane
+            orch.issue_transition_lock(entry.issue.id).release()
+            release_persistence.set()
+            await asyncio.sleep(0)
+        
+        # The key contract: error_watcher only fires on ERROR, so we must
+        # NOT have logged at ERROR for a transient timeout.
+        error_records = [
+            r
+            for r in caplog.records
+            if r.levelname == "ERROR" and r.name.startswith("oompah.orchestrator")
+            and "bounded task-authority deadline" in r.getMessage()
+        ]
+        assert error_records == [], (
+            "Pre-provider contributor evidence timeout must not be logged at ERROR — "
+            "the error_watcher would auto-file a duplicate bug task "
+            "on every timeout occurrence. See OOMPAH-1301."
+        )
+        
+        warning_records = [
+            r
+            for r in caplog.records
+            if r.levelname == "WARNING" and r.name.startswith("oompah.orchestrator")
+            and "bounded task-authority deadline" in r.getMessage()
+        ]
+        assert warning_records, (
+            "Expected a WARNING level log mentioning the contributor evidence timeout."
+        )
+
+    asyncio.run(scenario())
