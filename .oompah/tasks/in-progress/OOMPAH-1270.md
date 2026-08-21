@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-21T15:05:31.088448Z'
+updated_at: '2026-08-21T15:05:43.605941Z'
 work_branch: OOMPAH-1270
 target_branch: null
 review_url: null
@@ -81,7 +81,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 1002a613-8c84-45d1-91e1-b6ffa7186fbf
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 0af675c600474344ab65b1138e747db9--contributor-a8b0475e7b09
