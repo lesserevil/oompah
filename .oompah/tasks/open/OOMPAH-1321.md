@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:13:00.356484Z'
-updated_at: '2026-08-21T05:07:19.269567Z'
+updated_at: '2026-08-21T05:08:17.272260Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,6 +57,22 @@ oompah.work_contributors:
     source_branch: OOMPAH-1321
     source_sha: null
     completed_at: ''
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 1870
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 1870
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1870
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T05:08:13.924209+00:00'
 ---
 ## Summary
 
@@ -108,5 +124,15 @@ author: oompah
 created: 2026-08-21 05:07
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-21 05:08
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 1.9K out [1.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 50s
+- Log: OOMPAH-1321__20260821T050727Z.jsonl
 ---
 <!-- COMMENTS:END -->
