@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:52:39.685288Z'
-updated_at: '2026-08-21T15:17:19.305356Z'
+updated_at: '2026-08-21T15:26:29.224165Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -253,5 +253,10 @@ author: oompah
 created: 2026-08-21 15:17
 ---
 **Discovery:** Found the root cause in orchestrator.py line 58023-58026. The persistence timeout for contributor evidence is calculated as min(control_timeout, termination_timeout / 2.0) which results in 5.0 seconds using defaults (control_timeout=5.0s from terminal_control_lock_timeout_seconds, termination_timeout=10.0s). This is too short for tracker/state-branch writes. The configured OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS (default 60s) should override this, but the calculation is used as a fallback.
+---
+author: oompah
+created: 2026-08-21 15:26
+---
+**Implementation:** Changed logger.error() to logger.warning() at line 58066 in orchestrator.py for the 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' message. This is a handled failure case where the provider retires and retries on the next cycle. It should not be treated as an error by error_watcher. The fix aligns with similar timeout handling at line 58101 which already uses logger.warning().
 ---
 <!-- COMMENTS:END -->
