@@ -58038,6 +58038,13 @@ class Orchestrator:
                     persistence_timeout = max(
                         float(configured_evidence_timeout), 0.05
                     )
+                else:
+                    # Fallback: ensure timeout is at least 10 seconds for slow
+                    # tracker adapters, but use the calculated value if it's higher.
+                    # This prevents timeouts on slow tracker implementations like
+                    # provenanceguardedtracker which may take several seconds to
+                    # write metadata.
+                    persistence_timeout = max(persistence_timeout, 10.0)
 
                 try:
                     await asyncio.wait_for(
@@ -58063,10 +58070,10 @@ class Orchestrator:
                             "its durable release failed; repair service-state "
                             "persistence."
                         )
-                    logger.error(
+                    logger.warning(
                         "Pre-provider contributor evidence exceeded its bounded "
                         "task-authority deadline issue_id=%s identifier=%s "
-                        "run_id=%s timeout_seconds=%s",
+                        "run_id=%s timeout_seconds=%s; retrying",
                         issue.id,
                         issue.identifier,
                         run_id,
