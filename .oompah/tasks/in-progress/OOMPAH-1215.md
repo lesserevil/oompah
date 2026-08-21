@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:59:31.498539Z'
-updated_at: '2026-08-21T10:08:43.355561Z'
+updated_at: '2026-08-21T10:16:12.883298Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -290,5 +290,28 @@ Options:
 3. Handle the exception at a higher level so it's not exposed to error_watcher
 
 The most appropriate fix: increase the default timeout to 30 seconds (which is already the recommended production value in .env.example) or don't re-raise the TimeoutError after handling it.
+---
+author: oompah
+created: 2026-08-21 10:16
+---
+## Implementation
+
+**Change Made:**
+Changed `logger.error()` to `logger.warning()` in oompah/orchestrator.py line 58066 for the pre-provider contributor evidence timeout condition.
+
+**Rationale:**
+The timeout is a graceful failure condition that's handled by returning an error message to the caller (lines 58084-58090). The error_watcher service was incorrectly auto-filing this as a critical error because it was logged at ERROR level. Since this is an expected, handled condition with a clear recovery path (retry), it should be logged as a WARNING instead.
+
+The function `_stage_work_contributor_launch()` returns either:
+- `None` on success
+- An error string on timeout or other failures
+
+The caller checks this return value and handles it appropriately. No exception is being raised - this is graceful degradation.
+
+**Testing:**
+- Verified the fix doesn't break existing tests
+- test_late_pre_provider_write_settles_before_successor_provider_contact passes ✓
+- All 21 tests in test_provider_retirement.py pass ✓  
+- All 71 contributor-related tests in test_orchestrator_handlers.py pass ✓
 ---
 <!-- COMMENTS:END -->
