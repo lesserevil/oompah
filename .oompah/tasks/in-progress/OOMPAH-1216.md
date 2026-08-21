@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:51.761397Z'
-updated_at: '2026-08-21T11:16:42.393932Z'
-work_branch: null
+updated_at: '2026-08-21T11:17:09.286178Z'
+work_branch: OOMPAH-1216
 target_branch: null
 review_url: null
 review_number: null
@@ -81,7 +81,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 693b6a17-4cba-407f-8f1d-d9a6952edb37
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 7d692e02f8fb4053ad98f70b1a6f2764--contributor-a8b0475e7b09
@@ -164,6 +164,18 @@ oompah.task_costs:
     output_tokens: 1954
     cost_usd: 0.0
     recorded_at: '2026-08-21T05:21:48.887042+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1216
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: bf19e7aa4b8da8bfac1850d47e235951b30ab075
+  submitted_at: '2026-08-21T11:16:54.461002+00:00'
+  updated_at: '2026-08-21T11:16:54.461002+00:00'
+oompah.work_branch: OOMPAH-1216
 ---
 ## Summary
 
@@ -367,5 +379,12 @@ Changed the log level for contributor evidence timeout from ERROR to WARNING in 
 - Specific tests verified: test_pre_provider_evidence_timeout_releases_task_authority, test_pre_provider_timeout_exits_without_ghost_and_authority_lanes_continue, test_late_pre_provider_write_settles_before_successor_provider_contact
 
 The fix maintains backward compatibility while preventing false positives in error_watcher.
+---
+author: oompah
+created: 2026-08-21 11:17
+---
+Fixed contributor evidence timeout logging level
+
+Changed logger.error to logger.warning for the pre-provider contributor evidence timeout condition. This is a graceful retry scenario, not an unhandled error, so it should not trigger error_watcher. All tests pass.
 ---
 <!-- COMMENTS:END -->
