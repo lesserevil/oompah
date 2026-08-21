@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-21T14:58:36.613720Z'
+updated_at: '2026-08-21T15:03:53.733563Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -270,5 +270,10 @@ author: oompah
 created: 2026-08-21 14:58
 ---
 IMPLEMENTATION: Added INFO-level logging for Needs Human escalations in TaskTransitionService._execute_claimed. The logging captures task_id, project_id, actor, authority, and reason_code for every transition to Needs Human. This enables post-incident investigation of bulk escalations by tracking the exact authority source. Two instrumentation points added (lines 2612 and 2936 in task_transition_service.py) to capture both direct and recovery paths. Added regression test verifying logging of push-hook-driven Needs Human escalation.
+---
+author: oompah
+created: 2026-08-21 15:03
+---
+VERIFICATION: Test results: (1) New regression test passes: test_needs_human_escalation_is_logged_with_authority_source verifies logging captures external authority source; (2) All 119 task_transition_service tests pass; (3) All 381 orchestrator_handlers tests pass (500 combined). The instrumentation correctly logs actor=external-webhook, authority=TransitionAuthority.API, and reason codes for external escalations. Future incidents can now be investigated via oompah.log for exact authority source.
 ---
 <!-- COMMENTS:END -->
