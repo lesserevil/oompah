@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:55:39.156940Z'
-updated_at: '2026-08-21T07:22:12.978498Z'
-work_branch: null
+updated_at: '2026-08-21T07:22:34.438383Z'
+work_branch: OOMPAH-1282
 target_branch: null
 review_url: null
 review_number: null
@@ -77,7 +77,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d259867d-5c1a-4cf9-b67d-80e2aa7642fd
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 98c1f49170b14c44908047ed60736ee5--contributor-4256b9f40773
@@ -120,6 +120,18 @@ oompah.task_costs:
     output_tokens: 2129
     cost_usd: 0.0
     recorded_at: '2026-08-21T02:53:51.832498+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1282
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: 44636538d81fd42287cc32809e51e39351a0c552
+  submitted_at: '2026-08-21T07:22:19.617469+00:00'
+  updated_at: '2026-08-21T07:22:19.617469+00:00'
+oompah.work_branch: OOMPAH-1282
 ---
 ## Summary
 
@@ -235,5 +247,10 @@ Verification: Change completed and tested. All relevant tests pass:
 - tests/test_error_watcher.py: 124/124 ✓
 
 The fix is minimal and focused: only the log level changed from ERROR to WARNING for the specific contributor evidence timeout scenario. This prevents error_watcher from auto-filing tasks for this expected condition while maintaining observability for debugging.
+---
+author: oompah
+created: 2026-08-21 07:22
+---
+Fixed contributor evidence timeout log level from ERROR to WARNING. Prevents error_watcher from auto-filing tasks for expected timeout scenarios in slow trackers like provenanceguardedtracker. The timeout is handled gracefully with persistence continuing asynchronously. All tests pass.
 ---
 <!-- COMMENTS:END -->
