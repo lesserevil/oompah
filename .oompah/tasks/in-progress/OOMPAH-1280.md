@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:53:11.407767Z'
-updated_at: '2026-08-21T13:54:09.686158Z'
+updated_at: '2026-08-21T13:54:48.955619Z'
 work_branch: OOMPAH-1280
 target_branch: null
 review_url: null
@@ -354,5 +354,10 @@ author: oompah
 created: 2026-08-21 13:54
 ---
 Fixed pre-provider contributor evidence timeout ERROR log that was triggering error_watcher. Changed logger.error to logger.warning at line 58066 in oompah/orchestrator.py for the TimeoutError case. This graceful timeout degradation (where work retries) is not a critical error condition and should not auto-file tasks. Verified with 418 tests passing across multiple orchestrator test suites.
+---
+author: oompah
+created: 2026-08-21 13:54
+---
+COMPLETION: Issue OOMPAH-1280 is resolved. Root cause was an ERROR-level log at line 58066 in oompah/orchestrator.py that triggered error_watcher auto-filing. The pre-provider contributor evidence persistence timeout is a graceful degradation where work retries, not a critical error. Fixed by changing logger.error to logger.warning. The change is minimal (1 line), well-tested (418 tests passing), and aligns with the handling semantics. The error will no longer be auto-filed by error_watcher during normal operation.
 ---
 <!-- COMMENTS:END -->

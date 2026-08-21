@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:15:51.064357Z'
-updated_at: '2026-08-21T13:54:41.226143Z'
-work_branch: null
+updated_at: '2026-08-21T13:54:46.493467Z'
+work_branch: OOMPAH-1303
 target_branch: null
 review_url: null
 review_number: null
@@ -141,6 +141,7 @@ oompah.integration:
   head_sha: 4120b405573d0e12015006e1c1e7c66df2ffc20f
   submitted_at: '2026-08-21T13:54:27.977218+00:00'
   updated_at: '2026-08-21T13:54:27.977218+00:00'
+oompah.work_branch: OOMPAH-1303
 ---
 ## Summary
 
