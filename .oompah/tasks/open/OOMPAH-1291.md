@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:34:19.692606Z'
-updated_at: '2026-08-21T11:39:33.879293Z'
+updated_at: '2026-08-21T11:40:36.563683Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,6 +58,14 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
   - run_id: 7ed7953cb52b4889a493480e70cd08c8--contributor-86e3ac8153e1
+    provider_id: prov-6cf41c89
+    provider_name: Opencode/Switchyard
+    model_id: switchyard/auto
+    focus: duplicate_detector
+    source_branch: OOMPAH-1291
+    source_sha: null
+    completed_at: ''
+  - run_id: 3c705f08248946b7bb6265aeab40b0da--contributor-86e3ac8153e1
     provider_id: prov-6cf41c89
     provider_name: Opencode/Switchyard
     model_id: switchyard/auto
@@ -151,5 +159,10 @@ author: oompah
 created: 2026-08-21 11:39
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-21 11:40
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
