@@ -412,6 +412,7 @@ def test_pre_provider_evidence_timeout_releases_task_authority(tmp_path) -> None
     async def scenario() -> None:
         orch = _orchestrator(tmp_path)
         orch.config.terminal_control_lock_timeout_seconds = 0.1
+        orch.config.contributor_evidence_persist_timeout_seconds = 0.1
         entry = _entry()
         orch.state.running[entry.issue.id] = entry
         orch.provider_store.get = MagicMock(return_value=None)
@@ -588,6 +589,7 @@ def test_pre_provider_timeout_exits_without_ghost_and_authority_lanes_continue(
     async def scenario() -> None:
         orch = _orchestrator(tmp_path)
         orch.config.terminal_control_lock_timeout_seconds = 0.1
+        orch.config.contributor_evidence_persist_timeout_seconds = 0.1
         orch.workflow_runtime = SimpleNamespace(enforce=True)
         entry = _entry()
         orch.state.running[entry.issue.id] = entry
@@ -670,6 +672,7 @@ def test_late_pre_provider_write_settles_before_successor_provider_contact(
     async def scenario() -> None:
         orch = _orchestrator(tmp_path)
         orch.config.terminal_control_lock_timeout_seconds = 0.1
+        orch.config.contributor_evidence_persist_timeout_seconds = 0.1
         issue = _entry().issue
         entry_a = _entry()
         entry_a.run_id = "run-a"
@@ -778,6 +781,7 @@ def test_cancelled_pre_provider_evidence_releases_task_authority(
     async def scenario() -> None:
         orch = _orchestrator(tmp_path)
         orch.config.terminal_control_lock_timeout_seconds = 0.1
+        orch.config.contributor_evidence_persist_timeout_seconds = 0.1
         entry = _entry()
         orch.state.running[entry.issue.id] = entry
         orch.provider_store.get = MagicMock(return_value=None)
