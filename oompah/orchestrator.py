@@ -62220,10 +62220,11 @@ class Orchestrator:
                     model="cli-managed",
                 )
                 if evidence_error is not None:
-                    await self._on_worker_exit(
-                        issue.id, "abnormal", evidence_error, **worker_identity
+                    raise ProviderStartupError(
+                        evidence_error,
+                        candidate_key="cli/cli-managed",
+                        reason="contributor_evidence_unavailable",
                     )
-                    return
             await self._run_cli_worker(
                 issue,
                 attempt,
@@ -62311,10 +62312,11 @@ class Orchestrator:
                         model=profile.model if profile else None,
                     )
                     if evidence_error is not None:
-                        await self._on_worker_exit(
-                            issue.id, "abnormal", evidence_error, **worker_identity
+                        raise ProviderStartupError(
+                            evidence_error,
+                            candidate_key="acp/acp",
+                            reason="contributor_evidence_unavailable",
                         )
-                        return
                 auditor_kwargs = (
                     {"forced_auditor": True, "auditor_plan": auditor_plan}
                     if auditor_plan is not None
@@ -62346,10 +62348,11 @@ class Orchestrator:
                     model="cli-managed",
                 )
                 if evidence_error is not None:
-                    await self._on_worker_exit(
-                        issue.id, "abnormal", evidence_error, **worker_identity
+                    raise ProviderStartupError(
+                        evidence_error,
+                        candidate_key="cli/cli-managed",
+                        reason="contributor_evidence_unavailable",
                     )
-                    return
             await self._run_cli_worker(
                 issue,
                 attempt,
