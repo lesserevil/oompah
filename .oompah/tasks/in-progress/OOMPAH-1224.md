@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1224
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:server] Issue detail API error: ProgrammingError(''Cannot operate
   on a closed database.'')'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-21T01:51:13.800191Z'
+updated_at: '2026-08-21T01:51:26.993457Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -214,5 +214,10 @@ author: oompah
 created: 2026-08-21 01:51
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-21 01:51
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
