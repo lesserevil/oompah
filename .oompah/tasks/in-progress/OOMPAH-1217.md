@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:53.373319Z'
-updated_at: '2026-08-21T01:36:06.391240Z'
+updated_at: '2026-08-21T01:37:42.427248Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -249,5 +249,19 @@ Changed `logger.error()` to `logger.warning()` on line 58066 of oompah/orchestra
 - test_pre_provider_evidence_timeout_releases_task_authority: PASSED
 - test_cancelled_pre_provider_evidence_releases_task_authority: PASSED (both variants)
 - All 124 error_watcher tests: PASSED
+---
+author: oompah
+created: 2026-08-21 01:37
+---
+## Verification
+
+All relevant tests pass:
+- test_pre_provider_evidence_timeout_releases_task_authority: ✓ PASSED
+- test_cancelled_pre_provider_evidence_releases_task_authority (2 variants): ✓ PASSED
+- All 124 error_watcher tests: ✓ PASSED
+
+The fix is minimal (1-line change) and focused on the root cause. The timeout is now logged at WARNING level, preventing error_watcher from triggering while maintaining operational visibility.
+
+Changes committed and pushed to branch OOMPAH-1217.
 ---
 <!-- COMMENTS:END -->
