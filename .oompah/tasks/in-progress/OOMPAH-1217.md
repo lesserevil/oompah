@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:53.373319Z'
-updated_at: '2026-08-21T01:19:32.080880Z'
+updated_at: '2026-08-21T01:28:43.805286Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -215,5 +215,21 @@ author: oompah
 created: 2026-08-21 01:19
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 01:28
+---
+## Understanding
+
+The issue occurs in oompah's backend:orchestrator when persisting pre-provider contributor evidence times out. The error message 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' is logged as ERROR level (line 58066 in orchestrator.py).
+
+**Root Cause:**
+ErrorWatcher has a logging handler that catches all ERROR+ level logs and automatically files them as tasks. When the contributor evidence persistence times out, the orchestrator logs an ERROR, which triggers error_watcher to file this task automatically.
+
+**Why This is a Problem:**
+This timeout is a handled graceful degradation case - the code recovers by retiring the pre-provider runtime for retry. It's not an unhandled error. The similar cancellation case (line 58102) uses logger.warning() instead of logger.error(), showing the pattern.
+
+**Planned Fix:**
+Change the logger.error() call on line 58066 of orchestrator.py to logger.warning() to prevent error_watcher from triggering while still logging the issue for operational visibility.
 ---
 <!-- COMMENTS:END -->

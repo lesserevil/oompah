@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1213
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 2
 title: '[backend:orchestrator] Restart recovery persistence failed closed: restart
   recovery publication was not acknowledged'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:50:52.786229Z'
-updated_at: '2026-08-21T01:27:18.192197Z'
+updated_at: '2026-08-21T01:28:38.464071Z'
 work_branch: OOMPAH-1213
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
