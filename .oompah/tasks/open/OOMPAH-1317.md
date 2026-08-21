@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:49:42.029230Z'
-updated_at: '2026-08-21T08:56:12.049713Z'
+updated_at: '2026-08-21T08:56:54.212579Z'
 work_branch: OOMPAH-1317
 target_branch: null
 review_url: null
@@ -94,16 +94,16 @@ oompah.work_contributors:
     model_id: haiku
     focus: general
     source_branch: OOMPAH-1317
-    source_sha: null
-    completed_at: ''
+    source_sha: 7f520b136c0c66ef3236fcb6128275d5fd78978d
+    completed_at: '2026-08-21T08:56:46.735875+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1814
+  total_input_tokens: 316
+  total_output_tokens: 11676
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1814
+      input_tokens: 316
+      output_tokens: 11676
       cost_usd: 0.0
   runs:
   - profile: default
@@ -112,6 +112,12 @@ oompah.task_costs:
     output_tokens: 1814
     cost_usd: 0.0
     recorded_at: '2026-08-21T04:08:11.462875+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 306
+    output_tokens: 9862
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T08:56:46.723638+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -225,5 +231,15 @@ author: oompah
 created: 2026-08-21 08:56
 ---
 **Completion**: Fixed OOMPAH-1317 - The 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' error is no longer auto-filed by error_watcher. Root cause: Log level was ERROR (triggering error_watcher), but this is an expected transient condition (slow git commits during persistence). Solution: Downgraded log to WARNING level, following existing patterns in the codebase. All tests pass. Changes: - Modified oompah/orchestrator.py line 58073 (logger.error → logger.warning) - Added explanatory comment about transient nature of persistence timeouts - No functional behavior changed; only error reporting improved.
+---
+author: oompah
+created: 2026-08-21 08:56
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 88, Tool calls: 37
+- Tokens: 306 in / 9.9K out [10.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 19m 27s
+- Log: OOMPAH-1317__20260821T083832Z.jsonl
 ---
 <!-- COMMENTS:END -->
