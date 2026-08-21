@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1267
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make restart replacement rollback test deterministic under concurrent gates
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T08:43:25.263614Z'
-updated_at: '2026-08-21T03:20:17.543012Z'
+updated_at: '2026-08-21T03:20:34.234118Z'
 work_branch: OOMPAH-1267
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 74c46553-2c2b-43cf-a780-9f13e770c900
   request_fingerprint: c93c49f73d14f0dbd98db4eaf2f0bc6f44f4965a6f4e68ab29b4fa036d4eeecd
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
