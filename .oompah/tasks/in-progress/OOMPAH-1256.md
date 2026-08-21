@@ -12,8 +12,8 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-21T14:55:31.644858Z'
-work_branch: null
+updated_at: '2026-08-21T14:55:58.001446Z'
+work_branch: OOMPAH-1256
 target_branch: null
 review_url: null
 review_number: null
@@ -78,7 +78,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 2839ace6-7b0a-407d-b5a6-98bcb3d2bffb
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: b1ecea5907d449078be81372d6dfdb31--contributor-4256b9f40773
@@ -249,6 +249,18 @@ oompah.task_costs:
     output_tokens: 3542
     cost_usd: 0.0
     recorded_at: '2026-08-21T02:29:03.037321+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1256
+  base_branch: main
+  base_sha: 02bd5960434a5c65dce259894737a55ab7a8ea96
+  head_sha: 952616edb1e06cfbebeeead8219d558018ad2faa
+  submitted_at: '2026-08-21T14:55:42.879570+00:00'
+  updated_at: '2026-08-21T14:55:42.879570+00:00'
+oompah.work_branch: OOMPAH-1256
 ---
 ## Summary
 
@@ -663,5 +675,10 @@ Files Changed:
 - tests/test_canonical_managed_project_id_name_fallback.py: New comprehensive test suite
 
 Ready for integration.
+---
+author: oompah
+created: 2026-08-21 14:55
+---
+Fixed 'Unknown project' error in add-comment API by implementing name-based project resolution fallback in _canonical_managed_project_id. The fix applies project_store.get() and find_by_name() methods, matching the pattern from _tracker_for_project. Comprehensive tests added covering unit and integration scenarios. All existing tests pass without regression.
 ---
 <!-- COMMENTS:END -->
