@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1266
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Fence late task submission from regressing landed integration authority
 parent: OOMPAH-1231
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-21T06:39:14.931224Z'
+updated_at: '2026-08-21T06:50:18.202634Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: o1263-post-merge-submit-provenance-regression
   request_fingerprint: 9a9d8d03687f81678f5061a4c7f6ca12b789b64399e6fd9b92b89ef14dc3e4b5
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 9f3a0a5a59f2a06ff79051089822dbfee82b28352e54ad90889e4e0d3419a375
