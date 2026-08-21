@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:22.979573Z'
-updated_at: '2026-08-21T00:26:06.275580Z'
+updated_at: '2026-08-21T00:27:10.483406Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -281,5 +281,10 @@ author: oompah
 created: 2026-08-21 00:26
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 00:27
+---
+Understanding: ACP worker failed error is being triggered when the backend:orchestrator operates on proj-14849f1b. This is an auto-filed bug from error_watcher. My plan: (1) Search for the error message 'ACP worker failed' in the codebase, (2) Find where this error is raised in backend:orchestrator, (3) Understand why it's happening for issue_id=TRICKLE-118, (4) Fix the underlying issue or add proper error handling to prevent error_watcher from triggering on acceptable failures.
 ---
 <!-- COMMENTS:END -->
