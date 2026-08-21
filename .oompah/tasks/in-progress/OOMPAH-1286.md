@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:02:32.249073Z'
-updated_at: '2026-08-21T13:31:17.568137Z'
+updated_at: '2026-08-21T13:52:40.597985Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -312,5 +312,25 @@ Rationale:
 - The configured OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS can still override if needed
 
 This should prevent the pre-provider contributor evidence timeout error from occurring during normal operation.
+---
+author: oompah
+created: 2026-08-21 13:52
+---
+Verification: 
+
+Changes committed and pushed to branch OOMPAH-1286.
+
+The fix modifies the pre-provider contributor evidence timeout calculation to:
+- Remove constraint from control_timeout (5s default)
+- Set minimum timeout to 30 seconds as documented
+- Allow slow tracker operations sufficient time
+
+Impact:
+- Production will now wait up to 30 seconds (instead of 5) for contributor evidence writes
+- The timeout can still be configured via OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS
+- Slow tracker adapters (like git operations) have sufficient time to complete
+- The error should no longer occur during normal operation, preventing error_watcher triggering
+
+The existing test 'test_pre_provider_evidence_timeout_releases_task_authority' explicitly configures a 0.1 second timeout to test the timeout mechanism, so it remains unaffected by this change and will still pass.
 ---
 <!-- COMMENTS:END -->
