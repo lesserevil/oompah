@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:29:16.227300Z'
-updated_at: '2026-08-21T04:59:18.484060Z'
+updated_at: '2026-08-21T09:29:04.775964Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,14 +35,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: 'Implementation dispatch blocked before start: All candidates are used
-    by contributors.'
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: b9ac5ad1934cb0cfdd401f922fb5e476fd7dfbe6788546be489873417128ba25:145537
+  claim_owner: 94774825-4468-4d75-bdb4-5977b2bd9951
+  claimed_at: '2026-08-21T09:29:03.513399+00:00'
+  claim_expires_at: '2026-08-21T09:59:03.513399+00:00'
   retry_count: 1
-  retry_after: '2026-08-21T05:00:00.886716+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
