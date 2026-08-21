@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:19:28.760792Z'
-updated_at: '2026-08-21T01:31:39.825352Z'
+updated_at: '2026-08-21T01:31:52.574053Z'
 work_branch: OOMPAH-1203
 target_branch: null
 review_url: null
@@ -254,5 +254,10 @@ Added comprehensive test file (test_state_branch_fetch_contributor_evidence.py) 
 - Provider dispatch is not blocked by transient errors
 - Non-fetch errors still cause ProviderStartupError
 - Budget reservations are released properly
+---
+author: oompah
+created: 2026-08-21 01:31
+---
+Fixed StateBranchFetchError handling in contributor evidence persistence to prevent error_watcher from auto-filing duplicate bug tasks. Added specific exception handler, comprehensive regression tests.
 ---
 <!-- COMMENTS:END -->
