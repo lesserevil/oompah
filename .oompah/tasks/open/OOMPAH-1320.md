@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:12:08.566823Z'
-updated_at: '2026-08-21T09:34:15.552724Z'
+updated_at: '2026-08-21T09:40:14.131322Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -169,5 +169,10 @@ author: oompah
 created: 2026-08-21 09:34
 ---
 Understanding: This is a timeout error from backend:orchestrator when processing pre-provider contributor evidence. The error message indicates a bounded task-authority deadline was exceeded (5 second timeout). Need to locate the code that raises this error and understand why it's timing out. Planned approach: (1) Search codebase for error message, (2) Find timeout configuration, (3) Identify root cause, (4) Implement fix or better handling, (5) Test the solution.
+---
+author: oompah
+created: 2026-08-21 09:40
+---
+Discovery: Found root cause at oompah/orchestrator.py:58066-58083. The timeout is logged with logger.error() when contributor evidence persistence times out (5 second default). Although the error is handled gracefully (returned as a string instead of thrown), the logger.error() call triggers error_watcher to auto-file a task. The fix is to change logger.error() to logger.warning() since this is an expected, handled failure, not an unhandled exception. The error has full context metadata and is already being properly handled by _on_worker_exit().
 ---
 <!-- COMMENTS:END -->
