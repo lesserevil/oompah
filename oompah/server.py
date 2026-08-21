@@ -4135,6 +4135,7 @@ def _transition_rejected_reason(exc: Exception) -> str | None:
     reason = getattr(outcome, "reason_code", None)
     expected_policy_rejections = {
         AUDIT_STAGING_REQUIRED_REASON,
+        "transition.direct_owner_claim_authority_required",
         "transition.generation_mismatch",
         "transition.generation_required",
         "transition.head_mismatch",
@@ -4143,7 +4144,9 @@ def _transition_rejected_reason(exc: Exception) -> str | None:
         "transition.idempotency_conflict",
         "transition.illegal_edge",
         "transition.maintenance_audit_authority_required",
+        "transition.owner_claim_authority_unavailable",
         "transition.project_mismatch",
+        "transition.project_owner_authority_required",
         "transition.recovery_authority_rejected",
         "transition.rollup_authority_required",
         "transition.rollup_generation_mismatch",
@@ -4151,6 +4154,7 @@ def _transition_rejected_reason(exc: Exception) -> str | None:
         "transition.stale_status",
         "transition.stale_version",
         "transition.task_missing",
+        "transition.validation_submission_authority_required",
     }
     if disposition != "rejected" or reason not in expected_policy_rejections:
         return None
