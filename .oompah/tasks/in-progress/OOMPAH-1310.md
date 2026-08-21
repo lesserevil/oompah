@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:20:38.226810Z'
-updated_at: '2026-08-21T08:18:47.119738Z'
+updated_at: '2026-08-21T08:26:50.445851Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -267,5 +267,27 @@ In orchestrator.py:58034-58041, the code checks for a configured timeout via:
 **Project Context:**
 - Timeout affects project proj-14849f1b with provenanceguardedtracker
 - Error fingerprint: 9ffc8d768a43fc73
+---
+author: oompah
+created: 2026-08-21 08:26
+---
+**Discovery:**
+
+Found the root cause in orchestrator.py:58034-58041. The code is using:
+```python
+configured_evidence_timeout = getattr(
+    self.config,
+    'contributor_evidence_persist_timeout_seconds',
+    None,
+)
+if configured_evidence_timeout is not None:
+    persistence_timeout = 30.0
+```
+
+With default=None, if the attribute doesn't exist, getattr returns None, and the fallback computed timeout of 5.0 seconds is used instead of the 30.0 second config default.
+
+**Root Cause:** The getattr default was None instead of the proper fallback value (30.0). This causes persistence_timeout to remain at the computed floor value of 5.0 seconds when the configured attribute is unavailable.
+
+**Solution Applied:** Changed getattr default from None to 30.0 to ensure proper fallback to the configured default value instead of the aggressive computed timeout.
 ---
 <!-- COMMENTS:END -->
