@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-21T06:31:14.627192Z'
+updated_at: '2026-08-21T06:33:14.631033Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -272,5 +272,10 @@ author: oompah
 created: 2026-08-21 06:31
 ---
 Discovery: Investigating code structure to understand submission and integration handling. Previous work appears to have been local-only and not pushed. Current branch is up-to-date with origin/epic-OOMPAH-1231. Focusing on: (1) finding where IntegrationRecord state transitions occur during submission, (2) identifying where late submits can regress integrated states back to ready, (3) understanding the integration queue CAS mechanism.
+---
+author: oompah
+created: 2026-08-21 06:33
+---
+Implementation approach: The bug is in the submission record creation logic (server.py ~6129-6150). When a PR is already merged, a late submit should NOT create a fresh ready record and regress the integrated state. The fix will add a check: if existing state is 'integrated' AND the review is already merged, reject the submit or preserve the integrated record. This prevents late/retried submits from changing an already-integrated generation. Will add fence checks and comprehensive regression tests.
 ---
 <!-- COMMENTS:END -->
