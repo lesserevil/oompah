@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T08:43:25.263614Z'
-updated_at: '2026-08-21T03:15:10.377508Z'
+updated_at: '2026-08-21T03:19:06.722054Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -361,5 +361,31 @@ Fixed the flaky `test_replacement_timeout_rolls_back_before_concurrent_replaceme
 - No leaked state or processes
 
 **Next:** Add reverse ordering test (replacement completes before timeout would occur) and load test (parallel concurrent executions).
+---
+author: oompah
+created: 2026-08-21 03:19
+---
+**Verification & Testing:**
+
+All 35 restart API tests pass consistently (33 original + 2 new):
+- ✅ test_replacement_timeout_rolls_back_before_concurrent_replacement (fixed - no longer flaky)
+- ✅ test_replacement_succeeds_when_handler_completes_before_timeout (reverse ordering)
+- ✅ test_repeated_replacement_timeout_detection_under_load (repeated executions)
+- ✅ 32 other tests in test_restart_api.py
+
+**Key improvements:**
+- Eliminated wall-clock timing dependencies (time.sleep, timeout-based checks)
+- Added explicit event-based synchronization (threading.Event)
+- Made timeout detection deterministic and observable
+- Production guarantee preserved: timeout rollback happens before concurrent replacement can acquire authority
+- No leaked lifecycle state or processes
+
+**What changed:**
+1. Replaced `time.sleep(0.05)` with wait on `first_replacement_attempted` event
+2. Replaced load-sensitive `second_done.wait(timeout=0.05)` with event-based ordering
+3. Reduced drain timeout to 0.05s (no longer waiting for timeout to elapse)
+4. Added comprehensive docstrings explaining the determinism strategy
+
+Code committed and pushed to OOMPAH-1267 branch.
 ---
 <!-- COMMENTS:END -->
