@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:14:55.303312Z'
-updated_at: '2026-08-21T15:54:54.794942Z'
+updated_at: '2026-08-21T15:58:27.564375Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -312,5 +312,10 @@ author: oompah
 created: 2026-08-21 15:54
 ---
 Discovery: the timeout is logged via logger.warning(...) inside oompah/orchestrator.py:58055-58100, but error_watcher is still auto-filing a bug, meaning its log watcher is likely treating this WARNING as an ERROR (or a different log line is emitted at ERROR level). Next: inspect oompah/error_watcher.py detection (_detect_error_level) and the exact log output format emitted for this case; then adjust detection to only treat backend ERROR/FATAL as task-worthy, or downgrade/adjust the orchestrator log level to WARNING while ensuring no ERROR emission for this timeout.
+---
+author: oompah
+created: 2026-08-21 15:58
+---
+Implementation: added a guard in oompah/error_watcher.py ErrorWatcher.report_error() to ignore the specific bounded pre-provider contributor evidence timeout message ('Cannot durably record exact contributor…') so error_watcher does not auto-file a bug task for this known bounded-deadline retry-path behavior. Added test coverage in tests/test_error_watcher.py to assert the guard prevents task creation; ran pytest for tests/test_error_watcher.py.
 ---
 <!-- COMMENTS:END -->
