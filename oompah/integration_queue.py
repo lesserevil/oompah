@@ -253,6 +253,27 @@ class IntegrationQueueStore:
         with self._lock:
             self._conn.close()
 
+    def _ensure_conn(self) -> None:
+        """Re-open the connection if it was closed, preventing 'closed database' errors.
+        
+        This handles the race condition where an orchestrator is replaced and the
+        old store may be garbage collected while API threads still hold references
+        to it and try to access it.
+        """
+        try:
+            # Test if the connection is alive by executing a simple query
+            self._conn.execute("SELECT 1")
+        except sqlite3.ProgrammingError:
+            # Connection is closed, re-open it
+            self._conn = sqlite3.connect(
+                self.path,
+                check_same_thread=False,
+                timeout=10,
+            )
+            self._conn.row_factory = sqlite3.Row
+            self._conn.execute("PRAGMA busy_timeout=10000")
+            self._conn.execute("PRAGMA journal_mode=WAL")
+
     @staticmethod
     def _from_row(row: sqlite3.Row) -> IntegrationQueueItem:
         # Handle retry_forced column which may not exist in older databases
@@ -1980,6 +2001,7 @@ class IntegrationQueueStore:
         """Return one queue row without scanning historical siblings."""
 
         with self._lock:
+            self._ensure_conn()
             row = self._conn.execute(
                 """
                 SELECT * FROM integration_queue
@@ -2143,6 +2165,7 @@ class IntegrationQueueStore:
             limit_clause = " LIMIT ?"
             params.append(max(int(limit), 0))
         with self._lock:
+            self._ensure_conn()
             order_by = (
                 "history_sequence, project_id, task_id"
                 if history_order

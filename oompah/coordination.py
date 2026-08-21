@@ -180,9 +180,31 @@ class CoordinationStore:
         with self._lock:
             self._conn.close()
 
+    def _ensure_conn(self) -> None:
+        """Re-open the connection if it was closed, preventing 'closed database' errors.
+        
+        This handles the race condition where an orchestrator is replaced and the
+        old store may be garbage collected while API threads still hold references
+        to it and try to access it.
+        """
+        try:
+            # Test if the connection is alive by executing a simple query
+            self._conn.execute("SELECT 1")
+        except sqlite3.ProgrammingError:
+            # Connection is closed, re-open it
+            self._conn = sqlite3.connect(
+                self.path,
+                check_same_thread=False,
+                timeout=10,
+            )
+            self._conn.row_factory = sqlite3.Row
+            self._conn.execute("PRAGMA busy_timeout=10000")
+            self._conn.execute("PRAGMA journal_mode=WAL")
+
     @property
     def schema_version(self) -> int:
         with self._lock:
+            self._ensure_conn()
             row = self._conn.execute(
                 "SELECT value FROM schema_meta WHERE key = 'version'"
             ).fetchone()
@@ -245,6 +267,7 @@ class CoordinationStore:
         created_at = _now_iso()
         message_id = uuid.uuid4().hex
         with self._lock:
+            self._ensure_conn()
             if clean_key:
                 existing = self._conn.execute(
                     """
@@ -313,6 +336,7 @@ class CoordinationStore:
                 params.extend([cursor.created_at, cursor.id])
         params.append(max(1, min(int(limit), 500)))
         with self._lock:
+            self._ensure_conn()
             rows = self._conn.execute(
                 f"""
                 SELECT * FROM coordination_messages
@@ -336,6 +360,7 @@ class CoordinationStore:
         project = _clean_identifier(project_id, name="project_id")
         task = _clean_identifier(task_identifier, name="task_identifier")
         with self._lock:
+            self._ensure_conn()
             rows = self._conn.execute(
                 """
                 SELECT * FROM coordination_messages
@@ -350,6 +375,7 @@ class CoordinationStore:
 
     def get(self, message_id: str) -> CoordinationMessage | None:
         with self._lock:
+            self._ensure_conn()
             row = self._conn.execute(
                 "SELECT * FROM coordination_messages WHERE id = ?",
                 (str(message_id),),
@@ -366,6 +392,7 @@ class CoordinationStore:
         if column not in {"delivered_at", "read_at"}:
             raise ValueError("unsupported coordination marker")
         with self._lock:
+            self._ensure_conn()
             result = self._conn.execute(
                 f"""
                 UPDATE coordination_messages
@@ -379,6 +406,7 @@ class CoordinationStore:
 
     def unread_count(self, project_id: str, recipient_task: str) -> int:
         with self._lock:
+            self._ensure_conn()
             row = self._conn.execute(
                 """
                 SELECT COUNT(*) AS count FROM coordination_messages
@@ -407,6 +435,7 @@ class CoordinationStore:
         paths = _clean_paths(changed_paths)
         updated_at = _now_iso()
         with self._lock:
+            self._ensure_conn()
             self._conn.execute(
                 """
                 INSERT INTO coordination_checkpoints(
@@ -442,6 +471,7 @@ class CoordinationStore:
         """Return the latest task checkpoints for one project."""
 
         with self._lock:
+            self._ensure_conn()
             rows = self._conn.execute(
                 """
                 SELECT * FROM coordination_checkpoints
@@ -468,6 +498,7 @@ class CoordinationStore:
         """Delete old read messages in bounded batches."""
 
         with self._lock:
+            self._ensure_conn()
             rows = self._conn.execute(
                 """
                 SELECT id FROM coordination_messages

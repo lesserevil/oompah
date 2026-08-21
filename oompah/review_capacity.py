@@ -154,6 +154,27 @@ class ReviewCapacityStore:
         with self._lock:
             self._conn.close()
 
+    def _ensure_conn(self) -> None:
+        """Re-open the connection if it was closed, preventing 'closed database' errors.
+        
+        This handles the race condition where an orchestrator is replaced and the
+        old store may be garbage collected while API threads still hold references
+        to it and try to access it.
+        """
+        try:
+            # Test if the connection is alive by executing a simple query
+            self._conn.execute("SELECT 1")
+        except sqlite3.ProgrammingError:
+            # Connection is closed, re-open it
+            self._conn = sqlite3.connect(
+                self.path,
+                check_same_thread=False,
+                timeout=10,
+            )
+            self._conn.row_factory = sqlite3.Row
+            self._conn.execute("PRAGMA busy_timeout=10000")
+            self._conn.execute("PRAGMA journal_mode=WAL")
+
     @staticmethod
     def _from_row(row: sqlite3.Row) -> ReviewCapacityReservation:
         return ReviewCapacityReservation(
