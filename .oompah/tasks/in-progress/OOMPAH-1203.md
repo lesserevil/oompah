@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:19:28.760792Z'
-updated_at: '2026-08-21T01:04:57.687777Z'
+updated_at: '2026-08-21T01:05:55.098574Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -212,5 +212,10 @@ author: oompah
 created: 2026-08-21 01:04
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 01:05
+---
+**UNDERSTANDING**: This is a backend:orchestrator error where dispatch candidates fail with 'contributor_evidence_unavailable' and 'StateBranchFetchError'. The error occurs when trying to durably record contributor provider/model evidence before launch. Both gpt-5.6-luna and haiku providers are unavailable. Plan: (1) Find where this error is generated in the codebase, (2) Understand the StateBranchFetchError and contributor_evidence recording logic, (3) Determine if this is a graceful degradation issue or a real bug, (4) Implement appropriate fix or error handling.
 ---
 <!-- COMMENTS:END -->
