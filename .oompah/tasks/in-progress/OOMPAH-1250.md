@@ -8,10 +8,11 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- focus-complete:docs
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-21T07:45:01.243520Z'
+updated_at: '2026-08-21T07:45:29.754670Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -393,5 +394,32 @@ author: oompah
 created: 2026-08-21 07:45
 ---
 Discovery: The GitLab external issue intake feature is documented but not implemented. Findings: (1) docs/gitlab-issue-intake.md exists with comprehensive, well-structured documentation covering prerequisites, webhook setup, intake workflow, status mapping, security model, and differences from GitHub intake. (2) Documentation follows GitHub intake pattern and includes proper security guidance (untrusted provenance, prompt-injection protection). (3) Infrastructure exists: GitLabIssueTracker class, webhook parsing (_parse_gitlab_issue, _parse_gitlab_note), gitlab_webhook_url module. (4) BUT: github_intake_bridge.py is GitHub-specific; no gitlab_intake_bridge.py exists; poll_github_issue_intake_project() doesn't support GitLab; server routing imports only GitHub events. (5) Documentation mentions oompah.external.gitlab metadata (spec), external:gitlab label, GitLab webhook routing, poll recovery—all features that need to be implemented. Testing infrastructure exists (test_docs_gitlab_contract.py validates documentation contract). Conclusion: This is a backend implementation task. The documentation is a good specification for what needs to be built. Recommended next focus: backend engineer to implement forge-neutral intake bridge with GitLab support, matching the documented behavior.
+---
+author: oompah
+created: 2026-08-21 07:45
+---
+Focus handoff: docs
+
+**Outcome of this focus phase:**
+As a Technical Writer, I investigated whether documentation improvements were needed for OOMPAH-1250 (GitLab external issue intake). Finding: The documentation is complete and well-written. docs/gitlab-issue-intake.md already exists with comprehensive coverage of prerequisites, workflow, security model, and differences from GitHub intake. The documentation passes all contract tests and serves as an accurate specification for the feature.
+
+**Relevant files and evidence:**
+- docs/gitlab-issue-intake.md: 300+ lines of complete documentation
+- tests/test_docs_gitlab_contract.py: Validates documentation contract requirements
+- Infrastructure code exists: gitlab_tracker.py (GitLabIssueTracker), webhooks.py (GitLab webhook parsing), gitlab_webhook_url.py
+- Missing: github_intake_bridge.py (still GitHub-only), poll_github_issue_intake_project() (no GitLab support), server routing (GitHub events only)
+
+**Remaining work:**
+Implementation of the forge-neutral external-intake bridge with GitLab support. Specifically:
+1. Implement gitlab_intake_bridge.py (forge-neutral bridge) or extend github_intake_bridge.py to support GitLab
+2. Add GitLab issue/comment import with oompah.external.gitlab metadata
+3. Implement idempotency and webhook routing for GitLab events
+4. Add polling recovery for GitLab projects
+5. Preserve GitHub behavior through compatibility wrappers
+6. Add regression tests for both GitHub and GitLab workflows
+
+The documentation already describes all these features—implementation must match the spec.
+
+**Next focus:** Backend/feature engineer to implement the intake bridge.
 ---
 <!-- COMMENTS:END -->
