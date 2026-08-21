@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1266
 type: bug
-status: In Validation
+status: Needs Human
 priority: 1
 title: Fence late task submission from regressing landed integration authority
 parent: OOMPAH-1231
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-21T15:37:29.811747Z'
+updated_at: '2026-08-21T15:40:28.483488Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: o1263-post-merge-submit-provenance-regression
   request_fingerprint: 9a9d8d03687f81678f5061a4c7f6ca12b789b64399e6fd9b92b89ef14dc3e4b5
-oompah.lifecycle_revision: 4
+oompah.lifecycle_revision: 5
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 9f3a0a5a59f2a06ff79051089822dbfee82b28352e54ad90889e4e0d3419a375
@@ -162,6 +162,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1266
     digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1266","audit-97804bbb892c","infrastructure-exhausted-audit-97804bbb892c-3"]': '2026-08-21T15:40:21.194395+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1266
+    target_state: Done
+    evidence_fingerprint: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+    workflow_revision: null
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+    landing_revision: null
+    audit_ids:
+    - audit-97804bbb892c
+    kind: result
+    applied: true
+    retired_at: '2026-08-21T15:40:21.194412+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1266
+    audit_id: audit-97804bbb892c
+    attempt_id: infrastructure-exhausted-audit-97804bbb892c-3
+    target_state: Done
+    evidence_fingerprint: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+    status: Needs Human
+    audit_ids:
+    - audit-97804bbb892c
+    kind: result
+    applied: true
+    created_at: '2026-08-21T15:40:21.194422+00:00'
+    applied_at: '2026-08-21T15:40:27.206890+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -169,7 +199,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1266
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -234,6 +264,21 @@ oompah.terminal_audit:
       ended_at: '2026-08-21T15:37:17.351882+00:00'
       failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
       next_retry_at: '2026-08-21T15:37:57.351860+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-97804bbb892c-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      origin: coordinator_retry_exhaustion
+      created_at: '2026-08-21T15:40:21.194269+00:00'
+      completed_at: '2026-08-21T15:40:21.194269+00:00'
+      selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+      selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
     source_generation: 1
     requested_by:
       version: 1
@@ -244,7 +289,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-21T14:41:26.379439+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-21T15:37:17.351882+00:00'
+    updated_at: '2026-08-21T15:40:21.194269+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ebdec741f7d0
@@ -562,5 +607,12 @@ author: oompah
 created: 2026-08-21 15:37
 ---
 Auditor attempt ended: ValueError: Separator is found, but chunk is longer than limit. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-21 15:40
+---
+Needs Human — Done audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->
