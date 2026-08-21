@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:53:11.407767Z'
-updated_at: '2026-08-21T13:27:14.424499Z'
+updated_at: '2026-08-21T13:40:54.657797Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -327,5 +327,10 @@ author: oompah
 created: 2026-08-21 13:27
 ---
 DISCOVERY: Found the root cause in oompah/orchestrator.py lines 58023-58090. The issue is that when writing contributor evidence to the tracker takes longer than the `persistence_timeout` (derived from control_timeout, default 5.0 seconds), a TimeoutError is caught and logged at ERROR level. This triggers error_watcher. The timeout is handled gracefully (work is retired for retry), but the ERROR log level is inappropriate for this condition. The fix: Change the log level from ERROR to WARNING since this is a transient timeout that degrades gracefully, not a critical error.
+---
+author: oompah
+created: 2026-08-21 13:40
+---
+IMPLEMENTATION: Fixed the issue by changing logger.error to logger.warning at line 58066 in oompah/orchestrator.py. The pre-provider contributor evidence persistence timeout is a graceful degradation where work retries, not a critical error. By lowering the log level from ERROR to WARNING, error_watcher will no longer auto-file tasks for this transient timeout. The cancelled_contributor_evidence_timeout case already uses WARNING level, confirming this is the correct approach. Verified with 381 orchestrator handler tests passing.
 ---
 <!-- COMMENTS:END -->
