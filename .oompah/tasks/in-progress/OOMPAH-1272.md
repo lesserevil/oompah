@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:41:20.057099Z'
-updated_at: '2026-08-21T10:22:37.078800Z'
+updated_at: '2026-08-21T10:23:16.765753Z'
 work_branch: OOMPAH-1272
 target_branch: null
 review_url: null
@@ -277,5 +277,15 @@ author: oompah
 created: 2026-08-21 10:22
 ---
 Fixed the 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' error by changing the log level from ERROR to WARNING. This timeout is handled gracefully with lock release and operation retry, so it should not trigger automatic error filing. The fix is consistent with existing timeout handling patterns in the codebase and prevents error_watcher from creating unnecessary tasks while still preserving logs for monitoring.
+---
+author: oompah
+created: 2026-08-21 10:23
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 140, Tool calls: 46
+- Tokens: 378 in / 13.2K out [13.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 27m 45s
+- Log: OOMPAH-1272__20260821T095709Z.jsonl
 ---
 <!-- COMMENTS:END -->
