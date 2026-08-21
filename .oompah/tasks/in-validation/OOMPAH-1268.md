@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-21T10:46:11.921215Z'
+updated_at: '2026-08-21T10:49:22.402002Z'
 work_branch: OOMPAH-1268
 target_branch: null
 review_url: null
@@ -159,7 +159,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1268
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -204,6 +204,22 @@ oompah.terminal_audit:
       ended_at: '2026-08-21T10:46:09.322008+00:00'
       failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
       next_retry_at: '2026-08-21T10:46:29.321981+00:00'
+    - version: 1
+      attempt_id: attempt-999813fc7d85
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+      created_at: '2026-08-21T10:49:20.930030+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-21T10:49:20.930030+00:00'
+      branch_key: OOMPAH-1268
+      selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+      selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+      candidate_rotation_count: 2
     source_generation: 1
     requested_by:
       version: 1
@@ -214,7 +230,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-21T10:37:06.722220+00:00'
     selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
-    updated_at: '2026-08-21T10:46:09.322008+00:00'
+    updated_at: '2026-08-21T10:49:20.930030+00:00'
   - version: 1
     audit_id: audit-fa9a98a4b580
     project_id: proj-14849f1b
@@ -276,6 +292,22 @@ oompah.terminal_audit:
     ended_at: '2026-08-21T10:46:09.322008+00:00'
     failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
     next_retry_at: '2026-08-21T10:46:29.321981+00:00'
+  - version: 1
+    attempt_id: attempt-999813fc7d85
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+    created_at: '2026-08-21T10:49:20.930030+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-21T10:49:20.930030+00:00'
+    branch_key: OOMPAH-1268
+    selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    candidate_rotation_count: 2
 ---
 ## Summary
 

@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-19T01:37:27.110739Z'
-updated_at: '2026-08-21T10:48:06.336374Z'
+updated_at: '2026-08-21T10:49:28.132528Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -261,5 +261,33 @@ created: 2026-08-21 10:48
 ✓ workflow_job_events stops growing unboundedly (via bounded emission + archival)
 ✓ post-restart dispatch resumes (expected outcome of above)
 ✓ Regression coverage added for supersede/rollback loop
+---
+author: oompah
+created: 2026-08-21 10:49
+---
+## Verification
+
+**Test Execution**:
+- test_workflow_runtime.py: All tests pass
+- test_workflow_controller.py: All tests pass  
+- test_workflow_jobs.py: 126/126 tests pass (includes new regression test)
+- Total workflow tests: 348 passed
+
+**New Test Coverage**:
+test_repeated_rollback_same_generation_is_idempotent verifies:
+1. Different snapshot generations can be rolled back independently
+2. Each generation produces its own aggregate rollback event
+3. No duplicate events are emitted for the same generation
+4. Both rollbacks affect the same set of jobs (same checkpoint)
+
+**Regression Tests Existing**:
+- test_publication_rollback_emits_single_aggregate_event_per_task
+- test_archive_rollback_events_relocates_old_audit_rows
+- test_archive_rollback_events_respects_keep_recent
+- test_archive_rollback_events_is_bounded
+- test_archive_rollback_events_handles_batch_over_sqlite_variable_limit
+- test_archive_rollback_preserves_high_water
+
+All tests verify bounded event emission, archival, and safe ledger reclamation.
 ---
 <!-- COMMENTS:END -->
