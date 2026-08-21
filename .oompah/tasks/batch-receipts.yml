@@ -238,3 +238,21 @@ proj-14849f1b:dashboard-column:proj-14849f1b:Backlog:Open:48:a6d8a326b6b96856:
   - identifier: OOMPAH-1270
     status: Open
     revision: cc8ad003d63af267ded63ca0a12920531c665d9f973ee80330dfaf61509f9874
+proj-14849f1b:dashboard-column:proj-14849f1b:Backlog:Open:3:e10cdec8d0e83352:
+  batch_id: batch-05f0739579694f67a5b19b240bad80a4
+  request_hash: 07463e33774aa32657bd5340f8fb985e9fa03808c5f6295a661257db5172dd8f
+  committed_at: '2026-08-21T01:07:48.555641Z'
+  operation:
+    kind: whole_column_move
+    source_status: Backlog
+    scope: flat_board
+  results:
+  - identifier: OOMPAH-1316
+    status: Open
+    revision: 48305b38b66db2b657aaf7409722cd109abbff160ced3f38b6801943f0c239ab
+  - identifier: OOMPAH-1317
+    status: Open
+    revision: e60b516b5ef2807d7fc59fa607151c642e65fedf3136846623c342fd313a4e0e
+  - identifier: OOMPAH-1318
+    status: Open
+    revision: c02341c6a8b72fc06f4978555f299c39b3656b7155cee35dcc21cc8c842b87ec
