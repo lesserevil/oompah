@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:40:39.902883Z'
-updated_at: '2026-08-21T16:12:36.967785Z'
+updated_at: '2026-08-21T16:13:47.373410Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -241,5 +241,10 @@ author: oompah
 created: 2026-08-21 16:12
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 16:13
+---
+Understanding: This bug reports a timeout error in backend:orchestrator when processing project proj-14849f1b. The error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' with timeout_seconds=5.0 suggests that some operation related to contributor evidence collection is exceeding a 5-second deadline. Next: Explore the codebase to find where this timeout is enforced and what causes the delay.
 ---
 <!-- COMMENTS:END -->
