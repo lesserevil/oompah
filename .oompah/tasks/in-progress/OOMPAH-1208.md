@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1208
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:server] Update issue API error: TaskTransitionNotApplied(''OOMPAH-1207:
   In Progress was not applied (rejected: transition.project_owner_authority_required)'')'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:29:16.227300Z'
-updated_at: '2026-08-21T14:28:32.265433Z'
+updated_at: '2026-08-21T14:28:50.639986Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
