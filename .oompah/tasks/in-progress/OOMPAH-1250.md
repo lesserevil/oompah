@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-21T06:49:13.231626Z'
+updated_at: '2026-08-21T06:49:28.043683Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -284,5 +284,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: error, Duration: 1m 35s
 - Log: OOMPAH-1250__20260821T061219Z.jsonl
+---
+author: oompah
+created: 2026-08-21 06:49
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
