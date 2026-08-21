@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-21T02:15:20.697418Z'
+updated_at: '2026-08-21T02:16:54.734271Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -398,5 +398,33 @@ The error 'Add comment API error: ProjectError("Unknown project")' occurs in the
 - Check if this is about missing name-based fallback in _canonical_managed_project_id
 - Verify project_store.find_by_name() is being called
 - Investigate if this is a race condition or misconfiguration
+---
+author: oompah
+created: 2026-08-21 02:16
+---
+**HANDOFF: Backend Fix Required**
+
+**What I Found:**
+The error 'Add comment API error: ProjectError("Unknown project")' originates from the HTTP POST /api/v1/issues/{id}/comments endpoint in oompah/server.py (line 17416).
+
+**Root Cause Analysis:**
+1. api_add_comment (line 17242) resolves tracker via _get_tracker_for_issue_or_project
+2. This calls _canonical_managed_project_id (line 8323) to validate the project
+3. _canonical_managed_project_id only checks managed projects in the project_store, using name-based fallback
+4. When project resolution fails, ProjectError("Unknown project") is raised with a generic error message
+5. Similar name-based fallback exists in orch._tracker_for_project but is never reached due to early failure
+
+**Key Files:**
+- oompah/server.py: api_add_comment (17242), _get_tracker_for_issue_or_project (8319), _canonical_managed_project_id (8232)
+- oompah/orchestrator.py: _tracker_for_project (10277) - has working name-based fallback
+- tests/test_tracker_for_project_name_fallback.py - validates fix for OOMPAH-161 (similar issue)
+
+**Requirements for Backend Fix:**
+- Ensure _canonical_managed_project_id applies name-based fallback like _tracker_for_project does
+- OR ensure project_id is properly canonicalized before calling _canonical_managed_project_id
+- Verify no regression in project store lookups
+- Update error message to include project_id for debuggability (if appropriate for security policy)
+
+**Not Documentation Work:** This is a backend logic error, not a docs gap. My role is limited to documentation.
 ---
 <!-- COMMENTS:END -->
