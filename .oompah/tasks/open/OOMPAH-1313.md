@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:40:43.878412Z'
-updated_at: '2026-08-21T13:21:27.730626Z'
+updated_at: '2026-08-21T13:22:01.110635Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,13 +36,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 76af1dc47eecf44b7254f52165bba8bba0ba49ee5b14f522789ef6080cb0a93a:146805
-  claim_owner: ef44516b-6f5d-4877-b28b-9b316cbb10f6
-  claimed_at: '2026-08-21T13:19:58.191885+00:00'
-  claim_expires_at: '2026-08-21T13:49:58.191885+00:00'
-  retry_count: 2
-  retry_after: null
+  evidence: 'failed to spawn opencode run: OSError(7, ''Argument list too long'')'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-08-21T13:25:22.230748+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -174,5 +174,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Opencode/Switchyard/switchyard/
 - Cost: $0.0000
 - Exit: error, Duration: 1m 13s
 - Log: OOMPAH-1313__20260821T132119Z.jsonl
+---
+author: oompah
+created: 2026-08-21 13:22
+---
+Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-1313/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
 ---
 <!-- COMMENTS:END -->
