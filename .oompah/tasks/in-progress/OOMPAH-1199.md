@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:22.979573Z'
-updated_at: '2026-08-21T00:27:10.483406Z'
+updated_at: '2026-08-21T00:39:25.611786Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -286,5 +286,10 @@ author: oompah
 created: 2026-08-21 00:27
 ---
 Understanding: ACP worker failed error is being triggered when the backend:orchestrator operates on proj-14849f1b. This is an auto-filed bug from error_watcher. My plan: (1) Search for the error message 'ACP worker failed' in the codebase, (2) Find where this error is raised in backend:orchestrator, (3) Understand why it's happening for issue_id=TRICKLE-118, (4) Fix the underlying issue or add proper error handling to prevent error_watcher from triggering on acceptable failures.
+---
+author: oompah
+created: 2026-08-21 00:39
+---
+Discovery: Found the error source at oompah/orchestrator.py line 64738 in _run_acp_worker() method. The issue is that logger.exception() is called when ANY exception occurs in the worker (except ProviderStartupError), and ERROR-level log messages trigger error_watcher. The problem: Not all exceptions in a worker are actionable errors - some may be expected failures that should be handled gracefully with lower-level logging (WARNING or DEBUG). Currently, all exceptions are logged as ERROR regardless of severity. Next: Investigate what types of exceptions occur and whether they should trigger error_watcher.
 ---
 <!-- COMMENTS:END -->

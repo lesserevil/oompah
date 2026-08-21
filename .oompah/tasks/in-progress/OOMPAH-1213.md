@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:50:52.786229Z'
-updated_at: '2026-08-21T00:37:26.940684Z'
+updated_at: '2026-08-21T00:39:28.200020Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -272,5 +272,22 @@ APPROACH:
 2. Increase the timeout to a more reasonable value (e.g., 5-10 seconds)
 3. Consider adding retry logic or better error messaging
 4. Verify with tests
+---
+author: oompah
+created: 2026-08-21 00:39
+---
+DISCOVERY:
+
+Found the root cause in oompah/orchestrator.py line 9608:
+- Function: _schedule_restart_issue_recovery_for_resume()
+- Issue: publication_done.wait(timeout=1.0) 
+
+The function tries to schedule a recovery task on the event loop using call_soon_threadsafe() but only waits 1 second for acknowledgment. Under load, the event loop may not execute the callback within this tight window.
+
+Similar pattern also found at line 70920 in _arm_retry_timer_for_recovery() with same 1.0s timeout.
+
+Test code throughout the codebase uses 3-5 second timeouts for similar operations, suggesting 1 second is insufficient for production scenarios.
+
+FIX: Increase timeout to 5.0 seconds for more reliable publication handshake.
 ---
 <!-- COMMENTS:END -->
