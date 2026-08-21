@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-21T02:06:34.491456Z'
+updated_at: '2026-08-21T02:20:58.566405Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,6 +33,24 @@ oompah.last_batch:
     kind: whole_column_move
     source_status: Backlog
     scope: flat_board
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: c5af0baf49debba17f356571f44f286462f171c66010a0e7aabdc12c567c9396
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 4cfe9b1fcd265631fffda1adbff57724dcce5c2e8f8356d019cd3493d9bf2214:142899
+  claim_owner: 884c7b0a-4fe0-4acd-9fe6-041416485094
+  claimed_at: '2026-08-21T02:20:40.752445+00:00'
+  claim_expires_at: '2026-08-21T02:50:40.752445+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 8ba530b0-c82f-42b8-a048-d6a4f534ba52
 ---
 ## Summary
 
@@ -86,5 +104,10 @@ Investigated 'only Claude/Codex implement, OpenCode only audits'. Root cause con
 Attempted fix (rotate the reserved auditor least-recently-used via an auditor_last_used hook + record_used on the 'auditor' role) was implemented and unit-tested in the selector, but CLOSED (PR #894) because it conflicts with an intentional, tested invariant in test_orchestrator_handlers.py::TestContributorAuditorReservationOrchestration: the reservation deliberately keeps the FINAL eligible candidate reserved so the contributor's failover/escalation chain (e.g. haiku -> sonnet -> opus) can continue while the last candidate (terra) stays independent for terminal review. Rotating the reservation broke that escalation model (reserved sonnet mid-chain, blocking sonnet from implementing).
 
 Recommendation for a proper fix (needs design decision, not a forced patch): decouple 'which provider is reserved as auditor' from 'preserve escalation order'. Options: (a) rotate the reserved auditor only among candidates NOT part of the current contributor escalation set; (b) make auditor independence a per-provider fairness policy so each provider is excluded from implementation ~1/N of the time rather than always the last; (c) add a config flag to opt into rotation for single-attempt (non-escalating) dispatches, keeping the reserve-final invariant for escalation chains. No code change landed; main is unchanged. Reverted local branch.
+---
+author: oompah
+created: 2026-08-21 02:20
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
