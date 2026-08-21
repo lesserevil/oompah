@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:59:49.640067Z'
-updated_at: '2026-08-21T15:51:38.473117Z'
+updated_at: '2026-08-21T15:52:43.175573Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -269,5 +269,29 @@ I've identified the error in oompah/orchestrator.py:58067. The issue occurs when
 2. Check if there's a way to handle this timeout gracefully instead of erroring
 3. Consider if the timeout should be increased for slow trackers
 4. Verify no regression in error_watcher functionality
+---
+author: oompah
+created: 2026-08-21 15:52
+---
+## Discovery: Root Cause Identified
+
+Found the issue in `oompah/orchestrator.py:58066`.
+
+**The Problem:**
+When contributor evidence (proof of which model/provider ran) takes >5 seconds to persist to the tracker, a timeout occurs. The code is logging this with `logger.error()`, which triggers error_watcher to auto-file a task.
+
+**Why This Is Wrong:**
+This is actually a graceful degradation scenario:
+1. The persistence task is still running in the background (using `asyncio.shield`)
+2. Task authority is released so the issue can proceed
+3. The operation is retried on next cycle
+4. The timeout logging is informational, not an error condition
+
+**Inconsistency in Current Code:**
+- Line 58066: Timeout during normal path → `logger.error()` (triggers error_watcher) ❌
+- Line 58102: Timeout during cancellation path → `logger.warning()` (doesn't trigger error_watcher) ✓
+
+**The Fix:**
+Change line 58066 from `logger.error()` to `logger.warning()` to match the cancellation path and prevent error_watcher from being triggered inappropriately.
 ---
 <!-- COMMENTS:END -->
