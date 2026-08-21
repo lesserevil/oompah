@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:14:55.303312Z'
-updated_at: '2026-08-21T15:49:28.447080Z'
+updated_at: '2026-08-21T15:49:34.895806Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -297,5 +297,10 @@ author: oompah
 created: 2026-08-21 15:49
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-21 15:49
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
