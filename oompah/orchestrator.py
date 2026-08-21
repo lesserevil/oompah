@@ -9605,7 +9605,7 @@ class Orchestrator:
                     f"restart recovery loop rejected publication: {exc}"
                 )
                 return False
-            if not publication_done.wait(timeout=1.0):
+            if not publication_done.wait(timeout=5.0):
                 publication_abandoned.set()
                 self._fail_closed_restart_persistence(
                     "restart recovery publication was not acknowledged"
@@ -70917,7 +70917,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 timer_generation,
                 f"could not publish retry timer to dispatch loop: {exc}",
             )
-        if publication_done.wait(timeout=1.0) and publication_result["armed"]:
+        if publication_done.wait(timeout=5.0) and publication_result["armed"]:
             return True
         return self._fail_closed_retry_timer_arming(
             retry,
