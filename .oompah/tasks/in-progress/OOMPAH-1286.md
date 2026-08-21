@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:02:32.249073Z'
-updated_at: '2026-08-21T13:53:13.743182Z'
+updated_at: '2026-08-21T13:53:19.764548Z'
 work_branch: OOMPAH-1286
 target_branch: null
 review_url: null
@@ -344,5 +344,10 @@ Impact:
 - The error should no longer occur during normal operation, preventing error_watcher triggering
 
 The existing test 'test_pre_provider_evidence_timeout_releases_task_authority' explicitly configures a 0.1 second timeout to test the timeout mechanism, so it remains unaffected by this change and will still pass.
+---
+author: oompah
+created: 2026-08-21 13:53
+---
+Fixed pre-provider contributor evidence timeout by increasing default from 5 seconds to 30 seconds to allow slow tracker operations to complete successfully
 ---
 <!-- COMMENTS:END -->
