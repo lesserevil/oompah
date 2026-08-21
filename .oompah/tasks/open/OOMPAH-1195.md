@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:17.683117Z'
-updated_at: '2026-08-21T14:08:52.061816Z'
+updated_at: '2026-08-21T14:09:35.265950Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,13 +34,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: a6abda1fdae8c4513ab627202ec415bc59d035425b03dea24284989faae71bc9:146890
-  claim_owner: f88f4310-5b61-4abc-a754-3264cc24a918
-  claimed_at: '2026-08-21T14:07:10.195689+00:00'
-  claim_expires_at: '2026-08-21T14:37:10.195689+00:00'
-  retry_count: 2
-  retry_after: null
+  evidence: 'RuntimeError: Codex exec exited with code 1:'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-08-21T14:12:44.097775+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -299,5 +299,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: error, Duration: 1m 18s
 - Log: OOMPAH-1195__20260821T140811Z.jsonl
+---
+author: oompah
+created: 2026-08-21 14:09
+---
+Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-1195/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
 ---
 <!-- COMMENTS:END -->
