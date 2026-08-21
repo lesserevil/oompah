@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:01.940609Z'
-updated_at: '2026-08-21T06:21:07.855640Z'
+updated_at: '2026-08-21T06:21:19.749569Z'
 work_branch: OOMPAH-1274
 target_branch: null
 review_url: null
@@ -129,7 +129,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8cc53e61-ee62-4234-a91d-5c3a14cef2a5
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 1eae1fb27c1a435ab0721a824fa85801--contributor-4256b9f40773
@@ -347,5 +347,14 @@ created: 2026-08-21 06:20
 ✅ No regression in other error types
 
 Branch pushed: OOMPAH-1274
+---
+author: oompah
+created: 2026-08-21 06:21
+---
+Fixed contributor_evidence_unavailable errors in orchestrator dispatch loop
+
+Changed three code paths in oompah/orchestrator.py (CLI mode, ACP mode, and fallthrough CLI mode) to raise ProviderStartupError when contributor evidence persistence times out. This allows the dispatch loop to properly catch and handle the error as a retryable provider startup failure, preventing error_watcher from auto-filing unhandled errors.
+
+All 381 orchestrator handler tests pass with no regressions.
 ---
 <!-- COMMENTS:END -->
