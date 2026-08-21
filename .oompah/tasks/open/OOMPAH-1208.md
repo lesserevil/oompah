@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:29:16.227300Z'
-updated_at: '2026-08-21T01:15:58.339098Z'
+updated_at: '2026-08-21T04:58:48.966144Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,23 +35,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: 'All 2 dispatch candidates unavailable: prov-651d553c/haiku: contributor_evidence_unavailable:
-    Cannot durably record exact contributor provider/model evidence before the bounded
-    task-authority deadline. The pre-provider runtime was retired for retry; no provider
-    or workspace was started.; prov-52e94e83/gpt-5.6-luna: contributor_evidence_unavailable:
-    Cannot durably record exact contributor provider/model evidence before the bounded
-    task-authority deadline. The pre-provider runtime was retired for retry; no provider
-    or workspace was started.'
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-21T01:19:39.834357+00:00'
+  evidence: ''
+  claim_id: 5839e44306983a0682fea82722293ab31d7c9ad0c4cfbcf397fdcfd1e50f2312:143277
+  claim_owner: 7dbe71d1-9fc2-4b0c-bb54-3da0831c26d5
+  claimed_at: '2026-08-21T04:58:39.350232+00:00'
+  claim_expires_at: '2026-08-21T05:28:39.350232+00:00'
+  retry_count: 0
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a90ce740-3ffe-4150-abc2-cb484307b874
+oompah.agent_run_id: a8b9fef6-8a12-420e-be5a-ed71f2b6d5b4
 oompah.work_contributors:
   runs:
   - run_id: 12d48da69be547e6aea00cc996fbdf9c--contributor-a8b0475e7b09
@@ -206,5 +200,10 @@ author: oompah
 created: 2026-08-21 01:15
 ---
 Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-1208/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
+---
+author: oompah
+created: 2026-08-21 04:58
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
