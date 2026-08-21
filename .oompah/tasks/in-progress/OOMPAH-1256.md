@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-21T10:34:25.164192Z'
+updated_at: '2026-08-21T14:37:34.398921Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -78,7 +78,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: f8384977-e434-4426-992d-fa4edbdc8255
+oompah.agent_run_id: 2839ace6-7b0a-407d-b5a6-98bcb3d2bffb
 oompah.work_contributors:
   runs:
   - run_id: b1ecea5907d449078be81372d6dfdb31--contributor-4256b9f40773
@@ -205,6 +205,14 @@ oompah.work_contributors:
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-luna
+    focus: general
+    source_branch: OOMPAH-1256
+    source_sha: null
+    completed_at: ''
+  - run_id: b6f96a0b4d8747709db06682b01045f8--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
     focus: general
     source_branch: OOMPAH-1256
     source_sha: null
@@ -560,5 +568,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: error, Duration: 49s
 - Log: OOMPAH-1256__20260821T103400Z.jsonl
+---
+author: oompah
+created: 2026-08-21 14:37
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-21 14:37
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
