@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-21T05:46:30.775043Z'
+updated_at: '2026-08-21T05:58:11.544452Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -180,5 +180,17 @@ author: oompah
 created: 2026-08-21 05:46
 ---
 UNDERSTANDING: This task requires archiving workflow_job_events for archived tasks to reduce database bloat. Previous comments show PRs #883 and #884 were implemented and merged (commits 196305357 and 4308d71e2 are in current HEAD). Verifying implementation completeness: checking schema V8, high-water fence, maintenance job scheduling, and test coverage.
+---
+author: oompah
+created: 2026-08-21 05:58
+---
+DISCOVERY: Implementation is complete and merged into main (commits 196305357 and 4308d71e2). Verified:
+1. Schema V8 archive table + high-water fence in oompah/workflow_jobs.py
+2. archive_lifecycle_final_events() method with bounded maintenance path
+3. _archive_workflow_events() scheduled in _run_non_lifecycle_housekeeping (300s interval) 
+4. All archive tests pass (9 archive-related tests in test_workflow_jobs.py)
+5. Guard mechanism tests pass (delete_guard, migration trigger upgrade)
+6. Housekeeping integration verified in test_workflow_retirement_architecture.py
+7. Full suite: 506 tests pass in test_workflow_jobs.py + test_orchestrator_handlers.py, 33 pass in test_workflow_retirement_architecture.py
 ---
 <!-- COMMENTS:END -->
