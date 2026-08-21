@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:50:52.786229Z'
-updated_at: '2026-08-21T01:28:38.464071Z'
+updated_at: '2026-08-21T04:40:27.306065Z'
 work_branch: OOMPAH-1213
 target_branch: null
 review_url: null
@@ -340,5 +340,10 @@ author: oompah
 created: 2026-08-21 01:27
 ---
 Fixed restart recovery publication timeout issue by increasing timeout from 1s to 5s in two locations: _schedule_restart_issue_recovery_for_resume() (line 9608) and _arm_retry_timer_for_recovery() (line 70920). The overly aggressive 1-second timeout caused spurious failures under production load when event loops were busy. The 5-second timeout provides sufficient time for reliable cross-thread event loop publication while maintaining fail-closed semantics. All related test suites pass without regression.
+---
+author: oompah
+created: 2026-08-21 04:40
+---
+Branch quality gate passed for `5109f99df52a9c3470ad663a7c67c2f079d5fcf0` using `make test` in 190.2s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
