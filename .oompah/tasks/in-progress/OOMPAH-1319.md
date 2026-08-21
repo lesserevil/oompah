@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:12:05.791721Z'
-updated_at: '2026-08-21T15:13:26.298833Z'
+updated_at: '2026-08-21T15:19:06.881825Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -384,5 +384,17 @@ author: oompah
 created: 2026-08-21 15:13
 ---
 **Understanding:** The error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' suggests a timeout in the backend orchestrator when processing contributor evidence. This appears to be happening when oompah operates on proj-14849f1b with the provenanceguardedtracker. The 5-second timeout is being exceeded. My approach: (1) Find the code handling pre-provider contributor evidence and task-authority deadlines, (2) Identify why the 5-second timeout is being exceeded, (3) Either increase the timeout appropriately or optimize the operation to complete faster, (4) Ensure graceful handling of timeouts.
+---
+author: oompah
+created: 2026-08-21 15:19
+---
+**Discovery:** Found the problematic code in oompah/orchestrator.py around line 58030-58040. The pre-provider contributor evidence persistence has two timeout calculations:
+
+1. First, a derived timeout is calculated as: max(min(control_timeout, termination_timeout/2), 0.05) which defaults to 5 seconds
+2. Then, the configured OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS (default 30) should override it
+
+The issue is: when terminal_control_lock_timeout_seconds defaults to 5.0 and worker_termination_timeout_ms defaults to 10000 (10 seconds), the derived persistence_timeout becomes 5.0. However, this should be overridden by the configured value of 30.0.
+
+The bug appears to be that the timeout is using the derived 5-second value instead of the configured 30-second default. Need to verify the config value is being loaded correctly and override the derived calculation.
 ---
 <!-- COMMENTS:END -->
