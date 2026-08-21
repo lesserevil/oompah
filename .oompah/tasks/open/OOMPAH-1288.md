@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:14:55.303312Z'
-updated_at: '2026-08-21T11:37:54.482176Z'
+updated_at: '2026-08-21T11:39:12.810599Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,14 +33,108 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: cecb82342ba47de9bda26885a8473850133d40c432c89a2f3225e197a2b71677
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-21T11:38:52.094128+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: f3a357c9ee2ac35a9460133e2ff9f4a28d51464d5734bb4742e273f2ff704bf0:146507
-  claim_owner: 94774825-4468-4d75-bdb4-5977b2bd9951
-  claimed_at: '2026-08-21T11:37:14.236539+00:00'
-  claim_expires_at: '2026-08-21T12:07:14.236539+00:00'
+  evidence: 'Focus handoff: duplicate_detector
+
+    Duplicate preflight verdict: no_duplicate
+
+    Matches: none
+
+    Evidence: Reviewed 28 similarity candidates including OOMPAH-1000..1014 (terminal
+    audit/workflow/epic issues), OOMPAH-1015..1027 (enforcement errors, all archived),
+    and earlier tasks. None describe the "Pre-provider contributor evidence exceeded
+    its bounded task-authority deadline" error from `backend:orchestrator` with timeout_seconds=5.0.
+    All superficially related tasks are in terminal states (Merged/Done/Archived).
+    The error references OOMPAH-1267, which is not in the provided corpus to verify
+    as a duplicate source. This appears to be a distinct, unreported error from the
+    orchestrator''s task-authority timeout system.
+
+    # Duplicate Investigation: OOMPAH-1288
+
+
+    I''m investigating whether OOMPAH-1288 ("Pre-provider contributor evidence exceeded
+    its bounded task-authority deadline") is a duplicate of an existing task.
+
+
+    Let me analyze the provided task corpus systematically.
+
+
+    ## Current Issue Analysis
+
+
+    **OOMPAH-1288** describes:
+
+    - **Error**: "Pre-provider contributor evidence exceeded its bounded task-authority
+    deadline"
+
+    - **Source**: `backend:orchestrator`
+
+    - **Timeout**: 5.0 seconds
+
+    - **Referenced task**: OOMPAH-1267 (mentioned in error message)
+
+    - **Project**: proj-14849f1b
+
+    - **Auto-filed by**: error_watcher
+
+
+    ## Corpus Review
+
+
+    The provided corpus includes 28 similarity candidates selected from 728 total
+    tasks. All reviewed candidates fall into two categories:
+
+
+    ### 1. Terminal Audit & Enforcement Issues (OOMPAH-1000..1027)
+
+    These are all in **terminal states** (Merged, Done, or Archived):
+
+    - OOMPAH-1000..1014: Various terminal audit, workflow admission, epic validation
+    issues
+
+    - OOMPAH-1015..1027: Backend enforcement errors, mostly marked as duplicate artifacts
+    from a startup flood
+
+
+    **Assessment**: None of these describe the "Pre-provider contributor evidence
+    exceeded its bounded task-authority deadline" error. They address different orchestrator
+    problems (audit identity, dependency resolution, epic handling, workflow admission).
+
+
+    ### 2. Earlier Issues (OOMPAH-1, OOMPAH-10, OOMPAH-270)
+
+    These are archived and unrelated to the current error pattern.
+
+
+    ## Key Findings
+
+
+    1. **No active task matches**: No Open or In Progress task describes this specific
+    "bounded task-authority deadline" timeout
+
+    2. **Terminal state only**: All superficially similar tasks are already merged
+    or archived
+
+    3. **Error reference chain broken**: The error message references OOMPAH-1267,
+    which is not in the provided corpus (700 candidates omitted)
+
+    4. **Unique error signature**: The fingerprint `772d9a1d1e72c50e` and specific
+    error text don''t appear in any reviewed task
+
+
+    ---
+
+
+    Focus handoff: duplicate_detector
+
+
+    Duplicate pref'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 2
   retry_after: null
   owner_resolved_at: null
@@ -71,8 +165,24 @@ oompah.work_contributors:
     model_id: haiku
     focus: duplicate_detector
     source_branch: OOMPAH-1288
-    source_sha: null
-    completed_at: ''
+    source_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    completed_at: '2026-08-21T11:38:52.098647+00:00'
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 2079
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 2079
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 2079
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T11:38:52.074875+00:00'
 ---
 ## Summary
 
@@ -164,5 +274,15 @@ author: oompah
 created: 2026-08-21 11:37
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-21 11:38
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 2.1K out [2.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 25s
+- Log: OOMPAH-1288__20260821T113813Z.jsonl
 ---
 <!-- COMMENTS:END -->
