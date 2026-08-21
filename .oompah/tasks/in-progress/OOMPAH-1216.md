@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:51.761397Z'
-updated_at: '2026-08-21T11:07:20.229343Z'
+updated_at: '2026-08-21T11:11:37.229108Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -327,5 +327,22 @@ Key findings:
 2. Check the test file to understand expected behavior
 3. Either increase the timeout or optimize the persistence operation
 4. Verify fix with tests and ensure no regression
+---
+author: oompah
+created: 2026-08-21 11:11
+---
+## Discovery
+
+Found the root cause in oompah/orchestrator.py:
+
+The error occurs in `_stage_work_contributor_launch()` method when writing contributor evidence (metadata about the provider/model) times out. The issue is:
+
+1. **Timeout calculation is wrong**: The persistence_timeout is calculated as `max(min(control_timeout, termination_timeout / 2.0), 0.05)` which yields only 5.0 seconds
+2. **Configured value ignored**: Even though config has `contributor_evidence_persist_timeout_seconds = 30.0` by default, the dynamic calculation overrides it
+3. **Logged as ERROR**: The timeout is logged with `logger.error()` which triggers error_watcher, even though this is a graceful retry scenario
+
+The comment in the code (line 58027-58031) clearly states the configured value should be authoritative when present. The fix is to ensure the configured timeout of 30.0 seconds is used instead of the calculated 5.0 seconds timeout.
+
+Test file shows this should work properly: tests/test_provider_retirement.py::test_pre_provider_evidence_timeout_releases_task_authority
 ---
 <!-- COMMENTS:END -->
