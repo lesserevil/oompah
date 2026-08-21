@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-21T15:05:20.715642Z'
+updated_at: '2026-08-21T15:05:31.088448Z'
 work_branch: OOMPAH-1270
 target_branch: null
 review_url: null
@@ -287,5 +287,10 @@ author: oompah
 created: 2026-08-21 15:03
 ---
 VERIFICATION: Test results: (1) New regression test passes: test_needs_human_escalation_is_logged_with_authority_source verifies logging captures external authority source; (2) All 119 task_transition_service tests pass; (3) All 381 orchestrator_handlers tests pass (500 combined). The instrumentation correctly logs actor=external-webhook, authority=TransitionAuthority.API, and reason codes for external escalations. Future incidents can now be investigated via oompah.log for exact authority source.
+---
+author: oompah
+created: 2026-08-21 15:05
+---
+Instrumented durable transition engine to log Needs Human escalations. Added INFO-level logging for every Needs Human transition capturing actor, authority, project_id, task_id, and reason_code. This enables post-incident investigation of bulk escalations by tracking the exact authority source (e.g., external-webhook, API caller). Verified with regression test covering push-hook-driven escalation. All 500 related tests pass. Instrumentation now in place to capture future incidents; decision on guard vs auto-recovery approach requires owner design review.
 ---
 <!-- COMMENTS:END -->
