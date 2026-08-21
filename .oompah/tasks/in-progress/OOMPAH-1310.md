@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:20:38.226810Z'
-updated_at: '2026-08-21T08:35:38.743448Z'
-work_branch: null
+updated_at: '2026-08-21T08:37:11.862582Z'
+work_branch: OOMPAH-1310
 target_branch: null
 review_url: null
 review_number: null
@@ -173,6 +173,18 @@ oompah.task_costs:
     output_tokens: 2851
     cost_usd: 0.0
     recorded_at: '2026-08-21T03:56:54.905779+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1310
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: 12cf87d05a29afd3931b5902dd5fd7a86c6533da
+  submitted_at: '2026-08-21T08:36:42.551868+00:00'
+  updated_at: '2026-08-21T08:36:42.551868+00:00'
+oompah.work_branch: OOMPAH-1310
 ---
 ## Summary
 
@@ -333,5 +345,10 @@ created: 2026-08-21 08:35
 
 **Resolution Summary:**
 The error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline timeout_seconds=5.0' has been fixed by ensuring the configured 30-second timeout is used as the fallback instead of the aggressive 5-second computed value. This prevents legitimate slow tracker operations from timing out prematurely.
+---
+author: oompah
+created: 2026-08-21 08:37
+---
+Fixed pre-provider contributor evidence timeout fallback. Changed getattr default from None to 30.0 to ensure proper fallback to configured timeout instead of aggressive 5.0 second computed value. Added regression test. All tests pass.
 ---
 <!-- COMMENTS:END -->
