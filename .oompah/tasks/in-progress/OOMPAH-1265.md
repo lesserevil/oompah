@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1265
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Prove external-prerequisite lifecycle convergence and observability
 parent: OOMPAH-1231
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-21T00:20:22.305868Z'
+updated_at: '2026-08-21T00:20:42.183346Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,7 +28,7 @@ oompah.create_once:
   creation_marker: oompah-1231-lifecycle-acceptance-v1
   request_fingerprint: 4f48f1f0e957c03ae28cb1f4f01e0f52c4c6c9020d902bc67d1cfb4f69389377
 oompah.start_blocked_by: *id001
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: d1a591bae50708aaf359f111881a4071d274e23ddea4e3a15cbe53430d1b5800
@@ -84,6 +84,22 @@ oompah.work_contributors:
     source_branch: OOMPAH-1265
     source_sha: 02bd5960434a5c65dce259894737a55ab7a8ea96
     completed_at: '2026-08-20T23:10:27.554008+00:00'
+  - run_id: 9c2841939f424528835bf48400de2a38--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: frontend
+    source_branch: OOMPAH-1265
+    source_sha: null
+    completed_at: ''
+  - run_id: 9c2841939f424528835bf48400de2a38--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: frontend
+    source_branch: OOMPAH-1265
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2011

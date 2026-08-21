@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-21T00:20:16.407665Z'
+updated_at: '2026-08-21T00:20:47.722779Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,13 +40,19 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 31338a83a387d4e494f6e0d238bc1f513b9032a8b72a41598558d4e108e2754c:142511
-  claim_owner: b0161d82-55d7-4b08-9b68-ee54b4e13c9c
-  claimed_at: '2026-08-21T00:19:14.889614+00:00'
-  claim_expires_at: '2026-08-21T00:49:14.889614+00:00'
-  retry_count: 1
-  retry_after: null
+  evidence: 'All 2 dispatch candidates unavailable: prov-651d553c/haiku: contributor_evidence_unavailable:
+    Cannot durably record exact contributor provider/model evidence before the bounded
+    task-authority deadline. The pre-provider runtime was retired for retry; no provider
+    or workspace was started.; prov-52e94e83/gpt-5.6-luna: contributor_evidence_unavailable:
+    Cannot durably record exact contributor provider/model evidence before the bounded
+    task-authority deadline. The pre-provider runtime was retired for retry; no provider
+    or workspace was started.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 2
+  retry_after: '2026-08-21T00:22:14.711430+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
