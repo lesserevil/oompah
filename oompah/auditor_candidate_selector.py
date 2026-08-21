@@ -96,6 +96,13 @@ class AuditorCandidateSelector:
         # a provider/status response and retain a forgiving integration API.
         health: Mapping[Any, Any] | None = None,
         budget: Any | None = None,
+        # Optional least-recently-used lookup for the auditor role.  When
+        # provided, the reserved auditor rotates across eligible candidates
+        # (by oldest last-used) instead of always pinning the last-configured
+        # one, so no single provider is permanently excluded from
+        # implementation dispatch.  Returns an ISO timestamp string or None
+        # (never used) for a (provider_id, model) pair.
+        auditor_last_used: Callable[[str, str], str | None] | None = None,
     ):
         self.role_store = role_store
         self.provider_store = provider_store
@@ -106,6 +113,7 @@ class AuditorCandidateSelector:
         self.budget_checker = budget_checker
         self.budget_limit = budget_limit
         self.current_spend = current_spend
+        self.auditor_last_used = auditor_last_used
 
     # ------------------------------------------------------------------
     # Public selection and migration API
@@ -214,6 +222,36 @@ class AuditorCandidateSelector:
             "All eligible auditor candidates were already attempted for this audit.",
         )
 
+    def _reserved_pick(self, eligible: list[Candidate]) -> Candidate:
+        """Choose which eligible candidate to reserve as the auditor.
+
+        Historically this was always ``eligible[-1]`` (the last-configured
+        candidate), which permanently pinned one provider to the auditor role
+        and excluded it from implementation dispatch.  When an auditor
+        last-used lookup is available, reserve the least-recently-used eligible
+        candidate instead so auditor duty rotates across providers.  Falls back
+        to the stable last-configured candidate when no usage signal exists.
+        """
+
+        if not eligible:
+            raise IndexError("no eligible candidates to reserve")
+        lookup = self.auditor_last_used
+        if lookup is None:
+            return eligible[-1]
+
+        def sort_key(indexed: tuple[int, Candidate]) -> tuple:
+            idx, candidate = indexed
+            try:
+                last_used = lookup(candidate.provider_id, candidate.model)
+            except Exception:  # noqa: BLE001 - usage lookup must never break dispatch
+                last_used = None
+            # Never used sorts first (oldest); ties broken by configured order.
+            if not last_used:
+                return (0, "", idx)
+            return (1, str(last_used), idx)
+
+        return min(enumerate(eligible), key=sort_key)[1]
+
     def reserve_for_contributor_candidates(
         self,
         candidates: list[Candidate],
@@ -248,7 +286,7 @@ class AuditorCandidateSelector:
             # Even a dedicated provider consumes financial capacity. Return
             # the exact candidate so the orchestrator can reserve its
             # projected audit cost atomically before contributor launch.
-            return list(candidates), eligible[-1], None
+            return list(candidates), self._reserved_pick(eligible), None
 
         if len(eligible) == 1:
             candidate = eligible[0]
@@ -267,11 +305,12 @@ class AuditorCandidateSelector:
                 "before dispatching implementation work.",
             )
 
-        # Keep the final eligible candidate in the operator's ordering for
-        # terminal review.  Earlier candidates remain available to the
-        # contributor, so a haiku -> sonnet -> opus escalation can continue
-        # while terra (or another final candidate) remains independent.
-        reserved = eligible[-1]
+        # Reserve one eligible candidate for independent terminal review.
+        # Rotate the reservation (least-recently-used) when a usage signal is
+        # available so no single provider is permanently pinned to the auditor
+        # role; earlier candidates remain available to the contributor so a
+        # haiku -> sonnet -> opus escalation can still continue.
+        reserved = self._reserved_pick(eligible)
         remaining = [
             value
             for value in candidates

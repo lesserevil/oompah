@@ -704,6 +704,23 @@ class CandidateSelector:
     # Public API
     # ------------------------------------------------------------------
 
+    def last_used_at(
+        self, role_name: str, provider_id: str, model: str
+    ) -> str | None:
+        """Return the ``last_used_at`` ISO string for a role candidate, or None.
+
+        Thread-safe public accessor for callers (e.g. the auditor reservation)
+        that need a least-recently-used signal without reaching into internal
+        usage state.
+        """
+        with self._lock:
+            return (
+                self._usage
+                .get(role_name, {})
+                .get(provider_id, {})
+                .get(model)
+            )
+
     def ordered_candidates(self, role: "Role") -> list[Candidate]:
         """Return candidates in dispatch order according to ``role.strategy``.
 

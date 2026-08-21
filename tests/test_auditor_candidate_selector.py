@@ -1510,3 +1510,56 @@ class TestContributorAuditorReservation:
         assert reason is not None
         assert reason.reason == "insufficient_independent_candidates"
         assert "Configure or restore" in reason.detail
+
+    def test_reservation_defaults_to_last_candidate_without_usage_hook(self):
+        """Back-compat: with no usage signal, the last candidate is reserved."""
+        selector, candidates = self._selector(["haiku", "sonnet", "opus", "terra"])
+
+        _allowed, reserved, reason = selector.reserve_for_contributor_candidates(
+            list(candidates), []
+        )
+
+        assert reason is None
+        assert reserved == candidates[-1]
+
+    def test_reservation_rotates_to_least_recently_used_candidate(self):
+        """With a usage hook, the reserved auditor rotates (LRU), so no single
+        provider is permanently excluded from implementation dispatch."""
+        selector, candidates = self._selector(["haiku", "sonnet", "opus", "terra"])
+        # Make the LAST candidate (terra) the most-recently-used and an earlier
+        # one (sonnet) the least-recently-used; the reservation should pick the
+        # LRU (sonnet) instead of the configured-last (terra).
+        usage = {
+            ("provider-haiku", "haiku"): "2026-08-21T00:00:03+00:00",
+            ("provider-sonnet", "sonnet"): "2026-08-21T00:00:01+00:00",
+            ("provider-opus", "opus"): "2026-08-21T00:00:02+00:00",
+            ("provider-terra", "terra"): "2026-08-21T00:00:09+00:00",
+        }
+        selector.auditor_last_used = lambda pid, model: usage.get((pid, model))
+
+        _allowed, reserved, reason = selector.reserve_for_contributor_candidates(
+            list(candidates), []
+        )
+
+        assert reason is None
+        assert reserved is not None
+        assert (reserved.provider_id, reserved.model) == ("provider-sonnet", "sonnet")
+
+    def test_reservation_prefers_never_used_candidate(self):
+        """A never-used candidate sorts oldest and is reserved first."""
+        selector, candidates = self._selector(["haiku", "sonnet", "opus", "terra"])
+        usage = {
+            ("provider-haiku", "haiku"): "2026-08-21T00:00:01+00:00",
+            ("provider-sonnet", "sonnet"): "2026-08-21T00:00:02+00:00",
+            # opus never used -> None
+            ("provider-terra", "terra"): "2026-08-21T00:00:03+00:00",
+        }
+        selector.auditor_last_used = lambda pid, model: usage.get((pid, model))
+
+        _allowed, reserved, reason = selector.reserve_for_contributor_candidates(
+            list(candidates), []
+        )
+
+        assert reason is None
+        assert reserved is not None
+        assert (reserved.provider_id, reserved.model) == ("provider-opus", "opus")

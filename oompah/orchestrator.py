@@ -19853,6 +19853,24 @@ class Orchestrator:
             self._wake_terminal_audit_lane_after_capacity_release()
         return True
 
+    def _auditor_candidate_last_used(
+        self, provider_id: str, model: str
+    ) -> str | None:
+        """LRU signal for auditor reservation rotation (OOMPAH-1270).
+
+        Returns the auditor-role ``last_used_at`` ISO timestamp for a
+        provider/model, or None when never used, so the auditor reservation
+        rotates across providers instead of pinning the last-configured one.
+        """
+        selector = getattr(self, "_candidate_selector", None)
+        accessor = getattr(selector, "last_used_at", None)
+        if not callable(accessor):
+            return None
+        try:
+            return accessor("auditor", provider_id, model)
+        except Exception:  # noqa: BLE001 - usage lookup must never break dispatch
+            return None
+
     def _audit_selector(
         self, issue: Issue, *, project: Any | None
     ) -> AuditorCandidateSelector:
@@ -19871,6 +19889,7 @@ class Orchestrator:
                     exclude_issue_id=self._audit_reservation_key_for_issue(issue)
                 )
             ),
+            auditor_last_used=self._auditor_candidate_last_used,
         )
 
     def _auditor_probe_contact_authority_error(
@@ -20212,6 +20231,20 @@ class Orchestrator:
                 reserved.model,
                 issue.identifier,
             )
+            # Advance the auditor round-robin so the reservation rotates across
+            # providers on subsequent dispatches (OOMPAH-1270). Best-effort:
+            # never let usage bookkeeping break dispatch.
+            selector = getattr(self, "_candidate_selector", None)
+            recorder = getattr(selector, "record_used", None)
+            if callable(recorder):
+                try:
+                    recorder("auditor", reserved)
+                except Exception:  # noqa: BLE001 - usage write is advisory
+                    logger.debug(
+                        "Auditor round-robin usage record failed for %s/%s",
+                        reserved.provider_id,
+                        reserved.model,
+                    )
         return filtered, None
 
     def _record_audit_outcome_ownership(self, issue_id: str, outcome: Any) -> None:
