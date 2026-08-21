@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:03:14.411853Z'
-updated_at: '2026-08-21T12:12:41.233107Z'
+updated_at: '2026-08-21T12:21:08.177371Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -308,5 +308,21 @@ The error is a normal TimeoutError that's caught and handled gracefully (returne
 **Root cause**: Using logger.error() for an expected operational timeout that's already being handled gracefully.
 
 **Proposed fix**: Change logger.error() at line 58067 to logger.warning() since this timeout is handled gracefully and shouldn't trigger error_watcher.
+---
+author: oompah
+created: 2026-08-21 12:21
+---
+**Implementation**: Changed logger.error() to logger.warning() at oompah/orchestrator.py:58066.
+
+The pre-provider contributor evidence timeout is a normal, handled graceful failure that's caught and returned as an error message (not raised). Since this timeout condition is already handled gracefully, logging it at ERROR level was inappropriate and triggered error_watcher unnecessarily.
+
+The change makes it consistent with the similar timeout at line 58102 (CancelledError case) which already logs at WARNING level.
+
+**Tests verified**:
+- All 21 provider retirement tests pass
+- All 146 error_watcher related tests pass
+- No regressions detected
+
+The fix ensures that this expected operational timeout won't trigger error_watcher task auto-filing while maintaining proper logging for operational monitoring at WARNING level.
 ---
 <!-- COMMENTS:END -->
