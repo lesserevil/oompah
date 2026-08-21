@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:19:28.760792Z'
-updated_at: '2026-08-21T01:32:09.051939Z'
+updated_at: '2026-08-21T01:32:58.747046Z'
 work_branch: OOMPAH-1203
 target_branch: null
 review_url: null
@@ -259,5 +259,21 @@ author: oompah
 created: 2026-08-21 01:31
 ---
 Fixed StateBranchFetchError handling in contributor evidence persistence to prevent error_watcher from auto-filing duplicate bug tasks. Added specific exception handler, comprehensive regression tests.
+---
+author: oompah
+created: 2026-08-21 01:32
+---
+**VERIFICATION & COMPLETION**: 
+
+Task successfully submitted for integration. 
+
+Summary of work completed:
+- Root cause identified: StateBranchFetchError (transient network error) was being caught by a generic exception handler in _stage_work_contributor_launch() and logged at ERROR level, triggering error_watcher
+- Fix implemented: Added specific exception handler for TrackerStateBranchFetchError that logs at WARNING level, releases budget reservations, and returns None to allow provider dispatch to proceed
+- Tests added: Created comprehensive regression test suite (test_state_branch_fetch_contributor_evidence.py) with 5 test cases verifying proper handling
+- Implementation follows existing pattern from server.py (lines 9419-9424) for graceful StateBranchFetchError handling
+- All changes committed and pushed to origin/OOMPAH-1203
+
+The fix ensures that transient state-branch fetch errors during contributor evidence persistence no longer trigger error_watcher, preventing the feedback loop of auto-filed bug tasks for normal network transients.
 ---
 <!-- COMMENTS:END -->
