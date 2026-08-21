@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:00:21.577837Z'
-updated_at: '2026-08-21T07:07:55.471811Z'
+updated_at: '2026-08-21T07:09:32.373446Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -218,5 +218,22 @@ The error 'Pre-provider contributor evidence exceeded its bounded task-authority
 Looking at the test `test_pre_provider_evidence_timeout_releases_task_authority`, this is actually a HANDLED failure path. The code gracefully returns an error message and releases task authority, allowing normal retry. The timeout occurs when the contributor evidence lock is held by another worker.
 
 **The fix**: Change the logger level from `error()` to `warning()` since this is a gracefully-handled transient condition, not an unhandled error.
+---
+author: oompah
+created: 2026-08-21 07:09
+---
+**Implementation**
+
+Changed the logging level from ERROR to WARNING for the 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' message in `oompah/orchestrator.py` line 58066.
+
+**Rationale**: This is a gracefully-handled transient failure where the persistence of contributor evidence times out when another worker holds the contributor lock. The code:
+1. Logs the timeout
+2. Returns an error message to the caller
+3. Properly releases task authority
+4. Allows the task to be retried
+
+This is not an unhandled error - it's a controlled timeout for a bounded operation. Logging it at WARNING level (instead of ERROR) prevents error_watcher from auto-filing it as a bug while still keeping the log entry for operational visibility.
+
+The similar timeout case for cancelled pre-provider evidence (line 58102) was already using WARNING level, so this change makes both paths consistent.
 ---
 <!-- COMMENTS:END -->
