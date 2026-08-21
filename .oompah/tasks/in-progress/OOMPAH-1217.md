@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:53.373319Z'
-updated_at: '2026-08-21T01:28:43.805286Z'
+updated_at: '2026-08-21T01:36:06.391240Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -231,5 +231,23 @@ This timeout is a handled graceful degradation case - the code recovers by retir
 
 **Planned Fix:**
 Change the logger.error() call on line 58066 of orchestrator.py to logger.warning() to prevent error_watcher from triggering while still logging the issue for operational visibility.
+---
+author: oompah
+created: 2026-08-21 01:36
+---
+## Implementation
+
+Changed `logger.error()` to `logger.warning()` on line 58066 of oompah/orchestrator.py for the pre-provider contributor evidence timeout case.
+
+**Why This Works:**
+- ErrorWatcher's logging handler only watches for ERROR+ level logs (logging.ERROR and above)
+- By changing the log level to WARNING, the timeout message is still logged for operational visibility but no longer triggers error_watcher
+- This aligns with the similar cancellation timeout case which already uses logger.warning() (line 58102)
+- The timeout is a handled graceful degradation where the pre-provider runtime is retired for retry - it's not an unhandled error
+
+**Tests Verified:**
+- test_pre_provider_evidence_timeout_releases_task_authority: PASSED
+- test_cancelled_pre_provider_evidence_releases_task_authority: PASSED (both variants)
+- All 124 error_watcher tests: PASSED
 ---
 <!-- COMMENTS:END -->
