@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:50:52.786229Z'
-updated_at: '2026-08-21T00:29:39.529997Z'
+updated_at: '2026-08-21T00:37:26.940684Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -252,5 +252,25 @@ author: oompah
 created: 2026-08-21 00:29
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 00:37
+---
+UNDERSTANDING:
+
+The error 'restart recovery publication was not acknowledged' originates from the \`_schedule_restart_issue_recovery_for_resume()\` function in oompah/orchestrator.py (line 9608-9613).
+
+The function attempts to publish a recovery task on the event loop with a 1.0-second timeout. When the event loop is busy or under load, the scheduled callback might not execute within this timeout, causing:
+1. The \`publication_done\` event is never set
+2. The wait times out
+3. The system fails closed, blocking further operations
+
+ROOT CAUSE: The 1-second timeout is too tight for reliable publication in high-load scenarios.
+
+APPROACH:
+1. Investigate similar patterns in the codebase for timeout handling
+2. Increase the timeout to a more reasonable value (e.g., 5-10 seconds)
+3. Consider adding retry logic or better error messaging
+4. Verify with tests
 ---
 <!-- COMMENTS:END -->
