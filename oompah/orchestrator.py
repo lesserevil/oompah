@@ -58109,6 +58109,42 @@ class Orchestrator:
                         # ordinary pre-provider exit/retry path.
                         pass
                     raise
+            except TrackerStateBranchFetchError as exc:
+                # Transient network failure syncing the state branch while
+                # persisting contributor evidence. The contributor evidence
+                # persistence task is detached and will retry naturally. Log
+                # at WARNING so error_watcher does not treat this as a
+                # backend defect requiring auto-filing (OOMPAH-1203).
+                logger.warning(
+                    "Pre-provider contributor evidence persistence encountered "
+                    "a transient state-branch sync failure "
+                    "issue_id=%s identifier=%s run_id=%s: %s",
+                    issue.id,
+                    issue.identifier,
+                    run_id,
+                    exc,
+                    extra={
+                        "pre_provider_retirement": {
+                            "reason": "contributor_evidence_fetch_transient",
+                            "issue_id": issue.id,
+                            "identifier": issue.identifier,
+                            "run_id": run_id,
+                            "error_type": type(exc).__name__,
+                        }
+                    },
+                )
+                # Release budget reservation since we're not persisting evidence
+                if (
+                    not had_budget_reservation
+                    and not self._release_audit_budget_reservation(reservation_key)
+                ):
+                    logger.warning(
+                        "Failed to release audit budget reservation after transient "
+                        "fetch error; repair service-state persistence"
+                    )
+                # Return None so provider dispatch can proceed; the background
+                # persistence task will retry its state-branch write naturally.
+                return None
             except Exception as exc:  # noqa: BLE001 - dispatch must fail closed
                 release_note = ""
                 if not had_budget_reservation and not self._release_audit_budget_reservation(
