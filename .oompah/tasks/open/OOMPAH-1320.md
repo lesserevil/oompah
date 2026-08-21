@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:12:08.566823Z'
-updated_at: '2026-08-21T09:40:14.131322Z'
+updated_at: '2026-08-21T09:51:25.275104Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -174,5 +174,10 @@ author: oompah
 created: 2026-08-21 09:40
 ---
 Discovery: Found root cause at oompah/orchestrator.py:58066-58083. The timeout is logged with logger.error() when contributor evidence persistence times out (5 second default). Although the error is handled gracefully (returned as a string instead of thrown), the logger.error() call triggers error_watcher to auto-file a task. The fix is to change logger.error() to logger.warning() since this is an expected, handled failure, not an unhandled exception. The error has full context metadata and is already being properly handled by _on_worker_exit().
+---
+author: oompah
+created: 2026-08-21 09:51
+---
+Implementation: Changed logger.error() to logger.warning() at oompah/orchestrator.py:58066 when contributor evidence persistence times out. This timeout is an expected, handled failure (the error is returned and properly handled by _on_worker_exit), not an unhandled exception. Changing to warning prevents error_watcher from auto-filing this as a task. The second timeout case (cancelled_contributor_evidence_timeout) at line 58102 already uses logger.warning(), so only the first case needed fixing.
 ---
 <!-- COMMENTS:END -->
