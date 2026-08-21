@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:17:21.518869Z'
-updated_at: '2026-08-21T08:05:13.568898Z'
+updated_at: '2026-08-21T08:05:52.692071Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,6 +53,14 @@ oompah.work_contributors:
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-1306
+    source_sha: null
+    completed_at: ''
+  - run_id: 6dedddfb8d594677a3d919718aaf6349--contributor-86e3ac8153e1
+    provider_id: prov-6cf41c89
+    provider_name: Opencode/Switchyard
+    model_id: switchyard/auto
     focus: duplicate_detector
     source_branch: OOMPAH-1306
     source_sha: null
