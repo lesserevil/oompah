@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1224
 type: bug
-status: In Review
+status: Ready to Integrate
 priority: 2
 title: '[backend:server] Issue detail API error: ProgrammingError(''Cannot operate
   on a closed database.'')'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-21T11:00:40.447020Z'
+updated_at: '2026-08-21T11:01:15.981579Z'
 work_branch: OOMPAH-1224
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/900
 review_number: '900'
 review_head: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
 merged_at: null
-oompah.lifecycle_revision: 4
+oompah.lifecycle_revision: 5
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
