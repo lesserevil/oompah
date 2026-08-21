@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1269
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: publication_rollback storm livelocks trickle reconcile and starves dispatch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-19T01:37:27.110739Z'
-updated_at: '2026-08-21T10:50:05.791489Z'
+updated_at: '2026-08-21T10:50:21.581875Z'
 work_branch: OOMPAH-1269
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: e4ad1915-a8f5-46d6-a481-5424475d7eb8
   request_fingerprint: 83c914bb2a5339cac782d8d64bf3a68d4cd2eba9819b71b16e9850d49ef9c949
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
