@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1211
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-137 identifier=TRICKLE-137 run_id=57e576160991416097e54cd73ab16a78
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:37:52.344051Z'
-updated_at: '2026-08-21T10:02:51.284338Z'
+updated_at: '2026-08-21T10:29:09.992188Z'
 work_branch: OOMPAH-1211
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
