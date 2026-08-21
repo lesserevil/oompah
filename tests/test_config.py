@@ -121,7 +121,7 @@ class TestServiceConfig:
         assert cfg.workflow_runtime_max_concurrent == 4
         assert cfg.workflow_runtime_control_reserved_slots == 1
         assert cfg.terminal_control_lock_timeout_seconds == 5.0
-        assert cfg.contributor_evidence_persist_timeout_seconds == 30.0
+        assert cfg.contributor_evidence_persist_timeout_seconds == 60.0
         assert cfg.workflow_quarantine_persist_timeout_seconds == 5.0
         assert cfg.workflow_quarantine_recycle_seconds == 60.0
         assert cfg.close_gate_enabled is True
