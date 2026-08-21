@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:16:50.124021Z'
-updated_at: '2026-08-21T12:09:53.968475Z'
+updated_at: '2026-08-21T12:20:12.291998Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -221,5 +221,15 @@ author: oompah
 created: 2026-08-21 12:09
 ---
 **Discovery**: Found the root cause in oompah/orchestrator.py:58066-58083. When contributor evidence persistence times out (5 seconds default), the code is logging it at ERROR level, which triggers error_watcher. The operation already degrades gracefully by returning an error message instead of raising. The fix is to change logger.error() to logger.warning() to prevent error_watcher auto-filing, following the pattern used in api_agent.py for transient timeout errors. Tests expect the error message but not a specific log level.
+---
+author: oompah
+created: 2026-08-21 12:20
+---
+**Implementation**: Changed logger.error() to logger.warning() at oompah/orchestrator.py:58066 when contributor evidence persistence times out. The operation already degrades gracefully by returning an error message. This change prevents error_watcher auto-filing while maintaining full observability through WARNING-level logging. Pattern matches the existing approach in api_agent.py for handling transient errors.
+---
+author: oompah
+created: 2026-08-21 12:20
+---
+**Verification**: All related tests pass. ✓ test_provider_retirement.py: 21/21 passed ✓ test_orchestrator_handlers.py: 381/381 passed. The fix maintains the expected error message in graceful degradation path while preventing error_watcher triggers.
 ---
 <!-- COMMENTS:END -->
