@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-21T04:24:57.354172Z'
+updated_at: '2026-08-21T04:26:20.087098Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -275,5 +275,20 @@ Rationale: The 30-second timeout was too strict for slow trackers like 'provenan
 This timeout is still configurable via OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS environment variable for operators who need even higher values for their specific trackers.
 
 Tests: All config and provider_retirement tests pass.
+---
+author: oompah
+created: 2026-08-21 04:26
+---
+Verification: All relevant tests pass
+
+Test results:
+✓ tests/test_config.py::TestServiceConfig::test_from_workflow_defaults - PASSED
+✓ tests/test_config.py - 168 total tests PASSED
+✓ tests/test_provider_retirement.py (evidence-related) - 6 tests PASSED
+✓ tests/test_orchestrator_handlers.py (evidence-related) - 4 tests PASSED
+
+The fix is minimal and targeted: increasing the default timeout from 30 to 60 seconds gives slow trackers like 'provenanceguardedtracker' more time to complete evidence persistence operations without breaking existing behavior for fast trackers.
+
+Changes committed and pushed to branch OOMPAH-1206.
 ---
 <!-- COMMENTS:END -->
