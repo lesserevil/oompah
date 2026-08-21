@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:59:31.498539Z'
-updated_at: '2026-08-21T10:16:12.883298Z'
+updated_at: '2026-08-21T10:21:47.848709Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -313,5 +313,30 @@ The caller checks this return value and handles it appropriately. No exception i
 - test_late_pre_provider_write_settles_before_successor_provider_contact passes ✓
 - All 21 tests in test_provider_retirement.py pass ✓  
 - All 71 contributor-related tests in test_orchestrator_handlers.py pass ✓
+---
+author: oompah
+created: 2026-08-21 10:21
+---
+## Verification & Completion
+
+**Fix Applied:**
+✓ Changed logger.error to logger.warning for pre-provider evidence timeout (oompah/orchestrator.py:58066)
+
+**Testing Results:**
+✓ test_late_pre_provider_write_settles_before_successor_provider_contact PASSED
+✓ All 21 tests in test_provider_retirement.py PASSED
+✓ All 71 contributor-related tests in test_orchestrator_handlers.py PASSED
+
+**What was delivered:**
+The issue was that error_watcher was auto-filing the pre-provider contributor evidence timeout as a critical error. The timeout is a graceful failure condition where the function returns an error message to the caller for retry, not an exception.
+
+By changing the log level from ERROR to WARNING, error_watcher will no longer auto-file these timeout events, stopping the spam of auto-filed tasks. The actual behavior (timeout handling and retry) remains unchanged.
+
+**Branch:** OOMPAH-1215 (pushed and up to date with origin)
+
+Acceptance criteria met:
+✓ The error is no longer logged at ERROR level (won't trigger error_watcher)
+✓ Graceful degradation is in place (returns error string for retry)
+✓ No regression: all related tests pass
 ---
 <!-- COMMENTS:END -->
