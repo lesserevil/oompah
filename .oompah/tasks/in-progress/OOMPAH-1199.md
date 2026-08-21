@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:22.979573Z'
-updated_at: '2026-08-21T00:14:29.378772Z'
+updated_at: '2026-08-21T00:14:49.786185Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -225,5 +225,10 @@ Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 32s
+---
+author: oompah
+created: 2026-08-21 00:14
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
