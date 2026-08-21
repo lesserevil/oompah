@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:52:39.685288Z'
-updated_at: '2026-08-21T15:26:29.224165Z'
+updated_at: '2026-08-21T15:36:41.606497Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -258,5 +258,10 @@ author: oompah
 created: 2026-08-21 15:26
 ---
 **Implementation:** Changed logger.error() to logger.warning() at line 58066 in orchestrator.py for the 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' message. This is a handled failure case where the provider retires and retries on the next cycle. It should not be treated as an error by error_watcher. The fix aligns with similar timeout handling at line 58101 which already uses logger.warning().
+---
+author: oompah
+created: 2026-08-21 15:36
+---
+**Verification:** All relevant tests pass (402 tests in test_provider_retirement.py and test_orchestrator_handlers.py). The fix prevents error_watcher from treating the handled contributor evidence timeout as an unhandled error. The timeout still occurs when tracker operations are slow, but now it's properly logged as a warning rather than an error, avoiding unnecessary auto-filed bug reports.
 ---
 <!-- COMMENTS:END -->
