@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:15:47.974297Z'
-updated_at: '2026-08-21T05:27:34.345623Z'
+updated_at: '2026-08-21T05:33:53.978443Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -273,5 +273,28 @@ Change the logging level from ERROR to WARNING, since this is expected behavior,
 - Tests continue to pass
 - Warning is still logged
 - error_watcher no longer files a task for this condition
+---
+author: oompah
+created: 2026-08-21 05:33
+---
+**Discovery & Root Cause:**
+
+Found the exact location of the error in oompah/orchestrator.py, lines 58047-58089 in the _stage_work_contributor_launch() async function.
+
+**Context:**
+- The function tries to persist work contributor evidence (provider/model identity) before launching a provider
+- A TimeoutError is caught when the persistence operation exceeds the computed timeout (default ~5 seconds)
+- Code comments explain this is expected: 'A synchronous tracker adapter cannot be cancelled after its thread starts'
+- The runtime gracefully retires and returns an error message to the caller
+- This is not a bug, but an expected operational scenario
+
+**Issue:**
+- logger.error() at line 58066 triggers error_watcher to auto-file a task
+- This was treating a known recoverable failure as an ERROR
+
+**Acceptance Criteria Met:**
+✓ Root cause identified: logger.error() for expected TimeoutError scenario
+✓ Known acceptable failure documented in code comments
+✓ Fix: Changed logger.error() → logger.warning() to prevent auto-filing while keeping operational visibility
 ---
 <!-- COMMENTS:END -->
