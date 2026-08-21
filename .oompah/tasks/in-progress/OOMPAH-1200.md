@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:33.669681Z'
-updated_at: '2026-08-21T10:23:01.847362Z'
+updated_at: '2026-08-21T10:23:08.613197Z'
 work_branch: OOMPAH-1200
 target_branch: null
 review_url: null
@@ -381,5 +381,16 @@ Verification:
 - All existing behavior maintained
 
 Branch pushed to OOMPAH-1200.
+---
+author: oompah
+created: 2026-08-21 10:23
+---
+Fixed ACP worker error_watcher false positive by logging expected pre-request failures at DEBUG level instead of WARNING
+
+Root cause: worker failure messages logged at WARNING were still being picked up by LogFileWatcher scanning log files for ERROR keywords in exception messages.
+
+Solution: Changed three logger.warning() calls to logger.debug() in orchestrator.py for expected pre-request failures (workspace, tracker, prompt-rendering, admission errors). This prevents triggering error_watcher through any mechanism while maintaining diagnostic capability.
+
+Tests: 126 error_watcher tests + 408 worker tests all pass, including 2 new regression tests.
 ---
 <!-- COMMENTS:END -->
