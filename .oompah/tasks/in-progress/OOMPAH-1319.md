@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:12:05.791721Z'
-updated_at: '2026-08-21T15:19:06.881825Z'
+updated_at: '2026-08-21T15:38:36.729562Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -396,5 +396,18 @@ created: 2026-08-21 15:19
 The issue is: when terminal_control_lock_timeout_seconds defaults to 5.0 and worker_termination_timeout_ms defaults to 10000 (10 seconds), the derived persistence_timeout becomes 5.0. However, this should be overridden by the configured value of 30.0.
 
 The bug appears to be that the timeout is using the derived 5-second value instead of the configured 30-second default. Need to verify the config value is being loaded correctly and override the derived calculation.
+---
+author: oompah
+created: 2026-08-21 15:38
+---
+**Implementation:** Fixed the pre-provider contributor evidence timeout issue. The bug was in the getattr() default value in oompah/orchestrator.py line 58032-58035. When the config attribute wasn't found, it returned None, causing the timeout to fall back to the derived 5.0-second value instead of the configured 30.0-second default.
+
+Changed:
+- Line 58035: getattr() default from None to 30.0
+- Added comments explaining the fallback behavior
+
+This ensures that when the config attribute isn't explicitly set for any reason, it falls back to a reasonable timeout (30.0 seconds) that matches the configured default, rather than the derived control floor (5.0 seconds).
+
+Added regression test: test_contributor_evidence_timeout_defaults_to_30_seconds
 ---
 <!-- COMMENTS:END -->
