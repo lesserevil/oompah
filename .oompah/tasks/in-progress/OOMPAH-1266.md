@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-21T06:33:14.631033Z'
+updated_at: '2026-08-21T06:37:59.755708Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -277,5 +277,10 @@ author: oompah
 created: 2026-08-21 06:33
 ---
 Implementation approach: The bug is in the submission record creation logic (server.py ~6129-6150). When a PR is already merged, a late submit should NOT create a fresh ready record and regress the integrated state. The fix will add a check: if existing state is 'integrated' AND the review is already merged, reject the submit or preserve the integrated record. This prevents late/retried submits from changing an already-integrated generation. Will add fence checks and comprehensive regression tests.
+---
+author: oompah
+created: 2026-08-21 06:37
+---
+Implementation complete: Added fence to prevent late task submits from regressing integrated records back to ready status (OOMPAH-1266). The fence in _submission_record checks if existing state is 'integrated' with matching head/branch/base, and preserves it instead of creating a fresh 'ready' record. This prevents webhook-before-submit and late-submit races from breaking terminal fingerprint stability. Added 3 regression tests to test_submission_fencing.py. All 23 tests pass including new tests.
 ---
 <!-- COMMENTS:END -->
