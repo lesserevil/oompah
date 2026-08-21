@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:41:47.946905Z'
-updated_at: '2026-08-21T08:21:32.878717Z'
+updated_at: '2026-08-21T08:25:16.233973Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -224,5 +224,29 @@ Found the error in `oompah/orchestrator.py` line 58066-58083. The issue:
 - The operation is retried automatically
 - This is an operational condition, not a critical failure
 - Will prevent error_watcher from filing duplicate tasks
+---
+author: oompah
+created: 2026-08-21 08:25
+---
+**Implementation Complete**
+
+Changed the pre-provider contributor evidence timeout log from ERROR to WARNING level in `oompah/orchestrator.py` line 58066.
+
+**What was changed:**
+- `logger.error()` → `logger.warning()` when contributor evidence persistence times out
+- Structured logging context preserved (still logs all diagnostic information via 'extra' dict)
+
+**Why this fixes the issue:**
+- This timeout is a handled, graceful failure (operation is retried automatically)
+- ERROR-level logs trigger error_watcher task creation
+- WARNING-level logs do not trigger error_watcher
+- Real ERROR conditions continue to be tracked properly
+
+**Verification:**
+✓ test_provider_retirement.py: 21 tests passed
+✓ test_error_watcher.py: 124 tests passed  
+✓ test_error_watcher_orchestrator.py: 13 tests passed
+
+All related test suites pass with the change. The fix is minimal and surgical - only the log level changes, all other behavior remains identical.
 ---
 <!-- COMMENTS:END -->
