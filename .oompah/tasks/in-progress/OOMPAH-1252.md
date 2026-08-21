@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1252
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:server] Update issue API error: TaskTransitionNotApplied(''TRICKLE-142:
   In Progress was not applied (rejected: transition.project_owner_authority_required)'')'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:11:27.677981Z'
-updated_at: '2026-08-21T10:33:25.255594Z'
+updated_at: '2026-08-21T16:37:38.394057Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -78,7 +78,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: f31d5a37-d810-49e7-af67-8485cad96724
+oompah.agent_run_id: 577acd7f-620a-4107-8997-23f13fef0a07
 oompah.work_contributors:
   runs:
   - run_id: 0172dc2af57c42a69a2746e651e135c9--contributor-a8b0475e7b09
@@ -283,5 +283,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 1s
 - Log: OOMPAH-1252__20260821T103221Z.jsonl
+---
+author: oompah
+created: 2026-08-21 16:37
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
