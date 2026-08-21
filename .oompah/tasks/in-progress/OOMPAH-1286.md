@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:02:32.249073Z'
-updated_at: '2026-08-21T13:22:58.433497Z'
+updated_at: '2026-08-21T13:24:09.989670Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -268,5 +268,17 @@ author: oompah
 created: 2026-08-21 13:22
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 13:24
+---
+Understanding: This is a timeout issue in backend:orchestrator where 'Pre-provider contributor evidence' operations are exceeding a 5-second task-authority deadline. The error occurs during normal operation on proj-14849f1b and should either complete successfully or fail gracefully without triggering error_watcher.
+
+Planned approach:
+1. Locate the 'Pre-provider contributor evidence' logic in backend:orchestrator
+2. Understand why it's timing out (task-authority bounded by 5 seconds)
+3. Either optimize the operation or extend the timeout appropriately
+4. Add/verify graceful handling so error_watcher is not triggered for expected timeouts
+5. Test the fix to ensure no regressions
 ---
 <!-- COMMENTS:END -->
