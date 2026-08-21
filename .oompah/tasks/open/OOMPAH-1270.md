@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-21T00:45:50.707738Z'
+updated_at: '2026-08-21T02:06:34.491456Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -77,5 +77,14 @@ author: oompah
 created: 2026-08-20 22:28
 ---
 DISPATCH UNBLOCKED. Root cause of the post-restart stall was NOT DB size: it was liveness coverage. OOMPAH_WORKFLOW_LIVENESS_MAX_TASK_RECORDS defaulted to 256 while there were 265 nonterminal tasks. In workflow_controller (~line 1132) full-coverage evaluation only happens when nonfinal_count <= max_task_records, so the universal totality scan evaluated 262/265 with 9 omitted every sweep, scan_complete stayed False, and the post-restart audit-priority boundary stayed 'restart_overdue', gating all dispatch. Raised OOMPAH_WORKFLOW_LIVENESS_MAX_TASK_RECORDS and OOMPAH_WORKFLOW_RUNTIME_DECISION_LIMIT to 1000 in the running service .env and restarted; scan now completes (evaluated=265/265, omitted=0), worker reports accepting=true active=3, and codex/opencode agents are running. Documented the coverage>=nonterminal-task-count requirement in .env.example via PR #891. Note: the earlier rollback-event drain (PRs #888/#890) still cleaned up ~19.9M publication_rollback rows and prevents the livelock recurring, but it relocated them into workflow_job_events_archive in the same DB file, so the file did NOT shrink (~4.4G); pruning/separate-file for the audit archive remains a separate follow-up.
+---
+author: oompah
+created: 2026-08-21 02:06
+---
+Investigated 'only Claude/Codex implement, OpenCode only audits'. Root cause confirmed: AuditorCandidateSelector.reserve_for_contributor_candidates reserves eligible[-1] (the last-configured eligible candidate) as the independent terminal auditor and excludes it from implementation. OpenCode (prov-6cf41c89/switchyard/auto) is configured last in the seeded candidate order, so it is deterministically the reserved auditor on nearly every task and never implements. OpenCode is healthy; this is selection, not a fault.
+
+Attempted fix (rotate the reserved auditor least-recently-used via an auditor_last_used hook + record_used on the 'auditor' role) was implemented and unit-tested in the selector, but CLOSED (PR #894) because it conflicts with an intentional, tested invariant in test_orchestrator_handlers.py::TestContributorAuditorReservationOrchestration: the reservation deliberately keeps the FINAL eligible candidate reserved so the contributor's failover/escalation chain (e.g. haiku -> sonnet -> opus) can continue while the last candidate (terra) stays independent for terminal review. Rotating the reservation broke that escalation model (reserved sonnet mid-chain, blocking sonnet from implementing).
+
+Recommendation for a proper fix (needs design decision, not a forced patch): decouple 'which provider is reserved as auditor' from 'preserve escalation order'. Options: (a) rotate the reserved auditor only among candidates NOT part of the current contributor escalation set; (b) make auditor independence a per-provider fairness policy so each provider is excluded from implementation ~1/N of the time rather than always the last; (c) add a config flag to opt into rotation for single-attempt (non-escalating) dispatches, keeping the reserve-final invariant for escalation chains. No code change landed; main is unchanged. Reverted local branch.
 ---
 <!-- COMMENTS:END -->
