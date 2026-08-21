@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:19:59.169133Z'
-updated_at: '2026-08-21T08:20:35.743103Z'
-work_branch: null
+updated_at: '2026-08-21T08:21:13.965753Z'
+work_branch: OOMPAH-1308
 target_branch: null
 review_url: null
 review_number: null
@@ -112,6 +112,18 @@ oompah.task_costs:
     output_tokens: 1574
     cost_usd: 0.0
     recorded_at: '2026-08-21T03:50:59.480818+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1308
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: 2212be8ec0e05220a456c988038a2e27e6bba5e8
+  submitted_at: '2026-08-21T08:20:57.736815+00:00'
+  updated_at: '2026-08-21T08:20:57.736815+00:00'
+oompah.work_branch: OOMPAH-1308
 ---
 ## Summary
 
@@ -203,5 +215,10 @@ author: oompah
 created: 2026-08-21 08:20
 ---
 **Verification**: Commit 2212be8ec pushed to OOMPAH-1308 branch. All relevant tests pass. The fix changes a single logger.error() call to logger.warning() for an expected timeout scenario, ensuring error_watcher won't auto-file false-positive tasks while preserving operator visibility of the condition via warning-level logging.
+---
+author: oompah
+created: 2026-08-21 08:21
+---
+Fixed pre-provider contributor evidence timeout false-positive by changing logger.error() to logger.warning(). This expected, handled scenario now won't trigger error_watcher auto-filing while preserving audit trail for operators.
 ---
 <!-- COMMENTS:END -->
