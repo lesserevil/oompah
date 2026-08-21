@@ -2775,3 +2775,40 @@ def test_replay_of_final_intent_cleans_claim_left_by_process_death(tmp_path):
 
     assert replay.replay.replayed is True
     assert following.claim_token is not None
+
+
+@pytest.mark.asyncio
+async def test_needs_human_escalation_is_logged_with_authority_source(
+    tmp_path, caplog
+):
+    """Regression test for OOMPAH-1270: Needs Human transitions must log actor/authority/reason.
+    
+    This ensures that when a task is escalated to 'Needs Human' via an external push-hook
+    or API call, the exact source (actor, authority, reason_code) is recorded in logs
+    for later investigation of unexpected escalations.
+    """
+    issue = _issue(state="Open")
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+    
+    intent = _intent(
+        issue,
+        requested_status="Needs Human",
+        authority=TransitionAuthority.API,
+        actor="external-webhook",
+        reason_code="external.push_hook_escalation",
+    )
+
+    with caplog.at_level("INFO"):
+        outcome = await service.execute(intent)
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert tracker.updates == [("TASK-1", "Needs Human")]
+    
+    # Verify that the escalation is logged with all authority information
+    assert "Task escalation to Needs Human" in caplog.text
+    assert "task=TASK-1" in caplog.text
+    assert "project=project-1" in caplog.text
+    assert "actor=external-webhook" in caplog.text
+    assert "authority=TransitionAuthority.API" in caplog.text
+    assert "reason=external.push_hook_escalation" in caplog.text
