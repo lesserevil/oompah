@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:59:20.045563Z'
-updated_at: '2026-08-21T03:27:25.170130Z'
+updated_at: '2026-08-21T03:27:32.100680Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,14 +33,45 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: af53521ba791f2b25043debead4a2cd5c4b27571abc0642ba57889eee89b1111
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-21T03:27:11.520269+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 5298151051d3b17bffa2c47d93ebbc778e118a08f05e1780f0142934933fb634:142925
-  claim_owner: 884c7b0a-4fe0-4acd-9fe6-041416485094
-  claimed_at: '2026-08-21T03:24:02.277670+00:00'
-  claim_expires_at: '2026-08-21T03:54:02.277670+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: The supplied corpus contains 29 peer tasks, all in terminal\
+    \ states. None describe the specific \"Pre-provider contributor evidence exceeded\
+    \ bounded task-authority deadline\" error with timeout_seconds=5.0 from backend:orchestrator.\
+    \ The closest active-topic tasks (OOMPAH-1000\u20131014) address distinct orchestrator/workflow\
+    \ problems unrelated to provider evidence timeout handling. No active duplicate\
+    \ target was identified in the authoritative corpus.\nLooking at the supplied\
+    \ project task corpus, I need to determine if OOMPAH-1296 is a duplicate of an\
+    \ existing active issue.\n\n## Analysis\n\n**Current Issue OOMPAH-1296:**\n- Error:\
+    \ \"Pre-provider contributor evidence exceeded its bounded task-authority deadline\"\
+    \n- Source: `backend:orchestrator`\n- Timeout: 5.0 seconds\n- Related to issue_id=OOMPAH-1212\n\
+    - Auto-filed by `error_watcher`\n\n**Task Corpus Review:**\n\nI've examined all\
+    \ 29 similarity candidates provided in the corpus:\n\n- **OOMPAH-1000 through\
+    \ OOMPAH-1014**: Merged/Done tasks addressing various orchestrator and workflow\
+    \ issues (terminal audit binding, quality gates, workflow admission, epic validation,\
+    \ etc.) \u2014 but these describe distinct problems with different error signatures\n\
+    - **OOMPAH-1015 through OOMPAH-1027**: Archived/Merged tasks about \"terminal-audit\
+    \ enforcement: pre_recovery_finalization_metadata_malformed\" \u2014 a different\
+    \ class of errors\n- **OOMPAH-1**, **OOMPAH-10**, **OOMPAH-164**: Archived tasks\
+    \ with unrelated topics\n\n**Key Finding:**\nAll peer tasks in the corpus are\
+    \ in terminal states (Done, Merged, or Archived). None are currently active (Open,\
+    \ In Progress, or Ready to Integrate). More importantly, none describe the specific\
+    \ error about \"Pre-provider contributor evidence exceeded its bounded task-authority\
+    \ deadline\" related to provider evidence collection and task-authority timeouts\
+    \ in the orchestrator.\n\n---\n\nFocus handoff: duplicate_detector\n\nDuplicate\
+    \ preflight verdict: no_duplicate\n\nMatches: none\n\nEvidence: The supplied corpus\
+    \ contains 29 peer tasks, all in terminal states. None describe the specific \"\
+    Pre-provider contributor evidence exceeded bounded task-authority deadline\" error\
+    \ with timeout_seconds=5.0 from backend:orchestrator. The closest active-topic\
+    \ tasks (OOMPAH-1000\u20131014) address distinct orchestrator/workflow problems\
+    \ unrelated to provider evidence timeout handling. No active duplicate target\
+    \ was identified in the authoritative corpus."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
