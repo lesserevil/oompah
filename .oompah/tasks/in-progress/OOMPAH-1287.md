@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:03:14.411853Z'
-updated_at: '2026-08-21T12:27:18.371343Z'
-work_branch: null
+updated_at: '2026-08-21T12:28:02.758903Z'
+work_branch: OOMPAH-1287
 target_branch: null
 review_url: null
 review_number: null
@@ -120,7 +120,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: fb39f19c-81a4-415c-ab8b-df86820436b6
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 2eaa20e2d95b4cf4a514319ae4740ef0--contributor-4256b9f40773
@@ -171,6 +171,18 @@ oompah.task_costs:
     output_tokens: 1742
     cost_usd: 0.0
     recorded_at: '2026-08-21T03:06:24.932207+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1287
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: 78bd296c4def08dea1fecb2f04508a1eecf8a7b3
+  submitted_at: '2026-08-21T12:27:39.533050+00:00'
+  updated_at: '2026-08-21T12:27:39.533050+00:00'
+oompah.work_branch: OOMPAH-1287
 ---
 ## Summary
 
@@ -343,5 +355,10 @@ Test results:
 - Consistency: Aligns with similar timeout logging at line 58102 (CancelledError case)
 
 The fix successfully resolves the issue where error_watcher was being triggered by this expected operational timeout.
+---
+author: oompah
+created: 2026-08-21 12:27
+---
+Fixed pre-provider contributor evidence timeout from triggering error_watcher by changing logger.error() to logger.warning() at orchestrator.py:58066. The timeout is a normal handled graceful failure that shouldn't trigger error_watcher auto-filing. All 529 related tests pass.
 ---
 <!-- COMMENTS:END -->
