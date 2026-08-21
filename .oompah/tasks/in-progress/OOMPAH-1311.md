@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:25:39.636424Z'
-updated_at: '2026-08-21T11:09:06.654396Z'
+updated_at: '2026-08-21T11:12:23.484595Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -344,5 +344,21 @@ The error 'Pre-provider contributor evidence exceeded its bounded task-authority
 2. Increase the persistence_timeout to allow slow tracker operations to complete
 3. Or optimize the persistence operation to be faster
 4. Verify the fix doesn't regress timeout handling for actual deadlocks
+---
+author: oompah
+created: 2026-08-21 11:12
+---
+## Discovery
+
+Found the root cause in oompah/orchestrator.py lines 58023-58046:
+
+The pre-provider contributor evidence persistence is timing out after 5.0 seconds. The code calculates:
+- persistence_timeout = max(min(5.0, 5.0), 0.05) = 5.0 seconds
+- Then checks config for override: contributor_evidence_persist_timeout_seconds (default 30.0)
+- The override should extend this to 30 seconds, but error shows 5.0
+
+**Problem:** The calculated 5-second timeout is insufficient for slow tracker operations (metadata writes, state branch commits). Even with the 30-second config default, the operations are exceeding the deadline.
+
+**Solution:** The default timeout of 5.0 seconds is too aggressive. The calculation should use the full configured 30-second default instead of overriding it with a shorter computed value. The intent appears to be having a short deadline, but it's causing legitimate tracker operations to fail.
 ---
 <!-- COMMENTS:END -->
