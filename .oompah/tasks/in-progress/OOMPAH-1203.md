@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:19:28.760792Z'
-updated_at: '2026-08-21T01:14:16.049130Z'
+updated_at: '2026-08-21T01:26:05.663496Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -224,5 +224,23 @@ created: 2026-08-21 01:14
 **DISCOVERY**: Found the root cause. In `orchestrator.py:_stage_work_contributor_launch()` (line 58112), a catch-all exception handler is catching StateBranchFetchError (a transient network error) and returning it as an error message. This gets converted to ProviderStartupError with reason='contributor_evidence_unavailable', which logs at ERROR level and triggers error_watcher.
 
 The fix is to catch StateBranchFetchError specifically (a transient/retryable error per tracker.py) and log it at WARNING instead of ERROR, allowing it to be retried naturally without error_watcher reporting it as a bug.
+---
+author: oompah
+created: 2026-08-21 01:26
+---
+**IMPLEMENTATION**: Modified orchestrator.py::_stage_work_contributor_launch() to specifically handle StateBranchFetchError (a transient network error). 
+
+Changes:
+1. Added separate except clause for TrackerStateBranchFetchError before the catch-all
+2. Logs at WARNING level (not ERROR) so error_watcher is not triggered
+3. Releases budget reservations properly
+4. Returns None to allow provider dispatch to proceed (background persistence retries naturally)
+5. Kept the original catch-all handler for real errors
+
+Added comprehensive test file (test_state_branch_fetch_contributor_evidence.py) with 5 test cases verifying:
+- StateBranchFetchError is logged at WARNING not ERROR
+- Provider dispatch is not blocked by transient errors
+- Non-fetch errors still cause ProviderStartupError
+- Budget reservations are released properly
 ---
 <!-- COMMENTS:END -->

@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:50:52.786229Z'
-updated_at: '2026-08-21T01:20:59.502070Z'
+updated_at: '2026-08-21T01:26:03.109841Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -304,5 +304,24 @@ Both functions use the same pattern: call_soon_threadsafe() to publish a callbac
 5 seconds provides sufficient time for the event loop to schedule and execute the callback, while still maintaining fail-closed behavior if something is genuinely broken.
 
 This aligns with timeout patterns used throughout the test suite (typically 3-5 seconds).
+---
+author: oompah
+created: 2026-08-21 01:26
+---
+VERIFICATION:
+
+Test results - All passed:
+✓ test_event_driven_loop.py (81 tests, including 12 restart_recovery specific)
+✓ test_retry_authority_generation.py (83 tests)
+✓ test_auditor_termination_cleanup.py (36 tests)
+✓ test_dispatch_loop_heartbeat.py (42 tests)
+
+No regressions detected. The timeout increase from 1s to 5s allows the event loop to reliably execute scheduled callbacks under normal and loaded conditions.
+
+Summary:
+- Fixed: Restart recovery publication timeout (line 9608)
+- Fixed: Retry timer arming timeout (line 70920)
+- Both functions now use 5.0 second timeout instead of 1.0 second
+- Maintains fail-closed semantics while reducing spurious timeouts
 ---
 <!-- COMMENTS:END -->
