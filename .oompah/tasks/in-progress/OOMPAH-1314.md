@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:41:13.991341Z'
-updated_at: '2026-08-21T14:22:46.720581Z'
+updated_at: '2026-08-21T14:23:25.284453Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -256,5 +256,10 @@ author: oompah
 created: 2026-08-21 14:22
 ---
 IMPLEMENTATION: Changed logger.error() to logger.warning() at oompah/orchestrator.py:58066 for the pre-provider contributor evidence timeout. This gracefully-handled scenario no longer triggers error_watcher. The log message remains the same; only the level changed from ERROR to WARNING, consistent with similar timeout patterns (focus.py:1294, orchestrator.py:3143) and the CancelledError handler on line 58102. All 158 related tests pass.
+---
+author: oompah
+created: 2026-08-21 14:23
+---
+VERIFICATION: All tests pass (158 tests across provider_retirement, error_watcher, and error_watcher_orchestrator modules). The fix is minimal (1-line change) and backwards compatible. The error message content, extra structured data, and return value remain unchanged; only the log level changed from ERROR to WARNING. This prevents error_watcher from auto-filing this gracefully-handled timeout scenario. Commit: OOMPAH-1314 445f41f2d. Branch pushed to origin/OOMPAH-1314.
 ---
 <!-- COMMENTS:END -->
