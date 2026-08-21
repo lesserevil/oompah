@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-21T02:16:27.234809Z'
+updated_at: '2026-08-21T02:20:26.142831Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -251,5 +251,17 @@ Changes:
 This prevents 'Cannot operate on a closed database' errors when orchestrator instances are replaced and old stores are garbage collected while API threads still hold references to them.
 
 The fix handles the race condition described in OOMPAH-1224 where database connections can be implicitly closed by Python's garbage collector during orchestrator replacement, while active API requests still try to use those connections.
+---
+author: oompah
+created: 2026-08-21 02:20
+---
+Verification: Test results show connection recovery is working correctly.
+
+- Coordination tests: 9/9 passed
+- Integration queue tests: 47/47 passed
+- Connection recovery tests: Successfully re-opens closed connections and resumes database operations
+- No regressions detected
+
+Branch pushed to origin/OOMPAH-1224. Ready for integration.
 ---
 <!-- COMMENTS:END -->
