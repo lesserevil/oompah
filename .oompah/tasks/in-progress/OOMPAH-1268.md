@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-21T06:02:33.001296Z'
+updated_at: '2026-08-21T06:02:38.770459Z'
 work_branch: OOMPAH-1268
 target_branch: null
 review_url: null
@@ -223,5 +223,10 @@ VERIFICATION: All acceptance criteria verified and tests passing:
 ✓ 12 tests pass in test_storage_cleanup.py
 
 Implementation complete and verified. All changes merged into main.
+---
+author: oompah
+created: 2026-08-21 06:02
+---
+Implementation complete and verified. PR #883 implemented schema V8 archive table + high-water fence + bounded maintenance job. PR #884 fixed trigger migration issue. All acceptance criteria met: append-only DELETE blocked outside archival, events moved to cold storage with sequences preserved, snapshot authority high-water fence protected, maintenance runs bounded/restart-safe. Full test suite green (568 tests).
 ---
 <!-- COMMENTS:END -->
