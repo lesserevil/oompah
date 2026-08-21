@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:50:52.786229Z'
-updated_at: '2026-08-21T00:17:41.423854Z'
+updated_at: '2026-08-21T00:18:19.227570Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -91,6 +91,14 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
   - run_id: 366dc2e64db34a00afe4fb85a61699d4--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: general
+    source_branch: OOMPAH-1213
+    source_sha: null
+    completed_at: ''
+  - run_id: 8414a6ee0a5c45409dcef7115d10e61a--contributor-4256b9f40773
     provider_id: prov-651d553c
     provider_name: Claude
     model_id: haiku
