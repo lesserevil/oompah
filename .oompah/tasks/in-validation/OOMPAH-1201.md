@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:47.623989Z'
-updated_at: '2026-08-21T04:11:04.048000Z'
+updated_at: '2026-08-21T04:16:08.255647Z'
 work_branch: OOMPAH-1201
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/893
@@ -164,12 +164,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1201
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: c53bfec3e18dba65d306bd764426f7633f38a59bd9f3969e9644540dafa598c1
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-4d9da9526bcc
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c53bfec3e18dba65d306bd764426f7633f38a59bd9f3969e9644540dafa598c1
+      created_at: '2026-08-21T04:16:06.535679+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-21T04:16:06.535679+00:00'
+      branch_key: OOMPAH-1201
+      selected_ref: b6644c5739285af3b2da1d9d1e91077ed094845b
+      selected_sha: b6644c5739285af3b2da1d9d1e91077ed094845b
     source_generation: 1
     requested_by:
       version: 1
@@ -180,6 +195,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-21T04:10:50.156901+00:00'
     selected_ref: b6644c5739285af3b2da1d9d1e91077ed094845b
     selected_sha: b6644c5739285af3b2da1d9d1e91077ed094845b
+    updated_at: '2026-08-21T04:16:06.535679+00:00'
   - version: 1
     audit_id: audit-3b50b6818c44
     project_id: proj-14849f1b
@@ -201,7 +217,22 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-431e164c6a88
     selected_ref: b6644c5739285af3b2da1d9d1e91077ed094845b
     selected_sha: b6644c5739285af3b2da1d9d1e91077ed094845b
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-4d9da9526bcc
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c53bfec3e18dba65d306bd764426f7633f38a59bd9f3969e9644540dafa598c1
+    created_at: '2026-08-21T04:16:06.535679+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-21T04:16:06.535679+00:00'
+    branch_key: OOMPAH-1201
+    selected_ref: b6644c5739285af3b2da1d9d1e91077ed094845b
+    selected_sha: b6644c5739285af3b2da1d9d1e91077ed094845b
 ---
 ## Summary
 
