@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:00:21.577837Z'
-updated_at: '2026-08-21T02:55:48.360678Z'
+updated_at: '2026-08-21T02:56:57.067641Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -55,8 +55,24 @@ oompah.work_contributors:
     model_id: haiku
     focus: duplicate_detector
     source_branch: OOMPAH-1285
-    source_sha: null
-    completed_at: ''
+    source_sha: 2da1c8073e0617b21959af89a4443b9f50c9a1d7
+    completed_at: '2026-08-21T02:56:45.240656+00:00'
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 2255
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 2255
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 2255
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T02:56:45.218295+00:00'
 ---
 ## Summary
 
@@ -108,5 +124,15 @@ author: oompah
 created: 2026-08-21 02:55
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-21 02:56
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 2.3K out [2.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 43s
+- Log: OOMPAH-1285__20260821T025602Z.jsonl
 ---
 <!-- COMMENTS:END -->
