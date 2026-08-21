@@ -8239,34 +8239,42 @@ def _canonical_managed_project_id(orch, project_id: str) -> str:
 
     An empty project store is the legacy single-tracker mode.  Preserve its
     existing behavior because there is no managed project ID to canonicalize.
+    
+    As a convenience, project_id may also be a project *name* (e.g. "coroot").
+    When the ID lookup fails, a name-based lookup is attempted so callers
+    that hold the human-readable name do not need to resolve it first.
     """
     requested = str(project_id or "").strip()
     if not requested:
         return requested
 
     try:
+        # Try direct ID lookup first
+        project = orch.project_store.get(requested)
+        if project:
+            return requested
+        
+        # Fall back to name-based lookup for callers that supply a
+        # human-readable project name instead of the internal ID.
+        project = orch.project_store.find_by_name(requested)
+        if project:
+            return project.id
+    except ProjectError:
+        # Re-raise ProjectError from our own validation logic
+        raise
+    except Exception:
+        # Let the existing tracker resolution path report an unavailable
+        # project-store failure; do not manufacture a project identity here.
+        return requested
+    
+    # If we get here, check if project_store is empty (legacy single-tracker mode)
+    try:
         projects = list(orch.project_store.list_all())
     except Exception:
         # Let the existing tracker resolution path report an unavailable
         # project-store failure; do not manufacture a project identity here.
         return requested
-
-    for project in projects:
-        canonical = getattr(project, "id", None)
-        if isinstance(canonical, str) and canonical == requested:
-            return canonical
-
-    for project in projects:
-        canonical = getattr(project, "id", None)
-        name = getattr(project, "name", None)
-        if (
-            isinstance(canonical, str)
-            and canonical
-            and isinstance(name, str)
-            and name == requested
-        ):
-            return canonical
-
+    
     if projects:
         # Keep the failure generic: project IDs and names are configuration
         # data and should not be reflected in an API error response.
