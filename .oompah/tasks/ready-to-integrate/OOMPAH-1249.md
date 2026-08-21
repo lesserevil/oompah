@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1249
 type: task
-status: In Review
+status: Ready to Integrate
 priority: null
 title: Sanitize credential routes from managed clone Git config
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:07:17.780951Z'
-updated_at: '2026-08-21T09:27:01.264508Z'
+updated_at: '2026-08-21T09:27:47.983520Z'
 work_branch: OOMPAH-1249
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/896
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 38414c00-1ce0-4772-8ca6-34b094cc432f
   request_fingerprint: 161c9ff76929a7deb62fc461fd2af12e3940f907f457dfd38ca6015cd1b8f517
-oompah.lifecycle_revision: 4
+oompah.lifecycle_revision: 5
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: ac16839b98a35e44ffa203782336151a9e5ff81d3f799e101eabcba48ecc8de7
