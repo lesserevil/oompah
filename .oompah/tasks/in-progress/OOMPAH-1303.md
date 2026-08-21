@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:15:51.064357Z'
-updated_at: '2026-08-21T13:39:02.305609Z'
+updated_at: '2026-08-21T13:54:11.091964Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -295,5 +295,30 @@ Changed `getattr(..., None)` to `getattr(..., 30.0)` so the configured default i
 - Production deployments can easily increase the timeout further if needed
 
 Running tests now...
+---
+author: oompah
+created: 2026-08-21 13:54
+---
+## Verification: Tests Pass
+
+**Test Results:**
+- All 21 tests in test_provider_retirement.py: ✅ PASSED
+- All 814 orchestrator tests: ✅ PASSED
+- Total: 835+ tests verified
+
+**What was tested:**
+- Provider retirement with pre-provider evidence timeout (test_pre_provider_evidence_timeout_releases_task_authority)
+- Authority revocation, worker capacity release, lifecycle gates
+- Contributor evidence writes and project locking
+- Configuration reloads and dispatch loop behavior
+
+**Commit Details:**
+- File: oompah/orchestrator.py
+- Change: Lines 58032-58040
+- Impact: Ensures configured timeout (30s default) is always used for contributor evidence persistence
+- Previous behavior: Would silently fall back to 5-second derived timeout if getattr returned None
+- New behavior: Guaranteed to use at least 30-second timeout (or configured value)
+
+The fix is minimal, focused, and all related tests pass.
 ---
 <!-- COMMENTS:END -->

@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:53:11.407767Z'
-updated_at: '2026-08-21T13:53:27.975147Z'
-work_branch: null
+updated_at: '2026-08-21T13:54:09.686158Z'
+work_branch: OOMPAH-1280
 target_branch: null
 review_url: null
 review_number: null
@@ -71,7 +71,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 019b6385-7c7b-428e-b94f-d56913a6abd5
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: ea2b17fa4bfd4659b27f939d55744746--contributor-a8b0475e7b09
@@ -146,6 +146,18 @@ oompah.task_costs:
     output_tokens: 1552
     cost_usd: 0.0
     recorded_at: '2026-08-21T06:53:57.421099+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1280
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: eae9827d99b3670df25e588a52fa764adbf27b58
+  submitted_at: '2026-08-21T13:53:50.823035+00:00'
+  updated_at: '2026-08-21T13:53:50.823035+00:00'
+oompah.work_branch: OOMPAH-1280
 ---
 ## Summary
 
@@ -337,5 +349,10 @@ author: oompah
 created: 2026-08-21 13:53
 ---
 VERIFICATION: Ran multiple test suites to verify the fix causes no regressions: (1) test_error_watcher_orchestrator.py: 13 tests PASSED (2) test_orchestrator_handlers.py: 381 tests PASSED (3) test_orchestrator_thread.py: 3 tests PASSED (4) test_provenance_suppression_orchestrator.py: 21 tests PASSED. Total: 418 tests passed with no failures. The fix is minimal and focused: a single log level change from ERROR to WARNING that prevents transient timeout conditions from triggering error_watcher.
+---
+author: oompah
+created: 2026-08-21 13:54
+---
+Fixed pre-provider contributor evidence timeout ERROR log that was triggering error_watcher. Changed logger.error to logger.warning at line 58066 in oompah/orchestrator.py for the TimeoutError case. This graceful timeout degradation (where work retries) is not a critical error condition and should not auto-file tasks. Verified with 418 tests passing across multiple orchestrator test suites.
 ---
 <!-- COMMENTS:END -->
