@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:48:11.061409Z'
-updated_at: '2026-08-21T08:38:17.514314Z'
+updated_at: '2026-08-21T08:44:02.843147Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -186,5 +186,10 @@ author: oompah
 created: 2026-08-21 08:37
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 08:44
+---
+UNDERSTANDING: The issue is a timeout in backend:orchestrator when trying to persist pre-provider contributor evidence (provider/model identity) to the tracker. The timeout occurs in _stage_work_contributor_launch() when asyncio.wait_for() exceeds persistence_timeout (default ~5sec based on control/termination timeouts, but can be configured). This error is being auto-filed by error_watcher because it's currently logged as ERROR level. The fix involves either: (1) improving tracker write performance, (2) increasing the timeout gracefully, (3) changing the log level/handling so error_watcher doesn't treat it as a reportable error, or (4) documenting this as expected behavior. Starting investigation of error_watcher and timeout configuration.
 ---
 <!-- COMMENTS:END -->
