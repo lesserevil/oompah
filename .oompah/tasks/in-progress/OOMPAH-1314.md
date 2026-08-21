@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:41:13.991341Z'
-updated_at: '2026-08-21T14:16:58.927817Z'
+updated_at: '2026-08-21T14:22:46.720581Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -251,5 +251,10 @@ author: oompah
 created: 2026-08-21 14:16
 ---
 DISCOVERY: Found root cause in oompah/orchestrator.py:58067. The 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' error is being logged at ERROR level, which triggers error_watcher. However, this is a gracefully-handled scenario - the persistence task is shielded and continues in background, provider is not started, and task is retried. The same timeout in the CancelledError handler (line 58102) uses logger.warning() instead, which is the correct pattern for expected/graceful failures. Fix: downgrade logger.error to logger.warning to match other timeout patterns in codebase.
+---
+author: oompah
+created: 2026-08-21 14:22
+---
+IMPLEMENTATION: Changed logger.error() to logger.warning() at oompah/orchestrator.py:58066 for the pre-provider contributor evidence timeout. This gracefully-handled scenario no longer triggers error_watcher. The log message remains the same; only the level changed from ERROR to WARNING, consistent with similar timeout patterns (focus.py:1294, orchestrator.py:3143) and the CancelledError handler on line 58102. All 158 related tests pass.
 ---
 <!-- COMMENTS:END -->
