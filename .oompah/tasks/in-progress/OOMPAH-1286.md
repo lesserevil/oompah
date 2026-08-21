@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:02:32.249073Z'
-updated_at: '2026-08-21T13:24:09.989670Z'
+updated_at: '2026-08-21T13:29:38.783659Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -280,5 +280,18 @@ Planned approach:
 3. Either optimize the operation or extend the timeout appropriately
 4. Add/verify graceful handling so error_watcher is not triggered for expected timeouts
 5. Test the fix to ensure no regressions
+---
+author: oompah
+created: 2026-08-21 13:29
+---
+Discovery: Found the root cause in oompah/orchestrator.py lines 58002-58090. The issue is:
+
+1. contributor_evidence_persist_timeout is calculated as min(control_timeout, termination_timeout/2) with a default control_timeout of 5 seconds
+2. When OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS is not configured, it defaults to this 5-second value
+3. The pre-provider contributor evidence write (tracker metadata upsert) times out, returning TimeoutError
+4. This is caught and logged as ERROR at line 58066, which triggers error_watcher
+5. The .env.example documents that this timeout should default to 30 seconds for production
+
+The proper fix is to ensure the default timeout is generous enough for slow tracker adapters. The timeout should not be derived solely from control_timeout, but should have its own sensible default.
 ---
 <!-- COMMENTS:END -->
