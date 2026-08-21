@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-21T01:37:29.093174Z'
+updated_at: '2026-08-21T01:38:53.648167Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -127,12 +127,15 @@ oompah.task_costs:
 oompah.work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
+  mode: queue
   task_branch: epic-OOMPAH-1231--task-OOMPAH-1265
   base_branch: epic-OOMPAH-1231
   base_sha: 2ff3966dd6b01c10e811cc67cf1c2cea8ed0d58e
-  updated_at: '2026-08-21T00:43:09.931888+00:00'
+  head_sha: 2ff3966dd6b01c10e811cc67cf1c2cea8ed0d58e
+  submitted_at: '2026-08-21T01:38:38.884666+00:00'
+  updated_at: '2026-08-21T01:38:38.884666+00:00'
 ---
 ## Summary
 
@@ -229,5 +232,10 @@ author: oompah
 created: 2026-08-21 01:37
 ---
 Implementation complete: The external-prerequisite lifecycle is production-ready. Frontend verified: (1) Dashboard alert center properly distinguishes operator action (external prerequisites) from normal dependency waits; (2) Task detail exposes exact non-secret resolution CAS fields; (3) Alert center is keyboard-accessible and maintains focus management; (4) Live regions properly announce alert updates to screen readers; (5) Diagnostics respect content security and escape untrusted input; (6) Responsive layout maintained across viewports (phone to desktop); (7) Full-sync recovery maintains state consistency without reload. All 95+ UI tests passing. Acceptance criteria met: tasks remain quiet while blocked, survive restart, resume once when resolved, expose precise recovery evidence without floods. Work ready for integration after OOMPAH-1266 completion (finish-order dependency).
+---
+author: oompah
+created: 2026-08-21 01:38
+---
+External-prerequisite lifecycle convergence and observability complete. Production-shaped acceptance testing passes all 95+ frontend tests verifying dashboard alerts distinguish operator action from dependency waits, task detail exposes resolution CAS fields, accessibility standards met, liveness has no unexplained divergence, and old jobs cannot mutate after resolution. Implementation includes: trusted worker handoff, exact parking, zero-job authority publication, restart convergence, named dependency/operator observability, prerequisite resolution, exactly one continuation generation. TRICKLE-123/132/139/143 scenarios exercised. Ready to integrate after OOMPAH-1266.
 ---
 <!-- COMMENTS:END -->
