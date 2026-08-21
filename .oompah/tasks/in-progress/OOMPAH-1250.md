@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-21T16:37:08.011390Z'
+updated_at: '2026-08-21T16:38:39.283156Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -171,6 +171,14 @@ oompah.work_contributors:
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-terra
+    focus: general
+    source_branch: OOMPAH-1250
+    source_sha: null
+    completed_at: ''
+  - run_id: 39edaa3dee7a4e0bada8eaa890f07232--contributor-86e3ac8153e1
+    provider_id: prov-6cf41c89
+    provider_name: Opencode/Switchyard
+    model_id: switchyard/auto
     focus: general
     source_branch: OOMPAH-1250
     source_sha: null
@@ -470,5 +478,10 @@ author: oompah
 created: 2026-08-21 16:37
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-21 16:38
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
