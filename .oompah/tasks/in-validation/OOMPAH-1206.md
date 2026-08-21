@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-21T13:37:38.952524Z'
+updated_at: '2026-08-21T13:37:50.488570Z'
 work_branch: OOMPAH-1206
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/902
@@ -438,5 +438,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Opencode/Switchyard/switchya
 - Cost: $0.0000
 - Exit: error, Duration: 4m 55s
 - Log: OOMPAH-1206__20260821T133305Z.jsonl
+---
+author: oompah
+created: 2026-08-21 13:37
+---
+Auditor attempt ended: ValueError: Separator is found, but chunk is longer than limit. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
