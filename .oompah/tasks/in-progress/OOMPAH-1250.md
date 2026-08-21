@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-21T07:43:43.095898Z'
+updated_at: '2026-08-21T07:45:01.243520Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -388,5 +388,10 @@ author: oompah
 created: 2026-08-21 07:43
 ---
 Understanding: Previous Technical Writers correctly identified this task as requiring backend implementation, not documentation work. Investigation findings: (1) docs/gitlab-issue-intake.md already exists with comprehensive documentation for the GitLab intake feature; (2) GitLabIssueTracker and webhook parsing infrastructure exist in code; (3) BUT github_intake_bridge.py and polling logic are still GitHub-only—the actual forge-neutral bridge implementation is missing. The task requires code implementation (bridging GitHub and GitLab intake into forge-neutral architecture) which is outside Technical Writer scope. Determining if there are documentation gaps or improvements needed before handing off to backend.
+---
+author: oompah
+created: 2026-08-21 07:45
+---
+Discovery: The GitLab external issue intake feature is documented but not implemented. Findings: (1) docs/gitlab-issue-intake.md exists with comprehensive, well-structured documentation covering prerequisites, webhook setup, intake workflow, status mapping, security model, and differences from GitHub intake. (2) Documentation follows GitHub intake pattern and includes proper security guidance (untrusted provenance, prompt-injection protection). (3) Infrastructure exists: GitLabIssueTracker class, webhook parsing (_parse_gitlab_issue, _parse_gitlab_note), gitlab_webhook_url module. (4) BUT: github_intake_bridge.py is GitHub-specific; no gitlab_intake_bridge.py exists; poll_github_issue_intake_project() doesn't support GitLab; server routing imports only GitHub events. (5) Documentation mentions oompah.external.gitlab metadata (spec), external:gitlab label, GitLab webhook routing, poll recovery—all features that need to be implemented. Testing infrastructure exists (test_docs_gitlab_contract.py validates documentation contract). Conclusion: This is a backend implementation task. The documentation is a good specification for what needs to be built. Recommended next focus: backend engineer to implement forge-neutral intake bridge with GitLab support, matching the documented behavior.
 ---
 <!-- COMMENTS:END -->
