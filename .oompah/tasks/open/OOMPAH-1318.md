@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:55:23.301399Z'
-updated_at: '2026-08-21T09:14:34.499693Z'
+updated_at: '2026-08-21T09:15:08.455713Z'
 work_branch: OOMPAH-1318
 target_branch: null
 review_url: null
@@ -305,5 +305,41 @@ author: oompah
 created: 2026-08-21 09:14
 ---
 Fixed pre-provider contributor evidence timeout issue by changing the fallback value from None to 30.0 seconds. The 5.0-second derived timeout was too aggressive for tracker persistence operations. All 461 related tests pass.
+---
+author: oompah
+created: 2026-08-21 09:15
+---
+## Completion: Issue Resolved
+
+**Problem Summary:**
+The orchestrator was encountering timeout errors when persisting contributor evidence to the tracker: 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' with timeout_seconds=5.0.
+
+**Root Cause:**
+When `contributor_evidence_persist_timeout_seconds` wasn't found on the config object, the code fell back to a calculated timeout of 5.0 seconds (derived from control and termination timeouts). This value was too aggressive for actual tracker persistence operations.
+
+**Solution Implemented:**
+Modified `oompah/orchestrator.py` line 58032-58038 in the `_stage_work_contributor_launch()` method:
+- Changed `getattr()` default from `None` to `30.0` seconds
+- This ensures the fallback timeout matches the configured default instead of using an unnecessarily strict derived floor
+- When explicitly configured (via environment variable), the configured value is still used
+
+**Testing & Verification:**
+- Added regression test: `test_contributor_evidence_timeout_defaults_to_30_seconds`
+- All 22 tests in test_provider_retirement.py pass
+- All 381 tests in test_orchestrator_handlers.py pass  
+- All 58 tests in test_acp_agent.py pass
+- Total: 461+ tests passing, no regressions
+
+**Files Changed:**
+- oompah/orchestrator.py (1 line changed)
+- tests/test_provider_retirement.py (added regression test)
+
+**Acceptance Criteria Met:**
+✅ Error no longer occurs with default timeout (now 30.0 instead of 5.0)
+✅ Root cause identified and resolved (fallback value was too aggressive)
+✅ Handled gracefully with proper timeout
+✅ No regression in other error handling
+
+Ready for integration.
 ---
 <!-- COMMENTS:END -->
