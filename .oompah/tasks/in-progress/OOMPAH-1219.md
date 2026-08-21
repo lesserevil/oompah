@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:15:47.974297Z'
-updated_at: '2026-08-21T05:36:36.167297Z'
+updated_at: '2026-08-21T05:36:44.318346Z'
 work_branch: OOMPAH-1219
 target_branch: null
 review_url: null
@@ -340,5 +340,10 @@ In function _stage_work_contributor_launch(), the pre-provider contributor evide
 ✓ No regression in error handling (fixes acceptance criterion #3)
 
 Ready for review and integration.
+---
+author: oompah
+created: 2026-08-21 05:36
+---
+Fixed contributor evidence timeout being incorrectly logged as ERROR. Changed to WARNING level since this is expected graceful degradation when synchronous tracker adapters exceed deadline. Prevents error_watcher from auto-filing spurious tasks while maintaining operational visibility. All tests pass.
 ---
 <!-- COMMENTS:END -->
