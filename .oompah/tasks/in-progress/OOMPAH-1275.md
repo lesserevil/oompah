@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:19.724794Z'
-updated_at: '2026-08-21T06:30:47.146488Z'
+updated_at: '2026-08-21T06:30:59.261531Z'
 work_branch: OOMPAH-1275
 target_branch: null
 review_url: null
@@ -243,5 +243,23 @@ author: oompah
 created: 2026-08-21 06:30
 ---
 Increased contributor_evidence_persist_timeout_seconds from 30 to 60 seconds to prevent dispatch failures when tracker metadata writes are slow. All 381 orchestrator tests pass. The timeout remains configurable via environment variable for production deployments.
+---
+author: oompah
+created: 2026-08-21 06:30
+---
+COMPLETION: Successfully fixed OOMPAH-1275 and submitted for integration.
+
+SUMMARY OF WORK:
+1. Root Cause Analysis: Identified that the 30-second contributor_evidence_persist_timeout_seconds default was too aggressive for systems under load
+2. Implementation: Increased default timeout to 60 seconds in config.py 
+3. Testing: All 381 orchestrator handler tests pass; config tests verified
+4. Documentation: Updated .env.example to reflect new default
+
+EXPECTED OUTCOME:
+- The 'All dispatch candidates failed' error from repeated 'contributor_evidence_unavailable' timeouts should no longer occur in systems with normal tracker load
+- error_watcher will stop auto-filing this class of errors
+- The timeout remains configurable via OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS for deployments with specific requirements
+
+The fix follows the existing design pattern documented in the code (lines 58027-58031 in orchestrator.py) which explicitly states: 'When configured it is authoritative (production raises it well above the derived control floor).' This change raises the default floor from 30 to 60 seconds to match production expectations.
 ---
 <!-- COMMENTS:END -->
