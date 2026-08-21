@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-21T06:37:59.755708Z'
+updated_at: '2026-08-21T06:38:41.234170Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -77,7 +77,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: db269a3b-ce51-42e4-9f32-629c84ed4413
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 0f8450b3837a46cb84d3b7f0335aff70--contributor-a8b0475e7b09
@@ -139,12 +139,15 @@ oompah.task_costs:
 oompah.work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
+  mode: queue
   task_branch: epic-OOMPAH-1231--task-OOMPAH-1266
   base_branch: epic-OOMPAH-1231
   base_sha: 2ff3966dd6b01c10e811cc67cf1c2cea8ed0d58e
-  updated_at: '2026-08-21T06:12:58.999376+00:00'
+  head_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+  submitted_at: '2026-08-21T06:38:31.940079+00:00'
+  updated_at: '2026-08-21T06:38:31.940079+00:00'
 ---
 ## Summary
 
@@ -282,5 +285,10 @@ author: oompah
 created: 2026-08-21 06:37
 ---
 Implementation complete: Added fence to prevent late task submits from regressing integrated records back to ready status (OOMPAH-1266). The fence in _submission_record checks if existing state is 'integrated' with matching head/branch/base, and preserves it instead of creating a fresh 'ready' record. This prevents webhook-before-submit and late-submit races from breaking terminal fingerprint stability. Added 3 regression tests to test_submission_fencing.py. All 23 tests pass including new tests.
+---
+author: oompah
+created: 2026-08-21 06:38
+---
+Implementation complete: Fenced late task submission from regressing landed integration authority with atomic authority fence in _submission_record() to preserve integrated records on same-generation submits. Added 3 regression tests. All tests pass.
 ---
 <!-- COMMENTS:END -->
