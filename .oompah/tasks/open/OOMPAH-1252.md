@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:11:27.677981Z'
-updated_at: '2026-08-21T05:30:01.566025Z'
+updated_at: '2026-08-21T05:30:20.099997Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -178,5 +178,10 @@ author: oompah
 created: 2026-08-21 02:01
 ---
 Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-1252/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
+---
+author: oompah
+created: 2026-08-21 05:30
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
