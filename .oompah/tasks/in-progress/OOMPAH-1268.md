@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-21T06:02:48.806334Z'
+updated_at: '2026-08-21T06:03:27.495011Z'
 work_branch: OOMPAH-1268
 target_branch: null
 review_url: null
@@ -228,5 +228,24 @@ author: oompah
 created: 2026-08-21 06:02
 ---
 Implementation complete and verified. PR #883 implemented schema V8 archive table + high-water fence + bounded maintenance job. PR #884 fixed trigger migration issue. All acceptance criteria met: append-only DELETE blocked outside archival, events moved to cold storage with sequences preserved, snapshot authority high-water fence protected, maintenance runs bounded/restart-safe. Full test suite green (568 tests).
+---
+author: oompah
+created: 2026-08-21 06:03
+---
+COMPLETION: Task submitted for integration. Implementation verified complete:
+
+Commits:
+- #883: Archive workflow_job_events for Archived tasks (core implementation)
+- #884: Upgrade legacy events DELETE trigger during V8 migration (fix for existing stores)
+
+Deliverables:
+- Schema V8: workflow_job_events_archive cold table + workflow_job_events_delete_guard
+- Persisted high-water mark for ABA fence monotonicity
+- archive_lifecycle_final_events(max_tasks, max_events) bounded maintenance path
+- _archive_workflow_events() scheduled in housekeeping (300s min_interval)
+- Migration for legacy trigger upgrade on first startup
+- Comprehensive test coverage (568 tests green across affected suites)
+
+All acceptance criteria met. Branch pushed and task submitted.
 ---
 <!-- COMMENTS:END -->
