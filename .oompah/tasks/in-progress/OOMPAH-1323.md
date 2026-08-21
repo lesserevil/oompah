@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:18:43.804044Z'
-updated_at: '2026-08-21T11:28:46.871666Z'
+updated_at: '2026-08-21T11:29:38.475898Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -252,5 +252,10 @@ author: oompah
 created: 2026-08-21 11:28
 ---
 Verification: Focused timeout regressions passed (2/2), the full provider-retirement suite passed (21/21), both error_watcher suites passed (137/137), and git diff --check passed. This confirms expected timeout degradation remains functional and unrelated ERROR reporting coverage is intact.
+---
+author: oompah
+created: 2026-08-21 11:29
+---
+Completion: Delivered and pushed commit dccf429d6. Normal bounded contributor-evidence timeout retirement now logs at WARNING (so error_watcher does not auto-file it), with regression coverage for exact severity; focused retirement and error_watcher suites all pass. Unrelated pre-existing auditor-rotation working-tree edits were intentionally excluded from the commit.
 ---
 <!-- COMMENTS:END -->
