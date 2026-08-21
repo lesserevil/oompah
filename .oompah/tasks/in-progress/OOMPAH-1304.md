@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:16:50.124021Z'
-updated_at: '2026-08-21T12:02:52.722820Z'
+updated_at: '2026-08-21T12:09:53.968475Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -216,5 +216,10 @@ author: oompah
 created: 2026-08-21 12:02
 ---
 **Understanding**: The error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' appears to be a timeout issue in the backend:orchestrator when processing contributor evidence within a 5-second deadline. The task OOMPAH-1224 is exceeding the bounded task-authority timeout. Investigating: (1) where this timeout is enforced, (2) why the operation takes too long, (3) whether the timeout should be increased or the operation optimized, or (4) if this should be handled gracefully instead of raising an error.
+---
+author: oompah
+created: 2026-08-21 12:09
+---
+**Discovery**: Found the root cause in oompah/orchestrator.py:58066-58083. When contributor evidence persistence times out (5 seconds default), the code is logging it at ERROR level, which triggers error_watcher. The operation already degrades gracefully by returning an error message instead of raising. The fix is to change logger.error() to logger.warning() to prevent error_watcher auto-filing, following the pattern used in api_agent.py for transient timeout errors. Tests expect the error message but not a specific log level.
 ---
 <!-- COMMENTS:END -->
