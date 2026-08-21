@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1310
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=OOMPAH-1265 identifier=OOMPAH-1265 run_id=9c2841939f424528835bf48400de2a38
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:20:38.226810Z'
-updated_at: '2026-08-21T08:09:24.162343Z'
+updated_at: '2026-08-21T08:09:35.517967Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -239,5 +239,10 @@ author: oompah
 created: 2026-08-21 08:08
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-21 08:09
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
