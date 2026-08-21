@@ -553,3 +553,373 @@ def test_project_credentials_do_not_cross_concurrent_network_calls(
             )
 
     assert sorted(seen) == [("token-a", "oauth2"), ("token-b", "x-access-token")]
+
+
+def test_sanitize_managed_clone_removes_http_userinfo(tmp_path: Path) -> None:
+    """Sanitization must strip HTTP(S) userinfo from remote URLs."""
+    from oompah.git_credentials import sanitize_managed_clone_credentials
+
+    # Create a test repo with embedded userinfo in remote URL
+    repo = tmp_path / "repo"
+    subprocess.run(
+        ["git", "init", "-b", "main", str(repo)],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.name", "Test"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.email", "test@example.test"],
+        check=True,
+    )
+    
+    # Manually set a remote URL with embedded credentials (bypass git remote add
+    # which may validate the URL)
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "--local", "remote.origin.url", 
+         "https://user:password@github.com/org/repo.git"],
+        check=True,
+    )
+
+    # Sanitize the clone
+    sanitize_managed_clone_credentials(str(repo))
+
+    # Verify userinfo was removed (use git config directly to avoid barrier interference)
+    result = subprocess.run(
+        ["git", "-C", str(repo), "config", "--local", "remote.origin.url"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.strip() == "https://github.com/org/repo.git"
+    assert "user" not in result.stdout
+    assert "password" not in result.stdout
+
+
+def test_sanitize_managed_clone_removes_credential_helper(tmp_path: Path) -> None:
+    """Sanitization must remove credential.helper entries."""
+    from oompah.git_credentials import sanitize_managed_clone_credentials
+
+    repo = tmp_path / "repo"
+    subprocess.run(
+        ["git", "init", "-b", "main", str(repo)],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.name", "Test"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.email", "test@example.test"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "--local", "credential.helper", "cache"],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "config",
+            "--local",
+            "credential.https://github.com.helper",
+            "osxkeychain",
+        ],
+        check=True,
+    )
+
+    # Sanitize the clone
+    sanitize_managed_clone_credentials(str(repo))
+
+    # Verify credential helpers were removed
+    result = subprocess.run(
+        ["git", "-C", str(repo), "config", "--local", "--get-regexp", "credential"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1  # No matches
+    assert result.stdout.strip() == ""
+
+
+def test_sanitize_managed_clone_removes_http_extraheader(tmp_path: Path) -> None:
+    """Sanitization must remove http.*.extraheader entries."""
+    from oompah.git_credentials import sanitize_managed_clone_credentials
+
+    repo = tmp_path / "repo"
+    subprocess.run(
+        ["git", "init", "-b", "main", str(repo)],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.name", "Test"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.email", "test@example.test"],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "config",
+            "--local",
+            "http.https://github.com/.extraheader",
+            "Authorization: Bearer token123",
+        ],
+        check=True,
+    )
+
+    # Sanitize the clone
+    sanitize_managed_clone_credentials(str(repo))
+
+    # Verify extraheader was removed
+    result = subprocess.run(
+        ["git", "-C", str(repo), "config", "--local", "--get-regexp", "http"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1  # No matches
+    assert result.stdout.strip() == ""
+
+
+def test_sanitize_managed_clone_normalizes_to_canonical_url(tmp_path: Path) -> None:
+    """Sanitization must normalize origin to canonical URL if provided."""
+    from oompah.git_credentials import sanitize_managed_clone_credentials
+
+    repo = tmp_path / "repo"
+    subprocess.run(
+        ["git", "init", "-b", "main", str(repo)],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.name", "Test"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.email", "test@example.test"],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "config",
+            "--local",
+            "remote.origin.url",
+            "https://stale-url.example/repo.git",
+        ],
+        check=True,
+    )
+
+    canonical = "https://canonical.example/repo.git"
+
+    # Sanitize with canonical URL
+    sanitize_managed_clone_credentials(str(repo), canonical_url=canonical)
+
+    # Verify origin was updated to canonical URL (use git config directly)
+    result = subprocess.run(
+        ["git", "-C", str(repo), "config", "--local", "remote.origin.url"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.strip() == canonical
+
+
+def test_sanitize_managed_clone_is_idempotent(tmp_path: Path) -> None:
+    """Sanitization must be idempotent and not fail on already-clean repos."""
+    from oompah.git_credentials import sanitize_managed_clone_credentials
+
+    repo = tmp_path / "repo"
+    subprocess.run(
+        ["git", "init", "-b", "main", str(repo)],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.name", "Test"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.email", "test@example.test"],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "config",
+            "--local",
+            "remote.origin.url",
+            "https://github.com/org/repo.git",
+        ],
+        check=True,
+    )
+
+    # First sanitization on clean repo should succeed
+    sanitize_managed_clone_credentials(str(repo))
+
+    # Second sanitization should also succeed (idempotent)
+    sanitize_managed_clone_credentials(str(repo))
+
+    # Verify repo is still in good state (use git config directly)
+    result = subprocess.run(
+        ["git", "-C", str(repo), "config", "--local", "remote.origin.url"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.strip() == "https://github.com/org/repo.git"
+
+
+def test_direct_rebase_preflight_passes_after_sanitization(
+    tmp_path: Path,
+) -> None:
+    """Direct rebase preflight must pass after sanitization removes credentials."""
+    from oompah.orchestrator import Orchestrator
+    from oompah.git_credentials import sanitize_managed_clone_credentials
+
+    # Create a test repo with stale credential routes
+    repo = tmp_path / "repo"
+    subprocess.run(
+        ["git", "init", "-b", "main", str(repo)],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.name", "Test"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.email", "test@example.test"],
+        check=True,
+    )
+    
+    # Add various credential routes that would fail preflight
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "config",
+            "--local",
+            "remote.origin.url",
+            "https://user:password@github.com/org/repo.git",
+        ],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "--local", "credential.helper", "cache"],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "config",
+            "--local",
+            "http.https://github.com/.extraheader",
+            "Authorization: Bearer token123",
+        ],
+        check=True,
+    )
+
+    # Before sanitization, preflight should fail
+    has_credentials = Orchestrator._epic_rebase_workspace_has_remote_write_route(str(repo))
+    assert has_credentials, "Preflight should detect credentials before sanitization"
+
+    # Sanitize the repo
+    sanitize_managed_clone_credentials(
+        str(repo),
+        canonical_url="https://canonical.github.com/org/repo.git",
+    )
+
+    # After sanitization, preflight should pass
+    has_credentials = Orchestrator._epic_rebase_workspace_has_remote_write_route(str(repo))
+    assert not has_credentials, "Preflight should pass after sanitization"
+
+
+def test_sanitize_managed_clone_does_not_affect_other_remotes(
+    tmp_path: Path,
+) -> None:
+    """Sanitization of origin should not affect other remotes."""
+    from oompah.git_credentials import sanitize_managed_clone_credentials
+
+    repo = tmp_path / "repo"
+    subprocess.run(
+        ["git", "init", "-b", "main", str(repo)],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.name", "Test"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.email", "test@example.test"],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "config",
+            "--local",
+            "remote.origin.url",
+            "https://user:pass@github.com/org/repo.git",
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "config",
+            "--local",
+            "remote.upstream.url",
+            "https://other-user:other-pass@github.com/upstream/repo.git",
+        ],
+        check=True,
+    )
+
+    # Sanitize with canonical URL for origin
+    sanitize_managed_clone_credentials(
+        str(repo),
+        canonical_url="https://canonical.example/repo.git",
+    )
+
+    # Origin should be updated to canonical (use git config directly)
+    origin_result = subprocess.run(
+        ["git", "-C", str(repo), "config", "--local", "remote.origin.url"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert origin_result.stdout.strip() == "https://canonical.example/repo.git"
+
+    # Upstream should have userinfo stripped but not replaced (use git config directly)
+    upstream_result = subprocess.run(
+        ["git", "-C", str(repo), "config", "--local", "remote.upstream.url"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert upstream_result.stdout.strip() == "https://github.com/upstream/repo.git"
+    assert "other-user" not in upstream_result.stdout
+    assert "other-pass" not in upstream_result.stdout

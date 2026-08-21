@@ -21,7 +21,11 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
-from oompah.git_credentials import git_credential_environment, redact_git_output
+from oompah.git_credentials import (
+    git_credential_environment,
+    redact_git_output,
+    sanitize_managed_clone_credentials,
+)
 from oompah.git_hooks import hook_path as _bundled_hook_path
 from oompah.git_noninteractive import NONINTERACTIVE_GIT_ENV
 from oompah.models import Project
@@ -2514,6 +2518,15 @@ class ProjectStore:
                 )
             except Exception:
                 pass
+
+        # Sanitize credential routes from the managed clone to ensure direct rebase
+        # operations can run in isolated environments (OOMPAH-1249)
+        try:
+            sanitize_managed_clone_credentials(repo_path, canonical_url=repo_url)
+        except ValueError as exc:
+            logger.warning(
+                "Could not sanitize managed clone credentials: %s", exc
+            )
 
         # Bootstrap git LFS for the multimodal attachments feature.
         # Always idempotent; degrades gracefully when git lfs is missing.
@@ -6783,6 +6796,19 @@ class ProjectStore:
                 pass
 
         self._disable_worktree_hooks(wt_path)
+        
+        # Sanitize credential routes from the epic worktree to ensure direct rebase
+        # operations can run in isolated environments (OOMPAH-1249)
+        try:
+            sanitize_managed_clone_credentials(
+                wt_path,
+                canonical_url=project.repo_url,
+            )
+        except ValueError as exc:
+            logger.warning(
+                "Could not sanitize epic worktree credentials: %s", exc
+            )
+        
         logger.info("Epic worktree created path=%s branch=%s", wt_path, branch_name)
         return wt_path
 
@@ -6861,6 +6887,18 @@ class ProjectStore:
                     wt_path,
                     exc.stderr.strip()[:200] if exc.stderr else "",
                 )
+
+        # Sanitize credential routes from the epic worktree to ensure direct rebase
+        # operations can run in isolated environments (OOMPAH-1249)
+        try:
+            sanitize_managed_clone_credentials(
+                wt_path,
+                canonical_url=project.repo_url,
+            )
+        except ValueError as exc:
+            logger.warning(
+                "Could not sanitize epic worktree credentials: %s", exc
+            )
 
         self._disable_worktree_hooks(wt_path)
 
