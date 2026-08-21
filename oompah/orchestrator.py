@@ -58063,7 +58063,12 @@ class Orchestrator:
                             "its durable release failed; repair service-state "
                             "persistence."
                         )
-                    logger.error(
+                    # Log at WARNING (not ERROR): persistence timeouts are transient
+                    # failures caused by slow tracker/state-branch git commits. The
+                    # pre-provider runtime is gracefully retired for retry, not a
+                    # backend defect. Logging at ERROR would cause error_watcher to
+                    # auto-file duplicate tasks for expected transient conditions.
+                    logger.warning(
                         "Pre-provider contributor evidence exceeded its bounded "
                         "task-authority deadline issue_id=%s identifier=%s "
                         "run_id=%s timeout_seconds=%s",
