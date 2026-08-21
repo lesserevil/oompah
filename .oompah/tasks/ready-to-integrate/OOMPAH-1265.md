@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1265
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Prove external-prerequisite lifecycle convergence and observability
 parent: OOMPAH-1231
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-21T01:39:33.013269Z'
+updated_at: '2026-08-21T01:39:54.747464Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -28,7 +28,7 @@ oompah.create_once:
   creation_marker: oompah-1231-lifecycle-acceptance-v1
   request_fingerprint: 4f48f1f0e957c03ae28cb1f4f01e0f52c4c6c9020d902bc67d1cfb4f69389377
 oompah.start_blocked_by: *id001
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: d1a591bae50708aaf359f111881a4071d274e23ddea4e3a15cbe53430d1b5800
