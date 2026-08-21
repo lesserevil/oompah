@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:18:43.804044Z'
-updated_at: '2026-08-21T11:29:38.475898Z'
-work_branch: null
+updated_at: '2026-08-21T11:30:01.503389Z'
+work_branch: OOMPAH-1323
 target_branch: null
 review_url: null
 review_number: null
@@ -70,7 +70,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 38d93662-28af-4543-a2f7-e5864a479739
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 2f43676d360e41b8a978c41ec30576fe--contributor-86e3ac8153e1
@@ -121,6 +121,18 @@ oompah.task_costs:
     output_tokens: 121
     cost_usd: 0.0
     recorded_at: '2026-08-21T05:10:13.356820+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1323
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: dccf429d68f8df23cc1e61c445b12f13385392d4
+  submitted_at: '2026-08-21T11:29:47.254378+00:00'
+  updated_at: '2026-08-21T11:29:47.254378+00:00'
+oompah.work_branch: OOMPAH-1323
 ---
 ## Summary
 
@@ -257,5 +269,10 @@ author: oompah
 created: 2026-08-21 11:29
 ---
 Completion: Delivered and pushed commit dccf429d6. Normal bounded contributor-evidence timeout retirement now logs at WARNING (so error_watcher does not auto-file it), with regression coverage for exact severity; focused retirement and error_watcher suites all pass. Unrelated pre-existing auditor-rotation working-tree edits were intentionally excluded from the commit.
+---
+author: oompah
+created: 2026-08-21 11:29
+---
+Demoted expected pre-provider contributor-evidence timeout retirement from ERROR to WARNING and added severity regression coverage; focused provider-retirement and error_watcher tests pass.
 ---
 <!-- COMMENTS:END -->
