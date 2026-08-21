@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-21T02:23:36.197488Z'
+updated_at: '2026-08-21T05:51:29.935720Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,23 +40,31 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: 'RuntimeError: Codex exec exited with code 1:'
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: cd5a3a4a9f45ebfbb7f48e0c72db8774524840e3a13427fcd2dd9d2eeeb184c9:144002
+  claim_owner: 7dbe71d1-9fc2-4b0c-bb54-3da0831c26d5
+  claimed_at: '2026-08-21T05:51:12.858365+00:00'
+  claim_expires_at: '2026-08-21T06:21:12.858365+00:00'
   retry_count: 1
-  retry_after: '2026-08-21T02:24:18.079090+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8ba530b0-c82f-42b8-a048-d6a4f534ba52
+oompah.agent_run_id: 947e8710-7f8a-4b9a-bc1a-30daaa5f6e4a
 oompah.work_contributors:
   runs:
   - run_id: 0af675c600474344ab65b1138e747db9--contributor-a8b0475e7b09
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-1270
+    source_sha: null
+    completed_at: ''
+  - run_id: fc0a4acfa1384f9db57ab4560d048183--contributor-86e3ac8153e1
+    provider_id: prov-6cf41c89
+    provider_name: Opencode/Switchyard
+    model_id: switchyard/auto
     focus: duplicate_detector
     source_branch: OOMPAH-1270
     source_sha: null
@@ -134,5 +142,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: error, Duration: 2m 22s
 - Log: OOMPAH-1270__20260821T022229Z.jsonl
+---
+author: oompah
+created: 2026-08-21 05:51
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-21 05:51
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
