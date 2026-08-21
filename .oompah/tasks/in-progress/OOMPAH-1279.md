@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:52:39.685288Z'
-updated_at: '2026-08-21T15:36:41.606497Z'
-work_branch: null
+updated_at: '2026-08-21T15:37:39.973226Z'
+work_branch: OOMPAH-1279
 target_branch: null
 review_url: null
 review_number: null
@@ -81,7 +81,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 69735e31-1e75-4f96-8aeb-fafcad24a688
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 4181f48ea42a499a811d2edd4218a6c1--contributor-a8b0475e7b09
@@ -132,6 +132,18 @@ oompah.task_costs:
     output_tokens: 1236
     cost_usd: 0.0
     recorded_at: '2026-08-21T11:28:31.850469+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1279
+  base_branch: main
+  base_sha: c7b3911883a90c1b5805204a430926eb1c6f53b8
+  head_sha: 76ba5280312f79696951da1214b3aeb9c8e49ed7
+  submitted_at: '2026-08-21T15:37:05.619450+00:00'
+  updated_at: '2026-08-21T15:37:05.619450+00:00'
+oompah.work_branch: OOMPAH-1279
 ---
 ## Summary
 
@@ -263,5 +275,10 @@ author: oompah
 created: 2026-08-21 15:36
 ---
 **Verification:** All relevant tests pass (402 tests in test_provider_retirement.py and test_orchestrator_handlers.py). The fix prevents error_watcher from treating the handled contributor evidence timeout as an unhandled error. The timeout still occurs when tracker operations are slow, but now it's properly logged as a warning rather than an error, avoiding unnecessary auto-filed bug reports.
+---
+author: oompah
+created: 2026-08-21 15:37
+---
+Fixed pre-provider contributor evidence timeout error handling by changing logger.error() to logger.warning(). This prevents error_watcher from auto-filing handled timeout cases as bugs. The timeout behavior remains the same (provider retires and retries), but it's now properly classified as a warning rather than an error. All tests pass.
 ---
 <!-- COMMENTS:END -->
