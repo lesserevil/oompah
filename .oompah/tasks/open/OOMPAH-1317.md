@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:49:42.029230Z'
-updated_at: '2026-08-21T08:44:46.851749Z'
+updated_at: '2026-08-21T08:51:28.967621Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -198,5 +198,10 @@ author: oompah
 created: 2026-08-21 08:44
 ---
 **Implementation**: Changed log level from ERROR to WARNING for 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' message in oompah/orchestrator.py line 58073 (was line 58066). Rationale: This is a transient condition where the tracker/state-branch git commit is slow (expected behavior documented in .env.example). The code gracefully handles it by retiring the worker for retry. Logging at WARNING level prevents error_watcher from auto-filing duplicate tasks for expected transient conditions, following the pattern used elsewhere in the codebase (lines 63589+, 54099+, etc.). Added explanatory comment.
+---
+author: oompah
+created: 2026-08-21 08:51
+---
+**Verification**: All related tests pass: ✓ test_provider_retirement.py (21 tests) ✓ test_error_watcher.py (124 tests) ✓ test_orchestrator_handlers.py (381 tests). The fix successfully prevents error_watcher from auto-filing tasks for the transient contributor_evidence_timeout condition by downgrading the log level from ERROR to WARNING. The message is still logged with full diagnostic context for monitoring.
 ---
 <!-- COMMENTS:END -->
