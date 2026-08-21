@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:14:39.219900Z'
-updated_at: '2026-08-21T16:29:52.291228Z'
+updated_at: '2026-08-21T16:30:58.632864Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -270,5 +270,27 @@ Changed the timeout handler in `_stage_work_contributor_launch()` to log at WARN
 - Verifies timeout is logged at WARNING, not ERROR
 - Ensures error_watcher won't be triggered by this transient failure
 - All 22 provider retirement tests pass
+---
+author: oompah
+created: 2026-08-21 16:30
+---
+**Verification: Tests Pass, Code Committed**
+
+All tests pass successfully:
+- test_pre_provider_evidence_timeout_logs_warning_not_error: ✓ PASSED
+- test_pre_provider_evidence_timeout_releases_task_authority: ✓ PASSED
+- All 22 tests in test_provider_retirement.py: ✓ PASSED
+- All 124 tests in test_error_watcher.py: ✓ PASSED
+- Timeout logging pattern tests: ✓ PASSED
+
+**Code Changes Committed:**
+- Branch: OOMPAH-1301
+- Commit: 669845780
+- Files modified: oompah/orchestrator.py, tests/test_provider_retirement.py
+
+**Result:**
+The error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' will no longer trigger error_watcher task creation. It will be logged at WARNING level as a transient failure that is handled gracefully with automatic retry, preventing the duplicate task auto-filing issue.
+
+Ready for integration.
 ---
 <!-- COMMENTS:END -->
