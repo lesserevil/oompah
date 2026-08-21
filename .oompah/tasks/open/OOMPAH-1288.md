@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:14:55.303312Z'
-updated_at: '2026-08-21T15:58:27.564375Z'
-work_branch: null
+updated_at: '2026-08-21T16:00:21.509658Z'
+work_branch: OOMPAH-1288
 target_branch: null
 review_url: null
 review_number: null
@@ -140,7 +140,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: f284e2e8-425f-4c2e-a8ce-9b5647db9930
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: ea683a6ba88042db9986cab111a6413a--contributor-a8b0475e7b09
@@ -191,6 +191,18 @@ oompah.task_costs:
     output_tokens: 2079
     cost_usd: 0.0
     recorded_at: '2026-08-21T11:38:52.074875+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1288
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: cf6ed93516203d684c7c9ca33259e4cf16f10e3e
+  submitted_at: '2026-08-21T16:00:08.622809+00:00'
+  updated_at: '2026-08-21T16:00:08.622809+00:00'
+oompah.work_branch: OOMPAH-1288
 ---
 ## Summary
 
@@ -317,5 +329,10 @@ author: oompah
 created: 2026-08-21 15:58
 ---
 Implementation: added a guard in oompah/error_watcher.py ErrorWatcher.report_error() to ignore the specific bounded pre-provider contributor evidence timeout message ('Cannot durably record exact contributor…') so error_watcher does not auto-file a bug task for this known bounded-deadline retry-path behavior. Added test coverage in tests/test_error_watcher.py to assert the guard prevents task creation; ran pytest for tests/test_error_watcher.py.
+---
+author: oompah
+created: 2026-08-21 16:00
+---
+Suppress bounded contributor evidence timeout from error_watcher; add regression test
 ---
 <!-- COMMENTS:END -->
