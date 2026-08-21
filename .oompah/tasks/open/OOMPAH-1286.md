@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:02:32.249073Z'
-updated_at: '2026-08-21T03:01:03.230123Z'
+updated_at: '2026-08-21T03:03:01.971964Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,6 +47,16 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 9dc84bcd-4151-482c-9f64-d670b3a72358
+oompah.work_contributors:
+  runs:
+  - run_id: 52722fae3ace4326967ebcecb79f18fd--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-1286
+    source_sha: null
+    completed_at: ''
 ---
 ## Summary
 
