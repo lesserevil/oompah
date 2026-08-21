@@ -454,6 +454,64 @@ def test_pre_provider_evidence_timeout_releases_task_authority(tmp_path) -> None
     asyncio.run(scenario())
 
 
+def test_pre_provider_evidence_timeout_logs_as_warning(tmp_path, caplog) -> None:
+    """Verify that evidence timeout is logged as WARNING, not ERROR, so error_watcher doesn't trigger."""
+    import logging
+
+    async def scenario() -> None:
+        orch = _orchestrator(tmp_path)
+        orch.config.terminal_control_lock_timeout_seconds = 0.1
+        orch.config.contributor_evidence_persist_timeout_seconds = 0.1
+        entry = _entry()
+        orch.state.running[entry.issue.id] = entry
+        orch.provider_store.get = MagicMock(return_value=None)
+        orch._reserve_auditor_for_contributor = AsyncMock(return_value=([], None))
+        orch._release_audit_budget_reservation = MagicMock(return_value=True)
+        persistence_started = threading.Event()
+        release_persistence = threading.Event()
+
+        def blocked_persistence(*_args, **_kwargs) -> None:
+            persistence_started.set()
+            release_persistence.wait(timeout=2)
+
+        orch._persist_work_contributor = blocked_persistence
+
+        with caplog.at_level(logging.WARNING):
+            staging = asyncio.create_task(
+                orch._stage_work_contributor_launch(
+                    entry.issue,
+                    run_id=entry.run_id,
+                    provider_id="acp",
+                    provider_name="acp",
+                    model="sdk-managed",
+                )
+            )
+            assert await asyncio.to_thread(persistence_started.wait, 0.5)
+            submission_lane = asyncio.create_task(
+                orch.issue_transition_lock(entry.issue.id).acquire(
+                    timeout_seconds=0.2
+                )
+            )
+            error = await staging
+            assert "bounded task-authority deadline" in str(error)
+            assert await submission_lane
+            orch.issue_transition_lock(entry.issue.id).release()
+            release_persistence.set()
+            await asyncio.sleep(0)
+
+        # Verify the message was logged as WARNING level, not ERROR
+        warning_messages = [r.message for r in caplog.records if r.levelname == "WARNING"]
+        assert any("bounded task-authority deadline" in str(msg) for msg in warning_messages), \
+            f"Expected WARNING log with 'bounded task-authority deadline', got: {[str(m) for m in warning_messages]}"
+
+        # Verify it was NOT logged as ERROR
+        error_messages = [r.message for r in caplog.records if r.levelname == "ERROR"]
+        assert not any("bounded task-authority deadline" in str(msg) for msg in error_messages), \
+            f"Should not have ERROR log with 'bounded task-authority deadline', got: {[str(m) for m in error_messages]}"
+
+    asyncio.run(scenario())
+
+
 def test_contributor_evidence_takes_project_lock_before_policy_lock(tmp_path) -> None:
     """Contributor publication cannot invert ProjectStore.update lock order."""
 
