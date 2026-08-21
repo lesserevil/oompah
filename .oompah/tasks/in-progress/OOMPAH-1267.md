@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T08:43:25.263614Z'
-updated_at: '2026-08-21T03:19:06.722054Z'
-work_branch: null
+updated_at: '2026-08-21T03:20:17.543012Z'
+work_branch: OOMPAH-1267
 target_branch: null
 review_url: null
 review_number: null
@@ -79,7 +79,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: ab82df24-0bc5-4a87-b982-4ef5d62aeb96
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 671f8f5990b64a229b74342ef73ff72e--contributor-4256b9f40773
@@ -170,6 +170,18 @@ oompah.task_costs:
     output_tokens: 2118
     cost_usd: 0.0
     recorded_at: '2026-08-21T00:42:37.228764+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1267
+  base_branch: main
+  base_sha: 2da1c8073e0617b21959af89a4443b9f50c9a1d7
+  head_sha: db3015ed8d47d8fbcab85831d798d21d8dcce0a2
+  submitted_at: '2026-08-21T03:20:04.012398+00:00'
+  updated_at: '2026-08-21T03:20:04.012398+00:00'
+oompah.work_branch: OOMPAH-1267
 ---
 ## Summary
 
@@ -387,5 +399,19 @@ All 35 restart API tests pass consistently (33 original + 2 new):
 4. Added comprehensive docstrings explaining the determinism strategy
 
 Code committed and pushed to OOMPAH-1267 branch.
+---
+author: oompah
+created: 2026-08-21 03:20
+---
+Fixed flaky restart replacement rollback test by replacing wall-clock timing with explicit observable synchronization
+
+Key changes:
+- Removed time.sleep() and load-sensitive timing checks from test_replacement_timeout_rolls_back_before_concurrent_replacement
+- Added explicit event-based synchronization to make timeout detection deterministic
+- Reduced drain timeout from 0.2s to 0.05s (safe since timeout detection is now event-based, not time-based)
+- Added test_replacement_succeeds_when_handler_completes_before_timeout (reverse ordering)
+- Added test_repeated_replacement_timeout_detection_under_load (repeated executions)
+
+All 35 restart API tests pass consistently. No leaked state or processes. Production guarantee preserved: timeout rollback happens before concurrent replacement can acquire authority.
 ---
 <!-- COMMENTS:END -->
