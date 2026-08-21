@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:55:39.156940Z'
-updated_at: '2026-08-21T02:52:20.351209Z'
+updated_at: '2026-08-21T02:52:30.333793Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -87,3 +87,11 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-21 02:52
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
