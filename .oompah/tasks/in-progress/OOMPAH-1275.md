@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:19.724794Z'
-updated_at: '2026-08-21T06:30:59.261531Z'
+updated_at: '2026-08-21T06:31:22.612034Z'
 work_branch: OOMPAH-1275
 target_branch: null
 review_url: null
@@ -94,16 +94,16 @@ oompah.work_contributors:
     model_id: haiku
     focus: general
     source_branch: OOMPAH-1275
-    source_sha: null
-    completed_at: ''
+    source_sha: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
+    completed_at: '2026-08-21T06:31:12.032874+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1712
+  total_input_tokens: 556
+  total_output_tokens: 17410
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1712
+      input_tokens: 556
+      output_tokens: 17410
       cost_usd: 0.0
   runs:
   - profile: default
@@ -112,6 +112,12 @@ oompah.task_costs:
     output_tokens: 1712
     cost_usd: 0.0
     recorded_at: '2026-08-21T02:39:56.444269+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 546
+    output_tokens: 15698
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T06:31:12.028048+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -261,5 +267,15 @@ EXPECTED OUTCOME:
 - The timeout remains configurable via OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS for deployments with specific requirements
 
 The fix follows the existing design pattern documented in the code (lines 58027-58031 in orchestrator.py) which explicitly states: 'When configured it is authoritative (production raises it well above the derived control floor).' This change raises the default floor from 30 to 60 seconds to match production expectations.
+---
+author: oompah
+created: 2026-08-21 06:31
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 141, Tool calls: 67
+- Tokens: 546 in / 15.7K out [16.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 18m 7s
+- Log: OOMPAH-1275__20260821T061328Z.jsonl
 ---
 <!-- COMMENTS:END -->
