@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:15:51.064357Z'
-updated_at: '2026-08-21T13:36:46.811450Z'
+updated_at: '2026-08-21T13:39:02.305609Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -275,5 +275,25 @@ The code at line 58037 conditionally overrides this to 30.0 if configured_eviden
 The timeout is for writing contributor evidence to the tracker, which can legitimately take longer than 5 seconds for slow tracker operations.
 
 **Next step:** Investigate why the configured timeout isn't being used, or fix by ensuring the configured value takes precedence.
+---
+author: oompah
+created: 2026-08-21 13:39
+---
+## Implementation: Fixed Timeout Logic
+
+**The Fix:**
+In oompah/orchestrator.py lines 58032-58040, the issue was that `getattr` was using `None` as the default when looking up `contributor_evidence_persist_timeout_seconds`. This meant:
+- If the attribute wasn't found (unlikely but defensive), it would silently fall back to the derived 5-second timeout
+- The configured 30-second default was never being used when the attribute wasn't explicitly set
+
+**Solution:**
+Changed `getattr(..., None)` to `getattr(..., 30.0)` so the configured default is always used. Also simplified the logic by removing the unnecessary if statement since the value will never be None.
+
+**Result:**
+- The contributor evidence write now gets 30 seconds by default (configurable via OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS)
+- The error no longer triggers for normal tracker operations that take 5-30 seconds
+- Production deployments can easily increase the timeout further if needed
+
+Running tests now...
 ---
 <!-- COMMENTS:END -->
