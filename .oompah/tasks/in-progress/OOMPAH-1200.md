@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:33.669681Z'
-updated_at: '2026-08-21T10:23:31.976788Z'
+updated_at: '2026-08-21T10:24:06.274890Z'
 work_branch: OOMPAH-1200
 target_branch: null
 review_url: null
@@ -133,16 +133,16 @@ oompah.work_contributors:
     model_id: haiku
     focus: general
     source_branch: OOMPAH-1200
-    source_sha: null
-    completed_at: ''
+    source_sha: 9fca74edd35ac86a91c1e33650829ffce7f81ed0
+    completed_at: '2026-08-21T10:23:56.479461+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1958
+  total_input_tokens: 524
+  total_output_tokens: 19608
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1958
+      input_tokens: 524
+      output_tokens: 19608
       cost_usd: 0.0
   runs:
   - profile: default
@@ -151,6 +151,12 @@ oompah.task_costs:
     output_tokens: 1958
     cost_usd: 0.0
     recorded_at: '2026-08-21T04:49:52.426604+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 514
+    output_tokens: 17650
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T10:23:56.474012+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -392,5 +398,15 @@ Root cause: worker failure messages logged at WARNING were still being picked up
 Solution: Changed three logger.warning() calls to logger.debug() in orchestrator.py for expected pre-request failures (workspace, tracker, prompt-rendering, admission errors). This prevents triggering error_watcher through any mechanism while maintaining diagnostic capability.
 
 Tests: 126 error_watcher tests + 408 worker tests all pass, including 2 new regression tests.
+---
+author: oompah
+created: 2026-08-21 10:24
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 142, Tool calls: 63
+- Tokens: 514 in / 17.6K out [18.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 31m 9s
+- Log: OOMPAH-1200__20260821T095326Z.jsonl
 ---
 <!-- COMMENTS:END -->
