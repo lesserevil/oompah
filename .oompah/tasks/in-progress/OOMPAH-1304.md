@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:16:50.124021Z'
-updated_at: '2026-08-21T12:20:12.291998Z'
-work_branch: null
+updated_at: '2026-08-21T12:22:04.599933Z'
+work_branch: OOMPAH-1304
 target_branch: null
 review_url: null
 review_number: null
@@ -77,7 +77,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: f49d7ac8-30aa-4fb1-a122-23d4554fe46d
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 916c28a615764a8a919566a0994848ef--contributor-4256b9f40773
@@ -120,6 +120,18 @@ oompah.task_costs:
     output_tokens: 1787
     cost_usd: 0.0
     recorded_at: '2026-08-21T08:01:37.959558+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1304
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: 60207017f836bbfee22ccd06a8adcfa579cbb2a5
+  submitted_at: '2026-08-21T12:21:47.104721+00:00'
+  updated_at: '2026-08-21T12:21:47.104721+00:00'
+oompah.work_branch: OOMPAH-1304
 ---
 ## Summary
 
@@ -231,5 +243,10 @@ author: oompah
 created: 2026-08-21 12:20
 ---
 **Verification**: All related tests pass. ✓ test_provider_retirement.py: 21/21 passed ✓ test_orchestrator_handlers.py: 381/381 passed. The fix maintains the expected error message in graceful degradation path while preventing error_watcher triggers.
+---
+author: oompah
+created: 2026-08-21 12:21
+---
+Resolved contributor evidence timeout error_watcher auto-filing by changing log level from ERROR to WARNING. The operation already degrades gracefully; the fix prevents unnecessary error_watcher triggers while maintaining observability.
 ---
 <!-- COMMENTS:END -->
