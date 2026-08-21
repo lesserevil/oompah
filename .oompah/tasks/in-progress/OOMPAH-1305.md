@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:16:51.487733Z'
-updated_at: '2026-08-21T13:03:29.972405Z'
+updated_at: '2026-08-21T13:05:38.924200Z'
 work_branch: OOMPAH-1305
 target_branch: null
 review_url: null
@@ -334,5 +334,34 @@ This OOMPAH-1305 simplifies and improves that logic:
 The improvement makes the code cleaner and more robust, ensuring that even if there were edge cases in the OOMPAH-1270 implementation, they're now eliminated.
 
 No conflict with OOMPAH-1287 - both changes are in different code sections.
+---
+author: oompah
+created: 2026-08-21 13:05
+---
+**COORDINATION UPDATE**
+
+Applied OOMPAH-1287's insight to my branch. Both fixes now work together:
+
+**OOMPAH-1305 (this task):**
+1. Increases timeout from 5s to 30s (prevents false timeouts)
+2. Changes logger.error → logger.warning (prevents error_watcher auto-filing if timeout does occur)
+3. Simplifies timeout logic for robustness
+
+**OOMPAH-1287:**
+1. Changes logger.error → logger.warning (prevents error_watcher auto-filing)
+2. Recognizes timeout as normal graceful failure
+
+**Combined Effect:**
+- Timeout is 30s by default (less likely to occur)
+- IF timeout occurs (e.g., under extreme load), it's logged as WARNING, not ERROR
+- No spurious error_watcher auto-filing
+- No provider started on timeout, so retry is safe
+
+Both approaches are complementary. When integrated:
+- Prevention (longer timeout)
+- Graceful handling (warning-level logging)
+- No false alarms
+
+All tests pass. Branch is ready for integration.
 ---
 <!-- COMMENTS:END -->
