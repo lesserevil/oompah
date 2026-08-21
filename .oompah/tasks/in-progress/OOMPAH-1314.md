@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:41:13.991341Z'
-updated_at: '2026-08-21T14:23:56.955553Z'
+updated_at: '2026-08-21T14:24:17.195542Z'
 work_branch: OOMPAH-1314
 target_branch: null
 review_url: null
@@ -112,16 +112,16 @@ oompah.work_contributors:
     model_id: haiku
     focus: general
     source_branch: OOMPAH-1314
-    source_sha: null
-    completed_at: ''
+    source_sha: 445f41f2d63fd2d0e11266e8560ad0967edd5c22
+    completed_at: '2026-08-21T14:24:11.075331+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2464
+  total_input_tokens: 380
+  total_output_tokens: 13257
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 2464
+      input_tokens: 380
+      output_tokens: 13257
       cost_usd: 0.0
   runs:
   - profile: default
@@ -130,6 +130,12 @@ oompah.task_costs:
     output_tokens: 2464
     cost_usd: 0.0
     recorded_at: '2026-08-21T08:38:04.172296+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 370
+    output_tokens: 10793
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T14:24:11.069485+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -278,5 +284,15 @@ author: oompah
 created: 2026-08-21 14:23
 ---
 Fixed pre-provider contributor evidence timeout error not triggering error_watcher by downgrading log level from ERROR to WARNING. The timeout is a gracefully-handled scenario where persistence continues in background, provider is not started, and task is retired for retry. Change is consistent with similar timeout patterns elsewhere in codebase.
+---
+author: oompah
+created: 2026-08-21 14:24
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 137, Tool calls: 45
+- Tokens: 370 in / 10.8K out [11.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 15m 42s
+- Log: OOMPAH-1314__20260821T140922Z.jsonl
 ---
 <!-- COMMENTS:END -->
