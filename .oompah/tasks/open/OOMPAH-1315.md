@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:41:47.946905Z'
-updated_at: '2026-08-21T08:25:16.233973Z'
-work_branch: null
+updated_at: '2026-08-21T08:25:49.792758Z'
+work_branch: OOMPAH-1315
 target_branch: null
 review_url: null
 review_number: null
@@ -81,7 +81,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: b34752a4-c47c-44db-8006-0a5c404b433c
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: dfc0f08cdf2542bb84bcf5a70fcbe89c--contributor-4256b9f40773
@@ -116,6 +116,18 @@ oompah.task_costs:
     output_tokens: 1620
     cost_usd: 0.0
     recorded_at: '2026-08-21T04:00:57.142062+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1315
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: 0b42e47165b77f737eff0db236eef8303e7cd00f
+  submitted_at: '2026-08-21T08:25:36.685440+00:00'
+  updated_at: '2026-08-21T08:25:36.685440+00:00'
+oompah.work_branch: OOMPAH-1315
 ---
 ## Summary
 
@@ -248,5 +260,10 @@ Changed the pre-provider contributor evidence timeout log from ERROR to WARNING 
 ✓ test_error_watcher_orchestrator.py: 13 tests passed
 
 All related test suites pass with the change. The fix is minimal and surgical - only the log level changes, all other behavior remains identical.
+---
+author: oompah
+created: 2026-08-21 08:25
+---
+Fixed pre-provider contributor evidence timeout error reporting by downgrading log level from ERROR to WARNING. This timeout is a handled graceful failure that was incorrectly being reported as a critical error by error_watcher. The fix prevents duplicate task creation during normal operation while preserving diagnostic information and error tracking functionality.
 ---
 <!-- COMMENTS:END -->
