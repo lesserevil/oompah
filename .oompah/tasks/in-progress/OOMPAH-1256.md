@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-21T10:33:36.314266Z'
+updated_at: '2026-08-21T10:33:46.487915Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -197,6 +197,14 @@ oompah.work_contributors:
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-sol
+    focus: general
+    source_branch: OOMPAH-1256
+    source_sha: null
+    completed_at: ''
+  - run_id: 2658e071b134420a9a85868bdf2b9a11--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
     focus: general
     source_branch: OOMPAH-1256
     source_sha: null
