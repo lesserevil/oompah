@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:11:27.677981Z'
-updated_at: '2026-08-21T16:38:58.126225Z'
+updated_at: '2026-08-21T16:40:06.239767Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -301,5 +301,10 @@ author: oompah
 created: 2026-08-21 16:38
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-08-21 16:40
+---
+Understanding: Investigating TaskTransitionNotApplied error where 'In Progress' transition is rejected due to transition.project_owner_authority_required. Need to find where this error occurs in backend:server code and either handle it gracefully or resolve the root cause of the permission rejection.
 ---
 <!-- COMMENTS:END -->
