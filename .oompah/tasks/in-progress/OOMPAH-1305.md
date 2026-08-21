@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:16:51.487733Z'
-updated_at: '2026-08-21T13:06:06.673093Z'
+updated_at: '2026-08-21T13:06:46.920686Z'
 work_branch: OOMPAH-1305
 target_branch: null
 review_url: null
@@ -398,5 +398,31 @@ OOMPAH-1305 resolved the pre-provider contributor evidence timeout issue with a 
 - No regressions
 
 **Result:** Issue resolved. Error auto-filing eliminated. Task submitted for integration.
+---
+author: oompah
+created: 2026-08-21 13:06
+---
+**COORDINATION: OOMPAH-1292 OVERLAP**
+
+OOMPAH-1292 addresses the same issue with a complementary approach:
+- OOMPAH-1292: Increases minimum timeout from 0.05s to 1.0s (in calculated path)
+- OOMPAH-1305: Removes calculated path, uses configured 30s directly
+
+**Key Difference:**
+OOMPAH-1292 keeps the complex calculated timeout logic with a higher minimum.
+OOMPAH-1305 eliminates the calculated logic entirely, always using the configured value.
+
+**Compatibility:**
+Both fix the core issue (timeout too short), but via different strategies:
+- OOMPAH-1292: Conservative approach (min 1s → calculated still used)
+- OOMPAH-1305: Aggressive approach (eliminate calculated path, use config)
+
+**Integration Strategy:**
+OOMPAH-1305's approach is more robust and simpler:
+- Removes unnecessary derived timeout calculation
+- Guarantees 30s default (from config), never falls back to low value
+- Also includes WARNING-level logging fix
+
+During merge, OOMPAH-1305 supersedes OOMPAH-1292 (eliminates the code OOMPAH-1292 modifies).
 ---
 <!-- COMMENTS:END -->
