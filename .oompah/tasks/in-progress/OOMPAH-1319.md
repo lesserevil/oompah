@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:12:05.791721Z'
-updated_at: '2026-08-21T15:41:27.818840Z'
-work_branch: null
+updated_at: '2026-08-21T15:41:49.153682Z'
+work_branch: OOMPAH-1319
 target_branch: null
 review_url: null
 review_number: null
@@ -73,7 +73,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 6f824b2c-c772-4496-b03e-d1841b004ff2
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 264ae4d623df4b8fb4d859cdb21eda4b--contributor-4256b9f40773
@@ -164,6 +164,18 @@ oompah.task_costs:
     output_tokens: 1587
     cost_usd: 0.0
     recorded_at: '2026-08-21T05:07:38.119592+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1319
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: 0e2c3167033a534a79fd6479afdce2ee0242d257
+  submitted_at: '2026-08-21T15:41:34.376740+00:00'
+  updated_at: '2026-08-21T15:41:34.376740+00:00'
+oompah.work_branch: OOMPAH-1319
 ---
 ## Summary
 
@@ -426,5 +438,10 @@ The fix is minimal and surgical:
 - Added regression test to prevent future regressions
 
 The error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' with timeout_seconds=5.0 will no longer occur - the timeout will now properly use the configured 30-second default.
+---
+author: oompah
+created: 2026-08-21 15:41
+---
+Fixed pre-provider contributor evidence timeout fallback. Changed getattr() default from None to 30.0 seconds in orchestrator.py to ensure proper timeout calculation when config attribute isn't explicitly set. Added regression test. All 22 provider retirement tests pass.
 ---
 <!-- COMMENTS:END -->
