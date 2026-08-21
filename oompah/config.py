@@ -1190,6 +1190,15 @@ class ServiceConfig:
     # Configurable via OOMPAH_WORKER_TERMINATION_TIMEOUT_MS.
     worker_termination_timeout_ms: int = 10000
 
+    # Bounded deadline for the pre-provider contributor-evidence write (a
+    # tracker/state-branch metadata upsert taken under the project + auditor
+    # policy locks).  When this is too small, slow state-branch git commits
+    # miss the deadline and dispatch retires with contributor_evidence_unavailable,
+    # starving implementation agents while lighter paths (duplicate screening)
+    # still run.  Configurable via
+    # OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS.
+    contributor_evidence_persist_timeout_seconds: float = 30.0
+
     # Initial agent prompt comment-history budgets. These are environment-only
     # because they are operational tuning, not workflow structure.
     prompt_max_comments: int = 20
@@ -1450,6 +1459,9 @@ class ServiceConfig:
         )
         self.terminal_control_lock_timeout_seconds = max(
             float(self.terminal_control_lock_timeout_seconds), 0.1
+        )
+        self.contributor_evidence_persist_timeout_seconds = max(
+            float(self.contributor_evidence_persist_timeout_seconds), 0.1
         )
         quarantine_persist_timeout = float(
             self.workflow_quarantine_persist_timeout_seconds
@@ -2042,6 +2054,9 @@ class ServiceConfig:
             ),
             terminal_control_lock_timeout_seconds=_env_float(
                 "OOMPAH_TERMINAL_CONTROL_LOCK_TIMEOUT_SECONDS", None, 5.0
+            ),
+            contributor_evidence_persist_timeout_seconds=_env_float(
+                "OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS", None, 30.0
             ),
             workflow_quarantine_persist_timeout_seconds=_env_float(
                 "OOMPAH_WORKFLOW_QUARANTINE_PERSIST_TIMEOUT_SECONDS", None, 5.0

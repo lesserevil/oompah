@@ -58024,6 +58024,20 @@ class Orchestrator:
                     min(control_timeout, termination_timeout / 2.0),
                     0.05,
                 )
+                # A dedicated deadline lets slow tracker/state-branch evidence
+                # writes finish instead of retiring with
+                # contributor_evidence_unavailable and starving implementation
+                # dispatch.  When configured it is authoritative (production
+                # raises it well above the derived control floor).
+                configured_evidence_timeout = getattr(
+                    self.config,
+                    "contributor_evidence_persist_timeout_seconds",
+                    None,
+                )
+                if configured_evidence_timeout is not None:
+                    persistence_timeout = max(
+                        float(configured_evidence_timeout), 0.05
+                    )
 
                 try:
                     await asyncio.wait_for(
