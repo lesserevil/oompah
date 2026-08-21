@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:28:12.589940Z'
-updated_at: '2026-08-21T02:02:33.253925Z'
+updated_at: '2026-08-21T02:14:03.703003Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -215,5 +215,10 @@ author: oompah
 created: 2026-08-21 02:02
 ---
 UNDERSTANDING: The error occurs when backend:server attempts to update an issue to 'In Progress' state on the provenanceguardedtracker, but the transition is rejected due to 'transition.project_owner_authority_required'. This suggests the backend is attempting a state transition without the required authorization. PLAN: (1) Find where the backend attempts issue updates, (2) Locate the error handling for TaskTransitionNotApplied, (3) Either fix the authorization or add graceful error handling to prevent error_watcher from reporting this as a critical error.
+---
+author: oompah
+created: 2026-08-21 02:14
+---
+DISCOVERY: Found the root cause in oompah/server.py. The _transition_rejected_reason() function checks if a TaskTransitionNotApplied exception has a reason code in the 'expected_policy_rejections' set. When the reason is 'transition.project_owner_authority_required', it's NOT in that set, so it falls through to the generic error logging at line 16381, which logs it as ERROR and triggers error_watcher. The fix: add 'transition.project_owner_authority_required' to the expected_policy_rejections set in server.py:4136-4153.
 ---
 <!-- COMMENTS:END -->
