@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:41:44.906086Z'
-updated_at: '2026-08-21T05:56:35.917003Z'
+updated_at: '2026-08-21T06:04:08.995221Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -201,5 +201,27 @@ The error message: 'Pre-provider contributor evidence exceeded its bounded task-
 1. Change this ERROR log to WARNING level (since it's a known, expected failure case)
 2. Verify tests pass
 3. Confirm error_watcher doesn't create a task anymore for this known condition
+---
+author: oompah
+created: 2026-08-21 06:04
+---
+## Discovery and Root Cause
+
+Found the issue in oompah/orchestrator.py at line 58066-58075.
+
+The error message 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' is logged at ERROR level in the _stage_work_contributor_launch() function. This is a **known, expected failure case** that occurs when:
+
+1. The code attempts to persist contributor evidence (provider/model metadata) to the tracker
+2. The persistence task times out due to a bounded deadline
+3. The code handles this gracefully by retiring the pre-provider runtime for retry
+4. A user-friendly error message is returned
+
+However, because it's logged at ERROR level, the error_watcher's logging handler picks it up and creates an auto-filed task - which is the bug we're seeing.
+
+**Key insight:** Looking at nearby code, similar handled failure cases use WARNING level:
+- Line 57957-57966: 'Pre-provider contributor evidence is still settling' uses logger.warning()
+- Line 58102-58119: 'Cancelled pre-provider contributor evidence' uses logger.warning()
+
+So this ERROR log is inconsistent with the pattern for known, handled failures in the same function.
 ---
 <!-- COMMENTS:END -->
