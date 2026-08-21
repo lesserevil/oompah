@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:48:41.811265Z'
-updated_at: '2026-08-21T07:04:31.029823Z'
+updated_at: '2026-08-21T07:04:39.019959Z'
 work_branch: OOMPAH-1278
 target_branch: null
 review_url: null
@@ -265,5 +265,10 @@ created: 2026-08-21 07:03
 - Impact: error_watcher will no longer file false-positive bug reports
 
 The fix is minimal, focused, and maintains full test coverage.
+---
+author: oompah
+created: 2026-08-21 07:04
+---
+Changed pre-provider contributor evidence timeout logging from error to warning. This prevents error_watcher from filing false-positive bug reports for transient, handled timeout conditions. All tests pass.
 ---
 <!-- COMMENTS:END -->
