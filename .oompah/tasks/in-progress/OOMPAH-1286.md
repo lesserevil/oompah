@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:02:32.249073Z'
-updated_at: '2026-08-21T13:29:38.783659Z'
+updated_at: '2026-08-21T13:31:17.568137Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -293,5 +293,24 @@ Discovery: Found the root cause in oompah/orchestrator.py lines 58002-58090. The
 5. The .env.example documents that this timeout should default to 30 seconds for production
 
 The proper fix is to ensure the default timeout is generous enough for slow tracker adapters. The timeout should not be derived solely from control_timeout, but should have its own sensible default.
+---
+author: oompah
+created: 2026-08-21 13:31
+---
+Implementation: Fixed the timeout calculation in oompah/orchestrator.py line 58030-58033.
+
+Changed from:
+  persistence_timeout = max(min(control_timeout, termination_timeout / 2.0), 0.05)
+
+To:
+  persistence_timeout = max(termination_timeout / 2.0, 30.0)
+
+Rationale:
+- Removed constraint from control_timeout (5s), which is for a different purpose (task authority mutation)
+- Set minimum to 30 seconds, matching .env.example documentation
+- Allows slow tracker/state-branch metadata writes sufficient time to complete
+- The configured OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS can still override if needed
+
+This should prevent the pre-provider contributor evidence timeout error from occurring during normal operation.
 ---
 <!-- COMMENTS:END -->
