@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:27:31.701200Z'
-updated_at: '2026-08-21T09:12:15.571701Z'
+updated_at: '2026-08-21T09:12:43.215509Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -220,5 +220,10 @@ author: oompah
 created: 2026-08-21 09:12
 ---
 IMPLEMENTATION: Changed logger.error() to logger.warning() at oompah/orchestrator.py:58066 for the pre-provider contributor evidence timeout case. This is a handled exception that returns a clear error message ('Cannot durably record exact contributor provider/model evidence before the bounded task-authority deadline...') to the caller. The timeout is expected behavior during the bounded task-authority deadline enforcement, not an unhandled error that should trigger error_watcher task auto-filing.
+---
+author: oompah
+created: 2026-08-21 09:12
+---
+VERIFICATION: Ran all error_watcher tests (124 tests passed) and orchestrator error_watcher integration tests (13 tests passed). All tests pass, confirming the change does not introduce regressions. The fix prevents ERROR-level logs from being captured by error_watcher while preserving proper logging of the timeout event at WARNING level.
 ---
 <!-- COMMENTS:END -->
