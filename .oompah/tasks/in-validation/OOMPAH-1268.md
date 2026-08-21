@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1268
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 3
 title: Archive workflow_job_events for Archived tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-21T10:36:54.044247Z'
+updated_at: '2026-08-21T10:37:12.564191Z'
 work_branch: OOMPAH-1268
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 3211e93d-73f6-4a41-99a7-1bdcaa479ed0
   request_fingerprint: 2efda9a8ba2e984ce57f567673ef41d1f8d9cc0aaaf21d0aff8871d9296ce4a0
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -129,6 +129,64 @@ oompah.integration:
   submitted_at: '2026-08-21T06:02:17.985280+00:00'
   updated_at: '2026-08-21T10:36:49.209510+00:00'
 oompah.work_branch: OOMPAH-1268
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-8f44983b1fe8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1268
+    digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+  - version: 1
+    audit_id: audit-fa9a98a4b580
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1268
+    digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8f44983b1fe8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1268
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: standalone-ready-reconciliation
+      source: oompah
+    previous_state: Ready to Integrate
+    created_at: '2026-08-21T10:37:06.722220+00:00'
+    eligible_at: '2026-08-21T10:37:06.722220+00:00'
+    selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  - version: 1
+    audit_id: audit-fa9a98a4b580
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1268
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: standalone-ready-reconciliation
+      source: oompah
+    previous_state: Ready to Integrate
+    created_at: '2026-08-21T10:37:06.722220+00:00'
+    prerequisite_audit_id: audit-8f44983b1fe8
+    selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  attempt_history: []
 ---
 ## Summary
 
@@ -253,5 +311,10 @@ author: oompah
 created: 2026-08-21 10:36
 ---
 Branch quality gate passed for `859aa8a5a9fcf82063f312f6d16f8eb4ae288631` using `make test` in 193.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-21 10:37
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
