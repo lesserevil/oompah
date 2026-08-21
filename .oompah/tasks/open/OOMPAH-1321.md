@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:13:00.356484Z'
-updated_at: '2026-08-21T09:34:55.092996Z'
+updated_at: '2026-08-21T09:45:28.503360Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -186,5 +186,10 @@ author: oompah
 created: 2026-08-21 09:34
 ---
 Understanding: Error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' occurs in backend:orchestrator when processing project proj-14849f1b. The error indicates a timeout (5.0 seconds) during a task-authority bounded operation. Plan: (1) Search codebase for the error message and related code, (2) identify the timeout mechanism and task-authority logic, (3) investigate why the 5-second deadline is being exceeded, (4) implement either a fix to prevent timeout or graceful error handling, (5) verify with tests.
+---
+author: oompah
+created: 2026-08-21 09:45
+---
+Discovery: Found the error source in orchestrator.py line 58067. The error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' occurs during contributor metadata persistence when the asyncio.wait_for() timeout (persistence_timeout) expires. The timeout is calculated as: persistence_timeout = max(min(control_timeout, termination_timeout / 2.0), 0.05) where defaults are 5.0s and 10.0s respectively, resulting in 5.0s timeout. The logger.error() call at line 58066-58072 is being caught by error_watcher and auto-filed. The issue is that the 5-second timeout may be too aggressive for slow tracker operations or high-load scenarios.
 ---
 <!-- COMMENTS:END -->
