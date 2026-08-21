@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:35:49.377349Z'
-updated_at: '2026-08-21T12:03:36.128889Z'
+updated_at: '2026-08-21T12:13:48.659026Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -233,5 +233,10 @@ author: oompah
 created: 2026-08-21 12:03
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 12:13
+---
+UNDERSTANDING: The error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' is raised when attempting to persist work contributor metadata to the tracker after provider retirement. The timeout is calculated conservatively as a fraction of control_timeout (line 58023-58026 in oompah/orchestrator.py). When control_timeout is small (e.g., 5 seconds as in the error), the persistence_timeout becomes too short to allow I/O operations to complete, especially with synchronous tracker adapters like 'provenanceguardedtracker'. Configuration override 'contributor_evidence_persist_timeout_seconds' exists but default is too conservative. Plan: (1) Investigate the timeout calculation logic, (2) Increase the default minimum timeout, (3) Or increase the multiplier/fraction used in calculation, (4) Add tests to verify the fix.
 ---
 <!-- COMMENTS:END -->
