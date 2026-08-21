@@ -58063,7 +58063,7 @@ class Orchestrator:
                             "its durable release failed; repair service-state "
                             "persistence."
                         )
-                    logger.error(
+                    logger.warning(
                         "Pre-provider contributor evidence exceeded its bounded "
                         "task-authority deadline issue_id=%s identifier=%s "
                         "run_id=%s timeout_seconds=%s",
