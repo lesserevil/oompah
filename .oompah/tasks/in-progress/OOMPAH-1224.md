@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-21T01:51:26.993457Z'
+updated_at: '2026-08-21T01:52:19.320122Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -219,5 +219,18 @@ author: oompah
 created: 2026-08-21 01:51
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 01:52
+---
+Understanding: Issue detail API endpoint raises 'Cannot operate on a closed database' error in backend:server. This indicates a database connection lifecycle issue - likely a connection being closed before an async operation completes, or improper connection context management.
+
+Plan:
+1. Identify the Issue detail API endpoint in backend:server
+2. Trace the database connection lifecycle
+3. Find where the connection is being closed prematurely
+4. Implement proper connection/transaction management
+5. Add/verify test coverage
+6. Verify the fix resolves the error
 ---
 <!-- COMMENTS:END -->
