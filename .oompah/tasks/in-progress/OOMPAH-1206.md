@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-21T04:13:24.399510Z'
+updated_at: '2026-08-21T04:19:01.791580Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -229,5 +229,20 @@ author: oompah
 created: 2026-08-21 04:13
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 04:19
+---
+Understanding: The issue reports that when the orchestrator attempts to dispatch an agent for issue TRICKLE-121, all dispatch candidates fail with 'contributor_evidence_unavailable'. 
+
+Root cause identified: The error occurs in _stage_work_contributor_launch() when persisting contributor evidence (provider/model/focus info) to the tracker. If the async persistence operation times out (currently defaults to ~5s), an error is returned which causes the dispatch attempt to fail with reason='contributor_evidence_unavailable'. When all candidates fail this way, error_watcher logs 'All dispatch candidates failed' error.
+
+The persistence timeout is too short for slow trackers like 'provenanceguardedtracker'. When evidence persistence times out, we shouldn't fail the whole dispatch - the evidence write continues in the background anyway.
+
+Planned approach:
+1. Make the contributor_evidence_persist_timeout_seconds configurable per-project or globally
+2. Increase the default timeout to a more reasonable value for slower trackers
+3. Add logic to treat evidence persistence timeouts as retryable rather than terminal failures
+4. Test the fix
 ---
 <!-- COMMENTS:END -->
