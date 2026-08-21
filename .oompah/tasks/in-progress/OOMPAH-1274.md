@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:01.940609Z'
-updated_at: '2026-08-21T06:03:07.705977Z'
+updated_at: '2026-08-21T06:05:30.858207Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -258,5 +258,29 @@ The issue is a backend orchestrator error where all dispatch candidates are fail
 2. Convert it to raise ProviderStartupError instead
 3. Verify the error is now properly caught by the dispatch loop's ProviderStartupError handler
 4. Test to ensure all dispatch candidates are tried and error_watcher is not triggered
+---
+author: oompah
+created: 2026-08-21 06:05
+---
+## Discovery
+
+**Root Cause Found:**
+
+In `oompah/orchestrator.py`, when `_stage_work_contributor_launch()` encounters a timeout persisting contributor evidence, it returns an error string. The handling of this error is INCONSISTENT:
+
+**Lines 62306-62316 (ACP mode without provider):**
+- Error is returned but NOT raised as ProviderStartupError
+- Instead, it calls `_on_worker_exit` with 'abnormal' status
+- This bypasses the dispatch loop's exception handler
+
+**Lines 62806-62820 (API mode with provider target):**
+- Error IS correctly raised as ProviderStartupError 
+- This allows the dispatch loop to catch it and try the next candidate
+
+**The Issue:**
+When CLI/ACP mode runs without a specific provider target, the contributor_evidence_unavailable error is not being converted to a ProviderStartupError. It instead gets passed to error_watcher as an unhandled error.
+
+**The Fix:**
+Need to make ALL paths that handle evidence_error raise ProviderStartupError consistently, so the dispatch loop's exception handler can properly catch and log it. This prevents error_watcher from auto-filing it as a task.
 ---
 <!-- COMMENTS:END -->
