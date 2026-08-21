@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:41:20.057099Z'
-updated_at: '2026-08-21T10:14:13.715929Z'
+updated_at: '2026-08-21T10:21:22.728018Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -255,5 +255,10 @@ author: oompah
 created: 2026-08-21 10:14
 ---
 Implementation: Changed the log level for 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' from ERROR to WARNING (oompah/orchestrator.py line 58066). This timeout is handled gracefully - the lock is released and the operation retries later. Logging it as an error causes error_watcher to auto-file a task, but since the error is recoverable and expected in normal operation (especially on slow trackers), it should be logged as a warning instead. This pattern is already used for similar timeouts elsewhere in the code (CancelledError case at line 58102 uses logger.warning).
+---
+author: oompah
+created: 2026-08-21 10:21
+---
+Verification: Tests passed. Ran 104 tests related to provider retirement and authority generation - all passed. The fix changes the log level from ERROR to WARNING for the contributor evidence timeout, preventing error_watcher from auto-filing tasks while still logging the event for monitoring. Commit: 69426c5bc pushed to origin/OOMPAH-1272.
 ---
 <!-- COMMENTS:END -->
