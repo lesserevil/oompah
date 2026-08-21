@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-21T11:49:12.641061Z'
+updated_at: '2026-08-21T16:37:08.011390Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -84,7 +84,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: b6cf6474-bce0-4747-a410-194ca1743e5a
+oompah.agent_run_id: 03cd6faf-2b4b-48a6-959b-314229fd802f
 oompah.work_contributors:
   runs:
   - run_id: c39b31ff527f433f8499e69b01c975f0--contributor-a8b0475e7b09
@@ -465,5 +465,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: error, Duration: 1m 27s
 - Log: OOMPAH-1250__20260821T114837Z.jsonl
+---
+author: oompah
+created: 2026-08-21 16:37
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
