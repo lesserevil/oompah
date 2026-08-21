@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:57:11.533917Z'
-updated_at: '2026-08-21T07:33:04.488981Z'
+updated_at: '2026-08-21T11:47:18.603318Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,93 +36,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: 'Focus handoff: duplicate_detector
-
-    Duplicate preflight verdict: inconclusive
-
-    Matches: none
-
-    Evidence: The visible corpus contains 28 similarity candidates, all in terminal
-    states (Merged, Done, or Archived), which cannot serve as duplicate targets per
-    the screening rules. The error message references OOMPAH-1208, which is absent
-    from the visible corpus and likely among the 698 omitted candidates. An active
-    duplicate cannot be confirmed or ruled out without visibility into those omitted
-    candidates or network access to verify OOMPAH-1208''s current status. Recommend
-    retry with expanded corpus visibility or OOMPAH-1208 inclusion.
-
-    Looking at the supplied project task corpus, I need to investigate whether OOMPAH-1295
-    is a duplicate of an existing active issue.
-
-
-    **Analysis of Current Task (OOMPAH-1295):**
-
-    - Error: "Pre-provider contributor evidence exceeded its bounded task-authority
-    deadline"
-
-    - Related to: backend:orchestrator
-
-    - Fingerprint: 514af46bd26e7bfd
-
-    - Status: Open
-
-    - References issue_id=OOMPAH-1208 in the error message
-
-
-    **Corpus Review:**
-
-
-    The provided corpus contains 28 included similarity candidates from a pool of
-    726 total candidates, with 698 omitted. Examining the visible candidates:
-
-
-    1. **All visible similarity-matched tasks are in terminal states**: OOMPAH-1000
-    through OOMPAH-1027 (mostly Merged), OOMPAH-1 and OOMPAH-10 (Archived), OOMPAH-100
-    (Archived)
-
-    2. **Related domain coverage**: The visible tasks heavily address terminal-audit,
-    workflow, and orchestrator infrastructure - topics relevant to this error
-
-    3. **Critical gap**: The error message explicitly references OOMPAH-1208 as a
-    related identifier, but OOMPAH-1208 does not appear in the visible corpus (likely
-    in the omitted 698 candidates)
-
-
-    **Key Constraint:**
-
-    Per the instructions, I must exclude all terminal-state candidates as duplicate
-    targets. Since every similarity-matched task in the visible corpus is terminal
-    (Done, Merged, or Archived), none qualify as active duplicate candidates.
-
-
-    ---
-
-
-    Focus handoff: duplicate_detector
-
-
-    Duplicate preflight verdict: inconclusive
-
-
-    Matches: none
-
-
-    Evidence: The visible corpus contains 28 similarity candidates, all in terminal
-    states (Merged, Done, or Archived), which cannot serve as duplicate targets per
-    the screening rules. The error message references OOMPAH-1208, which is absent
-    from the visible corpus and likely among the 698 omitted candidates. An active
-    duplicate cannot be confirmed or ruled out without visibility into those omitted
-    candidates or network access to verify OOMPAH-1208''s current status. Recommend
-    retry with expanded corpus visibility or OOMPAH-1208 inclusion.'
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: d5ab9fcab4b46dd2aaedb27e28978dee6fe6024d8d6e51fd6c5640d7dc98c84a:146587
+  claim_owner: 94774825-4468-4d75-bdb4-5977b2bd9951
+  claimed_at: '2026-08-21T11:47:12.141862+00:00'
+  claim_expires_at: '2026-08-21T12:17:12.141862+00:00'
   retry_count: 2
-  retry_after: '2026-08-21T07:34:45.648527+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: dbcc8c5d-342f-4b62-ae53-450f668fe147
+oompah.agent_run_id: 04999855-571a-40ed-a84b-a4ba594c5927
 oompah.work_contributors:
   runs:
   - run_id: 28eb33461a894fb5abc3f1dfe2e3dcb0--contributor-a8b0475e7b09
