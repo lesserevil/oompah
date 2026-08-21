@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:14:39.219900Z'
-updated_at: '2026-08-21T16:16:09.652389Z'
+updated_at: '2026-08-21T16:21:16.988909Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -227,5 +227,26 @@ The error 'Pre-provider contributor evidence exceeded its bounded task-authority
 5. Verify no regression in error_watcher reporting
 
 Starting codebase exploration now.
+---
+author: oompah
+created: 2026-08-21 16:21
+---
+**Discovery: Root Cause Identified**
+
+Found the issue in oompah/orchestrator.py at line 58067 in the `_stage_work_contributor_launch()` function.
+
+**Root Cause:**
+- A TimeoutError occurs when persisting contributor evidence to the tracker takes longer than the configured timeout (5 seconds by default)
+- The timeout handler logs this at ERROR level, which triggers error_watcher to auto-file a task
+- However, the function returns a graceful error message and retries the operation, so this is expected behavior, not a bug
+
+**The Problem:**
+The `logger.error()` call at line 58066-58073 is logging at ERROR level, which error_watcher interprets as a critical failure and files automatically. However:
+- The operation gracefully degrades with a clear error message
+- The operation is retried (indicated by 'retired for retry' in the return message)  
+- This is similar to other expected timeout scenarios in the codebase that log at WARNING instead
+
+**Solution:**
+Change the log level from ERROR to WARNING at line 58066, following the pattern used elsewhere in oompah for expected transient failures. This prevents error_watcher from auto-filing duplicate tasks while still logging the timeout for diagnostics.
 ---
 <!-- COMMENTS:END -->
