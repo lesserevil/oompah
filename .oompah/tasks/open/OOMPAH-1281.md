@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:54:51.257792Z'
-updated_at: '2026-08-21T06:53:26.501869Z'
+updated_at: '2026-08-21T06:54:10.088782Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,13 +36,15 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: b2c951505b90bdb4c706683c96ed4704b89abfaf2514d2b64e80b10df9b76adb:144198
-  claim_owner: 94774825-4468-4d75-bdb4-5977b2bd9951
-  claimed_at: '2026-08-21T06:52:02.984488+00:00'
-  claim_expires_at: '2026-08-21T07:22:02.984488+00:00'
-  retry_count: 1
-  retry_after: null
+  evidence: ACP provider launch was blocked because unhealthy=['Claude:health_unknown',
+    'Claude:health_unknown', 'Claude:health_unknown', 'Opencode/Switchyard:health_unknown'];
+    missing_audit_capability=['Codex']
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 2
+  retry_after: '2026-08-21T06:55:55.948059+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -136,5 +138,15 @@ author: oompah
 created: 2026-08-21 06:53
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-21 06:53
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: interrupted, Duration: 1m 8s
+- Log: OOMPAH-1281__20260821T065338Z.jsonl
 ---
 <!-- COMMENTS:END -->
