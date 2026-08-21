@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-21T14:52:07.628812Z'
+updated_at: '2026-08-21T14:55:31.644858Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -635,5 +635,33 @@ All tests pass:
 ✓ 59+ comment-related API tests (no regression)
 
 Commit: 952616edb | Branch: OOMPAH-1256 | Pushed to origin
+---
+author: oompah
+created: 2026-08-21 14:55
+---
+**Verification Complete:**
+
+Test Results:
+✓ 9 new tests - _canonical_managed_project_id name fallback (unit + integration)
+✓ 7 existing tests - _tracker_for_project name fallback (no regression)
+✓ 30 tests - ask_question API (label removal after user comments)
+✓ 28 tests - comment delivery (mid-run comment injection)
+✓ 59+ tests - general comment API functionality
+
+Root Cause Fixed:
+- The error 'ProjectError("Unknown project")' was raised because _canonical_managed_project_id only used direct ID comparison instead of name-based fallback
+- The fix applies project_store.get() and find_by_name() methods, matching the working pattern from _tracker_for_project
+
+Impact:
+- The add-comment API now accepts both project IDs and project names
+- Consistent project resolution across the codebase
+- Proper error handling for unknown projects
+- Legacy single-tracker mode preserved
+
+Files Changed:
+- oompah/server.py: _canonical_managed_project_id (17 lines removed, 25 added)
+- tests/test_canonical_managed_project_id_name_fallback.py: New comprehensive test suite
+
+Ready for integration.
 ---
 <!-- COMMENTS:END -->
