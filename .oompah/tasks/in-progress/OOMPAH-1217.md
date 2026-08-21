@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:53.373319Z'
-updated_at: '2026-08-21T01:38:09.012738Z'
-work_branch: null
+updated_at: '2026-08-21T01:38:23.843168Z'
+work_branch: OOMPAH-1217
 target_branch: null
 review_url: null
 review_number: null
@@ -141,6 +141,7 @@ oompah.integration:
   head_sha: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
   submitted_at: '2026-08-21T01:37:56.134651+00:00'
   updated_at: '2026-08-21T01:37:56.134651+00:00'
+oompah.work_branch: OOMPAH-1217
 ---
 ## Summary
 
@@ -274,5 +275,10 @@ All relevant tests pass:
 The fix is minimal (1-line change) and focused on the root cause. The timeout is now logged at WARNING level, preventing error_watcher from triggering while maintaining operational visibility.
 
 Changes committed and pushed to branch OOMPAH-1217.
+---
+author: oompah
+created: 2026-08-21 01:38
+---
+Fixed pre-provider evidence timeout logging to use WARNING instead of ERROR, preventing error_watcher from auto-filing this handled timeout scenario as a task.
 ---
 <!-- COMMENTS:END -->
