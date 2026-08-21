@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-21T00:16:45.344392Z'
+updated_at: '2026-08-21T00:17:05.736061Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,6 +60,14 @@ oompah.work_contributors:
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-1224
+    source_sha: null
+    completed_at: ''
+  - run_id: c8470fa192aa4f5787330252c657bf61--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
     focus: duplicate_detector
     source_branch: OOMPAH-1224
     source_sha: null
@@ -130,5 +138,10 @@ author: oompah
 created: 2026-08-21 00:15
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-21 00:17
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
