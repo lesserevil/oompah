@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:53:11.407767Z'
-updated_at: '2026-08-21T13:21:14.391968Z'
+updated_at: '2026-08-21T13:22:13.444290Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -317,5 +317,10 @@ author: oompah
 created: 2026-08-21 13:21
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 13:22
+---
+UNDERSTANDING: Investigating a timeout error in backend:orchestrator where 'Pre-provider contributor evidence' operation exceeds its 5-second task-authority deadline. The error is being auto-filed by error_watcher and should either be fixed or handled gracefully. Plan: (1) Find where this error is generated, (2) Locate the timeout mechanism, (3) Understand why the operation takes >5s, (4) Fix by either optimizing the operation or increasing the timeout with justification, (5) Test that error_watcher no longer triggers.
 ---
 <!-- COMMENTS:END -->
