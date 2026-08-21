@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1217
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-122 identifier=TRICKLE-122 run_id=55adaba352c743fc8a2cfc754517629a
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:53.373319Z'
-updated_at: '2026-08-21T01:19:01.219178Z'
+updated_at: '2026-08-21T01:19:32.080880Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -106,6 +106,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1217
     source_sha: 02bd5960434a5c65dce259894737a55ab7a8ea96
     completed_at: '2026-08-21T00:04:50.209070+00:00'
+  - run_id: b42bda3a342c481e948ec5e00223a47b--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: general
+    source_branch: OOMPAH-1217
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2010
@@ -202,5 +210,10 @@ author: oompah
 created: 2026-08-21 01:19
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-21 01:19
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
