@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:50:52.786229Z'
-updated_at: '2026-08-21T00:39:28.200020Z'
+updated_at: '2026-08-21T01:20:59.502070Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -289,5 +289,20 @@ Similar pattern also found at line 70920 in _arm_retry_timer_for_recovery() with
 Test code throughout the codebase uses 3-5 second timeouts for similar operations, suggesting 1 second is insufficient for production scenarios.
 
 FIX: Increase timeout to 5.0 seconds for more reliable publication handshake.
+---
+author: oompah
+created: 2026-08-21 01:20
+---
+IMPLEMENTATION:
+
+Changed timeout values in oompah/orchestrator.py:
+1. Line 9608: _schedule_restart_issue_recovery_for_resume() - increased timeout from 1.0 to 5.0 seconds
+2. Line 70920: _arm_retry_timer_for_recovery() - increased timeout from 1.0 to 5.0 seconds
+
+Both functions use the same pattern: call_soon_threadsafe() to publish a callback on a foreign event loop, then wait for acknowledgment. The 1-second timeout was too aggressive for production systems under load.
+
+5 seconds provides sufficient time for the event loop to schedule and execute the callback, while still maintaining fail-closed behavior if something is genuinely broken.
+
+This aligns with timeout patterns used throughout the test suite (typically 3-5 seconds).
 ---
 <!-- COMMENTS:END -->
