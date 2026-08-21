@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:11:27.677981Z'
-updated_at: '2026-08-21T16:40:06.239767Z'
+updated_at: '2026-08-21T16:44:21.832024Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -306,5 +306,10 @@ author: oompah
 created: 2026-08-21 16:40
 ---
 Understanding: Investigating TaskTransitionNotApplied error where 'In Progress' transition is rejected due to transition.project_owner_authority_required. Need to find where this error occurs in backend:server code and either handle it gracefully or resolve the root cause of the permission rejection.
+---
+author: oompah
+created: 2026-08-21 16:44
+---
+Discovery: Found the issue in oompah/server.py. The error 'transition.project_owner_authority_required' is not in the expected_policy_rejections set in _transition_rejected_reason() function (line 4136-4154). This causes TaskTransitionNotApplied to be logged as a 500 error instead of a graceful 409 conflict. Similar authority-related reasons like 'transition.rollup_authority_required' are already in the list. Need to add 'transition.project_owner_authority_required' to this set.
 ---
 <!-- COMMENTS:END -->
