@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:22.979573Z'
-updated_at: '2026-08-21T01:30:47.706667Z'
-work_branch: null
+updated_at: '2026-08-21T01:31:02.816202Z'
+work_branch: OOMPAH-1199
 target_branch: null
 review_url: null
 review_number: null
@@ -178,6 +178,7 @@ oompah.integration:
   head_sha: 99d1966926fc94ae138c2e50198a1fa5a9785a72
   submitted_at: '2026-08-21T01:30:24.183152+00:00'
   updated_at: '2026-08-21T01:30:24.183152+00:00'
+oompah.work_branch: OOMPAH-1199
 ---
 ## Summary
 
@@ -317,5 +318,10 @@ author: oompah
 created: 2026-08-21 01:29
 ---
 Verification: All 157 relevant tests pass (test_error_watcher.py, test_error_watcher_orchestrator.py, test_orchestrator_handlers.py). Commit 99d196692 pushed to OOMPAH-1199 branch. Changes: logger.exception() -> logger.warning(exc_info=True) in both API and ACP worker exception handlers. This prevents ERROR-level logging that triggers error_watcher while preserving exception traceback for debugging. Result: Operational failures no longer auto-file error tasks, meeting acceptance criteria.
+---
+author: oompah
+created: 2026-08-21 01:31
+---
+Fixed ACP worker error auto-filing by changing exception logging from ERROR to WARNING level. This prevents error_watcher from auto-filing tasks for normal operational failures (workspace issues, tracker errors) while preserving exception traceback information for debugging. All tests pass (157 tests verified). Commit 99d196692 on OOMPAH-1199 branch.
 ---
 <!-- COMMENTS:END -->
