@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:48:41.811265Z'
-updated_at: '2026-08-21T07:01:36.559634Z'
+updated_at: '2026-08-21T07:03:31.836551Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -237,5 +237,21 @@ Changed line 58066 in `oompah/orchestrator.py` from `logger.error()` to `logger.
 By logging as WARNING instead of ERROR, error_watcher will no longer be triggered for this normal operational condition, eliminating false-positive bug reports.
 
 **Tests:** All 21 provider_retirement tests and 381 orchestrator_handler tests pass.
+---
+author: oompah
+created: 2026-08-21 07:03
+---
+**Verification: Tests Passed**
+
+✅ Provider Retirement Tests: 21/21 PASSED (17.01s)
+✅ Orchestrator Handler Tests: 381/381 PASSED (4m 24s)
+
+**Change Summary:**
+- File: oompah/orchestrator.py, line 58066
+- Changed: logger.error() → logger.warning()
+- Reason: Pre-provider evidence timeout is a transient, handled condition
+- Impact: error_watcher will no longer file false-positive bug reports
+
+The fix is minimal, focused, and maintains full test coverage.
 ---
 <!-- COMMENTS:END -->
