@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:27.547026Z'
-updated_at: '2026-08-21T04:05:22.451849Z'
+updated_at: '2026-08-21T04:05:30.185481Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -85,16 +85,16 @@ oompah.work_contributors:
     model_id: haiku
     focus: duplicate_detector
     source_branch: OOMPAH-1196
-    source_sha: null
-    completed_at: ''
+    source_sha: 2da1c8073e0617b21959af89a4443b9f50c9a1d7
+    completed_at: '2026-08-21T04:05:20.549605+00:00'
 oompah.task_costs:
-  total_input_tokens: 20
-  total_output_tokens: 4096
+  total_input_tokens: 30
+  total_output_tokens: 5256
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 20
-      output_tokens: 4096
+      input_tokens: 30
+      output_tokens: 5256
       cost_usd: 0.0
   runs:
   - profile: default
@@ -109,6 +109,12 @@ oompah.task_costs:
     output_tokens: 2197
     cost_usd: 0.0
     recorded_at: '2026-08-20T23:34:09.673091+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1160
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T04:05:20.545274+00:00'
 ---
 ## Summary
 
