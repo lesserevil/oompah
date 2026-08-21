@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:59:20.045563Z'
-updated_at: '2026-08-21T07:37:52.703059Z'
+updated_at: '2026-08-21T07:48:39.285757Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -199,5 +199,22 @@ The error 'Pre-provider contributor evidence exceeded its bounded task-authority
 5. Verify with tests that error_watcher is no longer triggered for this condition
 
 Starting codebase exploration now.
+---
+author: oompah
+created: 2026-08-21 07:48
+---
+**Root Cause Identified:**
+
+Found the issue in `oompah/orchestrator.py` at line 57834-58090 in the `_stage_work_contributor_launch()` method.
+
+The problem:
+- The code attempts to persist contributor evidence (metadata write) with a bounded timeout
+- When the persistence takes longer than `contributor_evidence_persist_timeout_seconds` (default 30s, but 5.0s in the error report), it times out
+- This timeout is logged as `logger.error()` which triggers error_watcher to auto-file a task
+- The error message: 'Pre-provider contributor evidence exceeded its bounded task-authority deadline'
+
+The issue: This is NOT actually an error condition - it's a graceful degradation that retires the worker for retry (line 58084-58090). The timeout allows the system to stop waiting and continue, but it's being reported as an ERROR level log entry, which treats it as an unhandled error.
+
+Next: Will fix by downgrading this to a WARNING level log, since this is expected behavior when persistence is slow (not a bug to report).
 ---
 <!-- COMMENTS:END -->

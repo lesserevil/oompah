@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:16:42.294156Z'
-updated_at: '2026-08-21T07:42:24.403353Z'
+updated_at: '2026-08-21T07:48:41.986196Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -214,5 +214,10 @@ author: oompah
 created: 2026-08-21 07:42
 ---
 **Understanding**: Investigating a backend:orchestrator timeout error where 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' with a 5-second timeout. Previous runs didn't yield results. Approach: (1) Locate orchestrator code for contributor evidence handling, (2) identify the 5s deadline and why it's exceeded, (3) either fix the underlying issue or handle the timeout gracefully before error_watcher triggers, (4) add tests to verify the fix, (5) commit and submit.
+---
+author: oompah
+created: 2026-08-21 07:48
+---
+**Discovery**: Found the root cause in \`oompah/orchestrator.py\` line 58067. The \`_stage_work_contributor_launch()\` function times out when persisting contributor evidence (provider/model metadata) to the tracker. This is a **transient, expected failure** that's handled gracefully by returning an error message and retrying. However, it's logged as \`logger.error()\` which triggers error_watcher. The fix: change logging level from ERROR to WARNING, since this is a handled transient timeout, not a real error. The code explicitly documents that timeouts here should be expected and production should configure higher timeouts. Tests exist in \`tests/test_provider_retirement.py\` that verify this timeout behavior.
 ---
 <!-- COMMENTS:END -->
