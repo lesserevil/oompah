@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:28:12.589940Z'
-updated_at: '2026-08-21T05:57:55.174410Z'
+updated_at: '2026-08-21T10:30:52.929915Z'
 work_branch: OOMPAH-1254
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/899
@@ -126,10 +126,12 @@ oompah.integration:
   mode: standalone
   task_branch: OOMPAH-1254
   base_branch: main
-  base_sha: 2da1c8073e0617b21959af89a4443b9f50c9a1d7
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
   head_sha: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
   submitted_at: '2026-08-21T02:26:57.522058+00:00'
-  updated_at: '2026-08-21T02:26:57.522058+00:00'
+  updated_at: '2026-08-21T10:30:49.141463+00:00'
+  wait_reason: review_generation_requeue
+  wait_generation: review:01b90c88db13134f3d1ba32852e101a9b93be9fb7088f760e84f37bc9272b6da
 oompah.work_branch: OOMPAH-1254
 oompah.review_url: https://github.com/lesserevil/oompah/pull/899
 oompah.review_number: '899'
