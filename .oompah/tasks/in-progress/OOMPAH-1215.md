@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:59:31.498539Z'
-updated_at: '2026-08-21T10:22:31.078693Z'
+updated_at: '2026-08-21T10:22:39.184050Z'
 work_branch: OOMPAH-1215
 target_branch: null
 review_url: null
@@ -350,5 +350,10 @@ Acceptance criteria met:
 ✓ The error is no longer logged at ERROR level (won't trigger error_watcher)
 ✓ Graceful degradation is in place (returns error string for retry)
 ✓ No regression: all related tests pass
+---
+author: oompah
+created: 2026-08-21 10:22
+---
+Fixed pre-provider contributor evidence timeout from being auto-filed by error_watcher by changing log level from ERROR to WARNING. Timeout is a graceful failure condition that returns an error message for retry, not an exception.
 ---
 <!-- COMMENTS:END -->
