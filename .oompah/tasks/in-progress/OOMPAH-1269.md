@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-19T01:37:27.110739Z'
-updated_at: '2026-08-21T10:49:28.132528Z'
-work_branch: null
+updated_at: '2026-08-21T10:50:05.791489Z'
+work_branch: OOMPAH-1269
 target_branch: null
 review_url: null
 review_number: null
@@ -82,7 +82,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: ad22f33f-ccde-4db0-b89a-851f9b5bb5de
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: e9e763cf67dd4ac68c07510e10ceffe4--contributor-a8b0475e7b09
@@ -125,6 +125,18 @@ oompah.task_costs:
     output_tokens: 2655
     cost_usd: 0.0
     recorded_at: '2026-08-21T05:51:53.608608+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1269
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: 6e9226700f9bfcab2dcd6e7a3f9d1b106888e8f8
+  submitted_at: '2026-08-21T10:49:53.488712+00:00'
+  updated_at: '2026-08-21T10:49:53.488712+00:00'
+oompah.work_branch: OOMPAH-1269
 ---
 ## Summary
 
@@ -289,5 +301,10 @@ test_repeated_rollback_same_generation_is_idempotent verifies:
 - test_archive_rollback_preserves_high_water
 
 All tests verify bounded event emission, archival, and safe ledger reclamation.
+---
+author: oompah
+created: 2026-08-21 10:50
+---
+Fixed publication_rollback storm livelock by bounding event emission and reclaiming ledger. PR #885-890 addressed all aspects: aggregate events prevent ledger explosion, archival + VACUUM reclaim historical rows, larger batch drains accelerate backlog clearance. Added regression test for multi-generation rollback. Root cause (workflow_authority_revision churn) remains quiescent; marked for follow-up investigation.
 ---
 <!-- COMMENTS:END -->
