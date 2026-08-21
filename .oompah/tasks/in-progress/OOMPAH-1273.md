@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1273
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=OOMPAH-1198 identifier=OOMPAH-1198 run_id=3c5e1f31236f4ba89bcebe5074b1098d
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:41:44.906086Z'
-updated_at: '2026-08-21T02:38:03.437247Z'
+updated_at: '2026-08-21T05:53:26.397339Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -79,7 +79,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8d76a483-8092-4ebb-ac10-f27042dc0e9e
+oompah.agent_run_id: 8262d805-48db-45c3-ba3f-07e34a8cf455
 oompah.work_contributors:
   runs:
   - run_id: e67cc29ad7974efcbdc9fe1c70b88799--contributor-4256b9f40773
@@ -90,6 +90,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1273
     source_sha: 2da1c8073e0617b21959af89a4443b9f50c9a1d7
     completed_at: '2026-08-21T02:37:53.351667+00:00'
+  - run_id: f38b9e33cfbb476bb0d53bcb15fe513a--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: general
+    source_branch: OOMPAH-1273
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2058
@@ -167,5 +175,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 43s
 - Log: OOMPAH-1273__20260821T023641Z.jsonl
+---
+author: oompah
+created: 2026-08-21 05:53
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-21 05:53
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
