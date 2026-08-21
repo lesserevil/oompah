@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:35:49.377349Z'
-updated_at: '2026-08-21T13:03:00.565138Z'
-work_branch: null
+updated_at: '2026-08-21T13:03:28.756847Z'
+work_branch: OOMPAH-1292
 target_branch: null
 review_url: null
 review_number: null
@@ -71,7 +71,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 0281cff4-2ad0-4fb7-bd07-958d22b79b34
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 3791b95a6a884b8abe69cc2f189b67a8--contributor-4256b9f40773
@@ -122,6 +122,18 @@ oompah.task_costs:
     output_tokens: 1261
     cost_usd: 0.0
     recorded_at: '2026-08-21T07:30:12.712906+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1292
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: 606011de0c49375b7e074ff84ba56c5a2e7daff3
+  submitted_at: '2026-08-21T13:03:11.920231+00:00'
+  updated_at: '2026-08-21T13:03:11.920231+00:00'
+oompah.work_branch: OOMPAH-1292
 ---
 ## Summary
 
@@ -248,5 +260,10 @@ author: oompah
 created: 2026-08-21 13:03
 ---
 IMPLEMENTATION COMPLETE: Fixed the pre-provider contributor evidence timeout issue by increasing the minimum calculated timeout from 0.05s to 1.0s. The change ensures that slow tracker operations (especially synchronous adapters like provenanceguardedtracker) have a reasonable minimum time window to complete. The configuration override (default 30.0s) is unaffected and will still be used when available. All 463 critical tests pass (provider_retirement, orchestrator_handlers, auditor_quiesce_fence).
+---
+author: oompah
+created: 2026-08-21 13:03
+---
+Fixed pre-provider contributor evidence timeout by increasing minimum calculated timeout from 0.05s to 1.0s. This ensures slow tracker operations complete without triggering unnecessary retries, while preserving the configuration override (default 30.0s).
 ---
 <!-- COMMENTS:END -->

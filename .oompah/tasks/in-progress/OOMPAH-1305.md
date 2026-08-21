@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:16:51.487733Z'
-updated_at: '2026-08-21T12:40:54.867034Z'
+updated_at: '2026-08-21T13:03:29.972405Z'
 work_branch: OOMPAH-1305
 target_branch: null
 review_url: null
@@ -314,5 +314,25 @@ author: oompah
 created: 2026-08-21 12:40
 ---
 Fixed pre-provider contributor evidence timeout issue. The persistence timeout was calculated using control_timeout (5s, meant for lock acquisition) as an upper bound, causing TimeoutError for slow tracker writes. Changed to use the configured value (30s default) directly, providing adequate time for persistence operations without blocking task authority.
+---
+author: oompah
+created: 2026-08-21 13:03
+---
+**COORDINATION NOTE**
+
+This fix builds on and improves the OOMPAH-1270 fix that was already merged.
+
+OOMPAH-1270 added:
+- Configuration option contributor_evidence_persist_timeout_seconds (default 30s)
+- Logic to use configured value when available, fallback to calculated (5s) otherwise
+
+This OOMPAH-1305 simplifies and improves that logic:
+- Removes unnecessary calculation of the derived timeout (which was never used if config was available)
+- Changes getattr default from None to 30.0 (the sensible production default)
+- Ensures the 30-second timeout is always used by default, never the calculated 5 seconds
+
+The improvement makes the code cleaner and more robust, ensuring that even if there were edge cases in the OOMPAH-1270 implementation, they're now eliminated.
+
+No conflict with OOMPAH-1287 - both changes are in different code sections.
 ---
 <!-- COMMENTS:END -->
