@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1267
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Make restart replacement rollback test deterministic under concurrent gates
 parent: null
@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T08:43:25.263614Z'
-updated_at: '2026-08-21T07:20:01.678668Z'
+updated_at: '2026-08-21T07:20:19.965678Z'
 work_branch: OOMPAH-1267
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/901
 review_number: '901'
-review_head: null
+review_head: db3015ed8d47d8fbcab85831d798d21d8dcce0a2
 merged_at: null
 oompah.create_once:
   version: 1
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 74c46553-2c2b-43cf-a780-9f13e770c900
   request_fingerprint: c93c49f73d14f0dbd98db4eaf2f0bc6f44f4965a6f4e68ab29b4fa036d4eeecd
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -184,6 +184,8 @@ oompah.integration:
 oompah.work_branch: OOMPAH-1267
 oompah.review_url: https://github.com/lesserevil/oompah/pull/901
 oompah.review_number: '901'
+oompah.target_branch: main
+oompah.review_head: db3015ed8d47d8fbcab85831d798d21d8dcce0a2
 ---
 ## Summary
 
