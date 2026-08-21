@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:48:41.811265Z'
-updated_at: '2026-08-21T06:50:23.329204Z'
+updated_at: '2026-08-21T06:55:15.232728Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -202,5 +202,23 @@ The issue reports a timeout error in backend:orchestrator when processing eviden
 6. Verify no regression in other error handling
 
 **Searching for:** 'Pre-provider contributor evidence', task-authority, backend:orchestrator, error_watcher
+---
+author: oompah
+created: 2026-08-21 06:55
+---
+**Discovery: Root Cause Found**
+
+Located the error in `oompah/orchestrator.py` at line 58066-58083.
+
+**Issue:** When persisting contributor evidence (metadata writes to tracker), if the operation exceeds the bounded task-authority deadline (5 seconds), a TimeoutError is caught and logged with `logger.error()`. This error log triggers error_watcher, which files it as a bug.
+
+**Root Cause:** The timeout is being logged as an ERROR when it should be logged as a WARNING. The error is handled gracefully:
+- The operation is retried on the next cycle
+- An appropriate error message is returned
+- No data is lost or corrupted
+
+**Parallel Pattern:** The CancelledError path (line 58102) handles a similar scenario with `logger.warning()` instead of `logger.error()`, which is the correct approach.
+
+**Fix:** Change `logger.error()` to `logger.warning()` on line 58066 so error_watcher is not triggered for this transient, handled condition.
 ---
 <!-- COMMENTS:END -->
