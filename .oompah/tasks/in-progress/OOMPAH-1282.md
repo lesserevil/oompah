@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:55:39.156940Z'
-updated_at: '2026-08-21T07:21:48.250866Z'
+updated_at: '2026-08-21T07:22:12.978498Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -226,5 +226,14 @@ author: oompah
 created: 2026-08-21 07:21
 ---
 Implementation: Changed logger.error() to logger.warning() in oompah/orchestrator.py line 58066 for the contributor evidence timeout case. Rationale: The timeout is handled gracefully - the persistence task continues asynchronously (via asyncio.shield), task authority is released properly, and error_watcher only catches ERROR+ level logs. Since this is expected behavior for slow trackers (especially provenanceguardedtracker), a WARNING level is more appropriate. This prevents error_watcher from auto-filing a task while still logging the issue for debugging. All tests pass: 21 provider_retirement tests, 124 error_watcher tests.
+---
+author: oompah
+created: 2026-08-21 07:22
+---
+Verification: Change completed and tested. All relevant tests pass:
+- tests/test_provider_retirement.py: 21/21 ✓
+- tests/test_error_watcher.py: 124/124 ✓
+
+The fix is minimal and focused: only the log level changed from ERROR to WARNING for the specific contributor evidence timeout scenario. This prevents error_watcher from auto-filing tasks for this expected condition while maintaining observability for debugging.
 ---
 <!-- COMMENTS:END -->
