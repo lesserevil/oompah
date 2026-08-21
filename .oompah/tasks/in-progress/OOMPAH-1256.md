@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-21T14:37:34.398921Z'
+updated_at: '2026-08-21T14:38:13.119107Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -578,5 +578,23 @@ author: oompah
 created: 2026-08-21 14:37
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 14:38
+---
+**Understanding & Plan:**
+
+The error 'ProjectError("Unknown project")' occurs when the add-comment API endpoint tries to validate a managed project ID. Previous investigation found:
+
+1. Root cause: \`_canonical_managed_project_id\` in server.py doesn't apply name-based fallback that \`_tracker_for_project\` in orchestrator.py has
+2. Affected path: api_add_comment → _get_tracker_for_issue_or_project → _canonical_managed_project_id
+3. Key reference: tests/test_tracker_for_project_name_fallback.py shows the pattern from OOMPAH-161 fix
+
+Plan:
+- Read the current implementation of both functions to understand the difference
+- Apply similar name-based fallback logic to _canonical_managed_project_id
+- Write a regression test for the api_add_comment path
+- Verify no existing tests break
+- Commit and submit
 ---
 <!-- COMMENTS:END -->
