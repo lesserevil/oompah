@@ -8,11 +8,10 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- needs:feature
+labels: []
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-21T07:02:45.824204Z'
+updated_at: '2026-08-21T07:26:07.733533Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -84,7 +83,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 4128c5ff-3ec1-464f-a158-4b2fa7e6efab
+oompah.agent_run_id: d40b8e50-9bcb-4012-8c8a-dc2afda9cca7
 oompah.work_contributors:
   runs:
   - run_id: c39b31ff527f433f8499e69b01c975f0--contributor-a8b0475e7b09
@@ -151,6 +150,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1250
     source_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     completed_at: '2026-08-21T07:02:31.641897+00:00'
+  - run_id: 9acedda9eb7e4ed9b317e82ef9a30788--contributor-1e03bff0a496
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: docs
+    source_branch: OOMPAH-1250
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 44
   total_output_tokens: 3216
@@ -338,5 +345,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 17s
 - Log: OOMPAH-1250__20260821T070045Z.jsonl
+---
+author: oompah
+created: 2026-08-21 07:25
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-21 07:26
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
