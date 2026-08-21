@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:16:51.487733Z'
-updated_at: '2026-08-21T12:36:17.995649Z'
-work_branch: null
+updated_at: '2026-08-21T12:40:54.867034Z'
+work_branch: OOMPAH-1305
 target_branch: null
 review_url: null
 review_number: null
@@ -77,7 +77,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: ca3b6c5c-c3ce-4ad1-a8e4-1f59bef432d3
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: e8a652b063fc4626bbab3b028471f819--contributor-4256b9f40773
@@ -120,6 +120,18 @@ oompah.task_costs:
     output_tokens: 2018
     cost_usd: 0.0
     recorded_at: '2026-08-21T03:45:48.492286+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1305
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: 3fcad5fc14152f4df2710bf08fac62ac37b73372
+  submitted_at: '2026-08-21T12:40:38.886269+00:00'
+  updated_at: '2026-08-21T12:40:38.886269+00:00'
+oompah.work_branch: OOMPAH-1305
 ---
 ## Summary
 
@@ -297,5 +309,10 @@ The fix ensures that:
 4. No regression in related functionality
 
 The error auto-filed by error_watcher should no longer occur under normal load.
+---
+author: oompah
+created: 2026-08-21 12:40
+---
+Fixed pre-provider contributor evidence timeout issue. The persistence timeout was calculated using control_timeout (5s, meant for lock acquisition) as an upper bound, causing TimeoutError for slow tracker writes. Changed to use the configured value (30s default) directly, providing adequate time for persistence operations without blocking task authority.
 ---
 <!-- COMMENTS:END -->
