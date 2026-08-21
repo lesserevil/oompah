@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:59:49.640067Z'
-updated_at: '2026-08-21T15:52:43.175573Z'
+updated_at: '2026-08-21T15:58:00.983719Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -293,5 +293,26 @@ This is actually a graceful degradation scenario:
 
 **The Fix:**
 Change line 58066 from `logger.error()` to `logger.warning()` to match the cancellation path and prevent error_watcher from being triggered inappropriately.
+---
+author: oompah
+created: 2026-08-21 15:58
+---
+## Implementation: Fixed contributor_evidence_timeout logging level
+
+**Change Made:**
+Changed `logger.error()` to `logger.warning()` on line 58066 of oompah/orchestrator.py.
+
+**Why This Fixes the Issue:**
+- error_watcher only listens to logging.ERROR level and above (line 92 of error_watcher.py: `self._handler.setLevel(logging.ERROR)`)
+- The contributor_evidence_timeout is a graceful degradation: the persistence task continues in the background, task authority is released, and the issue will be retried
+- Logging at WARNING level keeps the visibility for debugging while preventing unnecessary error_watcher task creation
+
+**Consistency:**
+The code was already inconsistent: the cancellation path (line 58102) uses `logger.warning()` for the same type of timeout. This fix makes both paths consistent.
+
+**Tests:**
+- All existing provider retirement tests pass (21/21)
+- All error_watcher tests pass (137 tests total)
+- No regressions detected
 ---
 <!-- COMMENTS:END -->
