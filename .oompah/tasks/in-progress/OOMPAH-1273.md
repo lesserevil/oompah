@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:41:44.906086Z'
-updated_at: '2026-08-21T06:04:23.492102Z'
+updated_at: '2026-08-21T06:06:00.840869Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -238,5 +238,22 @@ This change:
 - ✅ Preserves the structured logging context with pre_provider_retirement reason
 
 The change aligns with the project's error classification philosophy where known, handled failures should log at WARNING level, while unexpected/unhandled errors log at ERROR level.
+---
+author: oompah
+created: 2026-08-21 06:06
+---
+## Verification
+
+✅ All focused tests pass:
+- tests/test_provider_retirement.py: 21 passed
+- tests/test_error_watcher.py: 124 passed
+- tests/test_orchestrator_handlers.py (timeout-related): 9 passed
+
+✅ Changes verified:
+- git diff shows only the expected change (ERROR -> WARNING)
+- Commit message follows project conventions with proper co-author attribution
+- Branch pushed and up to date with origin
+
+The fix is minimal, focused, and addresses the root cause without affecting any other functionality.
 ---
 <!-- COMMENTS:END -->
