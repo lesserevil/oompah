@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:40:39.902883Z'
-updated_at: '2026-08-21T16:32:03.616697Z'
-work_branch: null
+updated_at: '2026-08-21T16:32:23.361520Z'
+work_branch: OOMPAH-1293
 target_branch: null
 review_url: null
 review_number: null
@@ -79,7 +79,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 33188a28-e710-48e2-826e-3bec849fcefe
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 4d9bc5708b45448ba507af7a3bdac7b3--contributor-a8b0475e7b09
@@ -130,6 +130,18 @@ oompah.task_costs:
     output_tokens: 1645
     cost_usd: 0.0
     recorded_at: '2026-08-21T11:42:41.331476+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1293
+  base_branch: main
+  base_sha: c7b3911883a90c1b5805204a430926eb1c6f53b8
+  head_sha: 7f6f2fa44bca6317767ff615be011d03ac0e932a
+  submitted_at: '2026-08-21T16:32:10.699859+00:00'
+  updated_at: '2026-08-21T16:32:10.699859+00:00'
+oompah.work_branch: OOMPAH-1293
 ---
 ## Summary
 
@@ -261,5 +273,10 @@ author: oompah
 created: 2026-08-21 16:32
 ---
 Verification: All tests pass. Ran test_provider_retirement.py (21 tests) and test_implementation_workflow_adapter.py (73 tests) - 94 tests total all passing. The timeout calculation fix correctly gives persistence operations more time (10s default vs 5s before) while preserving the configured override behavior. Change is minimal and focused on the root cause.
+---
+author: oompah
+created: 2026-08-21 16:32
+---
+Fixed pre-provider contributor evidence timeout. Changed persistence timeout calculation from min(control_timeout, termination_timeout/2) to max(termination_timeout, 5.0) to allow slow tracker writes to complete. Increased default fallback timeout from 5s to 10s while preserving configured 60s production override.
 ---
 <!-- COMMENTS:END -->
