@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:25:06.282819Z'
-updated_at: '2026-08-21T14:23:00.443771Z'
-work_branch: null
+updated_at: '2026-08-21T14:24:39.145677Z'
+work_branch: OOMPAH-1204
 target_branch: null
 review_url: null
 review_number: null
@@ -79,7 +79,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 89eedd5c-ad14-42f8-994f-6ce066d6ce27
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: dd954c5651e849a6a9f6ef1d01e1d944--contributor-4256b9f40773
@@ -162,6 +162,18 @@ oompah.task_costs:
     output_tokens: 1967
     cost_usd: 0.0
     recorded_at: '2026-08-21T04:50:13.385364+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1204
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: b8bea43d1f7348eaf3bca1f0a02adeaf84534bb6
+  submitted_at: '2026-08-21T14:24:23.758463+00:00'
+  updated_at: '2026-08-21T14:24:23.758463+00:00'
+oompah.work_branch: OOMPAH-1204
 ---
 ## Summary
 
@@ -360,5 +372,23 @@ The default timeout calculation (min(control_timeout, termination_timeout/2)) re
 - No regressions in existing error handling
 
 The fix ensures that operations writing contributor evidence have sufficient time to complete on slow trackers while still providing operators with explicit configuration control.
+---
+author: oompah
+created: 2026-08-21 14:24
+---
+Fixed pre-provider contributor evidence timeout error
+
+The 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' error was occurring because the default timeout calculation (5 seconds) was too short for slow tracker implementations.
+
+Solution:
+- Increased minimum timeout from 0.05s to 15s for calculated values
+- Added fallback to 30s if configured timeout unavailable
+- Ensures configured timeout (default 30s) is always applied when available
+- Maintains backward compatibility
+
+All provider retirement tests pass (21 tests).
+All error watcher orchestrator tests pass (13 tests).
+
+Changes committed to OOMPAH-1204 branch.
 ---
 <!-- COMMENTS:END -->
