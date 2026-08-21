@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-21T05:58:11.544452Z'
+updated_at: '2026-08-21T06:00:39.202619Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -192,5 +192,24 @@ DISCOVERY: Implementation is complete and merged into main (commits 196305357 an
 5. Guard mechanism tests pass (delete_guard, migration trigger upgrade)
 6. Housekeeping integration verified in test_workflow_retirement_architecture.py
 7. Full suite: 506 tests pass in test_workflow_jobs.py + test_orchestrator_handlers.py, 33 pass in test_workflow_retirement_architecture.py
+---
+author: oompah
+created: 2026-08-21 06:00
+---
+VERIFICATION: All acceptance criteria verified and tests passing:
+
+✓ Schema V8 archive table (workflow_job_events_archive) + guard row (workflow_job_events_delete_guard)
+✓ High-water mark persisted via meta key, advanced in _append_event_locked after each event
+✓ capture_snapshot_authority reads max(live, high-water) to prevent ABA regression  
+✓ archive_lifecycle_final_events(max_tasks, max_events) relocates Archived task events with sequence preservation
+✓ _archive_workflow_events scheduled in _run_non_lifecycle_housekeeping with 300s min_interval
+✓ Append-only DELETE blocked outside archival (test_direct_event_delete_still_rejected_outside_archival)
+✓ Migration trigger upgrade tested (test_migration_upgrades_legacy_unconditional_delete_trigger)
+✓ 9 archive-related tests pass in test_workflow_jobs.py  
+✓ 506 tests pass in test_workflow_jobs.py + test_orchestrator_handlers.py
+✓ 33 tests pass in test_workflow_retirement_architecture.py (housekeeping integration)
+✓ 12 tests pass in test_storage_cleanup.py
+
+Implementation complete and verified. All changes merged into main.
 ---
 <!-- COMMENTS:END -->
