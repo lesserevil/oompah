@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:37:52.344051Z'
-updated_at: '2026-08-21T10:01:51.418853Z'
+updated_at: '2026-08-21T10:02:51.284338Z'
 work_branch: OOMPAH-1211
 target_branch: null
 review_url: null
@@ -128,16 +128,16 @@ oompah.work_contributors:
     model_id: haiku
     focus: general
     source_branch: OOMPAH-1211
-    source_sha: null
-    completed_at: ''
+    source_sha: f8b4a73d35bb57f475bd4daba90dc7725346d955
+    completed_at: '2026-08-21T10:02:45.430352+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2691
+  total_input_tokens: 668
+  total_output_tokens: 22767
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 2691
+      input_tokens: 668
+      output_tokens: 22767
       cost_usd: 0.0
   runs:
   - profile: default
@@ -146,6 +146,12 @@ oompah.task_costs:
     output_tokens: 2691
     cost_usd: 0.0
     recorded_at: '2026-08-21T05:00:07.445865+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 658
+    output_tokens: 20076
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T10:02:45.413534+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -372,5 +378,15 @@ The pre-provider contributor evidence write was timing out because the fallback 
 - Code fix: 6 lines changed, simplified logic
 - Tests verified: 402 tests pass (21 provider retirement + 381 orchestrator handler tests)
 - Branch: OOMPAH-1211 pushed and submitted for integration
+---
+author: oompah
+created: 2026-08-21 10:02
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 171, Tool calls: 81
+- Tokens: 658 in / 20.1K out [20.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 35m 4s
+- Log: OOMPAH-1211__20260821T092822Z.jsonl
 ---
 <!-- COMMENTS:END -->
