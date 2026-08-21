@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-21T15:10:55.458328Z'
+updated_at: '2026-08-21T15:11:24.067324Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -379,5 +379,15 @@ author: oompah
 created: 2026-08-21 14:41
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-21 15:11
+---
+Auditor dispatched (attempt #1, candidate: prov-6cf41c89/switchyard/auto)
+---
+author: oompah
+created: 2026-08-21 15:11
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
