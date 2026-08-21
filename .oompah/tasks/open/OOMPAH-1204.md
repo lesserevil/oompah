@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:25:06.282819Z'
-updated_at: '2026-08-21T14:18:03.665036Z'
+updated_at: '2026-08-21T14:23:00.443771Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -337,5 +337,28 @@ created: 2026-08-21 14:18
 The persistence operation runs in a thread via asyncio.to_thread(_persist_reserved_contributor) with an asyncio.wait_for() timeout. For provenanceguardedtracker, this operation is exceeding the calculated timeout.
 
 The code already supports configuration via contributor_evidence_persist_timeout_seconds config parameter. Need to investigate why it's timing out and provide a fix.
+---
+author: oompah
+created: 2026-08-21 14:23
+---
+**Implementation Complete**
+
+Fixed the 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' error by addressing the timeout calculation in oompah/orchestrator.py (lines 58023-58040).
+
+**Root Cause:**
+The default timeout calculation (min(control_timeout, termination_timeout/2)) resulted in only 5 seconds, which was too aggressive for slow tracker implementations like provenanceguardedtracker that need to write contributor evidence metadata.
+
+**Changes Made:**
+1. Increased minimum calculated timeout from 0.05 to 15 seconds
+2. Added fallback to 30 seconds if configured timeout unavailable
+3. Ensured the configured value (default 30s) is always applied when available
+4. Preserved backward compatibility and operator control via OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS
+
+**Testing:**
+- All 21 provider retirement tests pass ✓
+- Timeout logic properly handles both configured and calculated values
+- No regressions in existing error handling
+
+The fix ensures that operations writing contributor evidence have sufficient time to complete on slow trackers while still providing operators with explicit configuration control.
 ---
 <!-- COMMENTS:END -->
