@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T08:43:25.263614Z'
-updated_at: '2026-08-21T03:04:57.994270Z'
+updated_at: '2026-08-21T03:09:44.949542Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -312,5 +312,34 @@ author: oompah
 created: 2026-08-21 03:04
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-08-21 03:09
+---
+**Understanding & Approach:**
+
+Analyzed the failing test `test_replacement_timeout_rolls_back_before_concurrent_replacement` and the restart replacement lifecycle code.
+
+**Problem identified:**
+The test uses wall-clock timing assumptions (0.2s drain timeout, 0.05s sleep between thread starts) that are load-sensitive. Under high concurrent load (multiple Makefile gates), these timeouts become unreliable:
+- Timeout detection may be delayed
+- Thread scheduling is non-deterministic
+- Test passes in isolation but fails under load
+
+**Key code paths:**
+- `set_orchestrator()` in server.py: serializes replacement with `_orchestrator_replacement_lock`
+- `_set_orchestrator_locked()`: calls `_shutdown_lifecycle_publications()` on old orchestrator
+- `_shutdown_lifecycle_publications()` in orchestrator.py: waits for lifecycle drains with timeout, returns False if timeout occurs, causing RuntimeError
+- Multiple concurrent `set_orchestrator()` calls queue and execute serially
+
+**Solution approach:**
+Replace wall-clock timing with explicit observable synchronization:
+1. Add instrumentation events/predicates to make the timeout completion deterministic (e.g., when shutdown determination is final)
+2. Modify test to wait for these deterministic signals instead of relying on timeout+sleep
+3. Add a secondary test case for the reverse ordering (replacement before timeout)
+4. Ensure no state leaks or processes remain after test completion
+5. Preserve production guarantee: timeout rollback always happens before concurrent replacement acquires authority
+
+**Next:** Explore the test in detail and identify instrumentation points for deterministic synchronization.
 ---
 <!-- COMMENTS:END -->
