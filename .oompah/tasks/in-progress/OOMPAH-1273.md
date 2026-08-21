@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:41:44.906086Z'
-updated_at: '2026-08-21T06:06:00.840869Z'
-work_branch: null
+updated_at: '2026-08-21T06:06:23.714377Z'
+work_branch: OOMPAH-1273
 target_branch: null
 review_url: null
 review_number: null
@@ -114,6 +114,18 @@ oompah.task_costs:
     output_tokens: 2058
     cost_usd: 0.0
     recorded_at: '2026-08-21T02:37:53.343973+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1273
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: a2c14f57eee9bbfe751cc323ad0e854b052f02fe
+  submitted_at: '2026-08-21T06:06:11.993556+00:00'
+  updated_at: '2026-08-21T06:06:11.993556+00:00'
+oompah.work_branch: OOMPAH-1273
 ---
 ## Summary
 
