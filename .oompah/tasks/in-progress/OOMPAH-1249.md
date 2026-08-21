@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:07:17.780951Z'
-updated_at: '2026-08-21T01:34:54.084946Z'
-work_branch: null
+updated_at: '2026-08-21T01:35:36.523532Z'
+work_branch: OOMPAH-1249
 target_branch: null
 review_url: null
 review_number: null
@@ -132,6 +132,18 @@ oompah.task_costs:
     output_tokens: 2561
     cost_usd: 0.0
     recorded_at: '2026-08-20T23:04:46.092883+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1249
+  base_branch: main
+  base_sha: 02bd5960434a5c65dce259894737a55ab7a8ea96
+  head_sha: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
+  submitted_at: '2026-08-21T01:35:15.961809+00:00'
+  updated_at: '2026-08-21T01:35:15.961809+00:00'
+oompah.work_branch: OOMPAH-1249
 ---
 ## Summary
 
@@ -261,5 +273,10 @@ created: 2026-08-21 01:34
 - Branch: OOMPAH-1249, pushed to origin
 
 Ready for integration.
+---
+author: oompah
+created: 2026-08-21 01:35
+---
+Implemented managed clone credential sanitization with fail-closed preflight. Removes stale HTTP userinfo, credential helpers, and extraheader entries from Git configs to enable direct epic-maintenance dispatch. Applied to clone creation, epic worktree setup, and reuse paths. All tests passing with integration verification.
 ---
 <!-- COMMENTS:END -->
