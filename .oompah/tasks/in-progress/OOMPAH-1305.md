@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:16:51.487733Z'
-updated_at: '2026-08-21T13:05:38.924200Z'
+updated_at: '2026-08-21T13:05:56.680139Z'
 work_branch: OOMPAH-1305
 target_branch: null
 review_url: null
@@ -128,9 +128,9 @@ oompah.integration:
   task_branch: OOMPAH-1305
   base_branch: main
   base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
-  head_sha: 3fcad5fc14152f4df2710bf08fac62ac37b73372
-  submitted_at: '2026-08-21T12:40:38.886269+00:00'
-  updated_at: '2026-08-21T12:40:38.886269+00:00'
+  head_sha: 5f238b75b4c77dd4ec3b9c1b7b80a756c950713f
+  submitted_at: '2026-08-21T13:05:50.266272+00:00'
+  updated_at: '2026-08-21T13:05:50.266272+00:00'
 oompah.work_branch: OOMPAH-1305
 ---
 ## Summary
@@ -363,5 +363,10 @@ Both approaches are complementary. When integrated:
 - No false alarms
 
 All tests pass. Branch is ready for integration.
+---
+author: oompah
+created: 2026-08-21 13:05
+---
+Fixed pre-provider contributor evidence timeout issue by: (1) Increasing timeout from 5s to 30s to prevent false timeouts under load, (2) Simplifying timeout logic to use configured value directly, (3) Changing logging level from ERROR to WARNING since timeout is handled gracefully. Coordinates with OOMPAH-1287. All 21 provider_retirement tests pass.
 ---
 <!-- COMMENTS:END -->
