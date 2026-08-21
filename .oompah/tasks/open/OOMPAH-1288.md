@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:14:55.303312Z'
-updated_at: '2026-08-21T11:39:12.810599Z'
+updated_at: '2026-08-21T15:49:28.447080Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -140,7 +140,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 88fdb32e-1ef6-4c6e-bb6b-697121a73f7c
+oompah.agent_run_id: f284e2e8-425f-4c2e-a8ce-9b5647db9930
 oompah.work_contributors:
   runs:
   - run_id: ea683a6ba88042db9986cab111a6413a--contributor-a8b0475e7b09
@@ -167,6 +167,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1288
     source_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     completed_at: '2026-08-21T11:38:52.098647+00:00'
+  - run_id: 2c2cfdbfe0864a2fb31a9719ffa9fb53--contributor-86e3ac8153e1
+    provider_id: prov-6cf41c89
+    provider_name: Opencode/Switchyard
+    model_id: switchyard/auto
+    focus: general
+    source_branch: OOMPAH-1288
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2079
@@ -284,5 +292,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 25s
 - Log: OOMPAH-1288__20260821T113813Z.jsonl
+---
+author: oompah
+created: 2026-08-21 15:49
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
