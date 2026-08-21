@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:59:31.498539Z'
-updated_at: '2026-08-21T05:20:31.957733Z'
+updated_at: '2026-08-21T05:20:37.375538Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -87,8 +87,8 @@ oompah.work_contributors:
     model_id: haiku
     focus: duplicate_detector
     source_branch: OOMPAH-1215
-    source_sha: null
-    completed_at: ''
+    source_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    completed_at: '2026-08-21T05:20:25.327145+00:00'
 ---
 ## Summary
 
