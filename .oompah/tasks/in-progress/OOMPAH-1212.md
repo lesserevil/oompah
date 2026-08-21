@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:42:36.055994Z'
-updated_at: '2026-08-21T01:33:54.937476Z'
+updated_at: '2026-08-21T01:34:15.395097Z'
 work_branch: OOMPAH-1212
 target_branch: null
 review_url: null
@@ -319,5 +319,10 @@ author: oompah
 created: 2026-08-21 01:33
 ---
 Fixed spurious error task filings by changing provider evidence timeout from ERROR to WARNING level. The condition is expected, recoverable behavior during normal operation. All tests verified (208 tests pass).
+---
+author: oompah
+created: 2026-08-21 01:34
+---
+**Completion**: Fixed OOMPAH-1212 by changing orchestrator.py:58052 log level from ERROR to WARNING for the pre-provider contributor evidence timeout condition. This prevents error_watcher from auto-filing spurious tasks during normal operation while maintaining proper error classification. All 208 relevant tests pass. Changes committed and pushed to branch OOMPAH-1212. Task submitted for integration.
 ---
 <!-- COMMENTS:END -->
