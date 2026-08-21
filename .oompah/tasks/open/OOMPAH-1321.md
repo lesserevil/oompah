@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:13:00.356484Z'
-updated_at: '2026-08-21T10:04:17.310627Z'
+updated_at: '2026-08-21T10:04:44.011432Z'
 work_branch: OOMPAH-1321
 target_branch: null
 review_url: null
@@ -218,5 +218,10 @@ author: oompah
 created: 2026-08-21 10:04
 ---
 Fixed contributor evidence timeout error_watcher auto-filing by changing logger.error() to logger.warning() for expected timeout during pre-provider retirement
+---
+author: oompah
+created: 2026-08-21 10:04
+---
+Completion: Issue OOMPAH-1321 resolved. Root cause: logger.error() call for contributor_evidence_timeout was being caught by error_watcher and auto-filed as a task. Solution: Changed to logger.warning() since this timeout is expected during pre-provider retirement and already handled gracefully. Testing: All 21 provider_retirement tests and 124 error_watcher tests pass. Delivered in 1 file change (oompah/orchestrator.py line 58066).
 ---
 <!-- COMMENTS:END -->
