@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:16:42.294156Z'
-updated_at: '2026-08-21T07:52:56.922897Z'
+updated_at: '2026-08-21T07:53:44.108574Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -224,5 +224,15 @@ author: oompah
 created: 2026-08-21 07:52
 ---
 **Implementation**: Changed \`logger.error()\` to \`logger.warning()\` on line 58066 of \`oompah/orchestrator.py\`. This prevents transient contributor evidence persistence timeouts from triggering error_watcher. The timeout is expected and handled gracefully, so logging it as WARNING (not ERROR) is appropriate. Added test \`test_pre_provider_evidence_timeout_logs_as_warning\` to verify the fix works and prevent regressions.
+---
+author: oompah
+created: 2026-08-21 07:53
+---
+**Verification**: All tests pass:
+- test_provider_retirement.py: 22/22 ✓ (added new test for warning-level logging)
+- test_error_watcher.py: 124/124 ✓ (error detection still works as expected)
+- test_error_watcher_orchestrator.py: 13/13 ✓ (orchestrator-error_watcher integration works)
+
+The fix is complete: evidence persistence timeouts no longer trigger error_watcher because they're now logged as WARNING instead of ERROR. The timeout behavior and error handling remain unchanged - the system still handles timeouts gracefully and retries. The change only prevents the spurious auto-filed bug reports.
 ---
 <!-- COMMENTS:END -->
