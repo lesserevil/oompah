@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:45:59.311385Z'
-updated_at: '2026-08-21T14:44:20.780469Z'
+updated_at: '2026-08-21T14:49:15.158168Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -255,5 +255,29 @@ Planned approach:
 5. Verify fix with tests and manual testing
 
 Starting investigation now.
+---
+author: oompah
+created: 2026-08-21 14:49
+---
+**Discovery:**
+
+Found the issue in oompah/orchestrator.py around line 58067 in the `_stage_work_contributor_launch()` function.
+
+**Root Cause:**
+When recording contributor evidence (provider/model identity) before dispatch, the code attempts to persist metadata to the tracker within a bounded timeout. The timeout defaults to 5.0 seconds (based on `terminal_control_lock_timeout_seconds` config).
+
+When the tracker adapter is slow (particularly for `provenanceguardedtracker`), the metadata write exceeds this 5-second deadline, causing a `TimeoutError` that is logged as an ERROR via `logger.error()`. This error is then picked up by error_watcher and auto-filed.
+
+**Key Code:**
+- Line 58023-58040: Timeout calculation (defaults to 5.0 seconds)
+- Line 58042-58046: Timeout enforcement with `asyncio.wait_for()`
+- Line 58066-58090: Error logging and handling when timeout occurs
+
+**Issue:** The timeout is too aggressive for slow trackers. The error is being treated as critical (ERROR level) when it should be handled as a transient retry-able failure.
+
+**Proposed Fix:**
+Increase the default timeout or make it more lenient for the contributor evidence persistence, since the comment in the code explicitly states: 'A dedicated deadline lets slow tracker/state-branch evidence writes finish instead of retiring with contributor_evidence_unavailable and starving implementation dispatch. When configured it is authoritative (production raises it well above the derived control floor).'
+
+The configuration option `contributor_evidence_persist_timeout_seconds` already exists for this purpose but may not be set in the dev environment.
 ---
 <!-- COMMENTS:END -->
