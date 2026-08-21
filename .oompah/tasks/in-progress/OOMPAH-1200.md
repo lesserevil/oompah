@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:33.669681Z'
-updated_at: '2026-08-21T09:53:21.544446Z'
+updated_at: '2026-08-21T10:09:56.922252Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -302,5 +302,23 @@ author: oompah
 created: 2026-08-21 09:53
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 10:09
+---
+**Understanding:** The issue is that warning-level log messages like 'ACP worker failed issue_id=TRICKLE-120' are being picked up by oompah's error_watcher and auto-filed as tasks, even though they're logged at WARNING level with the intent to avoid triggering error_watcher.
+
+Found the relevant code:
+- orchestrator.py:64761: Logs 'ACP worker failed' at WARNING level with comment 'Log at WARNING level (not ERROR) to avoid triggering error_watcher'
+- error_watcher.py: Has two mechanisms for detecting errors:
+  1. Logging handler (setLevel=ERROR) - only catches ERROR+ records
+  2. LogFileWatcher - scans log files for ERROR/CRITICAL/FATAL/SEVERE keywords
+  
+Hypothesis: The warning message may be appearing in a log file that's being monitored by ProjectLogWatcherManager for the source project. Need to investigate:
+1. Whether a log_path is configured for proj-14849f1b
+2. How the warning message appears in that log file
+3. Whether the ERROR keyword is in the log line (timestamp, formatter, etc)
+
+Next step: Explore how log files are configured and whether the warning is being incorrectly picked up by LogFileWatcher instead of being silently handled.
 ---
 <!-- COMMENTS:END -->
