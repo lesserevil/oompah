@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:18:21.022779Z'
-updated_at: '2026-08-21T08:22:34.431956Z'
-work_branch: null
+updated_at: '2026-08-21T08:23:21.236264Z'
+work_branch: OOMPAH-1307
 target_branch: null
 review_url: null
 review_number: null
@@ -121,6 +121,18 @@ oompah.task_costs:
     output_tokens: 1733
     cost_usd: 0.0
     recorded_at: '2026-08-21T03:50:43.552518+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1307
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: b065346ac3812e631fa1e81a1c960e9f3a2d7b1e
+  submitted_at: '2026-08-21T08:23:03.814214+00:00'
+  updated_at: '2026-08-21T08:23:03.814214+00:00'
+oompah.work_branch: OOMPAH-1307
 ---
 ## Summary
 
@@ -212,5 +224,10 @@ author: oompah
 created: 2026-08-21 08:22
 ---
 VERIFICATION: All tests pass successfully. Ran: (1) test_provider_retirement.py (21 tests) - all pass, (2) test_error_watcher.py + test_error_watcher_orchestrator.py (137 tests) - all pass, (3) Specifically verified test_pre_provider_evidence_timeout_releases_task_authority passes with the log level change. Code change is minimal and surgical - only changed logger.error() to logger.warning() at the point where contributor evidence timeout is handled gracefully.
+---
+author: oompah
+created: 2026-08-21 08:23
+---
+Fixed by downgrading contributor evidence timeout from ERROR to WARNING log level. The timeout scenario is handled gracefully and does not represent an exceptional condition that error_watcher should track. All related tests pass.
 ---
 <!-- COMMENTS:END -->
