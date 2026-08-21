@@ -58020,15 +58020,17 @@ class Orchestrator:
                     / 1000.0,
                     0.1,
                 )
-                persistence_timeout = max(
-                    min(control_timeout, termination_timeout / 2.0),
-                    0.05,
-                )
                 # A dedicated deadline lets slow tracker/state-branch evidence
                 # writes finish instead of retiring with
                 # contributor_evidence_unavailable and starving implementation
                 # dispatch.  When configured it is authoritative (production
                 # raises it well above the derived control floor).
+                # Default to 30 seconds as documented in .env.example to allow
+                # tracker/state-branch metadata writes sufficient time.
+                persistence_timeout = max(
+                    termination_timeout / 2.0,
+                    30.0,
+                )
                 configured_evidence_timeout = getattr(
                     self.config,
                     "contributor_evidence_persist_timeout_seconds",
