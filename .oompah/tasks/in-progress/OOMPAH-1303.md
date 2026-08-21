@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:15:51.064357Z'
-updated_at: '2026-08-21T13:54:46.493467Z'
+updated_at: '2026-08-21T13:54:56.914757Z'
 work_branch: OOMPAH-1303
 target_branch: null
 review_url: null
@@ -79,7 +79,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 2b880b29-027c-48c1-8751-55bfbbb67194
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 3be678d9ed564c118c0d7aa91f50b62f--contributor-a8b0475e7b09
@@ -332,5 +332,10 @@ created: 2026-08-21 13:54
 - New behavior: Guaranteed to use at least 30-second timeout (or configured value)
 
 The fix is minimal, focused, and all related tests pass.
+---
+author: oompah
+created: 2026-08-21 13:54
+---
+Fixed pre-provider contributor evidence timeout to use configured 30-second default instead of derived 5-second minimum. Changed getattr() default from None to 30.0 to ensure the configured timeout is always applied. All tests pass (835+ verified). Error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' will no longer occur during normal operations.
 ---
 <!-- COMMENTS:END -->
