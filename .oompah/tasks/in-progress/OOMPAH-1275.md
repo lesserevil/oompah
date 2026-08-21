@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:19.724794Z'
-updated_at: '2026-08-21T06:23:43.954292Z'
-work_branch: null
+updated_at: '2026-08-21T06:30:47.146488Z'
+work_branch: OOMPAH-1275
 target_branch: null
 review_url: null
 review_number: null
@@ -77,7 +77,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 3cde4f46-a47a-4aa3-b81d-fa0f5e5b7190
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: e6646899b8b44b1781f391a1b440c9a2--contributor-4256b9f40773
@@ -112,6 +112,18 @@ oompah.task_costs:
     output_tokens: 1712
     cost_usd: 0.0
     recorded_at: '2026-08-21T02:39:56.444269+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1275
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
+  submitted_at: '2026-08-21T06:30:28.951300+00:00'
+  updated_at: '2026-08-21T06:30:28.951300+00:00'
+oompah.work_branch: OOMPAH-1275
 ---
 ## Summary
 
@@ -226,5 +238,10 @@ CHANGES:
 3. tests/test_config.py: Updated test assertion for new default value
 
 The timeout is still configurable via OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS environment variable for deployments that need different values.
+---
+author: oompah
+created: 2026-08-21 06:30
+---
+Increased contributor_evidence_persist_timeout_seconds from 30 to 60 seconds to prevent dispatch failures when tracker metadata writes are slow. All 381 orchestrator tests pass. The timeout remains configurable via environment variable for production deployments.
 ---
 <!-- COMMENTS:END -->
