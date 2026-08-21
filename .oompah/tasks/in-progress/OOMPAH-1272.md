@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:41:20.057099Z'
-updated_at: '2026-08-21T09:55:25.294799Z'
+updated_at: '2026-08-21T09:56:42.270710Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -101,6 +101,14 @@ oompah.work_contributors:
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-luna
+    focus: general
+    source_branch: OOMPAH-1272
+    source_sha: null
+    completed_at: ''
+  - run_id: 2b337389ca6c43e8a40dd7a6e7521c64--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
     focus: general
     source_branch: OOMPAH-1272
     source_sha: null
