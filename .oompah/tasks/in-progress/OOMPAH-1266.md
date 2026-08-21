@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-21T06:38:50.152259Z'
+updated_at: '2026-08-21T06:39:14.931224Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -118,16 +118,16 @@ oompah.work_contributors:
     model_id: haiku
     focus: general
     source_branch: epic-OOMPAH-1231--task-OOMPAH-1266
-    source_sha: null
-    completed_at: ''
+    source_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+    completed_at: '2026-08-21T06:39:04.544183+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2094
+  total_input_tokens: 940
+  total_output_tokens: 27309
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 2094
+      input_tokens: 940
+      output_tokens: 27309
       cost_usd: 0.0
   runs:
   - profile: default
@@ -136,6 +136,12 @@ oompah.task_costs:
     output_tokens: 2094
     cost_usd: 0.0
     recorded_at: '2026-08-21T02:14:58.389494+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 930
+    output_tokens: 25215
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T06:39:04.539194+00:00'
 oompah.work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 oompah.integration:
   version: 2
@@ -295,5 +301,15 @@ author: oompah
 created: 2026-08-21 06:38
 ---
 Completion: OOMPAH-1266 submitted for integration at commit dea44bc88. Implementation adds fence to prevent late task submits from regressing integrated records. All regression tests pass. Changes: (1) _submission_record() in server.py adds check to preserve integrated state for same-generation late submits, (2) 3 new regression tests verify webhook-before-submit, new-head reflow, and same-generation idempotency. Exact landed authority is now monotonic and terminal fingerprint remains stable across late submit races.
+---
+author: oompah
+created: 2026-08-21 06:39
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 242, Tool calls: 115
+- Tokens: 930 in / 25.2K out [26.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 26m 33s
+- Log: OOMPAH-1266__20260821T061308Z.jsonl
 ---
 <!-- COMMENTS:END -->
