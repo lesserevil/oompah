@@ -12,7 +12,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-21T02:23:03.409651Z'
+updated_at: '2026-08-21T02:24:19.891009Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -181,6 +181,14 @@ oompah.work_contributors:
     provider_id: prov-651d553c
     provider_name: Claude
     model_id: haiku
+    focus: docs
+    source_branch: OOMPAH-1256
+    source_sha: null
+    completed_at: ''
+  - run_id: 7ca2a0790dd1452ab085582d575953e2--contributor-a1867c30e539
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
     focus: docs
     source_branch: OOMPAH-1256
     source_sha: null
