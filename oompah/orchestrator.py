@@ -58032,12 +58032,11 @@ class Orchestrator:
                 configured_evidence_timeout = getattr(
                     self.config,
                     "contributor_evidence_persist_timeout_seconds",
-                    None,
+                    30.0,
                 )
-                if configured_evidence_timeout is not None:
-                    persistence_timeout = max(
-                        float(configured_evidence_timeout), 0.05
-                    )
+                persistence_timeout = max(
+                    float(configured_evidence_timeout), 0.05
+                )
 
                 try:
                     await asyncio.wait_for(
