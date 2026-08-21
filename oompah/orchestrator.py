@@ -63572,9 +63572,10 @@ class Orchestrator:
                         )
                     ),
                 )
-            logger.exception(
+            logger.warning(
                 "API worker failed issue_id=%s",
                 issue.id,
+                exc_info=True,
                 extra={"issue_id": issue.id},
             )
         finally:
@@ -64734,9 +64735,10 @@ class Orchestrator:
                         )
                     ),
                 )
-            logger.exception(
+            logger.warning(
                 "ACP worker failed issue_id=%s",
                 issue.id,
+                exc_info=True,
                 extra={"issue_id": issue.id},
             )
         finally:
