@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:18:43.804044Z'
-updated_at: '2026-08-21T11:27:00.959267Z'
+updated_at: '2026-08-21T11:27:42.598178Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -242,5 +242,10 @@ author: oompah
 created: 2026-08-21 11:27
 ---
 Discovery: _stage_work_contributor_launch intentionally retires the runtime for retry when the bounded evidence write times out, but uniquely logs that expected degradation at ERROR; error_watcher captures every oompah ERROR. Adjacent settling/cancellation paths use WARNING. The minimal fix is severity demotion with a regression assertion; existing unrelated auditor-rotation worktree changes will be preserved.
+---
+author: oompah
+created: 2026-08-21 11:27
+---
+Implementation: Changed the expected contributor-evidence deadline retirement diagnostic from ERROR to WARNING, preserving its structured retirement metadata and actionable return. Extended the existing timeout regression to assert the diagnostic is emitted exactly once at WARNING, below error_watcher's ERROR threshold.
 ---
 <!-- COMMENTS:END -->
