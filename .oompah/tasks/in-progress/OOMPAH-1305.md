@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:16:51.487733Z'
-updated_at: '2026-08-21T12:07:43.963592Z'
+updated_at: '2026-08-21T12:16:44.624812Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -229,5 +229,27 @@ The error occurs during oompah operations on proj-14849f1b (provenanceguardedtra
 5. Verify with tests
 
 Starting investigation now.
+---
+author: oompah
+created: 2026-08-21 12:16
+---
+**DISCOVERY**
+
+Found the issue in oompah/orchestrator.py:57834 (_stage_work_contributor_launch function)
+
+The problem:
+- When persisting work contributor evidence (metadata before starting provider)
+- A timeout is applied with default of 5 seconds
+- Calculation: max(min(control_timeout, termination_timeout/2), 0.05)
+- With defaults: max(min(5.0, 5.0), 0.05) = 5.0 seconds
+
+The tracker write operation (persistence_task) can take longer than 5 seconds under load, causing TimeoutError.
+
+Current behavior: TimeoutError is logged as error and triggers error_watcher
+Expected: Either increase timeout or handle gracefully
+
+The comment in the code says "production raises it well above the derived control floor" suggesting this should be configurable.
+
+Next: Investigate timeout calculation and propose fix.
 ---
 <!-- COMMENTS:END -->
