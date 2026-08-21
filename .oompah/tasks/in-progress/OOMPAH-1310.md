@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:20:38.226810Z'
-updated_at: '2026-08-21T08:26:50.445851Z'
+updated_at: '2026-08-21T08:29:59.377613Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -289,5 +289,26 @@ With default=None, if the attribute doesn't exist, getattr returns None, and the
 **Root Cause:** The getattr default was None instead of the proper fallback value (30.0). This causes persistence_timeout to remain at the computed floor value of 5.0 seconds when the configured attribute is unavailable.
 
 **Solution Applied:** Changed getattr default from None to 30.0 to ensure proper fallback to the configured default value instead of the aggressive computed timeout.
+---
+author: oompah
+created: 2026-08-21 08:29
+---
+**Implementation:**
+
+Fixed the timeout issue in orchestrator.py:58034 by changing the getattr default from None to 30.0:
+
+**Change:**
+- Before: `getattr(self.config, 'contributor_evidence_persist_timeout_seconds', None)`
+- After: `getattr(self.config, 'contributor_evidence_persist_timeout_seconds', 30.0)`
+
+**Effect:**
+- When the configured timeout attribute is unavailable, the code now falls back to 30.0 seconds (the ServiceConfig default) instead of None
+- This prevents the fallback to the aggressive computed timeout of 5.0 seconds
+- Ensures slow tracker persistence operations have adequate time to complete
+
+**Tests:**
+- Added test_pre_provider_evidence_default_timeout_when_config_missing to verify the fix
+- All 22 tests in test_provider_retirement.py pass
+- Verified that existing behavior is preserved when the timeout is explicitly configured to a different value
 ---
 <!-- COMMENTS:END -->
