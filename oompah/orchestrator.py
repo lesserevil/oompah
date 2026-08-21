@@ -57999,45 +57999,21 @@ class Orchestrator:
                     contributor_lock.release()
                     raise
                 persistence_task.add_done_callback(_consume_detached_persistence)
-                control_timeout = max(
-                    float(
-                        getattr(
-                            self.config,
-                            "terminal_control_lock_timeout_seconds",
-                            5.0,
-                        )
-                    ),
-                    0.1,
-                )
-                termination_timeout = max(
-                    float(
-                        getattr(
-                            self.config,
-                            "worker_termination_timeout_ms",
-                            10_000,
-                        )
-                    )
-                    / 1000.0,
-                    0.1,
-                )
-                persistence_timeout = max(
-                    min(control_timeout, termination_timeout / 2.0),
-                    0.05,
-                )
                 # A dedicated deadline lets slow tracker/state-branch evidence
                 # writes finish instead of retiring with
                 # contributor_evidence_unavailable and starving implementation
-                # dispatch.  When configured it is authoritative (production
-                # raises it well above the derived control floor).
-                configured_evidence_timeout = getattr(
-                    self.config,
-                    "contributor_evidence_persist_timeout_seconds",
-                    None,
+                # dispatch.  The configured value is authoritative and provides
+                # sufficient time for tracker I/O operations (default 30 seconds).
+                persistence_timeout = max(
+                    float(
+                        getattr(
+                            self.config,
+                            "contributor_evidence_persist_timeout_seconds",
+                            30.0,
+                        )
+                    ),
+                    0.05,
                 )
-                if configured_evidence_timeout is not None:
-                    persistence_timeout = max(
-                        float(configured_evidence_timeout), 0.05
-                    )
 
                 try:
                     await asyncio.wait_for(
