@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:16:51.487733Z'
-updated_at: '2026-08-21T12:28:17.080309Z'
+updated_at: '2026-08-21T12:36:17.995649Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -277,5 +277,25 @@ Changed the timeout logic to:
 - Much more robust and ensures persistence has adequate time
 
 All existing tests pass, including tests that explicitly test timeout behavior.
+---
+author: oompah
+created: 2026-08-21 12:36
+---
+**VERIFICATION**
+
+Comprehensive test results:
+- test_provider_retirement.py: 21 passed (all provider retirement tests including timeout behavior)
+- test_work_contributors.py: 45 passed (work contributor tests)
+- test_orchestrator_handlers.py: 381 passed (orchestrator operation tests)
+- test_terminal_audit_durable_finalization.py: 51 passed
+- All contributor-related tests: 165 passed
+
+The fix ensures that:
+1. Pre-provider contributor evidence persistence has an adequate 30-second timeout by default (not the previous 5 seconds)
+2. The timeout is directly derived from configuration, making it more robust
+3. Explicit timeout tests still work correctly (when set to 0.1s, they timeout as expected)
+4. No regression in related functionality
+
+The error auto-filed by error_watcher should no longer occur under normal load.
 ---
 <!-- COMMENTS:END -->
