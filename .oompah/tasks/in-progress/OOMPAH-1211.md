@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:37:52.344051Z'
-updated_at: '2026-08-21T10:00:58.504726Z'
+updated_at: '2026-08-21T10:01:51.418853Z'
 work_branch: OOMPAH-1211
 target_branch: null
 review_url: null
@@ -349,5 +349,28 @@ author: oompah
 created: 2026-08-21 10:00
 ---
 Fixed pre-provider contributor evidence timeout by ensuring the fallback timeout is 30.0 seconds instead of 5.0 seconds. Changed getattr default from None to 30.0 to match the config class default. All 402 affected tests pass.
+---
+author: oompah
+created: 2026-08-21 10:01
+---
+**Completion:** Successfully resolved OOMPAH-1211.
+
+**Summary of Changes:**
+1. Fixed timeout calculation in orchestrator.py line 58032-58034
+2. Changed getattr default from None to 30.0 seconds for contributor_evidence_persist_timeout_seconds
+3. Simplified the timeout logic by removing the unnecessary if statement
+
+**Root Cause:**
+The pre-provider contributor evidence write was timing out because the fallback timeout calculation resulted in 5.0 seconds (from min(control_timeout=5.0, termination_timeout/2=5.0)). When the configured value (30.0s) was not retrieved, the code would use this too-small value instead.
+
+**Impact:**
+- Fixes the 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' error
+- Ensures tracker writes for work contributor metadata have adequate time to complete
+- No regressions: all provider retirement tests and orchestrator handler tests pass
+
+**Deliverables:**
+- Code fix: 6 lines changed, simplified logic
+- Tests verified: 402 tests pass (21 provider retirement + 381 orchestrator handler tests)
+- Branch: OOMPAH-1211 pushed and submitted for integration
 ---
 <!-- COMMENTS:END -->
