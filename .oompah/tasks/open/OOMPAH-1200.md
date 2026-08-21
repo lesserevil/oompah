@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:33.669681Z'
-updated_at: '2026-08-21T01:11:56.329665Z'
+updated_at: '2026-08-21T01:12:50.444400Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,13 +34,19 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 9b79c2ab4d0d2eec1e3fbe489271a47da846e3a67899db8f32d3efb2e6f571e5:142711
-  claim_owner: b0161d82-55d7-4b08-9b68-ee54b4e13c9c
-  claimed_at: '2026-08-21T01:11:03.610717+00:00'
-  claim_expires_at: '2026-08-21T01:41:03.610717+00:00'
-  retry_count: 2
-  retry_after: null
+  evidence: 'All 2 dispatch candidates unavailable: prov-651d553c/haiku: contributor_evidence_unavailable:
+    Cannot durably record exact contributor provider/model evidence before the bounded
+    task-authority deadline. The pre-provider runtime was retired for retry; no provider
+    or workspace was started.; prov-52e94e83/gpt-5.6-luna: contributor_evidence_unavailable:
+    Cannot durably record exact contributor provider/model evidence before the bounded
+    task-authority deadline. The pre-provider runtime was retired for retry; no provider
+    or workspace was started.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-08-21T01:16:37.855392+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -67,6 +73,14 @@ oompah.work_contributors:
     provider_id: prov-651d553c
     provider_name: Claude
     model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-1200
+    source_sha: null
+    completed_at: ''
+  - run_id: cdc92fe9ae4942f9aff1c4d8d5d14fe6--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
     focus: duplicate_detector
     source_branch: OOMPAH-1200
     source_sha: null
@@ -158,5 +172,19 @@ author: oompah
 created: 2026-08-21 01:11
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-21 01:12
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 1m 12s
+---
+author: oompah
+created: 2026-08-21 01:12
+---
+Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-1200/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
 ---
 <!-- COMMENTS:END -->
