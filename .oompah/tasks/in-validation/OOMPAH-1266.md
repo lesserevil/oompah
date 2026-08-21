@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-21T15:24:12.216768Z'
+updated_at: '2026-08-21T15:26:51.814969Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -169,7 +169,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1266
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -194,6 +194,22 @@ oompah.terminal_audit:
       ended_at: '2026-08-21T15:24:06.811502+00:00'
       failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
       next_retry_at: '2026-08-21T15:24:16.811475+00:00'
+    - version: 1
+      attempt_id: attempt-37e365ce3032
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+      created_at: '2026-08-21T15:26:43.548710+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-21T15:26:43.548710+00:00'
+      branch_key: epic-OOMPAH-1231--task-OOMPAH-1266
+      selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+      selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+      candidate_rotation_count: 1
     source_generation: 1
     requested_by:
       version: 1
@@ -204,7 +220,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-21T14:41:26.379439+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-21T15:24:06.811502+00:00'
+    updated_at: '2026-08-21T15:26:43.548710+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ebdec741f7d0
@@ -225,6 +241,22 @@ oompah.terminal_audit:
     ended_at: '2026-08-21T15:24:06.811502+00:00'
     failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
     next_retry_at: '2026-08-21T15:24:16.811475+00:00'
+  - version: 1
+    attempt_id: attempt-37e365ce3032
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+    created_at: '2026-08-21T15:26:43.548710+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-21T15:26:43.548710+00:00'
+    branch_key: epic-OOMPAH-1231--task-OOMPAH-1266
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -432,5 +464,10 @@ author: oompah
 created: 2026-08-21 15:24
 ---
 Auditor attempt ended: ValueError: Separator is found, but chunk is longer than limit. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-21 15:26
+---
+Auditor dispatched (attempt #2, candidate: prov-6cf41c89/switchyard/auto)
 ---
 <!-- COMMENTS:END -->
