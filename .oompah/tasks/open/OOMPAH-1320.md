@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:12:08.566823Z'
-updated_at: '2026-08-21T10:00:15.842849Z'
+updated_at: '2026-08-21T10:01:09.176174Z'
 work_branch: OOMPAH-1320
 target_branch: null
 review_url: null
@@ -75,16 +75,16 @@ oompah.work_contributors:
     model_id: haiku
     focus: general
     source_branch: OOMPAH-1320
-    source_sha: null
-    completed_at: ''
+    source_sha: 0595d914ac86b29ea1d557b7892ed30d9abaf741
+    completed_at: '2026-08-21T10:00:58.012548+00:00'
 oompah.task_costs:
-  total_input_tokens: 32100
-  total_output_tokens: 125
+  total_input_tokens: 32462
+  total_output_tokens: 9805
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 32100
-      output_tokens: 125
+      input_tokens: 32462
+      output_tokens: 9805
       cost_usd: 0.0
   runs:
   - profile: default
@@ -93,6 +93,12 @@ oompah.task_costs:
     output_tokens: 125
     cost_usd: 0.0
     recorded_at: '2026-08-21T05:06:49.400145+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 362
+    output_tokens: 9680
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T10:00:58.001987+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -206,5 +212,15 @@ author: oompah
 created: 2026-08-21 10:00
 ---
 Completion: OOMPAH-1320 is now ready for integration. The fix changes one line in oompah/orchestrator.py (line 58066) from logger.error() to logger.warning() for the pre-provider contributor evidence timeout case. This prevents error_watcher from auto-filing expected, handled timeout failures as tasks. The root cause was that a gracefully-handled timeout was being logged at error level, triggering error_watcher. Now it logs at warning level (matching the cancelled timeout case), which is appropriate for this expected failure mode. All related tests pass, including the specific test_pre_provider_evidence_timeout_releases_task_authority test.
+---
+author: oompah
+created: 2026-08-21 10:01
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 134, Tool calls: 44
+- Tokens: 362 in / 9.7K out [10.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 29m 34s
+- Log: OOMPAH-1320__20260821T093339Z.jsonl
 ---
 <!-- COMMENTS:END -->
