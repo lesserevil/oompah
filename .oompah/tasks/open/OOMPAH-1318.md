@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:55:23.301399Z'
-updated_at: '2026-08-21T09:14:08.335980Z'
-work_branch: null
+updated_at: '2026-08-21T09:14:21.410781Z'
+work_branch: OOMPAH-1318
 target_branch: null
 review_url: null
 review_number: null
@@ -117,6 +117,7 @@ oompah.integration:
   head_sha: b7ff325f8dacf095850d2a1ec325448212174535
   submitted_at: '2026-08-21T09:13:55.647041+00:00'
   updated_at: '2026-08-21T09:13:55.647041+00:00'
+oompah.work_branch: OOMPAH-1318
 ---
 ## Summary
 
@@ -299,5 +300,10 @@ Created `test_contributor_evidence_timeout_defaults_to_30_seconds()` to verify t
 All existing tests continue to pass, confirming backward compatibility.
 
 Ready to commit and push changes.
+---
+author: oompah
+created: 2026-08-21 09:14
+---
+Fixed pre-provider contributor evidence timeout issue by changing the fallback value from None to 30.0 seconds. The 5.0-second derived timeout was too aggressive for tracker persistence operations. All 461 related tests pass.
 ---
 <!-- COMMENTS:END -->
