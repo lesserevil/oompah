@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:11:27.677981Z'
-updated_at: '2026-08-21T16:44:21.832024Z'
+updated_at: '2026-08-21T16:44:43.690358Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -311,5 +311,10 @@ author: oompah
 created: 2026-08-21 16:44
 ---
 Discovery: Found the issue in oompah/server.py. The error 'transition.project_owner_authority_required' is not in the expected_policy_rejections set in _transition_rejected_reason() function (line 4136-4154). This causes TaskTransitionNotApplied to be logged as a 500 error instead of a graceful 409 conflict. Similar authority-related reasons like 'transition.rollup_authority_required' are already in the list. Need to add 'transition.project_owner_authority_required' to this set.
+---
+author: oompah
+created: 2026-08-21 16:44
+---
+Implementation: Added 'transition.project_owner_authority_required' to the expected_policy_rejections set in oompah/server.py (_transition_rejected_reason function). This ensures that when a project owner authority is required for a transition, the error is handled gracefully with a 409 conflict response instead of a 500 error. This prevents error_watcher from being triggered on this expected rejection.
 ---
 <!-- COMMENTS:END -->
