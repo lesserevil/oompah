@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:37:52.344051Z'
-updated_at: '2026-08-21T09:28:20.187724Z'
+updated_at: '2026-08-21T09:39:08.546305Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -276,5 +276,21 @@ author: oompah
 created: 2026-08-21 09:28
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 09:39
+---
+**Understanding:** The issue is a timeout error when writing contributor evidence (metadata about which provider/model was used for a task) to the tracker. The error occurs when the write takes longer than the bounded deadline (currently 5.0 seconds). The code uses asyncio.wait_for() to enforce a timeout on persistence_task, and when it exceeds the limit, it logs 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' and cancels the provider launch.
+
+**Root cause investigation needed:** This suggests either:
+1. The tracker adapter (likely OompahMdTracker) is taking too long to write metadata
+2. The persistence_timeout is too low for the current system load
+3. There's contention on locks (project write lock, policy lock) that delays the write
+
+**Planned approach:**
+1. Examine the _persist_work_contributor() method to understand what it does
+2. Look at the tracker implementation to see where delays might occur
+3. Check the persistence_timeout calculation and configuration options
+4. Either increase the timeout, optimize the write path, or handle the timeout more gracefully
 ---
 <!-- COMMENTS:END -->
