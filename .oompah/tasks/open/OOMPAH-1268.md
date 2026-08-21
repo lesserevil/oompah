@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-21T00:45:50.707738Z'
+updated_at: '2026-08-21T02:12:02.985511Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,6 +33,23 @@ oompah.last_batch:
     kind: whole_column_move
     source_status: Backlog
     scope: flat_board
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 9acc3dee254bf9e0788859a48d116e4fd830a920b6ff7247e40afbf338354bac
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 336f76406cfb172bcb05562a65e38a35dc1cd30288967b0462bed59dd186055b:142897
+  claim_owner: 884c7b0a-4fe0-4acd-9fe6-041416485094
+  claimed_at: '2026-08-21T02:12:01.601824+00:00'
+  claim_expires_at: '2026-08-21T02:42:01.601824+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
 ---
 ## Summary
 
