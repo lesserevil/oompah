@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:00:21.577837Z'
-updated_at: '2026-08-21T07:02:31.501402Z'
+updated_at: '2026-08-21T07:07:55.471811Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -201,5 +201,22 @@ The error 'Pre-provider contributor evidence exceeded its bounded task-authority
 3. Determine if we need to: increase the timeout, optimize the operation, add graceful degradation, or all of the above
 4. Implement appropriate fix
 5. Test to verify the error is resolved or handled gracefully
+---
+author: oompah
+created: 2026-08-21 07:07
+---
+**Discovery**
+
+Found the root cause in `oompah/orchestrator.py`:
+
+The error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' is logged as an ERROR at line 58067. This occurs when:
+
+1. `_stage_work_contributor_launch()` tries to persist contributor evidence (provider info) to the tracker
+2. The persistence task times out (5-second limit by default, configurable via `contributor_evidence_persist_timeout_seconds`)
+3. The function logs this at ERROR level, which triggers error_watcher auto-filing
+
+Looking at the test `test_pre_provider_evidence_timeout_releases_task_authority`, this is actually a HANDLED failure path. The code gracefully returns an error message and releases task authority, allowing normal retry. The timeout occurs when the contributor evidence lock is held by another worker.
+
+**The fix**: Change the logger level from `error()` to `warning()` since this is a gracefully-handled transient condition, not an unhandled error.
 ---
 <!-- COMMENTS:END -->
