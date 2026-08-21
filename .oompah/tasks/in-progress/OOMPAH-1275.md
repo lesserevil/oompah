@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:19.724794Z'
-updated_at: '2026-08-21T06:14:13.545432Z'
+updated_at: '2026-08-21T06:19:35.059018Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -195,5 +195,19 @@ UNDERSTANDING: The error indicates that dispatch candidates are failing because 
 4. Check if there's a race condition between evidence recording and deadline checks
 5. Identify a fix: either extend the deadline, improve evidence recording speed, or handle this gracefully
 6. Add tests to verify the fix works
+---
+author: oompah
+created: 2026-08-21 06:19
+---
+DISCOVERY: Found the root cause! The error 'Cannot durably record exact contributor provider/model evidence before the bounded task-authority deadline' is coming from orchestrator.py line 58085-58090 in the _stage_work_contributor_launch function. 
+
+This occurs when the tracker metadata write (state-branch git commit) exceeds the persistence_timeout. The timeout is calculated from control_timeout and termination_timeout, then overridden by contributor_evidence_persist_timeout_seconds (default 30 seconds).
+
+The issue is that tracker writes can take longer than expected, especially when:
+1. Multiple dispatch attempts are happening in rapid succession
+2. The tracker backend (git) is under load
+3. The issue_transition_lock is held for the entire persistence operation
+
+Next: Examine the actual persistence operation and the error_watcher to understand how to handle this gracefully.
 ---
 <!-- COMMENTS:END -->
