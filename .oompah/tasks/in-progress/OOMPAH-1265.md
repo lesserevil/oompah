@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-21T01:28:20.370142Z'
+updated_at: '2026-08-21T01:34:56.662632Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -219,5 +219,10 @@ author: oompah
 created: 2026-08-21 01:28
 ---
 Discovery: The external-prerequisite lifecycle acceptance implementation has been completed and integrated into the epic branch. The work includes: (1) 326 tests for prerequisite/handoff/adapter suites passing; (2) 39 dashboard/detail tests covering UI for resolution CAS field exposure; (3) 353 focused tests passed in independent review; (4) Task detail UI now exposes exact non-secret resolution fields; (5) Dashboard alerts distinguish operator action (external prerequisite) from normal dependency waits; (6) Post-cut prerequisite ABA fencing enforced; (7) Cache invalidation on handoff + refresh/broadcast; (8) Documentation in docs/external-prerequisites.md. The current branch (epic-OOMPAH-1231--task-OOMPAH-1265) is at HEAD 2ff3966dd with all prerequisite work integrated. Ready for submission pending OOMPAH-1266 completion (finish-order dependency).
+---
+author: oompah
+created: 2026-08-21 01:34
+---
+Verification: Frontend test suites all passing. Dashboard alert experience tests: 3/3 PASSED (alert rendering, responsive layout, focus management, full-sync recovery). Implementation prerequisite tests: 70/70 PASSED (record validation, resolution lifecycle, store operations, capability matching). Dashboard alert contract tests: 7/7 PASSED (alert normalization, severity handling, recovery facts). Dashboard alert safety tests: 3/3 PASSED (escape handling, defensive limits, order preservation). Dashboard alert center tests: 12/12 PASSED (accessibility, keyboard navigation, live regions, scrolling, dynamic management). Total UI-related tests: 95/95 PASSED. All accessibility standards (aria labels, keyboard navigation, contrast, focus management) verified.
 ---
 <!-- COMMENTS:END -->
