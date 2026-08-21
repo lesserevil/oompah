@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-21T06:50:18.202634Z'
+updated_at: '2026-08-21T11:27:14.246257Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -145,15 +145,15 @@ oompah.task_costs:
 oompah.work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   mode: queue
   task_branch: epic-OOMPAH-1231--task-OOMPAH-1266
   base_branch: epic-OOMPAH-1231
   base_sha: 2ff3966dd6b01c10e811cc67cf1c2cea8ed0d58e
   head_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+  integrated_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
   submitted_at: '2026-08-21T06:38:31.940079+00:00'
-  updated_at: '2026-08-21T06:38:31.940079+00:00'
 ---
 ## Summary
 
