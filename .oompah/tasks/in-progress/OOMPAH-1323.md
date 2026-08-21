@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:18:43.804044Z'
-updated_at: '2026-08-21T11:30:01.503389Z'
+updated_at: '2026-08-21T11:30:42.556420Z'
 work_branch: OOMPAH-1323
 target_branch: null
 review_url: null
@@ -103,16 +103,16 @@ oompah.work_contributors:
     model_id: switchyard/auto
     focus: general
     source_branch: OOMPAH-1323
-    source_sha: null
-    completed_at: ''
+    source_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    completed_at: '2026-08-21T11:30:36.777204+00:00'
 oompah.task_costs:
-  total_input_tokens: 32104
-  total_output_tokens: 121
+  total_input_tokens: 32478
+  total_output_tokens: 162
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 32104
-      output_tokens: 121
+      input_tokens: 32478
+      output_tokens: 162
       cost_usd: 0.0
   runs:
   - profile: default
@@ -121,6 +121,12 @@ oompah.task_costs:
     output_tokens: 121
     cost_usd: 0.0
     recorded_at: '2026-08-21T05:10:13.356820+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 374
+    output_tokens: 41
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T11:30:36.771522+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -274,5 +280,15 @@ author: oompah
 created: 2026-08-21 11:29
 ---
 Demoted expected pre-provider contributor-evidence timeout retirement from ERROR to WARNING and added severity regression coverage; focused provider-retirement and error_watcher tests pass.
+---
+author: oompah
+created: 2026-08-21 11:30
+---
+Run #1 [attempt=1, profile=default, role=fast -> Opencode/Switchyard/switchyard/auto]
+- Turns: 34, Tool calls: 34
+- Tokens: 374 in / 41 out [36.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 9s
+- Log: OOMPAH-1323__20260821T112342Z.jsonl
 ---
 <!-- COMMENTS:END -->
