@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:22.979573Z'
-updated_at: '2026-08-21T00:39:25.611786Z'
+updated_at: '2026-08-21T00:56:21.647010Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -291,5 +291,10 @@ author: oompah
 created: 2026-08-21 00:39
 ---
 Discovery: Found the error source at oompah/orchestrator.py line 64738 in _run_acp_worker() method. The issue is that logger.exception() is called when ANY exception occurs in the worker (except ProviderStartupError), and ERROR-level log messages trigger error_watcher. The problem: Not all exceptions in a worker are actionable errors - some may be expected failures that should be handled gracefully with lower-level logging (WARNING or DEBUG). Currently, all exceptions are logged as ERROR regardless of severity. Next: Investigate what types of exceptions occur and whether they should trigger error_watcher.
+---
+author: oompah
+created: 2026-08-21 00:56
+---
+Implementation Plan: The root cause is that expected operational failures in the worker setup phase (workspace creation, tracker errors, etc.) are being logged with logger.exception() at ERROR level, which triggers error_watcher. The correct behavior is to log these as WARNING level instead. This allows graceful degradation while still preserving error information for debugging. Changes needed: (1) In _run_api_worker exception handler (line ~63575): Change logger.exception() to logger.warning() with exc_info, (2) In _run_acp_worker exception handler (line ~64737): Same change. This preserves traceback info for debugging while preventing error_watcher from auto-filing tasks for normal operational failures.
 ---
 <!-- COMMENTS:END -->
