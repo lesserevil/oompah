@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:14:39.219900Z'
-updated_at: '2026-08-21T16:21:16.988909Z'
+updated_at: '2026-08-21T16:29:52.291228Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -248,5 +248,27 @@ The `logger.error()` call at line 58066-58073 is logging at ERROR level, which e
 
 **Solution:**
 Change the log level from ERROR to WARNING at line 58066, following the pattern used elsewhere in oompah for expected transient failures. This prevents error_watcher from auto-filing duplicate tasks while still logging the timeout for diagnostics.
+---
+author: oompah
+created: 2026-08-21 16:29
+---
+**Implementation: Fixed Log Level**
+
+Changed the timeout handler in `_stage_work_contributor_launch()` to log at WARNING level instead of ERROR level.
+
+**Changes Made:**
+- File: oompah/orchestrator.py, line 58066
+- Changed: `logger.error()` → `logger.warning()`
+
+**Rationale:**
+- The contributor evidence timeout is a transient failure that is handled gracefully and retried
+- Logging at ERROR triggers error_watcher to auto-file duplicate bug tasks on each occurrence
+- This pattern follows the existing convention in oompah for expected transient failures (see test_timeout_logs_warning_not_error in test_orchestrator_handlers.py)
+
+**Tests Added:**
+- New test: `test_pre_provider_evidence_timeout_logs_warning_not_error` in tests/test_provider_retirement.py
+- Verifies timeout is logged at WARNING, not ERROR
+- Ensures error_watcher won't be triggered by this transient failure
+- All 22 provider retirement tests pass
 ---
 <!-- COMMENTS:END -->
