@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import contextlib
+import logging
 import os
 import signal
 import subprocess
@@ -408,7 +409,11 @@ def test_lifecycle_gate_prevents_launch_and_persists_exactly_one_recovery(
     ]
 
 
-def test_pre_provider_evidence_timeout_releases_task_authority(tmp_path) -> None:
+def test_pre_provider_evidence_timeout_releases_task_authority(
+    tmp_path, caplog
+) -> None:
+    caplog.set_level(logging.WARNING, logger="oompah.orchestrator")
+
     async def scenario() -> None:
         orch = _orchestrator(tmp_path)
         orch.config.terminal_control_lock_timeout_seconds = 0.1
@@ -452,6 +457,14 @@ def test_pre_provider_evidence_timeout_releases_task_authority(tmp_path) -> None
         await asyncio.sleep(0)
 
     asyncio.run(scenario())
+
+    deadline_records = [
+        record
+        for record in caplog.records
+        if "bounded task-authority deadline" in record.getMessage()
+    ]
+    assert len(deadline_records) == 1
+    assert deadline_records[0].levelno == logging.WARNING
 
 
 def test_contributor_evidence_takes_project_lock_before_policy_lock(tmp_path) -> None:
