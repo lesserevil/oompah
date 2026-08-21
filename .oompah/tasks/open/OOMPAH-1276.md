@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:45:59.311385Z'
-updated_at: '2026-08-21T15:06:12.489353Z'
-work_branch: null
+updated_at: '2026-08-21T15:06:25.613121Z'
+work_branch: OOMPAH-1276
 target_branch: null
 review_url: null
 review_number: null
@@ -137,6 +137,7 @@ oompah.integration:
   head_sha: e8c4d3ff807839faeab188a72ac5eedb8345cd35
   submitted_at: '2026-08-21T15:05:50.639378+00:00'
   updated_at: '2026-08-21T15:05:50.639378+00:00'
+oompah.work_branch: OOMPAH-1276
 ---
 ## Summary
 
@@ -339,5 +340,10 @@ created: 2026-08-21 15:04
 
 Commit: OOMPAH-1276 e8c4d3ff8
 Branch pushed and ready for review.
+---
+author: oompah
+created: 2026-08-21 15:06
+---
+Fixed pre-provider contributor evidence timeout issue by increasing default timeout fallback to 10 seconds and changing error logging to warning level to prevent error_watcher triggering on transient failures.
 ---
 <!-- COMMENTS:END -->
