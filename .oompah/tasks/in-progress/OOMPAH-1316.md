@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:48:11.061409Z'
-updated_at: '2026-08-21T08:54:36.454453Z'
-work_branch: null
+updated_at: '2026-08-21T08:56:45.123627Z'
+work_branch: OOMPAH-1316
 target_branch: null
 review_url: null
 review_number: null
@@ -80,7 +80,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 10582620-3fc0-485b-9cba-cb3bd6dfc343
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: f8c4634572d24818a5ca1d438fb65d62--contributor-4256b9f40773
@@ -115,6 +115,18 @@ oompah.task_costs:
     output_tokens: 2127
     cost_usd: 0.0
     recorded_at: '2026-08-21T04:07:48.872530+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1316
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: 7e932a894d16d6f5530dbf43a2eebb93db8684ba
+  submitted_at: '2026-08-21T08:56:20.710336+00:00'
+  updated_at: '2026-08-21T08:56:20.710336+00:00'
+oompah.work_branch: OOMPAH-1316
 ---
 ## Summary
 
@@ -206,5 +218,10 @@ author: oompah
 created: 2026-08-21 08:54
 ---
 VERIFICATION: All tests pass. Ran: (1) test_pre_provider_evidence_timeout_releases_task_authority - PASSED, (2) test_contributor_evidence_takes_project_lock_before_policy_lock - PASSED, (3) all 21 tests in test_provider_retirement.py - PASSED, (4) all 146 error_watcher related tests - PASSED. The fix maintains backward compatibility while preventing spurious error task auto-filing.
+---
+author: oompah
+created: 2026-08-21 08:56
+---
+Fixed contributor evidence timeout being auto-filed as error task by changing log level from ERROR to WARNING. This timeout is an expected, gracefully-handled failure during task authority transitions. All related tests pass (21 provider_retirement tests, 146 error_watcher tests).
 ---
 <!-- COMMENTS:END -->
