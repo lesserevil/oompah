@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:22.979573Z'
-updated_at: '2026-08-21T01:31:29.878010Z'
+updated_at: '2026-08-21T01:32:48.585851Z'
 work_branch: OOMPAH-1199
 target_branch: null
 review_url: null
@@ -149,16 +149,16 @@ oompah.work_contributors:
     model_id: haiku
     focus: general
     source_branch: OOMPAH-1199
-    source_sha: null
-    completed_at: ''
+    source_sha: 99d1966926fc94ae138c2e50198a1fa5a9785a72
+    completed_at: '2026-08-21T01:32:43.008767+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1701
+  total_input_tokens: 652
+  total_output_tokens: 18408
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1701
+      input_tokens: 652
+      output_tokens: 18408
       cost_usd: 0.0
   runs:
   - profile: default
@@ -167,6 +167,12 @@ oompah.task_costs:
     output_tokens: 1701
     cost_usd: 0.0
     recorded_at: '2026-08-20T22:43:32.863342+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 642
+    output_tokens: 16707
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T01:32:42.915366+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -323,5 +329,15 @@ author: oompah
 created: 2026-08-21 01:31
 ---
 Fixed ACP worker error auto-filing by changing exception logging from ERROR to WARNING level. This prevents error_watcher from auto-filing tasks for normal operational failures (workspace issues, tracker errors) while preserving exception traceback information for debugging. All tests pass (157 tests verified). Commit 99d196692 on OOMPAH-1199 branch.
+---
+author: oompah
+created: 2026-08-21 01:32
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 164, Tool calls: 79
+- Tokens: 642 in / 16.7K out [17.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1h 7m 51s
+- Log: OOMPAH-1199__20260821T002612Z.jsonl
 ---
 <!-- COMMENTS:END -->
