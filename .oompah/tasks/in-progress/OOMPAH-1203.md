@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:19:28.760792Z'
-updated_at: '2026-08-21T01:05:55.098574Z'
+updated_at: '2026-08-21T01:14:16.049130Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -217,5 +217,12 @@ author: oompah
 created: 2026-08-21 01:05
 ---
 **UNDERSTANDING**: This is a backend:orchestrator error where dispatch candidates fail with 'contributor_evidence_unavailable' and 'StateBranchFetchError'. The error occurs when trying to durably record contributor provider/model evidence before launch. Both gpt-5.6-luna and haiku providers are unavailable. Plan: (1) Find where this error is generated in the codebase, (2) Understand the StateBranchFetchError and contributor_evidence recording logic, (3) Determine if this is a graceful degradation issue or a real bug, (4) Implement appropriate fix or error handling.
+---
+author: oompah
+created: 2026-08-21 01:14
+---
+**DISCOVERY**: Found the root cause. In `orchestrator.py:_stage_work_contributor_launch()` (line 58112), a catch-all exception handler is catching StateBranchFetchError (a transient network error) and returning it as an error message. This gets converted to ProviderStartupError with reason='contributor_evidence_unavailable', which logs at ERROR level and triggers error_watcher.
+
+The fix is to catch StateBranchFetchError specifically (a transient/retryable error per tracker.py) and log it at WARNING instead of ERROR, allowing it to be retried naturally without error_watcher reporting it as a bug.
 ---
 <!-- COMMENTS:END -->
