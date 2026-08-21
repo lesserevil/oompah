@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:27.547026Z'
-updated_at: '2026-08-21T04:05:30.185481Z'
+updated_at: '2026-08-21T04:06:02.022552Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,13 +34,89 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 80ec4f3a8a00392398dd19afff0380463fd80509cb6e24592edcf3d3e36d3cfb:142956
-  claim_owner: 884c7b0a-4fe0-4acd-9fe6-041416485094
-  claimed_at: '2026-08-21T04:03:51.226960+00:00'
-  claim_expires_at: '2026-08-21T04:33:51.226960+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: 'Focus handoff: duplicate_detector
+
+    Duplicate preflight verdict: inconclusive
+
+    Matches: none
+
+    Evidence: Duplicate preflight verdict: inconclusive
+
+    Matches: none
+
+    Looking at OOMPAH-1196 and the supplied project task corpus, I need to determine
+    if this is a duplicate of an existing active task.
+
+
+    **Analysis:**
+
+
+    The current task''s own description contains a critical comment from oompah (2026-08-13
+    00:17):
+
+
+    > "Duplicate task-specific occurrence of OOMPAH-1194. The canonical fix covers
+    this failure: managed network Git used the stale local SSH origin instead of the
+    project''s configured HTTPS repo_url during Trickle workspace/epic refresh."
+
+
+    This comment identifies OOMPAH-1194 as the canonical/original issue.
+
+
+    **Corpus verification:**
+
+
+    However, **OOMPAH-1194 is not present in the provided task corpus**. The corpus
+    includes tasks OOMPAH-1 through OOMPAH-1030 (with gaps), but OOMPAH-1194 is explicitly
+    absent. The corpus header indicates it is "authoritative" and should be "self-sufficient,"
+    yet it is missing the very task that the current issue explicitly references as
+    its duplicate target.
+
+
+    **Issue:**
+
+
+    Per my instructions, I must:
+
+    - Use only the supplied corpus as the authoritative reference
+
+    - Treat it as self-sufficient
+
+    - Not make network queries to fill gaps
+
+    - Report inconclusive if the corpus is unavailable or corrupt
+
+
+    The missing OOMPAH-1194 makes it impossible to verify the duplicate relationship
+    using only the supplied evidence, even though the task itself strongly suggests
+    it is a duplicate.
+
+
+    ---
+
+
+    Focus handoff: duplicate_detector
+
+
+    Duplicate preflight verdict: inconclusive
+
+
+    Matches: none
+
+
+    **Reason:** The current task OOMPAH-1196 contains an explicit comment identifying
+    OOMPAH-1194 as the canonical duplicate target with the same root cause (stale
+    SSH origin in managed Git). However, OOMPAH-1194 is not present in the supplied
+    project task corpus, which is required to be the authoritative reference. Without
+    access to OOMPAH-1194''s description, status, or active state, I cannot confirm
+    the duplicate match using only the available evidence. The corpus appears incomplete
+    for this screening decision.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 1
+  retry_after: '2026-08-21T04:06:20.545621+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
