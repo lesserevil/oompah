@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1206
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue TRICKLE-121:
   All 2 dispatch candidates unavailable: prov-651d553c/sonnet: contributor_evidence_unavailable:
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-21T04:12:42.606192Z'
+updated_at: '2026-08-21T04:13:24.399510Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -106,6 +106,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1206
     source_sha: 02bd5960434a5c65dce259894737a55ab7a8ea96
     completed_at: '2026-08-20T23:55:12.188998+00:00'
+  - run_id: 936ef96292124783839f004c5931f435--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: general
+    source_branch: OOMPAH-1206
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2069
@@ -216,5 +224,10 @@ author: oompah
 created: 2026-08-21 04:12
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-21 04:13
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
