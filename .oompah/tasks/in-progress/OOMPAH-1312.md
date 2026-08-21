@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:27:31.701200Z'
-updated_at: '2026-08-21T09:13:46.280178Z'
+updated_at: '2026-08-21T09:13:53.719093Z'
 work_branch: OOMPAH-1312
 target_branch: null
 review_url: null
@@ -237,5 +237,10 @@ author: oompah
 created: 2026-08-21 09:12
 ---
 VERIFICATION: Ran all error_watcher tests (124 tests passed) and orchestrator error_watcher integration tests (13 tests passed). All tests pass, confirming the change does not introduce regressions. The fix prevents ERROR-level logs from being captured by error_watcher while preserving proper logging of the timeout event at WARNING level.
+---
+author: oompah
+created: 2026-08-21 09:13
+---
+Fixed pre-provider contributor evidence timeout error by downgrading log level from ERROR to WARNING. This prevents error_watcher from auto-filing a handled, expected timeout as an unhandled error. The timeout is caught and returns a clear error message to the caller, so it should not trigger error task creation.
 ---
 <!-- COMMENTS:END -->
