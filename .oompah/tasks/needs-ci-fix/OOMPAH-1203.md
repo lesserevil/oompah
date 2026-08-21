@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1203
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue TRICKLE-131:
   All 2 dispatch candidates unavailable: prov-52e94e83/gpt-5.6-luna: contributor_evidence_unavailable:
@@ -10,17 +10,18 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-08-13T01:19:28.760792Z'
-updated_at: '2026-08-21T05:32:05.215281Z'
+updated_at: '2026-08-21T05:32:20.261222Z'
 work_branch: OOMPAH-1203
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
