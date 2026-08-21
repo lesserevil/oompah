@@ -1197,7 +1197,7 @@ class ServiceConfig:
     # starving implementation agents while lighter paths (duplicate screening)
     # still run.  Configurable via
     # OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS.
-    contributor_evidence_persist_timeout_seconds: float = 30.0
+    contributor_evidence_persist_timeout_seconds: float = 60.0
 
     # Initial agent prompt comment-history budgets. These are environment-only
     # because they are operational tuning, not workflow structure.
@@ -2056,7 +2056,7 @@ class ServiceConfig:
                 "OOMPAH_TERMINAL_CONTROL_LOCK_TIMEOUT_SECONDS", None, 5.0
             ),
             contributor_evidence_persist_timeout_seconds=_env_float(
-                "OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS", None, 30.0
+                "OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS", None, 60.0
             ),
             workflow_quarantine_persist_timeout_seconds=_env_float(
                 "OOMPAH_WORKFLOW_QUARANTINE_PERSIST_TIMEOUT_SECONDS", None, 5.0
