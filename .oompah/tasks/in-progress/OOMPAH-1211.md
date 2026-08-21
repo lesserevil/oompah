@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:37:52.344051Z'
-updated_at: '2026-08-21T09:39:08.546305Z'
+updated_at: '2026-08-21T09:47:15.137219Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -292,5 +292,20 @@ created: 2026-08-21 09:39
 2. Look at the tracker implementation to see where delays might occur
 3. Check the persistence_timeout calculation and configuration options
 4. Either increase the timeout, optimize the write path, or handle the timeout more gracefully
+---
+author: oompah
+created: 2026-08-21 09:47
+---
+**Discovery:** Found the root cause! The issue is with timeout calculation in orchestrator.py:
+
+1. The config class defines `contributor_evidence_persist_timeout_seconds` with default 30.0 seconds (good)
+2. BUT the orchestrator code uses `getattr(self.config, 'contributor_evidence_persist_timeout_seconds', None)` 
+3. If this attribute is somehow not being set on the config object, the value is None
+4. When None, the fallback calculation uses `terminal_control_lock_timeout_seconds` (5.0 seconds default), which is TOO LOW
+5. The error shows timeout_seconds=5.0, confirming the 30-second default is not being used
+
+The problem: The timeout is being determined by the wrong calculation path. It should use 30 seconds, but the code falls back to 5 seconds when the config attribute is missing/None.
+
+Next: Need to investigate why the config attribute might not be set, or fix the default value in the getattr call.
 ---
 <!-- COMMENTS:END -->
