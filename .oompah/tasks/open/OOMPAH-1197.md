@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-21T04:06:26.554736Z'
+updated_at: '2026-08-21T08:51:06.957916Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,13 +34,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ACP provider launch was blocked because All candidates are used by contributors.
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 266aad16f9080505b793920fcc60ee2ed2a98ea814a87ecd801e5588f83ca3b7:144894
+  claim_owner: 94774825-4468-4d75-bdb4-5977b2bd9951
+  claimed_at: '2026-08-21T08:51:05.601359+00:00'
+  claim_expires_at: '2026-08-21T09:21:05.601359+00:00'
   retry_count: 1
-  retry_after: '2026-08-21T04:07:15.925962+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
