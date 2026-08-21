@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:03:14.411853Z'
-updated_at: '2026-08-21T12:02:14.530467Z'
+updated_at: '2026-08-21T12:12:41.233107Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -295,5 +295,18 @@ created: 2026-08-21 12:02
 4. Verify fix doesn't break other error handling
 
 **Current status**: Starting code exploration
+---
+author: oompah
+created: 2026-08-21 12:12
+---
+**Discovery**: Found error at oompah/orchestrator.py:58067. The 'Pre-provider contributor evidence' timeout error is logged at ERROR level via logger.error(), which triggers error_watcher to auto-file the task. 
+
+The issue occurs when writing contributor provider/model evidence to persistent storage exceeds its deadline (5.0 seconds default). The timeout is calculated in _stage_work_contributor_launch() and can be configured via config key 'contributor_evidence_persist_timeout_seconds'.
+
+The error is a normal TimeoutError that's caught and handled gracefully (returned as error message, not raised), but the logger.error() call at line 58067 still triggers error_watcher. Line 58102 shows a similar timeout logged at WARNING level (not triggering error_watcher).
+
+**Root cause**: Using logger.error() for an expected operational timeout that's already being handled gracefully.
+
+**Proposed fix**: Change logger.error() at line 58067 to logger.warning() since this timeout is handled gracefully and shouldn't trigger error_watcher.
 ---
 <!-- COMMENTS:END -->
