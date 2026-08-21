@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:12:08.566823Z'
-updated_at: '2026-08-21T05:06:04.075361Z'
+updated_at: '2026-08-21T05:06:59.094383Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,14 +33,26 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 8f8a9e7ca03461ef8b7ad338935420f8209cba07dbf033be0e12f70f042ee33c
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-21T05:06:49.401881+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: e0c4764a0767dc9d9a5dd2343602192aea4424f349e39d7b1e31b6ad01e70b2a:143343
-  claim_owner: 7dbe71d1-9fc2-4b0c-bb54-3da0831c26d5
-  claimed_at: '2026-08-21T05:04:46.550292+00:00'
-  claim_expires_at: '2026-08-21T05:34:46.550292+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: The only closely related incident in the corpus is the\
+    \ `backend:terminal_audit_enforcement` \u201Cpre_recovery_finalization_metadata_malformed:proj-14849f1b:*\u201D\
+    \ flood, which was fixed/archived (canonical OOMPAH-1015) and is for a different\
+    \ backend component/err string than this `backend:orchestrator` \u201CPre-provider\
+    \ contributor evidence exceeded its bounded task-authority deadline issue_id=OOMPAH-1200\
+    \ \u2026\u201D error.\nFocus handoff: duplicate_detector  \nDuplicate preflight\
+    \ verdict: no_duplicate  \nMatches: none  \nEvidence: The only closely related\
+    \ incident in the corpus is the `backend:terminal_audit_enforcement` \u201Cpre_recovery_finalization_metadata_malformed:proj-14849f1b:*\u201D\
+    \ flood, which was fixed/archived (canonical OOMPAH-1015) and is for a different\
+    \ backend component/err string than this `backend:orchestrator` \u201CPre-provider\
+    \ contributor evidence exceeded its bounded task-authority deadline issue_id=OOMPAH-1200\
+    \ \u2026\u201D error."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
@@ -55,8 +67,24 @@ oompah.work_contributors:
     model_id: switchyard/auto
     focus: duplicate_detector
     source_branch: OOMPAH-1320
-    source_sha: null
-    completed_at: ''
+    source_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    completed_at: '2026-08-21T05:06:49.408735+00:00'
+oompah.task_costs:
+  total_input_tokens: 32100
+  total_output_tokens: 125
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 32100
+      output_tokens: 125
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 32100
+    output_tokens: 125
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T05:06:49.400145+00:00'
 ---
 ## Summary
 
@@ -108,5 +136,15 @@ author: oompah
 created: 2026-08-21 05:06
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-21 05:06
+---
+Run #1 [attempt=1, profile=default, role=fast -> Opencode/Switchyard/switchyard/auto]
+- Turns: 0, Tool calls: 0
+- Tokens: 32.1K in / 125 out [40.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 43s
+- Log: OOMPAH-1320__20260821T050629Z.jsonl
 ---
 <!-- COMMENTS:END -->
