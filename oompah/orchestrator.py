@@ -58020,24 +58020,21 @@ class Orchestrator:
                     / 1000.0,
                     0.1,
                 )
-                persistence_timeout = max(
-                    min(control_timeout, termination_timeout / 2.0),
-                    0.05,
-                )
                 # A dedicated deadline lets slow tracker/state-branch evidence
                 # writes finish instead of retiring with
                 # contributor_evidence_unavailable and starving implementation
                 # dispatch.  When configured it is authoritative (production
                 # raises it well above the derived control floor).
+                # Always try to use the configured value first, with a reasonable
+                # fallback that ensures slow git commits don't exceed the deadline.
                 configured_evidence_timeout = getattr(
                     self.config,
                     "contributor_evidence_persist_timeout_seconds",
-                    None,
+                    30.0,  # Fallback to the config class default (30s) not None
                 )
-                if configured_evidence_timeout is not None:
-                    persistence_timeout = max(
-                        float(configured_evidence_timeout), 0.05
-                    )
+                persistence_timeout = max(
+                    float(configured_evidence_timeout), 0.05
+                )
 
                 try:
                     await asyncio.wait_for(
