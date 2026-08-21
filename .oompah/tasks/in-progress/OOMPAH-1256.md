@@ -8,10 +8,11 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- focus-complete:docs
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-21T02:24:49.363457Z'
+updated_at: '2026-08-21T02:27:27.094609Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -460,5 +461,28 @@ author: oompah
 created: 2026-08-21 02:24
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-08-21 02:27
+---
+Focus handoff: docs
+
+**Outcome of this focus:** No documentation work is needed. This is a pure backend logic bug in the code path that resolves managed project IDs when adding comments through the HTTP API. Confirmed via re-inspection of the source: the exact error message 'Unknown project' is raised at oompah/server.py:8273 inside \`_canonical_managed_project_id\`, called from \`_get_tracker_for_issue_or_project\` (line 8319), which is invoked by \`api_add_comment\` (line 17242).
+
+**Relevant files, commands, and evidence:**
+- oompah/server.py:8232 — \`_canonical_managed_project_id\` (raises ProjectError('Unknown project') at 8273 with intentionally generic message)
+- oompah/server.py:8319 — \`_get_tracker_for_issue_or_project\`
+- oompah/server.py:17242 — \`api_add_comment\` (HTTP POST /api/v1/issues/{id}/comments)
+- oompah/orchestrator.py:10277 — \`_tracker_for_project\` has a working name-based fallback for the same class of problem (see OOMPAH-161 fix)
+- tests/test_tracker_for_project_name_fallback.py — regression coverage for the analogous fix
+- Repro condition per description: proj-14849f1b, tracker_kind=provenanceguardedtracker, error_watcher fingerprint 481e003699b190a0
+
+**Remaining work / risks:**
+1. Backend must decide between (a) applying the same name-based fallback used in \`_tracker_for_project\` inside \`_canonical_managed_project_id\`, or (b) canonicalizing the project_id at the caller before validation.
+2. Bug fix needs a regression test that reproduces 'Unknown project' from the api_add_comment path (model on tests/test_tracker_for_project_name_fallback.py).
+3. Consider whether the error message should include the project_id for debuggability — current generic wording is intentional (avoids config leakage), so change with care.
+4. Verify no regression in existing managed-project store lookups.
+
+**Recommended next focus:** \`needs:backend\` (already set on this task). No user-facing documentation is affected by the fix; if the fix changes public API error semantics, backend should update the relevant API reference under docs/ at that time — but the necessary text isn't determinable until the code change is chosen.
 ---
 <!-- COMMENTS:END -->

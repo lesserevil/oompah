@@ -12,8 +12,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:28:12.589940Z'
-updated_at: '2026-08-21T02:27:16.914797Z'
-work_branch: null
+updated_at: '2026-08-21T02:27:36.261962Z'
+work_branch: OOMPAH-1254
 target_branch: null
 review_url: null
 review_number: null
@@ -76,7 +76,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a61f475c-89dc-40cb-ad22-7bed51072879
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 6da0278e72a3404aa50daa3567e551f3--contributor-a8b0475e7b09
@@ -130,6 +130,7 @@ oompah.integration:
   head_sha: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
   submitted_at: '2026-08-21T02:26:57.522058+00:00'
   updated_at: '2026-08-21T02:26:57.522058+00:00'
+oompah.work_branch: OOMPAH-1254
 ---
 ## Summary
 
@@ -241,5 +242,10 @@ author: oompah
 created: 2026-08-21 02:26
 ---
 VERIFICATION: All tests pass successfully. Specific test coverage added for all four new authority-related rejection reason codes. Verified: (1) test_state_branch_fetch_error.py - 35 tests passed (2) test_error_watcher.py - 90 tests passed (3) test_error_watcher_orchestrator.py - 13 tests passed (4) test_task_transition_service.py - 118 tests passed. The fix ensures TaskTransitionNotApplied exceptions with project_owner_authority_required (and similar authority rejection codes) return 409 responses instead of triggering error_watcher ERROR logs.
+---
+author: oompah
+created: 2026-08-21 02:27
+---
+Fixed: TaskTransitionNotApplied exceptions with authority-related rejection reason codes no longer trigger error_watcher. Added four missing reason codes to the expected_policy_rejections set in _transition_rejected_reason(): project_owner_authority_required, direct_owner_claim_authority_required, owner_claim_authority_unavailable, validation_submission_authority_required. These now return 409 conflict responses instead of 500 error responses that trigger error_watcher logging. Test coverage added with 7 parametrized test cases verifying the new reason codes are properly handled.
 ---
 <!-- COMMENTS:END -->
