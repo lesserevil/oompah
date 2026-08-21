@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:07:17.780951Z'
-updated_at: '2026-08-21T00:31:06.974363Z'
+updated_at: '2026-08-21T00:36:45.734244Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -193,5 +193,23 @@ author: oompah
 created: 2026-08-21 00:31
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-08-21 00:36
+---
+**Understanding:** The issue is that managed clone Git configs retain HTTP remote userinfo and credential.helper entries from legacy migrations or checkouts, preventing direct epic-maintenance dispatch due to failed security preflight. The preflight function _epic_rebase_workspace_has_remote_write_route detects these and refuses dispatch.
+
+**Planned approach:**
+1. Create a sanitization function to remove credential routes from managed clone configs
+2. Apply sanitization when clones are created, adopted, migrated, self-healed, or prepared for direct maintenance
+3. Add tests verifying sanitization and that server-owned credentials still work
+4. Ensure fail-closed behavior if sanitization cannot be verified
+
+**Key files:**
+- oompah/orchestrator.py: _epic_rebase_workspace_has_remote_write_route preflight check (lines 35450-35527)
+- oompah/projects.py: Canonical remote URL handling
+- Tests: test_managed_git_credentials.py, test_git_remote_safety.py
+
+**Next: Find all clone creation points and implement sanitization.
 ---
 <!-- COMMENTS:END -->
