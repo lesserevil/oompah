@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1201
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-133'
 parent: null
@@ -11,14 +11,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:47.623989Z'
-updated_at: '2026-08-21T00:58:35.346183Z'
+updated_at: '2026-08-21T00:58:43.832534Z'
 work_branch: OOMPAH-1201
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/893
 review_number: '893'
 review_head: b6644c5739285af3b2da1d9d1e91077ed094845b
 merged_at: null
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
