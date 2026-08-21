@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:55:23.301399Z'
-updated_at: '2026-08-21T09:00:31.988461Z'
+updated_at: '2026-08-21T09:02:17.505705Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -228,5 +228,46 @@ Need to either:
 1. Increase the fallback timeout (current floor calculation is too low)
 2. Ensure the configured value is always used
 3. Use the default value (30.0) as the fallback instead of deriving a floor
+---
+author: oompah
+created: 2026-08-21 09:02
+---
+## Implementation: Applied Fix
+
+**Changed:** oompah/orchestrator.py line 58032-58044
+
+**The Fix:**
+Changed the fallback value for `contributor_evidence_persist_timeout_seconds` from `None` to `30.0` seconds in the getattr call.
+
+**Before:**
+```python
+configured_evidence_timeout = getattr(
+    self.config,
+    "contributor_evidence_persist_timeout_seconds",
+    None,
+)
+if configured_evidence_timeout is not None:
+    persistence_timeout = max(
+        float(configured_evidence_timeout), 0.05
+    )
+```
+When the attribute wasn't found, it would use the calculated floor of 5.0 seconds.
+
+**After:**
+```python
+configured_evidence_timeout = getattr(
+    self.config,
+    "contributor_evidence_persist_timeout_seconds",
+    30.0,  # Use the default configuration value as fallback
+)
+```
+
+**Rationale:**
+- The previous fallback of 5.0 seconds (based on control and termination timeouts) was too aggressive for tracker persistence operations
+- Using 30.0 seconds as the fallback aligns with the configured default value
+- This ensures evidence writes have sufficient time to complete, reducing the contributor_evidence_timeout errors
+- If the configured value is explicitly set (via environment variable or config), it will override this fallback
+
+Now testing the fix...
 ---
 <!-- COMMENTS:END -->

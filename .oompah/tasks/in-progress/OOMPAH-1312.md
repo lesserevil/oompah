@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:27:31.701200Z'
-updated_at: '2026-08-21T08:57:42.744896Z'
+updated_at: '2026-08-21T09:02:15.029398Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -205,5 +205,10 @@ author: oompah
 created: 2026-08-21 08:57
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 09:02
+---
+UNDERSTANDING: Found the issue in oompah/orchestrator.py at line 58067. A TimeoutError occurs when contributor evidence cannot be persisted within the bounded task-authority deadline. The error is caught and handled gracefully (returns error message), but is logged at ERROR level, which triggers error_watcher to auto-file this task. PLAN: Change the log level from ERROR to WARNING for this handled exception, since it degrades gracefully with clear error messages.
 ---
 <!-- COMMENTS:END -->
