@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:28:12.589940Z'
-updated_at: '2026-08-21T02:28:37.669401Z'
+updated_at: '2026-08-21T05:56:55.731614Z'
 work_branch: OOMPAH-1254
 target_branch: null
 review_url: null
@@ -247,5 +247,10 @@ author: oompah
 created: 2026-08-21 02:27
 ---
 Fixed: TaskTransitionNotApplied exceptions with authority-related rejection reason codes no longer trigger error_watcher. Added four missing reason codes to the expected_policy_rejections set in _transition_rejected_reason(): project_owner_authority_required, direct_owner_claim_authority_required, owner_claim_authority_unavailable, validation_submission_authority_required. These now return 409 conflict responses instead of 500 error responses that trigger error_watcher logging. Test coverage added with 7 parametrized test cases verifying the new reason codes are properly handled.
+---
+author: oompah
+created: 2026-08-21 05:56
+---
+Branch quality gate passed for `9993a92831f7916a0e8319cd0e1d06cc3423d37c` using `make test` in 193.4s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
