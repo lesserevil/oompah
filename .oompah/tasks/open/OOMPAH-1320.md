@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:12:08.566823Z'
-updated_at: '2026-08-21T09:59:33.374652Z'
+updated_at: '2026-08-21T10:00:15.842849Z'
 work_branch: OOMPAH-1320
 target_branch: null
 review_url: null
@@ -201,5 +201,10 @@ author: oompah
 created: 2026-08-21 09:59
 ---
 Fixed pre-provider contributor evidence timeout being auto-filed as error. Changed logger.error() to logger.warning() at orchestrator.py:58066 since the timeout is an expected, handled failure (error returned and properly handled by _on_worker_exit), not an unhandled exception. This prevents error_watcher from triggering on normal operation. All tests pass (21 provider retirement + 381 orchestrator handler tests).
+---
+author: oompah
+created: 2026-08-21 10:00
+---
+Completion: OOMPAH-1320 is now ready for integration. The fix changes one line in oompah/orchestrator.py (line 58066) from logger.error() to logger.warning() for the pre-provider contributor evidence timeout case. This prevents error_watcher from auto-filing expected, handled timeout failures as tasks. The root cause was that a gracefully-handled timeout was being logged at error level, triggering error_watcher. Now it logs at warning level (matching the cancelled timeout case), which is appropriate for this expected failure mode. All related tests pass, including the specific test_pre_provider_evidence_timeout_releases_task_authority test.
 ---
 <!-- COMMENTS:END -->
