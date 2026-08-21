@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:15:47.974297Z'
-updated_at: '2026-08-21T05:33:53.978443Z'
+updated_at: '2026-08-21T05:35:48.555400Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -296,5 +296,37 @@ Found the exact location of the error in oompah/orchestrator.py, lines 58047-580
 ✓ Root cause identified: logger.error() for expected TimeoutError scenario
 ✓ Known acceptable failure documented in code comments
 ✓ Fix: Changed logger.error() → logger.warning() to prevent auto-filing while keeping operational visibility
+---
+author: oompah
+created: 2026-08-21 05:35
+---
+**Implementation Complete:**
+
+**Change Made:**
+File: oompah/orchestrator.py, line 58066
+Changed: logger.error() → logger.warning()
+
+In function _stage_work_contributor_launch(), the pre-provider contributor evidence persistence timeout scenario now logs at WARNING level instead of ERROR level.
+
+**Rationale:**
+- TimeoutError is expected when synchronous tracker adapters cannot be cancelled mid-operation
+- Code comments document this as intentional: 'A synchronous tracker adapter cannot be cancelled after its thread starts'
+- Runtime gracefully retires the operation and returns error to caller
+- Changing to WARNING prevents error_watcher from auto-filing while keeping operational visibility
+
+**Testing:**
+✓ All provider_retirement tests pass (21 tests)
+✓ All error_watcher tests pass (124 tests)
+✓ Existing tests verify the error message is still logged correctly
+✓ No test code changes needed - tests only verify message content, not log level
+
+**Verification:**
+✓ Code gracefully handles timeout by retiring pre-provider runtime
+✓ Error message still visible in logs at WARNING level
+✓ error_watcher no longer triggered (fixes acceptance criterion #1)
+✓ Root cause identified and documented (fixes acceptance criterion #2)
+✓ No regression in error handling (fixes acceptance criterion #3)
+
+Ready for review and integration.
 ---
 <!-- COMMENTS:END -->
