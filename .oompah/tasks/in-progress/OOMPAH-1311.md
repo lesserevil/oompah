@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:25:39.636424Z'
-updated_at: '2026-08-21T11:12:23.484595Z'
+updated_at: '2026-08-21T11:15:41.791513Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -360,5 +360,29 @@ The pre-provider contributor evidence persistence is timing out after 5.0 second
 **Problem:** The calculated 5-second timeout is insufficient for slow tracker operations (metadata writes, state branch commits). Even with the 30-second config default, the operations are exceeding the deadline.
 
 **Solution:** The default timeout of 5.0 seconds is too aggressive. The calculation should use the full configured 30-second default instead of overriding it with a shorter computed value. The intent appears to be having a short deadline, but it's causing legitimate tracker operations to fail.
+---
+author: oompah
+created: 2026-08-21 11:15
+---
+## Implementation
+
+Fixed the pre-provider contributor evidence timeout in oompah/orchestrator.py:
+
+**The Problem:**
+The persistence_timeout was being calculated as 5.0 seconds (derived from control_timeout), which was insufficient for slow tracker I/O operations. Although a configured default of 30 seconds existed, it wasn't always being used due to the complex calculation logic.
+
+**The Solution:**
+Simplified the timeout calculation to directly use the configured value (default 30 seconds) instead of calculating a 5-second floor and then attempting to override it. This ensures tracker I/O operations have sufficient time to complete without exceeding task authority deadlines.
+
+**Changes:**
+- Removed unnecessary calculation of control_timeout and termination_timeout
+- Replaced complex conditional override logic with direct use of configured value
+- Maintained backward compatibility: default remains 30 seconds, configurable via OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS
+
+**Testing:**
+All 21 provider retirement tests pass, including:
+- test_pre_provider_evidence_timeout_releases_task_authority
+- test_late_pre_provider_write_settles_before_successor_provider_contact
+- All other pre-provider and retirement lifecycle tests
 ---
 <!-- COMMENTS:END -->
