@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:28:12.589940Z'
-updated_at: '2026-08-21T02:15:12.149936Z'
+updated_at: '2026-08-21T02:26:37.389113Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -225,5 +225,10 @@ author: oompah
 created: 2026-08-21 02:15
 ---
 IMPLEMENTATION: Added four missing authority-related reason codes to the 'expected_policy_rejections' set in _transition_rejected_reason() (oompah/server.py:4136-4156): transition.project_owner_authority_required, transition.direct_owner_claim_authority_required, transition.owner_claim_authority_unavailable, transition.validation_submission_authority_required. These are legitimate policy rejections that should degrade gracefully (409 response) instead of triggering error_watcher (500 error log). This ensures authority failures are handled like other expected transition rejections (maintenance_audit_authority_required, rollup_authority_required, etc.).
+---
+author: oompah
+created: 2026-08-21 02:26
+---
+VERIFICATION: All tests pass successfully. Specific test coverage added for all four new authority-related rejection reason codes. Verified: (1) test_state_branch_fetch_error.py - 35 tests passed (2) test_error_watcher.py - 90 tests passed (3) test_error_watcher_orchestrator.py - 13 tests passed (4) test_task_transition_service.py - 118 tests passed. The fix ensures TaskTransitionNotApplied exceptions with project_owner_authority_required (and similar authority rejection codes) return 409 responses instead of triggering error_watcher ERROR logs.
 ---
 <!-- COMMENTS:END -->
