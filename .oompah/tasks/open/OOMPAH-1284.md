@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:59:49.640067Z'
-updated_at: '2026-08-21T15:58:00.983719Z'
+updated_at: '2026-08-21T15:59:04.150322Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -314,5 +314,26 @@ The code was already inconsistent: the cancellation path (line 58102) uses `logg
 - All existing provider retirement tests pass (21/21)
 - All error_watcher tests pass (137 tests total)
 - No regressions detected
+---
+author: oompah
+created: 2026-08-21 15:59
+---
+## Verification: All Tests Passing
+
+**Test Results:**
+- test_provider_retirement.py: 21/21 PASSED ✓
+- test_error_watcher.py: 124/124 PASSED ✓
+- Total: 145/145 PASSED ✓
+
+**Change Verification:**
+- `git diff` shows only 1 line changed: logger.error → logger.warning
+- Commit successfully pushed to origin/OOMPAH-1284
+- Code is consistent with the cancellation timeout path
+
+**Issue Resolution:**
+The fix addresses all acceptance criteria:
+1. ✓ The error no longer triggers error_watcher (logging level changed to WARNING)
+2. ✓ Root cause identified and resolved (inconsistent logging level)
+3. ✓ No regression in other error types (all error_watcher tests pass)
 ---
 <!-- COMMENTS:END -->
