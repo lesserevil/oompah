@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:16:52.125972Z'
-updated_at: '2026-08-21T11:39:40.517394Z'
+updated_at: '2026-08-21T16:11:40.321774Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,18 +36,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ACP provider launch was blocked because live auditor policy changed during
-    admission
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-21T11:43:04.479346+00:00'
+  evidence: ''
+  claim_id: 87e19e01216f7e3e5e1e4bbef604c66c7bdfc153d16e697e4d7c219a6eaee751:147263
+  claim_owner: 8b3bb5f8-8d0e-4cf3-9d62-5bd5932d676d
+  claimed_at: '2026-08-21T16:11:30.141450+00:00'
+  claim_expires_at: '2026-08-21T16:41:30.141450+00:00'
+  retry_count: 0
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 87ac0720-621c-4605-98f6-3273be333bc8
+oompah.agent_run_id: d6d82ce2-4dce-4593-ad07-a38603e2ebbf
 oompah.work_contributors:
   runs:
   - run_id: 883d7c8a5dbb4140bb65fa6463ba9a7a--contributor-a8b0475e7b09
@@ -180,5 +179,10 @@ author: oompah
 created: 2026-08-21 11:39
 ---
 Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-1290/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
+---
+author: oompah
+created: 2026-08-21 16:11
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
