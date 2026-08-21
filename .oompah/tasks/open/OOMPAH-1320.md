@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:12:08.566823Z'
-updated_at: '2026-08-21T09:51:25.275104Z'
+updated_at: '2026-08-21T09:51:49.661155Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -179,5 +179,10 @@ author: oompah
 created: 2026-08-21 09:51
 ---
 Implementation: Changed logger.error() to logger.warning() at oompah/orchestrator.py:58066 when contributor evidence persistence times out. This timeout is an expected, handled failure (the error is returned and properly handled by _on_worker_exit), not an unhandled exception. Changing to warning prevents error_watcher from auto-filing this as a task. The second timeout case (cancelled_contributor_evidence_timeout) at line 58102 already uses logger.warning(), so only the first case needed fixing.
+---
+author: oompah
+created: 2026-08-21 09:51
+---
+Verification: All tests pass. Ran 21 tests in test_provider_retirement.py (100% pass) and 381 tests in test_orchestrator_handlers.py (100% pass). The specific test test_pre_provider_evidence_timeout_releases_task_authority which directly tests this timeout behavior passes successfully. The fix correctly prevents error_watcher from being triggered on expected timeout handling.
 ---
 <!-- COMMENTS:END -->
