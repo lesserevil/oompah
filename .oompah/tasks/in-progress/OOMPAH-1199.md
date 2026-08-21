@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:22.979573Z'
-updated_at: '2026-08-21T00:56:21.647010Z'
+updated_at: '2026-08-21T01:25:05.317449Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -296,5 +296,10 @@ author: oompah
 created: 2026-08-21 00:56
 ---
 Implementation Plan: The root cause is that expected operational failures in the worker setup phase (workspace creation, tracker errors, etc.) are being logged with logger.exception() at ERROR level, which triggers error_watcher. The correct behavior is to log these as WARNING level instead. This allows graceful degradation while still preserving error information for debugging. Changes needed: (1) In _run_api_worker exception handler (line ~63575): Change logger.exception() to logger.warning() with exc_info, (2) In _run_acp_worker exception handler (line ~64737): Same change. This preserves traceback info for debugging while preventing error_watcher from auto-filing tasks for normal operational failures.
+---
+author: oompah
+created: 2026-08-21 01:25
+---
+Implementation Complete: Changed logger.exception() to logger.warning(exc_info=True) in both _run_api_worker (line ~63575) and _run_acp_worker (line ~64737) exception handlers. This preserves exception traceback information via exc_info=True for debugging, but prevents ERROR-level logging that triggers error_watcher. Expected operational failures (workspace setup, tracker issues, etc.) are now logged at WARNING level instead of ERROR, preventing auto-filing of tasks during normal operation. Tests verify the fix doesn't break existing functionality.
 ---
 <!-- COMMENTS:END -->
