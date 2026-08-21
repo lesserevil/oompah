@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-21T06:13:03.492520Z'
+updated_at: '2026-08-21T06:20:30.901229Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -262,5 +262,10 @@ author: oompah
 created: 2026-08-21 06:13
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 06:20
+---
+Understanding: Issue OOMPAH-1266 addresses a race condition where a PR merged webhook can arrive before a delayed task submit, causing a late submit to regress an integrated generation back to ready status, bypassing atomic authority fencing. The fix requires: (1) preventing late submits from changing merged reviews back to ready, (2) either preserving exact integrated records using forge-confirmed landed SHA or rejecting stale submits idempotently, (3) fencing terminal fingerprints to prevent deadlocks, (4) regression tests for webhook-before-submit, submit-before-webhook, lost-response retry, restart gaps, mismatched head/base, and concurrent replacements. Starting investigation of submission API, integration queue CAS, webhook reconciliation, and related systems.
 ---
 <!-- COMMENTS:END -->

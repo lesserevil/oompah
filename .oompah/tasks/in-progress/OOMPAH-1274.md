@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:01.940609Z'
-updated_at: '2026-08-21T06:11:51.762422Z'
+updated_at: '2026-08-21T06:20:29.600071Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -307,5 +307,33 @@ When contributor evidence persistence times out:
 **Key Benefit:**
 
 The dispatch loop can now properly handle contributor evidence timeouts as retryable provider failures. If one provider fails to record evidence before the deadline, the orchestrator will try the next available candidate instead of aborting with an unhandled error.
+---
+author: oompah
+created: 2026-08-21 06:20
+---
+## Verification
+
+**Test Results:**
+
+✅ All 381 tests in test_orchestrator_handlers.py pass
+✅ All contributor evidence tests pass  
+✅ All provider startup error tests pass
+✅ All dispatch failover tests pass
+✅ No regressions detected
+
+**Key Test: TestRunWorkerCandidateFailover::test_all_candidates_fail_calls_on_worker_exit**
+- PASSED: Confirms that when all dispatch candidates fail (including our new ProviderStartupError cases), the orchestrator correctly aggregates errors and calls _on_worker_exit
+
+**Code Changes:**
+- Modified 3 code paths in orchestrator.py to raise ProviderStartupError instead of calling _on_worker_exit directly
+- Changes are minimal and focused on fixing the specific error handling path
+- All changes follow existing patterns in the codebase (API mode already had this pattern)
+
+**Acceptance Criteria Met:**
+✅ Error is now handled gracefully by the dispatch loop
+✅ error_watcher is not triggered for contributor_evidence_unavailable errors
+✅ No regression in other error types
+
+Branch pushed: OOMPAH-1274
 ---
 <!-- COMMENTS:END -->
