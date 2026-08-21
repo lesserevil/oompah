@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:14:55.303312Z'
-updated_at: '2026-08-21T07:26:59.116103Z'
+updated_at: '2026-08-21T11:37:28.583889Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,17 +36,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: 'failed to spawn opencode run: OSError(7, ''Argument list too long'')'
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: f3a357c9ee2ac35a9460133e2ff9f4a28d51464d5734bb4742e273f2ff704bf0:146507
+  claim_owner: 94774825-4468-4d75-bdb4-5977b2bd9951
+  claimed_at: '2026-08-21T11:37:14.236539+00:00'
+  claim_expires_at: '2026-08-21T12:07:14.236539+00:00'
   retry_count: 2
-  retry_after: '2026-08-21T07:28:52.657898+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: c6401317-76c2-4b36-b772-f0f6621c34e6
+oompah.agent_run_id: 88fdb32e-1ef6-4c6e-bb6b-697121a73f7c
 oompah.work_contributors:
   runs:
   - run_id: ea683a6ba88042db9986cab111a6413a--contributor-a8b0475e7b09
@@ -146,5 +146,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Opencode/Switchyard/switchyard/
 - Cost: $0.0000
 - Exit: error, Duration: 29s
 - Log: OOMPAH-1288__20260821T072649Z.jsonl
+---
+author: oompah
+created: 2026-08-21 11:37
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
