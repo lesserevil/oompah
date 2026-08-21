@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:51.761397Z'
-updated_at: '2026-08-21T11:00:32.349764Z'
+updated_at: '2026-08-21T11:07:20.229343Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -308,5 +308,24 @@ author: oompah
 created: 2026-08-21 11:00
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 11:07
+---
+## Understanding
+
+This is a timeout issue in the backend orchestrator's `_stage_work_contributor_launch` method. When writing 'pre-provider contributor evidence' (metadata about the provider/model that will be used), the operation times out before the bounded task-authority deadline.
+
+Key findings:
+1. Error originates from oompah/orchestrator.py line 58067
+2. The timeout for writing contributor evidence is calculated as: max(min(control_timeout, termination_timeout / 2.0), 0.05) seconds
+3. Can be overridden by config parameter 'contributor_evidence_persist_timeout_seconds'
+4. Current error shows timeout_seconds=5.0, which is too short for the persistence operation
+
+## Plan
+1. Investigate why the persistence task is timing out
+2. Check the test file to understand expected behavior
+3. Either increase the timeout or optimize the persistence operation
+4. Verify fix with tests and ensure no regression
 ---
 <!-- COMMENTS:END -->
