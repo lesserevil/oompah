@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-21T04:26:20.087098Z'
-work_branch: null
+updated_at: '2026-08-21T04:26:49.139877Z'
+work_branch: OOMPAH-1206
 target_branch: null
 review_url: null
 review_number: null
@@ -79,7 +79,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 0ce55804-aa81-472e-8e29-074ee0181fe3
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 492b9a9720f6490dbdbde0e0652e76a2--contributor-a8b0475e7b09
@@ -130,6 +130,18 @@ oompah.task_costs:
     output_tokens: 2069
     cost_usd: 0.0
     recorded_at: '2026-08-20T23:55:12.184553+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1206
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+  submitted_at: '2026-08-21T04:26:34.909697+00:00'
+  updated_at: '2026-08-21T04:26:34.909697+00:00'
+oompah.work_branch: OOMPAH-1206
 ---
 ## Summary
 
@@ -290,5 +302,10 @@ Test results:
 The fix is minimal and targeted: increasing the default timeout from 30 to 60 seconds gives slow trackers like 'provenanceguardedtracker' more time to complete evidence persistence operations without breaking existing behavior for fast trackers.
 
 Changes committed and pushed to branch OOMPAH-1206.
+---
+author: oompah
+created: 2026-08-21 04:26
+---
+Resolved by increasing contributor_evidence_persist_timeout_seconds from 30 to 60 seconds. Slow trackers like 'provenanceguardedtracker' now have sufficient time to durably persist evidence before dispatch candidates fail. Timeout remains configurable via environment variable.
 ---
 <!-- COMMENTS:END -->
