@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:14:55.303312Z'
-updated_at: '2026-08-21T15:49:34.895806Z'
+updated_at: '2026-08-21T15:54:33.293787Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -302,5 +302,10 @@ author: oompah
 created: 2026-08-21 15:49
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 15:54
+---
+Understanding: error_watcher is auto-filing a bug task for a bounded pre-provider contributor evidence timeout. Plan: locate the exact log line detection + error_watcher task creation path, then ensure this specific bounded timeout is logged as WARNING (or ignored by error_watcher) so it does not create error tasks; add/adjust tests in tests/test_error_watcher.py or orchestrator handler tests to prevent regression.
 ---
 <!-- COMMENTS:END -->
