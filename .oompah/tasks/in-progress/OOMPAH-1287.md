@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:03:14.411853Z'
-updated_at: '2026-08-21T12:28:02.758903Z'
+updated_at: '2026-08-21T12:28:37.952655Z'
 work_branch: OOMPAH-1287
 target_branch: null
 review_url: null
@@ -153,16 +153,16 @@ oompah.work_contributors:
     model_id: haiku
     focus: general
     source_branch: OOMPAH-1287
-    source_sha: null
-    completed_at: ''
+    source_sha: 78bd296c4def08dea1fecb2f04508a1eecf8a7b3
+    completed_at: '2026-08-21T12:28:29.764895+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1742
+  total_input_tokens: 404
+  total_output_tokens: 13222
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1742
+      input_tokens: 404
+      output_tokens: 13222
       cost_usd: 0.0
   runs:
   - profile: default
@@ -171,6 +171,12 @@ oompah.task_costs:
     output_tokens: 1742
     cost_usd: 0.0
     recorded_at: '2026-08-21T03:06:24.932207+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 394
+    output_tokens: 11480
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T12:28:29.760250+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -360,5 +366,15 @@ author: oompah
 created: 2026-08-21 12:27
 ---
 Fixed pre-provider contributor evidence timeout from triggering error_watcher by changing logger.error() to logger.warning() at orchestrator.py:58066. The timeout is a normal handled graceful failure that shouldn't trigger error_watcher auto-filing. All 529 related tests pass.
+---
+author: oompah
+created: 2026-08-21 12:28
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 146, Tool calls: 48
+- Tokens: 394 in / 11.5K out [11.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 28m 1s
+- Log: OOMPAH-1287__20260821T120138Z.jsonl
 ---
 <!-- COMMENTS:END -->
