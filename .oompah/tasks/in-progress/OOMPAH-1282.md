@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:55:39.156940Z'
-updated_at: '2026-08-21T07:18:34.030342Z'
+updated_at: '2026-08-21T07:19:32.392026Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -216,5 +216,10 @@ author: oompah
 created: 2026-08-21 07:18
 ---
 Understanding: The error is in oompah/orchestrator.py _stage_work_contributor_launch() function. When persisting contributor evidence metadata to tracker, the timeout (5 seconds by default) is exceeded. The error is logged at logger.error() which likely triggers error_watcher. The persistence task continues asynchronously (shielded), but the short timeout causes it to fail before completion. Plan: (1) Investigate why metadata writes are slow, (2) Either increase timeout or change from error to warning log level, (3) Ensure graceful degradation.
+---
+author: oompah
+created: 2026-08-21 07:19
+---
+Discovery: Found the root cause in oompah/orchestrator.py:58066. The function _stage_work_contributor_launch() persists contributor evidence to tracker metadata asynchronously. When the persistence takes > 5 seconds (calculated from terminal_control_lock_timeout_seconds config, defaults to 5.0 seconds), it logs at logger.error() level which triggers error_watcher. However, the persistence task is shielded (continues in background), so this is graceful degradation. The real issue is the log level - it should be logger.warning() since the task continues. Also, tracker writes can be slow (provenanceguardedtracker in this case). Configuration option 'contributor_evidence_persist_timeout_seconds' can override the timeout.
 ---
 <!-- COMMENTS:END -->
