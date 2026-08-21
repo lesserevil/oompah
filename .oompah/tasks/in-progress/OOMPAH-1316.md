@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:48:11.061409Z'
-updated_at: '2026-08-21T08:44:02.843147Z'
+updated_at: '2026-08-21T08:45:29.497704Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -191,5 +191,10 @@ author: oompah
 created: 2026-08-21 08:44
 ---
 UNDERSTANDING: The issue is a timeout in backend:orchestrator when trying to persist pre-provider contributor evidence (provider/model identity) to the tracker. The timeout occurs in _stage_work_contributor_launch() when asyncio.wait_for() exceeds persistence_timeout (default ~5sec based on control/termination timeouts, but can be configured). This error is being auto-filed by error_watcher because it's currently logged as ERROR level. The fix involves either: (1) improving tracker write performance, (2) increasing the timeout gracefully, (3) changing the log level/handling so error_watcher doesn't treat it as a reportable error, or (4) documenting this as expected behavior. Starting investigation of error_watcher and timeout configuration.
+---
+author: oompah
+created: 2026-08-21 08:45
+---
+DISCOVERY: Root cause identified in oompah/orchestrator.py:_stage_work_contributor_launch(). When writing pre-provider contributor evidence (provider/model identity) times out (line 58066), a logger.error() is called. This log message gets caught by error_watcher (oompah/error_watcher.py) which auto-files it as a task. However, this timeout is an expected failure scenario during task authority transitions/retirement - it's handled gracefully (returns an error message, releases task authority). Similar cancelled timeout case (line 58102) already uses logger.warning(). Fix: change logger.error() to logger.warning() to prevent error_watcher from filing this as a task.
 ---
 <!-- COMMENTS:END -->
