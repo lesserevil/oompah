@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1250
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Restore GitLab external issue intake for native Markdown projects
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-21T05:22:30.886736Z'
+updated_at: '2026-08-21T05:22:42.541049Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: b14bdf4d-7f07-48e7-bea5-bd9a4c15a754
   request_fingerprint: 35c587882c8a948f1f7683918040d652db1c9e5eb82d33f59e8351c7a160037b
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -118,6 +118,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1250
     source_sha: 2da1c8073e0617b21959af89a4443b9f50c9a1d7
     completed_at: '2026-08-21T01:55:54.249406+00:00'
+  - run_id: bae9008df3dd4b47a1cdcd14bbb182a8--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: docs
+    source_branch: OOMPAH-1250
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1621
