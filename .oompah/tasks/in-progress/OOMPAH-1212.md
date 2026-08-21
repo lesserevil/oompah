@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:42:36.055994Z'
-updated_at: '2026-08-21T00:52:45.681467Z'
+updated_at: '2026-08-21T01:27:12.860063Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -292,5 +292,10 @@ author: oompah
 created: 2026-08-21 00:52
 ---
 **Discovery**: Found the root cause in oompah/orchestrator.py:58052-58069. When writing contributor evidence to the tracker times out (within the bounded task-authority deadline), the orchestrator logs at ERROR level: 'Pre-provider contributor evidence exceeded its bounded task-authority deadline'. This causes error_watcher to auto-file the error as a task. However, this timeout is expected, recoverable behavior - the operation gracefully degrades and retries on the next cycle (see test_provider_retirement.py:444,732 which expect this condition). Similar to OOMPAH-403, this should be logged at WARNING level, not ERROR, to prevent spurious error task filings.
+---
+author: oompah
+created: 2026-08-21 01:27
+---
+**Implementation**: Changed logging level from ERROR to WARNING at oompah/orchestrator.py:58052 for the 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' condition. This prevents error_watcher from auto-filing spurious tasks for an expected, recoverable timeout condition. The operation gracefully degrades and retries on the next cycle.
 ---
 <!-- COMMENTS:END -->

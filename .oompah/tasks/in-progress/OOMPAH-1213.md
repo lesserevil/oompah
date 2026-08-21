@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:50:52.786229Z'
-updated_at: '2026-08-21T01:26:56.135811Z'
+updated_at: '2026-08-21T01:27:18.192197Z'
 work_branch: OOMPAH-1213
 target_branch: null
 review_url: null
@@ -71,7 +71,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 01ca0e35-2eee-4f50-be7e-cd6fdb56456f
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 870f0c6888f64cd6a7b94e873ceffc23--contributor-4256b9f40773
@@ -335,5 +335,10 @@ Summary:
 - Fixed: Retry timer arming timeout (line 70920)
 - Both functions now use 5.0 second timeout instead of 1.0 second
 - Maintains fail-closed semantics while reducing spurious timeouts
+---
+author: oompah
+created: 2026-08-21 01:27
+---
+Fixed restart recovery publication timeout issue by increasing timeout from 1s to 5s in two locations: _schedule_restart_issue_recovery_for_resume() (line 9608) and _arm_retry_timer_for_recovery() (line 70920). The overly aggressive 1-second timeout caused spurious failures under production load when event loops were busy. The 5-second timeout provides sufficient time for reliable cross-thread event loop publication while maintaining fail-closed semantics. All related test suites pass without regression.
 ---
 <!-- COMMENTS:END -->

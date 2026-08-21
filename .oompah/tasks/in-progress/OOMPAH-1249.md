@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:07:17.780951Z'
-updated_at: '2026-08-21T00:36:45.734244Z'
+updated_at: '2026-08-21T01:27:15.202484Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -211,5 +211,32 @@ created: 2026-08-21 00:36
 - Tests: test_managed_git_credentials.py, test_git_remote_safety.py
 
 **Next: Find all clone creation points and implement sanitization.
+---
+author: oompah
+created: 2026-08-21 01:27
+---
+**Discovery & Implementation:**
+
+1. Created sanitize_managed_clone_credentials() function in oompah/git_credentials.py that:
+   - Removes HTTP(S) remote URL userinfo  
+   - Removes credential.helper entries and variants
+   - Removes http.*.extraheader entries  
+   - Optionally normalizes remotes to canonical credential-free URLs
+   - Is idempotent and fail-tolerant
+
+2. Integrated sanitization into:
+   - ProjectStore.create() after clone/fetch setup
+   - _create_epic_worktree_locked() when creating new epic worktrees
+   - _prepare_existing_epic_worktree() when preparing existing worktrees
+
+3. Created 6 regression tests covering:
+   - HTTP userinfo removal
+   - Credential helper removal
+   - Extraheader removal
+   - Canonical URL normalization
+   - Idempotency
+   - Multi-remote handling
+
+All 18 tests in test_managed_git_credentials.py passing. Next: verify preflight check integration and test direct rebase flow.
 ---
 <!-- COMMENTS:END -->
