@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:16:51.487733Z'
-updated_at: '2026-08-21T12:16:44.624812Z'
+updated_at: '2026-08-21T12:28:17.080309Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -251,5 +251,31 @@ Expected: Either increase timeout or handle gracefully
 The comment in the code says "production raises it well above the derived control floor" suggesting this should be configurable.
 
 Next: Investigate timeout calculation and propose fix.
+---
+author: oompah
+created: 2026-08-21 12:28
+---
+**IMPLEMENTATION**
+
+Fixed the persistence timeout issue in oompah/orchestrator.py (_stage_work_contributor_launch).
+
+**Root Cause:**
+The code was calculating a default persistence timeout (5 seconds) based on control_timeout, which is meant for lock acquisition, not for persistence operations. This 5-second timeout was too short for tracker write operations under load.
+
+**The Fix:**
+Changed the timeout logic to:
+1. Use the configured value (contributor_evidence_persist_timeout_seconds) as the primary source
+2. Fall back to 30.0 seconds (production sensible default) instead of the calculated 5.0 seconds
+3. Removed the constraint that bound it to control_timeout, which is unrelated to persistence speed
+
+**Before:**
+- Calculated: max(min(5.0, 5.0), 0.05) = 5.0 seconds
+- Then checked config, but if getattr failed, used the calculated 5.0 seconds
+
+**After:**
+- Directly use configured value (30.0 default) or fall back to 30.0 seconds
+- Much more robust and ensures persistence has adequate time
+
+All existing tests pass, including tests that explicitly test timeout behavior.
 ---
 <!-- COMMENTS:END -->
