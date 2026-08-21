@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:16:42.294156Z'
-updated_at: '2026-08-21T07:53:44.108574Z'
-work_branch: null
+updated_at: '2026-08-21T07:54:06.548531Z'
+work_branch: OOMPAH-1289
 target_branch: null
 review_url: null
 review_number: null
@@ -75,7 +75,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 77b0bfdf-de8c-4968-9bad-0cfce1ce9025
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 11fe845b71de4aacb6a921c27c2b0242--contributor-4256b9f40773
@@ -118,6 +118,18 @@ oompah.task_costs:
     output_tokens: 1644
     cost_usd: 0.0
     recorded_at: '2026-08-21T03:07:17.085214+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1289
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: c0bc20a830a6ae213794539391a5c57b8d416e58
+  submitted_at: '2026-08-21T07:53:56.677790+00:00'
+  updated_at: '2026-08-21T07:53:56.677790+00:00'
+oompah.work_branch: OOMPAH-1289
 ---
 ## Summary
 
@@ -234,5 +246,10 @@ created: 2026-08-21 07:53
 - test_error_watcher_orchestrator.py: 13/13 ✓ (orchestrator-error_watcher integration works)
 
 The fix is complete: evidence persistence timeouts no longer trigger error_watcher because they're now logged as WARNING instead of ERROR. The timeout behavior and error handling remain unchanged - the system still handles timeouts gracefully and retries. The change only prevents the spurious auto-filed bug reports.
+---
+author: oompah
+created: 2026-08-21 07:54
+---
+Fixed contributor evidence timeout to log as WARNING instead of ERROR, preventing spurious error_watcher reports. Changed logger.error() to logger.warning() in orchestrator.py line 58066. Added test to verify the fix. All tests pass.
 ---
 <!-- COMMENTS:END -->
