@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:53:11.407767Z'
-updated_at: '2026-08-21T13:40:54.657797Z'
+updated_at: '2026-08-21T13:53:27.975147Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -332,5 +332,10 @@ author: oompah
 created: 2026-08-21 13:40
 ---
 IMPLEMENTATION: Fixed the issue by changing logger.error to logger.warning at line 58066 in oompah/orchestrator.py. The pre-provider contributor evidence persistence timeout is a graceful degradation where work retries, not a critical error. By lowering the log level from ERROR to WARNING, error_watcher will no longer auto-file tasks for this transient timeout. The cancelled_contributor_evidence_timeout case already uses WARNING level, confirming this is the correct approach. Verified with 381 orchestrator handler tests passing.
+---
+author: oompah
+created: 2026-08-21 13:53
+---
+VERIFICATION: Ran multiple test suites to verify the fix causes no regressions: (1) test_error_watcher_orchestrator.py: 13 tests PASSED (2) test_orchestrator_handlers.py: 381 tests PASSED (3) test_orchestrator_thread.py: 3 tests PASSED (4) test_provenance_suppression_orchestrator.py: 21 tests PASSED. Total: 418 tests passed with no failures. The fix is minimal and focused: a single log level change from ERROR to WARNING that prevents transient timeout conditions from triggering error_watcher.
 ---
 <!-- COMMENTS:END -->
