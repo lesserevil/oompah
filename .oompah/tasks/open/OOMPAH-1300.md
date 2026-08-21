@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:03:07.024179Z'
-updated_at: '2026-08-21T03:39:01.664306Z'
+updated_at: '2026-08-21T03:39:18.327028Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,13 +36,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: a3ff2b9a126f9c4eb0516dc1b897de8a166a66f03e0ef517d89ac364e81f9a53:142929
-  claim_owner: 884c7b0a-4fe0-4acd-9fe6-041416485094
-  claimed_at: '2026-08-21T03:36:23.737189+00:00'
-  claim_expires_at: '2026-08-21T04:06:23.737189+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: 'RuntimeError: Codex exec exited with code 1:'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 1
+  retry_after: '2026-08-21T03:39:57.330712+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
