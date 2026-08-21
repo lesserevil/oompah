@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:59:49.640067Z'
-updated_at: '2026-08-21T15:59:04.150322Z'
-work_branch: null
+updated_at: '2026-08-21T15:59:32.446517Z'
+work_branch: OOMPAH-1284
 target_branch: null
 review_url: null
 review_number: null
@@ -90,7 +90,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 0588de22-2f74-403c-ac12-885eef7c7523
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: fcf7b8f2b92942558ed3849a38845226--contributor-a8b0475e7b09
@@ -141,6 +141,18 @@ oompah.task_costs:
     output_tokens: 1355
     cost_usd: 0.0
     recorded_at: '2026-08-21T07:04:02.112702+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1284
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: 3d5e73f8a962713087619ea661ed51ae771c0833
+  submitted_at: '2026-08-21T15:59:12.677625+00:00'
+  updated_at: '2026-08-21T15:59:12.677625+00:00'
+oompah.work_branch: OOMPAH-1284
 ---
 ## Summary
 
@@ -335,5 +347,10 @@ The fix addresses all acceptance criteria:
 1. ✓ The error no longer triggers error_watcher (logging level changed to WARNING)
 2. ✓ Root cause identified and resolved (inconsistent logging level)
 3. ✓ No regression in other error types (all error_watcher tests pass)
+---
+author: oompah
+created: 2026-08-21 15:59
+---
+Fixed contributor_evidence_timeout error logging to prevent false error_watcher triggers. Changed logging level from ERROR to WARNING since this is a graceful degradation where the persistence task continues in the background and the issue is retried.
 ---
 <!-- COMMENTS:END -->
