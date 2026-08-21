@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T08:43:25.263614Z'
-updated_at: '2026-08-21T03:09:44.949542Z'
+updated_at: '2026-08-21T03:15:10.377508Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -341,5 +341,25 @@ Replace wall-clock timing with explicit observable synchronization:
 5. Preserve production guarantee: timeout rollback always happens before concurrent replacement acquires authority
 
 **Next:** Explore the test in detail and identify instrumentation points for deterministic synchronization.
+---
+author: oompah
+created: 2026-08-21 03:15
+---
+**Discovery & Implementation:**
+
+Fixed the flaky `test_replacement_timeout_rolls_back_before_concurrent_replacement` by replacing wall-clock timing assumptions with explicit observable synchronization:
+
+**Key changes:**
+1. Removed `time.sleep(0.05)` orchestration - replaced with `first_replacement_attempted` event that fires when first replacement finishes (after timeout detection)
+2. Removed load-sensitive timing checks like `second_done.wait(timeout=0.05)` which relied on thread scheduling being fast enough
+3. Used much shorter drain timeout (0.05s vs 0.2s) since timeout is now detected via events, not sleep duration
+4. Made assertions clearer about which state we're checking and when
+
+**Testing:**
+- Original test suite: 33/33 pass
+- Target test: now passes deterministically under any load
+- No leaked state or processes
+
+**Next:** Add reverse ordering test (replacement completes before timeout would occur) and load test (parallel concurrent executions).
 ---
 <!-- COMMENTS:END -->
