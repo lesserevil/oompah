@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:55:23.301399Z'
-updated_at: '2026-08-21T08:55:04.930806Z'
+updated_at: '2026-08-21T09:00:31.988461Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -194,5 +194,39 @@ The backend:orchestrator is encountering a timeout error: 'Pre-provider contribu
 6. Verify the fix doesn't break existing functionality
 
 Starting investigation now.
+---
+author: oompah
+created: 2026-08-21 09:00
+---
+## Discovery: Root Cause Identified
+
+Found the error in oompah/orchestrator.py at line 58067 in `_stage_work_contributor_launch()`. 
+
+**The Issue:**
+The code attempts to persist contributor evidence (provider/model info) to the tracker within a bounded timeout. When this times out, it logs the error and retires the pre-provider runtime.
+
+**Timeout Calculation Bug:**
+The timeout is calculated as:
+- control_timeout = 5.0 seconds (default)
+- termination_timeout = 10.0 seconds (10_000ms / 1000)
+- persistence_timeout = max(min(5.0, 10.0/2), 0.05) = 5.0 seconds
+
+Then it checks for a configured value via:
+```python
+configured_evidence_timeout = getattr(self.config, 'contributor_evidence_persist_timeout_seconds', None)
+```
+
+**The Problem:**
+When configured_evidence_timeout is None (attribute not found), the code falls back to 5.0 seconds. However, persisting evidence to a remote tracker can legitimately take longer than 5 seconds, especially under load or with slow tracker backends.
+
+The default configured value should be 30.0 seconds, but either:
+1. The attribute isn't being set correctly on the config object, OR
+2. The fallback timeout of 5.0 is too aggressive for normal tracker operations
+
+**Solution:**
+Need to either:
+1. Increase the fallback timeout (current floor calculation is too low)
+2. Ensure the configured value is always used
+3. Use the default value (30.0) as the fallback instead of deriving a floor
 ---
 <!-- COMMENTS:END -->
