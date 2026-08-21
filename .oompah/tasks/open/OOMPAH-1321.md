@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:13:00.356484Z'
-updated_at: '2026-08-21T09:47:23.128530Z'
+updated_at: '2026-08-21T10:01:28.912651Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -196,5 +196,10 @@ author: oompah
 created: 2026-08-21 09:47
 ---
 Implementation: Changed logger.error() to logger.warning() in orchestrator.py line 58066 for the contributor_evidence_timeout case. This timeout is expected during pre-provider retirement and is already handled gracefully by returning a clear error message. Logging it at WARNING level instead of ERROR prevents error_watcher from auto-filing it as a task, while preserving the operational visibility needed for debugging.
+---
+author: oompah
+created: 2026-08-21 10:01
+---
+Verification: All tests pass (21 tests in test_provider_retirement.py + 124 tests in test_error_watcher.py). The change from logger.error() to logger.warning() is minimal and surgical - it prevents error_watcher from auto-filing the timeout as a task while preserving operational visibility through WARNING level logging and proper error return messages.
 ---
 <!-- COMMENTS:END -->
