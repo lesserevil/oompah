@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-21T02:00:12.017564Z'
+updated_at: '2026-08-21T02:16:27.234809Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -237,5 +237,19 @@ author: oompah
 created: 2026-08-21 02:00
 ---
 Discovery: Found potential root cause. The 'Cannot operate on a closed database' error likely occurs during orchestrator replacement. When a new orchestrator replaces the old one via set_orchestrator(), the old orchestrator's SQLite stores (coordination_store, integration_queue, etc.) may be garbage collected. This can cause their database connections to be implicitly closed by Python's finalizer while API threads still hold references to those stores and try to access them. The issue is that there's no explicit lifecycle management to prevent this race condition.
+---
+author: oompah
+created: 2026-08-21 02:16
+---
+Implementation: Added connection recovery mechanism to SQLite stores (CoordinationStore, IntegrationQueueStore, ReviewCapacityStore, WorkflowJobStore, TaskTransitionService, and ImplementationWorkflowAdapter).
+
+Changes:
+1. Added _ensure_conn() method to all SQLite-based stores
+2. Method detects closed database connections and automatically re-opens them
+3. Added _ensure_conn() calls before every database operation in the critical paths
+
+This prevents 'Cannot operate on a closed database' errors when orchestrator instances are replaced and old stores are garbage collected while API threads still hold references to them.
+
+The fix handles the race condition described in OOMPAH-1224 where database connections can be implicitly closed by Python's garbage collector during orchestrator replacement, while active API requests still try to use those connections.
 ---
 <!-- COMMENTS:END -->
