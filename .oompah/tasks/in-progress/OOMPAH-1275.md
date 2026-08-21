@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1275
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue OOMPAH-1198:
   All 2 dispatch candidates unavailable: prov-651d553c/haiku: contributor_evidence_unavailable:
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:19.724794Z'
-updated_at: '2026-08-21T06:13:06.769101Z'
+updated_at: '2026-08-21T06:13:24.230975Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -88,6 +88,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1275
     source_sha: 2da1c8073e0617b21959af89a4443b9f50c9a1d7
     completed_at: '2026-08-21T02:39:56.448425+00:00'
+  - run_id: b7459bb6db214fd8b8156cc372ee9a97--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: general
+    source_branch: OOMPAH-1275
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1712
@@ -170,5 +178,10 @@ author: oompah
 created: 2026-08-21 06:13
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-21 06:13
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
