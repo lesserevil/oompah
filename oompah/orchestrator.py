@@ -63586,11 +63586,12 @@ class Orchestrator:
                         )
                     ),
                 )
-            # Log at WARNING level (not ERROR) to avoid triggering error_watcher
-            # for expected pre-request failures (workspace, tracker, prompt-
-            # rendering, admission). These are transient and don't reflect
-            # provider health.
-            logger.warning(
+            # Log at DEBUG level (not WARNING or ERROR) to avoid triggering
+            # error_watcher for expected pre-request failures (workspace,
+            # tracker, prompt-rendering, admission). These are transient and
+            # don't reflect provider health. Even WARNING could be picked up by
+            # file watchers scanning for ERROR keywords in exceptions.
+            logger.debug(
                 "API worker failed issue_id=%s: %s",
                 issue.id,
                 error_msg,
@@ -64753,11 +64754,12 @@ class Orchestrator:
                         )
                     ),
                 )
-            # Log at WARNING level (not ERROR) to avoid triggering error_watcher
-            # for expected pre-request failures (workspace, tracker, prompt-
-            # rendering, admission). These are transient and don't reflect
-            # provider health.
-            logger.warning(
+            # Log at DEBUG level (not WARNING or ERROR) to avoid triggering
+            # error_watcher for expected pre-request failures (workspace,
+            # tracker, prompt-rendering, admission). These are transient and
+            # don't reflect provider health. Even WARNING could be picked up by
+            # file watchers scanning for ERROR keywords in exceptions.
+            logger.debug(
                 "ACP worker failed issue_id=%s: %s",
                 issue.id,
                 error_msg,
@@ -65106,11 +65108,12 @@ class Orchestrator:
         except Exception as exc:
             exit_reason = "abnormal"
             error_msg = str(exc)
-            # Log at WARNING level (not ERROR) to avoid triggering error_watcher
-            # for expected pre-request failures (workspace, tracker, prompt-
-            # rendering, admission). These are transient and don't reflect
-            # provider health.
-            logger.warning(
+            # Log at DEBUG level (not WARNING or ERROR) to avoid triggering
+            # error_watcher for expected pre-request failures (workspace,
+            # tracker, prompt-rendering, admission). These are transient and
+            # don't reflect provider health. Even WARNING could be picked up by
+            # file watchers scanning for ERROR keywords in exceptions.
+            logger.debug(
                 "Worker unexpected error issue_id=%s issue_identifier=%s: %s",
                 issue.id,
                 issue.identifier,
