@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:37:52.344051Z'
-updated_at: '2026-08-21T09:57:50.927534Z'
-work_branch: null
+updated_at: '2026-08-21T10:00:50.496386Z'
+work_branch: OOMPAH-1211
 target_branch: null
 review_url: null
 review_number: null
@@ -146,6 +146,18 @@ oompah.task_costs:
     output_tokens: 2691
     cost_usd: 0.0
     recorded_at: '2026-08-21T05:00:07.445865+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1211
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: f8b4a73d35bb57f475bd4daba90dc7725346d955
+  submitted_at: '2026-08-21T10:00:28.945385+00:00'
+  updated_at: '2026-08-21T10:00:28.945385+00:00'
+oompah.work_branch: OOMPAH-1211
 ---
 ## Summary
 
@@ -332,5 +344,10 @@ This ensures that:
 - test_provider_retirement.py: All 21 tests pass
 - test_orchestrator_handlers.py: All 381 tests pass
 - No regressions detected
+---
+author: oompah
+created: 2026-08-21 10:00
+---
+Fixed pre-provider contributor evidence timeout by ensuring the fallback timeout is 30.0 seconds instead of 5.0 seconds. Changed getattr default from None to 30.0 to match the config class default. All 402 affected tests pass.
 ---
 <!-- COMMENTS:END -->
