@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:41:20.057099Z'
-updated_at: '2026-08-21T10:23:23.157137Z'
+updated_at: '2026-08-21T10:23:29.401652Z'
 work_branch: OOMPAH-1272
 target_branch: null
 review_url: null
@@ -114,13 +114,13 @@ oompah.work_contributors:
     source_sha: 69426c5bc220edd29642f6e969bcbac378d86fa7
     completed_at: '2026-08-21T10:23:09.688198+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1881
+  total_input_tokens: 388
+  total_output_tokens: 15081
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1881
+      input_tokens: 388
+      output_tokens: 15081
       cost_usd: 0.0
   runs:
   - profile: default
@@ -129,6 +129,12 @@ oompah.task_costs:
     output_tokens: 1881
     cost_usd: 0.0
     recorded_at: '2026-08-21T02:26:57.590222+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 378
+    output_tokens: 13200
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T10:23:09.634862+00:00'
 oompah.integration:
   version: 2
   state: ready
