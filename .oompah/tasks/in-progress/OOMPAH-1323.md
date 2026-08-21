@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:18:43.804044Z'
-updated_at: '2026-08-21T11:23:31.675775Z'
+updated_at: '2026-08-21T11:23:59.098876Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -232,5 +232,10 @@ author: oompah
 created: 2026-08-21 11:23
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 11:23
+---
+Understanding: The normal pre-provider contributor-evidence deadline is being emitted at error severity and auto-filed. I will trace the deadline path and error watcher, make timeout degradation explicit/non-error without masking unrelated errors, add regression coverage, and run focused checks.
 ---
 <!-- COMMENTS:END -->
