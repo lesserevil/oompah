@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:15:47.974297Z'
-updated_at: '2026-08-21T00:15:34.165665Z'
+updated_at: '2026-08-21T00:15:54.688431Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,13 +36,14 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 46f4267f4dc17758a82dd10f05eb61bef0d1480f218a45ca887d546f69dd764c:142468
-  claim_owner: b0161d82-55d7-4b08-9b68-ee54b4e13c9c
-  claimed_at: '2026-08-21T00:13:22.929219+00:00'
-  claim_expires_at: '2026-08-21T00:43:22.929219+00:00'
-  retry_count: 1
-  retry_after: null
+  evidence: ACP provider launch was blocked because live auditor policy changed during
+    admission
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 2
+  retry_after: '2026-08-21T00:17:30.492447+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
