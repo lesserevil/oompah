@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-21T14:40:04.185347Z'
+updated_at: '2026-08-21T14:50:54.159147Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -260,5 +260,10 @@ author: oompah
 created: 2026-08-21 14:40
 ---
 UNDERSTANDING: The operational impact is cleared (tasks moved Open). The root cause is that external Update-issue requests were escalating trickle md-tracker tasks to Needs Human via the durable transition engine, bypassing the status-label guard (which only applies to github_issues/gitlab_issues trackers). My plan: (1) Instrument the durable transition engine to log authority/actor/source for Needs Human transitions; (2) Add a guard to validate or track external escalations; (3) Write a regression test for push-hook-driven Needs Human on epic children.
+---
+author: oompah
+created: 2026-08-21 14:50
+---
+DISCOVERY: Found the transition flow. TransitionIntent already has actor/authority fields. Transitions to Needs Human go through: api_update_issue -> _apply_task_status_transition -> orch._transition_issue_status -> TaskTransitionService.execute -> _execute_claimed. The _execute_claimed method in TaskTransitionService is where the actual tracker.update_issue is called. I will instrument this method to log Needs Human transitions with actor/authority/reason_code to capture external sources.
 ---
 <!-- COMMENTS:END -->
