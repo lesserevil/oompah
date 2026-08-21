@@ -58029,10 +58029,12 @@ class Orchestrator:
                 # contributor_evidence_unavailable and starving implementation
                 # dispatch.  When configured it is authoritative (production
                 # raises it well above the derived control floor).
+                # Use the configured timeout if available, otherwise default to
+                # 30.0 seconds to give slow tracker writes adequate time.
                 configured_evidence_timeout = getattr(
                     self.config,
                     "contributor_evidence_persist_timeout_seconds",
-                    None,
+                    30.0,
                 )
                 if configured_evidence_timeout is not None:
                     persistence_timeout = max(

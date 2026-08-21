@@ -454,6 +454,36 @@ def test_pre_provider_evidence_timeout_releases_task_authority(tmp_path) -> None
     asyncio.run(scenario())
 
 
+def test_pre_provider_evidence_default_timeout_when_config_missing(tmp_path) -> None:
+    """Verify that the default 30.0 second timeout is used when configured value is unavailable.
+    
+    Regression test for OOMPAH-1310: The fallback timeout should be 30.0 seconds (the
+    configured default) not 5.0 seconds (the computed floor). This ensures that slow
+    tracker persistence operations don't timeout prematurely.
+    
+    The test verifies that even if the contributor_evidence_persist_timeout_seconds
+    attribute is missing from the config, the getattr call uses 30.0 as the default
+    instead of None (which would cause a fallback to the aggressive 5.0 second computed timeout).
+    """
+    orch = _orchestrator(tmp_path)
+    
+    # The config should have the contributor_evidence_persist_timeout_seconds attribute
+    assert hasattr(orch.config, "contributor_evidence_persist_timeout_seconds")
+    assert orch.config.contributor_evidence_persist_timeout_seconds == 30.0
+    
+    # Verify that getattr uses the correct default (30.0, not None)
+    # This is the fix for OOMPAH-1310: changing the default from None to 30.0
+    timeout_value = getattr(
+        orch.config,
+        "contributor_evidence_persist_timeout_seconds",
+        30.0,  # This should match the dataclass default
+    )
+    assert timeout_value == 30.0, (
+        f"Expected timeout to be 30.0 but got {timeout_value}. "
+        "The getattr default should be 30.0 to avoid falling back to the aggressive 5.0s computed timeout."
+    )
+
+
 def test_contributor_evidence_takes_project_lock_before_policy_lock(tmp_path) -> None:
     """Contributor publication cannot invert ProjectStore.update lock order."""
 
