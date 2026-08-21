@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1256
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 2
 title: '[backend:server] Add comment API error: ProjectError(''Unknown project'')'
 parent: null
@@ -12,14 +12,14 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-21T14:55:58.001446Z'
+updated_at: '2026-08-21T14:56:19.218427Z'
 work_branch: OOMPAH-1256
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
