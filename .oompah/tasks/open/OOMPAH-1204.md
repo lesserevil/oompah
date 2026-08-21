@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:25:06.282819Z'
-updated_at: '2026-08-21T01:13:48.628819Z'
+updated_at: '2026-08-21T01:14:01.476387Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,13 +36,19 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 219a20bfd25edb04b9ca4095a1f4284bc1166b2bb4f481f9af97f0c7c65662ce:142754
-  claim_owner: b0161d82-55d7-4b08-9b68-ee54b4e13c9c
-  claimed_at: '2026-08-21T01:11:37.394515+00:00'
-  claim_expires_at: '2026-08-21T01:41:37.394515+00:00'
-  retry_count: 2
-  retry_after: null
+  evidence: 'All 2 dispatch candidates unavailable: prov-52e94e83/gpt-5.6-luna: contributor_evidence_unavailable:
+    Cannot durably record exact contributor provider/model evidence before the bounded
+    task-authority deadline. The pre-provider runtime was retired for retry; no provider
+    or workspace was started.; prov-651d553c/haiku: contributor_evidence_unavailable:
+    Cannot durably record exact contributor provider/model evidence before the bounded
+    task-authority deadline. The pre-provider runtime was retired for retry; no provider
+    or workspace was started.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-08-21T01:17:45.545356+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -184,5 +190,10 @@ Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 1m 51s
+---
+author: oompah
+created: 2026-08-21 01:14
+---
+Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-1204/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
 ---
 <!-- COMMENTS:END -->
