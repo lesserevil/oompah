@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:56:45.420158Z'
-updated_at: '2026-08-21T07:00:07.039685Z'
+updated_at: '2026-08-21T07:00:18.610929Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,13 +36,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 017dbd634c4b98cae3d1ea283e91f7be8b2347788f2871bfbfaee5fac03acc52:144200
-  claim_owner: 94774825-4468-4d75-bdb4-5977b2bd9951
-  claimed_at: '2026-08-21T06:59:40.635399+00:00'
-  claim_expires_at: '2026-08-21T07:29:40.635399+00:00'
+  evidence: Duplicate screening worker was terminated.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 1
-  retry_after: null
+  retry_after: '2026-08-21T07:00:12.631301+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -123,5 +123,14 @@ author: oompah
 created: 2026-08-21 07:00
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-21 07:00
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10s
 ---
 <!-- COMMENTS:END -->
