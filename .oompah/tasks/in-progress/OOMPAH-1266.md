@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-21T06:38:41.234170Z'
+updated_at: '2026-08-21T06:38:50.152259Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -290,5 +290,10 @@ author: oompah
 created: 2026-08-21 06:38
 ---
 Implementation complete: Fenced late task submission from regressing landed integration authority with atomic authority fence in _submission_record() to preserve integrated records on same-generation submits. Added 3 regression tests. All tests pass.
+---
+author: oompah
+created: 2026-08-21 06:38
+---
+Completion: OOMPAH-1266 submitted for integration at commit dea44bc88. Implementation adds fence to prevent late task submits from regressing integrated records. All regression tests pass. Changes: (1) _submission_record() in server.py adds check to preserve integrated state for same-generation late submits, (2) 3 new regression tests verify webhook-before-submit, new-head reflow, and same-generation idempotency. Exact landed authority is now monotonic and terminal fingerprint remains stable across late submit races.
 ---
 <!-- COMMENTS:END -->
