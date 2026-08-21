@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:19:59.169133Z'
-updated_at: '2026-08-21T08:18:28.175312Z'
+updated_at: '2026-08-21T08:20:35.743103Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -198,5 +198,10 @@ author: oompah
 created: 2026-08-21 08:18
 ---
 **Implementation**: Changed logger.error() to logger.warning() at oompah/orchestrator.py:58066. The pre-provider contributor evidence timeout is an expected, handled scenario that gracefully returns an error message. Using logger.warning() preserves audit trail while preventing error_watcher from auto-filing false-positive tasks. All tests pass: test_provider_retirement.py (21 tests) and test_error_watcher_orchestrator.py (13 tests).
+---
+author: oompah
+created: 2026-08-21 08:20
+---
+**Verification**: Commit 2212be8ec pushed to OOMPAH-1308 branch. All relevant tests pass. The fix changes a single logger.error() call to logger.warning() for an expected timeout scenario, ensuring error_watcher won't auto-file false-positive tasks while preserving operator visibility of the condition via warning-level logging.
 ---
 <!-- COMMENTS:END -->
