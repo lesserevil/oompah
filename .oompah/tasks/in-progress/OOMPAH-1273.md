@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:41:44.906086Z'
-updated_at: '2026-08-21T05:53:26.397339Z'
+updated_at: '2026-08-21T05:56:35.917003Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -185,5 +185,21 @@ author: oompah
 created: 2026-08-21 05:53
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 05:56
+---
+## Understanding
+
+This issue is about an error message from the orchestrator that's being caught by error_watcher and auto-filed as a task when it shouldn't be.
+
+The error message: 'Pre-provider contributor evidence exceeded its bounded task-authority deadline...' is logged at ERROR level in oompah/orchestrator.py around line 58067 in the _stage_work_contributor_launch function. 
+
+**Key finding:** This is not an unhandled error. The code logs the error gracefully and then returns a user-friendly message explaining the failure. However, the ERROR-level logging itself triggers error_watcher to create a task, which is the root cause of the issue.
+
+**Planned approach:**
+1. Change this ERROR log to WARNING level (since it's a known, expected failure case)
+2. Verify tests pass
+3. Confirm error_watcher doesn't create a task anymore for this known condition
 ---
 <!-- COMMENTS:END -->
