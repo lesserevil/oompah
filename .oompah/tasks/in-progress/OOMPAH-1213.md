@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1213
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Restart recovery persistence failed closed: restart
   recovery publication was not acknowledged'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:50:52.786229Z'
-updated_at: '2026-08-20T23:59:41.862474Z'
+updated_at: '2026-08-20T23:59:51.639008Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -82,6 +82,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1213
     source_sha: 02bd5960434a5c65dce259894737a55ab7a8ea96
     completed_at: '2026-08-20T22:55:42.068151+00:00'
+  - run_id: 366dc2e64db34a00afe4fb85a61699d4--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: general
+    source_branch: OOMPAH-1213
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2412
