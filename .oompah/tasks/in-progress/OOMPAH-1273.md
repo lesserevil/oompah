@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:41:44.906086Z'
-updated_at: '2026-08-21T06:04:08.995221Z'
+updated_at: '2026-08-21T06:04:23.492102Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -223,5 +223,20 @@ However, because it's logged at ERROR level, the error_watcher's logging handler
 - Line 58102-58119: 'Cancelled pre-provider contributor evidence' uses logger.warning()
 
 So this ERROR log is inconsistent with the pattern for known, handled failures in the same function.
+---
+author: oompah
+created: 2026-08-21 06:04
+---
+## Implementation
+
+Changed the logging level from ERROR to WARNING at line 58066 in oompah/orchestrator.py for the 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' message.
+
+This change:
+- ✅ Prevents error_watcher from creating tasks for this expected, handled failure
+- ✅ Maintains consistency with similar handled failures in the same function
+- ✅ Still logs the event for diagnostics (as WARNING instead of ERROR)
+- ✅ Preserves the structured logging context with pre_provider_retirement reason
+
+The change aligns with the project's error classification philosophy where known, handled failures should log at WARNING level, while unexpected/unhandled errors log at ERROR level.
 ---
 <!-- COMMENTS:END -->
