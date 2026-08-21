@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:40:39.902883Z'
-updated_at: '2026-08-21T16:22:04.777650Z'
+updated_at: '2026-08-21T16:30:16.827415Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -251,5 +251,10 @@ author: oompah
 created: 2026-08-21 16:22
 ---
 Discovery: Found the error in oompah/orchestrator.py _stage_work_contributor_launch() at line 58043-58046. The persistence timeout calculation uses min(control_timeout, termination_timeout/2.0)=5.0s. The configured default should be 60s from config.py, but code shows it's not being used (getattr with None default). Investigating why configured timeout isn't being applied.
+---
+author: oompah
+created: 2026-08-21 16:30
+---
+Implementation: Fixed the pre-provider contributor evidence timeout calculation in oompah/orchestrator.py _stage_work_contributor_launch(). Changed line 58023-58026 from 'max(min(control_timeout, termination_timeout/2.0), 0.05)' to 'max(termination_timeout, 5.0)'. This increases the default fallback timeout from 5.0s to 10.0s (when termination_timeout=10s), allowing persistence operations more time to complete. The configured 60-second timeout still overrides this fallback in production.
 ---
 <!-- COMMENTS:END -->
