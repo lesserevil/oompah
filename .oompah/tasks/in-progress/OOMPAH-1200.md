@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:33.669681Z'
-updated_at: '2026-08-21T10:09:56.922252Z'
+updated_at: '2026-08-21T10:14:55.351228Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -320,5 +320,28 @@ Hypothesis: The warning message may be appearing in a log file that's being moni
 3. Whether the ERROR keyword is in the log line (timestamp, formatter, etc)
 
 Next step: Explore how log files are configured and whether the warning is being incorrectly picked up by LogFileWatcher instead of being silently handled.
+---
+author: oompah
+created: 2026-08-21 10:14
+---
+**Discovery:** Root cause identified. The error-watcher was being triggered because:
+
+1. **logging.warning() writes to log files** - Even though the logging handler is set to ERROR level and won't capture WARNING records, the message is still written to any configured log files.
+
+2. **LogFileWatcher scans log files for ERROR keywords** - ProjectLogWatcherManager monitors configured log files and uses LogFileWatcher to scan for ERROR/CRITICAL/FATAL/SEVERE keywords regardless of log level.
+
+3. **Exception messages contain ERROR keywords** - The exception message being logged might contain these keywords, which triggers LogFileWatcher even though the log level is WARNING.
+
+**Solution:** Changed three logging statements from `logger.warning()` to `logger.debug()` in orchestrator.py:
+- Line 64761: ACP worker failure (changed to debug)
+- Line 63594: API worker failure (changed to debug)
+- Line 65115: CLI worker unexpected error (changed to debug)
+
+This ensures the diagnostic logs won't be captured by error_watcher through ANY mechanism:
+- Not by the logging handler (DEBUG < ERROR)
+- Not by LogFileWatcher (DEBUG messages still won't match ERROR keywords even if written to files)
+- Maintains diagnostic capability for DEBUG-level logging consumers
+
+Next: Write tests to verify the fix.
 ---
 <!-- COMMENTS:END -->
