@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:55:23.301399Z'
-updated_at: '2026-08-21T09:02:17.505705Z'
+updated_at: '2026-08-21T09:12:13.027811Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -269,5 +269,24 @@ configured_evidence_timeout = getattr(
 - If the configured value is explicitly set (via environment variable or config), it will override this fallback
 
 Now testing the fix...
+---
+author: oompah
+created: 2026-08-21 09:12
+---
+## Verification: Tests Passing
+
+Ran focused tests for the changed behavior:
+
+**Test Results:**
+- tests/test_provider_retirement.py: 22/22 PASSED (21 existing + 1 new regression test)
+- tests/test_orchestrator_handlers.py: 381/381 PASSED
+- tests/test_acp_agent.py: 58/58 PASSED
+
+**New Test Added:**
+Created `test_contributor_evidence_timeout_defaults_to_30_seconds()` to verify that when the config attribute is not explicitly set, the timeout defaults to 30.0 seconds instead of falling back to the aggressive 5.0-second derived floor.
+
+All existing tests continue to pass, confirming backward compatibility.
+
+Ready to commit and push changes.
 ---
 <!-- COMMENTS:END -->

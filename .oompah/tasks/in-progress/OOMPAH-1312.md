@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:27:31.701200Z'
-updated_at: '2026-08-21T09:06:45.943876Z'
+updated_at: '2026-08-21T09:12:15.571701Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -215,5 +215,10 @@ author: oompah
 created: 2026-08-21 09:06
 ---
 DISCOVERY: Located the root cause at oompah/orchestrator.py:58066. The TimeoutError for contributor evidence persistence is caught and handled gracefully, returning a clear error message. However, it was being logged at ERROR level, triggering error_watcher. The similar case for cancelled contributor evidence (line 58102) is already correctly logged at WARNING level. The fix is to change the log level from ERROR to WARNING to prevent error_watcher from auto-filing this handled error.
+---
+author: oompah
+created: 2026-08-21 09:12
+---
+IMPLEMENTATION: Changed logger.error() to logger.warning() at oompah/orchestrator.py:58066 for the pre-provider contributor evidence timeout case. This is a handled exception that returns a clear error message ('Cannot durably record exact contributor provider/model evidence before the bounded task-authority deadline...') to the caller. The timeout is expected behavior during the bounded task-authority deadline enforcement, not an unhandled error that should trigger error_watcher task auto-filing.
 ---
 <!-- COMMENTS:END -->
