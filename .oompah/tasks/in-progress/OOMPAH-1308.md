@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:19:59.169133Z'
-updated_at: '2026-08-21T08:21:21.829846Z'
+updated_at: '2026-08-21T08:22:03.729813Z'
 work_branch: OOMPAH-1308
 target_branch: null
 review_url: null
@@ -94,16 +94,16 @@ oompah.work_contributors:
     model_id: haiku
     focus: general
     source_branch: OOMPAH-1308
-    source_sha: null
-    completed_at: ''
+    source_sha: 2212be8ec0e05220a456c988038a2e27e6bba5e8
+    completed_at: '2026-08-21T08:21:57.882418+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1574
+  total_input_tokens: 276
+  total_output_tokens: 8277
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1574
+      input_tokens: 276
+      output_tokens: 8277
       cost_usd: 0.0
   runs:
   - profile: default
@@ -112,6 +112,12 @@ oompah.task_costs:
     output_tokens: 1574
     cost_usd: 0.0
     recorded_at: '2026-08-21T03:50:59.480818+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 266
+    output_tokens: 6703
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T08:21:57.876941+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -220,5 +226,15 @@ author: oompah
 created: 2026-08-21 08:21
 ---
 Fixed pre-provider contributor evidence timeout false-positive by changing logger.error() to logger.warning(). This expected, handled scenario now won't trigger error_watcher auto-filing while preserving audit trail for operators.
+---
+author: oompah
+created: 2026-08-21 08:22
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 72, Tool calls: 32
+- Tokens: 266 in / 6.7K out [7.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 15m 22s
+- Log: OOMPAH-1308__20260821T080725Z.jsonl
 ---
 <!-- COMMENTS:END -->
