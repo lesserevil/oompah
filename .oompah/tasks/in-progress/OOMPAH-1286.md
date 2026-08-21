@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1286
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=OOMPAH-1229 identifier=OOMPAH-1229 run_id=190a7293314449c2ada31002bbbaa419
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:02:32.249073Z'
-updated_at: '2026-08-21T11:35:00.781375Z'
+updated_at: '2026-08-21T11:35:27.852774Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -97,6 +97,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1286
     source_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     completed_at: '2026-08-21T07:27:14.036073+00:00'
+  - run_id: fb1ebe2767444b96b831ec1f25bbebb6--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: general
+    source_branch: OOMPAH-1286
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2548
@@ -199,5 +207,10 @@ author: oompah
 created: 2026-08-21 11:35
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-21 11:35
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
