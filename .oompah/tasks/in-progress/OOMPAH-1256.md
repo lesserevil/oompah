@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-21T14:44:45.411759Z'
+updated_at: '2026-08-21T14:52:07.628812Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -615,5 +615,25 @@ Working pattern from _tracker_for_project:
 - Only raises ProjectError if both fail
 
 Fix: Refactor _canonical_managed_project_id to use project_store.get() and find_by_name() directly.
+---
+author: oompah
+created: 2026-08-21 14:52
+---
+**Implementation Complete:**
+
+Fixed the 'Unknown project' error in the add-comment API by refactoring _canonical_managed_project_id to use project_store.get() and find_by_name() methods.
+
+Changes Made:
+- oompah/server.py: _canonical_managed_project_id now uses efficient project store methods with name-based fallback
+- tests/test_canonical_managed_project_id_name_fallback.py: 9 comprehensive tests covering name fallback, API integration, and edge cases
+
+The fix applies the same pattern that _tracker_for_project uses in orchestrator.py, ensuring consistent project resolution across the codebase.
+
+All tests pass:
+✓ 9 new tests for _canonical_managed_project_id (unit + API)
+✓ 7 existing tests for _tracker_for_project (no regression)
+✓ 59+ comment-related API tests (no regression)
+
+Commit: 952616edb | Branch: OOMPAH-1256 | Pushed to origin
 ---
 <!-- COMMENTS:END -->
