@@ -256,3 +256,30 @@ proj-14849f1b:dashboard-column:proj-14849f1b:Backlog:Open:3:e10cdec8d0e83352:
   - identifier: OOMPAH-1318
     status: Open
     revision: c02341c6a8b72fc06f4978555f299c39b3656b7155cee35dcc21cc8c842b87ec
+proj-14849f1b:dashboard-column:proj-14849f1b:Backlog:Open:6:b495938bc6d516c5:
+  batch_id: batch-6721ed37af5c4e51ae3558e98f499304
+  request_hash: f2a5726fdebda81c1fd4ae9cee11f14461ee839d680e9720903a0cadf5c2e5c7
+  committed_at: '2026-08-21T01:29:59.950511Z'
+  operation:
+    kind: whole_column_move
+    source_status: Backlog
+    scope: flat_board
+  results:
+  - identifier: OOMPAH-1319
+    status: Open
+    revision: 927b600080846b8ad843e252045c5a6a7112c261dd26c20087b68c7582bcbced
+  - identifier: OOMPAH-1320
+    status: Open
+    revision: ce52f5f6ff916ae4244981c966bb4027b50685f0163ffdcce132b9bb1392dfa8
+  - identifier: OOMPAH-1321
+    status: Open
+    revision: 95aad716a546eab5bb826ee0f1ecb26395c1ba591fa61220e9fe850814c4140d
+  - identifier: OOMPAH-1322
+    status: Open
+    revision: ccc9f02a8f8abf03f370061b7269055db648f90877ee70f944d9562d56f618f4
+  - identifier: OOMPAH-1323
+    status: Open
+    revision: ca383a25211e7f437f630c9a72307ac8e09307a06f96e5dab81cad0be576c924
+  - identifier: OOMPAH-1324
+    status: Open
+    revision: acb044d22edfab61670178bf3d62fee4b1f670bdb1b850fda37b988fd85a1cdc
