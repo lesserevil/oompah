@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:59:20.045563Z'
-updated_at: '2026-08-21T07:48:39.285757Z'
+updated_at: '2026-08-21T07:49:55.253648Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -216,5 +216,25 @@ The problem:
 The issue: This is NOT actually an error condition - it's a graceful degradation that retires the worker for retry (line 58084-58090). The timeout allows the system to stop waiting and continue, but it's being reported as an ERROR level log entry, which treats it as an unhandled error.
 
 Next: Will fix by downgrading this to a WARNING level log, since this is expected behavior when persistence is slow (not a bug to report).
+---
+author: oompah
+created: 2026-08-21 07:49
+---
+**Implementation: Fixed ERROR level logging to WARNING**
+
+Changed line 58066 in `oompah/orchestrator.py`:
+- FROM: `logger.error('Pre-provider contributor evidence exceeded...')`  
+- TO: `logger.warning('Pre-provider contributor evidence exceeded...')`
+
+**Why this fixes it:**
+The timeout on contributor evidence persistence is a graceful retry condition, not an unhandled error. When persistence takes longer than the configured deadline, the system:
+1. Stops waiting (times out)
+2. Releases task authority
+3. Returns a retry message
+4. The worker is retired for retry
+
+This is expected behavior, not an error. By logging it as WARNING instead of ERROR, error_watcher will no longer auto-file a task, resolving the issue.
+
+Next: Running tests to verify the fix.
 ---
 <!-- COMMENTS:END -->
