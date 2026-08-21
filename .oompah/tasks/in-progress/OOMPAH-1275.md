@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:19.724794Z'
-updated_at: '2026-08-21T06:19:35.059018Z'
+updated_at: '2026-08-21T06:23:43.954292Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -209,5 +209,22 @@ The issue is that tracker writes can take longer than expected, especially when:
 3. The issue_transition_lock is held for the entire persistence operation
 
 Next: Examine the actual persistence operation and the error_watcher to understand how to handle this gracefully.
+---
+author: oompah
+created: 2026-08-21 06:23
+---
+IMPLEMENTATION: Increased the default contributor_evidence_persist_timeout_seconds from 30 to 60 seconds.
+
+RATIONALE: The error 'Cannot durably record exact contributor provider/model evidence before the bounded task-authority deadline' occurs when tracker metadata writes (state-branch git commits) take longer than the deadline. With the previous 30-second timeout, this was consistently happening in production when:
+- Multiple dispatch attempts occur concurrently
+- The tracker is under load  
+- There's filesystem I/O contention
+
+CHANGES:
+1. oompah/config.py: Changed default timeout from 30.0 to 60.0 seconds
+2. .env.example: Updated documentation to reflect new default
+3. tests/test_config.py: Updated test assertion for new default value
+
+The timeout is still configurable via OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS environment variable for deployments that need different values.
 ---
 <!-- COMMENTS:END -->
