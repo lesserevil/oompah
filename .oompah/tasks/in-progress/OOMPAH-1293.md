@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:40:39.902883Z'
-updated_at: '2026-08-21T16:13:47.373410Z'
+updated_at: '2026-08-21T16:22:04.777650Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -246,5 +246,10 @@ author: oompah
 created: 2026-08-21 16:13
 ---
 Understanding: This bug reports a timeout error in backend:orchestrator when processing project proj-14849f1b. The error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' with timeout_seconds=5.0 suggests that some operation related to contributor evidence collection is exceeding a 5-second deadline. Next: Explore the codebase to find where this timeout is enforced and what causes the delay.
+---
+author: oompah
+created: 2026-08-21 16:22
+---
+Discovery: Found the error in oompah/orchestrator.py _stage_work_contributor_launch() at line 58043-58046. The persistence timeout calculation uses min(control_timeout, termination_timeout/2.0)=5.0s. The configured default should be 60s from config.py, but code shows it's not being used (getattr with None default). Investigating why configured timeout isn't being applied.
 ---
 <!-- COMMENTS:END -->
