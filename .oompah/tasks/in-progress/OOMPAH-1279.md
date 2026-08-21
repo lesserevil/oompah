@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:52:39.685288Z'
-updated_at: '2026-08-21T15:07:16.258993Z'
+updated_at: '2026-08-21T15:17:19.305356Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -248,5 +248,10 @@ author: oompah
 created: 2026-08-21 15:07
 ---
 **Understanding:** The backend:orchestrator is encountering a timeout error (5 seconds) when collecting 'pre-provider contributor evidence'. This should either be fixed to complete within the deadline, or handled gracefully so error_watcher doesn't trigger it. Starting investigation into the orchestrator and evidence collection code.
+---
+author: oompah
+created: 2026-08-21 15:17
+---
+**Discovery:** Found the root cause in orchestrator.py line 58023-58026. The persistence timeout for contributor evidence is calculated as min(control_timeout, termination_timeout / 2.0) which results in 5.0 seconds using defaults (control_timeout=5.0s from terminal_control_lock_timeout_seconds, termination_timeout=10.0s). This is too short for tracker/state-branch writes. The configured OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS (default 60s) should override this, but the calculation is used as a fallback.
 ---
 <!-- COMMENTS:END -->
