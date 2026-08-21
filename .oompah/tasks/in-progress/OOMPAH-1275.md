@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:19.724794Z'
-updated_at: '2026-08-21T06:13:24.230975Z'
+updated_at: '2026-08-21T06:14:13.545432Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -183,5 +183,17 @@ author: oompah
 created: 2026-08-21 06:13
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 06:14
+---
+UNDERSTANDING: The error indicates that dispatch candidates are failing because they cannot durably record contributor provider/model evidence before a task-authority deadline. The pre-provider runtime is retired for retry, but no provider/workspace is started. This suggests a race condition or timeout issue where the evidence recording is slower than the deadline, or the timeout is too strict. Next, I will:
+
+1. Locate the orchestrator code that handles dispatch candidate selection
+2. Find the deadline/timeout configuration for evidence recording
+3. Understand what 'contributor_evidence_unavailable' error means and when it's triggered
+4. Check if there's a race condition between evidence recording and deadline checks
+5. Identify a fix: either extend the deadline, improve evidence recording speed, or handle this gracefully
+6. Add tests to verify the fix works
 ---
 <!-- COMMENTS:END -->
