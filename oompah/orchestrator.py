@@ -58061,7 +58061,10 @@ class Orchestrator:
                             "its durable release failed; repair service-state "
                             "persistence."
                         )
-                    logger.error(
+                    # Log at WARNING level (not ERROR) to avoid triggering
+                    # error_watcher for this normal graceful failure. The timeout
+                    # is handled: no provider was started, so retry is safe.
+                    logger.warning(
                         "Pre-provider contributor evidence exceeded its bounded "
                         "task-authority deadline issue_id=%s identifier=%s "
                         "run_id=%s timeout_seconds=%s",
