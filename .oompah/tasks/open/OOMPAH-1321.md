@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:13:00.356484Z'
-updated_at: '2026-08-21T10:01:28.912651Z'
-work_branch: null
+updated_at: '2026-08-21T10:04:09.418321Z'
+work_branch: OOMPAH-1321
 target_branch: null
 review_url: null
 review_number: null
@@ -110,6 +110,18 @@ oompah.task_costs:
     output_tokens: 1870
     cost_usd: 0.0
     recorded_at: '2026-08-21T05:08:13.924209+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1321
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: 23162538609849df3232d111dac3a20c655083ae
+  submitted_at: '2026-08-21T10:03:48.434244+00:00'
+  updated_at: '2026-08-21T10:03:48.434244+00:00'
+oompah.work_branch: OOMPAH-1321
 ---
 ## Summary
 
@@ -201,5 +213,10 @@ author: oompah
 created: 2026-08-21 10:01
 ---
 Verification: All tests pass (21 tests in test_provider_retirement.py + 124 tests in test_error_watcher.py). The change from logger.error() to logger.warning() is minimal and surgical - it prevents error_watcher from auto-filing the timeout as a task while preserving operational visibility through WARNING level logging and proper error return messages.
+---
+author: oompah
+created: 2026-08-21 10:04
+---
+Fixed contributor evidence timeout error_watcher auto-filing by changing logger.error() to logger.warning() for expected timeout during pre-provider retirement
 ---
 <!-- COMMENTS:END -->
