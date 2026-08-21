@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:20:38.226810Z'
-updated_at: '2026-08-21T08:29:59.377613Z'
+updated_at: '2026-08-21T08:35:38.743448Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -310,5 +310,28 @@ Fixed the timeout issue in orchestrator.py:58034 by changing the getattr default
 - Added test_pre_provider_evidence_default_timeout_when_config_missing to verify the fix
 - All 22 tests in test_provider_retirement.py pass
 - Verified that existing behavior is preserved when the timeout is explicitly configured to a different value
+---
+author: oompah
+created: 2026-08-21 08:35
+---
+**Verification:**
+
+✓ Test Results:
+- test_provider_retirement.py: 22/22 passed (includes new regression test)
+- test_orchestrator_handlers.py: 381/381 passed
+- No regressions detected in related test suites
+
+✓ Code Review:
+- Change is minimal and focused: only modified the getattr default from None to 30.0
+- Added clear comments explaining why 30.0 is the proper fallback
+- Follows existing code patterns and conventions
+
+✓ Git:
+- Commit created with proper trailer attribution
+- Branch pushed to origin/OOMPAH-1310
+- Working tree clean and up to date
+
+**Resolution Summary:**
+The error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline timeout_seconds=5.0' has been fixed by ensuring the configured 30-second timeout is used as the fallback instead of the aggressive 5-second computed value. This prevents legitimate slow tracker operations from timing out prematurely.
 ---
 <!-- COMMENTS:END -->
