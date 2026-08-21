@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:18:43.804044Z'
-updated_at: '2026-08-21T11:27:42.598178Z'
+updated_at: '2026-08-21T11:28:46.871666Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -247,5 +247,10 @@ author: oompah
 created: 2026-08-21 11:27
 ---
 Implementation: Changed the expected contributor-evidence deadline retirement diagnostic from ERROR to WARNING, preserving its structured retirement metadata and actionable return. Extended the existing timeout regression to assert the diagnostic is emitted exactly once at WARNING, below error_watcher's ERROR threshold.
+---
+author: oompah
+created: 2026-08-21 11:28
+---
+Verification: Focused timeout regressions passed (2/2), the full provider-retirement suite passed (21/21), both error_watcher suites passed (137/137), and git diff --check passed. This confirms expected timeout degradation remains functional and unrelated ERROR reporting coverage is intact.
 ---
 <!-- COMMENTS:END -->
