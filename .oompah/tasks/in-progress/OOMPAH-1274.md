@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:01.940609Z'
-updated_at: '2026-08-21T06:05:30.858207Z'
+updated_at: '2026-08-21T06:11:51.762422Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -282,5 +282,30 @@ When CLI/ACP mode runs without a specific provider target, the contributor_evide
 
 **The Fix:**
 Need to make ALL paths that handle evidence_error raise ProviderStartupError consistently, so the dispatch loop's exception handler can properly catch and log it. This prevents error_watcher from auto-filing it as a task.
+---
+author: oompah
+created: 2026-08-21 06:11
+---
+## Implementation
+
+**Changes Made:**
+
+Modified `oompah/orchestrator.py` in three locations where `_stage_work_contributor_launch()` encounters a timeout persisting contributor evidence:
+
+1. **Lines 62222-62227 (CLI mode)**: Changed from calling `_on_worker_exit` directly to raising `ProviderStartupError` with reason 'contributor_evidence_unavailable'
+
+2. **Lines 62313-62318 (ACP mode)**: Same change - now raises ProviderStartupError instead of calling _on_worker_exit
+
+3. **Lines 62350-62356 (Fallthrough CLI mode)**: Same pattern applied
+
+**How It Works:**
+
+When contributor evidence persistence times out:
+- Before: Error string returned → `_on_worker_exit` called → error bubbles to error_watcher
+- After: ProviderStartupError raised → caught by dispatch loop's exception handler → next candidate tried → all candidates exhausted → `_on_worker_exit` called with aggregated error message
+
+**Key Benefit:**
+
+The dispatch loop can now properly handle contributor evidence timeouts as retryable provider failures. If one provider fails to record evidence before the deadline, the orchestrator will try the next available candidate instead of aborting with an unhandled error.
 ---
 <!-- COMMENTS:END -->
