@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:18:21.022779Z'
-updated_at: '2026-08-21T08:14:54.504877Z'
+updated_at: '2026-08-21T08:17:29.626569Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -202,5 +202,10 @@ author: oompah
 created: 2026-08-21 08:14
 ---
 DISCOVERY: Found the timeout logic in oompah/orchestrator.py _stage_work_contributor_launch() method (line 57834). The error occurs when persisting contributor evidence (tracker write) exceeds a deadline (default 5.0 seconds). The timeout is calculated from terminal_control_lock_timeout_seconds (default 5.0). A TimeoutError causes logger.error() to be called, which error_watcher is treating as an exception. Need to investigate: (1) why the tracker write is slow, (2) whether the timeout is too aggressive, (3) how to prevent error_watcher from flagging this as an issue.
+---
+author: oompah
+created: 2026-08-21 08:17
+---
+IMPLEMENTATION: Changed logger.error() to logger.warning() at line 58066 in orchestrator.py. The timeout of contributor evidence persistence is a handled, expected scenario (documented in code comments). When a TimeoutError occurs, the function gracefully returns an error message to the caller rather than crashing. This is not an exceptional condition that should trigger error_watcher. The warning level preserves logging visibility while preventing auto-filing of handled timeout scenarios.
 ---
 <!-- COMMENTS:END -->
