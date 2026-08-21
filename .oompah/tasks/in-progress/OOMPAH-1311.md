@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:25:39.636424Z'
-updated_at: '2026-08-21T11:02:39.447858Z'
+updated_at: '2026-08-21T11:09:06.654396Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -325,5 +325,24 @@ author: oompah
 created: 2026-08-21 11:02
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 11:09
+---
+## Understanding
+
+The error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' occurs in orchestrator._stage_work_contributor_launch() when recording provider/model evidence before starting a work provider.
+
+**Root cause investigation:**
+1. The persistence_timeout is calculated from config values (default 5.0 seconds)
+2. A background thread (_persist_reserved_contributor) must write contributor metadata to the tracker within this timeout
+3. The tracker write operation appears to be slow, exceeding the 5-second deadline
+4. When this happens, the pre-provider launch is retired and an error is filed
+
+**Approach:**
+1. Examine tracker write performance and lock contention
+2. Increase the persistence_timeout to allow slow tracker operations to complete
+3. Or optimize the persistence operation to be faster
+4. Verify the fix doesn't regress timeout handling for actual deadlocks
 ---
 <!-- COMMENTS:END -->
