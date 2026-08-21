@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:41:20.057099Z'
-updated_at: '2026-08-21T09:58:50.582521Z'
+updated_at: '2026-08-21T10:08:49.496180Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -245,5 +245,10 @@ author: oompah
 created: 2026-08-21 09:58
 ---
 Understanding: This is a backend:orchestrator timeout error where 'Pre-provider contributor evidence' operations are exceeding a 5-second deadline. The error is being auto-filed by error_watcher, indicating it should be either fixed or gracefully handled to prevent unnecessary task creation. I will: (1) locate the error message in the codebase, (2) understand the timeout mechanism and why 5 seconds is insufficient, (3) either increase the timeout, optimize the operation, or add explicit error handling, and (4) verify the fix with tests.
+---
+author: oompah
+created: 2026-08-21 10:08
+---
+Discovery: Found the error source at oompah/orchestrator.py line 58067. The issue is that 'pre-provider contributor evidence' (metadata write to tracker) is timing out with a 5-second deadline. The timeout is being logged at ERROR level, which triggers error_watcher. However, the timeout is handled gracefully - the lock is released and the operation retries. The root cause is likely a slow tracker write operation. The configuration option 'contributor_evidence_persist_timeout_seconds' defaults to 30 seconds but may not be used. Looking into whether to: (1) increase default timeout, (2) change log level to warning (since error is graceful), or (3) optimize the persistence operation.
 ---
 <!-- COMMENTS:END -->

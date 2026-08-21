@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:59:31.498539Z'
-updated_at: '2026-08-21T09:56:46.991620Z'
+updated_at: '2026-08-21T10:08:43.355561Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -263,5 +263,32 @@ Issue: The backend:orchestrator throws a timeout error ('Pre-provider contributo
    - Adds explicit error handling to catch and handle this gracefully
    - Optimizes the operation to complete faster
 5. Test to verify the fix resolves the issue without regression
+---
+author: oompah
+created: 2026-08-21 10:08
+---
+## Root Cause Found
+
+Located the issue in oompah/orchestrator.py around lines 58042-58125:
+
+The pre-provider contributor evidence persistence operation has a bounded timeout (default 5 seconds, configurable via OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS). When this timeout expires:
+
+1. Line 58043-58046: asyncio.wait_for times out
+2. Line 58047: TimeoutError is caught
+3. Line 58066-58082: Error is logged with the exact message we're seeing
+4. Line 58125: **The exception is RE-RAISED** - This causes it to propagate as an unhandled error
+
+The problem: The timeout is treated as an error condition that's logged but not gracefully handled. It re-raises, causing error_watcher to capture and auto-file it.
+
+For proj-14849f1b with provenanceguardedtracker, the tracker/state-branch git commits are taking longer than 5 seconds to persist.
+
+## Fix Strategy
+
+Options:
+1. Increase the default timeout (currently derived from worker_termination_timeout_ms, default 10s, resulting in 5s)
+2. Don't re-raise after logging - treat as graceful degradation
+3. Handle the exception at a higher level so it's not exposed to error_watcher
+
+The most appropriate fix: increase the default timeout to 30 seconds (which is already the recommended production value in .env.example) or don't re-raise the TimeoutError after handling it.
 ---
 <!-- COMMENTS:END -->
