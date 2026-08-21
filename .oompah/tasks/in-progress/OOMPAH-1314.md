@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:41:13.991341Z'
-updated_at: '2026-08-21T14:23:25.284453Z'
-work_branch: null
+updated_at: '2026-08-21T14:23:56.955553Z'
+work_branch: OOMPAH-1314
 target_branch: null
 review_url: null
 review_number: null
@@ -79,7 +79,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 65abc4c3-8814-4cd6-b5ab-69e2aa3c014b
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: beb95e7dc23045af813b1599660138b4--contributor-a8b0475e7b09
@@ -130,6 +130,18 @@ oompah.task_costs:
     output_tokens: 2464
     cost_usd: 0.0
     recorded_at: '2026-08-21T08:38:04.172296+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1314
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: 445f41f2d63fd2d0e11266e8560ad0967edd5c22
+  submitted_at: '2026-08-21T14:23:38.952622+00:00'
+  updated_at: '2026-08-21T14:23:38.952622+00:00'
+oompah.work_branch: OOMPAH-1314
 ---
 ## Summary
 
@@ -261,5 +273,10 @@ author: oompah
 created: 2026-08-21 14:23
 ---
 VERIFICATION: All tests pass (158 tests across provider_retirement, error_watcher, and error_watcher_orchestrator modules). The fix is minimal (1-line change) and backwards compatible. The error message content, extra structured data, and return value remain unchanged; only the log level changed from ERROR to WARNING. This prevents error_watcher from auto-filing this gracefully-handled timeout scenario. Commit: OOMPAH-1314 445f41f2d. Branch pushed to origin/OOMPAH-1314.
+---
+author: oompah
+created: 2026-08-21 14:23
+---
+Fixed pre-provider contributor evidence timeout error not triggering error_watcher by downgrading log level from ERROR to WARNING. The timeout is a gracefully-handled scenario where persistence continues in background, provider is not started, and task is retired for retry. Change is consistent with similar timeout patterns elsewhere in codebase.
 ---
 <!-- COMMENTS:END -->
