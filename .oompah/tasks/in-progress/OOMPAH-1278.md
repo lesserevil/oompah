@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:48:41.811265Z'
-updated_at: '2026-08-21T06:49:50.730286Z'
+updated_at: '2026-08-21T06:50:23.329204Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -185,5 +185,22 @@ author: oompah
 created: 2026-08-21 06:49
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 06:50
+---
+**Understanding & Plan**
+
+The issue reports a timeout error in backend:orchestrator when processing evidence with a 5-second deadline. The error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' is being auto-filed by error_watcher during normal operations.
+
+**Approach:**
+1. Locate the backend:orchestrator code and error_watcher implementation
+2. Understand where this specific error is raised and why
+3. Find the 5-second timeout configuration and assess if it's appropriate
+4. Determine if the issue is: (a) timeout is too short, (b) operation needs optimization, (c) error needs graceful handling
+5. Implement the fix and test to ensure error_watcher no longer triggers
+6. Verify no regression in other error handling
+
+**Searching for:** 'Pre-provider contributor evidence', task-authority, backend:orchestrator, error_watcher
 ---
 <!-- COMMENTS:END -->
