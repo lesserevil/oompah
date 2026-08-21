@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:16:50.124021Z'
-updated_at: '2026-08-21T03:43:55.760817Z'
+updated_at: '2026-08-21T03:44:14.340887Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,13 +36,14 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 4818cd8c03d4d667e2b42ac567001920288ff8e98380db677f72409b88658dc5:142933
-  claim_owner: 884c7b0a-4fe0-4acd-9fe6-041416485094
-  claimed_at: '2026-08-21T03:42:33.980077+00:00'
-  claim_expires_at: '2026-08-21T04:12:33.980077+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: ACP provider launch was blocked because live auditor policy changed during
+    admission
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 1
+  retry_after: '2026-08-21T03:45:06.444874+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -108,5 +109,15 @@ author: oompah
 created: 2026-08-21 03:43
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-21 03:44
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: interrupted, Duration: 1m 10s
+- Log: OOMPAH-1304__20260821T034400Z.jsonl
 ---
 <!-- COMMENTS:END -->
