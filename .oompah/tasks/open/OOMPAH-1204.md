@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:25:06.282819Z'
-updated_at: '2026-08-21T14:13:17.989796Z'
+updated_at: '2026-08-21T14:18:03.665036Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -328,5 +328,14 @@ This issue reports a timeout error in the backend orchestrator: 'Pre-provider co
 5. Add tests to prevent regression
 
 Starting investigation now.
+---
+author: oompah
+created: 2026-08-21 14:18
+---
+**Discovery:** Found the error in oompah/orchestrator.py lines 58067-58090. The 'Pre-provider contributor evidence' timeout occurs when persisting work contributor metadata before provider launch. The timeout is calculated from terminal_control_lock_timeout_seconds (default 5.0s) and worker_termination_timeout_ms (default 5000ms).
+
+The persistence operation runs in a thread via asyncio.to_thread(_persist_reserved_contributor) with an asyncio.wait_for() timeout. For provenanceguardedtracker, this operation is exceeding the calculated timeout.
+
+The code already supports configuration via contributor_evidence_persist_timeout_seconds config parameter. Need to investigate why it's timing out and provide a fix.
 ---
 <!-- COMMENTS:END -->
