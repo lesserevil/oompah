@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:55:23.301399Z'
-updated_at: '2026-08-21T09:15:08.455713Z'
+updated_at: '2026-08-21T09:16:05.338297Z'
 work_branch: OOMPAH-1318
 target_branch: null
 review_url: null
@@ -88,16 +88,16 @@ oompah.work_contributors:
     model_id: haiku
     focus: general
     source_branch: OOMPAH-1318
-    source_sha: null
-    completed_at: ''
+    source_sha: b7ff325f8dacf095850d2a1ec325448212174535
+    completed_at: '2026-08-21T09:15:52.703440+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1453
+  total_input_tokens: 396
+  total_output_tokens: 17254
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1453
+      input_tokens: 396
+      output_tokens: 17254
       cost_usd: 0.0
   runs:
   - profile: default
@@ -106,6 +106,12 @@ oompah.task_costs:
     output_tokens: 1453
     cost_usd: 0.0
     recorded_at: '2026-08-21T04:13:49.967497+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 386
+    output_tokens: 15801
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T09:15:52.681612+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -341,5 +347,15 @@ Modified `oompah/orchestrator.py` line 58032-58038 in the `_stage_work_contribut
 ✅ No regression in other error handling
 
 Ready for integration.
+---
+author: oompah
+created: 2026-08-21 09:15
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 100, Tool calls: 47
+- Tokens: 386 in / 15.8K out [16.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 23m 14s
+- Log: OOMPAH-1318__20260821T085335Z.jsonl
 ---
 <!-- COMMENTS:END -->
