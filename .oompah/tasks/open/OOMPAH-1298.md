@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:00:50.331057Z'
-updated_at: '2026-08-21T11:50:26.909544Z'
+updated_at: '2026-08-21T11:50:42.276865Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,13 +36,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: f7b350778c318b086546903103c8a2ebc479b0e40c376a53db47ac5511724c0f:146655
-  claim_owner: 94774825-4468-4d75-bdb4-5977b2bd9951
-  claimed_at: '2026-08-21T11:49:31.533206+00:00'
-  claim_expires_at: '2026-08-21T12:19:31.533206+00:00'
+  evidence: Duplicate screening stopped during lifecycle drain.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 2
-  retry_after: null
+  retry_after: '2026-08-21T11:50:40.065092+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
