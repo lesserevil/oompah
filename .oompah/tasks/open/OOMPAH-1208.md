@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:29:16.227300Z'
-updated_at: '2026-08-21T01:14:48.190905Z'
+updated_at: '2026-08-21T01:15:04.396101Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 692e3afc-42ad-460e-95e4-cf59e45e4ee2
+oompah.agent_run_id: a90ce740-3ffe-4150-abc2-cb484307b874
 oompah.work_contributors:
   runs:
   - run_id: 12d48da69be547e6aea00cc996fbdf9c--contributor-a8b0475e7b09
@@ -165,5 +165,10 @@ Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 40s
+---
+author: oompah
+created: 2026-08-21 01:15
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
