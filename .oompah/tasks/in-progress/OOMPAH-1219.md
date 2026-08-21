@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:15:47.974297Z'
-updated_at: '2026-08-21T05:22:04.702321Z'
+updated_at: '2026-08-21T05:27:34.345623Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -247,5 +247,31 @@ author: oompah
 created: 2026-08-21 05:22
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 05:27
+---
+**Understanding & Plan:**
+
+Issue: Error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' is being auto-filed as a task, but should be handled gracefully.
+
+**Analysis:**
+1. Found error in oompah/orchestrator.py line 58067 in the _stage_work_contributor_launch() function
+2. The error occurs when persisting work contributor evidence times out (5.0 seconds in the error message)
+3. The timeout is calculated as min(control_timeout, termination_timeout/2) with floor 0.05s
+4. When the timeout expires, the code logs ERROR (line 58066) which triggers error_watcher to auto-file a task
+5. Code comments indicate this is EXPECTED behavior - 'A synchronous tracker adapter cannot be cancelled after its thread starts'
+6. The runtime is gracefully retired and returns an error message to the caller
+
+**Root Cause:**
+The error is logged with logger.error(), which is correct for true bugs, but this timeout scenario is an expected operational condition (contributor evidence write is slow), not a bug.
+
+**Proposed Fix:**
+Change the logging level from ERROR to WARNING, since this is expected behavior, not a bug. This prevents error_watcher from auto-filing a task while still tracking the event for operational visibility.
+
+**Will verify:**
+- Tests continue to pass
+- Warning is still logged
+- error_watcher no longer files a task for this condition
 ---
 <!-- COMMENTS:END -->
