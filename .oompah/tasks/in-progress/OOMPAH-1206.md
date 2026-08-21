@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-21T04:19:01.791580Z'
+updated_at: '2026-08-21T04:20:42.327481Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -244,5 +244,20 @@ Planned approach:
 2. Increase the default timeout to a more reasonable value for slower trackers
 3. Add logic to treat evidence persistence timeouts as retryable rather than terminal failures
 4. Test the fix
+---
+author: oompah
+created: 2026-08-21 04:20
+---
+Discovery: Found the root cause - when persisting contributor evidence (provider/model metadata) to the tracker, the operation times out after 30 seconds. The 'provenanceguardedtracker' tracker is slow, so its persistence operations exceed this timeout.
+
+When evidence persistence times out:
+1. _stage_work_contributor_launch() returns an error
+2. ProviderStartupError is raised with reason='contributor_evidence_unavailable'
+3. The dispatch loop tries all candidates, but they all fail for the same reason
+4. All dispatch candidates fail → error_watcher triggers
+
+The error is logged here: oompah/orchestrator.py:62479
+
+Fix approach: Increase the default contributor_evidence_persist_timeout_seconds from 30 to 60 seconds. This provides more time for slow trackers while still maintaining a safety deadline. The timeout is already configurable via OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS for operators who need even higher values.
 ---
 <!-- COMMENTS:END -->
