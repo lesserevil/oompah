@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:41:20.057099Z'
-updated_at: '2026-08-21T10:21:22.728018Z'
-work_branch: null
+updated_at: '2026-08-21T10:22:23.552367Z'
+work_branch: OOMPAH-1272
 target_branch: null
 review_url: null
 review_number: null
@@ -129,6 +129,18 @@ oompah.task_costs:
     output_tokens: 1881
     cost_usd: 0.0
     recorded_at: '2026-08-21T02:26:57.590222+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1272
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: 69426c5bc220edd29642f6e969bcbac378d86fa7
+  submitted_at: '2026-08-21T10:22:04.284174+00:00'
+  updated_at: '2026-08-21T10:22:04.284174+00:00'
+oompah.work_branch: OOMPAH-1272
 ---
 ## Summary
 
@@ -260,5 +272,10 @@ author: oompah
 created: 2026-08-21 10:21
 ---
 Verification: Tests passed. Ran 104 tests related to provider retirement and authority generation - all passed. The fix changes the log level from ERROR to WARNING for the contributor evidence timeout, preventing error_watcher from auto-filing tasks while still logging the event for monitoring. Commit: 69426c5bc pushed to origin/OOMPAH-1272.
+---
+author: oompah
+created: 2026-08-21 10:22
+---
+Fixed the 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' error by changing the log level from ERROR to WARNING. This timeout is handled gracefully with lock release and operation retry, so it should not trigger automatic error filing. The fix is consistent with existing timeout handling patterns in the codebase and prevents error_watcher from creating unnecessary tasks while still preserving logs for monitoring.
 ---
 <!-- COMMENTS:END -->
