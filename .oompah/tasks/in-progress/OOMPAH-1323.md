@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:18:43.804044Z'
-updated_at: '2026-08-21T11:23:59.098876Z'
+updated_at: '2026-08-21T11:27:00.959267Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -237,5 +237,10 @@ author: oompah
 created: 2026-08-21 11:23
 ---
 Understanding: The normal pre-provider contributor-evidence deadline is being emitted at error severity and auto-filed. I will trace the deadline path and error watcher, make timeout degradation explicit/non-error without masking unrelated errors, add regression coverage, and run focused checks.
+---
+author: oompah
+created: 2026-08-21 11:27
+---
+Discovery: _stage_work_contributor_launch intentionally retires the runtime for retry when the bounded evidence write times out, but uniquely logs that expected degradation at ERROR; error_watcher captures every oompah ERROR. Adjacent settling/cancellation paths use WARNING. The minimal fix is severity demotion with a regression assertion; existing unrelated auditor-rotation worktree changes will be preserved.
 ---
 <!-- COMMENTS:END -->
