@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:42:36.055994Z'
-updated_at: '2026-08-21T01:33:33.095899Z'
+updated_at: '2026-08-21T01:33:46.153747Z'
 work_branch: OOMPAH-1212
 target_branch: null
 review_url: null
@@ -314,5 +314,10 @@ author: oompah
 created: 2026-08-21 01:29
 ---
 **Verification**: All relevant tests pass (208 tests across error_watcher, provider_retirement, and telemetry suites). The change prevents error_watcher from auto-filing tasks for the expected timeout condition while maintaining proper error reporting for actual issues. No regression in error handling or test coverage.
+---
+author: oompah
+created: 2026-08-21 01:33
+---
+Fixed spurious error task filings by changing provider evidence timeout from ERROR to WARNING level. The condition is expected, recoverable behavior during normal operation. All tests verified (208 tests pass).
 ---
 <!-- COMMENTS:END -->
