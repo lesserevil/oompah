@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-21T14:38:13.119107Z'
+updated_at: '2026-08-21T14:44:45.411759Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -596,5 +596,24 @@ Plan:
 - Write a regression test for the api_add_comment path
 - Verify no existing tests break
 - Commit and submit
+---
+author: oompah
+created: 2026-08-21 14:44
+---
+**Discovery & Root Cause:**
+
+Found the exact issue. In _canonical_managed_project_id (line 8232), the function iterates through all projects and checks for ID and name matches manually. However, it should use project_store.get() and project_store.find_by_name() like _tracker_for_project does (line 10277 in orchestrator.py).
+
+Current inefficient approach in _canonical_managed_project_id:
+- Calls list_all() to get all projects
+- Iterates twice: first checking IDs, then checking names
+- Misses the optimized path that short-circuits with .get()
+
+Working pattern from _tracker_for_project:
+- Calls project_store.get(project_id) first
+- Falls back to project_store.find_by_name(project_id)
+- Only raises ProjectError if both fail
+
+Fix: Refactor _canonical_managed_project_id to use project_store.get() and find_by_name() directly.
 ---
 <!-- COMMENTS:END -->
