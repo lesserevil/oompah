@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:55:39.156940Z'
-updated_at: '2026-08-21T07:16:31.385726Z'
+updated_at: '2026-08-21T07:18:34.030342Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -211,5 +211,10 @@ author: oompah
 created: 2026-08-21 07:16
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 07:18
+---
+Understanding: The error is in oompah/orchestrator.py _stage_work_contributor_launch() function. When persisting contributor evidence metadata to tracker, the timeout (5 seconds by default) is exceeded. The error is logged at logger.error() which likely triggers error_watcher. The persistence task continues asynchronously (shielded), but the short timeout causes it to fail before completion. Plan: (1) Investigate why metadata writes are slow, (2) Either increase timeout or change from error to warning log level, (3) Ensure graceful degradation.
 ---
 <!-- COMMENTS:END -->
