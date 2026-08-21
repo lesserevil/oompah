@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-21T14:41:37.837798Z'
+updated_at: '2026-08-21T15:10:55.458328Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -169,12 +169,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1266
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-137b09e9af7f
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+      created_at: '2026-08-21T15:10:54.142977+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-21T15:10:54.142977+00:00'
+      branch_key: epic-OOMPAH-1231--task-OOMPAH-1266
+      selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+      selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
     source_generation: 1
     requested_by:
       version: 1
@@ -185,7 +200,23 @@ oompah.terminal_audit:
     eligible_at: '2026-08-21T14:41:26.379439+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-  attempt_history: []
+    updated_at: '2026-08-21T15:10:54.142977+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-137b09e9af7f
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+    created_at: '2026-08-21T15:10:54.142977+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-21T15:10:54.142977+00:00'
+    branch_key: epic-OOMPAH-1231--task-OOMPAH-1266
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
 ---
 ## Summary
 
