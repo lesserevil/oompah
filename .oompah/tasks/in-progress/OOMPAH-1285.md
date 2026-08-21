@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:00:21.577837Z'
-updated_at: '2026-08-21T07:10:07.783106Z'
-work_branch: null
+updated_at: '2026-08-21T07:10:24.259559Z'
+work_branch: OOMPAH-1285
 target_branch: null
 review_url: null
 review_number: null
@@ -79,7 +79,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: cda90f8b-1c32-4f02-9e39-593c95c19639
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: c7081656e8a24b46b0550d5875c75b1a--contributor-4256b9f40773
@@ -114,6 +114,18 @@ oompah.task_costs:
     output_tokens: 2255
     cost_usd: 0.0
     recorded_at: '2026-08-21T02:56:45.218295+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1285
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: cc5566bd2581d7e7b77fef17bbcd3695f7d5af78
+  submitted_at: '2026-08-21T07:10:14.273630+00:00'
+  updated_at: '2026-08-21T07:10:14.273630+00:00'
+oompah.work_branch: OOMPAH-1285
 ---
 ## Summary
 
@@ -262,5 +274,10 @@ This resolves the acceptance criteria:
 ✅ The error is now handled gracefully without triggering error_watcher
 ✅ Root cause identified and resolved (incorrect logging level)
 ✅ No regression in error_watcher (all other error types still reported at ERROR level)
+---
+author: oompah
+created: 2026-08-21 07:10
+---
+Fixed pre-provider contributor evidence timeout logging level from ERROR to WARNING to prevent error_watcher auto-filing. The timeout is a gracefully-handled transient failure when the contributor lock is held by another worker. Changed one line in oompah/orchestrator.py (line 58066) to use logger.warning() instead of logger.error(), aligning with similar timeout handling elsewhere in the codebase.
 ---
 <!-- COMMENTS:END -->
