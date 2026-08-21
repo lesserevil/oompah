@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1270
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Investigate bulk 'Needs Human' escalation of trickle epic-127 children
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-21T14:37:27.428068Z'
+updated_at: '2026-08-21T14:37:56.807534Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: dd8f06f8-0514-4fde-bea0-18833a1f604c
   request_fingerprint: 1fb15da2e64a50b2b029ff1148c8e4aabbad8da4f132224527fa16b749acfae8
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -108,6 +108,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1270
     source_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     completed_at: '2026-08-21T11:03:14.537980+00:00'
+  - run_id: d2d86409622d4945a338fc0ecce775cb--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: chore
+    source_branch: OOMPAH-1270
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1581
@@ -242,5 +250,10 @@ author: oompah
 created: 2026-08-21 14:37
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-21 14:37
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
