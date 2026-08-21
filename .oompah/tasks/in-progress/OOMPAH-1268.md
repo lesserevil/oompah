@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-21T05:44:26.464261Z'
+updated_at: '2026-08-21T05:46:30.775043Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -175,5 +175,10 @@ author: oompah
 created: 2026-08-21 05:44
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 05:46
+---
+UNDERSTANDING: This task requires archiving workflow_job_events for archived tasks to reduce database bloat. Previous comments show PRs #883 and #884 were implemented and merged (commits 196305357 and 4308d71e2 are in current HEAD). Verifying implementation completeness: checking schema V8, high-water fence, maintenance job scheduling, and test coverage.
 ---
 <!-- COMMENTS:END -->
