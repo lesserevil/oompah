@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-21T04:20:42.327481Z'
+updated_at: '2026-08-21T04:24:57.354172Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -259,5 +259,21 @@ When evidence persistence times out:
 The error is logged here: oompah/orchestrator.py:62479
 
 Fix approach: Increase the default contributor_evidence_persist_timeout_seconds from 30 to 60 seconds. This provides more time for slow trackers while still maintaining a safety deadline. The timeout is already configurable via OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS for operators who need even higher values.
+---
+author: oompah
+created: 2026-08-21 04:24
+---
+Implementation: Increased the default contributor_evidence_persist_timeout_seconds from 30 to 60 seconds.
+
+Changes made:
+1. oompah/config.py line 1200: Changed default from 30.0 to 60.0
+2. oompah/config.py line 2059: Updated environment variable default from 30.0 to 60.0  
+3. tests/test_config.py line 124: Updated test expectation from 30.0 to 60.0
+
+Rationale: The 30-second timeout was too strict for slow trackers like 'provenanceguardedtracker'. By doubling the timeout to 60 seconds, slow tracker operations (like git commits to state branches) have more time to complete before dispatch candidates fail with contributor_evidence_unavailable.
+
+This timeout is still configurable via OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS environment variable for operators who need even higher values for their specific trackers.
+
+Tests: All config and provider_retirement tests pass.
 ---
 <!-- COMMENTS:END -->
