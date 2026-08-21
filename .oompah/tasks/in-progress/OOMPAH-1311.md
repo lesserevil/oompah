@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:25:39.636424Z'
-updated_at: '2026-08-21T11:18:09.820930Z'
-work_branch: null
+updated_at: '2026-08-21T11:18:35.680412Z'
+work_branch: OOMPAH-1311
 target_branch: null
 review_url: null
 review_number: null
@@ -79,7 +79,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: f3df641a-122c-4c54-bb20-43f2dd512ad0
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: dbd53d173f9843298716d869b29e950f--contributor-4256b9f40773
@@ -154,6 +154,18 @@ oompah.task_costs:
     output_tokens: 2096
     cost_usd: 0.0
     recorded_at: '2026-08-21T03:57:39.072905+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1311
+  base_branch: main
+  base_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+  head_sha: 5d2c2f9f48932d47cb65ac6bc4f7a6708b5dc8b0
+  submitted_at: '2026-08-21T11:18:22.344066+00:00'
+  updated_at: '2026-08-21T11:18:22.344066+00:00'
+oompah.work_branch: OOMPAH-1311
 ---
 ## Summary
 
@@ -401,5 +413,10 @@ The fix has been validated to:
 4. Properly handle both normal and error paths
 
 The error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' should no longer occur for normal tracker operations with standard configuration.
+---
+author: oompah
+created: 2026-08-21 11:18
+---
+Fixed pre-provider contributor evidence timeout issue by using the configured 30-second default instead of calculating a 5-second floor. This resolves the 'exceeded bounded task-authority deadline' error that occurred during slow tracker I/O operations.
 ---
 <!-- COMMENTS:END -->
