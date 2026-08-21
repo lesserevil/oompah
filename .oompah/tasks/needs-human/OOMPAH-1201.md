@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:47.623989Z'
-updated_at: '2026-08-21T04:49:46.857414Z'
+updated_at: '2026-08-21T04:56:01.943286Z'
 work_branch: OOMPAH-1201
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/893
@@ -306,7 +306,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1201
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -322,6 +322,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-431e164c6a88
     selected_ref: b6644c5739285af3b2da1d9d1e91077ed094845b
     selected_sha: b6644c5739285af3b2da1d9d1e91077ed094845b
+    updated_at: '2026-08-21T04:55:58.851465+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4d9da9526bcc
