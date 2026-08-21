@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:15:51.064357Z'
-updated_at: '2026-08-21T13:31:23.401421Z'
+updated_at: '2026-08-21T13:36:46.811450Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -257,5 +257,23 @@ The error 'Pre-provider contributor evidence exceeded its bounded task-authority
 5. Verify with tests
 
 Starting investigation now.
+---
+author: oompah
+created: 2026-08-21 13:36
+---
+## Discovery: Root Cause Identified
+
+Found the issue in oompah/orchestrator.py:58023-58090. The problem is in how the persistence_timeout is calculated:
+
+1. **Current behavior:** persistence_timeout is calculated as min(control_timeout, termination_timeout/2) = min(5.0, 5.0) = 5.0 seconds
+2. **Expected behavior:** Should use contributor_evidence_persist_timeout_seconds (30.0 by default)
+
+The code at line 58037 conditionally overrides this to 30.0 if configured_evidence_timeout is not None, but:
+- This check appears to not be working as expected
+- The error shows timeout_seconds=5.0, indicating it's using the derived minimum instead of the configured 30-second value
+
+The timeout is for writing contributor evidence to the tracker, which can legitimately take longer than 5 seconds for slow tracker operations.
+
+**Next step:** Investigate why the configured timeout isn't being used, or fix by ensuring the configured value takes precedence.
 ---
 <!-- COMMENTS:END -->
