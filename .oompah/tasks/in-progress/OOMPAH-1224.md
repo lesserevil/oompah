@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-21T02:20:55.100482Z'
+updated_at: '2026-08-21T02:21:13.251570Z'
 work_branch: OOMPAH-1224
 target_branch: null
 review_url: null
@@ -77,7 +77,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 3edbe692-1ce7-4fee-b554-7db5525ac5c4
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 43290814822749df83caa2eeaf2ec4ca--contributor-a8b0475e7b09
@@ -275,5 +275,10 @@ Verification: Test results show connection recovery is working correctly.
 - No regressions detected
 
 Branch pushed to origin/OOMPAH-1224. Ready for integration.
+---
+author: oompah
+created: 2026-08-21 02:21
+---
+Fixed 'Cannot operate on a closed database' error by adding connection recovery to SQLite stores. When orchestrator instances are replaced, old stores may be garbage collected while API threads still hold references. The fix automatically detects and recovers from closed database connections, preventing race conditions during orchestrator replacement.
 ---
 <!-- COMMENTS:END -->
