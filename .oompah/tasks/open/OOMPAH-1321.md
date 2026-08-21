@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:13:00.356484Z'
-updated_at: '2026-08-21T05:08:17.272260Z'
+updated_at: '2026-08-21T05:08:28.252895Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,14 +33,43 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: b080ce8ada0ade131b5c634707158d591d59bb1c685ebe99ff801031f00c5339
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-21T05:08:13.928931+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: d951c5a40d4ef60559ab28d7b203b25b48f6e0db6744052ce443a4c69d189564:143344
-  claim_owner: 7dbe71d1-9fc2-4b0c-bb54-3da0831c26d5
-  claimed_at: '2026-08-21T05:05:42.590598+00:00'
-  claim_expires_at: '2026-08-21T05:35:42.590598+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: OOMPAH-1321 is an auto-filed error from `backend:orchestrator`\
+    \ about a bounded task-authority deadline timeout. All 29 similar tasks in the\
+    \ provided corpus are in terminal states (Merged, Done, or Archived) and cannot\
+    \ serve as duplicate targets. The referenced OOMPAH-1204 is omitted from the corpus\
+    \ (among 697 omitted candidates). No active equivalent issue is visible in the\
+    \ supplied task corpus.\n# Duplicate Investigation for OOMPAH-1321\n\nI'll analyze\
+    \ the current task corpus to determine if OOMPAH-1321 is a duplicate of an existing\
+    \ issue.\n\n## Task Analysis\n\n**OOMPAH-1321:**\n- Type: Bug (auto-filed by error_watcher)\n\
+    - Status: Open\n- Error: \"Pre-provider contributor evidence exceeded its bounded\
+    \ task-authority deadline\"\n- References: OOMPAH-1204 in the error message\n\
+    - Timeout: 5 seconds\n- Fingerprint: e8d8213db9bf2788\n\n## Corpus Review\n\n\
+    The supplied corpus contains:\n- **Current task:** OOMPAH-1321 (Open) \n- **Similar\
+    \ candidates reviewed:** 29 tasks\n- **Total similarity candidates in project:**\
+    \ 726 (697 omitted due to byte budget)\n\nAll visible similar tasks in the corpus\
+    \ are in terminal states:\n- OOMPAH-1000 through OOMPAH-1014: Merged or Done\n\
+    - OOMPAH-1016 through OOMPAH-1027: Archived (duplicate symptoms from startup flood,\
+    \ with OOMPAH-1015 as canonical)\n- OOMPAH-164, OOMPAH-1, OOMPAH-10: Archived\n\
+    \nThe error references OOMPAH-1204, which is **not present in the supplied corpus**\
+    \ (likely in the 697 omitted candidates).\n\n## Findings\n\nNo active (non-terminal)\
+    \ duplicate candidate exists in the available corpus. The task mentions OOMPAH-1204\
+    \ but that task is not included in the provided reference data. All visible related\
+    \ tasks have already reached terminal states (Merged, Done, or Archived).\n\n\
+    ---\n\nFocus handoff: duplicate_detector\n\nDuplicate preflight verdict: no_duplicate\n\
+    \nMatches: none\n\nEvidence: OOMPAH-1321 is an auto-filed error from `backend:orchestrator`\
+    \ about a bounded task-authority deadline timeout. All 29 similar tasks in the\
+    \ provided corpus are in terminal states (Merged, Done, or Archived) and cannot\
+    \ serve as duplicate targets. The referenced OOMPAH-1204 is omitted from the corpus\
+    \ (among 697 omitted candidates). No active equivalent issue is visible in the\
+    \ supplied task corpus."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
@@ -55,8 +84,8 @@ oompah.work_contributors:
     model_id: haiku
     focus: duplicate_detector
     source_branch: OOMPAH-1321
-    source_sha: null
-    completed_at: ''
+    source_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    completed_at: '2026-08-21T05:08:13.944942+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1870
