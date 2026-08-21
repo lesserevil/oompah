@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:27.547026Z'
-updated_at: '2026-08-21T04:06:02.022552Z'
+updated_at: '2026-08-21T08:50:12.122092Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,93 +34,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: 'Focus handoff: duplicate_detector
-
-    Duplicate preflight verdict: inconclusive
-
-    Matches: none
-
-    Evidence: Duplicate preflight verdict: inconclusive
-
-    Matches: none
-
-    Looking at OOMPAH-1196 and the supplied project task corpus, I need to determine
-    if this is a duplicate of an existing active task.
-
-
-    **Analysis:**
-
-
-    The current task''s own description contains a critical comment from oompah (2026-08-13
-    00:17):
-
-
-    > "Duplicate task-specific occurrence of OOMPAH-1194. The canonical fix covers
-    this failure: managed network Git used the stale local SSH origin instead of the
-    project''s configured HTTPS repo_url during Trickle workspace/epic refresh."
-
-
-    This comment identifies OOMPAH-1194 as the canonical/original issue.
-
-
-    **Corpus verification:**
-
-
-    However, **OOMPAH-1194 is not present in the provided task corpus**. The corpus
-    includes tasks OOMPAH-1 through OOMPAH-1030 (with gaps), but OOMPAH-1194 is explicitly
-    absent. The corpus header indicates it is "authoritative" and should be "self-sufficient,"
-    yet it is missing the very task that the current issue explicitly references as
-    its duplicate target.
-
-
-    **Issue:**
-
-
-    Per my instructions, I must:
-
-    - Use only the supplied corpus as the authoritative reference
-
-    - Treat it as self-sufficient
-
-    - Not make network queries to fill gaps
-
-    - Report inconclusive if the corpus is unavailable or corrupt
-
-
-    The missing OOMPAH-1194 makes it impossible to verify the duplicate relationship
-    using only the supplied evidence, even though the task itself strongly suggests
-    it is a duplicate.
-
-
-    ---
-
-
-    Focus handoff: duplicate_detector
-
-
-    Duplicate preflight verdict: inconclusive
-
-
-    Matches: none
-
-
-    **Reason:** The current task OOMPAH-1196 contains an explicit comment identifying
-    OOMPAH-1194 as the canonical duplicate target with the same root cause (stale
-    SSH origin in managed Git). However, OOMPAH-1194 is not present in the supplied
-    project task corpus, which is required to be the authoritative reference. Without
-    access to OOMPAH-1194''s description, status, or active state, I cannot confirm
-    the duplicate match using only the available evidence. The corpus appears incomplete
-    for this screening decision.'
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 39f1014693c6515a7d2d39497911162c1966a4c39be90bd68d05147f2bac0f83:144893
+  claim_owner: 94774825-4468-4d75-bdb4-5977b2bd9951
+  claimed_at: '2026-08-21T08:50:05.249438+00:00'
+  claim_expires_at: '2026-08-21T09:20:05.249438+00:00'
   retry_count: 1
-  retry_after: '2026-08-21T04:06:20.545621+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: e9d35a8f-c6b9-4a09-bdb3-bcb15e51a6d1
+oompah.agent_run_id: 31bec499-aa48-4328-9216-c4ee68a337c0
 oompah.work_contributors:
   runs:
   - run_id: 71b1976e1cee4120b339e39218832094--contributor-4256b9f40773
