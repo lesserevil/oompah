@@ -207,6 +207,13 @@ class TestErrorWatcher:
         title = call_kwargs.kwargs.get("title", "")
         assert len(title) <= 200
 
+    def test_does_not_report_bounded_contributor_evidence_timeout(self):
+        watcher, tracker = self._make_watcher()
+        msg = "Cannot durably record exact contributor provider/model evidence before the bounded task-authority deadline."
+        result = watcher.report_error("backend:orchestrator", msg, issue_id="orig-1")
+        assert result is None
+        tracker.create_issue.assert_not_called()
+
 # ---------------------------------------------------------------------------
 # Tests for issue-aware error tracking + retry-success auto-close
 # (oompah-zlz_2-0nc)

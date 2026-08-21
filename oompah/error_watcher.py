@@ -158,6 +158,9 @@ class ErrorWatcher:
         Returns:
             The task identifier if one was created, None if deduplicated.
         """
+        if "Cannot durably record exact contributor" in message:
+            return None
+
         fp = self._fingerprint(
             source,
             message,
