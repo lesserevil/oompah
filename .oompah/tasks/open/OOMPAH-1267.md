@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T08:43:25.263614Z'
-updated_at: '2026-08-21T00:41:21.893169Z'
+updated_at: '2026-08-21T00:42:47.309093Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,14 +37,43 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: d12a8b6a59aa90f19f4ddbe2f11d1a7a62462ddc8014f5351f2e7cbea8ac64b7
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-21T00:42:37.229601+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 2bc3480653f91201574659dddd4561835e857fe648f2ba785f14f2458738b432:142615
-  claim_owner: b0161d82-55d7-4b08-9b68-ee54b4e13c9c
-  claimed_at: '2026-08-21T00:38:28.507101+00:00'
-  claim_expires_at: '2026-08-21T01:08:28.507101+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: The closest semantically-related tasks are OOMPAH-1008\
+    \ and OOMPAH-1077, both addressing determinism under concurrent load but in workflow_worker\
+    \ subsystems and already merged. OOMPAH-1267 is unique to the restart replacement\
+    \ API test surface and remains the only active task for this specific race condition.\n\
+    # Duplicate Investigation Analysis\n\nI'm examining whether OOMPAH-1267 is a duplicate\
+    \ of an existing active task by comparing it against the provided project task\
+    \ corpus.\n\n## Analysis\n\n**OOMPAH-1267** describes a specific, persistent concurrency\
+    \ bug in `tests/test_restart_api.py::test_replacement_timeout_rolls_back_before_concurrent_replacement`.\
+    \ The issue is:\n- A test that passes in isolation but fails under concurrent\
+    \ load from other unrelated quality gates\n- The root cause is load-sensitive\
+    \ timing assumptions rather than deterministic synchronization\n- Requires replacing\
+    \ wall-clock assumptions with explicit observable synchronization\n- Specific\
+    \ to restart replacement lifecycle/locking code\n\n## Corpus Review\n\nI scanned\
+    \ all 26 similar candidates in the project task corpus. The closest semantic matches\
+    \ involve making tests deterministic under load:\n\n- **OOMPAH-1008** (Merged):\
+    \ \"Make late-effect quarantine deterministic under full-suite load\" \u2014 fixes\
+    \ `test_late_success_checkpoints_receipt_without_duplicate_apply` in workflow_worker\
+    \ tests\n- **OOMPAH-1077** (Merged): \"Make workflow-worker heartbeat lease proof\
+    \ deterministic under loaded CI\" \u2014 fixes test_heartbeat_renews_lease_during_long_effect\
+    \ in workflow_worker tests\n\nHowever, these are:\n1. **Different test files**\
+    \ (workflow_worker vs restart_api)\n2. **Different subsystems** (workflow scheduling\
+    \ vs restart replacement)\n3. **All in terminal states** (Merged/Done/Archived),\
+    \ making them completed historical context rather than active duplicates per the\
+    \ screening rules\n\n## Verdict\n\nNo active duplicate found. While OOMPAH-1267\
+    \ shares the general pattern of \"make load-sensitive tests deterministic,\" it\
+    \ addresses a unique, unrelated test in a different subsystem (restart replacement)\
+    \ that is currently Open.\n\n---\n\nFocus handoff: duplicate_detector\nDuplicate\
+    \ preflight verdict: no_duplicate\nMatches: none\n\nEvidence: The closest semantically-related\
+    \ tasks are OOMPAH-1008 and OOMPAH-1077, both addressing determinism under concurre"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 1
   retry_after: null
   owner_resolved_at: null
@@ -83,8 +112,24 @@ oompah.work_contributors:
     model_id: haiku
     focus: duplicate_detector
     source_branch: OOMPAH-1267
-    source_sha: null
-    completed_at: ''
+    source_sha: 02bd5960434a5c65dce259894737a55ab7a8ea96
+    completed_at: '2026-08-21T00:42:37.231947+00:00'
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 2118
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 2118
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 2118
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T00:42:37.228764+00:00'
 ---
 ## Summary
 
@@ -127,5 +172,15 @@ author: oompah
 created: 2026-08-21 00:41
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-21 00:42
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 2.1K out [2.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 41s
+- Log: OOMPAH-1267__20260821T004126Z.jsonl
 ---
 <!-- COMMENTS:END -->
