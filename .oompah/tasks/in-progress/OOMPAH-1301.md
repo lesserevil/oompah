@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:14:39.219900Z'
-updated_at: '2026-08-21T16:31:19.436832Z'
+updated_at: '2026-08-21T16:31:29.860749Z'
 work_branch: OOMPAH-1301
 target_branch: null
 review_url: null
@@ -77,7 +77,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 5a867ffe-8a5d-4f45-8617-ea110e6f3725
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: a36d2218292f4a86a8c8904155c383ee--contributor-4256b9f40773
@@ -304,5 +304,10 @@ All tests pass successfully:
 The error 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' will no longer trigger error_watcher task creation. It will be logged at WARNING level as a transient failure that is handled gracefully with automatic retry, preventing the duplicate task auto-filing issue.
 
 Ready for integration.
+---
+author: oompah
+created: 2026-08-21 16:31
+---
+Fixed contributor evidence timeout log level to prevent error_watcher task creation
 ---
 <!-- COMMENTS:END -->
