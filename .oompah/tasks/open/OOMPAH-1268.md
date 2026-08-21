@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-21T02:12:20.372498Z'
+updated_at: '2026-08-21T02:12:34.830068Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -80,5 +80,10 @@ author: oompah
 created: 2026-08-18 22:30
 ---
 Follow-up fix in PR #884: existing stores kept their pre-V8 unconditional workflow_job_events DELETE trigger (CREATE TRIGGER IF NOT EXISTS won't replace it), so archival failed every sweep with IntegrityError and never made progress (20.1M hot events, 0 archived). Migration now drops+recreates the guarded trigger. Verified on the live DB: archival moved events successfully. Auto-merge enabled.
+---
+author: oompah
+created: 2026-08-21 02:12
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
