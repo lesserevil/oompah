@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:49:42.029230Z'
-updated_at: '2026-08-21T08:39:27.649929Z'
+updated_at: '2026-08-21T08:43:04.118531Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -188,5 +188,10 @@ author: oompah
 created: 2026-08-21 08:39
 ---
 **Understanding**: Investigating a backend:orchestrator error where 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' (timeout: 5.0s) is being caught by error_watcher and auto-filed. The error relates to OOMPAH-1197 and involves a task-authority deadline. Plan: (1) explore codebase for backend:orchestrator, error_watcher, and task-authority deadline handling; (2) identify root cause; (3) implement fix to either complete successfully or degrade gracefully; (4) verify no regression in error handling.
+---
+author: oompah
+created: 2026-08-21 08:43
+---
+**Discovery**: Found root cause in oompah/orchestrator.py _stage_work_contributor_launch() function (line 57834). The error is logged when contributor evidence persistence exceeds the bounded task-authority deadline timeout (default 5.0s). The code calculates persistence_timeout as min(control_timeout=5.0, termination_timeout/2=5.0) = 5.0s. However, when a configured contributor_evidence_persist_timeout_seconds exists in config, it should override this. The timeout may be too short for slow tracker/state-branch git commits. The error is logged as ERROR level which triggers error_watcher. Two possible fixes: (1) increase default timeout or (2) handle gracefully by downgrading log level when it's an expected transient issue.
 ---
 <!-- COMMENTS:END -->
