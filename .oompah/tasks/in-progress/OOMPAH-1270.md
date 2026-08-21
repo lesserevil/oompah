@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-21T14:50:54.159147Z'
+updated_at: '2026-08-21T14:58:36.613720Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -265,5 +265,10 @@ author: oompah
 created: 2026-08-21 14:50
 ---
 DISCOVERY: Found the transition flow. TransitionIntent already has actor/authority fields. Transitions to Needs Human go through: api_update_issue -> _apply_task_status_transition -> orch._transition_issue_status -> TaskTransitionService.execute -> _execute_claimed. The _execute_claimed method in TaskTransitionService is where the actual tracker.update_issue is called. I will instrument this method to log Needs Human transitions with actor/authority/reason_code to capture external sources.
+---
+author: oompah
+created: 2026-08-21 14:58
+---
+IMPLEMENTATION: Added INFO-level logging for Needs Human escalations in TaskTransitionService._execute_claimed. The logging captures task_id, project_id, actor, authority, and reason_code for every transition to Needs Human. This enables post-incident investigation of bulk escalations by tracking the exact authority source. Two instrumentation points added (lines 2612 and 2936 in task_transition_service.py) to capture both direct and recovery paths. Added regression test verifying logging of push-hook-driven Needs Human escalation.
 ---
 <!-- COMMENTS:END -->
