@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:41:47.946905Z'
-updated_at: '2026-08-21T08:16:04.677983Z'
+updated_at: '2026-08-21T08:21:32.878717Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -203,5 +203,26 @@ The error 'Pre-provider contributor evidence exceeded its bounded task-authority
 5. Verify no regressions in error_watcher functionality
 
 Starting exploration now.
+---
+author: oompah
+created: 2026-08-21 08:21
+---
+**Discovery: Root Cause Identified**
+
+Found the error in `oompah/orchestrator.py` line 58066-58083. The issue:
+
+1. **Location**: Pre-provider contributor evidence persistence timeout (writing task metadata to tracker)
+2. **Timeout**: Defaults to ~5 seconds (derived from control_timeout and termination_timeout)
+3. **Configured default**: Can be set via `OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS` (defaults to 30.0 seconds)
+4. **Current behavior**: Logs at ERROR level → error_watcher picks it up → auto-files a task
+5. **Actual behavior**: This is a HANDLED graceful failure - the operation is retried (line 58084-58090)
+
+**The Problem**: This timeout is expected/recoverable, but logging at ERROR level treats it as a critical unhandled error.
+
+**The Fix**: Change log level from ERROR to WARNING since:
+- The failure is caught and handled gracefully
+- The operation is retried automatically
+- This is an operational condition, not a critical failure
+- Will prevent error_watcher from filing duplicate tasks
 ---
 <!-- COMMENTS:END -->
