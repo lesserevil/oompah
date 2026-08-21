@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:59:49.640067Z'
-updated_at: '2026-08-21T15:49:17.970621Z'
+updated_at: '2026-08-21T15:51:38.473117Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -252,5 +252,22 @@ author: oompah
 created: 2026-08-21 15:49
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 15:51
+---
+## Understanding & Plan
+
+I've identified the error in oompah/orchestrator.py:58067. The issue occurs when writing contributor evidence (proof of which model/provider ran on an issue) to the task tracker takes longer than 5 seconds.
+
+**Root Cause:** The persistence timeout for writing contributor evidence is calculated as min(control_timeout, termination_timeout/2) with a floor of 0.05s. However, the error is configured with a 5-second timeout for the specific project/tracker. When the tracker write operation takes >5s, a TimeoutError is raised and logged with logger.error(), which triggers error_watcher to auto-file a task.
+
+**Key Question:** Is this timeout too aggressive, or is the tracker operation genuinely too slow?
+
+**Plan:**
+1. Examine the persistence write implementation to understand what operations it's doing
+2. Check if there's a way to handle this timeout gracefully instead of erroring
+3. Consider if the timeout should be increased for slow trackers
+4. Verify no regression in error_watcher functionality
 ---
 <!-- COMMENTS:END -->
