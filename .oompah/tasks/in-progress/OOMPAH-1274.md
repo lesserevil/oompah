@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:01.940609Z'
-updated_at: '2026-08-21T06:21:19.749569Z'
+updated_at: '2026-08-21T06:22:02.671506Z'
 work_branch: OOMPAH-1274
 target_branch: null
 review_url: null
@@ -146,16 +146,16 @@ oompah.work_contributors:
     model_id: haiku
     focus: general
     source_branch: OOMPAH-1274
-    source_sha: null
-    completed_at: ''
+    source_sha: 15a9f355efb0a7214e9f2ebe603bccf23182b776
+    completed_at: '2026-08-21T06:21:57.123092+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1570
+  total_input_tokens: 636
+  total_output_tokens: 23037
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1570
+      input_tokens: 636
+      output_tokens: 23037
       cost_usd: 0.0
   runs:
   - profile: default
@@ -164,6 +164,12 @@ oompah.task_costs:
     output_tokens: 1570
     cost_usd: 0.0
     recorded_at: '2026-08-21T02:38:48.011158+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 626
+    output_tokens: 21467
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T06:21:57.116868+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -356,5 +362,15 @@ Fixed contributor_evidence_unavailable errors in orchestrator dispatch loop
 Changed three code paths in oompah/orchestrator.py (CLI mode, ACP mode, and fallthrough CLI mode) to raise ProviderStartupError when contributor evidence persistence times out. This allows the dispatch loop to properly catch and handle the error as a retryable provider startup failure, preventing error_watcher from auto-filing unhandled errors.
 
 All 381 orchestrator handler tests pass with no regressions.
+---
+author: oompah
+created: 2026-08-21 06:21
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 208, Tool calls: 77
+- Tokens: 626 in / 21.5K out [22.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 28m 6s
+- Log: OOMPAH-1274__20260821T055426Z.jsonl
 ---
 <!-- COMMENTS:END -->
