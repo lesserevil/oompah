@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:20:38.226810Z'
-updated_at: '2026-08-21T08:09:35.517967Z'
+updated_at: '2026-08-21T08:18:47.119738Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -244,5 +244,28 @@ author: oompah
 created: 2026-08-21 08:09
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-21 08:18
+---
+**Understanding & Plan:**
+
+The error occurs in backend:orchestrator when writing pre-provider contributor evidence to the tracker. The operation times out after 5.0 seconds, which appears to be a computed fallback timeout rather than the configured default of 30.0 seconds.
+
+**Root Cause Analysis:**
+In orchestrator.py:58034-58041, the code checks for a configured timeout via:
+- getattr(self.config, 'contributor_evidence_persist_timeout_seconds', None)
+- If this returns None, it falls back to a computed value (min(5.0, 5.0) = 5.0 seconds)
+- The default should be 30.0 seconds (from ServiceConfig dataclass definition)
+
+**Planned Approach:**
+1. Find why the configured timeout is not being used (attribute might not be present on config object)
+2. Fix the timeout retrieval logic to use the configured default properly
+3. Add tests to verify the timeout is properly applied
+4. Verify no performance issues with the persistence operation itself
+
+**Project Context:**
+- Timeout affects project proj-14849f1b with provenanceguardedtracker
+- Error fingerprint: 9ffc8d768a43fc73
 ---
 <!-- COMMENTS:END -->
