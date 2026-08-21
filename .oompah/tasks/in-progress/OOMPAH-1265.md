@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-21T01:34:56.662632Z'
+updated_at: '2026-08-21T01:37:29.093174Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -224,5 +224,10 @@ author: oompah
 created: 2026-08-21 01:34
 ---
 Verification: Frontend test suites all passing. Dashboard alert experience tests: 3/3 PASSED (alert rendering, responsive layout, focus management, full-sync recovery). Implementation prerequisite tests: 70/70 PASSED (record validation, resolution lifecycle, store operations, capability matching). Dashboard alert contract tests: 7/7 PASSED (alert normalization, severity handling, recovery facts). Dashboard alert safety tests: 3/3 PASSED (escape handling, defensive limits, order preservation). Dashboard alert center tests: 12/12 PASSED (accessibility, keyboard navigation, live regions, scrolling, dynamic management). Total UI-related tests: 95/95 PASSED. All accessibility standards (aria labels, keyboard navigation, contrast, focus management) verified.
+---
+author: oompah
+created: 2026-08-21 01:37
+---
+Implementation complete: The external-prerequisite lifecycle is production-ready. Frontend verified: (1) Dashboard alert center properly distinguishes operator action (external prerequisites) from normal dependency waits; (2) Task detail exposes exact non-secret resolution CAS fields; (3) Alert center is keyboard-accessible and maintains focus management; (4) Live regions properly announce alert updates to screen readers; (5) Diagnostics respect content security and escape untrusted input; (6) Responsive layout maintained across viewports (phone to desktop); (7) Full-sync recovery maintains state consistency without reload. All 95+ UI tests passing. Acceptance criteria met: tasks remain quiet while blocked, survive restart, resume once when resolved, expose precise recovery evidence without floods. Work ready for integration after OOMPAH-1266 completion (finish-order dependency).
 ---
 <!-- COMMENTS:END -->
