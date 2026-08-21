@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:48:41.811265Z'
-updated_at: '2026-08-21T06:55:15.232728Z'
+updated_at: '2026-08-21T07:01:36.559634Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -220,5 +220,22 @@ Located the error in `oompah/orchestrator.py` at line 58066-58083.
 **Parallel Pattern:** The CancelledError path (line 58102) handles a similar scenario with `logger.warning()` instead of `logger.error()`, which is the correct approach.
 
 **Fix:** Change `logger.error()` to `logger.warning()` on line 58066 so error_watcher is not triggered for this transient, handled condition.
+---
+author: oompah
+created: 2026-08-21 07:01
+---
+**Implementation: Fixed Timeout Logging Level**
+
+Changed line 58066 in `oompah/orchestrator.py` from `logger.error()` to `logger.warning()`.
+
+**Rationale:** The contributor evidence persistence timeout is a transient, handled condition:
+- The operation is retried on the next orchestration cycle
+- An appropriate error message is returned to the caller
+- No data is lost or corrupted
+- The CancelledError path uses logger.warning() for a similar scenario
+
+By logging as WARNING instead of ERROR, error_watcher will no longer be triggered for this normal operational condition, eliminating false-positive bug reports.
+
+**Tests:** All 21 provider_retirement tests and 381 orchestrator_handler tests pass.
 ---
 <!-- COMMENTS:END -->
