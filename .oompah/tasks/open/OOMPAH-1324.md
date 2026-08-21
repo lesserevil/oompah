@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:22:19.264494Z'
-updated_at: '2026-08-21T14:35:21.092158Z'
+updated_at: '2026-08-21T14:36:05.088126Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,6 +58,14 @@ oompah.work_contributors:
     source_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     completed_at: '2026-08-21T05:15:10.352506+00:00'
   - run_id: 7cbfd17e0159456b857fc5d2cbf972d8--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-1324
+    source_sha: null
+    completed_at: ''
+  - run_id: a7dd1f603895484aa83323a0be29bf10--contributor-a8b0475e7b09
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-luna
@@ -167,5 +175,10 @@ author: oompah
 created: 2026-08-21 14:35
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-21 14:36
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
