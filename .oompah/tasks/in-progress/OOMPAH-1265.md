@@ -14,8 +14,8 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-21T00:43:02.897868Z'
-work_branch: null
+updated_at: '2026-08-21T00:43:17.631962Z'
+work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
 review_number: null
@@ -124,6 +124,15 @@ oompah.task_costs:
     output_tokens: 2011
     cost_usd: 0.0
     recorded_at: '2026-08-20T23:10:27.549405+00:00'
+oompah.work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-1231--task-OOMPAH-1265
+  base_branch: epic-OOMPAH-1231
+  base_sha: 2ff3966dd6b01c10e811cc67cf1c2cea8ed0d58e
+  updated_at: '2026-08-21T00:43:09.931888+00:00'
 ---
 ## Summary
 
@@ -195,5 +204,10 @@ author: oompah
 created: 2026-08-21 00:42
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-21 00:43
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
