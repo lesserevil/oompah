@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:22.979573Z'
-updated_at: '2026-08-21T01:25:05.317449Z'
+updated_at: '2026-08-21T01:29:28.741029Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -301,5 +301,10 @@ author: oompah
 created: 2026-08-21 01:25
 ---
 Implementation Complete: Changed logger.exception() to logger.warning(exc_info=True) in both _run_api_worker (line ~63575) and _run_acp_worker (line ~64737) exception handlers. This preserves exception traceback information via exc_info=True for debugging, but prevents ERROR-level logging that triggers error_watcher. Expected operational failures (workspace setup, tracker issues, etc.) are now logged at WARNING level instead of ERROR, preventing auto-filing of tasks during normal operation. Tests verify the fix doesn't break existing functionality.
+---
+author: oompah
+created: 2026-08-21 01:29
+---
+Verification: All 157 relevant tests pass (test_error_watcher.py, test_error_watcher_orchestrator.py, test_orchestrator_handlers.py). Commit 99d196692 pushed to OOMPAH-1199 branch. Changes: logger.exception() -> logger.warning(exc_info=True) in both API and ACP worker exception handlers. This prevents ERROR-level logging that triggers error_watcher while preserving exception traceback for debugging. Result: Operational failures no longer auto-file error tasks, meeting acceptance criteria.
 ---
 <!-- COMMENTS:END -->
