@@ -6126,6 +6126,31 @@ def _submission_record(
         if isinstance(raw_dependency_heads, dict)
         else {}
     )
+    # OOMPAH-1266: Fence late task submission from regressing landed integration authority.
+    # If the integration record is already "integrated" (PR was merged), preserve it
+    # rather than creating a fresh "ready" record that would regress the state.
+    # This prevents webhook-before-submit and late-submit races from causing a merged
+    # PR to revert to "ready" status, which breaks terminal fingerprint stability.
+    if (
+        existing is not None
+        and existing.state == "integrated"
+        and existing.head_sha == head_sha
+        and existing.task_branch == task_branch
+        and existing.base_branch == base_branch
+        and existing.base_sha == base_sha
+        and str(getattr(existing, "post_landed_parent_id", "") or "").strip()
+        == str(selected_parent or "")
+    ):
+        # Same-generation submit after integration landing: preserve the integrated
+        # record to maintain exact landed authority and prevent lifecycle regression.
+        # This is the opposite of OOMPAH-628's reflow case, where integrated->ready
+        # is intentional. Here, integrated->ready from a late submit is forbidden.
+        existing_mode = getattr(existing, "mode", None)
+        return (
+            existing
+            if existing_mode in (None, delivery_mode)
+            else replace(existing, mode=delivery_mode)
+        )
     # An accepted ``ready`` / ``queued`` / ``integrating`` record for the same
     # generation is durable evidence we can reuse: the integration queue
     # already owns the row and no fresh timestamp is required. ``integrated``

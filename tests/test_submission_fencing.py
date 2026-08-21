@@ -1205,3 +1205,126 @@ async def test_non_revoked_submission_exit_keeps_ordinary_retry_path(tmp_path):
     handler.assert_not_awaited()
     assert schedule_retry.call_args.kwargs["project_id"] == "project-a"
     assert issue.id not in orch.state.running
+
+
+def test_submission_record_preserves_integrated_generation_on_late_submit():
+    """Preserve integrated record on late submit (webhook-before-submit race).
+    
+    OOMPAH-1266: When a PR is merged (webhook stages Done/integrated), a
+    delayed submit for the same generation should preserve the integrated
+    record instead of creating a fresh "ready" record that would regress
+    the state and break terminal fingerprint stability.
+    """
+    from oompah.server import _submission_record
+    
+    # Simulate a task with an already-integrated record
+    issue = _issue(head_sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    issue.integration = IntegrationRecord(
+        state="integrated",
+        head_sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",  # Same head as submitted
+        task_branch="task/TASK-1",
+        base_branch="trunk",
+        base_sha="dddddddddddddddddddddddddddddddddddddddd",
+        integrated_sha="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        mode="standalone",
+    )
+    
+    # Submission for the same generation (late/retried submit)
+    body = {
+        "summary": "Completed",
+        "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "remote_head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "task_branch": "task/TASK-1",
+        "base_branch": "trunk",
+        "base_sha": "dddddddddddddddddddddddddddddddddddddddd",
+        "worktree_clean": True,
+        "changed_paths": [],
+    }
+    
+    # Call _submission_record
+    record = _submission_record(issue, body)
+    
+    # Verify the record is the same integrated record, not a new ready record
+    assert record is issue.integration
+    assert record.state == "integrated"
+    assert record.head_sha == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    assert record.integrated_sha == "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    assert record.mode == "standalone"
+
+
+def test_submission_record_creates_ready_for_new_head_after_integrated():
+    """A new-head submit after integrated creates fresh ready record.
+    
+    This is NOT the late-submit case. A new submission with a different
+    head SHA should create a fresh ready record (OOMPAH-628 reflow).
+    """
+    from oompah.server import _submission_record
+    
+    # Existing integrated record
+    issue = _issue(head_sha="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+    issue.integration = IntegrationRecord(
+        state="integrated",
+        head_sha="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        task_branch="task/TASK-1",
+        base_branch="trunk",
+        base_sha="dddddddddddddddddddddddddddddddddddddddd",
+        mode="standalone",
+    )
+    
+    # NEW submission with different head
+    body = {
+        "summary": "Completed",
+        "head_sha": "cccccccccccccccccccccccccccccccccccccccc",
+        "remote_head_sha": "cccccccccccccccccccccccccccccccccccccccc",
+        "task_branch": "task/TASK-1",
+        "base_branch": "trunk",
+        "base_sha": "dddddddddddddddddddddddddddddddddddddddd",
+        "worktree_clean": True,
+        "changed_paths": [],
+    }
+    
+    # Call _submission_record
+    record = _submission_record(issue, body)
+    
+    # Verify a fresh ready record is created (not the integrated record)
+    assert record is not issue.integration
+    assert record.state == "ready"
+    assert record.head_sha == "cccccccccccccccccccccccccccccccccccccccc"
+    assert record.integrated_sha is None
+
+
+def test_submission_record_preserves_ready_on_same_generation_retry():
+    """Preserve ready record on same-generation retry (idempotency).
+    
+    When a ready record exists for the exact same generation and all
+    parameters match, preserve it instead of creating a new one.
+    """
+    from oompah.server import _submission_record
+    
+    issue = _issue(head_sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    issue.integration = IntegrationRecord(
+        state="ready",
+        head_sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        task_branch="task/TASK-1",
+        base_branch="trunk",
+        base_sha="dddddddddddddddddddddddddddddddddddddddd",
+        mode="standalone",
+    )
+    
+    # Same submission (retry)
+    body = {
+        "summary": "Completed",
+        "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "remote_head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "task_branch": "task/TASK-1",
+        "base_branch": "trunk",
+        "base_sha": "dddddddddddddddddddddddddddddddddddddddd",
+        "worktree_clean": True,
+        "changed_paths": [],
+    }
+    
+    record = _submission_record(issue, body)
+    
+    # Should return the existing ready record
+    assert record is issue.integration
+    assert record.state == "ready"
