@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-21T05:22:42.541049Z'
+updated_at: '2026-08-21T05:22:51.094278Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -213,5 +213,10 @@ author: oompah
 created: 2026-08-21 05:22
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-21 05:22
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
