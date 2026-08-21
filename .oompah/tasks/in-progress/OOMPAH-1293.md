@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1293
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=OOMPAH-1201 identifier=OOMPAH-1201 run_id=5cda32d6ce4342a1aba181116903c418
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:40:39.902883Z'
-updated_at: '2026-08-21T16:12:03.126155Z'
+updated_at: '2026-08-21T16:12:25.925566Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -106,6 +106,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1293
     source_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     completed_at: '2026-08-21T11:42:41.336339+00:00'
+  - run_id: 2dda4cb9b3a04af18aa52315832d1670--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: general
+    source_branch: OOMPAH-1293
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1645
@@ -223,5 +231,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 2s
 - Log: OOMPAH-1293__20260821T114209Z.jsonl
+---
+author: oompah
+created: 2026-08-21 16:12
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->

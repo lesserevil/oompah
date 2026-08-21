@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:16:52.125972Z'
-updated_at: '2026-08-21T16:11:40.321774Z'
+updated_at: '2026-08-21T16:12:19.225578Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,6 +69,14 @@ oompah.work_contributors:
     provider_id: prov-6cf41c89
     provider_name: Opencode/Switchyard
     model_id: switchyard/auto
+    focus: duplicate_detector
+    source_branch: OOMPAH-1290
+    source_sha: null
+    completed_at: ''
+  - run_id: 212a195635754e43a491c383241ca6a9--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
     focus: duplicate_detector
     source_branch: OOMPAH-1290
     source_sha: null
@@ -184,5 +192,10 @@ author: oompah
 created: 2026-08-21 16:11
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-21 16:12
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
