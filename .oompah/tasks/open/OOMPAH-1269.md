@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-19T01:37:27.110739Z'
-updated_at: '2026-08-21T05:50:59.904135Z'
+updated_at: '2026-08-21T05:52:07.965695Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,14 +37,46 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 5dc0783d247a95a6a1800a7a554d4fd4b26101485aa5a369f7f02477975a5be0
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-21T05:51:53.609183+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 10dd5910b1db53cedb2dd4d692d481cc6fab438e1ad226c6ccdf4b3f8aba343a:144001
-  claim_owner: 7dbe71d1-9fc2-4b0c-bb54-3da0831c26d5
-  claimed_at: '2026-08-21T05:50:13.091141+00:00'
-  claim_expires_at: '2026-08-21T06:20:13.091141+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: The supplied corpus contains 23 peer tasks, all in terminal\
+    \ states (Merged, Done, Archived). Thematically related completed tasks include\
+    \ OOMPAH-1009 (terminal-audit churn starving publication), OOMPAH-1076 (large-corpus\
+    \ reconciliation SLO), and OOMPAH-1130 (exhausted-audit recovery starving publication)\
+    \ \u2014 all of which address related workflow/publication/restart issues but\
+    \ remain distinct from OOMPAH-1269's specific publication_rollback-event-storm\
+    \ livelock. No active open duplicate exists in the provided reference data.\n\
+    I need to perform duplicate investigation on OOMPAH-1269 using only the supplied\
+    \ task corpus.\n\n## Analysis\n\nLet me review OOMPAH-1269:\n- **Title:** \"publication_rollback\
+    \ storm livelocks trickle reconcile and starves dispatch\"\n- **Status:** Open\n\
+    - **Description:** After restart, no tasks dispatch because trickle reconcile\
+    \ exceeds the restart budget. Root cause: ~20.1M workflow_job_events rows dominated\
+    \ by publication_rollback events (one-per-job from repeated rollbacks). The mechanism:\
+    \ workflow_runtime publication's workflow_authority_revision changes between capture\
+    \ and publish for trickle on nearly every pass, raising WorkflowPublicationSuperseded\
+    \ 3,486 times. Each supersede triggers rollback_authority which emits one publication_rollback\
+    \ event per job (~13k for TRICKLE-117), creating millions of events.\n- **Prior\
+    \ context:** PR #885 already partially fixed this by making restore_snapshot_authority\
+    \ emit one aggregate event instead of one-per-job. Root-cause churn investigation\
+    \ remains open.\n\nNow examining the supplied task corpus for active (non-terminal)\
+    \ peers:\n\n**Terminal-state peers (excluded):**\n- OOMPAH-10 (Archived): git\
+    \ sync failures\n- OOMPAH-1002, 1004-1006, 1009, 1011, 1014 (Merged): terminal-audit/epic/admission\
+    \ issues\n- OOMPAH-1073-1076, 1078, 1082, 1085 (Merged): owner-claim/epic/gate/reconciliation\
+    \ issues\n- OOMPAH-1089-1092, 1095-1096 (Merged): review/delivery/terminal-audit\
+    \ issues\n- OOMPAH-1003 (Done): epic auto-close\n- OOMPAH-1130, 1178 (Merged):\
+    \ terminal-audit recovery and batch updates\n\n**Result:** All 23 peer tasks in\
+    \ the supplied corpus are in terminal states (Done, Merged, Archived). There are\
+    \ **zero active duplicate candidates** to evaluate.\n\nThe closest thematically-related\
+    \ tasks (workflow publication, rollback, restart budget issues) are all completed\
+    \ and appear to be distinct problems discovered during the recovery effort for\
+    \ this incident, not duplicates of OOMPAH-1269 itself.\n\n---\n\nFocus handoff:\
+    \ duplicate_detector\n\nDuplicate preflight verd"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 1
   retry_after: null
   owner_resolved_at: null
@@ -67,8 +99,24 @@ oompah.work_contributors:
     model_id: haiku
     focus: duplicate_detector
     source_branch: OOMPAH-1269
-    source_sha: null
-    completed_at: ''
+    source_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    completed_at: '2026-08-21T05:51:53.612529+00:00'
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 2655
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 2655
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 2655
+    cost_usd: 0.0
+    recorded_at: '2026-08-21T05:51:53.608608+00:00'
 ---
 ## Summary
 
@@ -129,5 +177,15 @@ author: oompah
 created: 2026-08-21 05:50
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-21 05:51
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 2.7K out [2.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 18s
+- Log: OOMPAH-1269__20260821T055107Z.jsonl
 ---
 <!-- COMMENTS:END -->
