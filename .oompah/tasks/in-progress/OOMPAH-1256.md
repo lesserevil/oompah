@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-21T02:02:15.960448Z'
+updated_at: '2026-08-21T02:15:20.697418Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -379,5 +379,24 @@ author: oompah
 created: 2026-08-21 02:02
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-08-21 02:15
+---
+**Understanding & Initial Investigation:**
+
+The error 'Add comment API error: ProjectError("Unknown project")' occurs in the backend:server's api_add_comment endpoint (oompah/server.py line 17416). 
+
+**Initial Findings:**
+1. The POST /api/v1/issues/{id}/comments endpoint resolves project_id via _get_tracker_for_issue_or_project
+2. This calls _canonical_managed_project_id which validates the project exists in the managed project store
+3. If the project isn't found in managed projects, ProjectError('Unknown project') is raised
+4. The error message is intentionally generic (line 8273) to avoid leaking config details
+
+**Next Steps:**
+- Trace why proj-14849f1b project lookup is failing
+- Check if this is about missing name-based fallback in _canonical_managed_project_id
+- Verify project_store.find_by_name() is being called
+- Investigate if this is a race condition or misconfiguration
 ---
 <!-- COMMENTS:END -->
