@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-21T01:52:19.320122Z'
+updated_at: '2026-08-21T02:00:12.017564Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -232,5 +232,10 @@ Plan:
 4. Implement proper connection/transaction management
 5. Add/verify test coverage
 6. Verify the fix resolves the error
+---
+author: oompah
+created: 2026-08-21 02:00
+---
+Discovery: Found potential root cause. The 'Cannot operate on a closed database' error likely occurs during orchestrator replacement. When a new orchestrator replaces the old one via set_orchestrator(), the old orchestrator's SQLite stores (coordination_store, integration_queue, etc.) may be garbage collected. This can cause their database connections to be implicitly closed by Python's finalizer while API threads still hold references to those stores and try to access them. The issue is that there's no explicit lifecycle management to prevent this race condition.
 ---
 <!-- COMMENTS:END -->
