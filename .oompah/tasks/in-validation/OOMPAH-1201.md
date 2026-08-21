@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1201
 type: bug
-status: In Review
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-133'
 parent: null
@@ -11,14 +11,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:47.623989Z'
-updated_at: '2026-08-21T00:58:43.832534Z'
+updated_at: '2026-08-21T04:10:58.563427Z'
 work_branch: OOMPAH-1201
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/893
 review_number: '893'
 review_head: b6644c5739285af3b2da1d9d1e91077ed094845b
 merged_at: null
-oompah.lifecycle_revision: 4
+oompah.lifecycle_revision: 5
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -144,6 +144,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/893
 oompah.review_number: '893'
 oompah.target_branch: main
 oompah.review_head: b6644c5739285af3b2da1d9d1e91077ed094845b
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-431e164c6a88
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1201
+    digest: c53bfec3e18dba65d306bd764426f7633f38a59bd9f3969e9644540dafa598c1
+  - version: 1
+    audit_id: audit-3b50b6818c44
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1201
+    digest: c53bfec3e18dba65d306bd764426f7633f38a59bd9f3969e9644540dafa598c1
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-431e164c6a88
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1201
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c53bfec3e18dba65d306bd764426f7633f38a59bd9f3969e9644540dafa598c1
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-21T04:10:50.156901+00:00'
+    eligible_at: '2026-08-21T04:10:50.156901+00:00'
+    selected_ref: b6644c5739285af3b2da1d9d1e91077ed094845b
+    selected_sha: b6644c5739285af3b2da1d9d1e91077ed094845b
+  - version: 1
+    audit_id: audit-3b50b6818c44
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1201
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c53bfec3e18dba65d306bd764426f7633f38a59bd9f3969e9644540dafa598c1
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-21T04:10:50.156901+00:00'
+    prerequisite_audit_id: audit-431e164c6a88
+    selected_ref: b6644c5739285af3b2da1d9d1e91077ed094845b
+    selected_sha: b6644c5739285af3b2da1d9d1e91077ed094845b
+  attempt_history: []
 ---
 ## Summary
 
