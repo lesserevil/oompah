@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:42:36.055994Z'
-updated_at: '2026-08-21T00:48:33.282720Z'
+updated_at: '2026-08-21T00:52:45.681467Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -287,5 +287,10 @@ author: oompah
 created: 2026-08-21 00:48
 ---
 **Understanding**: The issue reports a timeout error in backend:orchestrator: 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' with a 5-second timeout. The error is being auto-filed by error_watcher during normal operation on proj-14849f1b. Plan: (1) Explore the codebase to find the orchestrator backend and the error message; (2) Identify where the 5-second timeout is being enforced; (3) Determine if this is a genuine timeout issue or if it needs graceful degradation; (4) Implement a fix or proper error handling; (5) Verify with tests.
+---
+author: oompah
+created: 2026-08-21 00:52
+---
+**Discovery**: Found the root cause in oompah/orchestrator.py:58052-58069. When writing contributor evidence to the tracker times out (within the bounded task-authority deadline), the orchestrator logs at ERROR level: 'Pre-provider contributor evidence exceeded its bounded task-authority deadline'. This causes error_watcher to auto-file the error as a task. However, this timeout is expected, recoverable behavior - the operation gracefully degrades and retries on the next cycle (see test_provider_retirement.py:444,732 which expect this condition). Similar to OOMPAH-403, this should be logged at WARNING level, not ERROR, to prevent spurious error task filings.
 ---
 <!-- COMMENTS:END -->
