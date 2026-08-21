@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:56:45.420158Z'
-updated_at: '2026-08-21T02:52:49.744931Z'
+updated_at: '2026-08-21T02:53:07.943357Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,6 +47,16 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 99cd78c6-4f9a-4f73-b3f9-c66c9866940e
+oompah.work_contributors:
+  runs:
+  - run_id: 65d3ef7283c7451099c2949051272c23--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-1283
+    source_sha: null
+    completed_at: ''
 ---
 ## Summary
 
@@ -87,3 +97,11 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-21 02:53
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
