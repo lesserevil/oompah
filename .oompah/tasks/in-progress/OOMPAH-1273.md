@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:41:44.906086Z'
-updated_at: '2026-08-21T06:06:23.714377Z'
+updated_at: '2026-08-21T06:06:34.438027Z'
 work_branch: OOMPAH-1273
 target_branch: null
 review_url: null
@@ -79,7 +79,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8262d805-48db-45c3-ba3f-07e34a8cf455
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: e67cc29ad7974efcbdc9fe1c70b88799--contributor-4256b9f40773
@@ -267,5 +267,16 @@ created: 2026-08-21 06:06
 - Branch pushed and up to date with origin
 
 The fix is minimal, focused, and addresses the root cause without affecting any other functionality.
+---
+author: oompah
+created: 2026-08-21 06:06
+---
+Fixed error_watcher false positive for pre-provider contributor evidence timeout
+
+The 'Pre-provider contributor evidence exceeded its bounded task-authority
+deadline' error was being logged at ERROR level, causing error_watcher to
+auto-file a task. This is a known, expected failure case that is handled
+gracefully by retrying. Changed the logging level to WARNING for consistency
+with similar handled failures in the same function.
 ---
 <!-- COMMENTS:END -->
