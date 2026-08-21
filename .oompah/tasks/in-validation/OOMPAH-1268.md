@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-21T10:37:12.564191Z'
+updated_at: '2026-08-21T10:39:30.561534Z'
 work_branch: OOMPAH-1268
 target_branch: null
 review_url: null
@@ -149,12 +149,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1268
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-74a35a09ad49
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+      created_at: '2026-08-21T10:39:21.573429+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-21T10:39:21.573429+00:00'
+      branch_key: OOMPAH-1268
+      selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+      selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     source_generation: 1
     requested_by:
       version: 1
@@ -165,6 +180,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-21T10:37:06.722220+00:00'
     selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    updated_at: '2026-08-21T10:39:21.573429+00:00'
   - version: 1
     audit_id: audit-fa9a98a4b580
     project_id: proj-14849f1b
@@ -186,7 +202,22 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-8f44983b1fe8
     selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-74a35a09ad49
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+    created_at: '2026-08-21T10:39:21.573429+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-21T10:39:21.573429+00:00'
+    branch_key: OOMPAH-1268
+    selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
 ---
 ## Summary
 
@@ -316,5 +347,15 @@ author: oompah
 created: 2026-08-21 10:37
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-21 10:39
+---
+Auditor dispatched (attempt #1, candidate: prov-6cf41c89/switchyard/auto)
+---
+author: oompah
+created: 2026-08-21 10:39
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
