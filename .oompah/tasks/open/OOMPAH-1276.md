@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:45:59.311385Z'
-updated_at: '2026-08-21T14:58:08.990418Z'
+updated_at: '2026-08-21T15:04:47.172747Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -303,5 +303,30 @@ Fixed the contributor evidence timeout issue by making two key changes to oompah
 - Verified all existing tests pass (21 tests in test_provider_retirement.py, 32 dispatch tests)
 - The existing timeout test with explicit 0.1s config still works correctly
 - Changes are backward compatible - explicit config values still override the fallback
+---
+author: oompah
+created: 2026-08-21 15:04
+---
+**Verification:**
+
+✅ All tests pass:
+- 21 tests in test_provider_retirement.py (focused on contributor evidence timeout scenarios)
+- 32 dispatch-related tests in test_orchestrator_handlers.py
+- 79 total tests across test_provider_retirement.py and test_acp_agent.py
+
+✅ Changes verified:
+- Code increases the contributor evidence timeout from 5.0s to minimum 10.0s
+- Explicit config values (like 60.0s default) are still respected
+- Error logging changed from ERROR to WARNING for timeout conditions
+- Backward compatibility maintained - all existing tests pass without modification
+
+✅ Fix addresses the issue:
+- Pre-provider contributor evidence timeout no longer triggers error_watcher
+- Slow tracker implementations have sufficient time to complete metadata writes
+- Transient timeout failures are properly classified as warnings, not errors
+- Retry mechanism handles the timeout gracefully
+
+Commit: OOMPAH-1276 e8c4d3ff8
+Branch pushed and ready for review.
 ---
 <!-- COMMENTS:END -->
