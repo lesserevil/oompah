@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:53.373319Z'
-updated_at: '2026-08-23T23:56:35.484831Z'
+updated_at: '2026-08-23T23:56:54.580457Z'
 work_branch: OOMPAH-1217
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/897
@@ -410,5 +410,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Opencode/Switchyard/switchya
 - Cost: $0.0000
 - Exit: interrupted, Duration: 26s
 - Log: OOMPAH-1217__20260823T235155Z.jsonl
+---
+author: oompah
+created: 2026-08-23 23:56
+---
+Auditor dispatched (attempt #1, candidate: prov-6cf41c89/switchyard/auto)
+---
+author: oompah
+created: 2026-08-23 23:56
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->

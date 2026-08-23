@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:01:23.399466Z'
-updated_at: '2026-08-23T23:56:31.715291Z'
+updated_at: '2026-08-23T23:56:53.187267Z'
 work_branch: OOMPAH-1299
 target_branch: null
 review_url: null
@@ -362,5 +362,30 @@ author: oompah
 created: 2026-08-23 23:56
 ---
 Fixed pre-provider contributor evidence timeout handling to prevent error_watcher auto-filing by changing log level from WARNING to DEBUG. These are normal handled operational conditions, not unhandled errors.
+---
+author: oompah
+created: 2026-08-23 23:56
+---
+## Completion Summary
+
+**Issue:** Backend orchestrator was logging pre-provider contributor evidence timeouts at WARNING level, causing error_watcher to auto-file tasks inappropriately during normal operation.
+
+**Root Cause:** Synchronous tracker metadata writes have bounded timeouts (5-10 seconds by default). When these timeouts occur, the system gracefully degrades and retries, but the WARNING-level logs were being picked up by error_watcher's monitoring mechanisms.
+
+**Solution:** Changed log level from WARNING to DEBUG for two timeout scenarios in `_stage_work_contributor_launch()`:
+- Line 58067: Pre-provider contributor evidence exceeded deadline
+- Line 58103: Cancelled pre-provider contributor evidence timeout
+
+**Result:** 
+✅ Pre-provider evidence timeouts no longer trigger error_watcher tasks
+✅ All error handling and retry logic unchanged
+✅ All 145 related tests pass
+✅ Code reviewed against existing patterns
+✅ Task submitted for integration
+
+**References:**
+- Modified file: oompah/orchestrator.py
+- Commit: f14aee1e2
+- Branch: OOMPAH-1299
 ---
 <!-- COMMENTS:END -->
