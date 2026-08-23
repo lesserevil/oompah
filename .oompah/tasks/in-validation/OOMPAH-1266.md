@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-23T21:56:10.486226Z'
+updated_at: '2026-08-23T21:56:14.123672Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -670,5 +670,10 @@ created: 2026-08-21 15:40
 Needs Human — Done audit requires operator input.
 
 Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
+---
+author: oompah
+created: 2026-08-23 21:56
+---
+Terminal audit rearmed by project owner after recovery: Auditor infra crash root-caused to agent.py StreamReader 64KiB buffer limit (tracked as OOMPAH-1327, fix applied: create_subprocess_exec now uses limit=MAX_LINE_SIZE). Rearming exhausted terminal audit; no implementation reopened.
 ---
 <!-- COMMENTS:END -->
