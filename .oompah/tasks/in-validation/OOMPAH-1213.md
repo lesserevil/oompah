@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1213
 type: bug
-status: In Review
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] Restart recovery persistence failed closed: restart
   recovery publication was not acknowledged'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:50:52.786229Z'
-updated_at: '2026-08-21T16:25:44.324535Z'
+updated_at: '2026-08-23T23:41:30.618631Z'
 work_branch: OOMPAH-1213
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/895
 review_number: '895'
 review_head: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
 merged_at: null
-oompah.lifecycle_revision: 6
+oompah.lifecycle_revision: 7
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -154,6 +154,66 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/895
 oompah.review_number: '895'
 oompah.target_branch: main
 oompah.review_head: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-31cf04203a11
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1213
+    digest: 0be5dc22447d8e61d317e4d046481be1c6170edb89ce02264cc0c6b5a198147b
+  - version: 1
+    audit_id: audit-4a0451bfc9f3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1213
+    digest: 0be5dc22447d8e61d317e4d046481be1c6170edb89ce02264cc0c6b5a198147b
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-31cf04203a11
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1213
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0be5dc22447d8e61d317e4d046481be1c6170edb89ce02264cc0c6b5a198147b
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah
+      source: orchestrator
+    previous_state: In Review
+    created_at: '2026-08-23T23:41:24.009327+00:00'
+    eligible_at: '2026-08-23T23:41:24.009327+00:00'
+    selected_ref: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
+    selected_sha: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
+    workflow_revision: f8e345804f381f9cffa9c50cb924682f90c5bd2b4e6b162e81ec65339f70d8fc
+  - version: 1
+    audit_id: audit-4a0451bfc9f3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1213
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0be5dc22447d8e61d317e4d046481be1c6170edb89ce02264cc0c6b5a198147b
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah
+      source: orchestrator
+    previous_state: In Review
+    created_at: '2026-08-23T23:41:24.009327+00:00'
+    prerequisite_audit_id: audit-31cf04203a11
+    selected_ref: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
+    selected_sha: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
+    workflow_revision: f8e345804f381f9cffa9c50cb924682f90c5bd2b4e6b162e81ec65339f70d8fc
+  attempt_history: []
 ---
 ## Summary
 
@@ -354,5 +414,10 @@ author: oompah
 created: 2026-08-21 16:24
 ---
 Branch quality gate passed for `5109f99df52a9c3470ad663a7c67c2f079d5fcf0` using `make test` in 189.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-23 23:41
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
