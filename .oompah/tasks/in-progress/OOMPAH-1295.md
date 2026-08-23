@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:57:11.533917Z'
-updated_at: '2026-08-23T22:22:31.063880Z'
+updated_at: '2026-08-23T22:22:42.383486Z'
 work_branch: OOMPAH-1295
 target_branch: null
 review_url: null
@@ -345,5 +345,10 @@ All existing tests pass with the fix applied. The timeout logic now:
 4. Is simpler and more maintainable
 
 The fix ensures that slow state-branch git commits won't timeout prematurely, resolving the OOMPAH-1208 error being auto-filed by error_watcher.
+---
+author: oompah
+created: 2026-08-23 22:22
+---
+Fixed pre-provider contributor evidence timeout issue by using configured timeout value (60.0s default) directly instead of deriving a short 5.0s timeout. Simplified logic and verified with comprehensive test suite.
 ---
 <!-- COMMENTS:END -->

@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:11:27.677981Z'
-updated_at: '2026-08-23T22:22:32.393583Z'
+updated_at: '2026-08-23T22:22:43.719844Z'
 work_branch: OOMPAH-1252
 target_branch: null
 review_url: null
@@ -351,5 +351,10 @@ author: oompah
 created: 2026-08-23 22:21
 ---
 Verification: All related tests passed (149 tests in test_task_transition_service.py and test_state_branch_fetch_error.py). The fix adds 'transition.project_owner_authority_required' to the expected_policy_rejections set, ensuring these rejections are handled gracefully as 409 conflict responses instead of 500 errors, preventing error_watcher from being triggered.
+---
+author: oompah
+created: 2026-08-23 22:22
+---
+Fixed TaskTransitionNotApplied error handling by adding 'transition.project_owner_authority_required' to expected_policy_rejections set. Now handles these rejections gracefully as 409 conflicts instead of 500 errors. All tests pass.
 ---
 <!-- COMMENTS:END -->
