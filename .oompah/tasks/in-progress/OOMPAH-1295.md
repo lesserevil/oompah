@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:57:11.533917Z'
-updated_at: '2026-08-21T16:43:25.421713Z'
+updated_at: '2026-08-23T21:54:29.162730Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -78,7 +78,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8323cc93-459f-4f6a-8fdd-92a1f38e1212
+oompah.agent_run_id: eb9dd7a2-d158-4fe4-9e6f-5a64dc47bb4f
 oompah.work_contributors:
   runs:
   - run_id: 28eb33461a894fb5abc3f1dfe2e3dcb0--contributor-a8b0475e7b09
@@ -246,5 +246,10 @@ author: oompah
 created: 2026-08-21 16:43
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-23 21:54
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
