@@ -4144,6 +4144,7 @@ def _transition_rejected_reason(exc: Exception) -> str | None:
         "transition.illegal_edge",
         "transition.maintenance_audit_authority_required",
         "transition.project_mismatch",
+        "transition.project_owner_authority_required",
         "transition.recovery_authority_rejected",
         "transition.rollup_authority_required",
         "transition.rollup_generation_mismatch",
