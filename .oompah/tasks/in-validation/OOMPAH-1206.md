@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1206
 type: bug
-status: Needs Human
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue TRICKLE-121:
   All 2 dispatch candidates unavailable: prov-651d553c/sonnet: contributor_evidence_unavailable:
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-23T21:55:31.883880Z'
+updated_at: '2026-08-23T21:55:37.703550Z'
 work_branch: OOMPAH-1206
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/902
 review_number: '902'
 review_head: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
 merged_at: null
-oompah.lifecycle_revision: 6
+oompah.lifecycle_revision: 7
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
