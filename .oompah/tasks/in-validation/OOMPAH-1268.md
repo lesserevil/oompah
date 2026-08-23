@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1268
 type: task
-status: Needs Human
+status: In Validation
 priority: 3
 title: Archive workflow_job_events for Archived tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-21T11:05:16.523525Z'
+updated_at: '2026-08-23T21:56:43.128727Z'
 work_branch: OOMPAH-1268
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 3211e93d-73f6-4a41-99a7-1bdcaa479ed0
   request_fingerprint: 2efda9a8ba2e984ce57f567673ef41d1f8d9cc0aaaf21d0aff8871d9296ce4a0
-oompah.lifecycle_revision: 5
+oompah.lifecycle_revision: 6
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -182,6 +182,41 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-21T10:55:28.005773+00:00'
     applied_at: '2026-08-21T10:55:34.246866+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1268
+    audit_id: audit-0462454aa959
+    attempt_id: audit-rearm:audit-0462454aa959
+    target_state: Done
+    evidence_fingerprint: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+    status: In Validation
+    audit_ids:
+    - audit-0462454aa959
+    kind: audit_rearm
+    applied: true
+    created_at: '2026-08-23T21:56:26.530488+00:00'
+    applied_at: '2026-08-23T21:56:35.673759+00:00'
+  oompah.terminal_audit_rearm_history:
+  - version: 2
+    audit_id: audit-0462454aa959
+    superseded_audit_id: audit-8f44983b1fe8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1268
+    target_state: Done
+    evidence_fingerprint: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+    workflow_revision: null
+    selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    landing_revision: null
+    source_generation: 2
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Auditor infra crash root-caused to agent.py StreamReader 64KiB buffer
+      limit (tracked as OOMPAH-1327, fix applied: create_subprocess_exec now uses
+      limit=MAX_LINE_SIZE). Rearming exhausted terminal audit; no implementation reopened.'
+    authorized_at: '2026-08-23T21:56:26.530326+00:00'
+    mode: infrastructure_recovery
   version: 1
   pending_chain:
   - version: 1
@@ -189,7 +224,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1268
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -279,7 +314,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-21T10:37:06.722220+00:00'
     selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
-    updated_at: '2026-08-21T10:55:28.005629+00:00'
+    updated_at: '2026-08-23T21:56:26.530326+00:00'
   - version: 1
     audit_id: audit-fa9a98a4b580
     project_id: proj-14849f1b
@@ -302,6 +337,27 @@ oompah.terminal_audit:
     selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     updated_at: '2026-08-21T11:05:15.109982+00:00'
+  - version: 1
+    audit_id: audit-0462454aa959
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1268
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-23T21:56:26.530326+00:00'
+    eligible_at: '2026-08-23T21:56:26.530326+00:00'
+    selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
   attempt_history:
   - version: 1
     attempt_id: attempt-74a35a09ad49
@@ -573,5 +629,10 @@ created: 2026-08-21 10:55
 Needs Human — Done audit requires operator input.
 
 Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
+---
+author: oompah
+created: 2026-08-23 21:56
+---
+Terminal audit rearmed by project owner after recovery: Auditor infra crash root-caused to agent.py StreamReader 64KiB buffer limit (tracked as OOMPAH-1327, fix applied: create_subprocess_exec now uses limit=MAX_LINE_SIZE). Rearming exhausted terminal audit; no implementation reopened.
 ---
 <!-- COMMENTS:END -->
