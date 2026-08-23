@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:54:51.257792Z'
-updated_at: '2026-08-21T15:48:10.090987Z'
+updated_at: '2026-08-23T23:27:53.299658Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,13 +36,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: 'failed to spawn opencode run: OSError(7, ''Argument list too long'')'
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 84643b1ddd4e9b44917b591c33ef86941e6d1b0da54ce6e7b3f886823c00971d:165544
+  claim_owner: e576ece2-7a1a-49c8-8819-b318eae114d1
+  claimed_at: '2026-08-23T23:27:51.923516+00:00'
+  claim_expires_at: '2026-08-23T23:57:51.923516+00:00'
   retry_count: 1
-  retry_after: '2026-08-21T15:49:00.437834+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
