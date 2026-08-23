@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-23T21:55:48.627587Z'
+updated_at: '2026-08-23T22:16:15.661561Z'
 work_branch: OOMPAH-1206
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/902
@@ -240,6 +240,8 @@ oompah.terminal_audit:
       limit=MAX_LINE_SIZE). Rearming exhausted terminal audit; no implementation reopened.'
     authorized_at: '2026-08-23T21:55:28.524239+00:00'
     mode: infrastructure_recovery
+    consumed_at: '2026-08-23T22:16:04.322540+00:00'
+    consumed_workflow_job_id: workflow-job-75023c7f9de8412a9370de3e32fd4bbb
   version: 1
   pending_chain:
   - version: 1
@@ -365,12 +367,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1206
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-5b263b901554
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
+      created_at: '2026-08-23T22:16:07.947264+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-23T22:16:07.947264+00:00'
+      branch_key: OOMPAH-1206
+      selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+      selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     source_generation: 2
     requested_by:
       version: 1
@@ -381,6 +398,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-23T21:55:28.524239+00:00'
     selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+    updated_at: '2026-08-23T22:16:07.947264+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-08569515fd73
@@ -441,6 +459,21 @@ oompah.terminal_audit:
     ended_at: '2026-08-21T13:50:05.227648+00:00'
     failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
     next_retry_at: '2026-08-21T13:50:45.227621+00:00'
+  - version: 1
+    attempt_id: attempt-5b263b901554
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
+    created_at: '2026-08-23T22:16:07.947264+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-23T22:16:07.947264+00:00'
+    branch_key: OOMPAH-1206
+    selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+    selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
 ---
 ## Summary
 
@@ -703,5 +736,10 @@ author: oompah
 created: 2026-08-23 21:55
 ---
 Terminal audit rearmed by project owner after recovery: Auditor infra crash root-caused to agent.py StreamReader 64KiB buffer limit (tracked as OOMPAH-1327, fix applied: create_subprocess_exec now uses limit=MAX_LINE_SIZE). Rearming exhausted terminal audit; no implementation reopened.
+---
+author: oompah
+created: 2026-08-23 22:16
+---
+Auditor dispatched (attempt #1, candidate: prov-6cf41c89/switchyard/auto)
 ---
 <!-- COMMENTS:END -->
