@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:01:23.399466Z'
-updated_at: '2026-08-23T23:41:53.290003Z'
+updated_at: '2026-08-23T23:47:28.283245Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -255,5 +255,41 @@ created: 2026-08-23 23:41
 5. Verify no regression in error_watcher behavior
 
 **Next Step:** Exploring codebase for relevant code.
+---
+author: oompah
+created: 2026-08-23 23:47
+---
+## Discovery
+
+**Root Cause Found:** In `oompah/orchestrator.py` lines 58067-58083, the function `_stage_work_contributor_launch()` logs a warning when pre-provider contributor evidence persists longer than a timeout deadline:
+
+\`\`\`
+logger.warning(
+    'Pre-provider contributor evidence exceeded its bounded '
+    'task-authority deadline issue_id=%s identifier=%s '
+    'run_id=%s timeout_seconds=%s',
+    ...
+)
+\`\`\`
+
+**Why This Happens:**
+- The function persists contributor metadata (provider/model) asynchronously
+- It waits for this persistence with a timeout (calculated as min(control_timeout, termination_timeout/2.0))
+- When timeout occurs, this warning is logged with structured data
+- The error_watcher system auto-files this as a task
+
+**Current Timeout Logic:**
+- Default control_timeout = 5.0 seconds
+- Default worker_termination_timeout_ms = 10,000 (10 seconds)
+- Calculated persistence_timeout = min(5.0, 5.0) = 5.0 seconds
+- Can be configured via 'contributor_evidence_persist_timeout_seconds'
+
+**Context:** This is a pre-provider synchronous tracker adapter write that can be slow for some tracker implementations. The issue is that this is logged as a warning that triggers error_watcher, but it's actually a handled graceful degradation - the function returns a clear error message and retries.
+
+**Next Step:** Determine if this should be:
+1. Handled silently (no warning log)
+2. Logged at DEBUG level instead of WARNING
+3. Timeout increased
+4. Excluded from error_watcher tracking
 ---
 <!-- COMMENTS:END -->
