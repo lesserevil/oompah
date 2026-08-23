@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:01:23.399466Z'
-updated_at: '2026-08-23T23:55:15.678588Z'
-work_branch: null
+updated_at: '2026-08-23T23:56:31.715291Z'
+work_branch: OOMPAH-1299
 target_branch: null
 review_url: null
 review_number: null
@@ -75,7 +75,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 2206b3c8-8a4e-49e2-acd8-ed35ba00e5a9
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: a5126f34da0746d39ea7066fbaf780a4--contributor-a8b0475e7b09
@@ -126,6 +126,18 @@ oompah.task_costs:
     output_tokens: 1327
     cost_usd: 0.0
     recorded_at: '2026-08-21T16:15:20.344940+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1299
+  base_branch: main
+  base_sha: 8c81b69c713e9bb6a1da8906b7e637f1ea6a1696
+  head_sha: f14aee1e215de9f41740046a3057ffc50cc64c71
+  submitted_at: '2026-08-23T23:56:19.200373+00:00'
+  updated_at: '2026-08-23T23:56:19.200373+00:00'
+oompah.work_branch: OOMPAH-1299
 ---
 ## Summary
 
@@ -345,5 +357,10 @@ Modified `oompah/orchestrator.py` to change log level from WARNING to DEBUG for 
   - test_cancelled_pre_provider_evidence_releases_task_authority
 
 **Result:** No unhandled errors will trigger error_watcher for normal pre-provider timeouts, resolving OOMPAH-1299.
+---
+author: oompah
+created: 2026-08-23 23:56
+---
+Fixed pre-provider contributor evidence timeout handling to prevent error_watcher auto-filing by changing log level from WARNING to DEBUG. These are normal handled operational conditions, not unhandled errors.
 ---
 <!-- COMMENTS:END -->
