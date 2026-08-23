@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:20:13.480283Z'
-updated_at: '2026-08-21T12:08:21.196918Z'
+updated_at: '2026-08-23T22:58:14.334148Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,17 +36,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: Duplicate screening stopped during lifecycle drain.
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 0066e2eb6fd654e8f3596188a09714dac111b457ceacf43cfbf7fb9facc71bbd:165494
+  claim_owner: 3b5853fd-cb59-4e10-8894-ebfd7e0e1a2c
+  claimed_at: '2026-08-23T22:58:06.704663+00:00'
+  claim_expires_at: '2026-08-23T23:28:06.704663+00:00'
   retry_count: 2
-  retry_after: '2026-08-21T12:08:20.025225+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: da096ae6-adc3-4d81-98f1-4a2fd4d1b190
+oompah.agent_run_id: 23325762-a5d7-43f2-8ed7-d803404dc3fa
 oompah.work_contributors:
   runs:
   - run_id: d63d714267264481a004b625ec6020a0--contributor-a8b0475e7b09
