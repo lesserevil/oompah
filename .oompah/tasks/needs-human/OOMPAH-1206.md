@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-21T13:59:34.836551Z'
+updated_at: '2026-08-23T21:55:31.883880Z'
 work_branch: OOMPAH-1206
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/902
@@ -205,6 +205,40 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-21T13:51:23.460160+00:00'
     applied_at: '2026-08-21T13:51:29.567050+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1206
+    audit_id: audit-d8dcc1adb045
+    attempt_id: audit-rearm:audit-d8dcc1adb045
+    target_state: Done
+    evidence_fingerprint: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
+    status: In Validation
+    audit_ids:
+    - audit-d8dcc1adb045
+    kind: audit_rearm
+    applied: false
+    created_at: '2026-08-23T21:55:28.524332+00:00'
+  oompah.terminal_audit_rearm_history:
+  - version: 2
+    audit_id: audit-d8dcc1adb045
+    superseded_audit_id: audit-5597b252d606
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1206
+    target_state: Done
+    evidence_fingerprint: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
+    workflow_revision: null
+    selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+    selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+    landing_revision: null
+    source_generation: 2
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Auditor infra crash root-caused to agent.py StreamReader 64KiB buffer
+      limit (tracked as OOMPAH-1327, fix applied: create_subprocess_exec now uses
+      limit=MAX_LINE_SIZE). Rearming exhausted terminal audit; no implementation reopened.'
+    authorized_at: '2026-08-23T21:55:28.524239+00:00'
+    mode: infrastructure_recovery
   version: 1
   pending_chain:
   - version: 1
@@ -212,7 +246,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1206
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -302,7 +336,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-21T13:23:15.220136+00:00'
     selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
-    updated_at: '2026-08-21T13:51:23.460004+00:00'
+    updated_at: '2026-08-23T21:55:28.524239+00:00'
   - version: 1
     audit_id: audit-58d9d26d6f9d
     project_id: proj-14849f1b
@@ -325,6 +359,27 @@ oompah.terminal_audit:
     selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     updated_at: '2026-08-21T13:59:32.878578+00:00'
+  - version: 1
+    audit_id: audit-d8dcc1adb045
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1206
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Review
+    created_at: '2026-08-23T21:55:28.524239+00:00'
+    eligible_at: '2026-08-23T21:55:28.524239+00:00'
+    selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+    selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
   attempt_history:
   - version: 1
     attempt_id: attempt-08569515fd73

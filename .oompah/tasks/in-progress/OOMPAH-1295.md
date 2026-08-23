@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:57:11.533917Z'
-updated_at: '2026-08-23T21:54:49.651040Z'
+updated_at: '2026-08-23T21:55:25.985337Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -264,5 +264,21 @@ author: oompah
 created: 2026-08-23 21:54
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-23 21:55
+---
+**Understanding and Plan**
+
+Error summary: Backend orchestrator is timing out while processing pre-provider contributor evidence, with a 5-second deadline being exceeded for issue_id=OOMPAH-1208 on proj-14849f1b.
+
+Planned approach:
+1. Explore codebase to locate backend:orchestrator and related timeout/deadline handling
+2. Find where the 5-second timeout is configured and why it might be insufficient
+3. Identify the root cause - either the timeout is too short or the operation is too slow
+4. Implement a fix (increase timeout, optimize operation, or add graceful degradation)
+5. Verify with tests and ensure no regression in error_watcher
+
+Starting investigation now.
 ---
 <!-- COMMENTS:END -->
