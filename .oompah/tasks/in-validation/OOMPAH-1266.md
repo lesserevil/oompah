@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-23T22:17:25.260158Z'
+updated_at: '2026-08-23T22:38:41.637460Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -332,12 +332,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1266
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-3259d7cc8004
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+      created_at: '2026-08-23T22:38:29.856415+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-23T22:38:29.856415+00:00'
+      branch_key: epic-OOMPAH-1231--task-OOMPAH-1266
+      selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+      selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
     source_generation: 2
     requested_by:
       version: 1
@@ -348,7 +363,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-23T21:55:57.360553+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-23T22:17:20.045595+00:00'
+    updated_at: '2026-08-23T22:38:29.856415+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ebdec741f7d0
@@ -409,6 +424,21 @@ oompah.terminal_audit:
     ended_at: '2026-08-21T15:37:17.351882+00:00'
     failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
     next_retry_at: '2026-08-21T15:37:57.351860+00:00'
+  - version: 1
+    attempt_id: attempt-3259d7cc8004
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+    created_at: '2026-08-23T22:38:29.856415+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-23T22:38:29.856415+00:00'
+    branch_key: epic-OOMPAH-1231--task-OOMPAH-1266
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
 ---
 ## Summary
 
@@ -698,5 +728,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Opencode/Switchyard/switchya
 - Cost: $0.0000
 - Exit: interrupted, Duration: 21s
 - Log: OOMPAH-1266__20260823T221718Z.jsonl
+---
+author: oompah
+created: 2026-08-23 22:38
+---
+Auditor dispatched (attempt #1, candidate: prov-6cf41c89/switchyard/auto)
+---
+author: oompah
+created: 2026-08-23 22:38
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
