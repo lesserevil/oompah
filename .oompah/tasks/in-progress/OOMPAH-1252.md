@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:11:27.677981Z'
-updated_at: '2026-08-21T16:44:43.690358Z'
+updated_at: '2026-08-23T22:00:34.684632Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -78,7 +78,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 577acd7f-620a-4107-8997-23f13fef0a07
+oompah.agent_run_id: 052d5608-731f-471b-a732-6204210ce4b3
 oompah.work_contributors:
   runs:
   - run_id: 0172dc2af57c42a69a2746e651e135c9--contributor-a8b0475e7b09
@@ -122,6 +122,14 @@ oompah.work_contributors:
     source_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     completed_at: '2026-08-21T10:33:12.710987+00:00'
   - run_id: 633c78672eb24c17ba05c6154db0640c--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: chore
+    source_branch: OOMPAH-1252
+    source_sha: null
+    completed_at: ''
+  - run_id: ca06cd08a83c4cfeaf13c439ebf1dea3--contributor-4256b9f40773
     provider_id: prov-651d553c
     provider_name: Claude
     model_id: haiku
@@ -316,5 +324,10 @@ author: oompah
 created: 2026-08-21 16:44
 ---
 Implementation: Added 'transition.project_owner_authority_required' to the expected_policy_rejections set in oompah/server.py (_transition_rejected_reason function). This ensures that when a project owner authority is required for a transition, the error is handled gracefully with a 409 conflict response instead of a 500 error. This prevents error_watcher from being triggered on this expected rejection.
+---
+author: oompah
+created: 2026-08-23 22:00
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
