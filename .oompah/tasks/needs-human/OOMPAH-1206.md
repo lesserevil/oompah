@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1206
 type: bug
-status: In Validation
+status: Needs Human
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue TRICKLE-121:
   All 2 dispatch candidates unavailable: prov-651d553c/sonnet: contributor_evidence_unavailable:
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-23T22:40:45.367164Z'
+updated_at: '2026-08-23T22:44:18.104607Z'
 work_branch: OOMPAH-1206
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/902
 review_number: '902'
 review_head: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
 merged_at: null
-oompah.lifecycle_revision: 7
+oompah.lifecycle_revision: 8
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -195,6 +195,7 @@ oompah.terminal_audit:
     digest: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1206","audit-5597b252d606","infrastructure-exhausted-audit-5597b252d606-3"]': '2026-08-21T13:51:23.460132+00:00'
+    '["proj-14849f1b","OOMPAH-1206","audit-d8dcc1adb045","infrastructure-exhausted-audit-d8dcc1adb045-3"]': '2026-08-23T22:44:08.491021+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1206
@@ -206,6 +207,7 @@ oompah.terminal_audit:
     landing_revision: null
     audit_ids:
     - audit-5597b252d606
+    - audit-d8dcc1adb045
     kind: result
     applied: true
     retired_at: '2026-08-21T13:51:23.460149+00:00'
@@ -236,6 +238,19 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-23T21:55:28.524332+00:00'
     applied_at: '2026-08-23T21:55:41.436024+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1206
+    audit_id: audit-d8dcc1adb045
+    attempt_id: infrastructure-exhausted-audit-d8dcc1adb045-3
+    target_state: Done
+    evidence_fingerprint: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
+    status: Needs Human
+    audit_ids:
+    - audit-d8dcc1adb045
+    kind: result
+    applied: true
+    created_at: '2026-08-23T22:44:08.491052+00:00'
+    applied_at: '2026-08-23T22:44:16.951872+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-d8dcc1adb045
@@ -385,7 +400,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1206
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -450,6 +465,21 @@ oompah.terminal_audit:
       ended_at: '2026-08-23T22:40:32.903033+00:00'
       failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
       next_retry_at: '2026-08-23T22:41:12.903014+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-d8dcc1adb045-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      origin: coordinator_retry_exhaustion
+      created_at: '2026-08-23T22:44:08.490897+00:00'
+      completed_at: '2026-08-23T22:44:08.490897+00:00'
+      selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+      selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     source_generation: 2
     requested_by:
       version: 1
@@ -460,7 +490,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-23T21:55:28.524239+00:00'
     selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
-    updated_at: '2026-08-23T22:40:32.903033+00:00'
+    updated_at: '2026-08-23T22:44:08.490897+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-08569515fd73
@@ -917,5 +947,12 @@ author: oompah
 created: 2026-08-23 22:40
 ---
 Auditor attempt ended: ValueError: Separator is found, but chunk is longer than limit. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-23 22:44
+---
+Needs Human — Done audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->

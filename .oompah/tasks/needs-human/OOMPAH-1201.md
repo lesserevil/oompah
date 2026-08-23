@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1201
 type: bug
-status: In Validation
+status: Needs Human
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-133'
 parent: null
@@ -11,14 +11,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:47.623989Z'
-updated_at: '2026-08-23T22:40:24.431606Z'
+updated_at: '2026-08-23T22:44:05.282705Z'
 work_branch: OOMPAH-1201
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/893
 review_number: '893'
 review_head: b6644c5739285af3b2da1d9d1e91077ed094845b
 merged_at: null
-oompah.lifecycle_revision: 7
+oompah.lifecycle_revision: 8
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -181,6 +181,7 @@ oompah.terminal_audit:
     digest: c53bfec3e18dba65d306bd764426f7633f38a59bd9f3969e9644540dafa598c1
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1201","audit-431e164c6a88","no-auditor-audit-431e164c6a88-3"]': '2026-08-21T04:49:37.497792+00:00'
+    '["proj-14849f1b","OOMPAH-1201","audit-8f90fc4a4a35","no-auditor-audit-8f90fc4a4a35-3"]': '2026-08-23T22:43:55.616524+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1201
@@ -192,6 +193,7 @@ oompah.terminal_audit:
     landing_revision: null
     audit_ids:
     - audit-431e164c6a88
+    - audit-8f90fc4a4a35
     kind: result
     applied: true
     retired_at: '2026-08-21T04:49:37.497809+00:00'
@@ -222,6 +224,19 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-23T21:54:56.562847+00:00'
     applied_at: '2026-08-23T21:55:05.990038+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1201
+    audit_id: audit-8f90fc4a4a35
+    attempt_id: no-auditor-audit-8f90fc4a4a35-3
+    target_state: Done
+    evidence_fingerprint: c53bfec3e18dba65d306bd764426f7633f38a59bd9f3969e9644540dafa598c1
+    status: Needs Human
+    audit_ids:
+    - audit-8f90fc4a4a35
+    kind: result
+    applied: true
+    created_at: '2026-08-23T22:43:55.616556+00:00'
+    applied_at: '2026-08-23T22:44:03.984299+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-8f90fc4a4a35
@@ -371,7 +386,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1201
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -436,6 +451,21 @@ oompah.terminal_audit:
       ended_at: '2026-08-23T22:40:18.951029+00:00'
       failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
       next_retry_at: '2026-08-23T22:40:58.951001+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-8f90fc4a4a35-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c53bfec3e18dba65d306bd764426f7633f38a59bd9f3969e9644540dafa598c1
+      verdict: fail
+      failure_classification: no_auditor
+      origin: coordinator_retry_exhaustion
+      created_at: '2026-08-23T22:43:55.616384+00:00'
+      completed_at: '2026-08-23T22:43:55.616384+00:00'
+      selected_ref: b6644c5739285af3b2da1d9d1e91077ed094845b
+      selected_sha: b6644c5739285af3b2da1d9d1e91077ed094845b
     source_generation: 2
     requested_by:
       version: 1
@@ -446,7 +476,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-23T21:54:56.562691+00:00'
     selected_ref: b6644c5739285af3b2da1d9d1e91077ed094845b
     selected_sha: b6644c5739285af3b2da1d9d1e91077ed094845b
-    updated_at: '2026-08-23T22:40:18.951029+00:00'
+    updated_at: '2026-08-23T22:43:55.616384+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4d9da9526bcc
@@ -840,5 +870,12 @@ author: oompah
 created: 2026-08-23 22:40
 ---
 Auditor attempt ended: ValueError: Separator is found, but chunk is longer than limit. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-23 22:44
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
