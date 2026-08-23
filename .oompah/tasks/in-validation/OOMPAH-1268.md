@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-23T21:57:23.699973Z'
+updated_at: '2026-08-23T22:12:14.610253Z'
 work_branch: OOMPAH-1268
 target_branch: null
 review_url: null
@@ -344,12 +344,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1268
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-270b47c7aa5e
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+      created_at: '2026-08-23T22:12:03.262648+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-23T22:12:03.262648+00:00'
+      branch_key: OOMPAH-1268
+      selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+      selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     source_generation: 2
     requested_by:
       version: 1
@@ -360,6 +375,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-23T21:56:26.530326+00:00'
     selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    updated_at: '2026-08-23T22:12:03.262648+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-74a35a09ad49
@@ -420,6 +436,21 @@ oompah.terminal_audit:
     ended_at: '2026-08-21T10:54:05.186204+00:00'
     failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
     next_retry_at: '2026-08-21T10:54:45.186173+00:00'
+  - version: 1
+    attempt_id: attempt-270b47c7aa5e
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+    created_at: '2026-08-23T22:12:03.262648+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-23T22:12:03.262648+00:00'
+    branch_key: OOMPAH-1268
+    selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
 ---
 ## Summary
 
@@ -636,5 +667,15 @@ author: oompah
 created: 2026-08-23 21:56
 ---
 Terminal audit rearmed by project owner after recovery: Auditor infra crash root-caused to agent.py StreamReader 64KiB buffer limit (tracked as OOMPAH-1327, fix applied: create_subprocess_exec now uses limit=MAX_LINE_SIZE). Rearming exhausted terminal audit; no implementation reopened.
+---
+author: oompah
+created: 2026-08-23 22:12
+---
+Auditor dispatched (attempt #1, candidate: prov-6cf41c89/switchyard/auto)
+---
+author: oompah
+created: 2026-08-23 22:12
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
