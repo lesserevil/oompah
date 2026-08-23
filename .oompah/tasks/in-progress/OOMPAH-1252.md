@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:11:27.677981Z'
-updated_at: '2026-08-23T22:22:58.270915Z'
+updated_at: '2026-08-23T22:24:10.836491Z'
 work_branch: OOMPAH-1252
 target_branch: null
 review_url: null
@@ -135,16 +135,16 @@ oompah.work_contributors:
     model_id: haiku
     focus: chore
     source_branch: OOMPAH-1252
-    source_sha: null
-    completed_at: ''
+    source_sha: 8b86f978cba5446b1091bd87753d6e1b9a47be4d
+    completed_at: '2026-08-23T22:24:00.352824+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1964
+  total_input_tokens: 276
+  total_output_tokens: 8627
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1964
+      input_tokens: 276
+      output_tokens: 8627
       cost_usd: 0.0
   runs:
   - profile: default
@@ -153,6 +153,12 @@ oompah.task_costs:
     output_tokens: 1964
     cost_usd: 0.0
     recorded_at: '2026-08-21T10:33:12.705025+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 266
+    output_tokens: 6663
+    cost_usd: 0.0
+    recorded_at: '2026-08-23T22:24:00.316360+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -356,5 +362,15 @@ author: oompah
 created: 2026-08-23 22:22
 ---
 Fixed TaskTransitionNotApplied error handling by adding 'transition.project_owner_authority_required' to expected_policy_rejections set. Now handles these rejections gracefully as 409 conflicts instead of 500 errors. All tests pass.
+---
+author: oompah
+created: 2026-08-23 22:24
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 75, Tool calls: 32
+- Tokens: 266 in / 6.7K out [6.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 23m 32s
+- Log: OOMPAH-1252__20260823T220048Z.jsonl
 ---
 <!-- COMMENTS:END -->
