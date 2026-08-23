@@ -12,8 +12,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:29:16.227300Z'
-updated_at: '2026-08-23T22:32:10.680296Z'
-work_branch: null
+updated_at: '2026-08-23T22:32:50.674851Z'
+work_branch: OOMPAH-1208
 target_branch: null
 review_url: null
 review_number: null
@@ -78,7 +78,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 5fb29435-0ad7-45e3-a982-a0c69b93a3c9
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 12d48da69be547e6aea00cc996fbdf9c--contributor-a8b0475e7b09
@@ -177,6 +177,18 @@ oompah.task_costs:
     output_tokens: 1859
     cost_usd: 0.0
     recorded_at: '2026-08-21T09:31:43.909664+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1208
+  base_branch: main
+  base_sha: c7b3911883a90c1b5805204a430926eb1c6f53b8
+  head_sha: ddfc08864e3e162d23f23999b94956c153cfcbfd
+  submitted_at: '2026-08-23T22:32:36.162993+00:00'
+  updated_at: '2026-08-23T22:32:36.162993+00:00'
+oompah.work_branch: OOMPAH-1208
 ---
 ## Summary
 
@@ -471,5 +483,10 @@ Backend:server can now successfully transition tasks from BACKLOG to IN_PROGRESS
 - Backward compatible: human-initiated PROJECT_OWNER operations still require their specific requirements
 
 Ready for integration.
+---
+author: oompah
+created: 2026-08-23 22:32
+---
+Fixed backend:server BACKLOG->IN_PROGRESS transition error by allowing API authority for system-initiated status updates. All 119 related tests pass.
 ---
 <!-- COMMENTS:END -->
