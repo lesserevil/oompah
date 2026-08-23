@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-21T16:38:39.283156Z'
+updated_at: '2026-08-23T23:26:51.552628Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -84,7 +84,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 03cd6faf-2b4b-48a6-959b-314229fd802f
+oompah.agent_run_id: 2e3cdc16-4804-4feb-846a-f0b59298946e
 oompah.work_contributors:
   runs:
   - run_id: c39b31ff527f433f8499e69b01c975f0--contributor-a8b0475e7b09
@@ -483,5 +483,10 @@ author: oompah
 created: 2026-08-21 16:38
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-23 23:26
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
