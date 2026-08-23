@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:01:23.399466Z'
-updated_at: '2026-08-23T23:47:28.283245Z'
+updated_at: '2026-08-23T23:52:53.410380Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -291,5 +291,33 @@ logger.warning(
 2. Logged at DEBUG level instead of WARNING
 3. Timeout increased
 4. Excluded from error_watcher tracking
+---
+author: oompah
+created: 2026-08-23 23:52
+---
+## Implementation Plan
+
+**Root Cause Analysis:**
+The warning logged at line 58067 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' is being picked up by error_watcher and auto-filed as a task, despite being logged at WARNING level. This appears to be via a project log file watcher or other mechanism.
+
+**Key Insight:**
+This is NOT actually an unhandled error - it's a handled graceful degradation. The function:
+1. Times out waiting for synchronous tracker metadata writes
+2. Returns a clear error message (causing the pre-provider runtime to retire for retry)
+3. This is normal behavior when tracker operations are slow
+
+**Solution:**
+Change the log level from WARNING to DEBUG for both occurrence types:
+1. 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' (line 58067)
+2. 'Cancelled pre-provider contributor evidence did not finish before task-authority release' (line 58103)
+
+These are normal operational conditions (not errors), so DEBUG level is appropriate. They represent handled timeouts in the pre-provider lifecycle, not unexpected failures.
+
+**Why This Is Safe:**
+- The function still returns clear error messages
+- The worker still exits gracefully  
+- Retry logic is still triggered
+- No change to error handling or flow
+- Other error_watcher messages remain unchanged
 ---
 <!-- COMMENTS:END -->
