@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:57:11.533917Z'
-updated_at: '2026-08-23T21:55:25.985337Z'
+updated_at: '2026-08-23T22:02:17.695825Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -280,5 +280,20 @@ Planned approach:
 5. Verify with tests and ensure no regression in error_watcher
 
 Starting investigation now.
+---
+author: oompah
+created: 2026-08-23 22:02
+---
+**Discovery: Root Cause Found**
+
+Located the issue in oompah/orchestrator.py lines 58023-58040 in the `_stage_work_contributor_launch` method.
+
+The bug: The persistence timeout for writing contributor evidence is calculated in two stages:
+1. First, a derived timeout is calculated as: min(control_timeout=5.0, termination_timeout/2.0=5.0) = 5.0 seconds
+2. Then it tries to override with configured value: contributor_evidence_persist_timeout_seconds (default 60.0)
+
+The problem: The override uses `getattr(self.config, '...', None)` which can fail to get the configured value, leaving the 5.0-second timeout in place. When the git commit takes longer than 5 seconds, the timeout fires and error_watcher captures it.
+
+The fix: Use the configured default value (60.0) directly as the base timeout instead of deriving a short timeout that needs to be overridden. This ensures slow state-branch git commits don't miss the deadline.
 ---
 <!-- COMMENTS:END -->
