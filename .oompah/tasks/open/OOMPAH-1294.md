@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:53:32.349118Z'
-updated_at: '2026-08-23T23:30:44.785575Z'
+updated_at: '2026-08-23T23:31:00.911046Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -255,5 +255,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 1s
 - Log: OOMPAH-1294__20260821T164238Z.jsonl
+---
+author: oompah
+created: 2026-08-23 23:31
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
