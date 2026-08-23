@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:01:23.399466Z'
-updated_at: '2026-08-23T23:52:53.410380Z'
+updated_at: '2026-08-23T23:55:15.678588Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -319,5 +319,31 @@ These are normal operational conditions (not errors), so DEBUG level is appropri
 - Retry logic is still triggered
 - No change to error handling or flow
 - Other error_watcher messages remain unchanged
+---
+author: oompah
+created: 2026-08-23 23:55
+---
+## Implementation Complete
+
+**Changes Made:**
+Modified `oompah/orchestrator.py` to change log level from WARNING to DEBUG for pre-provider contributor evidence timeout scenarios:
+
+1. Line 58067: Changed `logger.warning()` to `logger.debug()` for 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' 
+2. Line 58103: Changed `logger.warning()` to `logger.debug()` for 'Cancelled pre-provider contributor evidence did not finish before task-authority release'
+
+**Why This Fixes the Issue:**
+- These timeouts represent normal, handled operational conditions, not failures
+- By logging at DEBUG level instead of WARNING, error_watcher will no longer pick them up and auto-file tasks
+- The graceful error handling remains unchanged - worker exits cleanly with clear error messages
+- Retry logic is unaffected
+
+**Tests Run:**
+✅ All 21 tests in test_provider_retirement.py pass
+✅ All 124 tests in test_error_watcher.py pass
+✅ Specifically verified:
+  - test_pre_provider_evidence_timeout_releases_task_authority 
+  - test_cancelled_pre_provider_evidence_releases_task_authority
+
+**Result:** No unhandled errors will trigger error_watcher for normal pre-provider timeouts, resolving OOMPAH-1299.
 ---
 <!-- COMMENTS:END -->
