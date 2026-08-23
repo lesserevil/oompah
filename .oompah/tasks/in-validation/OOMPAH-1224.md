@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1224
 type: bug
-status: In Review
+status: In Validation
 priority: 2
 title: '[backend:server] Issue detail API error: ProgrammingError(''Cannot operate
   on a closed database.'')'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-21T16:41:27.347951Z'
+updated_at: '2026-08-23T23:44:03.714538Z'
 work_branch: OOMPAH-1224
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/900
 review_number: '900'
 review_head: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
 merged_at: null
-oompah.lifecycle_revision: 6
+oompah.lifecycle_revision: 7
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -150,6 +150,66 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/900
 oompah.review_number: '900'
 oompah.target_branch: main
 oompah.review_head: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-e15ca9ca9b7f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1224
+    digest: fdb0a7e362aa42a9ce8eb57ee0b64e3ab0beae750529aecace8beae71bc989ca
+  - version: 1
+    audit_id: audit-9234408585ed
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1224
+    digest: fdb0a7e362aa42a9ce8eb57ee0b64e3ab0beae750529aecace8beae71bc989ca
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e15ca9ca9b7f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1224
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fdb0a7e362aa42a9ce8eb57ee0b64e3ab0beae750529aecace8beae71bc989ca
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah
+      source: orchestrator
+    previous_state: In Review
+    created_at: '2026-08-23T23:43:57.996737+00:00'
+    eligible_at: '2026-08-23T23:43:57.996737+00:00'
+    selected_ref: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+    selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+    workflow_revision: 71f6297718a1833ec1a9f2c922367d43a0c7ea6d6c76e9c5f4fba12dbedd3ce1
+  - version: 1
+    audit_id: audit-9234408585ed
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1224
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fdb0a7e362aa42a9ce8eb57ee0b64e3ab0beae750529aecace8beae71bc989ca
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah
+      source: orchestrator
+    previous_state: In Review
+    created_at: '2026-08-23T23:43:57.996737+00:00'
+    prerequisite_audit_id: audit-e15ca9ca9b7f
+    selected_ref: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+    selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+    workflow_revision: 71f6297718a1833ec1a9f2c922367d43a0c7ea6d6c76e9c5f4fba12dbedd3ce1
+  attempt_history: []
 ---
 ## Summary
 
@@ -310,5 +370,10 @@ author: oompah
 created: 2026-08-21 16:40
 ---
 Branch quality gate passed for `4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb` using `make test` in 203.2s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-23 23:44
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
