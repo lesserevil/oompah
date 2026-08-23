@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:29:16.227300Z'
-updated_at: '2026-08-23T22:00:21.752736Z'
+updated_at: '2026-08-23T22:01:14.282076Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -393,5 +393,20 @@ author: oompah
 created: 2026-08-23 22:00
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-08-23 22:01
+---
+## Understanding
+
+The error occurs when backend:server tries to transition OOMPAH-1207 to 'In Progress' but lacks project owner authority. The error propagates unhandled to error_watcher, which auto-files it as a task.
+
+**Approach:**
+1. Locate where the task transition happens in backend:server code
+2. Identify why the authority check is failing when the operation is initiated by oompah
+3. Either: add the required authority to oompah's operations OR implement graceful error handling
+4. Ensure the fix doesn't break other error reporting
+
+Starting code exploration now.
 ---
 <!-- COMMENTS:END -->
