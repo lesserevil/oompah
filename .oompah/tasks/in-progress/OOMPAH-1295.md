@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:57:11.533917Z'
-updated_at: '2026-08-23T22:10:12.864829Z'
+updated_at: '2026-08-23T22:21:39.809038Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -314,5 +314,24 @@ The new logic is simpler and more robust:
 - No more unnecessary derivation of short timeouts
 
 This ensures slow state-branch git commits won't timeout prematurely.
+---
+author: oompah
+created: 2026-08-23 22:21
+---
+**Verification: Tests Pass**
+
+Ran comprehensive test suite:
+✓ test_provider_retirement.py: 21 tests pass
+✓ test_config.py: 168 tests pass  
+✓ test_orchestrator_handlers.py: 381 tests pass
+✓ Evidence-related tests: 539 tests pass
+
+All existing tests pass with the fix applied. The timeout logic now:
+1. Uses the configured value (60.0 seconds default) as the base
+2. Respects environment overrides
+3. Enforces the 0.05-second minimum
+4. Is simpler and more maintainable
+
+The fix ensures that slow state-branch git commits won't timeout prematurely, resolving the OOMPAH-1208 error being auto-filed by error_watcher.
 ---
 <!-- COMMENTS:END -->
