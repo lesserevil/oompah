@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-23T22:16:23.436923Z'
+updated_at: '2026-08-23T22:21:05.625737Z'
 work_branch: OOMPAH-1206
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/902
@@ -115,8 +115,8 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 10160
-  total_output_tokens: 2173
+  total_input_tokens: 30329
+  total_output_tokens: 2341
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -124,8 +124,8 @@ oompah.task_costs:
       output_tokens: 2069
       cost_usd: 0.0
     unknown:
-      input_tokens: 10150
-      output_tokens: 104
+      input_tokens: 30319
+      output_tokens: 272
       cost_usd: 0.0
   runs:
   - profile: default
@@ -146,6 +146,12 @@ oompah.task_costs:
     output_tokens: 62
     cost_usd: 0.0
     recorded_at: '2026-08-21T13:50:01.818988+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 20169
+    output_tokens: 168
+    cost_usd: 0.0
+    recorded_at: '2026-08-23T22:20:55.504257+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -367,7 +373,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1206
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -376,7 +382,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5b263b901554
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -388,6 +394,10 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1206
       selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
       selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+      failure_classification: infrastructure_error
+      ended_at: '2026-08-23T22:20:55.505240+00:00'
+      failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
+      next_retry_at: '2026-08-23T22:21:05.505211+00:00'
     source_generation: 2
     requested_by:
       version: 1
@@ -398,7 +408,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-23T21:55:28.524239+00:00'
     selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
-    updated_at: '2026-08-23T22:16:07.947264+00:00'
+    updated_at: '2026-08-23T22:20:55.505240+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-08569515fd73
@@ -462,7 +472,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-5b263b901554
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -474,6 +484,10 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1206
     selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+    failure_classification: infrastructure_error
+    ended_at: '2026-08-23T22:20:55.505240+00:00'
+    failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
+    next_retry_at: '2026-08-23T22:21:05.505211+00:00'
 ---
 ## Summary
 
@@ -746,5 +760,20 @@ author: oompah
 created: 2026-08-23 22:16
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-23 22:20
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Opencode/Switchyard/switchyard/auto]
+- Turns: 4, Tool calls: 4
+- Tokens: 20.2K in / 168 out [29.3K total]
+- Cost: $0.0000
+- Exit: error, Duration: 4m 42s
+- Log: OOMPAH-1206__20260823T221630Z.jsonl
+---
+author: oompah
+created: 2026-08-23 22:21
+---
+Auditor attempt ended: ValueError: Separator is found, but chunk is longer than limit. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
