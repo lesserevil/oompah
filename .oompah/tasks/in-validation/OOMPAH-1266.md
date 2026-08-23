@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-23T22:44:30.465993Z'
+updated_at: '2026-08-23T22:45:09.255820Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -121,8 +121,8 @@ oompah.work_contributors:
     source_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
     completed_at: '2026-08-21T06:39:04.544183+00:00'
 oompah.task_costs:
-  total_input_tokens: 1301
-  total_output_tokens: 27399
+  total_input_tokens: 2195
+  total_output_tokens: 27481
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -130,8 +130,8 @@ oompah.task_costs:
       output_tokens: 27309
       cost_usd: 0.0
     unknown:
-      input_tokens: 361
-      output_tokens: 90
+      input_tokens: 1255
+      output_tokens: 172
       cost_usd: 0.0
   runs:
   - profile: default
@@ -152,6 +152,12 @@ oompah.task_costs:
     output_tokens: 90
     cost_usd: 0.0
     recorded_at: '2026-08-23T22:43:12.380790+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 894
+    output_tokens: 82
+    cost_usd: 0.0
+    recorded_at: '2026-08-23T22:45:00.904802+00:00'
 oompah.work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 oompah.integration:
   version: 2
@@ -342,7 +348,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1266
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -370,7 +376,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9decf1774baa
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -383,6 +389,10 @@ oompah.terminal_audit:
       selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
       selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
       candidate_rotation_count: 1
+      failure_classification: infrastructure_error
+      ended_at: '2026-08-23T22:45:00.907102+00:00'
+      failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
+      next_retry_at: '2026-08-23T22:45:20.907067+00:00'
     source_generation: 2
     requested_by:
       version: 1
@@ -393,7 +403,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-23T21:55:57.360553+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-23T22:44:19.663081+00:00'
+    updated_at: '2026-08-23T22:45:00.907102+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ebdec741f7d0
@@ -476,7 +486,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-9decf1774baa
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -489,6 +499,10 @@ oompah.terminal_audit:
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
     candidate_rotation_count: 1
+    failure_classification: infrastructure_error
+    ended_at: '2026-08-23T22:45:00.907102+00:00'
+    failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
+    next_retry_at: '2026-08-23T22:45:20.907067+00:00'
 ---
 ## Summary
 
@@ -813,5 +827,20 @@ author: oompah
 created: 2026-08-23 22:44
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-23 22:45
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Opencode/Switchyard/switchyard/auto]
+- Turns: 6, Tool calls: 6
+- Tokens: 894 in / 82 out [33.7K total]
+- Cost: $0.0000
+- Exit: error, Duration: 38s
+- Log: OOMPAH-1266__20260823T224438Z.jsonl
+---
+author: oompah
+created: 2026-08-23 22:45
+---
+Auditor attempt ended: ValueError: Separator is found, but chunk is longer than limit. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
