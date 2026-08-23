@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:03:07.024179Z'
-updated_at: '2026-08-23T23:34:26.456179Z'
+updated_at: '2026-08-23T23:34:52.212752Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -101,6 +101,14 @@ oompah.work_contributors:
     source_sha: c7b3911883a90c1b5805204a430926eb1c6f53b8
     completed_at: '2026-08-21T16:15:43.533891+00:00'
   - run_id: f73eb2ca258846dcbaf90aef3dd2766c--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: general
+    source_branch: OOMPAH-1300
+    source_sha: null
+    completed_at: ''
+  - run_id: 97ca4b12738d4b9e8d3cd9c43936c751--contributor-a8b0475e7b09
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-luna
@@ -250,5 +258,10 @@ author: oompah
 created: 2026-08-23 23:34
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-23 23:34
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
