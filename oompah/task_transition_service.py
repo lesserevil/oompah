@@ -1650,21 +1650,35 @@ class TaskTransitionService:
             return "transition.stale_status", False
         if issue_authority_version(issue) != intent.expected_version:
             return "transition.stale_version", False
-        if intent.authority is not TransitionAuthority.PROJECT_OWNER:
+        if intent.authority not in (
+            TransitionAuthority.PROJECT_OWNER,
+            TransitionAuthority.API,
+        ):
             return "transition.project_owner_authority_required", False
-        if intent.reason_code != "implementation.direct_owner_claim":
+        if (
+            intent.authority == TransitionAuthority.PROJECT_OWNER
+            and intent.reason_code != "implementation.direct_owner_claim"
+        ):
             return "transition.direct_owner_claim_authority_required", False
         if not str(getattr(issue, "description", None) or "").strip():
             return "transition.actionable_description_required", False
-        guard = self._direct_owner_claim_guard
-        if guard is None:
-            return "transition.owner_claim_authority_unavailable", False
-        try:
-            conflict = guard(intent, issue)
-        except Exception:  # noqa: BLE001 - lease authority must fail closed
-            return "transition.owner_claim_validation_failed", True
-        reason = str(conflict or "").strip()
-        return (reason or None), False
+        
+        # Only require owner claim guard validation for PROJECT_OWNER authority
+        # API authority is used for system-initiated operations (oompah backend:server)
+        # which don't need lease validation.
+        if intent.authority == TransitionAuthority.PROJECT_OWNER:
+            guard = self._direct_owner_claim_guard
+            if guard is None:
+                return "transition.owner_claim_authority_unavailable", False
+            try:
+                conflict = guard(intent, issue)
+            except Exception:  # noqa: BLE001 - lease authority must fail closed
+                return "transition.owner_claim_validation_failed", True
+            reason = str(conflict or "").strip()
+            return (reason or None), False
+        
+        # API authority path: no lease validation needed
+        return None, False
 
     async def _commit_direct_owner_update(
         self,
@@ -2283,7 +2297,10 @@ class TaskTransitionService:
             if (
                 observed_status == BACKLOG
                 and intent.requested_status == IN_PROGRESS
-                and intent.authority is not TransitionAuthority.PROJECT_OWNER
+                and intent.authority not in (
+                    TransitionAuthority.PROJECT_OWNER,
+                    TransitionAuthority.API,
+                )
             ):
                 outcome = self._outcome(
                     transition_id,
