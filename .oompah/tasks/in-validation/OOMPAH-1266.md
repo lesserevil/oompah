@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1266
 type: bug
-status: Needs Human
+status: In Validation
 priority: 1
 title: Fence late task submission from regressing landed integration authority
 parent: OOMPAH-1231
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-21T15:40:28.483488Z'
+updated_at: '2026-08-23T21:56:04.936234Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: o1263-post-merge-submit-provenance-regression
   request_fingerprint: 9a9d8d03687f81678f5061a4c7f6ca12b789b64399e6fd9b92b89ef14dc3e4b5
-oompah.lifecycle_revision: 5
+oompah.lifecycle_revision: 6
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 9f3a0a5a59f2a06ff79051089822dbfee82b28352e54ad90889e4e0d3419a375
@@ -192,6 +192,40 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-21T15:40:21.194422+00:00'
     applied_at: '2026-08-21T15:40:27.206890+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1266
+    audit_id: audit-c7c92f145c10
+    attempt_id: audit-rearm:audit-c7c92f145c10
+    target_state: Done
+    evidence_fingerprint: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+    status: In Validation
+    audit_ids:
+    - audit-c7c92f145c10
+    kind: audit_rearm
+    applied: false
+    created_at: '2026-08-23T21:55:57.360683+00:00'
+  oompah.terminal_audit_rearm_history:
+  - version: 2
+    audit_id: audit-c7c92f145c10
+    superseded_audit_id: audit-97804bbb892c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1266
+    target_state: Done
+    evidence_fingerprint: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+    workflow_revision: null
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+    landing_revision: null
+    source_generation: 2
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Auditor infra crash root-caused to agent.py StreamReader 64KiB buffer
+      limit (tracked as OOMPAH-1327, fix applied: create_subprocess_exec now uses
+      limit=MAX_LINE_SIZE). Rearming exhausted terminal audit; no implementation reopened.'
+    authorized_at: '2026-08-23T21:55:57.360553+00:00'
+    mode: infrastructure_recovery
   version: 1
   pending_chain:
   - version: 1
@@ -199,7 +233,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1266
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -289,7 +323,28 @@ oompah.terminal_audit:
     eligible_at: '2026-08-21T14:41:26.379439+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-21T15:40:21.194269+00:00'
+    updated_at: '2026-08-23T21:55:57.360553+00:00'
+  - version: 1
+    audit_id: audit-c7c92f145c10
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1266
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-23T21:55:57.360553+00:00'
+    eligible_at: '2026-08-23T21:55:57.360553+00:00'
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
   attempt_history:
   - version: 1
     attempt_id: attempt-ebdec741f7d0
