@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:53:32.349118Z'
-updated_at: '2026-08-24T08:56:52.387628Z'
-work_branch: null
+updated_at: '2026-08-24T08:57:18.436286Z'
+work_branch: OOMPAH-1294
 target_branch: null
 review_url: null
 review_number: null
@@ -78,7 +78,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 968ba465-b147-4627-aacf-dde6e927f444
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: fe5f6b853aae415f8d9d3aa99f42732d--contributor-a8b0475e7b09
@@ -187,6 +187,18 @@ oompah.task_costs:
     output_tokens: 156
     cost_usd: 0.0
     recorded_at: '2026-08-24T08:12:33.826352+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1294
+  base_branch: main
+  base_sha: 8c81b69c713e9bb6a1da8906b7e637f1ea6a1696
+  head_sha: 949ae454f8872550c530743a531a6a76b6fbfd50
+  submitted_at: '2026-08-24T08:57:01.113534+00:00'
+  updated_at: '2026-08-24T08:57:01.113534+00:00'
+oompah.work_branch: OOMPAH-1294
 ---
 ## Summary
 
@@ -443,5 +455,10 @@ author: oompah
 created: 2026-08-24 08:56
 ---
 Verification: All tests pass. Changes committed and pushed to branch OOMPAH-1294. The fix prevents pre-provider retirement errors (bounded task-authority deadline timeouts) from being auto-filed as error tasks, addressing the root cause of OOMPAH-1294. No regressions detected.
+---
+author: oompah
+created: 2026-08-24 08:57
+---
+Suppress pre-provider retirement errors from auto-filing via error_watcher by adding suppression logic in _TaskLoggingHandler.emit() to skip records with 'pre_provider_retirement' extra attribute. Added test to verify suppression works correctly. All tests pass (125 error_watcher tests, 21 provider_retirement tests).
 ---
 <!-- COMMENTS:END -->
