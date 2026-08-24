@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:59:54.516015Z'
-updated_at: '2026-08-24T08:23:25.502112Z'
-work_branch: null
+updated_at: '2026-08-24T08:25:04.468973Z'
+work_branch: OOMPAH-1297
 target_branch: null
 review_url: null
 review_number: null
@@ -245,6 +245,18 @@ oompah.task_costs:
     output_tokens: 136
     cost_usd: 0.0
     recorded_at: '2026-08-24T07:09:13.251930+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1297
+  base_branch: main
+  base_sha: 8c81b69c713e9bb6a1da8906b7e637f1ea6a1696
+  head_sha: 8c81b69c713e9bb6a1da8906b7e637f1ea6a1696
+  submitted_at: '2026-08-24T08:24:47.975070+00:00'
+  updated_at: '2026-08-24T08:24:47.975070+00:00'
+oompah.work_branch: OOMPAH-1297
 ---
 ## Summary
 
@@ -625,5 +637,10 @@ Verification:
 - ✅ Working tree clean, on correct branch OOMPAH-1297
 
 **Conclusion**: The pre-provider contributor evidence timeout is now handled gracefully with a WARNING log level, preventing error_watcher from auto-filing this as a task while maintaining operational visibility.
+---
+author: oompah
+created: 2026-08-24 08:25
+---
+Pre-provider contributor evidence timeout is logged at WARNING level instead of ERROR. This prevents error_watcher from auto-filing the timeout as a bug task while maintaining operational visibility. The fix is in oompah/orchestrator.py line 58066 where logger.warning() is used for the 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' message. All 21 tests in test_provider_retirement.py pass, confirming no regression in provider retirement and task authority handling. The graceful degradation path is working as designed: when the timeout is exceeded, the task authority is released and the pre-provider runtime is retired for retry without starting a provider or workspace.
 ---
 <!-- COMMENTS:END -->
