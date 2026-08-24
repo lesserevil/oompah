@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1327
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: '[backend:agent] Auditor subprocess readline crashes on lines >64KiB (Separator
   is found, but chunk is longer than limit)'
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-23T21:54:32.810884Z'
-updated_at: '2026-08-24T00:29:13.549927Z'
+updated_at: '2026-08-24T00:32:41.216651Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,6 +40,7 @@ oompah.terminal_audit:
     digest: ec54d37a26f0a8ac377ed6cba16e297bf2b6247c1dba88c9b0d096f10a89d6ee
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1327","audit-76cfa3e76835","attempt-56feef71903f"]': '2026-08-24T00:27:49.369649+00:00'
+    '["proj-14849f1b","OOMPAH-1327","audit-baa4202ff705","attempt-064a0e9100c8"]': '2026-08-24T00:32:34.014572+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1327
@@ -54,6 +55,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-24T00:27:49.369666+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1327
+    target_state: Merged
+    evidence_fingerprint: ec54d37a26f0a8ac377ed6cba16e297bf2b6247c1dba88c9b0d096f10a89d6ee
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1327
+    selected_sha: a1bdfad376af434e72551b698b2171863b4857dd
+    landing_revision: null
+    audit_ids:
+    - audit-baa4202ff705
+    kind: result
+    applied: true
+    retired_at: '2026-08-24T00:32:34.014608+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1327
@@ -68,6 +82,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T00:27:49.369688+00:00'
     applied_at: '2026-08-24T00:27:57.769591+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1327
+    audit_id: audit-baa4202ff705
+    attempt_id: attempt-064a0e9100c8
+    target_state: Merged
+    evidence_fingerprint: ec54d37a26f0a8ac377ed6cba16e297bf2b6247c1dba88c9b0d096f10a89d6ee
+    status: Merged
+    audit_ids:
+    - audit-baa4202ff705
+    kind: result
+    applied: false
+    created_at: '2026-08-24T00:32:34.014631+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -115,7 +141,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1327
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -124,7 +150,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-064a0e9100c8
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -136,6 +162,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1327
       selected_ref: origin/OOMPAH-1327
       selected_sha: a1bdfad376af434e72551b698b2171863b4857dd
+      verdict: pass
+      completed_at: '2026-08-24T00:32:34.014291+00:00'
+      ended_at: '2026-08-24T00:32:34.014291+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -146,7 +175,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-76cfa3e76835
     selected_ref: origin/OOMPAH-1327
     selected_sha: a1bdfad376af434e72551b698b2171863b4857dd
-    updated_at: '2026-08-24T00:29:03.155374+00:00'
+    updated_at: '2026-08-24T00:32:34.014291+00:00'
     eligible_at: '2026-08-24T00:27:49.369493+00:00'
   attempt_history:
   - version: 1
@@ -179,7 +208,7 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1327
     selected_ref: origin/OOMPAH-1327
     selected_sha: a1bdfad376af434e72551b698b2171863b4857dd
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.task_costs:
   total_input_tokens: 162
   total_output_tokens: 6382
