@@ -393,6 +393,84 @@ class TestOpencodeSessionLifecycle:
         assert session.last_error is None
 
     @pytest.mark.asyncio
+    async def test_run_turn_uses_auto_permission_flag(self):
+        # OOMPAH-1332: without --auto the opencode CLI denies the auditor's
+        # read-only inspection commands, so audits never reach a verdict.
+        proc = _build_mock_proc(stdout_lines=[_json_msg("step_start")])
+        options = AcpBackendOptions(
+            workspace_path="/tmp/ws", prompt="do it", model="m"
+        )
+        session = OpencodeAcpBackendSession(options)
+
+        with patch(
+            "asyncio.create_subprocess_exec",
+            return_value=proc,
+        ) as create_process:
+            with patch.object(session, "_build_tool_catalog", return_value=[]):
+                async for _event in session.run_turn():
+                    pass
+
+        cmd = list(create_process.await_args.args)
+        assert "--auto" in cmd
+        # --auto must precede the trailing prompt positional.
+        assert cmd.index("--auto") < len(cmd) - 1
+
+    @pytest.mark.asyncio
+    async def test_repeated_native_denials_escalate_policy_incompatibility(self):
+        # OOMPAH-1332: if the provider still denies native commands, repeated
+        # denials must escalate through policy_denial_handler (bounded) rather
+        # than looping/rotating candidates forever.
+        denied_state = {
+            "type": "tool",
+            "tool": "bash",
+            "callID": "c1",
+            "state": {
+                "status": "error",
+                "input": {"command": "git status"},
+                "error": "permission denied: command not allowed",
+            },
+        }
+        proc = _build_mock_proc(
+            stdout_lines=[
+                _json_msg("step_start"),
+                _json_msg("tool_use", part=denied_state),
+                _json_msg("tool_use", part=denied_state),
+                _json_msg("tool_use", part=denied_state),
+                _json_msg(
+                    "step_finish",
+                    part={
+                        "type": "step-finish",
+                        "tokens": {"total": 0, "input": 0, "output": 0},
+                        "cost": 0,
+                    },
+                ),
+            ],
+            return_code=0,
+        )
+        denials: list[str] = []
+        options = AcpBackendOptions(
+            workspace_path="/tmp/ws",
+            prompt="audit",
+            model="m",
+            auditor=True,
+            read_only=True,
+            policy_denial_handler=denials.append,
+        )
+        session = OpencodeAcpBackendSession(options)
+
+        with patch(
+            "asyncio.create_subprocess_exec",
+            return_value=proc,
+        ):
+            with patch.object(session, "_build_tool_catalog", return_value=[]):
+                async for _event in session.run_turn():
+                    pass
+
+        assert len(denials) == 1
+        assert "denied" in denials[0].lower()
+        assert session.permission_denials  # recorded for observability
+
+    @pytest.mark.asyncio
     async def test_run_turn_sets_large_subprocess_stream_limit(self):
         proc = _build_mock_proc(stdout_lines=[_json_msg("result")])
         options = AcpBackendOptions(workspace_path="/tmp/ws", prompt="do it")
