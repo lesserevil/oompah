@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:20:13.480283Z'
-updated_at: '2026-08-24T08:26:47.542080Z'
+updated_at: '2026-08-24T08:30:31.262489Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -328,5 +328,10 @@ author: oompah
 created: 2026-08-24 08:26
 ---
 IMPLEMENTATION: Changed logger.warning() to logger.info() for two contributor evidence timeout cases in oompah/orchestrator.py (lines 58069 and 58105). Since error_watcher only captures ERROR+ level log records via its logging handler, INFO-level messages will no longer trigger error_watcher. This is appropriate because: 1) These timeouts are handled gracefully with proper error messages returned to callers, 2) They're expected behavior when persistence operations take longer than the deadline, 3) The code already retries on failure. All tests in test_provider_retirement.py pass (21 tests).
+---
+author: oompah
+created: 2026-08-24 08:30
+---
+VERIFICATION: Changes committed and pushed to branch OOMPAH-1309. Test results: ✓ test_provider_retirement.py (21 tests passed) ✓ test_error_watcher.py (124 tests passed) ✓ test_error_watcher_orchestrator.py (13 tests passed) ✓ test_orchestrator_handlers.py (large test suite passed). Fix is ready: The two logger.warning() calls in orchestrator.py have been changed to logger.info() for contributor evidence timeout cases, preventing error_watcher from being triggered while maintaining detailed logging.
 ---
 <!-- COMMENTS:END -->
