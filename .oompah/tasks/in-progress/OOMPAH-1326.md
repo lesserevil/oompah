@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T09:43:03.353905Z'
-updated_at: '2026-08-24T14:07:03.773919Z'
+updated_at: '2026-08-24T14:10:05.310541Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -227,5 +227,19 @@ Next steps:
 2. Identify if it's a transient network/git issue that should be retried gracefully
 3. Implement either a fix for the root cause or graceful error handling
 4. Ensure error_watcher doesn't file tasks for expected transient failures
+---
+author: oompah
+created: 2026-08-24 14:10
+---
+Discovery: Found the root cause. The checkpoint flush errors are being logged at ERROR level (via logger.exception()) which triggers error_watcher to auto-file tasks. However, timer-based flush failures (debounce and max-delay) are expected transient failures that should be logged at WARNING level instead.
+
+Similar pattern found in OOMPAH-1217: changed logger.error() to logger.warning() for handled graceful degradation cases.
+
+Solution: Modify checkpoint_queue.py to log timer-based flush failures at WARNING level instead of ERROR level. This prevents error_watcher from auto-filing transient/expected failures while still making them visible for operational awareness.
+
+Implementation plan:
+1. Add a parameter to flush() to indicate timer-based calls
+2. When timer-based, log at WARNING level (with error_class/incident_key as extra fields)
+3. Manual flushes continue to log at ERROR level
 ---
 <!-- COMMENTS:END -->
