@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:28:31.897753Z'
-updated_at: '2026-08-24T17:17:10.311841Z'
+updated_at: '2026-08-24T17:17:46.993989Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -150,6 +150,22 @@ oompah.terminal_audit:
     selected_ref: origin/OOMPAH-1331
     selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
 oompah.lifecycle_revision: 1
+oompah.task_costs:
+  total_input_tokens: 338
+  total_output_tokens: 13665
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 338
+      output_tokens: 13665
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 338
+    output_tokens: 13665
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T17:17:42.770795+00:00'
 ---
 ## Summary
 
@@ -228,5 +244,15 @@ Safe evidence:
 - test_coverage: New tests verify both deferred-finalizes (test_publication_deferred_scan_finalizes_when_fully_reconciled) and fail-closed non-deferred (test_non_deferred_incomplete_scan_still_fails_closed)
 - backward_compatibility: PASS - source_scan_deferred defaults to False, preserving existing behavior
 - code_quality: PASS - Docstring added explaining source_scan_deferred; logic correctly gates finalization on multiple conditions (no errors, effective reconciliation, deferred flag); changes are isolated and minimal
+---
+author: oompah
+created: 2026-08-24 17:17
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 99, Tool calls: 43
+- Tokens: 338 in / 13.7K out [14.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 57s
+- Log: OOMPAH-1331__20260824T170606Z.jsonl
 ---
 <!-- COMMENTS:END -->
