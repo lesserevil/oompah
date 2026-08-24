@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:36:38.933130Z'
-updated_at: '2026-08-24T01:01:40.708386Z'
+updated_at: '2026-08-24T01:11:40.527796Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -478,5 +478,31 @@ The issue is a timeout error in backend:orchestrator: 'Pre-provider contributor 
 5. Verify with tests and manual verification
 
 Starting investigation now.
+---
+author: oompah
+created: 2026-08-24 01:11
+---
+**Discovery: Root Cause Identified**
+
+Found the issue in `oompah/orchestrator.py` in the `_stage_work_contributor_launch()` method (lines 57834-58100).
+
+**The Problem:**
+The timeout for persisting contributor evidence (tracker write) is calculated as:
+- `persistence_timeout = max(min(control_timeout, termination_timeout / 2.0), 0.05)`
+- With defaults: control_timeout=5.0s, termination_timeout=10s
+- Result: 5.0 second timeout
+
+The `asyncio.wait_for()` call at line 58043 and 58097 is timing out when writing to the tracker, triggering the 'bounded task-authority deadline' error which is logged at line 58067.
+
+**Root Cause:**
+The 5-second timeout is too short for the provenanceguardedtracker implementation, which needs more time for the `_persist_work_contributor()` call to complete.
+
+**Solution Approach:**
+Increase the default timeout by:
+1. Raising the `terminal_control_lock_timeout_seconds` default from 5.0 to a higher value (e.g., 15.0)
+2. This will proportionally increase the calculated persistence_timeout
+3. Alternative: Set a higher default for the optional `contributor_evidence_persist_timeout_seconds` config option
+
+Next: Implementing the fix.
 ---
 <!-- COMMENTS:END -->
