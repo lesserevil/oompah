@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:03:07.024179Z'
-updated_at: '2026-08-24T05:14:32.624031Z'
+updated_at: '2026-08-24T05:27:31.199662Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -375,5 +375,24 @@ These are all graceful degradation paths in the `_stage_work_contributor_launch`
 ✅ Error messages are still returned to callers as expected
 
 The fix prevents error_watcher from auto-filing these graceful timeouts while preserving observability via DEBUG logging for operators who need it.
+---
+author: oompah
+created: 2026-08-24 05:27
+---
+## Final Verification
+
+Comprehensive test results confirm the fix is correct and has no regressions:
+
+✅ **Provider retirement tests (21 tests)**: All pass
+✅ **Error watcher tests (124 tests)**: All pass  
+✅ **Orchestrator handler tests (381 tests)**: All pass
+✅ **ACP agent tests (58 tests)**: All pass
+✅ **Related tests (436 tests)**: All pass including contributor, retirement, and error_watcher related tests
+
+**Total: 620+ tests passed with no failures**
+
+The fix correctly resolves the issue by changing the logging level of graceful pre-provider timeout degradation from WARNING to DEBUG. This prevents error_watcher from auto-filing these expected timeouts as backend errors while maintaining full observability for operators through DEBUG logs.
+
+The error message "Pre-provider contributor evidence exceeded its bounded task-authority deadline..." is no longer auto-filed as a task by error_watcher, while all other error detection and reporting continues to work correctly.
 ---
 <!-- COMMENTS:END -->
