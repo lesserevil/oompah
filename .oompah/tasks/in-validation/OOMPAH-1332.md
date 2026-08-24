@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T18:33:39.522330Z'
-updated_at: '2026-08-24T19:31:00.525555Z'
+updated_at: '2026-08-24T19:31:24.161917Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -150,6 +150,22 @@ oompah.terminal_audit:
     selected_ref: origin/OOMPAH-1332
     selected_sha: fc7a63a31c23e49d4fb5d51d5ea5880e5c90d58a
 oompah.lifecycle_revision: 1
+oompah.task_costs:
+  total_input_tokens: 114
+  total_output_tokens: 7142
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 114
+      output_tokens: 7142
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 114
+    output_tokens: 7142
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T19:31:15.741770+00:00'
 ---
 ## Summary
 
@@ -225,5 +241,15 @@ Safe evidence:
 - acceptance_criteria[1]: No infinite rotation - bounded escalation at _MAX_NATIVE_DENIALS=3
 - acceptance_criteria[2]: No regression for Claude/Codex - isolated to opencode.py only
 - acceptance_criteria[3]: Proper safety net - policy_denial_handler escalation
+---
+author: oompah
+created: 2026-08-24 19:31
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 32, Tool calls: 13
+- Tokens: 114 in / 7.1K out [7.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 30s
+- Log: OOMPAH-1332__20260824T192713Z.jsonl
 ---
 <!-- COMMENTS:END -->
