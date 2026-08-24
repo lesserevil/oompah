@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:03:07.024179Z'
-updated_at: '2026-08-24T05:05:10.093062Z'
+updated_at: '2026-08-24T05:12:06.870479Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -340,5 +340,18 @@ The error is being captured by error_watcher and auto-filed as a task, but it sh
 2. Change it from ERROR to WARNING level (or handle it differently to avoid auto-filing)
 3. Verify the test still passes
 4. Commit and submit
+---
+author: oompah
+created: 2026-08-24 05:12
+---
+## Discovery
+
+Found the root cause: In `oompah/orchestrator.py` lines 58066-58083, when contributor evidence persistence times out (a normal graceful degradation), the code logs `logger.warning()` with the message 'Pre-provider contributor evidence exceeded its bounded task-authority deadline...'.
+
+The problem is that error_watcher is configured to capture WARNING+ level logs when they have specific extra fields (like "pre_provider_retirement"). This timeoutis a handled,expected path that returns a user-facing error message - it should NOT trigger error_watcher.
+
+**Fix:** Change `logger.warning()` to `logger.debug()` (or remove logging entirely) since this is a graceful degradation path that's already handled by returning a user-facing error message.
+
+There are three similar logger.warning calls in this function (lines 58066, 58107, and surrounding areas) that also need to be changed.
 ---
 <!-- COMMENTS:END -->
