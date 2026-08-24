@@ -58025,7 +58025,7 @@ class Orchestrator:
                 )
                 persistence_timeout = max(
                     min(control_timeout, termination_timeout / 2.0),
-                    0.05,
+                    15.0,  # Increase minimum timeout to allow tracker I/O to complete
                 )
                 # A dedicated deadline lets slow tracker/state-branch evidence
                 # writes finish instead of retiring with
