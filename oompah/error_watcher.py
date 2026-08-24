@@ -647,6 +647,13 @@ class _TaskLoggingHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
+            # Skip log records marked for pre-provider retirement (e.g. bounded
+            # task-authority deadline timeouts during contributor evidence
+            # persistence). These are expected operational conditions, not errors.
+            # See OOMPAH-1294.
+            if hasattr(record, "pre_provider_retirement"):
+                return
+
             message = record.getMessage()
             detail = message
             if record.exc_info and record.exc_info[1]:
