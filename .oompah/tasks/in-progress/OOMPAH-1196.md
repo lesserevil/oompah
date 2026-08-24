@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:27.547026Z'
-updated_at: '2026-08-24T06:47:23.004415Z'
+updated_at: '2026-08-24T06:50:47.365894Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -435,5 +435,10 @@ author: oompah
 created: 2026-08-24 06:47
 ---
 ROOT CAUSE FOUND: Worker failure messages are logged at WARNING level to avoid ERROR-level error_watcher handler. However, LogFileWatcher (another error_watcher mechanism) scans log files for ERROR keywords in exception messages and can still pick up WARNING-level logs containing 'ERROR'. Solution: Change logging level from WARNING to DEBUG for expected pre-request worker failures (ACP/API/CLI workers). This prevents both the logging handler AND file watcher from capturing these transient, non-provider-health errors.
+---
+author: oompah
+created: 2026-08-24 06:50
+---
+IMPLEMENTATION: Changed worker failure logging from WARNING to DEBUG level in three places: (1) ACP worker (line 64761), (2) API worker (line 63594), (3) CLI worker (line 65115). Updated comments to explain that DEBUG level prevents both the ERROR-level logging handler AND LogFileWatcher from capturing these transient, non-provider-health errors. Added regression tests to verify DEBUG logs are not captured by error_watcher.
 ---
 <!-- COMMENTS:END -->
