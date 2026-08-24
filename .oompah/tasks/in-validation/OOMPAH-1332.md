@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1332
 type: task
-status: Backlog
+status: In Validation
 priority: null
 title: Completion auditor tool-policy denies OpenCode auditor commands, so verdicts
   never finalize (endless candidate rotation)
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T18:33:39.522330Z'
-updated_at: '2026-08-24T18:33:39.522330Z'
+updated_at: '2026-08-24T19:04:43.138284Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,6 +25,65 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: f80c8a4d-456e-4dc5-88c6-a7725441f855
   request_fingerprint: c29c97a4dfda34f0e6b56c3ddf7f6f5f47382026e7f9f9e40565d8343a8c7b3e
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-c8f74b306247
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1332
+    digest: f31d714cbc165f0d4ac3c606c3cc2c21c211fc42eac14aa4c42b145d22ad9a4b
+  - version: 1
+    audit_id: audit-129d64b0ef60
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1332
+    digest: f31d714cbc165f0d4ac3c606c3cc2c21c211fc42eac14aa4c42b145d22ad9a4b
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-c8f74b306247
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1332
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f31d714cbc165f0d4ac3c606c3cc2c21c211fc42eac14aa4c42b145d22ad9a4b
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-24T19:04:36.599774+00:00'
+    eligible_at: '2026-08-24T19:04:36.599774+00:00'
+    selected_ref: origin/OOMPAH-1332
+    selected_sha: fc7a63a31c23e49d4fb5d51d5ea5880e5c90d58a
+  - version: 1
+    audit_id: audit-129d64b0ef60
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1332
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f31d714cbc165f0d4ac3c606c3cc2c21c211fc42eac14aa4c42b145d22ad9a4b
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-24T19:04:36.599774+00:00'
+    prerequisite_audit_id: audit-c8f74b306247
+    selected_ref: origin/OOMPAH-1332
+    selected_sha: fc7a63a31c23e49d4fb5d51d5ea5880e5c90d58a
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -63,3 +122,11 @@ Completion audits dispatched to the OpenCode/Switchyard provider run tool calls 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-24 19:04
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+<!-- COMMENTS:END -->
