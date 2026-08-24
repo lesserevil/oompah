@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1204
 type: bug
-status: In Validation
+status: Needs Human
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-132 identifier=TRICKLE-132 run_id=15cd6b1be4e84f899592794059aca475
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:25:06.282819Z'
-updated_at: '2026-08-24T18:23:43.443431Z'
+updated_at: '2026-08-24T18:27:39.586176Z'
 work_branch: OOMPAH-1204
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/906
 review_number: '906'
 review_head: b8bea43d1f7348eaf3bca1f0a02adeaf84534bb6
 merged_at: null
-oompah.lifecycle_revision: 6
+oompah.lifecycle_revision: 7
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -213,6 +213,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1204
     digest: 9b4ef5eec9ffd666f17a687246d3690f36a85a4e73bf5567569a60af146d1da3
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1204","audit-ff87a53c40a4","no-auditor-audit-ff87a53c40a4-3"]': '2026-08-24T18:27:30.320292+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1204
+    target_state: Done
+    evidence_fingerprint: 9b4ef5eec9ffd666f17a687246d3690f36a85a4e73bf5567569a60af146d1da3
+    workflow_revision: null
+    selected_ref: b8bea43d1f7348eaf3bca1f0a02adeaf84534bb6
+    selected_sha: b8bea43d1f7348eaf3bca1f0a02adeaf84534bb6
+    landing_revision: null
+    audit_ids:
+    - audit-ff87a53c40a4
+    kind: result
+    applied: true
+    retired_at: '2026-08-24T18:27:30.320307+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1204
+    audit_id: audit-ff87a53c40a4
+    attempt_id: no-auditor-audit-ff87a53c40a4-3
+    target_state: Done
+    evidence_fingerprint: 9b4ef5eec9ffd666f17a687246d3690f36a85a4e73bf5567569a60af146d1da3
+    status: Needs Human
+    audit_ids:
+    - audit-ff87a53c40a4
+    kind: result
+    applied: true
+    created_at: '2026-08-24T18:27:30.320316+00:00'
+    applied_at: '2026-08-24T18:27:38.025274+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -220,7 +250,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1204
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -285,6 +315,21 @@ oompah.terminal_audit:
       ended_at: '2026-08-24T18:23:34.948063+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-24T18:24:14.948036+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-ff87a53c40a4-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 9b4ef5eec9ffd666f17a687246d3690f36a85a4e73bf5567569a60af146d1da3
+      verdict: fail
+      failure_classification: no_auditor
+      origin: coordinator_retry_exhaustion
+      created_at: '2026-08-24T18:27:30.320156+00:00'
+      completed_at: '2026-08-24T18:27:30.320156+00:00'
+      selected_ref: b8bea43d1f7348eaf3bca1f0a02adeaf84534bb6
+      selected_sha: b8bea43d1f7348eaf3bca1f0a02adeaf84534bb6
     source_generation: 1
     requested_by:
       version: 1
@@ -295,7 +340,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T14:28:15.973036+00:00'
     selected_ref: b8bea43d1f7348eaf3bca1f0a02adeaf84534bb6
     selected_sha: b8bea43d1f7348eaf3bca1f0a02adeaf84534bb6
-    updated_at: '2026-08-24T18:23:34.948063+00:00'
+    updated_at: '2026-08-24T18:27:30.320156+00:00'
   - version: 1
     audit_id: audit-3f481f0885a4
     project_id: proj-14849f1b
@@ -723,5 +768,12 @@ author: oompah
 created: 2026-08-24 18:23
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-24 18:27
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
