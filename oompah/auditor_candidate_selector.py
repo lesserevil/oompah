@@ -549,13 +549,16 @@ class AuditorCandidateSelector:
     def _supports_audit_verdict(cls, provider: Any) -> bool:
         """Whether this provider transport can submit a terminal verdict.
 
-        Subscription-backed Codex uses the native Codex CLI tool surface.
-        Unlike the per-token OpenAI Agents SDK path, that surface cannot
-        expose oompah's ``submit_audit_result`` tool.  Selecting it for an
-        audit therefore produces a successful review with no durable verdict
-        and strands the task in validation.
+        Native CLI transports without an oompah tool bridge cannot expose
+        ``submit_audit_result``. Subscription-backed Codex uses its native CLI
+        rather than the per-token OpenAI Agents SDK bridge. OpenCode builds an
+        oompah catalog for telemetry, but ``opencode run`` does not receive
+        those callables. Selecting either path produces a successful review
+        with no durable verdict and strands the task in validation.
         """
         backend = str(getattr(provider, "backend", "") or "claude").casefold()
+        if backend == "opencode":
+            return False
         return not (backend == "codex" and cls._is_subscription_acp(provider))
 
     def _model_is_valid(self, provider: Any, model: str) -> bool:
