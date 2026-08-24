@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1329
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Stop over-budget workflow reconciliation from hot-looping worker admission
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T01:36:28.768799Z'
-updated_at: '2026-08-24T02:28:14.249491Z'
+updated_at: '2026-08-24T02:35:49.606139Z'
 work_branch: OOMPAH-1329
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/907
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 371719b5-9bbc-4ef2-9eb3-463362b66297
   request_fingerprint: 42c3c0fde84cd2ad321f76f112089c3ffe9d915f0fc8cafd65d70f412596c940
-oompah.lifecycle_revision: 4
+oompah.lifecycle_revision: 5
 oompah.integration:
   version: 2
   state: ready
@@ -56,6 +56,7 @@ oompah.terminal_audit:
     digest: 93d3202e8d44cf80ca57b31cf884a20fd2c8ae2a3a2510a3de337965df5632de
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1329","audit-d2d1717d9afd","attempt-050fc068b811"]': '2026-08-24T02:27:28.619835+00:00'
+    '["proj-14849f1b","OOMPAH-1329","audit-925a61fc1c8f","attempt-6794175ba7a8"]': '2026-08-24T02:35:45.446342+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1329
@@ -70,6 +71,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-24T02:27:28.619852+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1329
+    target_state: Merged
+    evidence_fingerprint: 93d3202e8d44cf80ca57b31cf884a20fd2c8ae2a3a2510a3de337965df5632de
+    workflow_revision: null
+    selected_ref: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+    selected_sha: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+    landing_revision: null
+    audit_ids:
+    - audit-925a61fc1c8f
+    kind: result
+    applied: true
+    retired_at: '2026-08-24T02:35:45.446361+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1329
@@ -84,6 +98,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T02:27:28.619863+00:00'
     applied_at: '2026-08-24T02:27:35.595865+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1329
+    audit_id: audit-925a61fc1c8f
+    attempt_id: attempt-6794175ba7a8
+    target_state: Merged
+    evidence_fingerprint: 93d3202e8d44cf80ca57b31cf884a20fd2c8ae2a3a2510a3de337965df5632de
+    status: Merged
+    audit_ids:
+    - audit-925a61fc1c8f
+    kind: result
+    applied: false
+    created_at: '2026-08-24T02:35:45.446373+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -131,7 +157,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1329
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -140,7 +166,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-6794175ba7a8
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -152,6 +178,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1329
       selected_ref: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
       selected_sha: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+      verdict: pass
+      completed_at: '2026-08-24T02:35:45.446168+00:00'
+      ended_at: '2026-08-24T02:35:45.446168+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -162,7 +191,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-d2d1717d9afd
     selected_ref: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
     selected_sha: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
-    updated_at: '2026-08-24T02:28:02.354610+00:00'
+    updated_at: '2026-08-24T02:35:45.446168+00:00'
     eligible_at: '2026-08-24T02:27:28.619638+00:00'
   attempt_history:
   - version: 1
