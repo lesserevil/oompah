@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:56:39.839941Z'
-updated_at: '2026-08-24T22:37:49.605482Z'
+updated_at: '2026-08-24T22:49:37.723415Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,6 +37,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1335
     digest: cf12e5b1ba11bbf041369aeaeee9cc8ec566784dbfb3512d345b8078c8053d01
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1335","audit-4c771cc6b972","attempt-387e50ad4d02"]': '2026-08-24T22:49:28.600911+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1335
+    target_state: Done
+    evidence_fingerprint: cf12e5b1ba11bbf041369aeaeee9cc8ec566784dbfb3512d345b8078c8053d01
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1335
+    selected_sha: 76fe97764a3b56bf7d922eabd49cd8f94844f1e3
+    landing_revision: null
+    audit_ids:
+    - audit-4c771cc6b972
+    kind: result
+    applied: true
+    retired_at: '2026-08-24T22:49:28.600929+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1335
+    audit_id: audit-4c771cc6b972
+    attempt_id: attempt-387e50ad4d02
+    target_state: Done
+    evidence_fingerprint: cf12e5b1ba11bbf041369aeaeee9cc8ec566784dbfb3512d345b8078c8053d01
+    status: In Validation
+    audit_ids:
+    - audit-4c771cc6b972
+    kind: result
+    applied: true
+    created_at: '2026-08-24T22:49:28.600940+00:00'
+    applied_at: '2026-08-24T22:49:36.436895+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -44,7 +74,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1335
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -53,7 +83,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-387e50ad4d02
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -65,6 +95,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1335
       selected_ref: origin/OOMPAH-1335
       selected_sha: 76fe97764a3b56bf7d922eabd49cd8f94844f1e3
+      verdict: pass
+      completed_at: '2026-08-24T22:49:28.600756+00:00'
+      ended_at: '2026-08-24T22:49:28.600756+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -75,7 +108,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T22:23:59.513120+00:00'
     selected_ref: origin/OOMPAH-1335
     selected_sha: 76fe97764a3b56bf7d922eabd49cd8f94844f1e3
-    updated_at: '2026-08-24T22:37:38.119482+00:00'
+    updated_at: '2026-08-24T22:49:28.600756+00:00'
   - version: 1
     audit_id: audit-ee0391b798eb
     project_id: proj-14849f1b
@@ -97,6 +130,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-4c771cc6b972
     selected_ref: origin/OOMPAH-1335
     selected_sha: 76fe97764a3b56bf7d922eabd49cd8f94844f1e3
+    updated_at: '2026-08-24T22:49:28.600756+00:00'
+    eligible_at: '2026-08-24T22:49:28.600756+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-387e50ad4d02
@@ -141,5 +176,19 @@ author: oompah
 created: 2026-08-24 22:37
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 22:49
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- test_results: All 21 tests in test_managed_git_credentials.py passed
+- critical_regressions: test_sanitize_managed_clone_removes_canonical_url_rewrite and test_sanitize_managed_clone_preserves_unrelated_url_rewrite both pass
+- implementation: New _url_rewrite_matches_canonical() helper and enhanced sanitize_managed_clone_credentials() that removes only repository-local url.*.insteadOf entries matching canonical URL
+- call_sites: Integrated in create(), _create_epic_worktree_locked(), _prepare_existing_epic_worktree()
+- requirements: Fail-closed sanitation, local entries only, canonical URL protection, preserve unrelated config, idempotent, HTTPS-to-SSH removal, all call sites integrated
 ---
 <!-- COMMENTS:END -->
