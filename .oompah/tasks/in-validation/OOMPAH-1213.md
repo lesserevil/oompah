@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:50:52.786229Z'
-updated_at: '2026-08-24T17:58:18.462191Z'
+updated_at: '2026-08-24T18:00:24.584354Z'
 work_branch: OOMPAH-1213
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/895
@@ -537,7 +537,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1213
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -562,6 +562,22 @@ oompah.terminal_audit:
       ended_at: '2026-08-24T17:58:08.209561+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-24T17:58:18.209528+00:00'
+    - version: 1
+      attempt_id: attempt-f5b4f6969e3e
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 0be5dc22447d8e61d317e4d046481be1c6170edb89ce02264cc0c6b5a198147b
+      created_at: '2026-08-24T18:00:13.629662+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-24T18:00:13.629662+00:00'
+      branch_key: OOMPAH-1213
+      selected_ref: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
+      selected_sha: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
+      candidate_rotation_count: 1
     source_generation: 3
     requested_by:
       version: 1
@@ -573,7 +589,7 @@ oompah.terminal_audit:
     selected_ref: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
     selected_sha: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
     workflow_revision: f8e345804f381f9cffa9c50cb924682f90c5bd2b4e6b162e81ec65339f70d8fc
-    updated_at: '2026-08-24T17:58:08.209561+00:00'
+    updated_at: '2026-08-24T18:00:13.629662+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-bda598eb26e4
@@ -712,6 +728,22 @@ oompah.terminal_audit:
     ended_at: '2026-08-24T17:58:08.209561+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-24T17:58:18.209528+00:00'
+  - version: 1
+    attempt_id: attempt-f5b4f6969e3e
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0be5dc22447d8e61d317e4d046481be1c6170edb89ce02264cc0c6b5a198147b
+    created_at: '2026-08-24T18:00:13.629662+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-24T18:00:13.629662+00:00'
+    branch_key: OOMPAH-1213
+    selected_ref: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
+    selected_sha: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -1116,5 +1148,15 @@ author: oompah
 created: 2026-08-24 17:58
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-24 18:00
+---
+Auditor dispatched (attempt #2, candidate: prov-6cf41c89/switchyard/auto)
+---
+author: oompah
+created: 2026-08-24 18:00
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
