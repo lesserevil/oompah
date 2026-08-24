@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:15:25.298559Z'
-updated_at: '2026-08-24T15:03:15.497167Z'
+updated_at: '2026-08-24T15:08:18.517896Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -340,5 +340,18 @@ created: 2026-08-24 15:03
 2. Check error_watcher.py to understand why this WARNING is being auto-filed
 3. Determine if the timeout is genuinely too short or if this should be handled as a non-error
 4. Implement fix to either increase timeout or suppress error_watcher triggering
+---
+author: oompah
+created: 2026-08-24 15:08
+---
+**Discovery**: Found the root cause in oompah/orchestrator.py _stage_work_contributor_launch() function. The three gracefully-handled timeout conditions are logged at WARNING level:
+
+1. Line ~57957: 'Pre-provider contributor evidence is still settling...'
+2. Line ~58079: 'Pre-provider contributor evidence exceeded its bounded task-authority deadline...'
+3. Line ~58115: 'Cancelled pre-provider contributor evidence did not finish...'
+
+These are normal, retryable conditions where the orchestrator automatically retries the work. However, the _TaskLoggingHandler (which captures ERROR+ logs) should not catch WARNING-level logs. Upon investigation, found that OOMPAH-1324 was filed with the same fix: downgrade these three log levels from WARNING to INFO. This will prevent error_watcher from auto-filing tasks for these expected conditions.
+
+The fix is to change three logger.warning() calls to logger.info() in oompah/orchestrator.py.
 ---
 <!-- COMMENTS:END -->
