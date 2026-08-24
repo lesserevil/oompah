@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1229
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Stabilize WebSocket completion fault-injection synchronization
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:37:50.327401Z'
-updated_at: '2026-08-24T06:24:21.573421Z'
+updated_at: '2026-08-24T06:24:30.331968Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 1392a045-7295-4cfd-8a46-295cbe950be9
   request_fingerprint: cc9c91296985b97656c171e2976056fe6d8bbd5cabb832cae4e84348f15dddcc
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -334,5 +334,10 @@ author: oompah
 created: 2026-08-24 06:24
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-24 06:24
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
