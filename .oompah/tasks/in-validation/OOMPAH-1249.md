@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1249
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Sanitize credential routes from managed clone Git config
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:07:17.780951Z'
-updated_at: '2026-08-24T08:44:42.156201Z'
+updated_at: '2026-08-24T12:04:28.448518Z'
 work_branch: OOMPAH-1249
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/896
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 38414c00-1ce0-4772-8ca6-34b094cc432f
   request_fingerprint: 161c9ff76929a7deb62fc461fd2af12e3940f907f457dfd38ca6015cd1b8f517
-oompah.lifecycle_revision: 6
+oompah.lifecycle_revision: 7
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: ac16839b98a35e44ffa203782336151a9e5ff81d3f799e101eabcba48ecc8de7
@@ -148,6 +148,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/896
 oompah.review_number: '896'
 oompah.target_branch: main
 oompah.review_head: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-20ec696fc6ec
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1249
+    digest: 64d0230cdd9adb22482599e2eea650a627416ba7c558fb6b68ff1832d2d572a3
+  - version: 1
+    audit_id: audit-74d9bc4f85fc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1249
+    digest: 64d0230cdd9adb22482599e2eea650a627416ba7c558fb6b68ff1832d2d572a3
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-20ec696fc6ec
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1249
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 64d0230cdd9adb22482599e2eea650a627416ba7c558fb6b68ff1832d2d572a3
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-24T12:04:19.872851+00:00'
+    eligible_at: '2026-08-24T12:04:19.872851+00:00'
+    selected_ref: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
+    selected_sha: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
+  - version: 1
+    audit_id: audit-74d9bc4f85fc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1249
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 64d0230cdd9adb22482599e2eea650a627416ba7c558fb6b68ff1832d2d572a3
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-24T12:04:19.872851+00:00'
+    prerequisite_audit_id: audit-20ec696fc6ec
+    selected_ref: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
+    selected_sha: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
+  attempt_history: []
 ---
 ## Summary
 
@@ -297,5 +355,10 @@ author: oompah
 created: 2026-08-24 08:43
 ---
 Branch quality gate passed for `23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6` using `make test` in 194.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-24 12:04
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
