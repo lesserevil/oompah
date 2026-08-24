@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:28:31.897753Z'
-updated_at: '2026-08-24T17:00:01.076573Z'
+updated_at: '2026-08-24T17:00:04.351394Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -126,3 +126,11 @@ Restart reconstruction finalization requires zero unexplained divergences, but 1
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-24 17:00
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+<!-- COMMENTS:END -->
