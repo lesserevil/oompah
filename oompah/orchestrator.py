@@ -58032,10 +58032,12 @@ class Orchestrator:
                 # contributor_evidence_unavailable and starving implementation
                 # dispatch.  When configured it is authoritative (production
                 # raises it well above the derived control floor).
+                # Use the configured default (60.0) if the attribute isn't
+                # accessible, ensuring a reasonable fallback timeout.
                 configured_evidence_timeout = getattr(
                     self.config,
                     "contributor_evidence_persist_timeout_seconds",
-                    None,
+                    60.0,
                 )
                 if configured_evidence_timeout is not None:
                     persistence_timeout = max(
