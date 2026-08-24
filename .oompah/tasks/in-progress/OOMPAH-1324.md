@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:22:19.264494Z'
-updated_at: '2026-08-24T06:16:46.348556Z'
+updated_at: '2026-08-24T06:18:01.293122Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -338,5 +338,10 @@ author: oompah
 created: 2026-08-24 06:16
 ---
 Implementation: Changed logger.warning to logger.info for three pre_provider_retirement timeout log messages in oompah/orchestrator.py (lines 57956, 58070, and 58106). These are gracefully-handled timeout conditions where the code retries the work, not actual errors. By lowering the log level to INFO, error_watcher (which only captures ERROR+ level logs) will no longer pick them up and auto-file them as tasks. The error message returned to the caller remains the same, so retry logic is unchanged.
+---
+author: oompah
+created: 2026-08-24 06:18
+---
+Verification: Changes committed and pushed successfully to OOMPAH-1324 branch. Python syntax validation passed. The fix lowers the log level from WARNING to INFO for three gracefully-handled timeout conditions in the pre-provider contributor evidence collection. Since error_watcher only captures ERROR+ level logs, these timeout messages will no longer be auto-filed as tasks. The operational behavior remains unchanged - timeouts still trigger retries as expected.
 ---
 <!-- COMMENTS:END -->
