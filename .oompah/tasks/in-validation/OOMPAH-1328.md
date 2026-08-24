@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T00:59:00.469186Z'
-updated_at: '2026-08-24T01:27:14.679520Z'
+updated_at: '2026-08-24T01:27:29.998426Z'
 work_branch: OOMPAH-1328
 target_branch: null
 review_url: null
@@ -161,6 +161,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1328
     selected_ref: aaac848e78bef6ee935df3c6697bcaa53012bfbb
     selected_sha: aaac848e78bef6ee935df3c6697bcaa53012bfbb
+oompah.task_costs:
+  total_input_tokens: 218
+  total_output_tokens: 8968
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 218
+      output_tokens: 8968
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 218
+    output_tokens: 8968
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T01:27:25.903898+00:00'
 ---
 ## Summary
 
@@ -211,5 +227,15 @@ Safe evidence:
 - constant: MAX_LINE_SIZE = 10 * 1024 * 1024 bytes (10 MiB) from oompah/agent.py:21
 - test: test_run_turn_sets_large_subprocess_stream_limit verifies limit kwarg is passed correctly
 - quality_gate: make test passed for SHA aaac848e78bef6ee935df3c6697bcaa53012bfbb in 179.5 seconds
+---
+author: oompah
+created: 2026-08-24 01:27
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 65, Tool calls: 26
+- Tokens: 218 in / 9.0K out [9.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 22s
+- Log: OOMPAH-1328__20260824T012230Z.jsonl
 ---
 <!-- COMMENTS:END -->
