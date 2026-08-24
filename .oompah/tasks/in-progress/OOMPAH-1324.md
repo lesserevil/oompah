@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:22:19.264494Z'
-updated_at: '2026-08-24T06:18:01.293122Z'
-work_branch: null
+updated_at: '2026-08-24T06:18:22.641606Z'
+work_branch: OOMPAH-1324
 target_branch: null
 review_url: null
 review_number: null
@@ -122,7 +122,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 7eeb7517-b2ed-4a5d-80ca-4fde1d149728
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 9d22ecdcb2224f1fb0ac3b62fdc7d6ed--contributor-4256b9f40773
@@ -187,6 +187,18 @@ oompah.task_costs:
     output_tokens: 1594
     cost_usd: 0.0
     recorded_at: '2026-08-23T23:03:50.270751+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1324
+  base_branch: main
+  base_sha: 4988991309ba81b6b2cf06aa30528bf5f21b0a82
+  head_sha: 083edbe5c91b73b83ac6a1d62920b07312f92ea3
+  submitted_at: '2026-08-24T06:18:08.680162+00:00'
+  updated_at: '2026-08-24T06:18:08.680162+00:00'
+oompah.work_branch: OOMPAH-1324
 ---
 ## Summary
 
@@ -343,5 +355,10 @@ author: oompah
 created: 2026-08-24 06:18
 ---
 Verification: Changes committed and pushed successfully to OOMPAH-1324 branch. Python syntax validation passed. The fix lowers the log level from WARNING to INFO for three gracefully-handled timeout conditions in the pre-provider contributor evidence collection. Since error_watcher only captures ERROR+ level logs, these timeout messages will no longer be auto-filed as tasks. The operational behavior remains unchanged - timeouts still trigger retries as expected.
+---
+author: oompah
+created: 2026-08-24 06:18
+---
+Fixed backend:orchestrator pre-provider contributor evidence timeout error being auto-filed by error_watcher. Changed logger.warning to logger.info for three gracefully-handled timeout conditions that occur during pre-provider contributor evidence collection. Timeouts now log at INFO level which is not captured by error_watcher (only ERROR+ levels). The fix prevents unnecessary error task creation while preserving retry behavior and timeout handling.
 ---
 <!-- COMMENTS:END -->
