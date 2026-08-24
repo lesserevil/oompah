@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1328
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Apply large stream limit to OpenCode ACP subprocesses
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T00:59:00.469186Z'
-updated_at: '2026-08-24T01:04:11.832942Z'
+updated_at: '2026-08-24T01:10:45.273083Z'
 work_branch: OOMPAH-1328
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 32623887-6658-4507-aebe-1f82fa244df7
   request_fingerprint: 3e72702ee72c5191f330bc2235080b55d6d11adf9beb0ee63295241e50b8ada2
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.integration:
   version: 2
   state: ready
@@ -37,6 +37,64 @@ oompah.integration:
   submitted_at: '2026-08-24T01:01:01.865641+00:00'
   updated_at: '2026-08-24T01:01:01.865641+00:00'
 oompah.work_branch: OOMPAH-1328
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-b4728feba5a7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1328
+    digest: 5afe5472112b1cac4d9f3a323071e2001dbe0dc88643adb31af26fb6f164963a
+  - version: 1
+    audit_id: audit-6a7e254a8bb2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1328
+    digest: 5afe5472112b1cac4d9f3a323071e2001dbe0dc88643adb31af26fb6f164963a
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-b4728feba5a7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1328
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5afe5472112b1cac4d9f3a323071e2001dbe0dc88643adb31af26fb6f164963a
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-24T01:10:38.663923+00:00'
+    eligible_at: '2026-08-24T01:10:38.663923+00:00'
+    selected_ref: aaac848e78bef6ee935df3c6697bcaa53012bfbb
+    selected_sha: aaac848e78bef6ee935df3c6697bcaa53012bfbb
+  - version: 1
+    audit_id: audit-6a7e254a8bb2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1328
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5afe5472112b1cac4d9f3a323071e2001dbe0dc88643adb31af26fb6f164963a
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Ready to Integrate
+    created_at: '2026-08-24T01:10:38.663923+00:00'
+    prerequisite_audit_id: audit-b4728feba5a7
+    selected_ref: aaac848e78bef6ee935df3c6697bcaa53012bfbb
+    selected_sha: aaac848e78bef6ee935df3c6697bcaa53012bfbb
+  attempt_history: []
 ---
 ## Summary
 
@@ -59,5 +117,10 @@ author: oompah
 created: 2026-08-24 01:01
 ---
 Fixed OpenCode ACP subprocess stream buffering by applying MAX_LINE_SIZE to asyncio.create_subprocess_exec. Regression test verifies the configured limit; tests/test_acp_opencode_backend.py passes (40 tests).
+---
+author: oompah
+created: 2026-08-24 01:10
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
