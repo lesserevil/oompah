@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1266
 type: bug
-status: Needs Human
+status: In Validation
 priority: 1
 title: Fence late task submission from regressing landed integration authority
 parent: OOMPAH-1231
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-23T22:56:15.382623Z'
+updated_at: '2026-08-24T00:20:46.299256Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: o1263-post-merge-submit-provenance-regression
   request_fingerprint: 9a9d8d03687f81678f5061a4c7f6ca12b789b64399e6fd9b92b89ef14dc3e4b5
-oompah.lifecycle_revision: 7
+oompah.lifecycle_revision: 8
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 9f3a0a5a59f2a06ff79051089822dbfee82b28352e54ad90889e4e0d3419a375
@@ -236,6 +236,19 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-23T22:56:05.355500+00:00'
     applied_at: '2026-08-23T22:56:13.398225+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1266
+    audit_id: audit-3bc41860abf1
+    attempt_id: audit-rearm:audit-3bc41860abf1
+    target_state: Done
+    evidence_fingerprint: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+    status: In Validation
+    audit_ids:
+    - audit-3bc41860abf1
+    kind: audit_rearm
+    applied: true
+    created_at: '2026-08-24T00:20:29.357297+00:00'
+    applied_at: '2026-08-24T00:20:39.023161+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-c7c92f145c10
@@ -260,6 +273,27 @@ oompah.terminal_audit:
     mode: infrastructure_recovery
     consumed_at: '2026-08-23T22:16:33.863693+00:00'
     consumed_workflow_job_id: workflow-job-ebb0d5cf5c44495383b7edc77d284c8e
+  - version: 2
+    audit_id: audit-3bc41860abf1
+    superseded_audit_id: audit-c7c92f145c10
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1266
+    target_state: Done
+    evidence_fingerprint: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+    workflow_revision: null
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+    landing_revision: null
+    source_generation: 3
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Auditor transport fixed and deployed in OOMPAH-1327 / PR #904: AgentSession
+      subprocess streams now use MAX_LINE_SIZE, preventing oversized JSON-RPC lines
+      from crashing terminal audits.'
+    authorized_at: '2026-08-24T00:20:29.356971+00:00'
+    mode: infrastructure_recovery
   version: 1
   pending_chain:
   - version: 1
@@ -363,7 +397,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1266
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -453,7 +487,28 @@ oompah.terminal_audit:
     eligible_at: '2026-08-23T21:55:57.360553+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-23T22:56:05.355360+00:00'
+    updated_at: '2026-08-24T00:20:29.356971+00:00'
+  - version: 1
+    audit_id: audit-3bc41860abf1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1266
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+    attempts: []
+    source_generation: 3
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-24T00:20:29.356971+00:00'
+    eligible_at: '2026-08-24T00:20:29.356971+00:00'
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
   attempt_history:
   - version: 1
     attempt_id: attempt-ebdec741f7d0
@@ -944,5 +999,10 @@ created: 2026-08-23 22:56
 Needs Human — Done audit requires operator input.
 
 Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
+---
+author: oompah
+created: 2026-08-24 00:20
+---
+Terminal audit rearmed by project owner after recovery: Auditor transport fixed and deployed in OOMPAH-1327 / PR #904: AgentSession subprocess streams now use MAX_LINE_SIZE, preventing oversized JSON-RPC lines from crashing terminal audits.
 ---
 <!-- COMMENTS:END -->
