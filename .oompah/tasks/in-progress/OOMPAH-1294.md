@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:53:32.349118Z'
-updated_at: '2026-08-24T07:39:12.823816Z'
+updated_at: '2026-08-24T07:40:16.235137Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -135,8 +135,8 @@ oompah.work_contributors:
     model_id: switchyard/auto
     focus: general
     source_branch: OOMPAH-1294
-    source_sha: null
-    completed_at: ''
+    source_sha: 8c81b69c713e9bb6a1da8906b7e637f1ea6a1696
+    completed_at: '2026-08-24T07:40:05.891205+00:00'
 oompah.task_costs:
   total_input_tokens: 204
   total_output_tokens: 1925
@@ -355,5 +355,15 @@ author: oompah
 created: 2026-08-24 07:39
 ---
 Verification: error_watcher already suppresses pre_provider_retirement log records in oompah/error_watcher.py:_TaskLoggingHandler.emit (returns early when record has extra pre_provider_retirement). Root cause is already covered by regression test tests/test_provider_retirement.py::test_pre_provider_evidence_timeout_releases_task_authority. Ran pytest -q tests/test_provider_retirement.py => 21 passed.
+---
+author: oompah
+created: 2026-08-24 07:40
+---
+Run #1 [attempt=1, profile=default, role=fast -> Opencode/Switchyard/switchyard/auto]
+- Turns: 24, Tool calls: 24
+- Tokens: 2.5K in / 139 out [53.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 8s
+- Log: OOMPAH-1294__20260824T073527Z.jsonl
 ---
 <!-- COMMENTS:END -->
