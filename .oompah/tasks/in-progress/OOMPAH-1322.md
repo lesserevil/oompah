@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:15:25.298559Z'
-updated_at: '2026-08-24T15:12:25.026301Z'
-work_branch: null
+updated_at: '2026-08-24T15:12:57.664790Z'
+work_branch: OOMPAH-1322
 target_branch: null
 review_url: null
 review_number: null
@@ -78,7 +78,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: e110a8e6-6e6f-4d79-9350-0fa044a82dc6
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 71d1715257d34f909788c567fb76ee9b--contributor-a8b0475e7b09
@@ -153,6 +153,18 @@ oompah.task_costs:
     output_tokens: 2175
     cost_usd: 0.0
     recorded_at: '2026-08-24T13:33:14.943069+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1322
+  base_branch: main
+  base_sha: 1e08d58a3fcfd254a2bffedd2580d383f1b02193
+  head_sha: d05d11da131bde25d4df4c985f9f9e5ae92f98e2
+  submitted_at: '2026-08-24T15:12:41.911327+00:00'
+  updated_at: '2026-08-24T15:12:41.911327+00:00'
+oompah.work_branch: OOMPAH-1322
 ---
 ## Summary
 
@@ -378,5 +390,10 @@ Ran focused tests on the affected code:
 - test_error_watcher.py: 126/126 tests passed ✓
 
 The fix successfully prevents error_watcher from auto-filing these expected timeout conditions while maintaining all existing error-handling and logging functionality.
+---
+author: oompah
+created: 2026-08-24 15:12
+---
+Fixed pre-provider contributor evidence timeout logging to prevent auto-filing by error_watcher. Changed three logger.warning() calls to logger.info() in orchestrator.py to suppress notifications for these expected, gracefully-handled retry conditions.
 ---
 <!-- COMMENTS:END -->
