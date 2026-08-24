@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-24T00:24:41.011409Z'
+updated_at: '2026-08-24T00:24:54.449166Z'
 work_branch: OOMPAH-1268
 target_branch: null
 review_url: null
@@ -988,5 +988,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Opencode/Switchyard/switchya
 - Cost: $0.0000
 - Exit: error, Duration: 41s
 - Log: OOMPAH-1268__20260824T002417Z.jsonl
+---
+author: oompah
+created: 2026-08-24 00:24
+---
+Auditor attempt ended: ValueError: Separator is found, but chunk is longer than limit. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
