@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T01:36:28.768799Z'
-updated_at: '2026-08-24T02:27:36.935305Z'
+updated_at: '2026-08-24T02:27:52.799654Z'
 work_branch: OOMPAH-1329
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/907
@@ -165,6 +165,22 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1329
     selected_ref: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
     selected_sha: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+oompah.task_costs:
+  total_input_tokens: 658
+  total_output_tokens: 15417
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 658
+      output_tokens: 15417
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 658
+    output_tokens: 15417
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T02:27:48.744329+00:00'
 ---
 ## Summary
 
@@ -226,5 +242,15 @@ Safe evidence:
 - acceptance_verification[1]: restart_deadline_exceeded flag observable in all superseded reports
 - acceptance_verification[2]: No continuation requested when deadline exceeded
 - acceptance_verification[3]: Later reconciliation can publish and reopen admission
+---
+author: oompah
+created: 2026-08-24 02:27
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 169, Tool calls: 81
+- Tokens: 658 in / 15.4K out [16.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 53s
+- Log: OOMPAH-1329__20260824T021607Z.jsonl
 ---
 <!-- COMMENTS:END -->
