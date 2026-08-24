@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:28:31.897753Z'
-updated_at: '2026-08-24T17:28:27.655704Z'
+updated_at: '2026-08-24T17:28:43.706357Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -191,13 +191,13 @@ oompah.terminal_audit:
     next_retry_at: '2026-08-24T17:28:36.208192+00:00'
 oompah.lifecycle_revision: 1
 oompah.task_costs:
-  total_input_tokens: 338
-  total_output_tokens: 13665
+  total_input_tokens: 1120
+  total_output_tokens: 13849
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 338
-      output_tokens: 13665
+      input_tokens: 1120
+      output_tokens: 13849
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -206,6 +206,12 @@ oompah.task_costs:
     output_tokens: 13665
     cost_usd: 0.0
     recorded_at: '2026-08-24T17:17:42.770795+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 782
+    output_tokens: 184
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T17:28:36.381877+00:00'
 ---
 ## Summary
 
@@ -304,5 +310,20 @@ author: oompah
 created: 2026-08-24 17:18
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 17:28
+---
+Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-24 17:28
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 44
+- Tokens: 782 in / 184 out [966 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 54s
+- Log: OOMPAH-1331__20260824T171908Z.jsonl
 ---
 <!-- COMMENTS:END -->
