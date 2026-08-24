@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:56:36.835031Z'
-updated_at: '2026-08-24T06:25:37.848281Z'
+updated_at: '2026-08-24T06:39:50.597808Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -386,5 +386,28 @@ The error occurs when oompah operates on project proj-14849f1b with tracker prov
 5. Test the fix
 
 Starting investigation now.
+---
+author: oompah
+created: 2026-08-24 06:39
+---
+**Discovery: Root Cause Identified**
+
+Found the timeout issue at `oompah/orchestrator.py` line 58070.
+
+The error occurs when persisting contributor evidence takes longer than the bounded deadline. The timeout is calculated as:
+- `control_timeout` (terminal_control_lock_timeout_seconds) = 5.0 seconds (default)
+- `termination_timeout` (worker_termination_timeout_ms / 1000) = 10.0 seconds
+- `persistence_timeout` = max(min(5.0, 5.0), 0.05) = **5.0 seconds**
+
+This causes slow tracker operations (especially git commits to state branches) to timeout on provenanceguardedtracker.
+
+**The Bug:** The configured timeout override (60.0 seconds) at lines 58035-43 uses `getattr(self.config, 'contributor_evidence_persist_timeout_seconds', None)`. When this attribute is None or inaccessible, the 5-second calculated timeout is used instead of the configured 60-second timeout.
+
+**The Fix:** 
+1. Ensure the configured timeout is properly set and retrieved
+2. Increase the calculated default timeout to be more lenient
+3. Update .env.example to match code (says 30 but code is 60)
+
+Starting implementation now.
 ---
 <!-- COMMENTS:END -->
