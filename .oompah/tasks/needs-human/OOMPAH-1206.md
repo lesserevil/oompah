@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1206
 type: bug
-status: In Validation
+status: Needs Human
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue TRICKLE-121:
   All 2 dispatch candidates unavailable: prov-651d553c/sonnet: contributor_evidence_unavailable:
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-24T02:37:49.505808Z'
+updated_at: '2026-08-24T02:38:55.631028Z'
 work_branch: OOMPAH-1206
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/902
 review_number: '902'
 review_head: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
 merged_at: null
-oompah.lifecycle_revision: 9
+oompah.lifecycle_revision: 10
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -214,6 +214,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1206","audit-5597b252d606","infrastructure-exhausted-audit-5597b252d606-3"]': '2026-08-21T13:51:23.460132+00:00'
     '["proj-14849f1b","OOMPAH-1206","audit-d8dcc1adb045","infrastructure-exhausted-audit-d8dcc1adb045-3"]': '2026-08-23T22:44:08.491021+00:00'
+    '["proj-14849f1b","OOMPAH-1206","audit-d276a3dd5bfa","no-auditor-audit-d276a3dd5bfa-3"]': '2026-08-24T02:38:46.772315+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1206
@@ -226,6 +227,7 @@ oompah.terminal_audit:
     audit_ids:
     - audit-5597b252d606
     - audit-d8dcc1adb045
+    - audit-d276a3dd5bfa
     kind: result
     applied: true
     retired_at: '2026-08-21T13:51:23.460149+00:00'
@@ -282,6 +284,19 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T00:19:27.889486+00:00'
     applied_at: '2026-08-24T00:19:33.553742+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1206
+    audit_id: audit-d276a3dd5bfa
+    attempt_id: no-auditor-audit-d276a3dd5bfa-3
+    target_state: Done
+    evidence_fingerprint: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
+    status: Needs Human
+    audit_ids:
+    - audit-d276a3dd5bfa
+    kind: result
+    applied: true
+    created_at: '2026-08-24T02:38:46.772346+00:00'
+    applied_at: '2026-08-24T02:38:54.418421+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-d8dcc1adb045
@@ -550,7 +565,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1206
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -615,6 +630,21 @@ oompah.terminal_audit:
       ended_at: '2026-08-24T02:37:44.991420+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-24T02:38:24.991394+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-d276a3dd5bfa-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
+      verdict: fail
+      failure_classification: no_auditor
+      origin: coordinator_retry_exhaustion
+      created_at: '2026-08-24T02:38:46.772183+00:00'
+      completed_at: '2026-08-24T02:38:46.772183+00:00'
+      selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+      selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     source_generation: 3
     requested_by:
       version: 1
@@ -625,7 +655,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T00:19:27.889391+00:00'
     selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
-    updated_at: '2026-08-24T02:37:44.991420+00:00'
+    updated_at: '2026-08-24T02:38:46.772183+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-08569515fd73
@@ -1268,5 +1298,12 @@ author: oompah
 created: 2026-08-24 02:37
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-24 02:38
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
