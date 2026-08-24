@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:28:31.897753Z'
-updated_at: '2026-08-24T17:30:43.132361Z'
+updated_at: '2026-08-24T17:41:21.264214Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,6 +40,7 @@ oompah.terminal_audit:
     digest: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1331","audit-34bc00c97981","attempt-fccf5a75d857"]': '2026-08-24T17:16:59.921038+00:00'
+    '["proj-14849f1b","OOMPAH-1331","audit-ad3efba187b4","attempt-1d2393768dc7"]': '2026-08-24T17:41:19.461234+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1331
@@ -115,7 +116,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1331
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -144,7 +145,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-1d2393768dc7
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -157,6 +158,10 @@ oompah.terminal_audit:
       selected_ref: origin/OOMPAH-1331
       selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
       candidate_rotation_count: 1
+      verdict: fail
+      failure_classification: infrastructure_error
+      ended_at: '2026-08-24T17:41:19.461134+00:00'
+      failure_reason: retry ceiling reached; verdict left pending
     source_generation: 1
     requested_by:
       version: 1
@@ -167,7 +172,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-34bc00c97981
     selected_ref: origin/OOMPAH-1331
     selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
-    updated_at: '2026-08-24T17:30:28.597834+00:00'
+    updated_at: '2026-08-24T17:41:19.461134+00:00'
     eligible_at: '2026-08-24T17:16:59.920832+00:00'
   attempt_history:
   - version: 1
