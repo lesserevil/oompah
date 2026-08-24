@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T18:33:39.522330Z'
-updated_at: '2026-08-24T19:26:55.694362Z'
+updated_at: '2026-08-24T19:31:00.525555Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,6 +38,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1332
     digest: f31d714cbc165f0d4ac3c606c3cc2c21c211fc42eac14aa4c42b145d22ad9a4b
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1332","audit-c8f74b306247","attempt-547ec9a85c56"]': '2026-08-24T19:30:51.752580+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1332
+    target_state: Done
+    evidence_fingerprint: f31d714cbc165f0d4ac3c606c3cc2c21c211fc42eac14aa4c42b145d22ad9a4b
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1332
+    selected_sha: fc7a63a31c23e49d4fb5d51d5ea5880e5c90d58a
+    landing_revision: null
+    audit_ids:
+    - audit-c8f74b306247
+    kind: result
+    applied: true
+    retired_at: '2026-08-24T19:30:51.752597+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1332
+    audit_id: audit-c8f74b306247
+    attempt_id: attempt-547ec9a85c56
+    target_state: Done
+    evidence_fingerprint: f31d714cbc165f0d4ac3c606c3cc2c21c211fc42eac14aa4c42b145d22ad9a4b
+    status: In Validation
+    audit_ids:
+    - audit-c8f74b306247
+    kind: result
+    applied: true
+    created_at: '2026-08-24T19:30:51.752608+00:00'
+    applied_at: '2026-08-24T19:30:59.248960+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -45,7 +75,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1332
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -54,7 +84,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-547ec9a85c56
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -66,6 +96,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1332
       selected_ref: origin/OOMPAH-1332
       selected_sha: fc7a63a31c23e49d4fb5d51d5ea5880e5c90d58a
+      verdict: pass
+      completed_at: '2026-08-24T19:30:51.752412+00:00'
+      ended_at: '2026-08-24T19:30:51.752412+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -76,7 +109,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T19:04:36.599774+00:00'
     selected_ref: origin/OOMPAH-1332
     selected_sha: fc7a63a31c23e49d4fb5d51d5ea5880e5c90d58a
-    updated_at: '2026-08-24T19:26:41.954806+00:00'
+    updated_at: '2026-08-24T19:30:51.752412+00:00'
   - version: 1
     audit_id: audit-129d64b0ef60
     project_id: proj-14849f1b
@@ -98,6 +131,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-c8f74b306247
     selected_ref: origin/OOMPAH-1332
     selected_sha: fc7a63a31c23e49d4fb5d51d5ea5880e5c90d58a
+    updated_at: '2026-08-24T19:30:51.752412+00:00'
+    eligible_at: '2026-08-24T19:30:51.752412+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-547ec9a85c56
@@ -169,5 +204,26 @@ author: oompah
 created: 2026-08-24 19:26
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 19:30
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- commit_sha: fc7a63a31c23e49d4fb5d51d5ea5880e5c90d58a
+- files_changed[0]: oompah/acp_backends/opencode.py
+- files_changed[1]: tests/test_acp_opencode_backend.py
+- test_coverage[0]: test_run_turn_uses_auto_permission_flag - verifies --auto in command
+- test_coverage[1]: test_repeated_native_denials_escalate_policy_incompatibility - verifies escalation after 3 denials
+- quality_gate.command: make test
+- quality_gate.status: passed
+- quality_gate.duration_seconds: 186.88
+- acceptance_criteria[0]: OpenCode audits finalize verdicts - achieved via --auto flag
+- acceptance_criteria[1]: No infinite rotation - bounded escalation at _MAX_NATIVE_DENIALS=3
+- acceptance_criteria[2]: No regression for Claude/Codex - isolated to opencode.py only
+- acceptance_criteria[3]: Proper safety net - policy_denial_handler escalation
 ---
 <!-- COMMENTS:END -->
