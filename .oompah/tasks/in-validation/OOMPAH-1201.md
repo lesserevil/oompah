@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1201
 type: bug
-status: Needs Human
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-133'
 parent: null
@@ -11,14 +11,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:47.623989Z'
-updated_at: '2026-08-23T22:44:05.282705Z'
+updated_at: '2026-08-24T00:19:20.568886Z'
 work_branch: OOMPAH-1201
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/893
 review_number: '893'
 review_head: b6644c5739285af3b2da1d9d1e91077ed094845b
 merged_at: null
-oompah.lifecycle_revision: 8
+oompah.lifecycle_revision: 9
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -237,6 +237,19 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-23T22:43:55.616556+00:00'
     applied_at: '2026-08-23T22:44:03.984299+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1201
+    audit_id: audit-62c0c411d088
+    attempt_id: audit-rearm:audit-62c0c411d088
+    target_state: Done
+    evidence_fingerprint: c53bfec3e18dba65d306bd764426f7633f38a59bd9f3969e9644540dafa598c1
+    status: In Validation
+    audit_ids:
+    - audit-62c0c411d088
+    kind: audit_rearm
+    applied: true
+    created_at: '2026-08-24T00:19:10.329046+00:00'
+    applied_at: '2026-08-24T00:19:16.337972+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-8f90fc4a4a35
@@ -261,6 +274,27 @@ oompah.terminal_audit:
     mode: infrastructure_recovery
     consumed_at: '2026-08-23T22:12:26.157861+00:00'
     consumed_workflow_job_id: workflow-job-79df0e3e06114d33bf55efcc9a97c6ab
+  - version: 2
+    audit_id: audit-62c0c411d088
+    superseded_audit_id: audit-8f90fc4a4a35
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1201
+    target_state: Done
+    evidence_fingerprint: c53bfec3e18dba65d306bd764426f7633f38a59bd9f3969e9644540dafa598c1
+    workflow_revision: null
+    selected_ref: b6644c5739285af3b2da1d9d1e91077ed094845b
+    selected_sha: b6644c5739285af3b2da1d9d1e91077ed094845b
+    landing_revision: null
+    source_generation: 3
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Auditor transport fixed and deployed in OOMPAH-1327 / PR #904: AgentSession
+      subprocess streams now use MAX_LINE_SIZE, preventing oversized JSON-RPC lines
+      from crashing terminal audits.'
+    authorized_at: '2026-08-24T00:19:10.318179+00:00'
+    mode: infrastructure_recovery
   version: 1
   pending_chain:
   - version: 1
@@ -386,7 +420,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1201
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -476,7 +510,28 @@ oompah.terminal_audit:
     eligible_at: '2026-08-23T21:54:56.562691+00:00'
     selected_ref: b6644c5739285af3b2da1d9d1e91077ed094845b
     selected_sha: b6644c5739285af3b2da1d9d1e91077ed094845b
-    updated_at: '2026-08-23T22:43:55.616384+00:00'
+    updated_at: '2026-08-24T00:19:10.318179+00:00'
+  - version: 1
+    audit_id: audit-62c0c411d088
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1201
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c53bfec3e18dba65d306bd764426f7633f38a59bd9f3969e9644540dafa598c1
+    attempts: []
+    source_generation: 3
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Review
+    created_at: '2026-08-24T00:19:10.318179+00:00'
+    eligible_at: '2026-08-24T00:19:10.318179+00:00'
+    selected_ref: b6644c5739285af3b2da1d9d1e91077ed094845b
+    selected_sha: b6644c5739285af3b2da1d9d1e91077ed094845b
   attempt_history:
   - version: 1
     attempt_id: attempt-4d9da9526bcc
@@ -877,5 +932,10 @@ created: 2026-08-23 22:44
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-24 00:19
+---
+Terminal audit rearmed by project owner after recovery: Auditor transport fixed and deployed in OOMPAH-1327 / PR #904: AgentSession subprocess streams now use MAX_LINE_SIZE, preventing oversized JSON-RPC lines from crashing terminal audits.
 ---
 <!-- COMMENTS:END -->
