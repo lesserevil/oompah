@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:03:40.977842Z'
-updated_at: '2026-08-24T17:23:43.802798Z'
+updated_at: '2026-08-24T17:26:06.972752Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -115,7 +115,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1330
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -142,6 +142,22 @@ oompah.terminal_audit:
         read-only auditor capability policy denied a mutating or compound shell command;
         auditors cannot edit, commit, push, merge, or change state'
       next_retry_at: '2026-08-24T17:23:38.905479+00:00'
+    - version: 1
+      attempt_id: attempt-d4a59f3e6b91
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 648cfbb5a46f2eac6fcd37b46d7fa0879085d7a392aaf39499e395f9e13383fb
+      created_at: '2026-08-24T17:26:05.555235+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-24T17:26:05.555235+00:00'
+      branch_key: OOMPAH-1330
+      selected_ref: origin/OOMPAH-1330
+      selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
+      candidate_rotation_count: 1
     source_generation: 1
     requested_by:
       version: 1
@@ -152,7 +168,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-880d1098e31e
     selected_ref: origin/OOMPAH-1330
     selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
-    updated_at: '2026-08-24T17:23:28.905515+00:00'
+    updated_at: '2026-08-24T17:26:05.555235+00:00'
     eligible_at: '2026-08-24T17:15:38.475074+00:00'
   attempt_history:
   - version: 1
@@ -191,6 +207,22 @@ oompah.terminal_audit:
       read-only auditor capability policy denied a mutating or compound shell command;
       auditors cannot edit, commit, push, merge, or change state'
     next_retry_at: '2026-08-24T17:23:38.905479+00:00'
+  - version: 1
+    attempt_id: attempt-d4a59f3e6b91
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 648cfbb5a46f2eac6fcd37b46d7fa0879085d7a392aaf39499e395f9e13383fb
+    created_at: '2026-08-24T17:26:05.555235+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-24T17:26:05.555235+00:00'
+    branch_key: OOMPAH-1330
+    selected_ref: origin/OOMPAH-1330
+    selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
+    candidate_rotation_count: 1
 oompah.lifecycle_revision: 1
 oompah.task_costs:
   total_input_tokens: 664
