@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:06:31.866816Z'
-updated_at: '2026-08-24T21:53:52.587763Z'
+updated_at: '2026-08-24T22:04:39.050099Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,6 +38,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1333
     digest: 474cb59977283fd5b430a2c4f489b6f2dc26fb5d8ac6f0f8466d59391202fdf8
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1333","audit-c1f37653fa90","attempt-375614fa1c9e"]': '2026-08-24T22:04:30.145440+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1333
+    target_state: Done
+    evidence_fingerprint: 474cb59977283fd5b430a2c4f489b6f2dc26fb5d8ac6f0f8466d59391202fdf8
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1333
+    selected_sha: f988367829192e6c7658af1d97a3da849ca96fab
+    landing_revision: null
+    audit_ids:
+    - audit-c1f37653fa90
+    kind: result
+    applied: true
+    retired_at: '2026-08-24T22:04:30.145456+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1333
+    audit_id: audit-c1f37653fa90
+    attempt_id: attempt-375614fa1c9e
+    target_state: Done
+    evidence_fingerprint: 474cb59977283fd5b430a2c4f489b6f2dc26fb5d8ac6f0f8466d59391202fdf8
+    status: In Validation
+    audit_ids:
+    - audit-c1f37653fa90
+    kind: result
+    applied: true
+    created_at: '2026-08-24T22:04:30.145467+00:00'
+    applied_at: '2026-08-24T22:04:37.631512+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -45,7 +75,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1333
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -54,7 +84,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-375614fa1c9e
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -66,6 +96,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1333
       selected_ref: origin/OOMPAH-1333
       selected_sha: f988367829192e6c7658af1d97a3da849ca96fab
+      verdict: pass
+      completed_at: '2026-08-24T22:04:30.145281+00:00'
+      ended_at: '2026-08-24T22:04:30.145281+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -76,7 +109,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T21:34:47.082570+00:00'
     selected_ref: origin/OOMPAH-1333
     selected_sha: f988367829192e6c7658af1d97a3da849ca96fab
-    updated_at: '2026-08-24T21:53:38.049534+00:00'
+    updated_at: '2026-08-24T22:04:30.145281+00:00'
   - version: 1
     audit_id: audit-614c1a9275da
     project_id: proj-14849f1b
@@ -98,6 +131,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-c1f37653fa90
     selected_ref: origin/OOMPAH-1333
     selected_sha: f988367829192e6c7658af1d97a3da849ca96fab
+    updated_at: '2026-08-24T22:04:30.145281+00:00'
+    eligible_at: '2026-08-24T22:04:30.145281+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-375614fa1c9e
@@ -175,5 +210,18 @@ author: oompah
 created: 2026-08-24 21:53
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 22:04
+---
+Audit PASS — Done
+
+OpenCode auditor issue resolved. Implementation cleanly excludes OpenCode from completion auditor candidates (fails closed, not infinite retry). Root cause addressed: OpenCode subprocess lacks submit_audit_result tool. Fallback logic verifies Claude/per-token Codex remain eligible. All 57 tests pass including 2 new OpenCode-specific tests. Acceptance criteria met: audits no longer loop on finalization_failure; capable auditors can finalize verdicts; no regressions.
+
+Safe evidence:
+- tests_passed: 57 of 57
+- new_tests: test_opencode_is_skipped_for_claude_candidate, test_opencode_only_reports_missing_capability
+- code_impact: auditor_candidate_selector.py + tests only
+- root_cause_fix: Exclude OpenCode from auditor candidates, use existing missing_audit_capability diagnostic
 ---
 <!-- COMMENTS:END -->
