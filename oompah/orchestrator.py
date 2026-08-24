@@ -12613,7 +12613,10 @@ class Orchestrator:
     ) -> bool:
         """Translate a stale runtime report into one coalesced full scan."""
 
-        if report.get("requires_reconcile") is not True:
+        if (
+            report.get("requires_reconcile") is not True
+            or report.get("restart_deadline_exceeded") is True
+        ):
             return False
         reason = str(
             report.get("reconcile_reason") or "workflow_publication_superseded"

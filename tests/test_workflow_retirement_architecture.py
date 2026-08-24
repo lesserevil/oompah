@@ -367,6 +367,42 @@ def test_superseded_publication_requests_one_full_reconcile_tick() -> None:
     )
 
 
+def test_exhausted_superseded_publication_does_not_hot_loop() -> None:
+    runtime = SimpleNamespace(
+        restart_reconstruction_pending=True,
+        reconcile_async=AsyncMock(
+            return_value={
+                "requires_reconcile": True,
+                "reconcile_reason": "publication_authority_changed",
+                "restart_deadline_exceeded": True,
+                "worker": {
+                    "skipped": True,
+                    "reason": (
+                        "workflow publication requires reconciliation before "
+                        "durable admission"
+                    ),
+                },
+            }
+        ),
+        continue_admission_async=AsyncMock(),
+    )
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator._run_terminal_audit_tick_phase = AsyncMock(
+        return_value={"pending": 0}
+    )
+    orchestrator._request_workflow_reconcile_continuation = Mock(
+        return_value=True
+    )
+
+    _report, _audit_metrics, continuation_requested = asyncio.run(
+        orchestrator._run_restart_reconstruction_tick(runtime)
+    )
+
+    assert continuation_requested is False
+    orchestrator._request_workflow_reconcile_continuation.assert_not_called()
+    runtime.continue_admission_async.assert_not_awaited()
+
+
 def test_incomplete_restart_reconstruction_requests_follow_up_cut() -> None:
     order: list[str] = []
     reports = iter(

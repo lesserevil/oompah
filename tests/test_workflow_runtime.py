@@ -898,6 +898,32 @@ def test_native_tracker_generation_race_supersedes_stale_status_publication(
     store.close()
 
 
+def test_over_budget_publication_supersession_is_marked_exhausted(monkeypatch):
+    runtime = object.__new__(WorkflowRuntime)
+    runtime.project_bindings = {}
+    runtime.liveness_controller = None
+    runtime._reconcile_thread = threading.local()
+    runtime._lock = threading.RLock()
+    runtime._last_reconcile = {}
+    runtime._draining = False
+    runtime._enter_landing_observation_scopes = lambda _stack: None
+    runtime._reconcile_world_once = lambda: {
+        "mode": "enforce",
+        "projects": {},
+        "requires_reconcile": True,
+        "reconcile_reason": "publication_authority_changed",
+        "reconciliation_phases": {"seconds": {}},
+    }
+    clock = iter((0.0, 121.0, 121.0, 121.0))
+    monkeypatch.setattr(workflow_runtime_module.time, "monotonic", lambda: next(clock))
+
+    report = runtime._reconcile_once()
+
+    assert report["requires_reconcile"] is True
+    assert report["restart_deadline_exceeded"] is True
+    assert report["reconcile_reason"] == "publication_authority_changed"
+
+
 def test_native_cache_refresh_does_not_self_supersede_runtime_publication(
     tmp_path,
 ):
