@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:06:31.866816Z'
-updated_at: '2026-08-24T22:10:57.842635Z'
+updated_at: '2026-08-24T22:11:03.908750Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -92,8 +92,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-614c1a9275da
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-24T22:10:53.520993+00:00'
+    applied_at: '2026-08-24T22:11:02.107654+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -318,5 +319,31 @@ author: oompah
 created: 2026-08-24 22:05
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 22:11
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- tests_passed.auditor_candidate_selector: 57/57 (includes test_opencode_is_skipped_for_claude_candidate, test_opencode_only_reports_missing_capability)
+- tests_passed.auditor_dispatch: 37/37
+- tests_passed.terminal_audit_observability: 111/111
+- tests_passed.done_merged_archived_lifecycle: 53/53
+- tests_passed.epic_terminal_audit_contract: 20/21 (2 xfailed expected)
+- code_changes.files_modified: oompah/auditor_candidate_selector.py, tests/test_auditor_candidate_selector.py
+- code_changes.key_implementation: _supports_audit_verdict() returns False for backend=opencode, filtering from eligible candidates in _eligible_candidates()
+- code_changes.diagnostic_used: missing_audit_capability (existing infrastructure)
+- code_changes.line_changes: 13 lines in selector, 60 lines in tests
+- acceptance_criteria_met.opencode_excluded: Yes - policy filter at selection time
+- acceptance_criteria_met.root_cause_addressed: OpenCode catalog not injected into opencode run subprocess
+- acceptance_criteria_met.claude_codex_eligible: Yes - remain eligible
+- acceptance_criteria_met.no_infinite_retry: Yes - filtered before launch
+- acceptance_criteria_met.clean_failure_mode: Actionable missing_audit_capability diagnostic
+- commit_verification.sha: f988367829192e6c7658af1d97a3da849ca96fab
+- commit_verification.message: OOMPAH-1333: require auditor verdict capability
+- commit_verification.attribution: Proper oompah trailer
 ---
 <!-- COMMENTS:END -->
