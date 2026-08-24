@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-23T23:44:03.714538Z'
+updated_at: '2026-08-24T00:00:42.443981Z'
 work_branch: OOMPAH-1224
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/900
@@ -170,12 +170,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1224
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: fdb0a7e362aa42a9ce8eb57ee0b64e3ab0beae750529aecace8beae71bc989ca
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-fdb2399fa251
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: fdb0a7e362aa42a9ce8eb57ee0b64e3ab0beae750529aecace8beae71bc989ca
+      created_at: '2026-08-24T00:00:30.135919+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-24T00:00:30.135919+00:00'
+      branch_key: OOMPAH-1224
+      selected_ref: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+      selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
     source_generation: 1
     requested_by:
       version: 1
@@ -187,6 +202,7 @@ oompah.terminal_audit:
     selected_ref: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
     selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
     workflow_revision: 71f6297718a1833ec1a9f2c922367d43a0c7ea6d6c76e9c5f4fba12dbedd3ce1
+    updated_at: '2026-08-24T00:00:30.135919+00:00'
   - version: 1
     audit_id: audit-9234408585ed
     project_id: proj-14849f1b
@@ -209,7 +225,22 @@ oompah.terminal_audit:
     selected_ref: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
     selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
     workflow_revision: 71f6297718a1833ec1a9f2c922367d43a0c7ea6d6c76e9c5f4fba12dbedd3ce1
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-fdb2399fa251
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fdb0a7e362aa42a9ce8eb57ee0b64e3ab0beae750529aecace8beae71bc989ca
+    created_at: '2026-08-24T00:00:30.135919+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-24T00:00:30.135919+00:00'
+    branch_key: OOMPAH-1224
+    selected_ref: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+    selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
 ---
 ## Summary
 
@@ -375,5 +406,15 @@ author: oompah
 created: 2026-08-23 23:44
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-24 00:00
+---
+Auditor dispatched (attempt #1, candidate: prov-6cf41c89/switchyard/auto)
+---
+author: oompah
+created: 2026-08-24 00:00
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
