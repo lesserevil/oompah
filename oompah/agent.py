@@ -612,6 +612,7 @@ class AgentSession:
                     stderr=asyncio.subprocess.PIPE,
                     env=agent_env,
                     start_new_session=(os.name == "posix"),
+                    limit=MAX_LINE_SIZE,
                 )
             finally:
                 self._transport_starting = False
