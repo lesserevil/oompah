@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T08:06:24.549306Z'
-updated_at: '2026-08-24T12:08:59.941606Z'
+updated_at: '2026-08-24T12:14:09.714884Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -244,5 +244,10 @@ author: oompah
 created: 2026-08-24 12:08
 ---
 Discovery: Found the timeout handling in orchestrator.py:58070. The code logs a WARNING when 'Pre-provider contributor evidence' persistence task exceeds its timeout (default 30s or configured). The timeout is caught and handled gracefully - work is retired for retry. The warning is informational but being picked up by error_watcher and auto-filed. Root cause: This is a legitimate timeout scenario that's already handled correctly, but logged at WARNING level which may be too verbose for normal operation.
+---
+author: oompah
+created: 2026-08-24 12:14
+---
+Implementation: Changed three logger.warning() calls in orchestrator.py:_stage_work_contributor_launch to logger.debug() for gracefully-handled timeout scenarios. Lines changed: 57957 (prior evidence pending), 58070 (evidence timeout), 58106 (cancelled evidence timeout). These are expected timeouts with automatic retry - logging at DEBUG avoids triggering error_watcher while still supporting diagnostics.
 ---
 <!-- COMMENTS:END -->
