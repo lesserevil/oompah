@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:56:39.839941Z'
-updated_at: '2026-08-24T23:37:27.117196Z'
+updated_at: '2026-08-24T23:37:53.692370Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -210,13 +210,13 @@ oompah.terminal_audit:
     selected_sha: 76fe97764a3b56bf7d922eabd49cd8f94844f1e3
 oompah.lifecycle_revision: 2
 oompah.task_costs:
-  total_input_tokens: 242
-  total_output_tokens: 9349
+  total_input_tokens: 484
+  total_output_tokens: 19677
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 242
-      output_tokens: 9349
+      input_tokens: 484
+      output_tokens: 19677
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -225,6 +225,12 @@ oompah.task_costs:
     output_tokens: 9349
     cost_usd: 0.0
     recorded_at: '2026-08-24T22:49:57.490013+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 242
+    output_tokens: 10328
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T23:37:48.869971+00:00'
 ---
 ## Summary
 
@@ -312,5 +318,15 @@ Safe evidence:
 - idempotent: verified by test_sanitize_managed_clone_is_idempotent
 - https_to_ssh_fixed: verified by test_sanitize_managed_clone_removes_canonical_url_rewrite
 - unrelated_preserved: verified by test_sanitize_managed_clone_preserves_unrelated_url_rewrite
+---
+author: oompah
+created: 2026-08-24 23:37
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 89, Tool calls: 29
+- Tokens: 242 in / 10.3K out [10.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 47m 38s
+- Log: OOMPAH-1335__20260824T225029Z.jsonl
 ---
 <!-- COMMENTS:END -->
