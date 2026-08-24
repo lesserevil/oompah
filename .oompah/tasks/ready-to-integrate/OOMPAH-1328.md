@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1328
 type: task
-status: Open
+status: Ready to Integrate
 priority: null
 title: Apply large stream limit to OpenCode ACP subprocesses
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T00:59:00.469186Z'
-updated_at: '2026-08-24T01:01:19.731105Z'
+updated_at: '2026-08-24T01:04:11.832942Z'
 work_branch: OOMPAH-1328
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 32623887-6658-4507-aebe-1f82fa244df7
   request_fingerprint: 3e72702ee72c5191f330bc2235080b55d6d11adf9beb0ee63295241e50b8ada2
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.integration:
   version: 2
   state: ready
