@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:37:50.327401Z'
-updated_at: '2026-08-24T09:18:46.261372Z'
+updated_at: '2026-08-24T09:19:55.979550Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -466,5 +466,10 @@ author: oompah
 created: 2026-08-24 09:18
 ---
 **Implementation:** Fixed the race condition by replacing timing-dependent observation with explicit bounded synchronization. Changes: (1) Extended `_wire_fault_injector()` helper to accept an `on_capture` callback parameter that's invoked when envelopes are captured by the fault injector, (2) Modified `test_four_completion_snapshots_converge_to_zero_running_chips()` to use a threading.Condition to signal when each of the 4 completion snapshots is captured, (3) Added bounded wait (5s timeout) before asserting to ensure all 4 broadcasts are processed before validation. The test now passes reliably on Python 3.12 and should work on Python 3.13 as well.
+---
+author: oompah
+created: 2026-08-24 09:19
+---
+**Verification:** All 16 tests in test_ws_fault_injection.py pass consistently. The fixed test (test_four_completion_snapshots_converge_to_zero_running_chips) now reliably observes all 4 deliberately dropped completion states using explicit bounded synchronization instead of timing-dependent observation. The fix preserves the real WebSocket/broadcast/full-sync path and avoids sleep-based correctness. Ready for integration.
 ---
 <!-- COMMENTS:END -->
