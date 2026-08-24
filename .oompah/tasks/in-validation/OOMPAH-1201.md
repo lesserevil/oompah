@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:47.623989Z'
-updated_at: '2026-08-24T01:03:32.760602Z'
+updated_at: '2026-08-24T01:31:09.748389Z'
 work_branch: OOMPAH-1201
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/893
@@ -524,7 +524,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1201
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -569,6 +569,22 @@ oompah.terminal_audit:
       ended_at: '2026-08-24T01:03:07.956093+00:00'
       failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
       next_retry_at: '2026-08-24T01:03:27.956067+00:00'
+    - version: 1
+      attempt_id: attempt-3c887c2b13ca
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c53bfec3e18dba65d306bd764426f7633f38a59bd9f3969e9644540dafa598c1
+      created_at: '2026-08-24T01:31:03.808561+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-24T01:31:03.808561+00:00'
+      branch_key: OOMPAH-1201
+      selected_ref: b6644c5739285af3b2da1d9d1e91077ed094845b
+      selected_sha: b6644c5739285af3b2da1d9d1e91077ed094845b
+      candidate_rotation_count: 2
     source_generation: 3
     requested_by:
       version: 1
@@ -579,7 +595,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T00:19:10.318179+00:00'
     selected_ref: b6644c5739285af3b2da1d9d1e91077ed094845b
     selected_sha: b6644c5739285af3b2da1d9d1e91077ed094845b
-    updated_at: '2026-08-24T01:03:07.956093+00:00'
+    updated_at: '2026-08-24T01:31:03.808561+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4d9da9526bcc
@@ -738,6 +754,22 @@ oompah.terminal_audit:
     ended_at: '2026-08-24T01:03:07.956093+00:00'
     failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
     next_retry_at: '2026-08-24T01:03:27.956067+00:00'
+  - version: 1
+    attempt_id: attempt-3c887c2b13ca
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c53bfec3e18dba65d306bd764426f7633f38a59bd9f3969e9644540dafa598c1
+    created_at: '2026-08-24T01:31:03.808561+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-24T01:31:03.808561+00:00'
+    branch_key: OOMPAH-1201
+    selected_ref: b6644c5739285af3b2da1d9d1e91077ed094845b
+    selected_sha: b6644c5739285af3b2da1d9d1e91077ed094845b
+    candidate_rotation_count: 2
 ---
 ## Summary
 
@@ -1114,5 +1146,10 @@ author: oompah
 created: 2026-08-24 01:03
 ---
 Auditor attempt ended: ValueError: Separator is found, but chunk is longer than limit. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-24 01:31
+---
+Auditor dispatched (attempt #3, candidate: prov-6cf41c89/switchyard/auto)
 ---
 <!-- COMMENTS:END -->
