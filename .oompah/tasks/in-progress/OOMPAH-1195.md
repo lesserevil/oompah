@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:17.683117Z'
-updated_at: '2026-08-24T10:15:26.626831Z'
+updated_at: '2026-08-24T10:22:49.195416Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -472,5 +472,19 @@ author: oompah
 created: 2026-08-24 10:15
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 10:22
+---
+## Understanding
+
+This issue reports that error_watcher is creating a task for 'ACP worker failed issue_id=TRICKLE-137' during orchestrator operations. 
+
+Key findings from task history:
+- Comment #1 notes this is a duplicate of OOMPAH-1194, with root cause being: 'managed network Git used the stale local SSH origin instead of the project's configured HTTPS repo_url during Trickle workspace/epic refresh'
+- The orchestrator logs 'ACP worker failed' at WARNING level (line 64763-64768) to avoid triggering error_watcher for expected pre-request failures
+- But error_watcher is still firing, indicating an ERROR is being logged somewhere else
+
+Current status: Investigating the root cause - appears to be related to Git repository URL handling in Trickle workspace operations. Will search for OOMPAH-1194 and Git-related error logging.
 ---
 <!-- COMMENTS:END -->
