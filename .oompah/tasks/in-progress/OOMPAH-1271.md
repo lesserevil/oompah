@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:36:38.933130Z'
-updated_at: '2026-08-24T01:15:42.914387Z'
-work_branch: null
+updated_at: '2026-08-24T01:16:06.673429Z'
+work_branch: OOMPAH-1271
 target_branch: null
 review_url: null
 review_number: null
@@ -76,7 +76,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: c632175d-d21a-4ebe-b33e-b975efd7079d
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: bbf5ebcd1b17461ca4aa72862204a3f4--contributor-a8b0475e7b09
@@ -191,6 +191,18 @@ oompah.task_costs:
     output_tokens: 1620
     cost_usd: 0.0
     recorded_at: '2026-08-21T11:06:49.258876+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1271
+  base_branch: main
+  base_sha: c7b3911883a90c1b5805204a430926eb1c6f53b8
+  head_sha: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
+  submitted_at: '2026-08-24T01:15:54.172804+00:00'
+  updated_at: '2026-08-24T01:15:54.172804+00:00'
+oompah.work_branch: OOMPAH-1271
 ---
 ## Summary
 
@@ -549,5 +561,10 @@ created: 2026-08-24 01:15
 5. **Pushed**: Branch OOMPAH-1271 pushed to origin
 
 The fix ensures that tracker write operations for contributor evidence have sufficient time to complete, preventing the 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' error from occurring during normal operation on slow trackers like provenanceguardedtracker.
+---
+author: oompah
+created: 2026-08-24 01:16
+---
+Fixed pre-provider contributor evidence timeout by increasing default timeout values from 5s to 10s in config.py
 ---
 <!-- COMMENTS:END -->
