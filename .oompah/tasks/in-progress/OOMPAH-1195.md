@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:17.683117Z'
-updated_at: '2026-08-24T10:47:42.029796Z'
+updated_at: '2026-08-24T10:47:55.926558Z'
 work_branch: OOMPAH-1195
 target_branch: null
 review_url: null
@@ -570,5 +570,10 @@ The fix correctly handles:
 Changes pushed to origin/OOMPAH-1195.
 
 The error 'ACP worker failed issue_id=TRICKLE-137' will no longer occur because orchestrator now uses the canonical HTTPS URL instead of stale SSH origins during epic/workspace operations. This prevents authentication failures and error_watcher from being triggered.
+---
+author: oompah
+created: 2026-08-24 10:47
+---
+Fixed stale SSH origin bug in managed network Git operations. When orchestrator runs network git commands with a canonical_remote_url, it now properly replaces 'origin' in the command with the canonical HTTPS URL, preventing authentication failures during epic/workspace refresh. Added _transform_git_command_for_canonical_remote() helper with 12 unit tests. All 147 related tests pass. Changes: oompah/orchestrator.py, tests/test_orchestrator_canonical_remote_url.py (new), tests/test_epic_rebase_state.py (updated expectations).
 ---
 <!-- COMMENTS:END -->
