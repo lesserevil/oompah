@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:17.683117Z'
-updated_at: '2026-08-24T10:22:49.195416Z'
+updated_at: '2026-08-24T10:29:06.045912Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -486,5 +486,20 @@ Key findings from task history:
 - But error_watcher is still firing, indicating an ERROR is being logged somewhere else
 
 Current status: Investigating the root cause - appears to be related to Git repository URL handling in Trickle workspace operations. Will search for OOMPAH-1194 and Git-related error logging.
+---
+author: oompah
+created: 2026-08-24 10:29
+---
+## Discovery
+
+Found the root cause area. In oompah_md_tracker.py (lines 3299-3314), git network operations (push/fetch/ls-remote) check if canonical_remote_url is set. If it is, they replace 'origin' with the canonical HTTPS URL.
+
+However, found TWO different code paths for git operations:
+1. OomphahMdTracker._git (oompah_md_tracker.py) - handles canonical_remote_url properly
+2. Orchestrator._run_managed_git (orchestrator.py line 44898) - also handles canonical_remote_url
+
+The problem: The orchestrator is now attempting to log at WARNING level at line 64763, but there might be OTHER error logging paths that still use ERROR level when git operations fail during epic/workspace refresh.
+
+Current investigation: Need to find which git operations (likely in epic refresh/workspace operations) are logging at ERROR level when they encounter the stale SSH origin issue.
 ---
 <!-- COMMENTS:END -->
