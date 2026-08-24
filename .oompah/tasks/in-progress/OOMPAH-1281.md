@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:54:51.257792Z'
-updated_at: '2026-08-24T08:03:31.719637Z'
+updated_at: '2026-08-24T08:04:03.490608Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -357,5 +357,21 @@ author: oompah
 created: 2026-08-24 08:03
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 08:04
+---
+**Understanding & Plan**
+
+This is a timeout issue in backend:orchestrator where 'Pre-provider contributor evidence' operations exceed a 5-second bounded task-authority deadline. The error is triggered during normal oompah operation on proj-14849f1b and auto-filed by error_watcher.
+
+**Planned approach:**
+1. Search for the error message to locate the code
+2. Understand the 'Pre-provider contributor evidence' flow and task-authority deadline mechanism
+3. Identify why the 5-second timeout is insufficient
+4. Fix the timeout or optimize the code to complete within the deadline
+5. Verify the fix doesn't cause regressions
+
+**Investigation starting now.**
 ---
 <!-- COMMENTS:END -->
