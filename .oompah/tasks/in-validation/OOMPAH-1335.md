@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1335
 type: task
-status: Backlog
+status: In Validation
 priority: null
 title: Remove stale local Git URL rewrites during managed-clone credential sanitation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:56:39.839941Z'
-updated_at: '2026-08-24T21:56:39.839941Z'
+updated_at: '2026-08-24T22:24:06.403795Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,65 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: ac1c7df9-1451-4dc9-bef5-89f3a580a2cd
   request_fingerprint: 480170a98d186409d1ea6f9a920a742b09780738918f101c6c54c6db917c2491
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-4c771cc6b972
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1335
+    digest: cf12e5b1ba11bbf041369aeaeee9cc8ec566784dbfb3512d345b8078c8053d01
+  - version: 1
+    audit_id: audit-ee0391b798eb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1335
+    digest: cf12e5b1ba11bbf041369aeaeee9cc8ec566784dbfb3512d345b8078c8053d01
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-4c771cc6b972
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1335
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cf12e5b1ba11bbf041369aeaeee9cc8ec566784dbfb3512d345b8078c8053d01
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-24T22:23:59.513120+00:00'
+    eligible_at: '2026-08-24T22:23:59.513120+00:00'
+    selected_ref: origin/OOMPAH-1335
+    selected_sha: 76fe97764a3b56bf7d922eabd49cd8f94844f1e3
+  - version: 1
+    audit_id: audit-ee0391b798eb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1335
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cf12e5b1ba11bbf041369aeaeee9cc8ec566784dbfb3512d345b8078c8053d01
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-24T22:23:59.513120+00:00'
+    prerequisite_audit_id: audit-4c771cc6b972
+    selected_ref: origin/OOMPAH-1335
+    selected_sha: 76fe97764a3b56bf7d922eabd49cd8f94844f1e3
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -35,3 +94,11 @@ A managed native Markdown project (trickle, proj-3e4e9214) had canonical repo_ur
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-24 22:24
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+<!-- COMMENTS:END -->
