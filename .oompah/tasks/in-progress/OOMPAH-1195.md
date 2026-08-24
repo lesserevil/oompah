@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:17.683117Z'
-updated_at: '2026-08-24T10:48:06.256203Z'
+updated_at: '2026-08-24T10:48:38.720730Z'
 work_branch: OOMPAH-1195
 target_branch: null
 review_url: null
@@ -575,5 +575,33 @@ author: oompah
 created: 2026-08-24 10:47
 ---
 Fixed stale SSH origin bug in managed network Git operations. When orchestrator runs network git commands with a canonical_remote_url, it now properly replaces 'origin' in the command with the canonical HTTPS URL, preventing authentication failures during epic/workspace refresh. Added _transform_git_command_for_canonical_remote() helper with 12 unit tests. All 147 related tests pass. Changes: oompah/orchestrator.py, tests/test_orchestrator_canonical_remote_url.py (new), tests/test_epic_rebase_state.py (updated expectations).
+---
+author: oompah
+created: 2026-08-24 10:48
+---
+## Completion Summary
+
+**Issue Resolved**: OOMPAH-1195 [backend:orchestrator] ACP worker failed issue_id=TRICKLE-137
+
+**Root Cause**: The orchestrator's _run_project_network_git() method was only setting git config for the canonical remote URL, which doesn't override stale SSH origins already in .git/config files. This caused git to use the stale local SSH origin instead of the configured HTTPS repo_url during epic/workspace refresh operations, leading to authentication failures.
+
+**Solution Implemented**:
+1. Added _transform_git_command_for_canonical_remote() helper function that transforms git commands to replace 'origin' with the canonical URL in the command arguments
+2. Updated _run_project_network_git() to use this transformation
+3. Handles all git operations: fetch, push, ls-remote, pull, clone
+4. Properly manages refspecs for fetch to maintain origin tracking semantics
+
+**Testing**:
+- Added 12 comprehensive unit tests for the transformation logic
+- Updated 1 existing test to reflect new behavior
+- Total 147 tests pass (12 new + 123 epic_rebase + 12 git_creds)
+
+**Impact**:
+- Eliminates 'ACP worker failed' errors during epic/workspace refresh
+- No error_watcher false positives for this issue
+- Maintains backward compatibility and proper git semantics
+- All git operations now use the canonical HTTPS URL as configured by the project
+
+Status: SUBMITTED for integration
 ---
 <!-- COMMENTS:END -->
