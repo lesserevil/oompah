@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:56:45.420158Z'
-updated_at: '2026-08-24T13:36:58.080813Z'
+updated_at: '2026-08-24T13:42:47.467852Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -389,5 +389,25 @@ This 5-second timeout is too aggressive for tracker persistence operations (writ
 The code comment indicates this timeout is meant to be overridden in production via 'contributor_evidence_persist_timeout_seconds' config, but the default calculation should be more reasonable.
 
 Fix: Increase the derived persistence timeout calculation to allow more time for tracker operations.
+---
+author: oompah
+created: 2026-08-24 13:42
+---
+**IMPLEMENTATION**
+
+Fixed the aggressive timeout in oompah/orchestrator.py, function `_stage_work_contributor_launch()`.
+
+Changed the persistence_timeout calculation (line 58026):
+- FROM: `max(min(control_timeout, termination_timeout / 2.0), 0.05)` = 5.0 seconds
+- TO: `max(termination_timeout, 1.0)` = 10.0 seconds (with defaults)
+
+Rationale:
+- The derived timeout was capping at control_timeout (5.0s), which is meant for quick lock acquisition, not tracker persistence
+- Tracker operations (writing contributor evidence, state-branch updates) can take longer than 5 seconds, especially under load
+- The new calculation uses the full termination_timeout window (10s), which is semantically correct - we want to allow persistence to complete before forcefully terminating the worker
+- The configuration option `contributor_evidence_persist_timeout_seconds` still takes precedence, allowing production to override with higher values if needed
+- Added explanatory comments to clarify the timeout semantics
+
+Result: Normal tracker persistence operations no longer timeout and trigger spurious error_watcher tasks.
 ---
 <!-- COMMENTS:END -->
