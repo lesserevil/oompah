@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:47:52.188773Z'
-updated_at: '2026-08-24T07:10:55.605386Z'
+updated_at: '2026-08-24T07:15:05.789205Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -342,5 +342,23 @@ The persistence operation is waiting too long and exceeding the 5-second deadlin
 
 **Solution:**
 Change the code to use the configured timeout value (60.0s) as the primary source instead of calculating a fallback first. This ensures slow tracker writes don't exceed an overly-tight deadline.
+---
+author: oompah
+created: 2026-08-24 07:15
+---
+**Implementation:**
+
+Fixed the issue in oompah/orchestrator.py at lines 58035-58043.
+
+**The Problem:**
+The code was calculating a tight 5-second timeout as a fallback, then only using the configured 60-second timeout if it was explicitly not None. This meant if getattr returned the default None, the 5-second timeout was used, causing persistence operations to fail.
+
+**The Solution:**
+Changed getattr to use 60.0 as the default instead of None, ensuring the configured timeout is always used. This gives slow tracker/state-branch writes sufficient time to complete without exceeding the deadline.
+
+**Testing:**
+- All 21 provider_retirement tests pass
+- All 144 provider_retirement + epic_rebase_state tests pass
+- Specific timeout test still validates the behavior
 ---
 <!-- COMMENTS:END -->
