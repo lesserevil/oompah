@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T08:06:24.549306Z'
-updated_at: '2026-08-24T12:16:26.984588Z'
-work_branch: null
+updated_at: '2026-08-24T12:16:54.506436Z'
+work_branch: OOMPAH-1325
 target_branch: null
 review_url: null
 review_number: null
@@ -72,7 +72,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 7bc8dc1d-d8ea-4ce9-ae60-e0e05273b47f
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 400db96f3bfb4dadba0390b3e03cb268--contributor-4256b9f40773
@@ -123,6 +123,18 @@ oompah.task_costs:
     output_tokens: 2139
     cost_usd: 0.0
     recorded_at: '2026-08-24T07:37:53.770547+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1325
+  base_branch: main
+  base_sha: 4988991309ba81b6b2cf06aa30528bf5f21b0a82
+  head_sha: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
+  submitted_at: '2026-08-24T12:16:39.014152+00:00'
+  updated_at: '2026-08-24T12:16:39.014152+00:00'
+oompah.work_branch: OOMPAH-1325
 ---
 ## Summary
 
@@ -254,5 +266,10 @@ author: oompah
 created: 2026-08-24 12:16
 ---
 Verification: All tests pass. Ran test_provider_retirement.py (21 tests), test_error_watcher_orchestrator.py (13 tests), and orchestrator handler tests with 'contributor' filter (71 tests). Changes verified - three logger.warning calls converted to logger.debug for gracefully-handled timeout scenarios. This prevents error_watcher from auto-filing expected timeouts.
+---
+author: oompah
+created: 2026-08-24 12:16
+---
+Fixed contributor evidence timeout auto-filing by changing logging level from WARNING to DEBUG for gracefully-handled timeout scenarios. Three logger.warning() calls in orchestrator.py:_stage_work_contributor_launch were changed to logger.debug(). This prevents error_watcher from auto-filing expected, handled timeouts while preserving diagnostics.
 ---
 <!-- COMMENTS:END -->
