@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:27.547026Z'
-updated_at: '2026-08-24T06:26:01.944782Z'
+updated_at: '2026-08-24T06:27:18.395214Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -420,5 +420,10 @@ author: oompah
 created: 2026-08-24 06:26
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 06:27
+---
+UNDERSTANDING: Investigating the 'ACP worker failed issue_id=TRICKLE-135' error. This is an auto-filed backend:orchestrator error caught by error_watcher. Plan: (1) explore codebase to find orchestrator implementation, (2) identify why ACP worker fails for this specific issue, (3) implement fix or graceful error handling, (4) verify error no longer surfaces to error_watcher.
 ---
 <!-- COMMENTS:END -->
