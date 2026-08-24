@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:16:52.125972Z'
-updated_at: '2026-08-24T09:54:55.699566Z'
+updated_at: '2026-08-24T09:55:37.747918Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -392,5 +392,10 @@ author: oompah
 created: 2026-08-24 09:54
 ---
 **Implementation**: Increased default `contributor_evidence_persist_timeout_seconds` from 60.0 to 300.0 seconds (5 minutes) to accommodate slower tracker I/O operations. Changes made: (1) oompah/config.py line 1200: Updated class attribute default from 60.0 to 300.0, (2) oompah/config.py line 2058-2059: Updated from_workflow() method default from 60.0 to 300.0, (3) tests/test_config.py line 124: Updated test assertion from 60.0 to 300.0. This gives slow trackers like 'provenanceguardedtracker' more time to complete metadata writes before timing out and failing dispatch.
+---
+author: oompah
+created: 2026-08-24 09:55
+---
+**Verification**: Ran comprehensive test suite to verify fix: (1) tests/test_config.py - All 168 tests passed, including default config and environment variable override tests, (2) tests/test_provider_retirement.py - All 21 tests passed, including contributor evidence and timeout-related tests, (3) No regressions detected. The increased timeout from 60s to 300s should resolve dispatch failures caused by slow tracker I/O without impacting normal operation.
 ---
 <!-- COMMENTS:END -->
