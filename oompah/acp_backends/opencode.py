@@ -161,6 +161,10 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         self._proc: Any = None
         # Track temporary worker runtime directory for cleanup (OOMPAH-686)
         self._worker_runtime_dir: str | None = None
+        # Count native tool-permission denials so a session that can never
+        # use a permitted tool escalates through policy_denial_handler
+        # instead of looping/rotating candidates forever (OOMPAH-1332).
+        self._native_denial_count: int = 0
 
     # ---- AcpBackendSession protocol property accessors ----
 
@@ -201,6 +205,57 @@ class OpencodeAcpBackendSession(AcpBackendSession):
     @property
     def permission_denials(self) -> list[Any]:
         return list(self._permission_denials)
+
+    # ---- Native tool-permission denial escalation (OOMPAH-1332) ----
+
+    #: How many native permission denials to tolerate before escalating the
+    #: session as policy-incompatible instead of letting the audit loop.
+    _MAX_NATIVE_DENIALS = 3
+
+    def _note_tool_state_denial(self, state: dict[str, Any]) -> None:
+        """Escalate when the opencode CLI denies a native tool call.
+
+        A denied native command surfaces as a tool ``state`` with an error
+        status and a permission-denied message.  Without ``--auto`` (or when
+        a command is explicitly denied even with it), the auditor cannot make
+        progress; historically this looped/rotated candidates forever because
+        the failure never reached oompah's ``policy_denial_handler``.  Route
+        repeated denials through that handler so the terminal-audit dispatcher
+        classifies the attempt as a bounded ``POLICY_INCOMPATIBILITY`` and the
+        operator-actionable health alert fires instead of silent churn.
+        """
+
+        status = str(state.get("status") or "").strip().lower()
+        message = " ".join(
+            str(state.get(key) or "")
+            for key in ("error", "message", "output")
+        ).lower()
+        looks_denied = status in {"error", "denied", "rejected"} and (
+            "permission" in message
+            or "denied" in message
+            or "not allowed" in message
+            or "not permitted" in message
+            or "disallow" in message
+        )
+        if not looks_denied:
+            return
+        self._note_possible_policy_denial(message)
+
+    def _note_possible_policy_denial(self, reason: str) -> None:
+        self._native_denial_count += 1
+        self._permission_denials.append(reason)
+        handler = self._options.policy_denial_handler
+        if handler is None:
+            return
+        if self._native_denial_count < self._MAX_NATIVE_DENIALS:
+            return
+        try:
+            handler(
+                "opencode auditor native command was repeatedly denied by "
+                "the provider permission policy"
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("policy_denial_handler raised: %s", exc)
 
     # ---- Lifecycle ----
 
@@ -438,7 +493,15 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         # NOTE: `opencode serve` starts an HTTP server and does not speak a
         # stdin/stdout JSONL prompt protocol. For a single non-interactive turn,
         # the supported surface is `opencode run --format json ...`.
-        cmd = ["opencode", "run", "--format", "json"]
+        #
+        # `--auto` auto-approves permission prompts that are not explicitly
+        # denied. Without it the opencode CLI denies the auditor's read-only
+        # inspection commands (git show/log/status, make help, test runs), so
+        # completion audits never reach a verdict and rotate candidates
+        # forever (OOMPAH-1332). oompah's own action policy still enforces the
+        # read-only auditor restriction at the tool boundary, so auto-approving
+        # opencode's native prompts cannot grant write access.
+        cmd = ["opencode", "run", "--format", "json", "--auto"]
         if self._options.model is not None:
             model = str(self._options.model).strip()
             if model:
@@ -693,6 +756,7 @@ class OpencodeAcpBackendSession(AcpBackendSession):
                 state = {}
             tool_input = _truncate(state.get("input", {}))
             tool_id = part.get("callID") or part.get("id")
+            self._note_tool_state_denial(state)
             yield self._emit(
                 "acp_tool_use",
                 payload={
