@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-23T21:54:32.810884Z'
-updated_at: '2026-08-24T00:32:41.216651Z'
+updated_at: '2026-08-24T00:32:50.525938Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -92,8 +92,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-baa4202ff705
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-24T00:32:34.014631+00:00'
+    applied_at: '2026-08-24T00:32:48.040968+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -312,5 +313,23 @@ author: oompah
 created: 2026-08-24 00:29
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 00:32
+---
+Audit PASS — Merged
+
+Fix for OOMPAH-1327 is complete and correct. The limit=MAX_LINE_SIZE parameter is properly passed to asyncio.create_subprocess_exec, preventing readline crashes on lines exceeding 64KiB. Unit test at tests/test_agent.py:48 verifies the parameter is set correctly. Authoritative full test suite passed (SHA a1bdfad376af434e72551b698b2171863b4857dd, 185.9s, all 27+ tests passing). All acceptance criteria satisfied: correct implementation, test coverage, no regressions.
+
+Safe evidence:
+- fix_location: oompah/agent.py line 607
+- limit_parameter: limit=MAX_LINE_SIZE where MAX_LINE_SIZE=10*1024*1024
+- test_verification: tests/test_agent.py line 48 asserts create_process.await_args.kwargs['limit'] == MAX_LINE_SIZE
+- authoritative_quality_gate: make test passed (SHA a1bdfad376af434e72551b698b2171863b4857dd, 185.9s)
+- test_count: 27+ tests in test_agent.py all passing
+- acceptance_criteria[0]: create_subprocess_exec invoked with limit=MAX_LINE_SIZE
+- acceptance_criteria[1]: unit test verifies parameter
+- acceptance_criteria[2]: no ValueError on large lines
+- acceptance_criteria[3]: test suite green with no regressions
 ---
 <!-- COMMENTS:END -->
