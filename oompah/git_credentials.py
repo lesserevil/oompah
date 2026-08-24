@@ -12,6 +12,7 @@ import contextlib
 import os
 import re
 import stat
+import subprocess
 import tempfile
 import urllib.parse
 from collections.abc import Iterator, Mapping
@@ -103,6 +104,146 @@ def _append_git_config(
     env[f"GIT_CONFIG_KEY_{count}"] = key
     env[f"GIT_CONFIG_VALUE_{count}"] = value
     env["GIT_CONFIG_COUNT"] = str(count + 1)
+
+
+def sanitize_managed_clone_credentials(
+    repo_path: str,
+    *,
+    canonical_url: str | None = None,
+) -> None:
+    """Sanitize credential routes from a managed clone's local Git config.
+
+    Removes HTTP(S) remote userinfo, credential helpers, and extraheader
+    entries from a managed clone to prevent unauthorized credential access.
+    Normalizes managed remotes to the credential-free canonical URL if
+    provided.
+
+    This function is idempotent and should be called whenever a managed clone
+    is created, adopted, migrated, self-healed, or prepared for direct
+    maintenance.
+
+    Args:
+        repo_path: Path to the managed clone repository
+        canonical_url: Optional credential-free canonical remote URL to use
+                       for normalization
+
+    Raises:
+        ValueError: If the repository path is invalid or Git operations fail
+    """
+    repo_dir = Path(repo_path)
+    if not repo_dir.is_dir():
+        raise ValueError(f"Repository path is not a directory: {repo_path}")
+
+    git_dir = repo_dir / ".git"
+    if not git_dir.is_dir():
+        raise ValueError(f"Not a Git repository: {repo_path}")
+
+    # First, normalize all remote URLs to remove embedded credentials
+    # Use git config directly to avoid shell expansion
+    try:
+        # Get all remote.*.url entries via git config
+        config_result = subprocess.run(
+            ["git", "config", "--local", "--get-regexp", r"^remote\..*\.url$"],
+            cwd=str(repo_dir),
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        if config_result.returncode == 0:
+            for line in config_result.stdout.splitlines():
+                parts = line.split(maxsplit=1)
+                if len(parts) != 2:
+                    continue
+                key = parts[0]  # e.g., "remote.origin.url"
+                url = parts[1]
+                remote_name = key.split(".")[1]  # Extract remote name
+
+                # For the 'origin' remote, use canonical URL if provided
+                if remote_name == "origin" and canonical_url:
+                    subprocess.run(
+                        ["git", "config", "--local", key, canonical_url],
+                        cwd=str(repo_dir),
+                        capture_output=True,
+                        timeout=10,
+                        check=False,
+                    )
+                    continue
+
+                # For other remotes, strip userinfo from HTTP(S) URLs
+                try:
+                    parsed = urllib.parse.urlsplit(url)
+                    if (
+                        parsed.scheme.lower() in {"http", "https"}
+                        and parsed.username is not None
+                    ):
+                        # Strip userinfo and reconstruct URL
+                        cleaned = parsed._replace(
+                            netloc=parsed.netloc.rsplit("@", 1)[-1]
+                        ).geturl()
+                        subprocess.run(
+                            ["git", "config", "--local", key, cleaned],
+                            cwd=str(repo_dir),
+                            capture_output=True,
+                            timeout=10,
+                            check=False,
+                        )
+                except ValueError:
+                    # Invalid URL, skip it
+                    pass
+    except (OSError, subprocess.TimeoutExpired):
+        pass  # Non-fatal; continue with credential config cleanup
+
+    # Second, remove credential.helper entries
+    try:
+        # Get all credential.helper configurations
+        config_result = subprocess.run(
+            ["git", "config", "--local", "--get-regexp", r"^credential.*\.helper$"],
+            cwd=str(repo_dir),
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        if config_result.returncode == 0:
+            for line in config_result.stdout.splitlines():
+                parts = line.split(maxsplit=1)
+                if len(parts) >= 1:
+                    key = parts[0]
+                    subprocess.run(
+                        ["git", "config", "--local", "--unset", key],
+                        cwd=str(repo_dir),
+                        capture_output=True,
+                        timeout=10,
+                        check=False,
+                    )
+    except (OSError, subprocess.TimeoutExpired):
+        pass  # Non-fatal; continue
+
+    # Third, remove http.*.extraheader entries
+    try:
+        config_result = subprocess.run(
+            ["git", "config", "--local", "--get-regexp", r"^http\..*\.extraheader$"],
+            cwd=str(repo_dir),
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        if config_result.returncode == 0:
+            for line in config_result.stdout.splitlines():
+                parts = line.split(maxsplit=1)
+                if len(parts) >= 1:
+                    key = parts[0]
+                    subprocess.run(
+                        ["git", "config", "--local", "--unset", key],
+                        cwd=str(repo_dir),
+                        capture_output=True,
+                        timeout=10,
+                        check=False,
+                    )
+    except (OSError, subprocess.TimeoutExpired):
+        pass  # Non-fatal
 
 
 @contextlib.contextmanager
