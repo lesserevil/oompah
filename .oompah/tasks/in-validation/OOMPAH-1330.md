@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1330
 type: task
-status: Backlog
+status: In Validation
 priority: null
 title: Auditor OpenCode ACP transport crashes on >64KiB JSON-RPC lines (Separator
   is found, but chunk is longer than limit)
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:03:40.977842Z'
-updated_at: '2026-08-24T16:03:40.977842Z'
+updated_at: '2026-08-24T16:59:11.675858Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,6 +25,65 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 9b97bcbb-e6fa-488f-8275-579ea59de529
   request_fingerprint: e3b707c418dee4750bfee0f7a47b8bdd131c9282b7c0568052cfe8fd994ea64c
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-880d1098e31e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1330
+    digest: 648cfbb5a46f2eac6fcd37b46d7fa0879085d7a392aaf39499e395f9e13383fb
+  - version: 1
+    audit_id: audit-436fa43dadd4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1330
+    digest: 648cfbb5a46f2eac6fcd37b46d7fa0879085d7a392aaf39499e395f9e13383fb
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-880d1098e31e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1330
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 648cfbb5a46f2eac6fcd37b46d7fa0879085d7a392aaf39499e395f9e13383fb
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-24T16:59:02.332831+00:00'
+    eligible_at: '2026-08-24T16:59:02.332831+00:00'
+    selected_ref: origin/OOMPAH-1330
+    selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
+  - version: 1
+    audit_id: audit-436fa43dadd4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1330
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 648cfbb5a46f2eac6fcd37b46d7fa0879085d7a392aaf39499e395f9e13383fb
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-24T16:59:02.332831+00:00'
+    prerequisite_audit_id: audit-880d1098e31e
+    selected_ref: origin/OOMPAH-1330
+    selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -66,3 +125,11 @@ Despite both, the crash persists for the OpenCode *auditor provider* path. The o
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-24 16:59
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+<!-- COMMENTS:END -->
