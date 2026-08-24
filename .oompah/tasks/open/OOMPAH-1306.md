@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:17:21.518869Z'
-updated_at: '2026-08-24T05:40:53.410372Z'
-work_branch: null
+updated_at: '2026-08-24T05:48:25.627791Z'
+work_branch: OOMPAH-1306
 target_branch: null
 review_url: null
 review_number: null
@@ -78,7 +78,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: af026049-c45e-47ed-871b-45ca94efff2c
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: bb966e100ff34518893789fa8005a920--contributor-a8b0475e7b09
@@ -129,6 +129,18 @@ oompah.task_costs:
     output_tokens: 1918
     cost_usd: 0.0
     recorded_at: '2026-08-23T22:59:54.185144+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1306
+  base_branch: main
+  base_sha: 1d2953c14bc925aaef79a40cd33fd3ea280ff6a4
+  head_sha: 622cb8bf8d313c0902ee711e9f1bffdebc85c8f9
+  submitted_at: '2026-08-24T05:48:07.049235+00:00'
+  updated_at: '2026-08-24T05:48:07.049235+00:00'
+oompah.work_branch: OOMPAH-1306
 ---
 ## Summary
 
@@ -259,5 +271,10 @@ author: oompah
 created: 2026-08-24 05:40
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 05:48
+---
+Suppress error_watcher auto-filing for expected pre-provider retirement errors
 ---
 <!-- COMMENTS:END -->
