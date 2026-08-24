@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:34:19.692606Z'
-updated_at: '2026-08-24T11:22:46.837056Z'
-work_branch: null
+updated_at: '2026-08-24T11:23:33.548681Z'
+work_branch: OOMPAH-1291
 target_branch: null
 review_url: null
 review_number: null
@@ -146,7 +146,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 0f1de153-9c4f-43cb-acc5-75fa95005460
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 45fd4c2be5ff4f97897a885afe7b3993--contributor-a8b0475e7b09
@@ -259,6 +259,18 @@ oompah.task_costs:
     output_tokens: 153
     cost_usd: 0.0
     recorded_at: '2026-08-24T09:23:52.159394+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1291
+  base_branch: main
+  base_sha: 4988991309ba81b6b2cf06aa30528bf5f21b0a82
+  head_sha: c3ea61344d0d0c7506720ec5d55557814cfd7f19
+  submitted_at: '2026-08-24T11:23:17.861601+00:00'
+  updated_at: '2026-08-24T11:23:17.861601+00:00'
+oompah.work_branch: OOMPAH-1291
 ---
 ## Summary
 
@@ -545,5 +557,10 @@ author: oompah
 created: 2026-08-24 11:22
 ---
 Verification: Implemented fix in error_watcher.py lines 649-652 to suppress pre_provider_retirement warnings. All 125 tests in test_error_watcher.py pass, plus 13 tests in test_error_watcher_orchestrator.py pass, plus 5 pre-provider retirement tests pass. Added new test test_handler_suppresses_pre_provider_retirement_warnings() which verifies the guard works correctly. The fix prevents controlled pre-provider evidence timeout warnings from triggering error_watcher task creation.
+---
+author: oompah
+created: 2026-08-24 11:23
+---
+Fixed pre-provider contributor evidence timeout triggering error_watcher by adding early-return guard in _TaskLoggingHandler.emit() to suppress controlled pre_provider_retirement warnings. All tests pass (125 error_watcher + 13 orchestrator + 5 provider_retirement tests). Solution prevents auto-filing of expected graceful degradation events while maintaining error tracking for real issues.
 ---
 <!-- COMMENTS:END -->
