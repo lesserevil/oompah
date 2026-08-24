@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:28:31.897753Z'
-updated_at: '2026-08-24T17:17:46.993989Z'
+updated_at: '2026-08-24T17:18:26.857650Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -115,12 +115,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1331
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-e39bb60fd89a
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+      created_at: '2026-08-24T17:18:24.641085+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-24T17:18:24.641085+00:00'
+      branch_key: OOMPAH-1331
+      selected_ref: origin/OOMPAH-1331
+      selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
     source_generation: 1
     requested_by:
       version: 1
@@ -131,7 +146,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-34bc00c97981
     selected_ref: origin/OOMPAH-1331
     selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
-    updated_at: '2026-08-24T17:16:59.920832+00:00'
+    updated_at: '2026-08-24T17:18:24.641085+00:00'
     eligible_at: '2026-08-24T17:16:59.920832+00:00'
   attempt_history:
   - version: 1
@@ -146,6 +161,21 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: haiku
     started_at: '2026-08-24T17:05:40.482980+00:00'
+    branch_key: OOMPAH-1331
+    selected_ref: origin/OOMPAH-1331
+    selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
+  - version: 1
+    attempt_id: attempt-e39bb60fd89a
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+    created_at: '2026-08-24T17:18:24.641085+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-24T17:18:24.641085+00:00'
     branch_key: OOMPAH-1331
     selected_ref: origin/OOMPAH-1331
     selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
