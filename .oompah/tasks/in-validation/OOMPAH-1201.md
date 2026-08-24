@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:47.623989Z'
-updated_at: '2026-08-24T23:54:32.779885Z'
+updated_at: '2026-08-24T23:54:36.927352Z'
 work_branch: OOMPAH-1201
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/893
@@ -1588,5 +1588,10 @@ created: 2026-08-24 21:04
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-24 23:54
+---
+Terminal audit rearmed by project owner after recovery: Verdict-capable independent auditor capacity restored: OOMPAH-1333 excludes incapable OpenCode/native subscription transports; healthy Claude candidates with submit_audit_result bridge remain.
 ---
 <!-- COMMENTS:END -->
