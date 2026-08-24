@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1302
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=OOMPAH-1249 identifier=OOMPAH-1249 run_id=40dc604639104a37ab8ec395fe3b26fa
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:14:43.227832Z'
-updated_at: '2026-08-24T23:44:51.317332Z'
+updated_at: '2026-08-24T23:45:11.977715Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -210,6 +210,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1302
     source_sha: 1e08d58a3fcfd254a2bffedd2580d383f1b02193
     completed_at: '2026-08-24T14:57:29.344035+00:00'
+  - run_id: 24041f2a560e4510a5fee96c1954273a--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: general
+    source_branch: OOMPAH-1302
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 30
   total_output_tokens: 6492
