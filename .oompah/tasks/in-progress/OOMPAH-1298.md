@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:00:50.331057Z'
-updated_at: '2026-08-24T10:34:25.428456Z'
-work_branch: null
+updated_at: '2026-08-24T10:34:57.480105Z'
+work_branch: OOMPAH-1298
 target_branch: null
 review_url: null
 review_number: null
@@ -75,7 +75,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: c4d9782c-318d-47d5-9258-c47815e3e32e
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 62dcd3d646a64cfeb06b2bbe7419e489--contributor-a8b0475e7b09
@@ -158,6 +158,18 @@ oompah.task_costs:
     output_tokens: 2609
     cost_usd: 0.0
     recorded_at: '2026-08-23T23:33:52.915461+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1298
+  base_branch: main
+  base_sha: 4988991309ba81b6b2cf06aa30528bf5f21b0a82
+  head_sha: e3619c34d46bbc6f5037143d2ba22fbc62131aa5
+  submitted_at: '2026-08-24T10:34:39.172273+00:00'
+  updated_at: '2026-08-24T10:34:39.172273+00:00'
+oompah.work_branch: OOMPAH-1298
 ---
 ## Summary
 
@@ -428,5 +440,10 @@ created: 2026-08-24 10:34
 The fix successfully resolves the issue by increasing the minimum persistence timeout from 0.05 to 15.0 seconds, allowing tracker write operations sufficient time to complete without triggering the 'bounded task-authority deadline' error.
 
 **Ready to integrate.**
+---
+author: oompah
+created: 2026-08-24 10:34
+---
+Fixed pre-provider contributor evidence timeout: increased minimum persistence timeout from 0.05s to 15.0s to allow tracker I/O operations sufficient time to complete
 ---
 <!-- COMMENTS:END -->

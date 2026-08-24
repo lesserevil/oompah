@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:17.683117Z'
-updated_at: '2026-08-24T10:29:06.045912Z'
+updated_at: '2026-08-24T10:34:55.910286Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -501,5 +501,20 @@ However, found TWO different code paths for git operations:
 The problem: The orchestrator is now attempting to log at WARNING level at line 64763, but there might be OTHER error logging paths that still use ERROR level when git operations fail during epic/workspace refresh.
 
 Current investigation: Need to find which git operations (likely in epic refresh/workspace operations) are logging at ERROR level when they encounter the stale SSH origin issue.
+---
+author: oompah
+created: 2026-08-24 10:34
+---
+## Discovery - Root Cause Identified
+
+Found the bug! There are TWO git command runners in oompah:
+
+1. **projects.py:_run_network_git()** (line 2250) - CORRECT: Uses _managed_network_git_command() which actually REPLACES 'origin' with the canonical URL in the git command arguments
+
+2. **orchestrator.py:_run_project_network_git()** (line 44895) - BUGGY: Just sets git config remote.origin.url, which doesn't work because git config gets appended, not replaced
+
+The bug: When orchestrator.py calls _run_project_network_git() with canonical_remote_url, it sets the config but doesn't actually replace 'origin' in the command. So the command still tries to use 'origin' which resolves to the stale SSH URL.
+
+The fix: Update orchestrator.py's _run_project_network_git() to use the same command transformation logic as projects.py - extract _managed_network_git_command from projects.py and use it in orchestrator.py.
 ---
 <!-- COMMENTS:END -->
