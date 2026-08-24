@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:03:07.024179Z'
-updated_at: '2026-08-24T05:28:14.647662Z'
-work_branch: null
+updated_at: '2026-08-24T05:28:26.034658Z'
+work_branch: OOMPAH-1300
 target_branch: null
 review_url: null
 review_number: null
@@ -73,7 +73,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 71f83ce2-18af-40b1-8fac-bd7f92bd138b
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: fa91c103003e48b6a65db7e3aba8d01e--contributor-a8b0475e7b09
@@ -159,6 +159,7 @@ oompah.integration:
   head_sha: 35eb61b2210fb1d0d8fcdb380d925bab65d54b06
   submitted_at: '2026-08-24T05:28:01.402214+00:00'
   updated_at: '2026-08-24T05:28:01.402214+00:00'
+oompah.work_branch: OOMPAH-1300
 ---
 ## Summary
 
@@ -405,5 +406,10 @@ Comprehensive test results confirm the fix is correct and has no regressions:
 The fix correctly resolves the issue by changing the logging level of graceful pre-provider timeout degradation from WARNING to DEBUG. This prevents error_watcher from auto-filing these expected timeouts as backend errors while maintaining full observability for operators through DEBUG logs.
 
 The error message "Pre-provider contributor evidence exceeded its bounded task-authority deadline..." is no longer auto-filed as a task by error_watcher, while all other error detection and reporting continues to work correctly.
+---
+author: oompah
+created: 2026-08-24 05:28
+---
+Fixed pre-provider contributor evidence timeout error being incorrectly auto-filed by error_watcher. Changed logging level from WARNING to DEBUG for graceful degradation paths in _stage_work_contributor_launch, preventing false error reporting while maintaining observability. All 620+ related tests pass.
 ---
 <!-- COMMENTS:END -->
