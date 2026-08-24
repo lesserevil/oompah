@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:56:45.420158Z'
-updated_at: '2026-08-24T07:03:46.283704Z'
+updated_at: '2026-08-24T09:41:50.220968Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,40 +36,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: inconclusive\n\
-    Matches: none\nEvidence: Duplicate preflight verdict: inconclusive\nMatches: none\n\
-    I am analyzing OOMPAH-1283 as a Duplicate Investigator. I will examine the supplied\
-    \ task corpus to determine whether this issue is a duplicate of an existing active\
-    \ task.\n\n## Analysis\n\n**Current task (OOMPAH-1283):**\n- Type: bug (backend:orchestrator)\n\
-    - Status: Open\n- Error: \"Pre-provider contributor evidence exceeded its bounded\
-    \ task-authority deadline\"\n- Issue references: OOMPAH-1216 (explicitly named\
-    \ in error message)\n\n**Corpus Assessment:**\n\nThe supplied corpus shows:\n\
-    - Total similarity candidates: 729\n- Candidates included in corpus: 28\n- Candidates\
-    \ omitted: 701\n\n**Finding:** The error message in OOMPAH-1283 specifically identifies\
-    \ `OOMPAH-1216` as the source issue (`issue_id=OOMPAH-1216`), but **OOMPAH-1216\
-    \ is not present in the provided corpus**. \n\n**Included active candidates:**\
-    \ Among the 28 included tasks:\n- OOMPAH-1000 through OOMPAH-1014: terminal-audit\
-    \ / workflow tasks (status: Merged/Done)\n- OOMPAH-1015 through OOMPAH-1027: malformed-ledger\
-    \ error flood duplicates (status: Merged/Archived)\n- All included complete tasks\
-    \ are in terminal states (Merged, Done, Archived)\n- No other Open tasks appear\
-    \ in the corpus besides OOMPAH-1283 itself\n\n**Decisive Issue:** The incomplete\
-    \ corpus omits 701 similarity candidates (96% of candidates), including the task\
-    \ explicitly referenced in the error message. Per the instruction guidelines:\
-    \ *\"If the corpus is unavailable or corrupt, report inconclusive rather than\
-    \ guessing\"* \u2014 the supplied corpus is incomplete and does not include sufficient\
-    \ peer evidence to make a determination.\n\n---\n\n**Focus handoff: duplicate_detector**\n\
-    \n**Duplicate preflight verdict: inconclusive**\n\n**Matches: none**\n\n**Reason:**\
-    \ The provided corpus is incomplete, including only 28 of 729 similarity candidates.\
-    \ The error message explicitly references OOMPAH-1216 as the source issue, but\
-    \ that task is not present in the corpus. Without access to OOMPAH-1216 and the\
-    \ 700+ omitted candidates, I cannot determine whether an active duplicate exists.\
-    \ The corpus"
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: b182f69c1d387d23fb421ad563030b3a2584b82e09acd6b573abc238aaa479f7:166649
+  claim_owner: 37ccaa87-ad5a-4d18-9016-1bf917e62c3a
+  claimed_at: '2026-08-24T09:41:48.721852+00:00'
+  claim_expires_at: '2026-08-24T10:11:48.721852+00:00'
   retry_count: 2
-  retry_after: '2026-08-24T07:05:32.157836+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
