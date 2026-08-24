@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:53.373319Z'
-updated_at: '2026-08-24T18:00:30.332796Z'
+updated_at: '2026-08-24T18:00:48.604047Z'
 work_branch: OOMPAH-1217
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/897
@@ -1045,5 +1045,15 @@ author: oompah
 created: 2026-08-24 15:27
 ---
 Terminal audit rearmed by project owner after recovery: Auditor transports fixed and deployed (OOMPAH-1327 agent path, OOMPAH-1328 OpenCode path) and reconciliation hot-loop fixed (OOMPAH-1329); service force-restarted onto ae653b4f2. Rearming exhausted terminal audit.
+---
+author: oompah
+created: 2026-08-24 18:00
+---
+Auditor dispatched (attempt #1, candidate: prov-6cf41c89/switchyard/auto)
+---
+author: oompah
+created: 2026-08-24 18:00
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
