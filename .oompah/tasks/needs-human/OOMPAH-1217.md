@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1217
 type: bug
-status: In Validation
+status: Needs Human
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-122 identifier=TRICKLE-122 run_id=55adaba352c743fc8a2cfc754517629a
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:53.373319Z'
-updated_at: '2026-08-24T05:29:08.475339Z'
+updated_at: '2026-08-24T05:29:18.656224Z'
 work_branch: OOMPAH-1217
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/897
 review_number: '897'
 review_head: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
 merged_at: null
-oompah.lifecycle_revision: 9
+oompah.lifecycle_revision: 10
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -242,8 +242,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-a15789e365d0
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-24T05:29:06.794045+00:00'
+    applied_at: '2026-08-24T05:29:17.294395+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-a15789e365d0
@@ -943,5 +944,12 @@ author: oompah
 created: 2026-08-24 05:28
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-24 05:29
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
