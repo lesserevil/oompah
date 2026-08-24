@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:04.107366Z'
-updated_at: '2026-08-24T23:44:11.047147Z'
+updated_at: '2026-08-24T23:44:34.177370Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -196,6 +196,14 @@ oompah.work_contributors:
     provider_id: prov-6cf41c89
     provider_name: Opencode/Switchyard
     model_id: switchyard/auto
+    focus: general
+    source_branch: OOMPAH-1198
+    source_sha: null
+    completed_at: ''
+  - run_id: 4d853bfe7d144cd9b20fa6add9008ff9--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
     focus: general
     source_branch: OOMPAH-1198
     source_sha: null
@@ -583,5 +591,10 @@ author: oompah
 created: 2026-08-24 23:44
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-24 23:44
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
