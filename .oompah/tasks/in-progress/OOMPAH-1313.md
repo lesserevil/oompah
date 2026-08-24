@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:40:43.878412Z'
-updated_at: '2026-08-24T09:09:25.108666Z'
+updated_at: '2026-08-24T09:17:44.627119Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -318,5 +318,31 @@ The issue reports a timeout error in backend:orchestrator when processing contri
 5. Add tests to verify the fix works and doesn't regress
 
 Starting codebase exploration now.
+---
+author: oompah
+created: 2026-08-24 09:17
+---
+**Discovery**
+
+Located the timeout error at orchestrator.py:58070. The issue occurs when persisting contributor evidence (provider/model identification) takes longer than the bounded timeout window.
+
+**Root Cause:**
+1. The `persistence_timeout` defaults to ~5 seconds (based on `terminal_control_lock_timeout_seconds`)
+2. The `_persist_work_contributor()` function performs a synchronous tracker metadata write that must complete before task authority is released
+3. When the tracker adapter (provenanceguardedtracker) is slow to respond or under contention, this timeout is exceeded
+4. The error is correctly handled (the operation retries), but it generates a warning that error_watcher picks up
+
+**Key Code:**
+- Default timeout calculation: oompah/orchestrator.py:58005-58043
+- Configurable via `contributor_evidence_persist_timeout_seconds` or `terminal_control_lock_timeout_seconds`
+- Timeout is intentionally bounded to prevent the operation from blocking task lifecycle authority
+
+**Proposed Fix:**
+Increase the timeout from 5.0 seconds to a more reasonable value (e.g., 30 seconds) to account for tracker latency and metadata write operations. This change is safe because:
+- The persistence operation is necessary and will eventually complete
+- The timeout prevents indefinite blocking but doesn't need to be so aggressive
+- Tests show this timeout is already configurable in production
+
+Next: Implementing timeout increase and adding configuration validation.
 ---
 <!-- COMMENTS:END -->
