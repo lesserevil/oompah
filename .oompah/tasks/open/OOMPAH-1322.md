@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:15:25.298559Z'
-updated_at: '2026-08-24T13:31:41.544774Z'
+updated_at: '2026-08-24T13:33:27.222670Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,14 +33,46 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: f4e1b4537a959ac44b8f294e9ddec79b99d08e821329d1d1a8f10dca46bb6ff7
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-24T13:33:14.989379+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 83b1f0276805676bbc523db0469bf82307116ce9dbb530a1db26bac688f32cec:167118
-  claim_owner: dab84cd2-f9be-40b5-86d6-c4367bbd5bbc
-  claimed_at: '2026-08-24T13:30:58.847129+00:00'
-  claim_expires_at: '2026-08-24T14:00:58.847129+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: OOMPAH-1322 describes a timeout error in pre-provider\
+    \ contributor evidence collection specific to the orchestrator backend. While\
+    \ the corpus contains multiple auto-filed error tasks from `error_watcher`, the\
+    \ closest candidates (OOMPAH-1015 and related, OOMPAH-1014, OOMPAH-1000\u2013\
+    1012) all address different failure modes (metadata malformation, terminal-audit\
+    \ lifecycle, workflow coordination) and are all in terminal states. No open, active\
+    \ task shares OOMPAH-1322's specific timeout symptom or addresses the same code\
+    \ path.\nLooking at OOMPAH-1322 and comparing it to the supplied task corpus,\
+    \ I need to determine if this is a duplicate of an existing issue.\n\n## Analysis\n\
+    \n**OOMPAH-1322 Error Message:**\n- \"Pre-provider contributor evidence exceeded\
+    \ its bounded task-authority deadline issue_id=OOMPAH-1208 identifier=OOMPAH-1208\
+    \ run_id=dd82f7e7ce1d4fe388c01522732adf48 timeout_seconds=5.0\"\n- This is a timeout\
+    \ error in `backend:orchestrator` during evidence collection\n- fingerprint: 6cbdb451c9d42ddd\n\
+    \n**Corpus Review:**\n\nThe corpus includes 28 similarity candidates. Notably:\n\
+    - **OOMPAH-1015** (Merged): \"terminal-audit enforcement: pre_recovery_finalization_metadata_malformed\"\
+    \ \u2014 a different error pattern about malformed metadata, not timeout\n- **OOMPAH-1016\
+    \ through OOMPAH-1027** (Archived): All duplicates of OOMPAH-1015 from a startup\
+    \ flood, addressing malformed ledger rows\n- **OOMPAH-1014** (Merged): About orphaned\
+    \ terminal-audit authority\n- **OOMPAH-1000 through OOMPAH-1012** (Merged/Done):\
+    \ Various workflow, epic, and audit-related fixes\n\nAll tasks in the corpus that\
+    \ show similar error-watcher auto-filing patterns are in **terminal states** (Merged,\
+    \ Done, or Archived). Per the duplicate-screening rules, completed tasks are historical\
+    \ context and cannot be duplicate targets.\n\n**Key Differences:**\n1. OOMPAH-1322's\
+    \ error is specific to \"Pre-provider contributor evidence\" timeout \u2014 a\
+    \ distinct code path\n2. No active (Open) task describes this same timeout error\n\
+    3. Terminal-state tasks addressed different issues (metadata corruption, audit\
+    \ lifecycle, workflow gates)\n4. The three previous screening attempts were inconclusive,\
+    \ suggesting this is genuinely difficult to classify, not an obvious duplicate\n\
+    \n---\n\nFocus handoff: duplicate_detector\n\nDuplicate preflight verdict: no_duplicate\n\
+    \nMatches: none\n\nEvidence: OOMPAH-1322 describes a timeout error in pre-provider\
+    \ contributor evidence collection specific to the orchestrator backend. While\
+    \ the corpus contains multiple auto-filed error tasks from `error_w"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 2
   retry_after: null
   owner_resolved_at: null
@@ -95,8 +127,24 @@ oompah.work_contributors:
     model_id: haiku
     focus: duplicate_detector
     source_branch: OOMPAH-1322
-    source_sha: null
-    completed_at: ''
+    source_sha: 584cdd53def37b6b16e99b49c3f4582822b4a848
+    completed_at: '2026-08-24T13:33:14.991422+00:00'
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 2175
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 2175
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 2175
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T13:33:14.943069+00:00'
 ---
 ## Summary
 
@@ -253,5 +301,15 @@ author: oompah
 created: 2026-08-24 13:31
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-24 13:33
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 2.2K out [2.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 59s
+- Log: OOMPAH-1322__20260824T133153Z.jsonl
 ---
 <!-- COMMENTS:END -->
