@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-24T03:15:26.119823Z'
+updated_at: '2026-08-24T03:15:35.471666Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -1057,5 +1057,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Opencode/Switchyard/switchya
 - Cost: $0.0000
 - Exit: interrupted, Duration: 23s
 - Log: OOMPAH-1266__20260824T030613Z.jsonl
+---
+author: oompah
+created: 2026-08-24 03:15
+---
+Auditor dispatched (attempt #1, candidate: prov-6cf41c89/switchyard/auto)
 ---
 <!-- COMMENTS:END -->
