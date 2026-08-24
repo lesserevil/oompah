@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-24T00:21:27.075005Z'
+updated_at: '2026-08-24T00:21:32.978914Z'
 work_branch: OOMPAH-1268
 target_branch: null
 review_url: null
@@ -220,8 +220,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-6a252271012f
     kind: audit_rearm
-    applied: false
+    applied: true
     created_at: '2026-08-24T00:20:56.111289+00:00'
+    applied_at: '2026-08-24T00:21:30.741423+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-0462454aa959
