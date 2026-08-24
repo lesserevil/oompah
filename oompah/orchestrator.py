@@ -57950,7 +57950,7 @@ class Orchestrator:
                         "its durable release failed; repair service-state "
                         "persistence."
                     )
-                logger.warning(
+                logger.debug(
                     "Pre-provider contributor evidence is still settling from "
                     "a retired generation issue_id=%s identifier=%s run_id=%s",
                     issue.id,
@@ -58063,7 +58063,7 @@ class Orchestrator:
                             "its durable release failed; repair service-state "
                             "persistence."
                         )
-                    logger.warning(
+                    logger.debug(
                         "Pre-provider contributor evidence exceeded its bounded "
                         "task-authority deadline issue_id=%s identifier=%s "
                         "run_id=%s timeout_seconds=%s",
@@ -58099,7 +58099,7 @@ class Orchestrator:
                             timeout=persistence_timeout,
                         )
                     except TimeoutError:
-                        logger.warning(
+                        logger.debug(
                             "Cancelled pre-provider contributor evidence did not "
                             "finish before task-authority release issue_id=%s "
                             "identifier=%s run_id=%s timeout_seconds=%s",
