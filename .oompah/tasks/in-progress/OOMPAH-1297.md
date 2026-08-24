@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:59:54.516015Z'
-updated_at: '2026-08-24T06:08:02.949699Z'
+updated_at: '2026-08-24T06:09:02.603209Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -165,6 +165,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1297
     source_sha: 8c81b69c713e9bb6a1da8906b7e637f1ea6a1696
     completed_at: '2026-08-24T05:50:02.611330+00:00'
+  - run_id: 6a0c5e0ccaf647faae6a7f10759eb48f--contributor-86e3ac8153e1
+    provider_id: prov-6cf41c89
+    provider_name: Opencode/Switchyard
+    model_id: switchyard/auto
+    focus: general
+    source_branch: OOMPAH-1297
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 18985
   total_output_tokens: 2935
