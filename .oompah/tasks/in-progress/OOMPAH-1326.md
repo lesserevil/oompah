@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T09:43:03.353905Z'
-updated_at: '2026-08-24T14:17:15.391332Z'
-work_branch: null
+updated_at: '2026-08-24T14:17:46.107454Z'
+work_branch: OOMPAH-1326
 target_branch: null
 review_url: null
 review_number: null
@@ -78,7 +78,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 94813953-ed3d-4e5f-92d0-385f4f5a6cd4
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: bf3dc3334c60456c997a7ecf3d303c79--contributor-4256b9f40773
@@ -121,6 +121,18 @@ oompah.task_costs:
     output_tokens: 1490
     cost_usd: 0.0
     recorded_at: '2026-08-24T11:12:15.894817+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1326
+  base_branch: main
+  base_sha: 584cdd53def37b6b16e99b49c3f4582822b4a848
+  head_sha: 0d9de7856326baaee84418eaf7c6fb8848f1b3e1
+  submitted_at: '2026-08-24T14:17:32.014394+00:00'
+  updated_at: '2026-08-24T14:17:32.014394+00:00'
+oompah.work_branch: OOMPAH-1326
 ---
 ## Summary
 
@@ -306,5 +318,20 @@ All tests verify that:
 4. Existing functionality is preserved (no regressions)
 
 Changes are ready for merge.
+---
+author: oompah
+created: 2026-08-24 14:17
+---
+Fixed checkpoint flush error auto-filing by logging timer-based failures at WARNING level
+
+The issue was that checkpoint flush failures during timer-based operations (debounce, max-delay) were being logged at ERROR level, causing error_watcher to auto-file tasks. Timer-based failures are expected transient failures that will be retried.
+
+Solution: Added _timer_based parameter to CheckpointQueue.flush() to differentiate between timer-based and manual flushes:
+- Timer-based failures (debounce, max-delay): logged at WARNING level → not auto-filed by error_watcher
+- Manual/critical failures (terminal_status, shutdown): logged at ERROR level → still auto-filed by error_watcher
+
+This ensures only critical checkpoint failures trigger error_watcher task creation, while transient/expected failures are logged for operational visibility without creating unnecessary tasks.
+
+All 66 checkpoint_coalescing tests and 124 error_watcher tests pass.
 ---
 <!-- COMMENTS:END -->
