@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:04.107366Z'
-updated_at: '2026-08-24T23:48:45.474504Z'
+updated_at: '2026-08-24T23:52:37.572287Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -608,5 +608,17 @@ VERIFICATION: The implementation has been completed. Changes made:
 4. Updated orchestrator.py to pass project.repo_url as canonical_remote_url when calling execute_integration()
 
 This fixes the root cause where managed network Git operations were using stale SSH origins instead of the project's configured HTTPS repo_url. Now running focused tests to verify.
+---
+author: oompah
+created: 2026-08-24 23:52
+---
+TEST RESULTS: All focused tests pass successfully.
+
+- test_integration_executor.py: 28/28 tests PASSED ✓
+- test_integration_record.py: 35/35 tests PASSED ✓
+- test_integration_queue.py: 49/49 tests PASSED ✓
+- test_orchestrator_thread.py: 3/3 tests PASSED ✓
+
+The canonical_remote_url parameter is working correctly throughout the integration pipeline. Git fetch/push operations now use the project's configured HTTPS repo_url instead of stale SSH origins, resolving the ACP worker failure that was triggered on TRICKLE-121.
 ---
 <!-- COMMENTS:END -->
