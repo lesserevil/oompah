@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:56:45.420158Z'
-updated_at: '2026-08-24T13:42:47.467852Z'
+updated_at: '2026-08-24T13:56:32.109601Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -409,5 +409,22 @@ Rationale:
 - Added explanatory comments to clarify the timeout semantics
 
 Result: Normal tracker persistence operations no longer timeout and trigger spurious error_watcher tasks.
+---
+author: oompah
+created: 2026-08-24 13:56
+---
+**VERIFICATION**
+
+All tests pass:
+- test_provider_retirement.py: 21/21 PASSED
+- test_error_watcher_orchestrator.py: 13/13 PASSED
+- Full test suite: 2002 passed (1 pre-existing unrelated timeout in test_acp_codex_backend.py)
+
+Changes committed and pushed to branch OOMPAH-1283:
+- Modified: oompah/orchestrator.py (persistence_timeout calculation)
+- Increased timeout from 5.0s to 10.0s for normal operations
+- Configuration option still allows production override
+
+The fix addresses the root cause: tracker persistence operations now have sufficient time to complete without triggering spurious error_watcher tasks.
 ---
 <!-- COMMENTS:END -->
