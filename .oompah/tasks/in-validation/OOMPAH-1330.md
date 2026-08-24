@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:03:40.977842Z'
-updated_at: '2026-08-24T17:05:30.679493Z'
+updated_at: '2026-08-24T17:15:47.389216Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,6 +38,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1330
     digest: 648cfbb5a46f2eac6fcd37b46d7fa0879085d7a392aaf39499e395f9e13383fb
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1330","audit-880d1098e31e","attempt-e72e33d5aa6d"]': '2026-08-24T17:15:38.475264+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1330
+    target_state: Done
+    evidence_fingerprint: 648cfbb5a46f2eac6fcd37b46d7fa0879085d7a392aaf39499e395f9e13383fb
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1330
+    selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
+    landing_revision: null
+    audit_ids:
+    - audit-880d1098e31e
+    kind: result
+    applied: true
+    retired_at: '2026-08-24T17:15:38.475281+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1330
+    audit_id: audit-880d1098e31e
+    attempt_id: attempt-e72e33d5aa6d
+    target_state: Done
+    evidence_fingerprint: 648cfbb5a46f2eac6fcd37b46d7fa0879085d7a392aaf39499e395f9e13383fb
+    status: In Validation
+    audit_ids:
+    - audit-880d1098e31e
+    kind: result
+    applied: true
+    created_at: '2026-08-24T17:15:38.475291+00:00'
+    applied_at: '2026-08-24T17:15:46.128062+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -45,7 +75,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1330
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -54,7 +84,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e72e33d5aa6d
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -66,6 +96,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1330
       selected_ref: origin/OOMPAH-1330
       selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
+      verdict: pass
+      completed_at: '2026-08-24T17:15:38.475074+00:00'
+      ended_at: '2026-08-24T17:15:38.475074+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -76,7 +109,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T16:59:02.332831+00:00'
     selected_ref: origin/OOMPAH-1330
     selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
-    updated_at: '2026-08-24T17:05:18.929193+00:00'
+    updated_at: '2026-08-24T17:15:38.475074+00:00'
   - version: 1
     audit_id: audit-436fa43dadd4
     project_id: proj-14849f1b
@@ -98,6 +131,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-880d1098e31e
     selected_ref: origin/OOMPAH-1330
     selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
+    updated_at: '2026-08-24T17:15:38.475074+00:00'
+    eligible_at: '2026-08-24T17:15:38.475074+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e72e33d5aa6d
@@ -192,5 +227,29 @@ author: oompah
 created: 2026-08-24 17:05
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 17:15
+---
+Audit PASS — Done
+
+OOMPAH-1330 implementation verified: OpenCode ACP auditor transport now survives >64KiB JSON-RPC lines by gracefully draining oversized frames instead of crashing. Implementation adds error handling with drain-and-skip recovery, comprehensive regression test, and maintains compatibility with all existing tests. 144 ACP/OpenCode tests pass including new regression test that simulates oversized line handling.
+
+Safe evidence:
+- test_results.test_acp_opencode_backend.py: 41 passed
+- test_results.test_acp_backends.py: 45 passed
+- test_results.test_acp_agent.py: 58 passed
+- test_results.total_acp_tests: 144 passed
+- implementation_changes.files_modified: oompah/acp_backends/opencode.py, tests/test_acp_opencode_backend.py
+- implementation_changes.new_function: _drain_oversized_line() gracefully drains oversized frames
+- implementation_changes.error_handling: Catches ValueError and asyncio.LimitOverrunError from readline()
+- acceptance_criteria.no_crash_on_large_payloads: verified
+- acceptance_criteria.graceful_recovery: verified
+- acceptance_criteria.regression_test_added: test_run_turn_survives_oversized_stdout_line
+- acceptance_criteria.no_regressions_in_backends: verified
+- acceptance_criteria.proper_commit_attribution: verified
+- commit_verified.sha: 585382bbb8f5e02b8938dacc4653786b18af0107
+- commit_verified.author: oompah
+- commit_verified.trailer: Co-authored-by: oompah lesserevil@users.noreply.github.com
 ---
 <!-- COMMENTS:END -->
