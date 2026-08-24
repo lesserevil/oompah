@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:37:50.327401Z'
-updated_at: '2026-08-24T09:08:01.995768Z'
+updated_at: '2026-08-24T09:16:11.836737Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -456,5 +456,10 @@ author: oompah
 created: 2026-08-24 09:08
 ---
 **Understanding:** This is a race condition bug in the WebSocket fault-injection test (test_four_completion_snapshots_converge_to_zero_running_chips) that manifests on Python 3.13 but not 3.11/3.12. The test expects to observe 4 broadcast completion envelopes, but the final zero-running broadcast races the assertion check. The fix requires replacing timing-dependent observation with explicit synchronization (bounded wait) that proves all 4 broadcasts were processed before asserting, while preserving the real WebSocket/broadcast/full-sync path and avoiding sleep-based correctness. **Plan:** (1) Explore the test file to understand current implementation, (2) Identify the race condition and synchronization points, (3) Implement bounded synchronization mechanism, (4) Add regression tests across Python versions, (5) Verify test reliability.
+---
+author: oompah
+created: 2026-08-24 09:16
+---
+**Discovery:** Found the race condition in `tests/test_ws_fault_injection.py::TestLiveDashboardConvergence::test_four_completion_snapshots_converge_to_zero_running_chips`. The test broadcasts 4 state transitions via `ws.portal.call(server_module._broadcast, ...)` and then immediately asserts that all 4 messages were dropped. However, portal.call() may return before all broadcasts are fully processed by the fault injector (timing-dependent). On Python 3.13's faster execution, the assertion fires before the 4th broadcast completes, causing intermittent test failures. **Fix approach:** Replace timing-dependent observation with explicit bounded synchronization: (1) Add an asyncio.Event that signals when a broadcast message has been fully captured by the fault injector, (2) Wait for exactly 4 broadcasts with bounded timeout before asserting, (3) This preserves the real WebSocket/broadcast path while proving all 4 were processed.
 ---
 <!-- COMMENTS:END -->
