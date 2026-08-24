@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1330
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Auditor OpenCode ACP transport crashes on >64KiB JSON-RPC lines (Separator
   is found, but chunk is longer than limit)
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:03:40.977842Z'
-updated_at: '2026-08-24T17:42:02.268227Z'
+updated_at: '2026-08-24T17:46:16.916534Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,6 +40,7 @@ oompah.terminal_audit:
     digest: 648cfbb5a46f2eac6fcd37b46d7fa0879085d7a392aaf39499e395f9e13383fb
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1330","audit-880d1098e31e","attempt-e72e33d5aa6d"]': '2026-08-24T17:15:38.475264+00:00'
+    '["proj-14849f1b","OOMPAH-1330","audit-436fa43dadd4","no-auditor-audit-436fa43dadd4-3"]': '2026-08-24T17:46:08.331151+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1330
@@ -54,6 +55,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-24T17:15:38.475281+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1330
+    target_state: Merged
+    evidence_fingerprint: 648cfbb5a46f2eac6fcd37b46d7fa0879085d7a392aaf39499e395f9e13383fb
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1330
+    selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
+    landing_revision: null
+    audit_ids:
+    - audit-436fa43dadd4
+    kind: result
+    applied: true
+    retired_at: '2026-08-24T17:46:08.331170+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1330
@@ -68,6 +82,19 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T17:15:38.475291+00:00'
     applied_at: '2026-08-24T17:15:46.128062+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1330
+    audit_id: audit-436fa43dadd4
+    attempt_id: no-auditor-audit-436fa43dadd4-3
+    target_state: Merged
+    evidence_fingerprint: 648cfbb5a46f2eac6fcd37b46d7fa0879085d7a392aaf39499e395f9e13383fb
+    status: Needs Human
+    audit_ids:
+    - audit-436fa43dadd4
+    kind: result
+    applied: true
+    created_at: '2026-08-24T17:46:08.331182+00:00'
+    applied_at: '2026-08-24T17:46:15.497420+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -115,7 +142,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1330
     target_state: Merged
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -186,6 +213,21 @@ oompah.terminal_audit:
         denied. Allowed validation targets: make test. The command was not executed.
         [reason=auditor_unapproved_validation_target]'
       next_retry_at: '2026-08-24T17:42:33.410724+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-436fa43dadd4-3
+      target_state: Merged
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 648cfbb5a46f2eac6fcd37b46d7fa0879085d7a392aaf39499e395f9e13383fb
+      verdict: fail
+      failure_classification: no_auditor
+      origin: coordinator_retry_exhaustion
+      created_at: '2026-08-24T17:46:08.331016+00:00'
+      completed_at: '2026-08-24T17:46:08.331016+00:00'
+      selected_ref: origin/OOMPAH-1330
+      selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
     source_generation: 1
     requested_by:
       version: 1
@@ -196,7 +238,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-880d1098e31e
     selected_ref: origin/OOMPAH-1330
     selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
-    updated_at: '2026-08-24T17:41:53.410750+00:00'
+    updated_at: '2026-08-24T17:46:08.331016+00:00'
     eligible_at: '2026-08-24T17:15:38.475074+00:00'
   attempt_history:
   - version: 1
@@ -279,7 +321,7 @@ oompah.terminal_audit:
       denied. Allowed validation targets: make test. The command was not executed.
       [reason=auditor_unapproved_validation_target]'
     next_retry_at: '2026-08-24T17:42:33.410724+00:00'
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.task_costs:
   total_input_tokens: 763
   total_output_tokens: 11260
@@ -500,5 +542,12 @@ Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 20s
 - Log: OOMPAH-1330__20260824T173652Z.jsonl
+---
+author: oompah
+created: 2026-08-24 17:46
+---
+Needs Human — Merged audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->

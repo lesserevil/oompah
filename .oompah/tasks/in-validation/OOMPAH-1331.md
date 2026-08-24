@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:28:31.897753Z'
-updated_at: '2026-08-24T17:41:46.197461Z'
+updated_at: '2026-08-24T17:46:24.977101Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -116,7 +116,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1331
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -162,6 +162,22 @@ oompah.terminal_audit:
       failure_classification: infrastructure_error
       ended_at: '2026-08-24T17:41:19.461134+00:00'
       failure_reason: retry ceiling reached; verdict left pending
+    - version: 1
+      attempt_id: attempt-b403b3146b95
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+      created_at: '2026-08-24T17:46:19.225538+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-24T17:46:19.225538+00:00'
+      branch_key: OOMPAH-1331
+      selected_ref: origin/OOMPAH-1331
+      selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
+      candidate_rotation_count: 2
     source_generation: 1
     requested_by:
       version: 1
@@ -172,7 +188,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-34bc00c97981
     selected_ref: origin/OOMPAH-1331
     selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
-    updated_at: '2026-08-24T17:41:19.461134+00:00'
+    updated_at: '2026-08-24T17:46:19.225538+00:00'
     eligible_at: '2026-08-24T17:16:59.920832+00:00'
   attempt_history:
   - version: 1
@@ -226,6 +242,22 @@ oompah.terminal_audit:
     selected_ref: origin/OOMPAH-1331
     selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
     candidate_rotation_count: 1
+  - version: 1
+    attempt_id: attempt-b403b3146b95
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+    created_at: '2026-08-24T17:46:19.225538+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-24T17:46:19.225538+00:00'
+    branch_key: OOMPAH-1331
+    selected_ref: origin/OOMPAH-1331
+    selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
+    candidate_rotation_count: 2
 oompah.lifecycle_revision: 1
 oompah.task_costs:
   total_input_tokens: 1154
@@ -388,5 +420,10 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 11m 12s
 - Log: OOMPAH-1331__20260824T173055Z.jsonl
+---
+author: oompah
+created: 2026-08-24 17:46
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/opus)
 ---
 <!-- COMMENTS:END -->
