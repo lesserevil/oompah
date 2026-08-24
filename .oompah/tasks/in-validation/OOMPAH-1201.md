@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:47.623989Z'
-updated_at: '2026-08-24T00:19:20.568886Z'
+updated_at: '2026-08-24T00:27:07.260929Z'
 work_branch: OOMPAH-1201
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/893
@@ -295,6 +295,8 @@ oompah.terminal_audit:
       from crashing terminal audits.'
     authorized_at: '2026-08-24T00:19:10.318179+00:00'
     mode: infrastructure_recovery
+    consumed_at: '2026-08-24T00:27:05.680248+00:00'
+    consumed_workflow_job_id: workflow-job-75b11dbf83c64264871aef5362ca55f8
   version: 1
   pending_chain:
   - version: 1
