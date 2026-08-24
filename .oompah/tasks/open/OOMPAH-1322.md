@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:15:25.298559Z'
-updated_at: '2026-08-24T09:45:05.623739Z'
+updated_at: '2026-08-24T13:31:18.615931Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,17 +36,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: dispatch cancelled during shared tracker claim
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 83b1f0276805676bbc523db0469bf82307116ce9dbb530a1db26bac688f32cec:167118
+  claim_owner: dab84cd2-f9be-40b5-86d6-c4367bbd5bbc
+  claimed_at: '2026-08-24T13:30:58.847129+00:00'
+  claim_expires_at: '2026-08-24T14:00:58.847129+00:00'
   retry_count: 2
-  retry_after: '2026-08-24T09:45:04.296388+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d65200cd-0660-460e-8da2-87c0c7036fd7
+oompah.agent_run_id: 2c367aaf-a43f-4c5d-9c15-0a78366d9763
 oompah.work_contributors:
   runs:
   - run_id: 71d1715257d34f909788c567fb76ee9b--contributor-a8b0475e7b09
@@ -235,5 +235,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Opencode/Switchyard/switchyard/
 - Cost: $0.0000
 - Exit: interrupted, Duration: 2m 3s
 - Log: OOMPAH-1322__20260824T062905Z.jsonl
+---
+author: oompah
+created: 2026-08-24 13:31
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
