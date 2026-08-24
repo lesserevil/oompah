@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:36:38.933130Z'
-updated_at: '2026-08-24T01:11:40.527796Z'
+updated_at: '2026-08-24T01:15:10.819384Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -504,5 +504,28 @@ Increase the default timeout by:
 3. Alternative: Set a higher default for the optional `contributor_evidence_persist_timeout_seconds` config option
 
 Next: Implementing the fix.
+---
+author: oompah
+created: 2026-08-24 01:15
+---
+**Implementation: Timeout Increased**
+
+Fixed the pre-provider contributor evidence timeout issue by increasing default timeout values in `oompah/config.py`:
+
+1. **worker_termination_timeout_ms**: Increased from 10,000ms (10s) to 20,000ms (20s)
+   - This is used in the timeout calculation: persistence_timeout = max(min(control_timeout, termination_timeout/2), 0.05)
+
+2. **terminal_control_lock_timeout_seconds**: Increased from 5.0s to 15.0s  
+   - This affects control_timeout in the calculation
+
+**Result**: With these changes, the calculated persistence_timeout increases from 5.0s to 10.0s
+- Before: persistence_timeout = max(min(5.0, 10/2), 0.05) = 5.0s
+- After: persistence_timeout = max(min(15.0, 20/2), 0.05) = 10.0s
+
+This provides sufficient time for slow tracker operations to complete without timing out.
+
+**Testing**: All 21 provider retirement tests pass, including the specific timeout test that verifies the graceful handling when persistence does timeout.
+
+Next: Commit and push the changes.
 ---
 <!-- COMMENTS:END -->
