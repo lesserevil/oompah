@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:47:52.188773Z'
-updated_at: '2026-08-24T07:15:05.789205Z'
+updated_at: '2026-08-24T07:16:29.857768Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -360,5 +360,21 @@ Changed getattr to use 60.0 as the default instead of None, ensuring the configu
 - All 21 provider_retirement tests pass
 - All 144 provider_retirement + epic_rebase_state tests pass
 - Specific timeout test still validates the behavior
+---
+author: oompah
+created: 2026-08-24 07:16
+---
+**Verification:**
+
+All tests pass:
+✓ test_pre_provider_evidence_timeout_releases_task_authority - validates timeout behavior
+✓ 21/21 provider_retirement tests
+✓ 144/144 provider_retirement + epic_rebase_state tests  
+✓ 13/13 error_watcher_orchestrator tests
+
+**Result:**
+The contributor evidence persistence timeout now uses the configured 60-second default instead of a calculated 5-second fallback. This resolves the timeout errors that were being auto-filed as tasks by error_watcher during normal operations.
+
+Changes committed and pushed to OOMPAH-1277 branch.
 ---
 <!-- COMMENTS:END -->
