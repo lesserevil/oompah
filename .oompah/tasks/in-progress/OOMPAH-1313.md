@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:40:43.878412Z'
-updated_at: '2026-08-24T09:17:44.627119Z'
+updated_at: '2026-08-24T09:24:14.799726Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -344,5 +344,34 @@ Increase the timeout from 5.0 seconds to a more reasonable value (e.g., 30 secon
 - Tests show this timeout is already configurable in production
 
 Next: Implementing timeout increase and adding configuration validation.
+---
+author: oompah
+created: 2026-08-24 09:24
+---
+**Implementation**
+
+Modified orchestrator.py to fix the pre-provider contributor evidence timeout issue:
+
+**Changes Made:**
+1. Restructured timeout calculation logic to prioritize configured values
+2. When `contributor_evidence_persist_timeout_seconds` is configured (default 60s from config.py), use it directly
+3. When not configured or None, use a fallback of min(30.0, termination_timeout) instead of control_timeout
+4. This ensures a minimum 10-second window for tracker metadata persistence (vs the previous 5s)
+
+**Code Changes:**
+- File: oompah/orchestrator.py (lines 58026-58044)
+- Reordered logic to check config first, then apply reasonable fallback
+- Added explanatory comments about tracker latency requirements
+
+**Test Coverage:**
+- Existing test_pre_provider_evidence_timeout_releases_task_authority: PASS
+- New test_pre_provider_evidence_timeout_uses_fallback_when_unconfigured: PASS
+- All 22 tests in test_provider_retirement.py: PASS
+- All 71 contributor-related tests in test_orchestrator_handlers.py: PASS
+
+The fix gracefully handles the timeout by:
+1. Using a reasonable default that accommodates tracker latency
+2. Allowing configuration override for production tuning
+3. Maintaining backward compatibility with existing test scenarios
 ---
 <!-- COMMENTS:END -->
