@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1217
 type: bug
-status: In Validation
+status: Needs Human
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-122 identifier=TRICKLE-122 run_id=55adaba352c743fc8a2cfc754517629a
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:53.373319Z'
-updated_at: '2026-08-24T00:07:25.465820Z'
+updated_at: '2026-08-24T00:12:15.771041Z'
 work_branch: OOMPAH-1217
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/897
 review_number: '897'
 review_head: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
 merged_at: null
-oompah.lifecycle_revision: 7
+oompah.lifecycle_revision: 8
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -169,6 +169,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1217
     digest: 35603ee8a46ec524aa496df57a6c6127b5531f39ab835e3fc39e1e2082bed033
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1217","audit-de399cf31768","infrastructure-exhausted-audit-de399cf31768-3"]': '2026-08-24T00:12:04.425205+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1217
+    target_state: Done
+    evidence_fingerprint: 35603ee8a46ec524aa496df57a6c6127b5531f39ab835e3fc39e1e2082bed033
+    workflow_revision: cbde4578c71296984a9f6b9e05b155e8360031432401e5fdd90bf1c4edacbf9b
+    selected_ref: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
+    selected_sha: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
+    landing_revision: null
+    audit_ids:
+    - audit-de399cf31768
+    kind: result
+    applied: true
+    retired_at: '2026-08-24T00:12:04.425221+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1217
+    audit_id: audit-de399cf31768
+    attempt_id: infrastructure-exhausted-audit-de399cf31768-3
+    target_state: Done
+    evidence_fingerprint: 35603ee8a46ec524aa496df57a6c6127b5531f39ab835e3fc39e1e2082bed033
+    status: Needs Human
+    audit_ids:
+    - audit-de399cf31768
+    kind: result
+    applied: true
+    created_at: '2026-08-24T00:12:04.425233+00:00'
+    applied_at: '2026-08-24T00:12:11.625781+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -176,7 +206,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1217
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -224,7 +254,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-34193868bee5
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -237,6 +267,26 @@ oompah.terminal_audit:
       selected_ref: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
       selected_sha: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
       candidate_rotation_count: 2
+      failure_classification: infrastructure_error
+      origin: coordinator_abandoned_recovery
+      ended_at: '2026-08-24T00:11:57.238735+00:00'
+      failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
+      next_retry_at: '2026-08-24T00:12:37.238708+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-de399cf31768-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 35603ee8a46ec524aa496df57a6c6127b5531f39ab835e3fc39e1e2082bed033
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      origin: coordinator_retry_exhaustion
+      created_at: '2026-08-24T00:12:04.425076+00:00'
+      completed_at: '2026-08-24T00:12:04.425076+00:00'
+      selected_ref: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
+      selected_sha: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
     source_generation: 1
     requested_by:
       version: 1
@@ -248,7 +298,7 @@ oompah.terminal_audit:
     selected_ref: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
     selected_sha: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
     workflow_revision: cbde4578c71296984a9f6b9e05b155e8360031432401e5fdd90bf1c4edacbf9b
-    updated_at: '2026-08-24T00:07:10.717111+00:00'
+    updated_at: '2026-08-24T00:12:04.425076+00:00'
   - version: 1
     audit_id: audit-b1b449c90517
     project_id: proj-14849f1b
@@ -314,7 +364,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-34193868bee5
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -327,6 +377,11 @@ oompah.terminal_audit:
     selected_ref: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
     selected_sha: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
     candidate_rotation_count: 2
+    failure_classification: infrastructure_error
+    origin: coordinator_abandoned_recovery
+    ended_at: '2026-08-24T00:11:57.238735+00:00'
+    failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
+    next_retry_at: '2026-08-24T00:12:37.238708+00:00'
 ---
 ## Summary
 
@@ -560,5 +615,27 @@ author: oompah
 created: 2026-08-24 00:07
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 00:11
+---
+Run #3 [attempt=3, profile=auditor, role=auditor -> Opencode/Switchyard/switchyard/auto]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 4m 39s
+- Log: OOMPAH-1217__20260824T000735Z.jsonl
+---
+author: oompah
+created: 2026-08-24 00:12
+---
+Needs Human — Done audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
+---
+author: oompah
+created: 2026-08-24 00:12
+---
+Auditor attempt ended: ValueError: Separator is found, but chunk is longer than limit. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
