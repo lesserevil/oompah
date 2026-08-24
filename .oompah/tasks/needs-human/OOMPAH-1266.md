@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1266
 type: bug
-status: In Validation
+status: Needs Human
 priority: 1
 title: Fence late task submission from regressing landed integration authority
 parent: OOMPAH-1231
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-24T04:20:17.975905Z'
+updated_at: '2026-08-24T04:22:42.515704Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: o1263-post-merge-submit-provenance-regression
   request_fingerprint: 9a9d8d03687f81678f5061a4c7f6ca12b789b64399e6fd9b92b89ef14dc3e4b5
-oompah.lifecycle_revision: 8
+oompah.lifecycle_revision: 9
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 9f3a0a5a59f2a06ff79051089822dbfee82b28352e54ad90889e4e0d3419a375
@@ -199,6 +199,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1266","audit-97804bbb892c","infrastructure-exhausted-audit-97804bbb892c-3"]': '2026-08-21T15:40:21.194395+00:00'
     '["proj-14849f1b","OOMPAH-1266","audit-c7c92f145c10","infrastructure-exhausted-audit-c7c92f145c10-3"]': '2026-08-23T22:56:05.355470+00:00'
+    '["proj-14849f1b","OOMPAH-1266","audit-3bc41860abf1","no-auditor-audit-3bc41860abf1-3"]': '2026-08-24T04:22:33.850001+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1266
@@ -211,6 +212,7 @@ oompah.terminal_audit:
     audit_ids:
     - audit-97804bbb892c
     - audit-c7c92f145c10
+    - audit-3bc41860abf1
     kind: result
     applied: true
     retired_at: '2026-08-21T15:40:21.194412+00:00'
@@ -267,6 +269,19 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T00:20:29.357297+00:00'
     applied_at: '2026-08-24T00:20:39.023161+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1266
+    audit_id: audit-3bc41860abf1
+    attempt_id: no-auditor-audit-3bc41860abf1-3
+    target_state: Done
+    evidence_fingerprint: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+    status: Needs Human
+    audit_ids:
+    - audit-3bc41860abf1
+    kind: result
+    applied: true
+    created_at: '2026-08-24T04:22:33.850030+00:00'
+    applied_at: '2026-08-24T04:22:41.096956+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-c7c92f145c10
@@ -513,7 +528,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1266
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -578,6 +593,21 @@ oompah.terminal_audit:
       ended_at: '2026-08-24T04:20:08.187131+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-24T04:20:48.187107+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-3bc41860abf1-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+      verdict: fail
+      failure_classification: no_auditor
+      origin: coordinator_retry_exhaustion
+      created_at: '2026-08-24T04:22:33.849864+00:00'
+      completed_at: '2026-08-24T04:22:33.849864+00:00'
+      selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+      selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
     source_generation: 3
     requested_by:
       version: 1
@@ -588,7 +618,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T00:20:29.356971+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-24T04:20:08.187131+00:00'
+    updated_at: '2026-08-24T04:22:33.849864+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ebdec741f7d0
@@ -1238,5 +1268,12 @@ author: oompah
 created: 2026-08-24 04:20
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-24 04:22
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
