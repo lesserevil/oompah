@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:59:54.516015Z'
-updated_at: '2026-08-24T07:08:59.206062Z'
+updated_at: '2026-08-24T07:09:21.490624Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -187,16 +187,16 @@ oompah.work_contributors:
     model_id: switchyard/auto
     focus: general
     source_branch: OOMPAH-1297
-    source_sha: null
-    completed_at: ''
+    source_sha: 8c81b69c713e9bb6a1da8906b7e637f1ea6a1696
+    completed_at: '2026-08-24T07:09:13.256486+00:00'
 oompah.task_costs:
-  total_input_tokens: 18985
-  total_output_tokens: 2935
+  total_input_tokens: 19136
+  total_output_tokens: 3071
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 18985
-      output_tokens: 2935
+      input_tokens: 19136
+      output_tokens: 3071
       cost_usd: 0.0
   runs:
   - profile: default
@@ -223,6 +223,12 @@ oompah.task_costs:
     output_tokens: 117
     cost_usd: 0.0
     recorded_at: '2026-08-24T05:50:02.608208+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 151
+    output_tokens: 136
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T07:09:13.251930+00:00'
 ---
 ## Summary
 
@@ -528,5 +534,15 @@ author: oompah
 created: 2026-08-24 07:08
 ---
 Blocker: cannot submit because this worktree is on branch OOMPAH-1306 (task expects OOMPAH-1297). Code/test evidence: orchestrator emits logger.warning (not error) for the 'Pre-provider contributor evidence exceeded its bounded task-authority deadline...' path in oompah/orchestrator.py (line ~58069). Verified: pytest -q tests/test_provider_retirement.py -k pre_provider_evidence_timeout_releases_task_authority (pass). Next: operator/automation needs to checkout OOMPAH-1297 worktree for submission.
+---
+author: oompah
+created: 2026-08-24 07:09
+---
+Run #1 [attempt=1, profile=default, role=fast -> Opencode/Switchyard/switchyard/auto]
+- Turns: 22, Tool calls: 22
+- Tokens: 151 in / 136 out [50.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 34s
+- Log: OOMPAH-1297__20260824T070729Z.jsonl
 ---
 <!-- COMMENTS:END -->
