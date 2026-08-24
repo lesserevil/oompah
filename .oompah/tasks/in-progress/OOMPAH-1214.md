@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:56:36.835031Z'
-updated_at: '2026-08-24T06:43:27.042190Z'
+updated_at: '2026-08-24T06:46:45.401844Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -435,5 +435,36 @@ Made two key changes to fix the pre-provider contributor evidence timeout issue:
 **Tests:** All 21 provider_retirement tests and 168 config tests pass.
 
 Commit: 94c622052
+---
+author: oompah
+created: 2026-08-24 06:46
+---
+**Verification: Tests Pass**
+
+Ran comprehensive tests to verify the fix:
+
+✓ test_pre_provider_evidence_timeout_releases_task_authority - PASSED
+  Confirms timeout behavior works correctly when configured timeout is intentionally small
+
+✓ All 21 provider_retirement tests - PASSED
+  Ensures no regression in provider lifecycle handling
+
+✓ All 168 config tests - PASSED  
+  Verifies configuration loading and defaults work correctly
+
+Total: 189 core tests passing
+
+**How the fix resolves OOMPAH-1214:**
+- Previously: 5-second calculated timeout caused slow tracker operations to fail
+- Now: 60-second configured timeout is guaranteed to be used
+- Slow git operations on provenanceguardedtracker now have adequate time
+- error_watcher will no longer be triggered for normal slow operations
+
+**Changes summary:**
+- 1 line: orchestrator.py getattr default (None → 60.0)
+- 2 lines: .env.example documentation update
+- 0 lines: No behavior changes to existing tests
+
+Commit pushed: 94c622052
 ---
 <!-- COMMENTS:END -->
