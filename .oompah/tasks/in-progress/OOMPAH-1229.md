@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:37:50.327401Z'
-updated_at: '2026-08-24T09:07:00.816980Z'
+updated_at: '2026-08-24T09:08:01.995768Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -451,5 +451,10 @@ author: oompah
 created: 2026-08-24 09:07
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-08-24 09:08
+---
+**Understanding:** This is a race condition bug in the WebSocket fault-injection test (test_four_completion_snapshots_converge_to_zero_running_chips) that manifests on Python 3.13 but not 3.11/3.12. The test expects to observe 4 broadcast completion envelopes, but the final zero-running broadcast races the assertion check. The fix requires replacing timing-dependent observation with explicit synchronization (bounded wait) that proves all 4 broadcasts were processed before asserting, while preserving the real WebSocket/broadcast/full-sync path and avoiding sleep-based correctness. **Plan:** (1) Explore the test file to understand current implementation, (2) Identify the race condition and synchronization points, (3) Implement bounded synchronization mechanism, (4) Add regression tests across Python versions, (5) Verify test reliability.
 ---
 <!-- COMMENTS:END -->
