@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:16:52.125972Z'
-updated_at: '2026-08-24T09:55:37.747918Z'
-work_branch: null
+updated_at: '2026-08-24T09:55:57.295718Z'
+work_branch: OOMPAH-1290
 target_branch: null
 review_url: null
 review_number: null
@@ -126,7 +126,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 27ca38c4-28b0-4c5c-b1e8-5969ea6dd19c
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 883d7c8a5dbb4140bb65fa6463ba9a7a--contributor-a8b0475e7b09
@@ -201,6 +201,18 @@ oompah.task_costs:
     output_tokens: 1451
     cost_usd: 0.0
     recorded_at: '2026-08-24T07:04:50.114883+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1290
+  base_branch: main
+  base_sha: 4988991309ba81b6b2cf06aa30528bf5f21b0a82
+  head_sha: 43792bdbb2251803f7c6f06d66d3b4b8435e0aa0
+  submitted_at: '2026-08-24T09:55:44.775116+00:00'
+  updated_at: '2026-08-24T09:55:44.775116+00:00'
+oompah.work_branch: OOMPAH-1290
 ---
 ## Summary
 
@@ -397,5 +409,10 @@ author: oompah
 created: 2026-08-24 09:55
 ---
 **Verification**: Ran comprehensive test suite to verify fix: (1) tests/test_config.py - All 168 tests passed, including default config and environment variable override tests, (2) tests/test_provider_retirement.py - All 21 tests passed, including contributor evidence and timeout-related tests, (3) No regressions detected. The increased timeout from 60s to 300s should resolve dispatch failures caused by slow tracker I/O without impacting normal operation.
+---
+author: oompah
+created: 2026-08-24 09:55
+---
+Resolved contributor evidence timeout issue by increasing default persistence timeout from 60 seconds to 300 seconds (5 minutes). Updated ServiceConfig class and from_workflow() method defaults, and corresponding test assertions. This gives slow tracker implementations sufficient time to complete metadata I/O operations during pre-provider launch phase, preventing dispatch failures and error_watcher alerts.
 ---
 <!-- COMMENTS:END -->
