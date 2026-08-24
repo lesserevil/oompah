@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:59:54.516015Z'
-updated_at: '2026-08-24T11:55:14.169430Z'
+updated_at: '2026-08-24T11:55:21.640810Z'
 work_branch: OOMPAH-1297
 target_branch: null
 review_url: null
@@ -335,8 +335,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-ff07d2ab1781
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-24T11:55:10.180408+00:00'
+    applied_at: '2026-08-24T11:55:19.673917+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -913,5 +914,23 @@ author: oompah
 created: 2026-08-24 11:51
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 11:55
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- fix_location: oompah/orchestrator.py:58066
+- log_level_used: logger.warning()
+- no_logger_error_for_this_path: confirmed - search across all logger.error calls in orchestrator.py finds no match for Pre-provider contributor evidence or bounded task-authority deadline
+- focused_test: tests/test_provider_retirement.py::test_pre_provider_evidence_timeout_releases_task_authority
+- focused_test_assertions: asserts bounded task-authority deadline in error, task authority released, provider not started, audit budget reservation called
+- full_gate_sha: 8c81b69c713e9bb6a1da8906b7e637f1ea6a1696
+- full_gate_result: passed
+- full_gate_duration_seconds: 187.1
+- prior_audit_verdict: PASS (attempt #1)
 ---
 <!-- COMMENTS:END -->
