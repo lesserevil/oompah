@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1268
 type: task
-status: In Validation
+status: Merged
 priority: 3
 title: Archive workflow_job_events for Archived tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-24T16:00:35.938364Z'
+updated_at: '2026-08-24T16:12:52.007973Z'
 work_branch: OOMPAH-1268
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 3211e93d-73f6-4a41-99a7-1bdcaa479ed0
   request_fingerprint: 2efda9a8ba2e984ce57f567673ef41d1f8d9cc0aaaf21d0aff8871d9296ce4a0
-oompah.lifecycle_revision: 12
+oompah.lifecycle_revision: 13
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -407,6 +407,29 @@ oompah.terminal_audit:
     mode: infrastructure_recovery
     consumed_at: '2026-08-24T15:35:08.655154+00:00'
     consumed_workflow_job_id: workflow-job-27088730b0c3425c94606a3cd7c707d6
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-3ae4d3a938aa
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1268
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner override: independent OpenCode auditor provider (prov-6cf41c89/switchyard/auto)
+      is crashing on >64KiB ACP JSON-RPC lines (tracked in OOMPAH-1330), exhausting
+      the audit budget and holding restart reconstruction open. Implementation is
+      complete and branch quality gate passed for both tasks; applying recorded terminal
+      status to unblock the workflow. Re-audit not possible until OOMPAH-1330 is fixed.'
+    created_at: '2026-08-24T16:12:47.908710+00:00'
+    selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    applied: false
   version: 1
   pending_chain:
   - version: 1

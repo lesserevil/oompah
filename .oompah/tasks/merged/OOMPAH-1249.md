@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:07:17.780951Z'
-updated_at: '2026-08-24T16:12:31.809419Z'
+updated_at: '2026-08-24T16:12:45.596861Z'
 work_branch: OOMPAH-1249
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/896
@@ -117,8 +117,8 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 5806
-  total_output_tokens: 2797
+  total_input_tokens: 5952
+  total_output_tokens: 2850
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -126,8 +126,8 @@ oompah.task_costs:
       output_tokens: 2561
       cost_usd: 0.0
     unknown:
-      input_tokens: 5796
-      output_tokens: 236
+      input_tokens: 5942
+      output_tokens: 289
       cost_usd: 0.0
   runs:
   - profile: default
@@ -160,6 +160,12 @@ oompah.task_costs:
     output_tokens: 56
     cost_usd: 0.0
     recorded_at: '2026-08-24T15:36:07.267860+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 146
+    output_tokens: 53
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T16:12:39.978607+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -205,6 +211,21 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-24T13:37:21.467148+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1249
+    target_state: Merged
+    evidence_fingerprint: 64d0230cdd9adb22482599e2eea650a627416ba7c558fb6b68ff1832d2d572a3
+    workflow_revision: null
+    selected_ref: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
+    selected_sha: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
+    landing_revision: null
+    audit_ids:
+    - audit-20ec696fc6ec
+    - audit-74d9bc4f85fc
+    - audit-a71d8171b8cc
+    kind: override
+    applied: true
+    retired_at: '2026-08-24T16:12:36.799884+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1249
@@ -219,6 +240,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T13:37:21.467159+00:00'
     applied_at: '2026-08-24T13:37:28.636046+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-1249
     audit_id: audit-a71d8171b8cc
@@ -232,6 +254,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T15:28:26.015309+00:00'
     applied_at: '2026-08-24T15:28:32.317145+00:00'
+    retired_by_override: true
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-a71d8171b8cc
@@ -278,7 +301,7 @@ oompah.terminal_audit:
     created_at: '2026-08-24T16:12:27.570256+00:00'
     selected_ref: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
     selected_sha: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -404,7 +427,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1249
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -475,7 +498,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T15:28:26.015117+00:00'
     selected_ref: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
     selected_sha: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
-    updated_at: '2026-08-24T15:49:28.290189+00:00'
+    updated_at: '2026-08-24T16:12:36.799840+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cdf8e279c069
@@ -897,5 +920,22 @@ author: oompah
 created: 2026-08-24 15:49
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 16:12
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner override: independent OpenCode auditor provider (prov-6cf41c89/switchyard/auto) is crashing on >64KiB ACP JSON-RPC lines (tracked in OOMPAH-1330), exhausting the audit budget and holding restart reconstruction open. Implementation is complete and branch quality gate passed for both tasks; applying recorded terminal status to unblock the workflow. Re-audit not possible until OOMPAH-1330 is fixed.
+---
+author: oompah
+created: 2026-08-24 16:12
+---
+Run #3 [attempt=3, profile=auditor, role=auditor -> Opencode/Switchyard/switchyard/auto]
+- Turns: 0, Tool calls: 51
+- Tokens: 146 in / 53 out [58.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 23m 9s
+- Log: OOMPAH-1249__20260824T154951Z.jsonl
 ---
 <!-- COMMENTS:END -->
