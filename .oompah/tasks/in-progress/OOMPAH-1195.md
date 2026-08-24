@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1195
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-137'
 parent: null
@@ -11,14 +11,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:17.683117Z'
-updated_at: '2026-08-24T09:03:33.800579Z'
+updated_at: '2026-08-24T09:03:52.391658Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -159,6 +159,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1195
     source_sha: 4988991309ba81b6b2cf06aa30528bf5f21b0a82
     completed_at: '2026-08-24T06:08:47.510327+00:00'
+  - run_id: b52ec447ed4e4312a697e780b3f63679--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: general
+    source_branch: OOMPAH-1195
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 20
   total_output_tokens: 3452
