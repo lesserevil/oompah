@@ -106,6 +106,28 @@ def _append_git_config(
     env["GIT_CONFIG_COUNT"] = str(count + 1)
 
 
+def _url_rewrite_matches_canonical(prefix: str, canonical_url: str) -> bool:
+    """Return whether an insteadOf prefix can rewrite the canonical URL.
+
+    Git applies ``url.<base>.insteadOf`` when the configured value is a prefix
+    of the requested URL. Compare credential-free forms so a local rule cannot
+    evade cleanup by embedding HTTP userinfo in its match prefix.
+    """
+
+    def credential_free(value: str) -> str:
+        try:
+            parsed = urllib.parse.urlsplit(str(value).strip())
+        except ValueError:
+            return str(value).strip()
+        if parsed.scheme.lower() not in {"http", "https"}:
+            return str(value).strip()
+        return parsed._replace(netloc=parsed.netloc.rsplit("@", 1)[-1]).geturl()
+
+    candidate = credential_free(canonical_url)
+    match_prefix = credential_free(prefix)
+    return bool(match_prefix and candidate.startswith(match_prefix))
+
+
 def sanitize_managed_clone_credentials(
     repo_path: str,
     *,
@@ -194,7 +216,45 @@ def sanitize_managed_clone_credentials(
     except (OSError, subprocess.TimeoutExpired):
         pass  # Non-fatal; continue with credential config cleanup
 
-    # Second, remove credential.helper entries
+    # Second, remove local url.*.insteadOf entries that can rewrite the
+    # canonical project URL before Git contacts the remote. A stale rewrite
+    # such as
+    #
+    #   url.git@gitlab.example:.insteadOf=https://gitlab.example/
+    #
+    # makes ``remote.origin.url`` look correct while silently routing every
+    # fetch back through SSH. Only remove repository-local entries whose
+    # prefix matches the canonical URL; unrelated rewrites and global/system
+    # configuration remain untouched. (OOMPAH-1335)
+    if canonical_url:
+        try:
+            rewrite_result = subprocess.run(
+                ["git", "config", "--local", "--get-regexp", r"^url\..*\.insteadof$"],
+                cwd=str(repo_dir),
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            if rewrite_result.returncode == 0:
+                for line in rewrite_result.stdout.splitlines():
+                    parts = line.split(maxsplit=1)
+                    if len(parts) != 2:
+                        continue
+                    key, prefix = parts
+                    if not _url_rewrite_matches_canonical(prefix, canonical_url):
+                        continue
+                    subprocess.run(
+                        ["git", "config", "--local", "--unset-all", key],
+                        cwd=str(repo_dir),
+                        capture_output=True,
+                        timeout=10,
+                        check=False,
+                    )
+        except (OSError, subprocess.TimeoutExpired):
+            pass  # Non-fatal; continue with credential config cleanup
+
+    # Third, remove credential.helper entries
     try:
         # Get all credential.helper configurations
         config_result = subprocess.run(
@@ -220,7 +280,7 @@ def sanitize_managed_clone_credentials(
     except (OSError, subprocess.TimeoutExpired):
         pass  # Non-fatal; continue
 
-    # Third, remove http.*.extraheader entries
+    # Fourth, remove http.*.extraheader entries
     try:
         config_result = subprocess.run(
             ["git", "config", "--local", "--get-regexp", r"^http\..*\.extraheader$"],

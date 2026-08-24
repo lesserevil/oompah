@@ -574,11 +574,11 @@ def test_sanitize_managed_clone_removes_http_userinfo(tmp_path: Path) -> None:
         ["git", "-C", str(repo), "config", "user.email", "test@example.test"],
         check=True,
     )
-    
+
     # Manually set a remote URL with embedded credentials (bypass git remote add
     # which may validate the URL)
     subprocess.run(
-        ["git", "-C", str(repo), "config", "--local", "remote.origin.url", 
+        ["git", "-C", str(repo), "config", "--local", "remote.origin.url",
          "https://user:password@github.com/org/repo.git"],
         check=True,
     )
@@ -738,6 +738,134 @@ def test_sanitize_managed_clone_normalizes_to_canonical_url(tmp_path: Path) -> N
     assert result.stdout.strip() == canonical
 
 
+def test_sanitize_managed_clone_removes_canonical_url_rewrite(tmp_path: Path) -> None:
+    """A local insteadOf rule must not rewrite canonical HTTPS back to SSH."""
+    from oompah.git_credentials import sanitize_managed_clone_credentials
+
+    repo = tmp_path / "repo"
+    subprocess.run(
+        ["git", "init", "-b", "main", str(repo)],
+        check=True,
+        capture_output=True,
+    )
+    canonical = "https://gitlab.example/org/repo.git"
+    rewrite_key = "url.git@gitlab.example:.insteadof"
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "config",
+            "--local",
+            "remote.origin.url",
+            canonical,
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "config",
+            "--local",
+            rewrite_key,
+            "https://gitlab.example/",
+        ],
+        check=True,
+    )
+
+    before = subprocess.run(
+        ["git", "-C", str(repo), "remote", "get-url", "origin"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert before.stdout.strip() == "git@gitlab.example:org/repo.git"
+
+    sanitize_managed_clone_credentials(str(repo), canonical_url=canonical)
+
+    rewrite = subprocess.run(
+        ["git", "-C", str(repo), "config", "--local", "--get-all", rewrite_key],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert rewrite.returncode == 1
+    after = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "config",
+            "--local",
+            "remote.origin.url",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert after.stdout.strip() == canonical
+
+
+def test_sanitize_managed_clone_preserves_unrelated_url_rewrite(
+    tmp_path: Path,
+) -> None:
+    """Sanitization only removes rewrite prefixes affecting canonical origin."""
+    from oompah.git_credentials import sanitize_managed_clone_credentials
+
+    repo = tmp_path / "repo"
+    subprocess.run(
+        ["git", "init", "-b", "main", str(repo)],
+        check=True,
+        capture_output=True,
+    )
+    canonical = "https://gitlab.example/org/repo.git"
+    unrelated_key = "url.https://mirror.example/.insteadof"
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "config",
+            "--local",
+            "remote.origin.url",
+            canonical,
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "config",
+            "--local",
+            unrelated_key,
+            "https://unrelated.example/",
+        ],
+        check=True,
+    )
+
+    sanitize_managed_clone_credentials(str(repo), canonical_url=canonical)
+
+    rewrite = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "config",
+            "--local",
+            "--get-all",
+            unrelated_key,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert rewrite.stdout.strip() == "https://unrelated.example/"
+
+
 def test_sanitize_managed_clone_is_idempotent(tmp_path: Path) -> None:
     """Sanitization must be idempotent and not fail on already-clean repos."""
     from oompah.git_credentials import sanitize_managed_clone_credentials
@@ -807,7 +935,7 @@ def test_direct_rebase_preflight_passes_after_sanitization(
         ["git", "-C", str(repo), "config", "user.email", "test@example.test"],
         check=True,
     )
-    
+
     # Add various credential routes that would fail preflight
     subprocess.run(
         [
