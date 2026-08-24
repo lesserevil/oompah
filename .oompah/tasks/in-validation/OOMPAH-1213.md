@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1213
 type: bug
-status: Needs Human
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] Restart recovery persistence failed closed: restart
   recovery publication was not acknowledged'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:50:52.786229Z'
-updated_at: '2026-08-24T18:40:09.385286Z'
+updated_at: '2026-08-24T23:56:00.311570Z'
 work_branch: OOMPAH-1213
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/895
 review_number: '895'
 review_head: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
 merged_at: null
-oompah.lifecycle_revision: 12
+oompah.lifecycle_revision: 13
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -293,6 +293,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T18:40:00.631709+00:00'
     applied_at: '2026-08-24T18:40:08.116602+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1213
+    audit_id: audit-5b05e98dfed4
+    attempt_id: audit-rearm:audit-5b05e98dfed4
+    target_state: Done
+    evidence_fingerprint: 0be5dc22447d8e61d317e4d046481be1c6170edb89ce02264cc0c6b5a198147b
+    status: In Validation
+    audit_ids:
+    - audit-5b05e98dfed4
+    kind: audit_rearm
+    applied: false
+    created_at: '2026-08-24T23:55:52.140864+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-9d5ccd0cee7d
@@ -340,6 +352,27 @@ oompah.terminal_audit:
     mode: infrastructure_recovery
     consumed_at: '2026-08-24T15:35:20.530733+00:00'
     consumed_workflow_job_id: workflow-job-dab1fac8e9bf4c94ba86ffb6a4141d4d
+  - version: 2
+    audit_id: audit-5b05e98dfed4
+    superseded_audit_id: audit-2ab333ebab86
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1213
+    target_state: Done
+    evidence_fingerprint: 0be5dc22447d8e61d317e4d046481be1c6170edb89ce02264cc0c6b5a198147b
+    workflow_revision: f8e345804f381f9cffa9c50cb924682f90c5bd2b4e6b162e81ec65339f70d8fc
+    selected_ref: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
+    selected_sha: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
+    landing_revision: null
+    source_generation: 4
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Verdict-capable independent auditor capacity restored: OOMPAH-1333 excludes
+      incapable OpenCode/native subscription transports; healthy Claude candidates
+      with submit_audit_result bridge remain.'
+    authorized_at: '2026-08-24T23:55:52.140655+00:00'
+    mode: infrastructure_recovery
   version: 1
   pending_chain:
   - version: 1
@@ -564,7 +597,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1213
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -655,7 +688,29 @@ oompah.terminal_audit:
     selected_ref: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
     selected_sha: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
     workflow_revision: f8e345804f381f9cffa9c50cb924682f90c5bd2b4e6b162e81ec65339f70d8fc
-    updated_at: '2026-08-24T18:40:00.631510+00:00'
+    updated_at: '2026-08-24T23:55:52.140655+00:00'
+  - version: 1
+    audit_id: audit-5b05e98dfed4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1213
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0be5dc22447d8e61d317e4d046481be1c6170edb89ce02264cc0c6b5a198147b
+    attempts: []
+    source_generation: 4
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Review
+    created_at: '2026-08-24T23:55:52.140655+00:00'
+    eligible_at: '2026-08-24T23:55:52.140655+00:00'
+    selected_ref: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
+    selected_sha: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
+    workflow_revision: f8e345804f381f9cffa9c50cb924682f90c5bd2b4e6b162e81ec65339f70d8fc
   attempt_history:
   - version: 1
     attempt_id: attempt-bda598eb26e4
