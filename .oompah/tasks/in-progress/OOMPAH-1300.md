@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:03:07.024179Z'
-updated_at: '2026-08-24T04:57:54.609458Z'
+updated_at: '2026-08-24T05:05:10.093062Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -319,5 +319,26 @@ author: oompah
 created: 2026-08-24 04:57
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 05:05
+---
+## Understanding
+
+The issue is an error being logged by backend:orchestrator:
+
+\`\`\`
+Pre-provider contributor evidence exceeded its bounded task-authority deadline issue_id=OOMPAH-1216 identifier=OOMPAH-1216 run_id=5063090547c34f1aa435b6e58794299f timeout_seconds=5.0
+\`\`\`
+
+This appears to be triggered when \`_stage_work_contributor_launch\` times out while persisting contributor evidence (a TimeoutError exception caught at orchestrator.py:58047).
+
+The error is being captured by error_watcher and auto-filed as a task, but it should be handled gracefully. The test \`test_pre_provider_evidence_timeout_releases_task_authority\` shows that this timeout is a normal, graceful degradation path that should return a user-facing error message, not trigger error_watcher.
+
+**Planned approach:**
+1. Identify the exact logging call that's triggering error_watcher
+2. Change it from ERROR to WARNING level (or handle it differently to avoid auto-filing)
+3. Verify the test still passes
+4. Commit and submit
 ---
 <!-- COMMENTS:END -->
