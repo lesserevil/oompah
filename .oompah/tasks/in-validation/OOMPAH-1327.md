@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-23T21:54:32.810884Z'
-updated_at: '2026-08-24T00:27:58.970216Z'
+updated_at: '2026-08-24T00:28:23.924065Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -150,6 +150,22 @@ oompah.terminal_audit:
     selected_ref: origin/OOMPAH-1327
     selected_sha: a1bdfad376af434e72551b698b2171863b4857dd
 oompah.lifecycle_revision: 1
+oompah.task_costs:
+  total_input_tokens: 162
+  total_output_tokens: 6382
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 162
+      output_tokens: 6382
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 162
+    output_tokens: 6382
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T00:28:20.923344+00:00'
 ---
 ## Summary
 
@@ -217,5 +233,15 @@ Safe evidence:
 - test_verification: tests/test_agent.py line 48 asserts create_process.await_args.kwargs['limit'] == MAX_LINE_SIZE
 - quality_gate: make test passed (SHA a1bdfad376af434e72551b698b2171863b4857dd, 185.9s)
 - test_count: 27+ tests in test_agent.py all passing
+---
+author: oompah
+created: 2026-08-24 00:28
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 50, Tool calls: 19
+- Tokens: 162 in / 6.4K out [6.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 51s
+- Log: OOMPAH-1327__20260824T002344Z.jsonl
 ---
 <!-- COMMENTS:END -->
