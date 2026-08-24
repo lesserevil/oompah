@@ -118,6 +118,7 @@ def _observe(
     reconciliation_complete: bool = True,
     required_recovery_count: int = 0,
     materialized_recovery_count: int = 0,
+    source_scan_deferred: bool = False,
 ):
     identities = expected or tuple(
         (decision.project_id, decision.task_id) for decision in decisions
@@ -133,6 +134,7 @@ def _observe(
         decision_facts=decision_facts,
         source_errors=source_errors,
         excluded_projects=excluded_projects,
+        source_scan_deferred=source_scan_deferred,
         now=now,
     )
 
@@ -146,6 +148,50 @@ def test_empty_complete_coverage_is_healthy_and_quiet():
     assert health.scan_complete
     assert health.total_nonterminal_count == 0
     assert workflow_liveness_health_alerts(health) == []
+
+
+def test_publication_deferred_scan_finalizes_when_fully_reconciled():
+    # OOMPAH-1331: a scan that is only "incomplete" because publication
+    # deferred already-covered tasks (terminal-audit disposition changes)
+    # must not leave restart reconstruction pending forever with a phantom
+    # unexplained divergence. With no source errors, reconciliation
+    # complete, no missing decisions, and full recovery materialization,
+    # the tracker must finalize.
+    tracker = WorkflowLivenessTracker(clock=lambda: NOW)
+
+    health = _observe(
+        tracker,
+        (),
+        source_scan_complete=False,
+        source_scan_deferred=True,
+        reconciliation_complete=True,
+        required_recovery_count=83,
+        materialized_recovery_count=83,
+    )
+
+    assert health.scan_complete
+    assert health.restart_reconstruction_pending is False
+    assert health.current_divergence_count == 0
+    assert health.unexplained_count == 0
+    assert health.status != "invariant_breach"
+
+
+def test_non_deferred_incomplete_scan_still_fails_closed():
+    # A genuinely incomplete scan (not a publication deferral) must remain
+    # fail-closed even when recovery is fully materialized.
+    tracker = WorkflowLivenessTracker(clock=lambda: NOW)
+
+    health = _observe(
+        tracker,
+        (),
+        source_scan_complete=False,
+        source_scan_deferred=False,
+        reconciliation_complete=True,
+        required_recovery_count=83,
+        materialized_recovery_count=83,
+    )
+
+    assert health.scan_complete is False
 
 
 def test_exact_authoritative_deadline_is_healthy_then_one_second_late_is_not():

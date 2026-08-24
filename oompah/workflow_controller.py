@@ -186,6 +186,7 @@ class ControllerObservation:
     excluded_projects: Mapping[str, str]
     observed_at: datetime
     policy_epoch: str
+    source_scan_deferred: bool = False
 
     @property
     def truncated(self) -> bool:
@@ -1556,6 +1557,7 @@ class UniversalTotalityLivenessController:
                     decision_facts=observation.decision_facts,
                     source_errors=observation.source_errors,
                     excluded_projects=observation.excluded_projects,
+                    source_scan_deferred=observation.source_scan_deferred,
                     now=observation.observed_at,
                 )
                 if persist_liveness_state is not None:
