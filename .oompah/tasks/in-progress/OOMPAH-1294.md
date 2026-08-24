@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:53:32.349118Z'
-updated_at: '2026-08-24T08:44:14.821160Z'
+updated_at: '2026-08-24T08:54:18.064835Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -428,5 +428,10 @@ author: oompah
 created: 2026-08-24 08:44
 ---
 Investigation: Looking at the code, I found that orchestrator.py logs the 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' message at WARNING level (line 58066) with a pre_provider_retirement extra. However, error_watcher.py's _TaskLoggingHandler only listens for ERROR level and above (setLevel(logging.ERROR)). This means the warning should not be caught. Previous comments indicated suppression should exist in emit(), but it doesn't appear to be there. Need to verify: 1) Is the message actually being logged at ERROR level somewhere? 2) Should the suppression filter be added? 3) Run existing tests to see current status.
+---
+author: oompah
+created: 2026-08-24 08:54
+---
+Discovery: The WARNING message is logged at WARNING level with extra={'pre_provider_retirement': {...}}, so it correctly doesn't reach the ERROR-level handler. However, the intent is to suppress this type of message from auto-filing tasks if it ever gets logged at ERROR level (defensive future-proofing). Solution: Add suppression check in _TaskLoggingHandler.emit() to skip records with pre_provider_retirement extra, plus a test to verify it works.
 ---
 <!-- COMMENTS:END -->
