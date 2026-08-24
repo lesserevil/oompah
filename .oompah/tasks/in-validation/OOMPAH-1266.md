@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-24T15:27:56.618380Z'
+updated_at: '2026-08-24T15:53:33.410952Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -363,6 +363,8 @@ oompah.terminal_audit:
       onto ae653b4f2. Rearming exhausted terminal audit.
     authorized_at: '2026-08-24T15:27:42.297611+00:00'
     mode: infrastructure_recovery
+    consumed_at: '2026-08-24T15:53:31.674858+00:00'
+    consumed_workflow_job_id: workflow-job-0dfd66ec7866413f8b70a6bf1eef9c54
   version: 1
   pending_chain:
   - version: 1
