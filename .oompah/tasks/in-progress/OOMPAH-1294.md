@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:53:32.349118Z'
-updated_at: '2026-08-24T08:07:12.148429Z'
+updated_at: '2026-08-24T08:07:21.526633Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -371,5 +371,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Opencode/Switchyard/switchyard/
 - Cost: $0.0000
 - Exit: normal, Duration: 5m 8s
 - Log: OOMPAH-1294__20260824T073527Z.jsonl
+---
+author: oompah
+created: 2026-08-24 08:07
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
