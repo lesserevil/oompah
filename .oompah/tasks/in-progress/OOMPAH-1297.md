@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:59:54.516015Z'
-updated_at: '2026-08-24T05:39:21.333020Z'
+updated_at: '2026-08-24T05:49:13.526435Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -409,5 +409,13 @@ author: oompah
 created: 2026-08-24 05:39
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 05:49
+---
+Investigation: the orchestrator logs 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' at ERROR, which  treats as ERROR and auto-files tasks.
+Fix: downgraded that specific log from ERROR to WARNING and added a regression assertion to ensure WARNING (not ERROR) is emitted.
+Verification: .                                                                        [100%]
+1 passed, 20 deselected in 2.36s
 ---
 <!-- COMMENTS:END -->
