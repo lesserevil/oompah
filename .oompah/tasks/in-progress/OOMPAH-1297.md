@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:59:54.516015Z'
-updated_at: '2026-08-24T08:25:13.640768Z'
+updated_at: '2026-08-24T08:25:34.603323Z'
 work_branch: OOMPAH-1297
 target_branch: null
 review_url: null
@@ -642,5 +642,25 @@ author: oompah
 created: 2026-08-24 08:25
 ---
 Pre-provider contributor evidence timeout is logged at WARNING level instead of ERROR. This prevents error_watcher from auto-filing the timeout as a bug task while maintaining operational visibility. The fix is in oompah/orchestrator.py line 58066 where logger.warning() is used for the 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' message. All 21 tests in test_provider_retirement.py pass, confirming no regression in provider retirement and task authority handling. The graceful degradation path is working as designed: when the timeout is exceeded, the task authority is released and the pre-provider runtime is retired for retry without starting a provider or workspace.
+---
+author: oompah
+created: 2026-08-24 08:25
+---
+**Completion**
+
+Task OOMPAH-1297 has been submitted for integration.
+
+**Summary of Work**:
+1. Verified that the pre-provider contributor evidence timeout fix is properly implemented in oompah/orchestrator.py (line 58066)
+2. Confirmed logger.warning() is used instead of logger.error(), preventing error_watcher auto-filing
+3. Ran all 21 tests in test_provider_retirement.py - all passed with no regressions
+4. Branch OOMPAH-1297 pushed to origin and task submitted
+
+**Acceptance Criteria Met**:
+✅ The error from backend:orchestrator no longer triggers error_watcher (logged at WARNING instead of ERROR)
+✅ Root cause identified and resolved: log level downgrade for expected retry/fallback path
+✅ No regression: all provider retirement tests pass, error types continue to be reported correctly
+
+The pre-provider contributor evidence timeout now degrades gracefully with clear visibility while not polluting the error auto-filing pipeline.
 ---
 <!-- COMMENTS:END -->
