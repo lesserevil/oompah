@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:40:43.878412Z'
-updated_at: '2026-08-24T09:07:50.397446Z'
+updated_at: '2026-08-24T09:09:25.108666Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -302,5 +302,21 @@ author: oompah
 created: 2026-08-24 09:07
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 09:09
+---
+**Understanding & Plan**
+
+The issue reports a timeout error in backend:orchestrator when processing contributor evidence: 'Pre-provider contributor evidence exceeded its bounded task-authority deadline (timeout_seconds=5.0)'. This is auto-filed when error_watcher detects the unhandled error during normal oompah operations on proj-14849f1b.
+
+**Planned approach:**
+1. Locate the relevant backend:orchestrator code and error sites
+2. Understand the task-authority deadline mechanism and why it's timing out at 5 seconds
+3. Investigate if the timeout is too short, if the operation is inefficient, or if there's a resource issue
+4. Implement a fix: either increase the timeout, optimize the operation, or add graceful degradation
+5. Add tests to verify the fix works and doesn't regress
+
+Starting codebase exploration now.
 ---
 <!-- COMMENTS:END -->
