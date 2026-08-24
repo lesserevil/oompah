@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1331
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Restart reconstruction never finalizes (1 unexplained divergence) leaving stale
   action_required=19 and permanent restart_overdue
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:28:31.897753Z'
-updated_at: '2026-08-24T17:49:48.202864Z'
+updated_at: '2026-08-24T17:50:58.056447Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,6 +41,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1331","audit-34bc00c97981","attempt-fccf5a75d857"]': '2026-08-24T17:16:59.921038+00:00'
     '["proj-14849f1b","OOMPAH-1331","audit-ad3efba187b4","attempt-1d2393768dc7"]': '2026-08-24T17:41:19.461234+00:00'
+    '["proj-14849f1b","OOMPAH-1331","audit-ad3efba187b4","no-auditor-audit-ad3efba187b4-3"]': '2026-08-24T17:50:49.284458+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1331
@@ -55,6 +56,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-24T17:16:59.921054+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1331
+    target_state: Merged
+    evidence_fingerprint: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1331
+    selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
+    landing_revision: null
+    audit_ids:
+    - audit-ad3efba187b4
+    kind: result
+    applied: true
+    retired_at: '2026-08-24T17:50:49.284477+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1331
@@ -69,6 +83,19 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T17:16:59.921066+00:00'
     applied_at: '2026-08-24T17:17:09.019721+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1331
+    audit_id: audit-ad3efba187b4
+    attempt_id: no-auditor-audit-ad3efba187b4-3
+    target_state: Merged
+    evidence_fingerprint: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+    status: Needs Human
+    audit_ids:
+    - audit-ad3efba187b4
+    kind: result
+    applied: true
+    created_at: '2026-08-24T17:50:49.284489+00:00'
+    applied_at: '2026-08-24T17:50:56.680900+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -116,7 +143,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1331
     target_state: Merged
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -184,6 +211,21 @@ oompah.terminal_audit:
         auditor capability policy permits only read-only repository inspection and
         configured test commands; command denied'
       next_retry_at: '2026-08-24T17:50:17.810563+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-ad3efba187b4-3
+      target_state: Merged
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+      verdict: fail
+      failure_classification: no_auditor
+      origin: coordinator_retry_exhaustion
+      created_at: '2026-08-24T17:50:49.284324+00:00'
+      completed_at: '2026-08-24T17:50:49.284324+00:00'
+      selected_ref: origin/OOMPAH-1331
+      selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
     source_generation: 1
     requested_by:
       version: 1
@@ -194,7 +236,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-34bc00c97981
     selected_ref: origin/OOMPAH-1331
     selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
-    updated_at: '2026-08-24T17:49:37.810595+00:00'
+    updated_at: '2026-08-24T17:50:49.284324+00:00'
     eligible_at: '2026-08-24T17:16:59.920832+00:00'
   attempt_history:
   - version: 1
@@ -270,7 +312,7 @@ oompah.terminal_audit:
       auditor capability policy permits only read-only repository inspection and configured
       test commands; command denied'
     next_retry_at: '2026-08-24T17:50:17.810563+00:00'
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.task_costs:
   total_input_tokens: 1198
   total_output_tokens: 32011
@@ -463,5 +505,12 @@ Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 20s
 - Log: OOMPAH-1331__20260824T174652Z.jsonl
+---
+author: oompah
+created: 2026-08-24 17:50
+---
+Needs Human — Merged audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
