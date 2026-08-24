@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T09:43:03.353905Z'
-updated_at: '2026-08-24T14:01:57.830444Z'
+updated_at: '2026-08-24T14:07:03.773919Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -214,5 +214,18 @@ author: oompah
 created: 2026-08-24 14:01
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 14:07
+---
+Understanding: The issue is about checkpoint flush failures during normal operation. The error 'Checkpoint flush FAILED (reason=debounce); push_failures=1' is being logged by checkpoint_queue.py and auto-filed by error_watcher. The error occurs when the debounce timer fires and attempts to flush pending mutations to the state branch via git commit+push.
+
+Key finding: The flush error is being logged with logger.exception() which triggers error_watcher. According to acceptance criteria, either the error should not occur in the first place, or it should be handled gracefully so error_watcher isn't triggered.
+
+Next steps:
+1. Understand why the flush is failing
+2. Identify if it's a transient network/git issue that should be retried gracefully
+3. Implement either a fix for the root cause or graceful error handling
+4. Ensure error_watcher doesn't file tasks for expected transient failures
 ---
 <!-- COMMENTS:END -->
