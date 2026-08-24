@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:34:19.692606Z'
-updated_at: '2026-08-24T09:21:56.527277Z'
+updated_at: '2026-08-24T09:22:17.810519Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -407,5 +407,10 @@ author: oompah
 created: 2026-08-24 09:21
 ---
 Discovery: orchestrator handles this timeout in _stage_work_contributor_launch() (oompah/orchestrator.py around 58070) and logs it as WARNING with pre_provider_retirement extra; it returns a string instead of raising, so it should be treated as a controlled retirement path. The tests already assert the bounded task-authority deadline error behavior (tests/test_provider_retirement.py around 445/735). So this specific log-line should not trigger error_watcher unless it is being logged at ERROR elsewhere or not tagged/suppressed.
+---
+author: oompah
+created: 2026-08-24 09:22
+---
+Implementation: code already changed on this branch (OOMPAH-1306) to prevent error_watcher from handling these controlled orchestrator pre-provider retirement logs: oompah/error_watcher.py now early-returns in _TaskLoggingHandler.emit() when record.pre_provider_retirement is present. This ensures the WARNING emitted by orchestrator does not get escalated into an auto-filed bug task.
 ---
 <!-- COMMENTS:END -->
