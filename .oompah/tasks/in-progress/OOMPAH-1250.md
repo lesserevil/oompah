@@ -10,11 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - focus-complete:docs
-- needs:backend
 - focus-complete:general
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-24T09:41:14.251011Z'
+updated_at: '2026-08-24T09:42:15.178329Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -201,6 +200,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1250
     source_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     completed_at: '2026-08-24T06:38:45.341825+00:00'
+  - run_id: 13b969d83b1f4118952fcf64dbef6152--contributor-86e3ac8153e1
+    provider_id: prov-6cf41c89
+    provider_name: Opencode/Switchyard
+    model_id: switchyard/auto
+    focus: general
+    source_branch: OOMPAH-1250
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 565
   total_output_tokens: 11062
@@ -565,5 +572,10 @@ author: oompah
 created: 2026-08-24 09:41
 ---
 Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-24 09:42
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
