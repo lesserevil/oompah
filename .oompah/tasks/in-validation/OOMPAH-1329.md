@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1329
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Stop over-budget workflow reconciliation from hot-looping worker admission
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T01:36:28.768799Z'
-updated_at: '2026-08-24T01:54:17.559571Z'
+updated_at: '2026-08-24T01:59:37.232399Z'
 work_branch: OOMPAH-1329
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/907
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 371719b5-9bbc-4ef2-9eb3-463362b66297
   request_fingerprint: 42c3c0fde84cd2ad321f76f112089c3ffe9d915f0fc8cafd65d70f412596c940
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.integration:
   version: 2
   state: ready
@@ -41,6 +41,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/907
 oompah.review_number: '907'
 oompah.target_branch: main
 oompah.review_head: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-d2d1717d9afd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1329
+    digest: 93d3202e8d44cf80ca57b31cf884a20fd2c8ae2a3a2510a3de337965df5632de
+  - version: 1
+    audit_id: audit-925a61fc1c8f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1329
+    digest: 93d3202e8d44cf80ca57b31cf884a20fd2c8ae2a3a2510a3de337965df5632de
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d2d1717d9afd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1329
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 93d3202e8d44cf80ca57b31cf884a20fd2c8ae2a3a2510a3de337965df5632de
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-24T01:59:28.396034+00:00'
+    eligible_at: '2026-08-24T01:59:28.396034+00:00'
+    selected_ref: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+    selected_sha: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+  - version: 1
+    audit_id: audit-925a61fc1c8f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1329
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 93d3202e8d44cf80ca57b31cf884a20fd2c8ae2a3a2510a3de337965df5632de
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-24T01:59:28.396034+00:00'
+    prerequisite_audit_id: audit-d2d1717d9afd
+    selected_ref: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+    selected_sha: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+  attempt_history: []
 ---
 ## Summary
 
@@ -68,5 +126,10 @@ author: oompah
 created: 2026-08-24 01:53
 ---
 Branch quality gate passed for `bb2cbaf913fb5faefa18ffa59acefaa76d2dfada` using `make test` in 179.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-24 01:59
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
