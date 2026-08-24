@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T09:43:03.353905Z'
-updated_at: '2026-08-24T07:36:59.797491Z'
+updated_at: '2026-08-24T07:37:17.174978Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -87,3 +87,11 @@ The operation in `backend:checkpoint_queue` should complete successfully, or deg
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-24 07:37
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
