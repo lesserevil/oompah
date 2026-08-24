@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-24T18:58:20.443260Z'
+updated_at: '2026-08-24T19:31:09.091237Z'
 work_branch: OOMPAH-1206
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/902
@@ -709,7 +709,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1206
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -754,6 +754,22 @@ oompah.terminal_audit:
       ended_at: '2026-08-24T18:58:11.280443+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-24T18:58:31.280418+00:00'
+    - version: 1
+      attempt_id: attempt-bc4a100b270d
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
+      created_at: '2026-08-24T19:31:07.565593+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-24T19:31:07.565593+00:00'
+      branch_key: OOMPAH-1206
+      selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+      selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+      candidate_rotation_count: 2
     source_generation: 4
     requested_by:
       version: 1
@@ -764,7 +780,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T15:25:51.646957+00:00'
     selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
-    updated_at: '2026-08-24T18:58:11.280443+00:00'
+    updated_at: '2026-08-24T19:31:07.565593+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-08569515fd73
@@ -982,6 +998,22 @@ oompah.terminal_audit:
     ended_at: '2026-08-24T18:58:11.280443+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-24T18:58:31.280418+00:00'
+  - version: 1
+    attempt_id: attempt-bc4a100b270d
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
+    created_at: '2026-08-24T19:31:07.565593+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-24T19:31:07.565593+00:00'
+    branch_key: OOMPAH-1206
+    selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+    selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+    candidate_rotation_count: 2
 ---
 ## Summary
 
