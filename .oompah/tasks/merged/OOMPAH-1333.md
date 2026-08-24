@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:06:31.866816Z'
-updated_at: '2026-08-24T22:11:03.908750Z'
+updated_at: '2026-08-24T22:11:24.929539Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -211,13 +211,13 @@ oompah.terminal_audit:
     selected_sha: f988367829192e6c7658af1d97a3da849ca96fab
 oompah.lifecycle_revision: 2
 oompah.task_costs:
-  total_input_tokens: 282
-  total_output_tokens: 8514
+  total_input_tokens: 532
+  total_output_tokens: 17274
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 282
-      output_tokens: 8514
+      input_tokens: 532
+      output_tokens: 17274
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -226,6 +226,12 @@ oompah.task_costs:
     output_tokens: 8514
     cost_usd: 0.0
     recorded_at: '2026-08-24T22:04:51.428637+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 250
+    output_tokens: 8760
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T22:11:20.675614+00:00'
 ---
 ## Summary
 
@@ -345,5 +351,15 @@ Safe evidence:
 - commit_verification.sha: f988367829192e6c7658af1d97a3da849ca96fab
 - commit_verification.message: OOMPAH-1333: require auditor verdict capability
 - commit_verification.attribution: Proper oompah trailer
+---
+author: oompah
+created: 2026-08-24 22:11
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 72, Tool calls: 30
+- Tokens: 250 in / 8.8K out [9.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 16s
+- Log: OOMPAH-1333__20260824T220525Z.jsonl
 ---
 <!-- COMMENTS:END -->
