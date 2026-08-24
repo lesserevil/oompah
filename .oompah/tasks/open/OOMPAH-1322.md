@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:15:25.298559Z'
-updated_at: '2026-08-24T09:44:38.853728Z'
+updated_at: '2026-08-24T09:45:05.623739Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,13 +36,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 0c1bb8489544ae424be6c0191323a55d2ff86630a54780533444a1b87fe04c0c:166657
-  claim_owner: 37ccaa87-ad5a-4d18-9016-1bf917e62c3a
-  claimed_at: '2026-08-24T09:44:05.552494+00:00'
-  claim_expires_at: '2026-08-24T10:14:05.552494+00:00'
+  evidence: dispatch cancelled during shared tracker claim
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 2
-  retry_after: null
+  retry_after: '2026-08-24T09:45:04.296388+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
