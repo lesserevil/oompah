@@ -4779,6 +4779,7 @@ class WorkflowRuntime:
                                         not in publication_excluded_identities
                                     ),
                                     source_scan_complete=False,
+                                    source_scan_deferred=True,
                                 )
                                 liveness_reconciliation = (
                                     self._liveness_reconciliation(

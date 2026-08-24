@@ -1492,9 +1492,19 @@ class WorkflowLivenessTracker:
         ] | None = None,
         source_errors: Mapping[str, str] | None = None,
         excluded_projects: Mapping[str, str] | None = None,
+        source_scan_deferred: bool = False,
         now: datetime | None = None,
     ) -> WorkflowLivenessHealth:
-        """Replace the projection from one generation-consistent full scan."""
+        """Replace the projection from one generation-consistent full scan.
+
+        ``source_scan_deferred`` marks a scan that is only ``incomplete``
+        because publication intentionally excluded already-covered tasks
+        (e.g. terminal-audit disposition changes fenced at publish time),
+        not because a source failed to scan.  When the deferred set is the
+        sole reason the scan is not complete and every retained task is
+        fully reconciled, restart reconstruction is allowed to finalize
+        instead of remaining pending forever on a phantom divergence.
+        """
 
         # Validate the complete authority set before changing any counters or
         # generation fields.  A malformed incoming revision must fail closed,
@@ -1551,8 +1561,21 @@ class WorkflowLivenessTracker:
             reconciliation_complete
             and materialized_recovery_count >= required_recovery_count
         )
-        effective_source_complete = bool(
+        # A publication-deferred scan (terminal-audit exclusions of tasks
+        # that are already covered) is not a source failure.  When the
+        # deferral is the only reason the scan is not complete and every
+        # retained task is fully reconciled, treat the scan as effectively
+        # complete so restart reconstruction can finalize.
+        source_scan_effectively_complete = bool(
             source_scan_complete
+            or (
+                source_scan_deferred
+                and not all_errors
+                and effective_reconciliation_complete
+            )
+        )
+        effective_source_complete = bool(
+            source_scan_effectively_complete
             and not all_errors
             and effective_reconciliation_complete
         )
