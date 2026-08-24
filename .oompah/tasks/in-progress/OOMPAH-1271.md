@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:36:38.933130Z'
-updated_at: '2026-08-24T01:15:10.819384Z'
+updated_at: '2026-08-24T01:15:42.914387Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -527,5 +527,27 @@ This provides sufficient time for slow tracker operations to complete without ti
 **Testing**: All 21 provider retirement tests pass, including the specific timeout test that verifies the graceful handling when persistence does timeout.
 
 Next: Commit and push the changes.
+---
+author: oompah
+created: 2026-08-24 01:15
+---
+**Verification & Completion**
+
+✅ All work completed:
+
+1. **Issue Identified**: Timeout for pre-provider contributor evidence writes was 5.0 seconds, insufficient for slow tracker operations
+
+2. **Root Cause**: The timeout calculation used conservative defaults that resulted in 5.0s timeout
+
+3. **Fix Applied**: Increased default timeout values in oompah/config.py
+   - worker_termination_timeout_ms: 10s → 20s
+   - terminal_control_lock_timeout_seconds: 5.0s → 15.0s
+   - Result: persistence_timeout increases from 5.0s to 10.0s
+
+4. **Testing**: All 21 provider retirement tests pass, confirming no regressions
+
+5. **Pushed**: Branch OOMPAH-1271 pushed to origin
+
+The fix ensures that tracker write operations for contributor evidence have sufficient time to complete, preventing the 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' error from occurring during normal operation on slow trackers like provenanceguardedtracker.
 ---
 <!-- COMMENTS:END -->
