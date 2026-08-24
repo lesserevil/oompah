@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1206
 type: bug
-status: Needs Human
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue TRICKLE-121:
   All 2 dispatch candidates unavailable: prov-651d553c/sonnet: contributor_evidence_unavailable:
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-24T02:38:55.631028Z'
+updated_at: '2026-08-24T15:25:59.398117Z'
 work_branch: OOMPAH-1206
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/902
 review_number: '902'
 review_head: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
 merged_at: null
-oompah.lifecycle_revision: 10
+oompah.lifecycle_revision: 11
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -297,6 +297,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T02:38:46.772346+00:00'
     applied_at: '2026-08-24T02:38:54.418421+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1206
+    audit_id: audit-7a35819e84b7
+    attempt_id: audit-rearm:audit-7a35819e84b7
+    target_state: Done
+    evidence_fingerprint: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
+    status: In Validation
+    audit_ids:
+    - audit-7a35819e84b7
+    kind: audit_rearm
+    applied: false
+    created_at: '2026-08-24T15:25:51.647122+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-d8dcc1adb045
@@ -344,6 +356,27 @@ oompah.terminal_audit:
     mode: infrastructure_recovery
     consumed_at: '2026-08-24T00:27:08.784436+00:00'
     consumed_workflow_job_id: workflow-job-74942be8c0094556abae3ef248253077
+  - version: 2
+    audit_id: audit-7a35819e84b7
+    superseded_audit_id: audit-d276a3dd5bfa
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1206
+    target_state: Done
+    evidence_fingerprint: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
+    workflow_revision: null
+    selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+    selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+    landing_revision: null
+    source_generation: 4
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Auditor transports fixed and deployed (OOMPAH-1327 agent path, OOMPAH-1328
+      OpenCode path) and reconciliation hot-loop fixed (OOMPAH-1329); service force-restarted
+      onto ae653b4f2. Rearming exhausted terminal audit.
+    authorized_at: '2026-08-24T15:25:51.646957+00:00'
+    mode: infrastructure_recovery
   version: 1
   pending_chain:
   - version: 1
@@ -565,7 +598,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1206
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -655,7 +688,28 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T00:19:27.889391+00:00'
     selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
-    updated_at: '2026-08-24T02:38:46.772183+00:00'
+    updated_at: '2026-08-24T15:25:51.646957+00:00'
+  - version: 1
+    audit_id: audit-7a35819e84b7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1206
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
+    attempts: []
+    source_generation: 4
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Review
+    created_at: '2026-08-24T15:25:51.646957+00:00'
+    eligible_at: '2026-08-24T15:25:51.646957+00:00'
+    selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+    selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
   attempt_history:
   - version: 1
     attempt_id: attempt-08569515fd73
