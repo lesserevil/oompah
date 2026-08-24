@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1224
 type: bug
-status: Needs Human
+status: In Validation
 priority: 2
 title: '[backend:server] Issue detail API error: ProgrammingError(''Cannot operate
   on a closed database.'')'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-24T20:51:53.805835Z'
+updated_at: '2026-08-24T23:56:55.229023Z'
 work_branch: OOMPAH-1224
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/900
 review_number: '900'
 review_head: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
 merged_at: null
-oompah.lifecycle_revision: 12
+oompah.lifecycle_revision: 13
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -295,6 +295,19 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T20:51:43.208722+00:00'
     applied_at: '2026-08-24T20:51:52.161161+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1224
+    audit_id: audit-45144dab3af0
+    attempt_id: audit-rearm:audit-45144dab3af0
+    target_state: Done
+    evidence_fingerprint: fdb0a7e362aa42a9ce8eb57ee0b64e3ab0beae750529aecace8beae71bc989ca
+    status: In Validation
+    audit_ids:
+    - audit-45144dab3af0
+    kind: audit_rearm
+    applied: true
+    created_at: '2026-08-24T23:56:45.723254+00:00'
+    applied_at: '2026-08-24T23:56:52.595996+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-49872de05682
@@ -341,6 +354,27 @@ oompah.terminal_audit:
     mode: infrastructure_recovery
     consumed_at: '2026-08-24T15:49:24.420952+00:00'
     consumed_workflow_job_id: workflow-job-6bd9c48c413b42aa9d9d92968467c77c
+  - version: 2
+    audit_id: audit-45144dab3af0
+    superseded_audit_id: audit-c209863a0cf9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1224
+    target_state: Done
+    evidence_fingerprint: fdb0a7e362aa42a9ce8eb57ee0b64e3ab0beae750529aecace8beae71bc989ca
+    workflow_revision: 71f6297718a1833ec1a9f2c922367d43a0c7ea6d6c76e9c5f4fba12dbedd3ce1
+    selected_ref: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+    selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+    landing_revision: null
+    source_generation: 4
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Verdict-capable independent auditor capacity restored: OOMPAH-1333 excludes
+      incapable OpenCode/native subscription transports; healthy Claude candidates
+      with submit_audit_result bridge remain.'
+    authorized_at: '2026-08-24T23:56:45.723075+00:00'
+    mode: infrastructure_recovery
   version: 1
   pending_chain:
   - version: 1
@@ -565,7 +599,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1224
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -656,7 +690,29 @@ oompah.terminal_audit:
     selected_ref: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
     selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
     workflow_revision: 71f6297718a1833ec1a9f2c922367d43a0c7ea6d6c76e9c5f4fba12dbedd3ce1
-    updated_at: '2026-08-24T20:51:43.208507+00:00'
+    updated_at: '2026-08-24T23:56:45.723075+00:00'
+  - version: 1
+    audit_id: audit-45144dab3af0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1224
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fdb0a7e362aa42a9ce8eb57ee0b64e3ab0beae750529aecace8beae71bc989ca
+    attempts: []
+    source_generation: 4
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Review
+    created_at: '2026-08-24T23:56:45.723075+00:00'
+    eligible_at: '2026-08-24T23:56:45.723075+00:00'
+    selected_ref: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+    selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+    workflow_revision: 71f6297718a1833ec1a9f2c922367d43a0c7ea6d6c76e9c5f4fba12dbedd3ce1
   attempt_history:
   - version: 1
     attempt_id: attempt-fdb2399fa251
@@ -1241,5 +1297,10 @@ created: 2026-08-24 20:51
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-24 23:56
+---
+Terminal audit rearmed by project owner after recovery: Verdict-capable independent auditor capacity restored: OOMPAH-1333 excludes incapable OpenCode/native subscription transports; healthy Claude candidates with submit_audit_result bridge remain.
 ---
 <!-- COMMENTS:END -->
