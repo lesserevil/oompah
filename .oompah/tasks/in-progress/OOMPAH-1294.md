@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:53:32.349118Z'
-updated_at: '2026-08-24T07:11:28.131466Z'
+updated_at: '2026-08-24T07:11:38.685971Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -311,5 +311,10 @@ author: oompah
 created: 2026-08-24 07:11
 ---
 Discovery: the bounded deadline message is emitted in oompah/oompah/orchestrator.py during pre-provider evidence persistence timeouts (see line ~58069+). Separately, error auto-filing is gated in oompah/error_watcher.py: _TaskLoggingHandler.emit returns early when record has extra pre_provider_retirement.
+---
+author: oompah
+created: 2026-08-24 07:11
+---
+Implementation/Change: no code changes in this branch; suppression for pre-provider retirement already exists in error_watcher.py:_TaskLoggingHandler.emit (skips records with pre_provider_retirement extra), and the bounded deadline timeout behavior is covered by tests in tests/test_provider_retirement.py (pre_provider_evidence_timeout_releases_task_authority). Verification: pytest -q tests/test_provider_retirement.py (21 passed). Remaining risk: if this log path is emitted without the pre_provider_retirement extra, we may need to adjust logger attribution.
 ---
 <!-- COMMENTS:END -->
