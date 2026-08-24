@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T09:43:03.353905Z'
-updated_at: '2026-08-24T14:17:46.107454Z'
+updated_at: '2026-08-24T14:17:57.390746Z'
 work_branch: OOMPAH-1326
 target_branch: null
 review_url: null
@@ -333,5 +333,25 @@ Solution: Added _timer_based parameter to CheckpointQueue.flush() to differentia
 This ensures only critical checkpoint failures trigger error_watcher task creation, while transient/expected failures are logged for operational visibility without creating unnecessary tasks.
 
 All 66 checkpoint_coalescing tests and 124 error_watcher tests pass.
+---
+author: oompah
+created: 2026-08-24 14:17
+---
+Completion: OOMPAH-1326 has been submitted for integration.
+
+Summary of changes:
+1. Root cause identified: Timer-based checkpoint flush failures were being logged at ERROR level, triggering error_watcher auto-filing
+2. Solution implemented: Added _timer_based parameter to differentiate between timer-based and manual flushes
+3. Timer-based failures now log at WARNING level (transient, expected to be retried)
+4. Manual failures continue to log at ERROR level (critical durable transitions)
+
+Files modified:
+- oompah/checkpoint_queue.py: Added _timer_based parameter and conditional logging logic
+- tests/test_checkpoint_coalescing.py: Added 2 new tests to verify logging levels
+- tests/test_error_watcher.py: Updated 2 tests to reflect new expected behavior
+
+Test results: 66/66 checkpoint tests + 124/124 error_watcher tests = all pass ✓
+
+This follows the same pattern as OOMPAH-1217 where transient failures are logged at WARNING instead of ERROR to prevent unnecessary error_watcher task auto-filing.
 ---
 <!-- COMMENTS:END -->
