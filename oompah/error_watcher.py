@@ -646,6 +646,10 @@ class _TaskLoggingHandler(logging.Handler):
         self._watcher = watcher
 
     def emit(self, record: logging.LogRecord) -> None:
+        # Suppress controlled pre-provider retirement warnings.
+        # These are expected graceful degradation events, not errors.
+        if getattr(record, "pre_provider_retirement", None):
+            return
         try:
             message = record.getMessage()
             detail = message

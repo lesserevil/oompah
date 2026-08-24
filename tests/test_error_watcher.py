@@ -874,6 +874,35 @@ class TestTaskLoggingHandlerErrorClass:
         kwargs = watcher.report_error.call_args.kwargs
         assert kwargs["incident_key"] == "state_branch_checkpoint_publish"
 
+    def test_handler_suppresses_pre_provider_retirement_warnings(self):
+        """Controlled pre-provider retirement warnings should not create tasks."""
+        from oompah.error_watcher import _TaskLoggingHandler
+
+        watcher = MagicMock()
+        handler = _TaskLoggingHandler(watcher)
+        record = logging.LogRecord(
+            name="oompah.orchestrator",
+            level=logging.WARNING,  # WARNING or ERROR level
+            pathname=__file__,
+            lineno=1,
+            msg="Pre-provider contributor evidence exceeded its bounded "
+                "task-authority deadline",
+            args=(),
+            exc_info=None,
+        )
+        record.module = "orchestrator"
+        # Set the pre_provider_retirement extra attribute that orchestrator
+        # uses to mark controlled retirement paths
+        record.pre_provider_retirement = {
+            "reason": "contributor_evidence_timeout",
+            "issue_id": "OOMPAH-1198",
+        }
+
+        handler.emit(record)
+
+        # The handler should NOT call report_error for controlled retirements
+        watcher.report_error.assert_not_called()
+
 
 class TestErrorClassForTrackerExc:
     """Helper that maps tracker/project exceptions to error_class names."""
