@@ -791,6 +791,66 @@ class TestAuditorCandidateSelector_AuditCapability:
         assert reason.reason == "missing_audit_capability"
         assert "Codex Subscription" in reason.detail
 
+    def test_opencode_is_skipped_for_claude_candidate(self):
+        opencode = _make_provider(
+            "opencode-subscription",
+            "OpenCode",
+            mode="acp",
+            api_key="",
+            billing_model="subscription",
+            backend="opencode",
+            models=["switchyard/auto"],
+        )
+        claude = _make_provider(
+            "claude-subscription",
+            "Claude Subscription",
+            mode="acp",
+            api_key="",
+            billing_model="subscription",
+            backend="claude",
+            models=["sonnet"],
+        )
+        role = self._role(
+            Candidate(provider_id=opencode.id, model="switchyard/auto"),
+            Candidate(provider_id=claude.id, model="sonnet"),
+        )
+        selector = AuditorCandidateSelector(
+            _make_role_store_with_roles({AUDITOR_ROLE_NAME: role}),
+            _make_provider_store({opencode.id: opencode, claude.id: claude}),
+        )
+
+        candidates, reason = selector.select_candidates()
+
+        assert reason is None
+        assert [(item.provider_id, item.model) for item in candidates] == [
+            (claude.id, "sonnet")
+        ]
+
+    def test_opencode_only_reports_missing_capability(self):
+        opencode = _make_provider(
+            "opencode-subscription",
+            "OpenCode",
+            mode="acp",
+            api_key="",
+            billing_model="subscription",
+            backend="opencode",
+            models=["switchyard/auto"],
+        )
+        role = self._role(
+            Candidate(provider_id=opencode.id, model="switchyard/auto")
+        )
+        selector = AuditorCandidateSelector(
+            _make_role_store_with_roles({AUDITOR_ROLE_NAME: role}),
+            _make_provider_store({opencode.id: opencode}),
+        )
+
+        candidates, reason = selector.select_candidates()
+
+        assert candidates == []
+        assert reason is not None
+        assert reason.reason == "missing_audit_capability"
+        assert "OpenCode" in reason.detail
+
     def test_per_token_codex_remains_eligible(self):
         codex = _make_provider(
             "codex-api",
