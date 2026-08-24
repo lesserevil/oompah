@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1281
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=OOMPAH-1214 identifier=OOMPAH-1214 run_id=df292ca636c54e39ad008fcfba8e4b83
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:54:51.257792Z'
-updated_at: '2026-08-23T23:30:16.908347Z'
+updated_at: '2026-08-24T07:00:19.245402Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -78,7 +78,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: f713b7fd-4cd2-48ec-850d-f69625f9a7b7
+oompah.agent_run_id: 9a099696-f3f5-4ff5-adfe-5d26466a41a2
 oompah.work_contributors:
   runs:
   - run_id: e67bf6b331ae48db808c06d8d4e8eb41--contributor-a8b0475e7b09
@@ -121,6 +121,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1281
     source_sha: 8c81b69c713e9bb6a1da8906b7e637f1ea6a1696
     completed_at: '2026-08-23T23:29:56.257719+00:00'
+  - run_id: 1be2874bbbee4428a319c9120adcd008--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: general
+    source_branch: OOMPAH-1281
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1564
@@ -283,5 +291,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 48s
 - Log: OOMPAH-1281__20260823T232854Z.jsonl
+---
+author: oompah
+created: 2026-08-24 07:00
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-24 07:00
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
