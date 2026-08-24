@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:53:32.349118Z'
-updated_at: '2026-08-24T07:35:23.495957Z'
+updated_at: '2026-08-24T07:39:12.823816Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -350,5 +350,10 @@ author: oompah
 created: 2026-08-24 07:35
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 07:39
+---
+Verification: error_watcher already suppresses pre_provider_retirement log records in oompah/error_watcher.py:_TaskLoggingHandler.emit (returns early when record has extra pre_provider_retirement). Root cause is already covered by regression test tests/test_provider_retirement.py::test_pre_provider_evidence_timeout_releases_task_authority. Ran pytest -q tests/test_provider_retirement.py => 21 passed.
 ---
 <!-- COMMENTS:END -->
