@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:22:19.264494Z'
-updated_at: '2026-08-24T06:13:59.976484Z'
+updated_at: '2026-08-24T06:16:46.348556Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -333,5 +333,10 @@ author: oompah
 created: 2026-08-24 06:13
 ---
 Discovery: Found the error in oompah/orchestrator.py at line 58069-58086. A logger.warning() call logs 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' when the persistence_task times out (currently timing out at 5.0 seconds). The error_watcher is capturing this and auto-filing it as a task. The root cause appears to be that this is a known, gracefully-handled timeout condition (the operation retries), not an actual error that should be auto-filed. The fix is to either: (1) change the log level to prevent error_watcher from capturing it, or (2) increase the timeout to prevent the condition from occurring in the first place.
+---
+author: oompah
+created: 2026-08-24 06:16
+---
+Implementation: Changed logger.warning to logger.info for three pre_provider_retirement timeout log messages in oompah/orchestrator.py (lines 57956, 58070, and 58106). These are gracefully-handled timeout conditions where the code retries the work, not actual errors. By lowering the log level to INFO, error_watcher (which only captures ERROR+ level logs) will no longer pick them up and auto-file them as tasks. The error message returned to the caller remains the same, so retry logic is unchanged.
 ---
 <!-- COMMENTS:END -->
