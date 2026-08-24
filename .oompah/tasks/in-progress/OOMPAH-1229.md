@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:37:50.327401Z'
-updated_at: '2026-08-24T09:19:55.979550Z'
-work_branch: null
+updated_at: '2026-08-24T09:20:28.816581Z'
+work_branch: OOMPAH-1229
 target_branch: null
 review_url: null
 review_number: null
@@ -215,6 +215,18 @@ oompah.task_costs:
     output_tokens: 1596
     cost_usd: 0.0
     recorded_at: '2026-08-21T14:38:19.045611+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1229
+  base_branch: main
+  base_sha: 8c81b69c713e9bb6a1da8906b7e637f1ea6a1696
+  head_sha: 3ea3b8853dd3606c9994c774f4719d84e539fd22
+  submitted_at: '2026-08-24T09:20:09.735977+00:00'
+  updated_at: '2026-08-24T09:20:09.735977+00:00'
+oompah.work_branch: OOMPAH-1229
 ---
 ## Summary
 
@@ -471,5 +483,10 @@ author: oompah
 created: 2026-08-24 09:19
 ---
 **Verification:** All 16 tests in test_ws_fault_injection.py pass consistently. The fixed test (test_four_completion_snapshots_converge_to_zero_running_chips) now reliably observes all 4 deliberately dropped completion states using explicit bounded synchronization instead of timing-dependent observation. The fix preserves the real WebSocket/broadcast/full-sync path and avoids sleep-based correctness. Ready for integration.
+---
+author: oompah
+created: 2026-08-24 09:20
+---
+Fixed WebSocket completion fault-injection synchronization race condition by replacing timing-dependent observation with explicit bounded synchronization using threading.Condition to signal when all 4 broadcast completion snapshots are captured, preventing intermittent failures on Python 3.13.
 ---
 <!-- COMMENTS:END -->
