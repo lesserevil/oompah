@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:54:51.257792Z'
-updated_at: '2026-08-24T08:12:01.096047Z'
+updated_at: '2026-08-24T08:19:35.963226Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -390,5 +390,18 @@ The timeout error occurs in the `_persist_work_contributor_launch` flow (oompah/
 The mismatch is clear: default config says 60s, but actual timeout used is 5s.
 
 Next: Check how the config is being instantiated in the orchestrator to find why the configured value isn't being used.
+---
+author: oompah
+created: 2026-08-24 08:19
+---
+**Implementation: Fixed Pre-Provider Evidence Timeout**
+
+Changed the persistence timeout logic in oompah/orchestrator.py (lines 58035-58043):
+
+**Before:** The getattr call used None as the default, which meant if the config attribute wasn't available or was None for any reason, the configured timeout of 60 seconds would not override the calculated 5-second timeout.
+
+**After:** Changed the default in getattr from None to 60.0. This ensures that even if the attribute is missing/None, we use a sensible 60-second default instead of the calculated 5-second control floor. The configured value is still used if available.
+
+This fix ensures that contributor evidence persistence operations have sufficient time (60+ seconds) to complete, preventing timeouts during normal operation on slow tracker systems.
 ---
 <!-- COMMENTS:END -->
