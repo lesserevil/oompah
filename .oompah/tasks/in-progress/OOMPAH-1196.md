@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:27.547026Z'
-updated_at: '2026-08-24T06:34:24.823905Z'
+updated_at: '2026-08-24T06:47:23.004415Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -430,5 +430,10 @@ author: oompah
 created: 2026-08-24 06:34
 ---
 DISCOVERY: Found that 'ACP worker failed' message is logged at WARNING level in orchestrator.py:64764 to avoid triggering error_watcher. However, error_watcher IS catching this error and creating tasks. Investigating if there's an ERROR-level log being generated elsewhere or if error_watcher configuration issue.
+---
+author: oompah
+created: 2026-08-24 06:47
+---
+ROOT CAUSE FOUND: Worker failure messages are logged at WARNING level to avoid ERROR-level error_watcher handler. However, LogFileWatcher (another error_watcher mechanism) scans log files for ERROR keywords in exception messages and can still pick up WARNING-level logs containing 'ERROR'. Solution: Change logging level from WARNING to DEBUG for expected pre-request worker failures (ACP/API/CLI workers). This prevents both the logging handler AND file watcher from capturing these transient, non-provider-health errors.
 ---
 <!-- COMMENTS:END -->
