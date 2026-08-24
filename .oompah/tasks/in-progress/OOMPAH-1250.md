@@ -14,7 +14,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-24T06:38:54.961120Z'
+updated_at: '2026-08-24T06:39:01.533218Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -202,13 +202,13 @@ oompah.work_contributors:
     source_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     completed_at: '2026-08-24T06:38:45.341825+00:00'
 oompah.task_costs:
-  total_input_tokens: 230
-  total_output_tokens: 11018
+  total_input_tokens: 565
+  total_output_tokens: 11062
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 230
-      output_tokens: 11018
+      input_tokens: 565
+      output_tokens: 11062
       cost_usd: 0.0
   runs:
   - profile: default
@@ -229,6 +229,12 @@ oompah.task_costs:
     output_tokens: 7802
     cost_usd: 0.0
     recorded_at: '2026-08-21T07:47:02.472679+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 335
+    output_tokens: 44
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T06:38:45.319174+00:00'
 ---
 ## Summary
 
