@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:04.107366Z'
-updated_at: '2026-08-24T21:23:35.059479Z'
+updated_at: '2026-08-24T21:26:50.548541Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -521,5 +521,10 @@ author: oompah
 created: 2026-08-24 21:23
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 21:26
+---
+UNDERSTANDING: The issue involves an 'ACP worker failed' error when processing issue TRICKLE-121. Comment #1 indicates this is related to OOMPAH-1194 - a Git origin URL issue where managed network Git operations are using a stale local SSH origin instead of the project's configured HTTPS repo_url during Trickle workspace/epic refresh. The error is being caught by error_watcher despite being logged at DEBUG level. I'm investigating the repo_url handling and Git origin configuration in the orchestrator code.
 ---
 <!-- COMMENTS:END -->
