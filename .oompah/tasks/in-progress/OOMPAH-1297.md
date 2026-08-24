@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:59:54.516015Z'
-updated_at: '2026-08-24T08:18:27.176620Z'
+updated_at: '2026-08-24T08:23:25.502112Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -607,5 +607,23 @@ This issue tracks a bug where the pre-provider contributor evidence timeout is b
 1. Verify tests pass for this behavior
 2. Ensure no uncommitted changes exist  
 3. Submit the task since the fix appears complete
+---
+author: oompah
+created: 2026-08-24 08:23
+---
+**Discovery & Verification**
+
+Located the fix in oompah/orchestrator.py line 58066:
+- ✅ Uses logger.warning() (not logger.error()) for 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' message
+- ✅ Error message is logged with context: issue_id, identifier, run_id, timeout_seconds
+- ✅ Returns graceful degradation message to caller
+
+Verification:
+- ✅ Ran tests/test_provider_retirement.py - all 21 tests passed
+- ✅ Key test test_pre_provider_evidence_timeout_releases_task_authority confirms timeout handling works correctly
+- ✅ No ERROR logs for this path, so error_watcher will not auto-file this as a bug
+- ✅ Working tree clean, on correct branch OOMPAH-1297
+
+**Conclusion**: The pre-provider contributor evidence timeout is now handled gracefully with a WARNING log level, preventing error_watcher from auto-filing this as a task while maintaining operational visibility.
 ---
 <!-- COMMENTS:END -->
