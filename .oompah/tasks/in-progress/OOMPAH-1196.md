@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:27.547026Z'
-updated_at: '2026-08-24T06:27:18.395214Z'
+updated_at: '2026-08-24T06:34:24.823905Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -425,5 +425,10 @@ author: oompah
 created: 2026-08-24 06:27
 ---
 UNDERSTANDING: Investigating the 'ACP worker failed issue_id=TRICKLE-135' error. This is an auto-filed backend:orchestrator error caught by error_watcher. Plan: (1) explore codebase to find orchestrator implementation, (2) identify why ACP worker fails for this specific issue, (3) implement fix or graceful error handling, (4) verify error no longer surfaces to error_watcher.
+---
+author: oompah
+created: 2026-08-24 06:34
+---
+DISCOVERY: Found that 'ACP worker failed' message is logged at WARNING level in orchestrator.py:64764 to avoid triggering error_watcher. However, error_watcher IS catching this error and creating tasks. Investigating if there's an ERROR-level log being generated elsewhere or if error_watcher configuration issue.
 ---
 <!-- COMMENTS:END -->
