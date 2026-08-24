@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:15:25.298559Z'
-updated_at: '2026-08-24T15:08:18.517896Z'
+updated_at: '2026-08-24T15:12:06.737027Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -353,5 +353,19 @@ created: 2026-08-24 15:08
 These are normal, retryable conditions where the orchestrator automatically retries the work. However, the _TaskLoggingHandler (which captures ERROR+ logs) should not catch WARNING-level logs. Upon investigation, found that OOMPAH-1324 was filed with the same fix: downgrade these three log levels from WARNING to INFO. This will prevent error_watcher from auto-filing tasks for these expected conditions.
 
 The fix is to change three logger.warning() calls to logger.info() in oompah/orchestrator.py.
+---
+author: oompah
+created: 2026-08-24 15:12
+---
+**Implementation**: Changed three logger.warning() calls to logger.info() in oompah/orchestrator.py _stage_work_contributor_launch() function (lines 57956, 58079, and 58115).
+
+The changes prevent these gracefully-handled timeout conditions from being captured by error_watcher:
+- Pre-provider contributor evidence is still settling from a retired generation
+- Pre-provider contributor evidence exceeded its bounded task-authority deadline  
+- Cancelled pre-provider contributor evidence did not finish before release
+
+These are normal retry conditions, not actual errors. By lowering the log level to INFO, they won't trigger error_watcher's ERROR+ handler, preventing auto-filing of unnecessary tasks.
+
+Changes committed and pushed to branch OOMPAH-1322.
 ---
 <!-- COMMENTS:END -->
