@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:34:19.692606Z'
-updated_at: '2026-08-24T11:19:08.842782Z'
+updated_at: '2026-08-24T11:22:46.837056Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -540,5 +540,10 @@ author: oompah
 created: 2026-08-24 11:19
 ---
 Implementation: Added early-return guard in _TaskLoggingHandler.emit() (oompah/error_watcher.py, line 651-652) to suppress controlled pre-provider retirement warnings. When a log record has a 'pre_provider_retirement' attribute (set by orchestrator when retiring pre-provider evidence), the emit method returns early without calling report_error(). This ensures these expected graceful degradation events don't trigger automatic task creation.
+---
+author: oompah
+created: 2026-08-24 11:22
+---
+Verification: Implemented fix in error_watcher.py lines 649-652 to suppress pre_provider_retirement warnings. All 125 tests in test_error_watcher.py pass, plus 13 tests in test_error_watcher_orchestrator.py pass, plus 5 pre-provider retirement tests pass. Added new test test_handler_suppresses_pre_provider_retirement_warnings() which verifies the guard works correctly. The fix prevents controlled pre-provider evidence timeout warnings from triggering error_watcher task creation.
 ---
 <!-- COMMENTS:END -->
