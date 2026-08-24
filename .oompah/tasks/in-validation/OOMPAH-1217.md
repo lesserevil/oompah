@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:53.373319Z'
-updated_at: '2026-08-24T05:28:07.576545Z'
+updated_at: '2026-08-24T05:29:08.475339Z'
 work_branch: OOMPAH-1217
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/897
@@ -189,6 +189,7 @@ oompah.terminal_audit:
     digest: 35603ee8a46ec524aa496df57a6c6127b5531f39ab835e3fc39e1e2082bed033
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1217","audit-de399cf31768","infrastructure-exhausted-audit-de399cf31768-3"]': '2026-08-24T00:12:04.425205+00:00'
+    '["proj-14849f1b","OOMPAH-1217","audit-a15789e365d0","no-auditor-audit-a15789e365d0-3"]': '2026-08-24T05:29:06.794010+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1217
@@ -200,6 +201,7 @@ oompah.terminal_audit:
     landing_revision: null
     audit_ids:
     - audit-de399cf31768
+    - audit-a15789e365d0
     kind: result
     applied: true
     retired_at: '2026-08-24T00:12:04.425221+00:00'
@@ -230,6 +232,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T00:20:06.011588+00:00'
     applied_at: '2026-08-24T00:20:14.953640+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1217
+    audit_id: audit-a15789e365d0
+    attempt_id: no-auditor-audit-a15789e365d0-3
+    target_state: Done
+    evidence_fingerprint: 35603ee8a46ec524aa496df57a6c6127b5531f39ab835e3fc39e1e2082bed033
+    status: Needs Human
+    audit_ids:
+    - audit-a15789e365d0
+    kind: result
+    applied: false
+    created_at: '2026-08-24T05:29:06.794045+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-a15789e365d0
@@ -382,7 +396,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1217
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -447,6 +461,21 @@ oompah.terminal_audit:
       ended_at: '2026-08-24T05:27:52.017600+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-24T05:28:32.017564+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-a15789e365d0-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 35603ee8a46ec524aa496df57a6c6127b5531f39ab835e3fc39e1e2082bed033
+      verdict: fail
+      failure_classification: no_auditor
+      origin: coordinator_retry_exhaustion
+      created_at: '2026-08-24T05:29:06.793823+00:00'
+      completed_at: '2026-08-24T05:29:06.793823+00:00'
+      selected_ref: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
+      selected_sha: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
     source_generation: 2
     requested_by:
       version: 1
@@ -458,7 +487,7 @@ oompah.terminal_audit:
     selected_ref: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
     selected_sha: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
     workflow_revision: cbde4578c71296984a9f6b9e05b155e8360031432401e5fdd90bf1c4edacbf9b
-    updated_at: '2026-08-24T05:27:52.017600+00:00'
+    updated_at: '2026-08-24T05:29:06.793823+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-070172778c4d
