@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-24T16:12:52.007973Z'
+updated_at: '2026-08-24T16:12:59.658268Z'
 work_branch: OOMPAH-1268
 target_branch: null
 review_url: null
@@ -210,6 +210,24 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-21T10:55:28.005763+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1268
+    target_state: Merged
+    evidence_fingerprint: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+    workflow_revision: null
+    selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    landing_revision: null
+    audit_ids:
+    - audit-8f44983b1fe8
+    - audit-fa9a98a4b580
+    - audit-0462454aa959
+    - audit-6a252271012f
+    - audit-424bd21be6b4
+    - audit-fe0a1c9796e6
+    kind: override
+    applied: true
+    retired_at: '2026-08-24T16:12:58.278142+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1268
@@ -224,6 +242,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-21T10:55:28.005773+00:00'
     applied_at: '2026-08-21T10:55:34.246866+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-1268
     audit_id: audit-0462454aa959
@@ -237,6 +256,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-23T21:56:26.530488+00:00'
     applied_at: '2026-08-23T21:56:35.673759+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-1268
     audit_id: audit-0462454aa959
@@ -250,6 +270,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-23T22:35:10.142747+00:00'
     applied_at: '2026-08-23T22:35:17.316574+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-1268
     audit_id: audit-6a252271012f
@@ -263,6 +284,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T00:20:56.111289+00:00'
     applied_at: '2026-08-24T00:21:30.741423+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-1268
     audit_id: audit-6a252271012f
@@ -276,6 +298,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T00:44:34.271891+00:00'
     applied_at: '2026-08-24T00:44:41.257904+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-1268
     audit_id: audit-424bd21be6b4
@@ -289,6 +312,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T01:18:15.346541+00:00'
     applied_at: '2026-08-24T01:18:21.429635+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-1268
     audit_id: audit-424bd21be6b4
@@ -302,6 +326,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T03:50:06.260302+00:00'
     applied_at: '2026-08-24T03:50:15.544745+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-1268
     audit_id: audit-fe0a1c9796e6
@@ -315,6 +340,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T15:28:04.192664+00:00'
     applied_at: '2026-08-24T15:28:13.130067+00:00'
+    retired_by_override: true
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-0462454aa959
@@ -429,7 +455,7 @@ oompah.terminal_audit:
     created_at: '2026-08-24T16:12:47.908710+00:00'
     selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -843,7 +869,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1268
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -898,7 +924,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T15:28:04.192498+00:00'
     selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
-    updated_at: '2026-08-24T16:00:23.660695+00:00'
+    updated_at: '2026-08-24T16:12:58.278100+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-74a35a09ad49
@@ -1742,5 +1768,12 @@ author: oompah
 created: 2026-08-24 16:00
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-24 16:12
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner override: independent OpenCode auditor provider (prov-6cf41c89/switchyard/auto) is crashing on >64KiB ACP JSON-RPC lines (tracked in OOMPAH-1330), exhausting the audit budget and holding restart reconstruction open. Implementation is complete and branch quality gate passed for both tasks; applying recorded terminal status to unblock the workflow. Re-audit not possible until OOMPAH-1330 is fixed.
 ---
 <!-- COMMENTS:END -->
