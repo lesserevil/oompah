@@ -11,9 +11,10 @@ start_blocked_by: []
 labels:
 - focus-complete:docs
 - needs:backend
+- focus-complete:general
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-24T06:38:04.958287Z'
+updated_at: '2026-08-24T06:38:24.753808Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -535,5 +536,13 @@ author: oompah
 created: 2026-08-24 06:37
 ---
 Understanding: GitHub-native external intake bridge exists (oompah/github_intake_bridge.py) but no GitLab parity bridge, routing, or polling exists; server/orchestrator are GitHub-only. Discovery: handle_github_issue_event_for_native_project + poll_github_issue_intake_project are wired in server.py/orchestrator.py exclusively; no gitlab_intake_bridge.py exists. Verification: existing GitHub intake unit tests (tests/test_github_intake_bridge.py) pass. Next: implement a forge-neutral external-intake bridge for GitLab (import issues + comments, metadata key oompah.external.gitlab, idempotency, webhook routing + polling recovery, and keep GitHub behavior via wrappers) and add GitLab regression tests matching the docs/gitlab-issue-intake.md contract.
+---
+author: oompah
+created: 2026-08-24 06:38
+---
+Focus handoff: general
+Outcome: I verified the GitLab intake implementation is currently missing despite docs + GitLab tracker/webhook infrastructure existing. Key files: oompah/github_intake_bridge.py (GitHub-only bridge + polling/status mirroring), oompah/server.py (webhook routing for GitHub intake only), oompah/orchestrator.py (_maybe_sync_github_issue_intake only), oompah/gitlab_tracker.py (GitLab Issues adapter), oompah/webhooks.py (GitHub/GitLab webhook parsing), docs/gitlab-issue-intake.md (behavior spec).
+Remaining work (backend engineer): implement forge-neutral native external-intake bridge for GitLab (gitlab_intake_bridge.py or extended bridge), including provider-qualified oompah.external.gitlab metadata, idempotent issue/comment import, mirrored terminal status reconciliation, missed-webhook recovery via polling, and GitLab webhook routing; preserve GitHub behavior via compatibility wrappers. Add regression tests analogous to tests/test_github_intake_bridge.py and ensure docs contract tests continue to pass.
+Recommended next focus: backend (needs:backend).
 ---
 <!-- COMMENTS:END -->
