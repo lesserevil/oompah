@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1254
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 2
 title: '[backend:server] Update issue API error: TaskTransitionNotApplied(''TRICKLE-143:
   In Progress was not applied (rejected: transition.project_owner_authority_required)'')'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:28:12.589940Z'
-updated_at: '2026-08-24T08:49:30.319436Z'
+updated_at: '2026-08-24T08:49:41.015709Z'
 work_branch: OOMPAH-1254
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/899
 review_number: '899'
 review_head: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
 merged_at: null
-oompah.lifecycle_revision: 5
+oompah.lifecycle_revision: 6
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
