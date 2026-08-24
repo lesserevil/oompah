@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:14:43.227832Z'
-updated_at: '2026-08-24T09:08:03.624423Z'
+updated_at: '2026-08-24T13:26:57.970242Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,46 +36,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: inconclusive\n\
-    Matches: none\nEvidence: ** The error message in OOMPAH-1302 references OOMPAH-1249\
-    \ as the source of the problem context, making it the most likely candidate for\
-    \ duplicate analysis. However, OOMPAH-1249 is not included in the provided corpus\
-    \ (729 candidates total, only 28 supplied). Without access to OOMPAH-1249's description,\
-    \ status, and comments, I cannot verify whether this is a duplicate of that task\
-    \ or a distinct system error. All other tasks in the corpus are in terminal states\
-    \ and address different error types (terminal-audit enforcement, workflow events).\
-    \ Verification requires OOMPAH-1249 availability.\nLooking at this duplicate screening\
-    \ task, I need to analyze OOMPAH-1302 against the provided task corpus to determine\
-    \ if it represents a duplicate of an existing issue.\n\n## Analysis\n\n**Current\
-    \ Task (OOMPAH-1302):**\n- Type: backend:orchestrator timeout error\n- Error:\
-    \ \"Pre-provider contributor evidence exceeded its bounded task-authority deadline\"\
-    \n- Status: Open\n- Key detail: The error message explicitly references `issue_id=OOMPAH-1249`\n\
-    \n**Corpus Review:**\n\nI've reviewed all 28 similarity candidates included in\
-    \ the provided task corpus. Here's what I found:\n\n1. **No active peer tasks**:\
-    \ Every other task in the corpus is in a terminal state:\n   - Terminal states\
-    \ identified: Merged (OOMPAH-1000, 1001, 1002, 1004, 1005, 1006, 1008, 1010, 1011,\
-    \ 1012, 1014, 1015), Done (OOMPAH-1003, 1007), Archived (OOMPAH-1, 10, 1016-1027,\
-    \ 270)\n\n2. **Missing critical reference**: The error message in OOMPAH-1302\
-    \ explicitly references OOMPAH-1249 as the task being processed when the error\
-    \ occurred. **OOMPAH-1249 is NOT present in the provided corpus**, despite the\
-    \ corpus indicating 729 total similarity candidates (only 28 included, 701 omitted).\n\
-    \n3. **Different error patterns**: The included tasks primarily involve terminal-audit\
-    \ enforcement issues (OOMPAH-1015, etc.) and workflow/epic handling (OOMPAH-1000-1012),\
-    \ not orchestrator timeout errors on bounded task-authority.\n\n## Verdict\n\n\
-    ```\nFocus handoff: duplicate_detector\nDuplicate preflight verdict: inconclusive\n\
-    Matches: none\n```\n\n**Evidence:** The error message in OOMPAH-1302 references\
-    \ OOMPAH-1249 as the source of the problem context, making it the most likely\
-    \ candidate for duplicate analysis. However, OOMPAH-1249 is not included in the\
-    \ provided corpus (729 candidates total, only 28 supplied). Without access to\
-    \ OOMPAH-1249's description, status, and comments, I cannot verify whether this\
-    \ is a duplicate of that task or a distinct system error. All other tasks in the\
-    \ corpus are in terminal states and address different error types (termin"
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-24T09:11:33.693758+00:00'
+  evidence: ''
+  claim_id: 499d45dc0513366cc3682afee712ff045444260bb96ffff3da8ba35bf43c08dc:166984
+  claim_owner: dab84cd2-f9be-40b5-86d6-c4367bbd5bbc
+  claimed_at: '2026-08-24T13:26:53.376345+00:00'
+  claim_expires_at: '2026-08-24T13:56:53.376345+00:00'
+  retry_count: 0
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
