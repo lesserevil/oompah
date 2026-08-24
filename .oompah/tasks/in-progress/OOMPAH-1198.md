@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:04.107366Z'
-updated_at: '2026-08-24T23:58:39.259801Z'
-work_branch: null
+updated_at: '2026-08-24T23:58:52.532099Z'
+work_branch: OOMPAH-1198
 target_branch: null
 review_url: null
 review_number: null
@@ -253,6 +253,7 @@ oompah.integration:
   head_sha: 7b780193a56696ec1961f882b1916d967d5f8032
   submitted_at: '2026-08-24T23:58:18.796962+00:00'
   updated_at: '2026-08-24T23:58:18.796962+00:00'
+oompah.work_branch: OOMPAH-1198
 ---
 ## Summary
 
@@ -631,5 +632,16 @@ TEST RESULTS: All focused tests pass successfully.
 - test_orchestrator_thread.py: 3/3 tests PASSED ✓
 
 The canonical_remote_url parameter is working correctly throughout the integration pipeline. Git fetch/push operations now use the project's configured HTTPS repo_url instead of stale SSH origins, resolving the ACP worker failure that was triggered on TRICKLE-121.
+---
+author: oompah
+created: 2026-08-24 23:58
+---
+Fix ACP worker failure by using project repo_url for Git operations
+
+Root cause: Integration executor was using stale local SSH origins instead of the project's configured HTTPS repo_url when performing fetch/push operations on epic worktrees during integration.
+
+Solution: Added canonical_remote_url parameter to _git() function in integration_executor.py to replace 'origin' with the actual URL for network operations (fetch/push). Updated execute_integration() to accept and pass this parameter through all git operations. Modified orchestrator.py to pass project.repo_url as canonical_remote_url when calling execute_integration().
+
+Result: Managed network Git operations now use the project's configured HTTPS repo_url, preventing auth failures and worker errors during epic refresh. All tests pass (28/28 integration executor tests, plus related integration and orchestrator tests).
 ---
 <!-- COMMENTS:END -->
