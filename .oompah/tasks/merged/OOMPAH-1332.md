@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T18:33:39.522330Z'
-updated_at: '2026-08-24T19:35:36.274393Z'
+updated_at: '2026-08-24T19:35:42.329602Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -92,8 +92,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-129d64b0ef60
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-24T19:35:31.945656+00:00'
+    applied_at: '2026-08-24T19:35:40.675279+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -320,5 +321,29 @@ author: oompah
 created: 2026-08-24 19:32
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 19:35
+---
+Audit PASS — Merged
+
+OOMPAH-1332 completion audit PASS. Implementation adds --auto flag to opencode CLI commands enabling auto-approval of read-only permission prompts, and bounds repeated denials (3 max) with policy escalation to prevent infinite rotation. Tests verify --auto injection and escalation behavior. Full gate (make test) passed 186.88s on exact head. Acceptance criteria met: OpenCode audits finalize verdicts, no regression for Claude/Codex, changes isolated to opencode.py.
+
+Safe evidence:
+- commit_sha: fc7a63a31c23e49d4fb5d51d5ea5880e5c90d58a
+- files_modified[0]: oompah/acp_backends/opencode.py
+- files_modified[1]: tests/test_acp_opencode_backend.py
+- key_changes.auto_flag: Added --auto flag to opencode run command (line 504)
+- key_changes.denial_tracking: _native_denial_count counter + _MAX_NATIVE_DENIALS=3 threshold
+- key_changes.escalation: _note_tool_state_denial + _note_possible_policy_denial calls policy_denial_handler after 3 denials
+- test_coverage[0]: test_run_turn_uses_auto_permission_flag - verifies --auto in command
+- test_coverage[1]: test_repeated_native_denials_escalate_policy_incompatibility - verifies escalation after 3 denials
+- quality_gate.command: make test
+- quality_gate.status: passed
+- quality_gate.duration_seconds: 186.88
+- acceptance_criteria[0]: OpenCode audits finalize verdicts - ACHIEVED via --auto flag
+- acceptance_criteria[1]: No infinite rotation - BOUNDED at _MAX_NATIVE_DENIALS=3 with escalation
+- acceptance_criteria[2]: No regression for Claude/Codex - ISOLATED to opencode.py only
+- acceptance_criteria[3]: Proper safety net - ESCALATION via policy_denial_handler
 ---
 <!-- COMMENTS:END -->
