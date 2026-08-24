@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:34:19.692606Z'
-updated_at: '2026-08-24T11:19:00.136948Z'
+updated_at: '2026-08-24T11:19:08.842782Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -535,5 +535,10 @@ author: oompah
 created: 2026-08-24 11:19
 ---
 Discovery: The orchestrator logs pre-provider contributor evidence timeouts at WARNING level (line 58069 in orchestrator.py) with a 'pre_provider_retirement' extra dict attribute. The error_watcher installs a logging handler at ERROR level (line 92 in error_watcher.py), which means it should NOT catch WARNING logs. However, there are controlled retirement paths where the system gracefully degrades, and these should never trigger error_watcher.
+---
+author: oompah
+created: 2026-08-24 11:19
+---
+Implementation: Added early-return guard in _TaskLoggingHandler.emit() (oompah/error_watcher.py, line 651-652) to suppress controlled pre-provider retirement warnings. When a log record has a 'pre_provider_retirement' attribute (set by orchestrator when retiring pre-provider evidence), the emit method returns early without calling report_error(). This ensures these expected graceful degradation events don't trigger automatic task creation.
 ---
 <!-- COMMENTS:END -->
