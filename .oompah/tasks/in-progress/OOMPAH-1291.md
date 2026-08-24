@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:34:19.692606Z'
-updated_at: '2026-08-24T09:22:37.367283Z'
+updated_at: '2026-08-24T09:24:01.410721Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -203,16 +203,16 @@ oompah.work_contributors:
     model_id: switchyard/auto
     focus: general
     source_branch: OOMPAH-1291
-    source_sha: null
-    completed_at: ''
+    source_sha: 4988991309ba81b6b2cf06aa30528bf5f21b0a82
+    completed_at: '2026-08-24T09:23:52.192843+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2309
+  total_input_tokens: 349
+  total_output_tokens: 2462
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 2309
+      input_tokens: 349
+      output_tokens: 2462
       cost_usd: 0.0
   runs:
   - profile: default
@@ -221,6 +221,12 @@ oompah.task_costs:
     output_tokens: 2309
     cost_usd: 0.0
     recorded_at: '2026-08-24T06:29:41.342471+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 339
+    output_tokens: 153
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T09:23:52.159394+00:00'
 ---
 ## Summary
 
@@ -417,5 +423,15 @@ author: oompah
 created: 2026-08-24 09:22
 ---
 Verification: ran pytest for targeted suites — tests/test_provider_retirement.py::test_late_pre_provider_write_settles_before_successor_provider_contact (PASS) and full tests/test_error_watcher.py (PASS). This exercises the new early-return guard for pre_provider_retirement and confirms error_watcher still files other ERROR-class incidents.
+---
+author: oompah
+created: 2026-08-24 09:23
+---
+Run #1 [attempt=1, profile=default, role=fast -> Opencode/Switchyard/switchyard/auto]
+- Turns: 38, Tool calls: 38
+- Tokens: 339 in / 153 out [78.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 26s
+- Log: OOMPAH-1291__20260824T091421Z.jsonl
 ---
 <!-- COMMENTS:END -->
