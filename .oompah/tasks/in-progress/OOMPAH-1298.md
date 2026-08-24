@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:00:50.331057Z'
-updated_at: '2026-08-24T10:18:15.197315Z'
+updated_at: '2026-08-24T10:19:04.514082Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -344,5 +344,26 @@ author: oompah
 created: 2026-08-24 10:18
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 10:19
+---
+**Understanding & Plan**
+
+Issue: A backend orchestrator error occurs when pre-provider contributor evidence exceeds a 5-second timeout deadline. The error is being auto-filed by error_watcher, suggesting it's an unhandled exception.
+
+**Planned Approach:**
+1. Search codebase for the error message and related timeout logic
+2. Identify where the 5-second deadline is being enforced
+3. Determine why the operation is exceeding this timeout
+4. Implement a fix (either increase timeout, optimize performance, or gracefully handle)
+5. Add tests to verify the fix
+
+**Key files to investigate:**
+- Backend orchestrator code
+- Error watcher implementation
+- Task authority/deadline enforcement logic
+
+Starting investigation now.
 ---
 <!-- COMMENTS:END -->
