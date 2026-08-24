@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-24T03:28:03.733109Z'
+updated_at: '2026-08-24T03:28:18.983705Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -501,7 +501,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1266
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -526,6 +526,22 @@ oompah.terminal_audit:
       ended_at: '2026-08-24T03:27:52.507352+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-24T03:28:02.507335+00:00'
+    - version: 1
+      attempt_id: attempt-f45472427820
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+      created_at: '2026-08-24T03:28:12.228327+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-24T03:28:12.228327+00:00'
+      branch_key: epic-OOMPAH-1231--task-OOMPAH-1266
+      selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+      selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+      candidate_rotation_count: 1
     source_generation: 3
     requested_by:
       version: 1
@@ -536,7 +552,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T00:20:29.356971+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-24T03:27:52.507352+00:00'
+    updated_at: '2026-08-24T03:28:12.228327+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ebdec741f7d0
@@ -675,6 +691,22 @@ oompah.terminal_audit:
     ended_at: '2026-08-24T03:27:52.507352+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-24T03:28:02.507335+00:00'
+  - version: 1
+    attempt_id: attempt-f45472427820
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+    created_at: '2026-08-24T03:28:12.228327+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-24T03:28:12.228327+00:00'
+    branch_key: epic-OOMPAH-1231--task-OOMPAH-1266
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -1096,5 +1128,10 @@ author: oompah
 created: 2026-08-24 03:28
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-24 03:28
+---
+Auditor dispatched (attempt #2, candidate: prov-6cf41c89/switchyard/auto)
 ---
 <!-- COMMENTS:END -->
