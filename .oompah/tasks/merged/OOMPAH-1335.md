@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:56:39.839941Z'
-updated_at: '2026-08-24T23:37:19.081239Z'
+updated_at: '2026-08-24T23:37:27.117196Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -91,8 +91,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-ee0391b798eb
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-24T23:37:14.907883+00:00'
+    applied_at: '2026-08-24T23:37:25.807830+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -285,5 +286,31 @@ author: oompah
 created: 2026-08-24 22:50
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 23:37
+---
+Audit PASS — Merged
+
+OOMPAH-1335 implementation complete and verified. Commit 76fe97764a3b56bf7d922eabd49cd8f94844f1e3 removes stale local Git URL rewrites during managed-clone credential sanitation. All critical functionality tests pass.
+
+Safe evidence:
+- commit_sha: 76fe97764a3b56bf7d922eabd49cd8f94844f1e3
+- commit_message: OOMPAH-1335: remove canonical URL rewrites from managed clones
+- helper_function: _url_rewrite_matches_canonical() added to git_credentials.py
+- sanitization_enhanced: sanitize_managed_clone_credentials() removes repository-local url.*.insteadOf entries
+- call_site_1: ProjectStore.create() at line 2525 with canonical_url parameter
+- call_site_2: _create_epic_worktree_locked() at line 6803-6806 with project.repo_url
+- call_site_3: _prepare_existing_epic_worktree() at line 6894-6897 with project.repo_url
+- unit_tests_passed: 21 tests in test_managed_git_credentials.py
+- regression_test_1: test_sanitize_managed_clone_removes_canonical_url_rewrite PASSED
+- regression_test_2: test_sanitize_managed_clone_preserves_unrelated_url_rewrite PASSED
+- integration_tests: 164 tests in test_projects.py all passed
+- fail_closed: implemented with try-except error handling
+- local_only: uses --local flag to avoid affecting global config
+- canonical_protected: via _url_rewrite_matches_canonical() prefix matching
+- idempotent: verified by test_sanitize_managed_clone_is_idempotent
+- https_to_ssh_fixed: verified by test_sanitize_managed_clone_removes_canonical_url_rewrite
+- unrelated_preserved: verified by test_sanitize_managed_clone_preserves_unrelated_url_rewrite
 ---
 <!-- COMMENTS:END -->
