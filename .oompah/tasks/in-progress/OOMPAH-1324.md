@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1324
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=OOMPAH-1214 identifier=OOMPAH-1214 run_id=2fa5716a82384dbe921b5bbdfa03ebca
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:22:19.264494Z'
-updated_at: '2026-08-24T06:06:13.189709Z'
+updated_at: '2026-08-24T06:07:00.793492Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-6721ed37af5c4e51ae3558e98f499304
   actor: shedwards
@@ -323,5 +323,10 @@ author: oompah
 created: 2026-08-24 06:06
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 06:07
+---
+Understanding: This is a backend:orchestrator timeout error where a task-authority deadline (5 seconds) is being exceeded during pre-provider contributor evidence collection. The error should either complete successfully, fail gracefully with clear handling, or be handled such that error_watcher is not triggered. I'm starting investigation by finding the error message in the codebase and understanding the root cause.
 ---
 <!-- COMMENTS:END -->
