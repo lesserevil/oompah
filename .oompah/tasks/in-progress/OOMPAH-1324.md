@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:22:19.264494Z'
-updated_at: '2026-08-24T06:07:00.793492Z'
+updated_at: '2026-08-24T06:13:59.976484Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -328,5 +328,10 @@ author: oompah
 created: 2026-08-24 06:07
 ---
 Understanding: This is a backend:orchestrator timeout error where a task-authority deadline (5 seconds) is being exceeded during pre-provider contributor evidence collection. The error should either complete successfully, fail gracefully with clear handling, or be handled such that error_watcher is not triggered. I'm starting investigation by finding the error message in the codebase and understanding the root cause.
+---
+author: oompah
+created: 2026-08-24 06:13
+---
+Discovery: Found the error in oompah/orchestrator.py at line 58069-58086. A logger.warning() call logs 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' when the persistence_task times out (currently timing out at 5.0 seconds). The error_watcher is capturing this and auto-filing it as a task. The root cause appears to be that this is a known, gracefully-handled timeout condition (the operation retries), not an actual error that should be auto-filed. The fix is to either: (1) change the log level to prevent error_watcher from capturing it, or (2) increase the timeout to prevent the condition from occurring in the first place.
 ---
 <!-- COMMENTS:END -->
