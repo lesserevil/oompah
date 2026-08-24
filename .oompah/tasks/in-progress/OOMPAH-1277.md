@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:47:52.188773Z'
-updated_at: '2026-08-24T07:01:27.539635Z'
+updated_at: '2026-08-24T07:10:55.605386Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -323,5 +323,24 @@ This is a backend:orchestrator timeout issue where a pre-provider contributor ev
 5. Verify the fix with tests
 
 Currently exploring the codebase.
+---
+author: oompah
+created: 2026-08-24 07:10
+---
+**Discovery:**
+
+Found the issue in oompah/orchestrator.py around line 58070. The contributor evidence persistence operation is timing out at 5.0 seconds instead of using the configured 60-second timeout.
+
+**Root Cause:**
+The timeout calculation flow is:
+1. Lines 58005-58029: Calculate persistence_timeout based on control_lock_timeout (5.0s default)
+2. Lines 58035-58043: If contributor_evidence_persist_timeout_seconds is configured, use it instead
+
+The error shows timeout=5.0s, which is the fallback calculated value, not the configured 60-second value. This means getattr at line 58035 is returning None, so the configured timeout isn't being used.
+
+The persistence operation is waiting too long and exceeding the 5-second deadline, causing a warning log that error_watcher is catching.
+
+**Solution:**
+Change the code to use the configured timeout value (60.0s) as the primary source instead of calculating a fallback first. This ensures slow tracker writes don't exceed an overly-tight deadline.
 ---
 <!-- COMMENTS:END -->
