@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:40:43.878412Z'
-updated_at: '2026-08-24T09:26:58.151125Z'
-work_branch: null
+updated_at: '2026-08-24T09:27:23.076136Z'
+work_branch: OOMPAH-1313
 target_branch: null
 review_url: null
 review_number: null
@@ -79,7 +79,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 118085e5-3f90-4797-8bee-04042cd9aad9
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 6beab5a47d4346db88651e5f99924d36--contributor-a8b0475e7b09
@@ -146,6 +146,18 @@ oompah.task_costs:
     output_tokens: 1887
     cost_usd: 0.0
     recorded_at: '2026-08-24T06:06:34.516356+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1313
+  base_branch: main
+  base_sha: 4988991309ba81b6b2cf06aa30528bf5f21b0a82
+  head_sha: 6781b20f9281e95740c164f5087bbf217470480e
+  submitted_at: '2026-08-24T09:27:08.652996+00:00'
+  updated_at: '2026-08-24T09:27:08.652996+00:00'
+oompah.work_branch: OOMPAH-1313
 ---
 ## Summary
 
@@ -404,5 +416,10 @@ The timeout error 'Pre-provider contributor evidence exceeded its bounded task-a
 - Configuration override still works for tuning in specific environments
 
 Ready for integration.
+---
+author: oompah
+created: 2026-08-24 09:27
+---
+Fixed pre-provider contributor evidence timeout by increasing default from 5s to 10-30s. The timeout was too aggressive for tracker metadata persistence, causing legitimate operations to timeout and trigger error_watcher. Solution prioritizes configuration value (60s default) and uses min(30.0, termination_timeout) as fallback. All 617 related tests pass.
 ---
 <!-- COMMENTS:END -->
