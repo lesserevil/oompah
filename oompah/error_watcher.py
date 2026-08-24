@@ -668,6 +668,9 @@ class _TaskLoggingHandler(logging.Handler):
             # produces N project-fetch errors) into a single task.
             error_class = getattr(record, "error_class", None)
             incident_key = getattr(record, "incident_key", None)
+
+            if getattr(record, "pre_provider_retirement", None) is not None:
+                return
             self._watcher.report_error(
                 source=source,
                 message=message,
