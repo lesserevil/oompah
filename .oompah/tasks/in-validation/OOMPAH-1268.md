@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-24T01:18:26.199293Z'
+updated_at: '2026-08-24T01:21:57.729790Z'
 work_branch: OOMPAH-1268
 target_branch: null
 review_url: null
@@ -324,6 +324,8 @@ oompah.terminal_audit:
       subprocess streams now use MAX_LINE_SIZE and focused tests pass.'
     authorized_at: '2026-08-24T01:18:15.346367+00:00'
     mode: infrastructure_recovery
+    consumed_at: '2026-08-24T01:21:56.492515+00:00'
+    consumed_workflow_job_id: workflow-job-a006f4d439f74f448768f645b319c7e5
   version: 1
   pending_chain:
   - version: 1
