@@ -58032,15 +58032,19 @@ class Orchestrator:
                 # contributor_evidence_unavailable and starving implementation
                 # dispatch.  When configured it is authoritative (production
                 # raises it well above the derived control floor).
+                # Always use the configured evidence persistence timeout if available.
+                # The default (60 seconds) is much higher than the calculated
+                # control floor (~5 seconds) to ensure slow tracker operations
+                # can complete. The configured value is authoritative for
+                # production deployments.
                 configured_evidence_timeout = getattr(
                     self.config,
                     "contributor_evidence_persist_timeout_seconds",
-                    None,
+                    60.0,  # Default to 60s if attribute is missing/None
                 )
-                if configured_evidence_timeout is not None:
-                    persistence_timeout = max(
-                        float(configured_evidence_timeout), 0.05
-                    )
+                persistence_timeout = max(
+                    float(configured_evidence_timeout), 0.05
+                )
 
                 try:
                     await asyncio.wait_for(
