@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:17.683117Z'
-updated_at: '2026-08-24T10:34:55.910286Z'
+updated_at: '2026-08-24T10:37:52.021556Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -516,5 +516,26 @@ Found the bug! There are TWO git command runners in oompah:
 The bug: When orchestrator.py calls _run_project_network_git() with canonical_remote_url, it sets the config but doesn't actually replace 'origin' in the command. So the command still tries to use 'origin' which resolves to the stale SSH URL.
 
 The fix: Update orchestrator.py's _run_project_network_git() to use the same command transformation logic as projects.py - extract _managed_network_git_command from projects.py and use it in orchestrator.py.
+---
+author: oompah
+created: 2026-08-24 10:37
+---
+## Implementation
+
+Fixed the bug in orchestrator.py's _run_project_network_git() method.
+
+**Problem**: The method was only setting git config for remote.origin.url but NOT actually replacing 'origin' in the git command. Git config gets appended, not replaced, so if the repo had a stale SSH origin in .git/config, it would still be used.
+
+**Solution**: Added _transform_git_command_for_canonical_remote() helper that:
+1. Finds git operations (fetch, push, ls-remote, pull, clone)
+2. Replaces 'origin' in the command with the canonical HTTPS URL
+3. Handles refspec transformations for fetch to maintain origin tracking
+4. Preserves all other arguments and behavior
+
+**Changes**:
+- oompah/orchestrator.py: Added transformation helper and updated _run_project_network_git to use it
+- tests/test_orchestrator_canonical_remote_url.py: Added 12 unit tests covering all cases
+
+All 12 tests pass.
 ---
 <!-- COMMENTS:END -->
