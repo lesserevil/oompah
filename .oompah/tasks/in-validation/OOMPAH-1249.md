@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:07:17.780951Z'
-updated_at: '2026-08-24T15:30:28.183137Z'
+updated_at: '2026-08-24T15:30:45.940336Z'
 work_branch: OOMPAH-1249
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/896
@@ -375,12 +375,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1249
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 64d0230cdd9adb22482599e2eea650a627416ba7c558fb6b68ff1832d2d572a3
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-aca1789f6b1b
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 64d0230cdd9adb22482599e2eea650a627416ba7c558fb6b68ff1832d2d572a3
+      created_at: '2026-08-24T15:30:35.237671+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-24T15:30:35.237671+00:00'
+      branch_key: OOMPAH-1249
+      selected_ref: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
+      selected_sha: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
     source_generation: 2
     requested_by:
       version: 1
@@ -391,6 +406,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T15:28:26.015117+00:00'
     selected_ref: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
     selected_sha: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
+    updated_at: '2026-08-24T15:30:35.237671+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cdf8e279c069
@@ -451,6 +467,21 @@ oompah.terminal_audit:
     ended_at: '2026-08-24T13:17:49.189629+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-24T13:18:29.189603+00:00'
+  - version: 1
+    attempt_id: attempt-aca1789f6b1b
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 64d0230cdd9adb22482599e2eea650a627416ba7c558fb6b68ff1832d2d572a3
+    created_at: '2026-08-24T15:30:35.237671+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-24T15:30:35.237671+00:00'
+    branch_key: OOMPAH-1249
+    selected_ref: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
+    selected_sha: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
 ---
 ## Summary
 
@@ -697,5 +728,15 @@ author: oompah
 created: 2026-08-24 15:28
 ---
 Terminal audit rearmed by project owner after recovery: Auditor transports fixed and deployed (OOMPAH-1327 agent path, OOMPAH-1328 OpenCode path) and reconciliation hot-loop fixed (OOMPAH-1329); service force-restarted onto ae653b4f2. Rearming exhausted terminal audit.
+---
+author: oompah
+created: 2026-08-24 15:30
+---
+Auditor dispatched (attempt #1, candidate: prov-6cf41c89/switchyard/auto)
+---
+author: oompah
+created: 2026-08-24 15:30
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
