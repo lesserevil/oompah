@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T01:36:28.768799Z'
-updated_at: '2026-08-24T02:27:52.799654Z'
+updated_at: '2026-08-24T02:28:14.249491Z'
 work_branch: OOMPAH-1329
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/907
@@ -131,12 +131,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1329
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 93d3202e8d44cf80ca57b31cf884a20fd2c8ae2a3a2510a3de337965df5632de
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-6794175ba7a8
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 93d3202e8d44cf80ca57b31cf884a20fd2c8ae2a3a2510a3de337965df5632de
+      created_at: '2026-08-24T02:28:02.354610+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-24T02:28:02.354610+00:00'
+      branch_key: OOMPAH-1329
+      selected_ref: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+      selected_sha: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
     source_generation: 1
     requested_by:
       version: 1
@@ -147,7 +162,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-d2d1717d9afd
     selected_ref: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
     selected_sha: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
-    updated_at: '2026-08-24T02:27:28.619638+00:00'
+    updated_at: '2026-08-24T02:28:02.354610+00:00'
     eligible_at: '2026-08-24T02:27:28.619638+00:00'
   attempt_history:
   - version: 1
@@ -162,6 +177,21 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: haiku
     started_at: '2026-08-24T02:15:52.518930+00:00'
+    branch_key: OOMPAH-1329
+    selected_ref: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+    selected_sha: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+  - version: 1
+    attempt_id: attempt-6794175ba7a8
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 93d3202e8d44cf80ca57b31cf884a20fd2c8ae2a3a2510a3de337965df5632de
+    created_at: '2026-08-24T02:28:02.354610+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-24T02:28:02.354610+00:00'
     branch_key: OOMPAH-1329
     selected_ref: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
     selected_sha: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
@@ -252,5 +282,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 11m 53s
 - Log: OOMPAH-1329__20260824T021607Z.jsonl
+---
+author: oompah
+created: 2026-08-24 02:28
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-24 02:28
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
