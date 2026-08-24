@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-24T15:53:33.410952Z'
+updated_at: '2026-08-24T18:06:34.693041Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -660,12 +660,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1266
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-855820a8fd02
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+      created_at: '2026-08-24T18:06:27.093405+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-24T18:06:27.093405+00:00'
+      branch_key: epic-OOMPAH-1231--task-OOMPAH-1266
+      selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+      selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
     source_generation: 4
     requested_by:
       version: 1
@@ -676,6 +691,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T15:27:42.297611+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+    updated_at: '2026-08-24T18:06:27.093405+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ebdec741f7d0
@@ -854,6 +870,21 @@ oompah.terminal_audit:
     ended_at: '2026-08-24T04:20:08.187131+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-24T04:20:48.187107+00:00'
+  - version: 1
+    attempt_id: attempt-855820a8fd02
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+    created_at: '2026-08-24T18:06:27.093405+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-24T18:06:27.093405+00:00'
+    branch_key: epic-OOMPAH-1231--task-OOMPAH-1266
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
 ---
 ## Summary
 
@@ -1337,5 +1368,10 @@ author: oompah
 created: 2026-08-24 15:27
 ---
 Terminal audit rearmed by project owner after recovery: Auditor transports fixed and deployed (OOMPAH-1327 agent path, OOMPAH-1328 OpenCode path) and reconciliation hot-loop fixed (OOMPAH-1329); service force-restarted onto ae653b4f2. Rearming exhausted terminal audit.
+---
+author: oompah
+created: 2026-08-24 18:06
+---
+Auditor dispatched (attempt #1, candidate: prov-6cf41c89/switchyard/auto)
 ---
 <!-- COMMENTS:END -->
