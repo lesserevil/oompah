@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:54:51.257792Z'
-updated_at: '2026-08-24T08:04:03.490608Z'
+updated_at: '2026-08-24T08:12:01.096047Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -373,5 +373,22 @@ This is a timeout issue in backend:orchestrator where 'Pre-provider contributor 
 5. Verify the fix doesn't cause regressions
 
 **Investigation starting now.**
+---
+author: oompah
+created: 2026-08-24 08:12
+---
+**Discovery: Root Cause Found**
+
+The timeout error occurs in the `_persist_work_contributor_launch` flow (oompah/orchestrator.py:58070). The issue:
+
+1. **Timeout Calculation**: The persistence_timeout defaults to 5 seconds (calculated as max(min(control_timeout=5s, termination_timeout/2=5s), 0.05s))
+
+2. **Configuration Available but NOT USED**: There's a config parameter `contributor_evidence_persist_timeout_seconds` (default 60s) that SHOULD override this, but the override logic at line 58040 only applies if `configured_evidence_timeout is not None`. 
+
+3. **Bug**: The config parameter exists and should be 60s by default (per config.py:1200), but it's being read as None, OR self.config doesn't have the attribute set properly.
+
+The mismatch is clear: default config says 60s, but actual timeout used is 5s.
+
+Next: Check how the config is being instantiated in the orchestrator to find why the configured value isn't being used.
 ---
 <!-- COMMENTS:END -->
