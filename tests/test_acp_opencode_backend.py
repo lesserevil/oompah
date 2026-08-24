@@ -30,6 +30,7 @@ from oompah.acp_backends import (
     BackendEvent,
 )
 from oompah.acp_backends.opencode import (
+    MAX_LINE_SIZE,
     OpencodeAcpBackend,
     OpencodeAcpBackendSession,
     _OpencodeCounters,
@@ -335,6 +336,22 @@ class TestOpencodeSessionLifecycle:
         assert session.turn_count == 0
         assert session.last_error is None
         assert session.permission_denials == []
+
+    @pytest.mark.asyncio
+    async def test_run_turn_sets_large_subprocess_stream_limit(self):
+        proc = _build_mock_proc(stdout_lines=[_json_msg("result")])
+        options = AcpBackendOptions(workspace_path="/tmp/ws", prompt="do it")
+        session = OpencodeAcpBackendSession(options)
+
+        with patch(
+            "asyncio.create_subprocess_exec",
+            return_value=proc,
+        ) as create_process:
+            with patch.object(session, "_build_tool_catalog", return_value=[]):
+                async for _event in session.run_turn():
+                    pass
+
+        assert create_process.await_args.kwargs["limit"] == MAX_LINE_SIZE
 
     @pytest.mark.asyncio
     async def test_run_turn_emits_session_start(self):

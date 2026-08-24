@@ -41,7 +41,7 @@ from oompah.acp_backends.base import (
     turn_deadline_exceeded,
 )
 from oompah.acp_backends.registry import register_backend
-from oompah.agent import AgentEvent
+from oompah.agent import MAX_LINE_SIZE, AgentEvent
 from oompah.client_auth import agent_environment
 from oompah.task_handoff import (
     TASK_HANDOFF_PROJECT_ENV,
@@ -440,6 +440,7 @@ class OpencodeAcpBackendSession(AcpBackendSession):
                 stderr=asyncio.subprocess.PIPE,
                 env=agent_env,
                 cwd=self._options.workspace_path,
+                limit=MAX_LINE_SIZE,
             )
             mark_transport_contacted(self._options)
             transport_permit = False
