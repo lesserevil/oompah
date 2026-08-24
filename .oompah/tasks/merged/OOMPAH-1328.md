@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1328
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Apply large stream limit to OpenCode ACP subprocesses
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T00:59:00.469186Z'
-updated_at: '2026-08-24T01:27:48.803125Z'
+updated_at: '2026-08-24T01:32:33.544796Z'
 work_branch: OOMPAH-1328
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 32623887-6658-4507-aebe-1f82fa244df7
   request_fingerprint: 3e72702ee72c5191f330bc2235080b55d6d11adf9beb0ee63295241e50b8ada2
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.integration:
   version: 2
   state: ready
@@ -52,6 +52,7 @@ oompah.terminal_audit:
     digest: 5afe5472112b1cac4d9f3a323071e2001dbe0dc88643adb31af26fb6f164963a
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1328","audit-b4728feba5a7","attempt-4284efaf83d2"]': '2026-08-24T01:27:06.188688+00:00'
+    '["proj-14849f1b","OOMPAH-1328","audit-6a7e254a8bb2","attempt-7de8f3966a2e"]': '2026-08-24T01:32:29.266556+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1328
@@ -66,6 +67,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-24T01:27:06.188706+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1328
+    target_state: Merged
+    evidence_fingerprint: 5afe5472112b1cac4d9f3a323071e2001dbe0dc88643adb31af26fb6f164963a
+    workflow_revision: null
+    selected_ref: aaac848e78bef6ee935df3c6697bcaa53012bfbb
+    selected_sha: aaac848e78bef6ee935df3c6697bcaa53012bfbb
+    landing_revision: null
+    audit_ids:
+    - audit-6a7e254a8bb2
+    kind: result
+    applied: true
+    retired_at: '2026-08-24T01:32:29.266577+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1328
@@ -80,6 +94,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T01:27:06.188717+00:00'
     applied_at: '2026-08-24T01:27:13.425240+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1328
+    audit_id: audit-6a7e254a8bb2
+    attempt_id: attempt-7de8f3966a2e
+    target_state: Merged
+    evidence_fingerprint: 5afe5472112b1cac4d9f3a323071e2001dbe0dc88643adb31af26fb6f164963a
+    status: Merged
+    audit_ids:
+    - audit-6a7e254a8bb2
+    kind: result
+    applied: false
+    created_at: '2026-08-24T01:32:29.266591+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -127,7 +153,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1328
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -136,7 +162,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7de8f3966a2e
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -148,6 +174,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1328
       selected_ref: aaac848e78bef6ee935df3c6697bcaa53012bfbb
       selected_sha: aaac848e78bef6ee935df3c6697bcaa53012bfbb
+      verdict: pass
+      completed_at: '2026-08-24T01:32:29.266407+00:00'
+      ended_at: '2026-08-24T01:32:29.266407+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -158,7 +187,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-b4728feba5a7
     selected_ref: aaac848e78bef6ee935df3c6697bcaa53012bfbb
     selected_sha: aaac848e78bef6ee935df3c6697bcaa53012bfbb
-    updated_at: '2026-08-24T01:27:34.991167+00:00'
+    updated_at: '2026-08-24T01:32:29.266407+00:00'
     eligible_at: '2026-08-24T01:27:06.188513+00:00'
   attempt_history:
   - version: 1
