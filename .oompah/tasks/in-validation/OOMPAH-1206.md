@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-24T02:35:31.821994Z'
+updated_at: '2026-08-24T02:37:49.505808Z'
 work_branch: OOMPAH-1206
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/902
@@ -115,8 +115,8 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 52130
-  total_output_tokens: 2499
+  total_input_tokens: 52485
+  total_output_tokens: 2598
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -124,8 +124,8 @@ oompah.task_costs:
       output_tokens: 2069
       cost_usd: 0.0
     unknown:
-      input_tokens: 52120
-      output_tokens: 430
+      input_tokens: 52475
+      output_tokens: 529
       cost_usd: 0.0
   runs:
   - profile: default
@@ -176,6 +176,12 @@ oompah.task_costs:
     output_tokens: 73
     cost_usd: 0.0
     recorded_at: '2026-08-24T01:49:35.183661+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 355
+    output_tokens: 99
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T02:37:40.465914+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -544,7 +550,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1206
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -592,7 +598,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-8c6f67019c83
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -605,6 +611,10 @@ oompah.terminal_audit:
       selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
       selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
       candidate_rotation_count: 2
+      failure_classification: finalization_failure
+      ended_at: '2026-08-24T02:37:44.991420+00:00'
+      failure_reason: normal
+      next_retry_at: '2026-08-24T02:38:24.991394+00:00'
     source_generation: 3
     requested_by:
       version: 1
@@ -615,7 +625,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T00:19:27.889391+00:00'
     selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
-    updated_at: '2026-08-24T02:35:17.691663+00:00'
+    updated_at: '2026-08-24T02:37:44.991420+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-08569515fd73
@@ -777,7 +787,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-8c6f67019c83
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -790,6 +800,10 @@ oompah.terminal_audit:
     selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     candidate_rotation_count: 2
+    failure_classification: finalization_failure
+    ended_at: '2026-08-24T02:37:44.991420+00:00'
+    failure_reason: normal
+    next_retry_at: '2026-08-24T02:38:24.991394+00:00'
 ---
 ## Summary
 
@@ -1239,5 +1253,20 @@ author: oompah
 created: 2026-08-24 02:35
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 02:37
+---
+Run #3 [attempt=3, profile=auditor, role=auditor -> Opencode/Switchyard/switchyard/auto]
+- Turns: 27, Tool calls: 27
+- Tokens: 355 in / 99 out [45.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 20s
+- Log: OOMPAH-1206__20260824T023541Z.jsonl
+---
+author: oompah
+created: 2026-08-24 02:37
+---
+Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
