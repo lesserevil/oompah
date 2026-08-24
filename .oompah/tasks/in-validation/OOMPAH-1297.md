@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1297
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=OOMPAH-1213 identifier=OOMPAH-1213 run_id=366dc2e64db34a00afe4fb85a61699d4
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:59:54.516015Z'
-updated_at: '2026-08-24T11:43:05.579262Z'
+updated_at: '2026-08-24T11:43:19.029504Z'
 work_branch: OOMPAH-1297
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -258,6 +258,64 @@ oompah.integration:
   submitted_at: '2026-08-24T08:24:47.975070+00:00'
   updated_at: '2026-08-24T11:43:01.157688+00:00'
 oompah.work_branch: OOMPAH-1297
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-05d40157c9c7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1297
+    digest: 9940335675ba3131ce19e16712960c4d5691fb51340916ac83d3c0bf6c0458e1
+  - version: 1
+    audit_id: audit-ff07d2ab1781
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1297
+    digest: 9940335675ba3131ce19e16712960c4d5691fb51340916ac83d3c0bf6c0458e1
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-05d40157c9c7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1297
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9940335675ba3131ce19e16712960c4d5691fb51340916ac83d3c0bf6c0458e1
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: standalone-ready-reconciliation
+      source: oompah
+    previous_state: Ready to Integrate
+    created_at: '2026-08-24T11:43:12.924568+00:00'
+    eligible_at: '2026-08-24T11:43:12.924568+00:00'
+    selected_ref: 8c81b69c713e9bb6a1da8906b7e637f1ea6a1696
+    selected_sha: 8c81b69c713e9bb6a1da8906b7e637f1ea6a1696
+  - version: 1
+    audit_id: audit-ff07d2ab1781
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1297
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9940335675ba3131ce19e16712960c4d5691fb51340916ac83d3c0bf6c0458e1
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: standalone-ready-reconciliation
+      source: oompah
+    previous_state: Ready to Integrate
+    created_at: '2026-08-24T11:43:12.924568+00:00'
+    prerequisite_audit_id: audit-05d40157c9c7
+    selected_ref: 8c81b69c713e9bb6a1da8906b7e637f1ea6a1696
+    selected_sha: 8c81b69c713e9bb6a1da8906b7e637f1ea6a1696
+  attempt_history: []
 ---
 ## Summary
 
@@ -668,5 +726,10 @@ author: oompah
 created: 2026-08-24 11:42
 ---
 Branch quality gate passed for `8c81b69c713e9bb6a1da8906b7e637f1ea6a1696` using `make test` in 187.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-24 11:43
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
