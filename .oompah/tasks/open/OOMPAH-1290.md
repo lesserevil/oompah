@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:16:52.125972Z'
-updated_at: '2026-08-24T09:51:28.190443Z'
+updated_at: '2026-08-24T09:54:55.699566Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -387,5 +387,10 @@ author: oompah
 created: 2026-08-24 09:51
 ---
 **Discovery**: Found root cause in `_stage_work_contributor_launch()` method (oompah/orchestrator.py:57837). Error occurs when persisting contributor evidence to tracker exceeds timeout. Code flow: (1) Creates thread task to persist evidence via `_persist_work_contributor()`, (2) Sets timeout based on config `contributor_evidence_persist_timeout_seconds` (default 60s), (3) On timeout, returns error message, (4) Error propagates as ProviderStartupError with reason='contributor_evidence_unavailable', (5) All dispatch candidates fail, (6) ERROR level log triggered: 'All dispatch candidates failed for issue...', (7) error_watcher creates task. The persistence operation involves acquiring locks and calling tracker.set_metadata_field() which can be slow. Default timeout of 60 seconds is too short for slow trackers like 'provenanceguardedtracker'.
+---
+author: oompah
+created: 2026-08-24 09:54
+---
+**Implementation**: Increased default `contributor_evidence_persist_timeout_seconds` from 60.0 to 300.0 seconds (5 minutes) to accommodate slower tracker I/O operations. Changes made: (1) oompah/config.py line 1200: Updated class attribute default from 60.0 to 300.0, (2) oompah/config.py line 2058-2059: Updated from_workflow() method default from 60.0 to 300.0, (3) tests/test_config.py line 124: Updated test assertion from 60.0 to 300.0. This gives slow trackers like 'provenanceguardedtracker' more time to complete metadata writes before timing out and failing dispatch.
 ---
 <!-- COMMENTS:END -->
