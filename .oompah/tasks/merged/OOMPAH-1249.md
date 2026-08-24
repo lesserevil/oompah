@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1249
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Sanitize credential routes from managed clone Git config
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:07:17.780951Z'
-updated_at: '2026-08-24T15:49:41.872519Z'
+updated_at: '2026-08-24T16:12:31.809419Z'
 work_branch: OOMPAH-1249
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/896
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 38414c00-1ce0-4772-8ca6-34b094cc432f
   request_fingerprint: 161c9ff76929a7deb62fc461fd2af12e3940f907f457dfd38ca6015cd1b8f517
-oompah.lifecycle_revision: 9
+oompah.lifecycle_revision: 10
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: ac16839b98a35e44ffa203782336151a9e5ff81d3f799e101eabcba48ecc8de7
@@ -256,6 +256,29 @@ oompah.terminal_audit:
     mode: infrastructure_recovery
     consumed_at: '2026-08-24T15:30:26.402775+00:00'
     consumed_workflow_job_id: workflow-job-7882a861ca4848399646c291bd9e1af1
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f012fafe2c26
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1249
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 64d0230cdd9adb22482599e2eea650a627416ba7c558fb6b68ff1832d2d572a3
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner override: independent OpenCode auditor provider (prov-6cf41c89/switchyard/auto)
+      is crashing on >64KiB ACP JSON-RPC lines (tracked in OOMPAH-1330), exhausting
+      the audit budget and holding restart reconstruction open. Implementation is
+      complete and branch quality gate passed for both tasks; applying recorded terminal
+      status to unblock the workflow. Re-audit not possible until OOMPAH-1330 is fixed.'
+    created_at: '2026-08-24T16:12:27.570256+00:00'
+    selected_ref: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
+    selected_sha: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
+    applied: false
   version: 1
   pending_chain:
   - version: 1
