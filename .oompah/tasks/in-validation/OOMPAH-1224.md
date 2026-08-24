@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1224
 type: bug
-status: Needs Human
+status: In Validation
 priority: 2
 title: '[backend:server] Issue detail API error: ProgrammingError(''Cannot operate
   on a closed database.'')'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-24T00:39:53.920603Z'
+updated_at: '2026-08-24T01:18:02.930864Z'
 work_branch: OOMPAH-1224
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/900
 review_number: '900'
 review_head: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
 merged_at: null
-oompah.lifecycle_revision: 8
+oompah.lifecycle_revision: 9
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -209,6 +209,40 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T00:33:25.283127+00:00'
     applied_at: '2026-08-24T00:33:33.700615+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1224
+    audit_id: audit-49872de05682
+    attempt_id: audit-rearm:audit-49872de05682
+    target_state: Done
+    evidence_fingerprint: fdb0a7e362aa42a9ce8eb57ee0b64e3ab0beae750529aecace8beae71bc989ca
+    status: In Validation
+    audit_ids:
+    - audit-49872de05682
+    kind: audit_rearm
+    applied: true
+    created_at: '2026-08-24T01:17:53.941218+00:00'
+    applied_at: '2026-08-24T01:18:00.243562+00:00'
+  oompah.terminal_audit_rearm_history:
+  - version: 2
+    audit_id: audit-49872de05682
+    superseded_audit_id: audit-e15ca9ca9b7f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1224
+    target_state: Done
+    evidence_fingerprint: fdb0a7e362aa42a9ce8eb57ee0b64e3ab0beae750529aecace8beae71bc989ca
+    workflow_revision: 71f6297718a1833ec1a9f2c922367d43a0c7ea6d6c76e9c5f4fba12dbedd3ce1
+    selected_ref: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+    selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+    landing_revision: null
+    source_generation: 2
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'OpenCode auditor transport fixed and deployed in OOMPAH-1328 / PR #905;
+      subprocess streams now use MAX_LINE_SIZE and focused tests pass.'
+    authorized_at: '2026-08-24T01:17:53.941017+00:00'
+    mode: infrastructure_recovery
   version: 1
   pending_chain:
   - version: 1
@@ -216,7 +250,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1224
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -307,7 +341,7 @@ oompah.terminal_audit:
     selected_ref: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
     selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
     workflow_revision: 71f6297718a1833ec1a9f2c922367d43a0c7ea6d6c76e9c5f4fba12dbedd3ce1
-    updated_at: '2026-08-24T00:33:25.282968+00:00'
+    updated_at: '2026-08-24T01:17:53.941017+00:00'
   - version: 1
     audit_id: audit-9234408585ed
     project_id: proj-14849f1b
@@ -331,6 +365,28 @@ oompah.terminal_audit:
     selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
     workflow_revision: 71f6297718a1833ec1a9f2c922367d43a0c7ea6d6c76e9c5f4fba12dbedd3ce1
     updated_at: '2026-08-24T00:39:52.329475+00:00'
+  - version: 1
+    audit_id: audit-49872de05682
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1224
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fdb0a7e362aa42a9ce8eb57ee0b64e3ab0beae750529aecace8beae71bc989ca
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Review
+    created_at: '2026-08-24T01:17:53.941017+00:00'
+    eligible_at: '2026-08-24T01:17:53.941017+00:00'
+    selected_ref: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+    selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+    workflow_revision: 71f6297718a1833ec1a9f2c922367d43a0c7ea6d6c76e9c5f4fba12dbedd3ce1
   attempt_history:
   - version: 1
     attempt_id: attempt-fdb2399fa251
@@ -638,5 +694,10 @@ created: 2026-08-24 00:33
 Needs Human — Done audit requires operator input.
 
 Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
+---
+author: oompah
+created: 2026-08-24 01:18
+---
+Terminal audit rearmed by project owner after recovery: OpenCode auditor transport fixed and deployed in OOMPAH-1328 / PR #905; subprocess streams now use MAX_LINE_SIZE and focused tests pass.
 ---
 <!-- COMMENTS:END -->
