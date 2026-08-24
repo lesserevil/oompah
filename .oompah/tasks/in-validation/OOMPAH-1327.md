@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-23T21:54:32.810884Z'
-updated_at: '2026-08-24T00:23:38.246664Z'
+updated_at: '2026-08-24T00:27:58.970216Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,6 +38,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1327
     digest: ec54d37a26f0a8ac377ed6cba16e297bf2b6247c1dba88c9b0d096f10a89d6ee
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1327","audit-76cfa3e76835","attempt-56feef71903f"]': '2026-08-24T00:27:49.369649+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1327
+    target_state: Done
+    evidence_fingerprint: ec54d37a26f0a8ac377ed6cba16e297bf2b6247c1dba88c9b0d096f10a89d6ee
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1327
+    selected_sha: a1bdfad376af434e72551b698b2171863b4857dd
+    landing_revision: null
+    audit_ids:
+    - audit-76cfa3e76835
+    kind: result
+    applied: true
+    retired_at: '2026-08-24T00:27:49.369666+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1327
+    audit_id: audit-76cfa3e76835
+    attempt_id: attempt-56feef71903f
+    target_state: Done
+    evidence_fingerprint: ec54d37a26f0a8ac377ed6cba16e297bf2b6247c1dba88c9b0d096f10a89d6ee
+    status: In Validation
+    audit_ids:
+    - audit-76cfa3e76835
+    kind: result
+    applied: true
+    created_at: '2026-08-24T00:27:49.369688+00:00'
+    applied_at: '2026-08-24T00:27:57.769591+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -45,7 +75,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1327
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -54,7 +84,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-56feef71903f
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -66,6 +96,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1327
       selected_ref: origin/OOMPAH-1327
       selected_sha: a1bdfad376af434e72551b698b2171863b4857dd
+      verdict: pass
+      completed_at: '2026-08-24T00:27:49.369493+00:00'
+      ended_at: '2026-08-24T00:27:49.369493+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -76,7 +109,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T00:16:35.208700+00:00'
     selected_ref: origin/OOMPAH-1327
     selected_sha: a1bdfad376af434e72551b698b2171863b4857dd
-    updated_at: '2026-08-24T00:23:26.877689+00:00'
+    updated_at: '2026-08-24T00:27:49.369493+00:00'
   - version: 1
     audit_id: audit-baa4202ff705
     project_id: proj-14849f1b
@@ -98,6 +131,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-76cfa3e76835
     selected_ref: origin/OOMPAH-1327
     selected_sha: a1bdfad376af434e72551b698b2171863b4857dd
+    updated_at: '2026-08-24T00:27:49.369493+00:00'
+    eligible_at: '2026-08-24T00:27:49.369493+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-56feef71903f
@@ -168,5 +203,19 @@ author: oompah
 created: 2026-08-24 00:23
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 00:27
+---
+Audit PASS — Done
+
+Fix for OOMPAH-1327 is complete and correct. Implementation passes limit=MAX_LINE_SIZE (10 MiB) to create_subprocess_exec, preventing readline crashes on lines >64 KiB. Unit test verifies parameter is correctly set. Full test suite passes (SHA a1bdfad, 185.9s). All acceptance criteria met: limit parameter verified by test, no ValueError on large lines, test suite green, no regressions.
+
+Safe evidence:
+- fix_location: oompah/agent.py lines 615
+- limit_parameter: limit=MAX_LINE_SIZE where MAX_LINE_SIZE=10*1024*1024
+- test_verification: tests/test_agent.py line 48 asserts create_process.await_args.kwargs['limit'] == MAX_LINE_SIZE
+- quality_gate: make test passed (SHA a1bdfad376af434e72551b698b2171863b4857dd, 185.9s)
+- test_count: 27+ tests in test_agent.py all passing
 ---
 <!-- COMMENTS:END -->
