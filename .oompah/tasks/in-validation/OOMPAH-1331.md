@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1331
 type: task
-status: Backlog
+status: In Validation
 priority: null
 title: Restart reconstruction never finalizes (1 unexplained divergence) leaving stale
   action_required=19 and permanent restart_overdue
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:28:31.897753Z'
-updated_at: '2026-08-24T16:28:31.897753Z'
+updated_at: '2026-08-24T17:00:01.076573Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,6 +25,65 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: eaae4288-c737-4655-a501-a014d7a120f1
   request_fingerprint: 0424978c962567958aad57a379d453e5110704b8c4b1b80170bf0f08fca47f38
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-34bc00c97981
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1331
+    digest: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+  - version: 1
+    audit_id: audit-ad3efba187b4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1331
+    digest: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-34bc00c97981
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1331
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-24T16:59:53.820238+00:00'
+    eligible_at: '2026-08-24T16:59:53.820238+00:00'
+    selected_ref: origin/OOMPAH-1331
+    selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
+  - version: 1
+    audit_id: audit-ad3efba187b4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1331
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-24T16:59:53.820238+00:00'
+    prerequisite_audit_id: audit-34bc00c97981
+    selected_ref: origin/OOMPAH-1331
+    selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
