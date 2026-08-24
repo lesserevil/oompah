@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1330
 type: task
-status: Needs Human
+status: In Validation
 priority: null
 title: Auditor OpenCode ACP transport crashes on >64KiB JSON-RPC lines (Separator
   is found, but chunk is longer than limit)
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:03:40.977842Z'
-updated_at: '2026-08-24T17:46:16.916534Z'
+updated_at: '2026-08-24T23:53:08.696773Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -95,6 +95,41 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T17:46:08.331182+00:00'
     applied_at: '2026-08-24T17:46:15.497420+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1330
+    audit_id: audit-db9b42b3f57e
+    attempt_id: audit-rearm:audit-db9b42b3f57e
+    target_state: Merged
+    evidence_fingerprint: 648cfbb5a46f2eac6fcd37b46d7fa0879085d7a392aaf39499e395f9e13383fb
+    status: In Validation
+    audit_ids:
+    - audit-db9b42b3f57e
+    kind: audit_rearm
+    applied: true
+    created_at: '2026-08-24T23:52:57.887115+00:00'
+    applied_at: '2026-08-24T23:53:05.414728+00:00'
+  oompah.terminal_audit_rearm_history:
+  - version: 2
+    audit_id: audit-db9b42b3f57e
+    superseded_audit_id: audit-436fa43dadd4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1330
+    target_state: Merged
+    evidence_fingerprint: 648cfbb5a46f2eac6fcd37b46d7fa0879085d7a392aaf39499e395f9e13383fb
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1330
+    selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
+    landing_revision: null
+    source_generation: 2
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Verdict-capable independent auditor capacity restored: OOMPAH-1333 excludes
+      incapable OpenCode/native subscription transports; healthy Claude candidates
+      with submit_audit_result bridge remain.'
+    authorized_at: '2026-08-24T23:52:57.886943+00:00'
+    mode: infrastructure_recovery
   version: 1
   pending_chain:
   - version: 1
@@ -142,7 +177,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1330
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -238,8 +273,29 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-880d1098e31e
     selected_ref: origin/OOMPAH-1330
     selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
-    updated_at: '2026-08-24T17:46:08.331016+00:00'
+    updated_at: '2026-08-24T23:52:57.886943+00:00'
     eligible_at: '2026-08-24T17:15:38.475074+00:00'
+  - version: 1
+    audit_id: audit-db9b42b3f57e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1330
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 648cfbb5a46f2eac6fcd37b46d7fa0879085d7a392aaf39499e395f9e13383fb
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Backlog
+    created_at: '2026-08-24T23:52:57.886943+00:00'
+    eligible_at: '2026-08-24T23:52:57.886943+00:00'
+    selected_ref: origin/OOMPAH-1330
+    selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
   attempt_history:
   - version: 1
     attempt_id: attempt-e72e33d5aa6d
@@ -321,7 +377,7 @@ oompah.terminal_audit:
       denied. Allowed validation targets: make test. The command was not executed.
       [reason=auditor_unapproved_validation_target]'
     next_retry_at: '2026-08-24T17:42:33.410724+00:00'
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.task_costs:
   total_input_tokens: 763
   total_output_tokens: 11260
@@ -549,5 +605,10 @@ created: 2026-08-24 17:46
 Needs Human — Merged audit requires operator input.
 
 No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-24 23:53
+---
+Terminal audit rearmed by project owner after recovery: Verdict-capable independent auditor capacity restored: OOMPAH-1333 excludes incapable OpenCode/native subscription transports; healthy Claude candidates with submit_audit_result bridge remain.
 ---
 <!-- COMMENTS:END -->
