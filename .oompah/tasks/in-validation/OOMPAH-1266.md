@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-24T00:20:46.299256Z'
+updated_at: '2026-08-24T00:48:12.093199Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -294,6 +294,8 @@ oompah.terminal_audit:
       from crashing terminal audits.'
     authorized_at: '2026-08-24T00:20:29.356971+00:00'
     mode: infrastructure_recovery
+    consumed_at: '2026-08-24T00:48:10.747181+00:00'
+    consumed_workflow_job_id: workflow-job-0913b6e89d2c44f98a358a9ae3748e5d
   version: 1
   pending_chain:
   - version: 1
