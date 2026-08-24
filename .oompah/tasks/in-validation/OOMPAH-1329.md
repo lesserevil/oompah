@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T01:36:28.768799Z'
-updated_at: '2026-08-24T02:16:02.328774Z'
+updated_at: '2026-08-24T02:27:36.935305Z'
 work_branch: OOMPAH-1329
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/907
@@ -54,6 +54,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1329
     digest: 93d3202e8d44cf80ca57b31cf884a20fd2c8ae2a3a2510a3de337965df5632de
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1329","audit-d2d1717d9afd","attempt-050fc068b811"]': '2026-08-24T02:27:28.619835+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1329
+    target_state: Done
+    evidence_fingerprint: 93d3202e8d44cf80ca57b31cf884a20fd2c8ae2a3a2510a3de337965df5632de
+    workflow_revision: null
+    selected_ref: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+    selected_sha: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+    landing_revision: null
+    audit_ids:
+    - audit-d2d1717d9afd
+    kind: result
+    applied: true
+    retired_at: '2026-08-24T02:27:28.619852+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1329
+    audit_id: audit-d2d1717d9afd
+    attempt_id: attempt-050fc068b811
+    target_state: Done
+    evidence_fingerprint: 93d3202e8d44cf80ca57b31cf884a20fd2c8ae2a3a2510a3de337965df5632de
+    status: In Validation
+    audit_ids:
+    - audit-d2d1717d9afd
+    kind: result
+    applied: true
+    created_at: '2026-08-24T02:27:28.619863+00:00'
+    applied_at: '2026-08-24T02:27:35.595865+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -61,7 +91,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1329
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -70,7 +100,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-050fc068b811
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -82,6 +112,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1329
       selected_ref: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
       selected_sha: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+      verdict: pass
+      completed_at: '2026-08-24T02:27:28.619638+00:00'
+      ended_at: '2026-08-24T02:27:28.619638+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -92,7 +125,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T01:59:28.396034+00:00'
     selected_ref: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
     selected_sha: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
-    updated_at: '2026-08-24T02:15:52.518930+00:00'
+    updated_at: '2026-08-24T02:27:28.619638+00:00'
   - version: 1
     audit_id: audit-925a61fc1c8f
     project_id: proj-14849f1b
@@ -114,6 +147,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-d2d1717d9afd
     selected_ref: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
     selected_sha: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+    updated_at: '2026-08-24T02:27:28.619638+00:00'
+    eligible_at: '2026-08-24T02:27:28.619638+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-050fc068b811
@@ -172,5 +207,24 @@ author: oompah
 created: 2026-08-24 02:16
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 02:27
+---
+Audit PASS — Done
+
+Over-budget publication supersession now explicitly marks restart_deadline_exceeded and suppresses immediate self-requeue. Orchestrator's _request_runtime_report_continuation prevents continuation when deadline exceeded. Worker remains closed but no hot-loop is generated; later periodic or authority-change wake can retry. Regression tests verify behavior. Acceptance criteria met.
+
+Safe evidence:
+- test_results.test_over_budget_publication_supersession_is_marked_exhausted: PASSED
+- test_results.test_exhausted_superseded_publication_does_not_hot_loop: PASSED
+- test_results.full_gate_make_test: PASSED (179.5s)
+- implementation_changes.workflow_runtime_py_deadline_exceeded_signals: Lines 2898, 2903, 2924 set restart_deadline_exceeded flag when reconciliation exceeds budget
+- implementation_changes.orchestrator_py_suppress_continuation: Method _request_runtime_report_continuation (lines 12611-12624) returns False when restart_deadline_exceeded is True, blocking immediate self-requeue
+- implementation_changes.orchestrator_callers: Lines 17353 (_run_restart_reconstruction_tick), 17424 (_run_durable_workflow_tick) call suppression logic
+- acceptance_verification[0]: Worker admission stays closed until next periodic or authority-change wake
+- acceptance_verification[1]: restart_deadline_exceeded flag observable in all superseded reports
+- acceptance_verification[2]: No continuation requested when deadline exceeded
+- acceptance_verification[3]: Later reconciliation can publish and reopen admission
 ---
 <!-- COMMENTS:END -->
