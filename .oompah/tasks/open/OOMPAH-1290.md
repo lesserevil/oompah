@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:16:52.125972Z'
-updated_at: '2026-08-24T09:55:57.295718Z'
+updated_at: '2026-08-24T09:56:17.589781Z'
 work_branch: OOMPAH-1290
 target_branch: null
 review_url: null
@@ -183,16 +183,16 @@ oompah.work_contributors:
     model_id: haiku
     focus: general
     source_branch: OOMPAH-1290
-    source_sha: null
-    completed_at: ''
+    source_sha: 43792bdbb2251803f7c6f06d66d3b4b8435e0aa0
+    completed_at: '2026-08-24T09:56:07.254743+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1451
+  total_input_tokens: 636
+  total_output_tokens: 18893
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1451
+      input_tokens: 636
+      output_tokens: 18893
       cost_usd: 0.0
   runs:
   - profile: default
@@ -201,6 +201,12 @@ oompah.task_costs:
     output_tokens: 1451
     cost_usd: 0.0
     recorded_at: '2026-08-24T07:04:50.114883+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 626
+    output_tokens: 17442
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T09:56:07.249808+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -414,5 +420,15 @@ author: oompah
 created: 2026-08-24 09:55
 ---
 Resolved contributor evidence timeout issue by increasing default persistence timeout from 60 seconds to 300 seconds (5 minutes). Updated ServiceConfig class and from_workflow() method defaults, and corresponding test assertions. This gives slow tracker implementations sufficient time to complete metadata I/O operations during pre-provider launch phase, preventing dispatch failures and error_watcher alerts.
+---
+author: oompah
+created: 2026-08-24 09:56
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 161, Tool calls: 77
+- Tokens: 626 in / 17.4K out [18.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 12m 54s
+- Log: OOMPAH-1290__20260824T094447Z.jsonl
 ---
 <!-- COMMENTS:END -->
