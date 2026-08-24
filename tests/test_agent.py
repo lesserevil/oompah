@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from oompah.agent import (
+    MAX_LINE_SIZE,
     AgentError,
     AgentSession,
     ProcessIdentity,
@@ -44,6 +45,7 @@ async def test_start_creates_dedicated_posix_session(tmp_path, monkeypatch):
     assert create_process.await_args.kwargs["start_new_session"] is (
         os.name == "posix"
     )
+    assert create_process.await_args.kwargs["limit"] == MAX_LINE_SIZE
     child_env = create_process.await_args.kwargs["env"]
     assert "OOMPAH_SERVER_USERNAME" not in child_env
     assert "OOMPAH_SERVER_PASSWORD" not in child_env
