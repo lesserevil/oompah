@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-24T23:43:10.411310Z'
+updated_at: '2026-08-24T23:43:44.136664Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -180,6 +180,14 @@ oompah.work_contributors:
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-luna
+    focus: general
+    source_branch: OOMPAH-1197
+    source_sha: null
+    completed_at: ''
+  - run_id: edc09f77c65048dcab47a56ca66f015b--contributor-86e3ac8153e1
+    provider_id: prov-6cf41c89
+    provider_name: Opencode/Switchyard
+    model_id: switchyard/auto
     focus: general
     source_branch: OOMPAH-1197
     source_sha: null
