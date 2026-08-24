@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:00:50.331057Z'
-updated_at: '2026-08-24T10:26:49.187843Z'
+updated_at: '2026-08-24T10:32:46.351825Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -386,5 +386,32 @@ The default 5-second timeout is too aggressive for tracker I/O operations. When 
 The code has a config override (`contributor_evidence_persist_timeout_seconds`) but it defaults to None, leaving the tight derived timeout as the fallback.
 
 **Fix**: Increase the default persistence timeout to a reasonable value (15-20 seconds) to allow for network delays and tracker latency.
+---
+author: oompah
+created: 2026-08-24 10:32
+---
+**Implementation**
+
+Fixed the pre-provider contributor evidence timeout issue in `oompah/orchestrator.py`.
+
+**Change Made:**
+In `_stage_work_contributor_launch()` method (lines 58026-58029), increased the minimum persistence timeout from 0.05 seconds to 15.0 seconds:
+
+```python
+persistence_timeout = max(
+    min(control_timeout, termination_timeout / 2.0),
+    15.0,  # Increased from 0.05 to 15.0 seconds
+)
+```
+
+**Rationale:**
+- The default derived timeout of 5 seconds (from `control_timeout = 5.0`) was too aggressive for tracker I/O operations
+- Persisting contributor evidence (provider/model info) to the tracker can take longer than 5 seconds due to network delays or tracker latency
+- 15 seconds provides a reasonable buffer for tracker writes while still being bounded
+- The config option `contributor_evidence_persist_timeout_seconds` can still override this for production customization
+
+**Test Results:**
+- All 21 provider_retirement tests pass
+- All 235 timeout-related tests pass (1 unrelated failure in Python path setup)
 ---
 <!-- COMMENTS:END -->
