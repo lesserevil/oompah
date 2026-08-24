@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:03:07.024179Z'
-updated_at: '2026-08-24T05:12:06.870479Z'
+updated_at: '2026-08-24T05:14:32.624031Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -353,5 +353,27 @@ The problem is that error_watcher is configured to capture WARNING+ level logs w
 **Fix:** Change `logger.warning()` to `logger.debug()` (or remove logging entirely) since this is a graceful degradation path that's already handled by returning a user-facing error message.
 
 There are three similar logger.warning calls in this function (lines 58066, 58107, and surrounding areas) that also need to be changed.
+---
+author: oompah
+created: 2026-08-24 05:14
+---
+## Implementation
+
+Changed three `logger.warning()` calls to `logger.debug()` in `oompah/orchestrator.py`:
+
+1. **Line ~57953**: "Pre-provider contributor evidence is still settling from a retired generation" - now logged at DEBUG level
+2. **Line ~58066**: "Pre-provider contributor evidence exceeded its bounded task-authority deadline" - now logged at DEBUG level  
+3. **Line ~58107**: "Cancelled pre-provider contributor evidence did not finish before task-authority release" - now logged at DEBUG level
+
+These are all graceful degradation paths in the `_stage_work_contributor_launch` method where timeouts or cancellations occur while persisting contributor metadata. The function already returns a user-facing error message in all these cases, so logging at WARNING level was unnecessary and caused error_watcher to incorrectly auto-file these as backend errors.
+
+## Verification
+
+✅ All 21 tests in `tests/test_provider_retirement.py` pass
+✅ All 124 tests in `tests/test_error_watcher.py` pass  
+✅ Specifically, `test_pre_provider_evidence_timeout_releases_task_authority` and related timeout tests pass
+✅ Error messages are still returned to callers as expected
+
+The fix prevents error_watcher from auto-filing these graceful timeouts while preserving observability via DEBUG logging for operators who need it.
 ---
 <!-- COMMENTS:END -->
