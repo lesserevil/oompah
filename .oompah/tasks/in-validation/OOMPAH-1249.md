@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1249
 type: task
-status: Needs Human
+status: In Validation
 priority: null
 title: Sanitize credential routes from managed clone Git config
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:07:17.780951Z'
-updated_at: '2026-08-24T13:45:12.419449Z'
+updated_at: '2026-08-24T15:28:36.880011Z'
 work_branch: OOMPAH-1249
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/896
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 38414c00-1ce0-4772-8ca6-34b094cc432f
   request_fingerprint: 161c9ff76929a7deb62fc461fd2af12e3940f907f457dfd38ca6015cd1b8f517
-oompah.lifecycle_revision: 8
+oompah.lifecycle_revision: 9
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: ac16839b98a35e44ffa203782336151a9e5ff81d3f799e101eabcba48ecc8de7
@@ -213,6 +213,41 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T13:37:21.467159+00:00'
     applied_at: '2026-08-24T13:37:28.636046+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1249
+    audit_id: audit-a71d8171b8cc
+    attempt_id: audit-rearm:audit-a71d8171b8cc
+    target_state: Done
+    evidence_fingerprint: 64d0230cdd9adb22482599e2eea650a627416ba7c558fb6b68ff1832d2d572a3
+    status: In Validation
+    audit_ids:
+    - audit-a71d8171b8cc
+    kind: audit_rearm
+    applied: true
+    created_at: '2026-08-24T15:28:26.015309+00:00'
+    applied_at: '2026-08-24T15:28:32.317145+00:00'
+  oompah.terminal_audit_rearm_history:
+  - version: 2
+    audit_id: audit-a71d8171b8cc
+    superseded_audit_id: audit-20ec696fc6ec
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1249
+    target_state: Done
+    evidence_fingerprint: 64d0230cdd9adb22482599e2eea650a627416ba7c558fb6b68ff1832d2d572a3
+    workflow_revision: null
+    selected_ref: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
+    selected_sha: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
+    landing_revision: null
+    source_generation: 2
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Auditor transports fixed and deployed (OOMPAH-1327 agent path, OOMPAH-1328
+      OpenCode path) and reconciliation hot-loop fixed (OOMPAH-1329); service force-restarted
+      onto ae653b4f2. Rearming exhausted terminal audit.
+    authorized_at: '2026-08-24T15:28:26.015117+00:00'
+    mode: infrastructure_recovery
   version: 1
   pending_chain:
   - version: 1
@@ -220,7 +255,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1249
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -310,7 +345,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T12:04:19.872851+00:00'
     selected_ref: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
     selected_sha: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
-    updated_at: '2026-08-24T13:37:21.466973+00:00'
+    updated_at: '2026-08-24T15:28:26.015117+00:00'
   - version: 1
     audit_id: audit-74d9bc4f85fc
     project_id: proj-14849f1b
@@ -333,6 +368,27 @@ oompah.terminal_audit:
     selected_ref: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
     selected_sha: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
     updated_at: '2026-08-24T13:45:10.956955+00:00'
+  - version: 1
+    audit_id: audit-a71d8171b8cc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1249
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 64d0230cdd9adb22482599e2eea650a627416ba7c558fb6b68ff1832d2d572a3
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Review
+    created_at: '2026-08-24T15:28:26.015117+00:00'
+    eligible_at: '2026-08-24T15:28:26.015117+00:00'
+    selected_ref: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
+    selected_sha: 23fad2fe6ec0760fc1e73ebcb7e07bf1bf6473a6
   attempt_history:
   - version: 1
     attempt_id: attempt-cdf8e279c069
@@ -634,5 +690,10 @@ created: 2026-08-24 13:37
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-24 15:28
+---
+Terminal audit rearmed by project owner after recovery: Auditor transports fixed and deployed (OOMPAH-1327 agent path, OOMPAH-1328 OpenCode path) and reconciliation hot-loop fixed (OOMPAH-1329); service force-restarted onto ae653b4f2. Rearming exhausted terminal audit.
 ---
 <!-- COMMENTS:END -->
