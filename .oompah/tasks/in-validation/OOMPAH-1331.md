@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:28:31.897753Z'
-updated_at: '2026-08-24T17:05:56.247070Z'
+updated_at: '2026-08-24T17:17:10.311841Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,6 +38,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1331
     digest: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1331","audit-34bc00c97981","attempt-fccf5a75d857"]': '2026-08-24T17:16:59.921038+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1331
+    target_state: Done
+    evidence_fingerprint: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1331
+    selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
+    landing_revision: null
+    audit_ids:
+    - audit-34bc00c97981
+    kind: result
+    applied: true
+    retired_at: '2026-08-24T17:16:59.921054+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1331
+    audit_id: audit-34bc00c97981
+    attempt_id: attempt-fccf5a75d857
+    target_state: Done
+    evidence_fingerprint: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+    status: In Validation
+    audit_ids:
+    - audit-34bc00c97981
+    kind: result
+    applied: true
+    created_at: '2026-08-24T17:16:59.921066+00:00'
+    applied_at: '2026-08-24T17:17:09.019721+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -45,7 +75,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1331
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -54,7 +84,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-fccf5a75d857
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -66,6 +96,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1331
       selected_ref: origin/OOMPAH-1331
       selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
+      verdict: pass
+      completed_at: '2026-08-24T17:16:59.920832+00:00'
+      ended_at: '2026-08-24T17:16:59.920832+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -76,7 +109,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T16:59:53.820238+00:00'
     selected_ref: origin/OOMPAH-1331
     selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
-    updated_at: '2026-08-24T17:05:40.482980+00:00'
+    updated_at: '2026-08-24T17:16:59.920832+00:00'
   - version: 1
     audit_id: audit-ad3efba187b4
     project_id: proj-14849f1b
@@ -98,6 +131,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-34bc00c97981
     selected_ref: origin/OOMPAH-1331
     selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
+    updated_at: '2026-08-24T17:16:59.920832+00:00'
+    eligible_at: '2026-08-24T17:16:59.920832+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fccf5a75d857
@@ -173,5 +208,25 @@ author: oompah
 created: 2026-08-24 17:05
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 17:17
+---
+Audit PASS — Done
+
+Code review confirms the fix correctly addresses OOMPAH-1331. The implementation introduces source_scan_deferred to distinguish intentional publication deferrals (excluded already-covered tasks) from real source scan failures. When deferred and all reconciliation conditions are met, restart reconstruction now finalizes instead of remaining pending with a phantom unexplained divergence.
+
+Safe evidence:
+- fix_overview: Introduced source_scan_deferred flag to allow scan completeness despite source_scan_complete=False when the scan only excluded already-covered terminal-audit disposition changes.
+- files_modified[0]: oompah/workflow_controller.py: Added source_scan_deferred field to ControllerObservation
+- files_modified[1]: oompah/workflow_liveness_metrics.py: Added source_scan_deferred parameter and source_scan_effectively_complete logic
+- files_modified[2]: oompah/workflow_runtime.py: Sets source_scan_deferred=True when publication excludes covered tasks
+- files_modified[3]: tests/test_workflow_liveness_metrics.py: Added two regression tests
+- acceptance_criteria_addressed.convergence_on_full_materialization: PASS - test_publication_deferred_scan_finalizes_when_fully_reconciled verifies scan_complete=True, restart_reconstruction_pending=False when source_scan_deferred=True with full reconciliation
+- acceptance_criteria_addressed.no_divergence_blocks_finalization: PASS - source_scan_deferred eliminates phantom divergence by treating deferred scans as effectively complete
+- acceptance_criteria_addressed.graceful_restart_reevaluates: PASS - source_scan_deferred is computed fresh each observation, not persisted
+- test_coverage: New tests verify both deferred-finalizes (test_publication_deferred_scan_finalizes_when_fully_reconciled) and fail-closed non-deferred (test_non_deferred_incomplete_scan_still_fails_closed)
+- backward_compatibility: PASS - source_scan_deferred defaults to False, preserving existing behavior
+- code_quality: PASS - Docstring added explaining source_scan_deferred; logic correctly gates finalization on multiple conditions (no errors, effective reconciliation, deferred flag); changes are isolated and minimal
 ---
 <!-- COMMENTS:END -->
