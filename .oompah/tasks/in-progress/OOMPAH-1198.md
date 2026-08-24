@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:04.107366Z'
-updated_at: '2026-08-24T21:26:50.548541Z'
+updated_at: '2026-08-24T21:31:20.946050Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -526,5 +526,10 @@ author: oompah
 created: 2026-08-24 21:26
 ---
 UNDERSTANDING: The issue involves an 'ACP worker failed' error when processing issue TRICKLE-121. Comment #1 indicates this is related to OOMPAH-1194 - a Git origin URL issue where managed network Git operations are using a stale local SSH origin instead of the project's configured HTTPS repo_url during Trickle workspace/epic refresh. The error is being caught by error_watcher despite being logged at DEBUG level. I'm investigating the repo_url handling and Git origin configuration in the orchestrator code.
+---
+author: oompah
+created: 2026-08-24 21:31
+---
+DISCOVERY: Found the root cause in oompah/integration_executor.py. The _git() function used for epic refresh operations (fetch/push) doesn't support the canonical_remote_url override that the oompah_md_tracker uses. When integration.py performs operations like git fetch on epic worktrees, it uses the stale local SSH origin instead of the project's configured HTTPS repo_url. The fix is to add canonical_remote_url support to _git() function and pass it through all epic worktree fetch/push operations.
 ---
 <!-- COMMENTS:END -->
