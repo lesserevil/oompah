@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:34:19.692606Z'
-updated_at: '2026-08-24T11:09:54.350779Z'
+updated_at: '2026-08-24T11:18:03.347502Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -525,5 +525,10 @@ author: oompah
 created: 2026-08-24 11:09
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 11:18
+---
+Understanding: The orchestrator already logs pre-provider contributor evidence timeouts at WARNING level with a 'pre_provider_retirement' extra attribute. However, error_watcher's emit() handler needs an early-return guard to suppress these controlled warnings so they don't get auto-filed as tasks. The fix should check for the pre_provider_retirement attribute in the LogRecord and return early without calling report_error().
 ---
 <!-- COMMENTS:END -->
