@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1333
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: OpenCode auditor cannot call submit_audit_result (oompah tools not injected
   into opencode run), so verdicts never finalize
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:06:31.866816Z'
-updated_at: '2026-08-24T22:05:13.984370Z'
+updated_at: '2026-08-24T22:10:57.842635Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,6 +40,7 @@ oompah.terminal_audit:
     digest: 474cb59977283fd5b430a2c4f489b6f2dc26fb5d8ac6f0f8466d59391202fdf8
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1333","audit-c1f37653fa90","attempt-375614fa1c9e"]': '2026-08-24T22:04:30.145440+00:00'
+    '["proj-14849f1b","OOMPAH-1333","audit-614c1a9275da","attempt-0de4f27287ac"]': '2026-08-24T22:10:53.520957+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1333
@@ -54,6 +55,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-24T22:04:30.145456+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1333
+    target_state: Merged
+    evidence_fingerprint: 474cb59977283fd5b430a2c4f489b6f2dc26fb5d8ac6f0f8466d59391202fdf8
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1333
+    selected_sha: f988367829192e6c7658af1d97a3da849ca96fab
+    landing_revision: null
+    audit_ids:
+    - audit-614c1a9275da
+    kind: result
+    applied: true
+    retired_at: '2026-08-24T22:10:53.520978+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1333
@@ -68,6 +82,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T22:04:30.145467+00:00'
     applied_at: '2026-08-24T22:04:37.631512+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1333
+    audit_id: audit-614c1a9275da
+    attempt_id: attempt-0de4f27287ac
+    target_state: Merged
+    evidence_fingerprint: 474cb59977283fd5b430a2c4f489b6f2dc26fb5d8ac6f0f8466d59391202fdf8
+    status: Merged
+    audit_ids:
+    - audit-614c1a9275da
+    kind: result
+    applied: false
+    created_at: '2026-08-24T22:10:53.520993+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -115,7 +141,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1333
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -124,7 +150,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-0de4f27287ac
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -136,6 +162,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1333
       selected_ref: origin/OOMPAH-1333
       selected_sha: f988367829192e6c7658af1d97a3da849ca96fab
+      verdict: pass
+      completed_at: '2026-08-24T22:10:53.520771+00:00'
+      ended_at: '2026-08-24T22:10:53.520771+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -146,7 +175,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-c1f37653fa90
     selected_ref: origin/OOMPAH-1333
     selected_sha: f988367829192e6c7658af1d97a3da849ca96fab
-    updated_at: '2026-08-24T22:05:00.043086+00:00'
+    updated_at: '2026-08-24T22:10:53.520771+00:00'
     eligible_at: '2026-08-24T22:04:30.145281+00:00'
   attempt_history:
   - version: 1
@@ -179,7 +208,7 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1333
     selected_ref: origin/OOMPAH-1333
     selected_sha: f988367829192e6c7658af1d97a3da849ca96fab
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.task_costs:
   total_input_tokens: 282
   total_output_tokens: 8514
