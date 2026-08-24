@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - focus-complete:docs
+- needs:backend
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-24T06:33:14.073850Z'
+updated_at: '2026-08-24T06:38:04.958287Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -529,5 +530,10 @@ author: oompah
 created: 2026-08-24 06:33
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 06:37
+---
+Understanding: GitHub-native external intake bridge exists (oompah/github_intake_bridge.py) but no GitLab parity bridge, routing, or polling exists; server/orchestrator are GitHub-only. Discovery: handle_github_issue_event_for_native_project + poll_github_issue_intake_project are wired in server.py/orchestrator.py exclusively; no gitlab_intake_bridge.py exists. Verification: existing GitHub intake unit tests (tests/test_github_intake_bridge.py) pass. Next: implement a forge-neutral external-intake bridge for GitLab (import issues + comments, metadata key oompah.external.gitlab, idempotency, webhook routing + polling recovery, and keep GitHub behavior via wrappers) and add GitLab regression tests matching the docs/gitlab-issue-intake.md contract.
 ---
 <!-- COMMENTS:END -->
