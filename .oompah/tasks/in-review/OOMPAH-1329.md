@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1329
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Stop over-budget workflow reconciliation from hot-looping worker admission
 parent: null
@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T01:36:28.768799Z'
-updated_at: '2026-08-24T01:53:55.321069Z'
+updated_at: '2026-08-24T01:54:17.559571Z'
 work_branch: OOMPAH-1329
-target_branch: null
-review_url: null
-review_number: null
-review_head: null
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/907
+review_number: '907'
+review_head: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
 merged_at: null
 oompah.create_once:
   version: 1
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 371719b5-9bbc-4ef2-9eb3-463362b66297
   request_fingerprint: 42c3c0fde84cd2ad321f76f112089c3ffe9d915f0fc8cafd65d70f412596c940
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.integration:
   version: 2
   state: ready
@@ -37,6 +37,10 @@ oompah.integration:
   submitted_at: '2026-08-24T01:50:18.216653+00:00'
   updated_at: '2026-08-24T01:50:18.216653+00:00'
 oompah.work_branch: OOMPAH-1329
+oompah.review_url: https://github.com/lesserevil/oompah/pull/907
+oompah.review_number: '907'
+oompah.target_branch: main
+oompah.review_head: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
 ---
 ## Summary
 
