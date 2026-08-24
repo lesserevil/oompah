@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-24T15:28:17.906537Z'
+updated_at: '2026-08-24T15:35:30.600564Z'
 work_branch: OOMPAH-1268
 target_branch: null
 review_url: null
@@ -393,6 +393,8 @@ oompah.terminal_audit:
       onto ae653b4f2. Rearming exhausted terminal audit.
     authorized_at: '2026-08-24T15:28:04.192498+00:00'
     mode: infrastructure_recovery
+    consumed_at: '2026-08-24T15:35:08.655154+00:00'
+    consumed_workflow_job_id: workflow-job-27088730b0c3425c94606a3cd7c707d6
   version: 1
   pending_chain:
   - version: 1
@@ -806,12 +808,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1268
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-9b1c2de51904
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+      created_at: '2026-08-24T15:35:24.032026+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-24T15:35:24.032026+00:00'
+      branch_key: OOMPAH-1268
+      selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+      selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     source_generation: 5
     requested_by:
       version: 1
@@ -822,6 +839,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T15:28:04.192498+00:00'
     selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    updated_at: '2026-08-24T15:35:24.032026+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-74a35a09ad49
@@ -1059,6 +1077,21 @@ oompah.terminal_audit:
     ended_at: '2026-08-24T03:47:44.607291+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-24T03:48:24.607260+00:00'
+  - version: 1
+    attempt_id: attempt-9b1c2de51904
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+    created_at: '2026-08-24T15:35:24.032026+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-24T15:35:24.032026+00:00'
+    branch_key: OOMPAH-1268
+    selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
 ---
 ## Summary
 
@@ -1556,5 +1589,10 @@ author: oompah
 created: 2026-08-24 15:28
 ---
 Terminal audit rearmed by project owner after recovery: Auditor transports fixed and deployed (OOMPAH-1327 agent path, OOMPAH-1328 OpenCode path) and reconciliation hot-loop fixed (OOMPAH-1329); service force-restarted onto ae653b4f2. Rearming exhausted terminal audit.
+---
+author: oompah
+created: 2026-08-24 15:35
+---
+Auditor dispatched (attempt #1, candidate: prov-6cf41c89/switchyard/auto)
 ---
 <!-- COMMENTS:END -->
