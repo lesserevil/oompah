@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:34:19.692606Z'
-updated_at: '2026-08-24T09:22:17.810519Z'
+updated_at: '2026-08-24T09:22:37.367283Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -412,5 +412,10 @@ author: oompah
 created: 2026-08-24 09:22
 ---
 Implementation: code already changed on this branch (OOMPAH-1306) to prevent error_watcher from handling these controlled orchestrator pre-provider retirement logs: oompah/error_watcher.py now early-returns in _TaskLoggingHandler.emit() when record.pre_provider_retirement is present. This ensures the WARNING emitted by orchestrator does not get escalated into an auto-filed bug task.
+---
+author: oompah
+created: 2026-08-24 09:22
+---
+Verification: ran pytest for targeted suites — tests/test_provider_retirement.py::test_late_pre_provider_write_settles_before_successor_provider_contact (PASS) and full tests/test_error_watcher.py (PASS). This exercises the new early-return guard for pre_provider_retirement and confirms error_watcher still files other ERROR-class incidents.
 ---
 <!-- COMMENTS:END -->
