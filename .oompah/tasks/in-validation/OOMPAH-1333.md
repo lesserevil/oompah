@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1333
 type: task
-status: Backlog
+status: In Validation
 priority: null
 title: OpenCode auditor cannot call submit_audit_result (oompah tools not injected
   into opencode run), so verdicts never finalize
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:06:31.866816Z'
-updated_at: '2026-08-24T21:06:31.866816Z'
+updated_at: '2026-08-24T21:34:54.101655Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,6 +25,65 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: aa0aa824-890f-4f81-8ef4-0c789e2d39af
   request_fingerprint: 20e48022221d5b75041780a786cbfbd171aefb30c6edf0543eb5b5506a5fdd9d
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-c1f37653fa90
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1333
+    digest: 474cb59977283fd5b430a2c4f489b6f2dc26fb5d8ac6f0f8466d59391202fdf8
+  - version: 1
+    audit_id: audit-614c1a9275da
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1333
+    digest: 474cb59977283fd5b430a2c4f489b6f2dc26fb5d8ac6f0f8466d59391202fdf8
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-c1f37653fa90
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1333
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 474cb59977283fd5b430a2c4f489b6f2dc26fb5d8ac6f0f8466d59391202fdf8
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-24T21:34:47.082570+00:00'
+    eligible_at: '2026-08-24T21:34:47.082570+00:00'
+    selected_ref: origin/OOMPAH-1333
+    selected_sha: f988367829192e6c7658af1d97a3da849ca96fab
+  - version: 1
+    audit_id: audit-614c1a9275da
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1333
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 474cb59977283fd5b430a2c4f489b6f2dc26fb5d8ac6f0f8466d59391202fdf8
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-24T21:34:47.082570+00:00'
+    prerequisite_audit_id: audit-c1f37653fa90
+    selected_ref: origin/OOMPAH-1333
+    selected_sha: f988367829192e6c7658af1d97a3da849ca96fab
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -69,3 +128,11 @@ Contrast: Claude bridges oompah tools via an in-process MCP server (create_sdk_m
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-24 21:34
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+<!-- COMMENTS:END -->
