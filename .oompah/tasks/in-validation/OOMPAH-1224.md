@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1224
 type: bug
-status: Needs Human
+status: In Validation
 priority: 2
 title: '[backend:server] Issue detail API error: ProgrammingError(''Cannot operate
   on a closed database.'')'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-24T04:25:39.065609Z'
+updated_at: '2026-08-24T15:27:26.274883Z'
 work_branch: OOMPAH-1224
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/900
 review_number: '900'
 review_head: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
 merged_at: null
-oompah.lifecycle_revision: 10
+oompah.lifecycle_revision: 11
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -255,6 +255,19 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T04:25:30.546583+00:00'
     applied_at: '2026-08-24T04:25:37.353953+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1224
+    audit_id: audit-c209863a0cf9
+    attempt_id: audit-rearm:audit-c209863a0cf9
+    target_state: Done
+    evidence_fingerprint: fdb0a7e362aa42a9ce8eb57ee0b64e3ab0beae750529aecace8beae71bc989ca
+    status: In Validation
+    audit_ids:
+    - audit-c209863a0cf9
+    kind: audit_rearm
+    applied: true
+    created_at: '2026-08-24T15:27:13.812333+00:00'
+    applied_at: '2026-08-24T15:27:23.546308+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-49872de05682
@@ -278,6 +291,27 @@ oompah.terminal_audit:
     mode: infrastructure_recovery
     consumed_at: '2026-08-24T01:25:58.889853+00:00'
     consumed_workflow_job_id: workflow-job-e7c108e5a6a549408f26fe9c9c736c0f
+  - version: 2
+    audit_id: audit-c209863a0cf9
+    superseded_audit_id: audit-49872de05682
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1224
+    target_state: Done
+    evidence_fingerprint: fdb0a7e362aa42a9ce8eb57ee0b64e3ab0beae750529aecace8beae71bc989ca
+    workflow_revision: 71f6297718a1833ec1a9f2c922367d43a0c7ea6d6c76e9c5f4fba12dbedd3ce1
+    selected_ref: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+    selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+    landing_revision: null
+    source_generation: 3
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Auditor transports fixed and deployed (OOMPAH-1327 agent path, OOMPAH-1328
+      OpenCode path) and reconciliation hot-loop fixed (OOMPAH-1329); service force-restarted
+      onto ae653b4f2. Rearming exhausted terminal audit.
+    authorized_at: '2026-08-24T15:27:13.811953+00:00'
+    mode: infrastructure_recovery
   version: 1
   pending_chain:
   - version: 1
@@ -405,7 +439,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1224
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -496,7 +530,29 @@ oompah.terminal_audit:
     selected_ref: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
     selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
     workflow_revision: 71f6297718a1833ec1a9f2c922367d43a0c7ea6d6c76e9c5f4fba12dbedd3ce1
-    updated_at: '2026-08-24T04:25:30.546385+00:00'
+    updated_at: '2026-08-24T15:27:13.811953+00:00'
+  - version: 1
+    audit_id: audit-c209863a0cf9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1224
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fdb0a7e362aa42a9ce8eb57ee0b64e3ab0beae750529aecace8beae71bc989ca
+    attempts: []
+    source_generation: 3
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Review
+    created_at: '2026-08-24T15:27:13.811953+00:00'
+    eligible_at: '2026-08-24T15:27:13.811953+00:00'
+    selected_ref: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+    selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+    workflow_revision: 71f6297718a1833ec1a9f2c922367d43a0c7ea6d6c76e9c5f4fba12dbedd3ce1
   attempt_history:
   - version: 1
     attempt_id: attempt-fdb2399fa251
