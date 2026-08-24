@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T01:36:28.768799Z'
-updated_at: '2026-08-24T01:50:03.103889Z'
-work_branch: null
+updated_at: '2026-08-24T01:50:31.828948Z'
+work_branch: OOMPAH-1329
 target_branch: null
 review_url: null
 review_number: null
@@ -25,6 +25,18 @@ oompah.create_once:
   creation_marker: 371719b5-9bbc-4ef2-9eb3-463362b66297
   request_fingerprint: 42c3c0fde84cd2ad321f76f112089c3ffe9d915f0fc8cafd65d70f412596c940
 oompah.lifecycle_revision: 1
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1329
+  base_branch: main
+  base_sha: 1d2953c14bc925aaef79a40cd33fd3ea280ff6a4
+  head_sha: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+  submitted_at: '2026-08-24T01:50:18.216653+00:00'
+  updated_at: '2026-08-24T01:50:18.216653+00:00'
+oompah.work_branch: OOMPAH-1329
 ---
 ## Summary
 
@@ -42,5 +54,10 @@ author: oompah
 created: 2026-08-24 01:50
 ---
 Live diagnosis confirmed repeated over-budget publication supersession hot-loops full reconciliation while worker admission remains closed. Implementing explicit exhaustion signaling and suppressing immediate self-requeue.
+---
+author: oompah
+created: 2026-08-24 01:50
+---
+Over-budget superseded reconciliations now expose restart_deadline_exceeded and do not immediately enqueue another full scan. Focused runtime/orchestrator regression tests pass.
 ---
 <!-- COMMENTS:END -->
