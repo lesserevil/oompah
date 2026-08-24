@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1266
 type: bug
-status: In Validation
+status: Ready to Integrate
 priority: 1
 title: Fence late task submission from regressing landed integration authority
 parent: OOMPAH-1231
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-24T18:43:51.467387Z'
+updated_at: '2026-08-24T18:46:00.047080Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: o1263-post-merge-submit-provenance-regression
   request_fingerprint: 9a9d8d03687f81678f5061a4c7f6ca12b789b64399e6fd9b92b89ef14dc3e4b5
-oompah.lifecycle_revision: 10
+oompah.lifecycle_revision: 11
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 9f3a0a5a59f2a06ff79051089822dbfee82b28352e54ad90889e4e0d3419a375
@@ -121,8 +121,8 @@ oompah.work_contributors:
     source_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
     completed_at: '2026-08-21T06:39:04.544183+00:00'
 oompah.task_costs:
-  total_input_tokens: 3147
-  total_output_tokens: 28047
+  total_input_tokens: 3426
+  total_output_tokens: 28087
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -130,8 +130,8 @@ oompah.task_costs:
       output_tokens: 27309
       cost_usd: 0.0
     unknown:
-      input_tokens: 2207
-      output_tokens: 738
+      input_tokens: 2486
+      output_tokens: 778
       cost_usd: 0.0
   runs:
   - profile: default
@@ -182,6 +182,12 @@ oompah.task_costs:
     output_tokens: 91
     cost_usd: 0.0
     recorded_at: '2026-08-24T18:29:31.219712+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 279
+    output_tokens: 40
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T18:45:44.734764+00:00'
 oompah.work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 oompah.integration:
   version: 2
@@ -666,7 +672,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1266
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -694,7 +700,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-269f57811914
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -707,6 +713,10 @@ oompah.terminal_audit:
       selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
       selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
       candidate_rotation_count: 1
+      failure_classification: finalization_failure
+      ended_at: '2026-08-24T18:45:44.738351+00:00'
+      failure_reason: normal
+      next_retry_at: '2026-08-24T18:46:04.738324+00:00'
     source_generation: 4
     requested_by:
       version: 1
@@ -717,7 +727,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T15:27:42.297611+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-24T18:33:42.424134+00:00'
+    updated_at: '2026-08-24T18:45:44.738351+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ebdec741f7d0
@@ -918,7 +928,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-269f57811914
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -931,6 +941,10 @@ oompah.terminal_audit:
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
     candidate_rotation_count: 1
+    failure_classification: finalization_failure
+    ended_at: '2026-08-24T18:45:44.738351+00:00'
+    failure_reason: normal
+    next_retry_at: '2026-08-24T18:46:04.738324+00:00'
 ---
 ## Summary
 
@@ -1454,5 +1468,20 @@ author: oompah
 created: 2026-08-24 18:43
 ---
 Done
+---
+author: oompah
+created: 2026-08-24 18:45
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Opencode/Switchyard/switchyard/auto]
+- Turns: 23, Tool calls: 23
+- Tokens: 279 in / 40 out [77.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 48s
+- Log: OOMPAH-1266__20260824T183419Z.jsonl
+---
+author: oompah
+created: 2026-08-24 18:45
+---
+Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
