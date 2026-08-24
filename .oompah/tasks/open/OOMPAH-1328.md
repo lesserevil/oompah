@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T00:59:00.469186Z'
-updated_at: '2026-08-24T01:01:15.325277Z'
+updated_at: '2026-08-24T01:01:19.731105Z'
 work_branch: OOMPAH-1328
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-08-24 01:00
 ---
 Root cause confirmed in the live server: OpenCode completion auditors bypass AgentSession and create subprocess streams without MAX_LINE_SIZE. Implementing the missing limit with regression coverage.
+---
+author: oompah
+created: 2026-08-24 01:01
+---
+Fixed OpenCode ACP subprocess stream buffering by applying MAX_LINE_SIZE to asyncio.create_subprocess_exec. Regression test verifies the configured limit; tests/test_acp_opencode_backend.py passes (40 tests).
 ---
 <!-- COMMENTS:END -->
