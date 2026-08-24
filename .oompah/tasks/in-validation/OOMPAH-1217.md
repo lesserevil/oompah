@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:53.373319Z'
-updated_at: '2026-08-24T18:28:05.864859Z'
+updated_at: '2026-08-24T18:28:15.803817Z'
 work_branch: OOMPAH-1217
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/897
@@ -1116,5 +1116,10 @@ author: oompah
 created: 2026-08-24 18:08
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-24 18:28
+---
+Auditor dispatched (attempt #2, candidate: prov-6cf41c89/switchyard/auto)
 ---
 <!-- COMMENTS:END -->
