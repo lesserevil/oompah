@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-24T15:35:53.378256Z'
+updated_at: '2026-08-24T15:40:03.372546Z'
 work_branch: OOMPAH-1268
 target_branch: null
 review_url: null
@@ -808,12 +808,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1268
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-ecd197dbb438
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+      created_at: '2026-08-24T15:39:52.867389+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-24T15:39:52.867389+00:00'
+      branch_key: OOMPAH-1268
+      selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+      selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     source_generation: 5
     requested_by:
       version: 1
@@ -824,7 +839,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T15:28:04.192498+00:00'
     selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
-    updated_at: '2026-08-24T15:35:48.262706+00:00'
+    updated_at: '2026-08-24T15:39:52.867389+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-74a35a09ad49
@@ -1062,6 +1077,21 @@ oompah.terminal_audit:
     ended_at: '2026-08-24T03:47:44.607291+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-24T03:48:24.607260+00:00'
+  - version: 1
+    attempt_id: attempt-ecd197dbb438
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+    created_at: '2026-08-24T15:39:52.867389+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-24T15:39:52.867389+00:00'
+    branch_key: OOMPAH-1268
+    selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
 ---
 ## Summary
 
@@ -1579,5 +1609,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Opencode/Switchyard/switchya
 - Cost: $0.0000
 - Exit: interrupted, Duration: 24s
 - Log: OOMPAH-1268__20260824T153545Z.jsonl
+---
+author: oompah
+created: 2026-08-24 15:39
+---
+Auditor dispatched (attempt #1, candidate: prov-6cf41c89/switchyard/auto)
+---
+author: oompah
+created: 2026-08-24 15:40
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
