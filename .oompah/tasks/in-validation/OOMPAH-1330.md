@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:03:40.977842Z'
-updated_at: '2026-08-24T17:16:33.391633Z'
+updated_at: '2026-08-24T17:23:30.546772Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -115,7 +115,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1330
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -124,7 +124,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c21bc2c64cc0
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -136,6 +136,12 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1330
       selected_ref: origin/OOMPAH-1330
       selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
+      failure_classification: policy_incompatibility
+      ended_at: '2026-08-24T17:23:28.905515+00:00'
+      failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
+        read-only auditor capability policy denied a mutating or compound shell command;
+        auditors cannot edit, commit, push, merge, or change state'
+      next_retry_at: '2026-08-24T17:23:38.905479+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -146,7 +152,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-880d1098e31e
     selected_ref: origin/OOMPAH-1330
     selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
-    updated_at: '2026-08-24T17:16:16.201484+00:00'
+    updated_at: '2026-08-24T17:23:28.905515+00:00'
     eligible_at: '2026-08-24T17:15:38.475074+00:00'
   attempt_history:
   - version: 1
@@ -167,7 +173,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-c21bc2c64cc0
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -179,6 +185,12 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1330
     selected_ref: origin/OOMPAH-1330
     selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
+    failure_classification: policy_incompatibility
+    ended_at: '2026-08-24T17:23:28.905515+00:00'
+    failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
+      read-only auditor capability policy denied a mutating or compound shell command;
+      auditors cannot edit, commit, push, merge, or change state'
+    next_retry_at: '2026-08-24T17:23:38.905479+00:00'
 oompah.lifecycle_revision: 1
 oompah.task_costs:
   total_input_tokens: 258
