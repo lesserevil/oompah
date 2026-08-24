@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:16:52.125972Z'
-updated_at: '2026-08-24T09:46:21.831543Z'
+updated_at: '2026-08-24T09:51:28.190443Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -382,5 +382,10 @@ author: oompah
 created: 2026-08-24 09:46
 ---
 **Understanding**: Investigating error in backend:orchestrator where dispatch candidates fail due to contributor_evidence_unavailable error. The error indicates a timing issue with recording provider/model evidence before task-authority deadline. Planning to: (1) locate the orchestrator dispatch code, (2) find evidence recording logic, (3) identify the deadline enforcement, (4) determine root cause and implement fix.
+---
+author: oompah
+created: 2026-08-24 09:51
+---
+**Discovery**: Found root cause in `_stage_work_contributor_launch()` method (oompah/orchestrator.py:57837). Error occurs when persisting contributor evidence to tracker exceeds timeout. Code flow: (1) Creates thread task to persist evidence via `_persist_work_contributor()`, (2) Sets timeout based on config `contributor_evidence_persist_timeout_seconds` (default 60s), (3) On timeout, returns error message, (4) Error propagates as ProviderStartupError with reason='contributor_evidence_unavailable', (5) All dispatch candidates fail, (6) ERROR level log triggered: 'All dispatch candidates failed for issue...', (7) error_watcher creates task. The persistence operation involves acquiring locks and calling tracker.set_metadata_field() which can be slow. Default timeout of 60 seconds is too short for slow trackers like 'provenanceguardedtracker'.
 ---
 <!-- COMMENTS:END -->
