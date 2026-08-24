@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:47:52.188773Z'
-updated_at: '2026-08-24T07:16:29.857768Z'
-work_branch: null
+updated_at: '2026-08-24T07:16:52.439628Z'
+work_branch: OOMPAH-1277
 target_branch: null
 review_url: null
 review_number: null
@@ -127,7 +127,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: c8b83dd4-5e45-41e6-a87f-8767ca1a6387
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 422c025706e544418acee6fcda3fd29a--contributor-4256b9f40773
@@ -186,6 +186,18 @@ oompah.task_costs:
     output_tokens: 2185
     cost_usd: 0.0
     recorded_at: '2026-08-23T23:29:50.810526+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1277
+  base_branch: main
+  base_sha: 4988991309ba81b6b2cf06aa30528bf5f21b0a82
+  head_sha: 559686001e5fc62312b9c8be64c5b435638651ce
+  submitted_at: '2026-08-24T07:16:38.666280+00:00'
+  updated_at: '2026-08-24T07:16:38.666280+00:00'
+oompah.work_branch: OOMPAH-1277
 ---
 ## Summary
 
@@ -376,5 +388,10 @@ All tests pass:
 The contributor evidence persistence timeout now uses the configured 60-second default instead of a calculated 5-second fallback. This resolves the timeout errors that were being auto-filed as tasks by error_watcher during normal operations.
 
 Changes committed and pushed to OOMPAH-1277 branch.
+---
+author: oompah
+created: 2026-08-24 07:16
+---
+Fixed contributor evidence timeout to use configured 60-second default instead of calculated 5-second fallback. This resolves pre-provider evidence deadline timeouts that were being auto-filed as error tasks during normal tracker write operations.
 ---
 <!-- COMMENTS:END -->
