@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-24T01:18:02.930864Z'
+updated_at: '2026-08-24T01:26:00.087928Z'
 work_branch: OOMPAH-1224
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/900
@@ -243,6 +243,8 @@ oompah.terminal_audit:
       subprocess streams now use MAX_LINE_SIZE and focused tests pass.'
     authorized_at: '2026-08-24T01:17:53.941017+00:00'
     mode: infrastructure_recovery
+    consumed_at: '2026-08-24T01:25:58.889853+00:00'
+    consumed_workflow_job_id: workflow-job-e7c108e5a6a549408f26fe9c9c736c0f
   version: 1
   pending_chain:
   - version: 1
