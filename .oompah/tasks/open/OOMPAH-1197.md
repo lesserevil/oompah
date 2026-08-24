@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-24T06:28:08.123175Z'
+updated_at: '2026-08-24T06:31:05.316474Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -112,6 +112,14 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
   - run_id: fc9e8fe004f04215bbe8f47dd0995a39--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-1197
+    source_sha: null
+    completed_at: ''
+  - run_id: f3126a9f0ea04c08939550c05499e514--contributor-a8b0475e7b09
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-luna
