@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:59:54.516015Z'
-updated_at: '2026-08-24T07:07:22.275427Z'
+updated_at: '2026-08-24T07:08:17.559566Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -518,5 +518,10 @@ author: oompah
 created: 2026-08-24 07:07
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 07:08
+---
+Understanding: this issue is about an expected pre-provider contributor evidence timeout being logged as ERROR, which triggers error_watcher auto-filing. Plan: confirm log level handling for the specific 'bounded task-authority deadline' path, ensure it’s WARNING (or otherwise non-auto-filed), and verify via existing regression tests. Discovery/impl: orchestrator already emits a logger.warning for 'Pre-provider contributor evidence exceeded its bounded task-authority deadline...' in oompah/orchestrator.py around the contributor evidence persistence timeout. Verification: ran pytest -q tests/test_provider_retirement.py -k pre_provider_evidence_timeout_releases_task_authority (pass).
 ---
 <!-- COMMENTS:END -->
