@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:54:51.257792Z'
-updated_at: '2026-08-24T08:26:17.365627Z'
-work_branch: null
+updated_at: '2026-08-24T08:27:15.612773Z'
+work_branch: OOMPAH-1281
 target_branch: null
 review_url: null
 review_number: null
@@ -78,7 +78,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: c127d1b8-95ec-4e7e-afd3-3bf059d9903d
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: e67bf6b331ae48db808c06d8d4e8eb41--contributor-a8b0475e7b09
@@ -161,6 +161,18 @@ oompah.task_costs:
     output_tokens: 1564
     cost_usd: 0.0
     recorded_at: '2026-08-23T23:29:56.134027+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1281
+  base_branch: main
+  base_sha: 4988991309ba81b6b2cf06aa30528bf5f21b0a82
+  head_sha: b1a4d1ee95170e4de09fa7cef3d590db60cda7c1
+  submitted_at: '2026-08-24T08:26:54.309505+00:00'
+  updated_at: '2026-08-24T08:26:54.309505+00:00'
+oompah.work_branch: OOMPAH-1281
 ---
 ## Summary
 
@@ -421,5 +433,10 @@ Changed line 58035-58043 in oompah/orchestrator.py to use 60.0 as the default va
 **Root cause:** The getattr() call was returning None if the attribute didn't exist, preventing the override of the 5-second calculated timeout with the configured 60-second timeout.
 
 **Result:** Pre-provider contributor evidence operations now have sufficient time (60+ seconds) to complete, preventing timeouts during normal operation on slow tracker systems.
+---
+author: oompah
+created: 2026-08-24 08:27
+---
+Fixed pre-provider contributor evidence timeout issue. Changed getattr() default from None to 60.0 in oompah/orchestrator.py (lines 58035-58043) to ensure the configured persistence timeout is always used, with a sensible default even if the config attribute is missing. All 202 relevant tests pass.
 ---
 <!-- COMMENTS:END -->
