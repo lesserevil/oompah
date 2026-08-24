@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T01:36:28.768799Z'
-updated_at: '2026-08-24T02:35:49.606139Z'
+updated_at: '2026-08-24T02:35:55.684994Z'
 work_branch: OOMPAH-1329
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/907
@@ -108,8 +108,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-925a61fc1c8f
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-24T02:35:45.446373+00:00'
+    applied_at: '2026-08-24T02:35:53.927291+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -321,5 +322,25 @@ author: oompah
 created: 2026-08-24 02:28
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 02:35
+---
+Audit PASS — Merged
+
+Over-budget workflow reconciliation no longer hot-loops. Implementation correctly marks exhausted deadline with restart_deadline_exceeded flag and suppresses immediate self-requeue. Acceptance criteria met: worker remains closed, over-budget supersession is observable, no hot-loop generated, periodic/authority-change wake can retry later.
+
+Safe evidence:
+- implementation_verified.workflow_runtime_py: Lines 2895-2898, 2901-2903, 2924 set restart_deadline_exceeded when over budget
+- implementation_verified.orchestrator_py_suppression: Lines 12616-12620 return False in _request_runtime_report_continuation when deadline exceeded, suppressing continuation
+- implementation_verified.orchestrator_callers: Lines 17353, 17424 call suppression logic in tick handlers
+- focused_regression_tests_run.test_over_budget_publication_supersession_is_marked_exhausted: PASSED
+- focused_regression_tests_run.test_exhausted_superseded_publication_does_not_hot_loop: PASSED - continuation_requested=False, admission not awaited
+- acceptance_criteria_verification.no_stale_jobs_admitted: Worker admission skipped when deadline exceeded; continue_admission_async not called
+- acceptance_criteria_verification.over_budget_supersession_observable: restart_deadline_exceeded flag present in all superseded reports
+- acceptance_criteria_verification.immediate_retries_stop: No continuation requested when flag True, blocking hot-loop self-requeue
+- acceptance_criteria_verification.later_stable_reconciliation_can_publish: Flag only suppresses immediate continuation; periodic/authority-change wake can retry
+- full_gate_status: make test PASSED (179.5s) - exact head bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
+- code_inspection: Changes minimal, focused, and correct: deadline tracking + flag setting + suppression check
 ---
 <!-- COMMENTS:END -->
