@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:56:36.835031Z'
-updated_at: '2026-08-24T06:47:49.614699Z'
+updated_at: '2026-08-24T06:47:58.711085Z'
 work_branch: OOMPAH-1214
 target_branch: null
 review_url: null
@@ -478,5 +478,10 @@ Total: 189 core tests passing
 - 0 lines: No behavior changes to existing tests
 
 Commit pushed: 94c622052
+---
+author: oompah
+created: 2026-08-24 06:47
+---
+Fixed pre-provider contributor evidence timeout issue by ensuring configured 60-second timeout is always available as fallback instead of calculated 5-second timeout
 ---
 <!-- COMMENTS:END -->
