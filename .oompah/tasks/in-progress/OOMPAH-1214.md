@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:56:36.835031Z'
-updated_at: '2026-08-24T06:39:50.597808Z'
+updated_at: '2026-08-24T06:43:27.042190Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -409,5 +409,31 @@ This causes slow tracker operations (especially git commits to state branches) t
 3. Update .env.example to match code (says 30 but code is 60)
 
 Starting implementation now.
+---
+author: oompah
+created: 2026-08-24 06:43
+---
+**Implementation: Timeout Fix Applied**
+
+Made two key changes to fix the pre-provider contributor evidence timeout issue:
+
+1. **oompah/orchestrator.py (line 58035-38)**
+   - Changed getattr default from `None` to `60.0`
+   - Ensures configured timeout is always available as fallback
+   - Prevents timeout from defaulting to 5 seconds when attribute is inaccessible
+
+2. **.env.example (line 277-82)**
+   - Updated default documentation from 30 to 60 seconds
+   - Aligns documentation with actual code config default
+   - Clarifies to operators the correct environment variable value
+
+**Why this fixes the bug:**
+- Before: If getattr returned None, configured timeout was skipped, using calculated 5.0s
+- After: getattr returns 60.0 as fallback, ensuring 60-second timeout is always available
+- Slow git operations on trackers like provenanceguardedtracker now complete within timeout
+
+**Tests:** All 21 provider_retirement tests and 168 config tests pass.
+
+Commit: 94c622052
 ---
 <!-- COMMENTS:END -->
