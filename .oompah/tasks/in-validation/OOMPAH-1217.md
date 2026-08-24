@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1217
 type: bug
-status: Needs Human
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-122 identifier=TRICKLE-122 run_id=55adaba352c743fc8a2cfc754517629a
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:53.373319Z'
-updated_at: '2026-08-24T18:45:04.146685Z'
+updated_at: '2026-08-24T23:56:35.712174Z'
 work_branch: OOMPAH-1217
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/897
 review_number: '897'
 review_head: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
 merged_at: null
-oompah.lifecycle_revision: 12
+oompah.lifecycle_revision: 13
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -291,6 +291,19 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T18:44:54.538210+00:00'
     applied_at: '2026-08-24T18:45:02.618263+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1217
+    audit_id: audit-3f34c813d31d
+    attempt_id: audit-rearm:audit-3f34c813d31d
+    target_state: Done
+    evidence_fingerprint: 35603ee8a46ec524aa496df57a6c6127b5531f39ab835e3fc39e1e2082bed033
+    status: In Validation
+    audit_ids:
+    - audit-3f34c813d31d
+    kind: audit_rearm
+    applied: true
+    created_at: '2026-08-24T23:56:23.205087+00:00'
+    applied_at: '2026-08-24T23:56:33.347164+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-a15789e365d0
@@ -338,6 +351,27 @@ oompah.terminal_audit:
     mode: infrastructure_recovery
     consumed_at: '2026-08-24T15:49:19.911147+00:00'
     consumed_workflow_job_id: workflow-job-cfdb6f38baf64eb78a3de384ef22113b
+  - version: 2
+    audit_id: audit-3f34c813d31d
+    superseded_audit_id: audit-3e349ae1c5fa
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1217
+    target_state: Done
+    evidence_fingerprint: 35603ee8a46ec524aa496df57a6c6127b5531f39ab835e3fc39e1e2082bed033
+    workflow_revision: cbde4578c71296984a9f6b9e05b155e8360031432401e5fdd90bf1c4edacbf9b
+    selected_ref: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
+    selected_sha: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
+    landing_revision: null
+    source_generation: 4
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Verdict-capable independent auditor capacity restored: OOMPAH-1333 excludes
+      incapable OpenCode/native subscription transports; healthy Claude candidates
+      with submit_audit_result bridge remain.'
+    authorized_at: '2026-08-24T23:56:23.204473+00:00'
+    mode: infrastructure_recovery
   version: 1
   pending_chain:
   - version: 1
@@ -563,7 +597,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1217
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -654,7 +688,29 @@ oompah.terminal_audit:
     selected_ref: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
     selected_sha: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
     workflow_revision: cbde4578c71296984a9f6b9e05b155e8360031432401e5fdd90bf1c4edacbf9b
-    updated_at: '2026-08-24T18:44:54.537998+00:00'
+    updated_at: '2026-08-24T23:56:23.204473+00:00'
+  - version: 1
+    audit_id: audit-3f34c813d31d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1217
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 35603ee8a46ec524aa496df57a6c6127b5531f39ab835e3fc39e1e2082bed033
+    attempts: []
+    source_generation: 4
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Review
+    created_at: '2026-08-24T23:56:23.204473+00:00'
+    eligible_at: '2026-08-24T23:56:23.204473+00:00'
+    selected_ref: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
+    selected_sha: 486e53196e7bb4c2ff4bdcd988be46ec8debba65
+    workflow_revision: cbde4578c71296984a9f6b9e05b155e8360031432401e5fdd90bf1c4edacbf9b
   attempt_history:
   - version: 1
     attempt_id: attempt-070172778c4d
