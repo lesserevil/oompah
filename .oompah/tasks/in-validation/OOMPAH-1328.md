@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T00:59:00.469186Z'
-updated_at: '2026-08-24T01:22:17.719559Z'
+updated_at: '2026-08-24T01:27:14.679520Z'
 work_branch: OOMPAH-1328
 target_branch: null
 review_url: null
@@ -50,6 +50,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1328
     digest: 5afe5472112b1cac4d9f3a323071e2001dbe0dc88643adb31af26fb6f164963a
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1328","audit-b4728feba5a7","attempt-4284efaf83d2"]': '2026-08-24T01:27:06.188688+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1328
+    target_state: Done
+    evidence_fingerprint: 5afe5472112b1cac4d9f3a323071e2001dbe0dc88643adb31af26fb6f164963a
+    workflow_revision: null
+    selected_ref: aaac848e78bef6ee935df3c6697bcaa53012bfbb
+    selected_sha: aaac848e78bef6ee935df3c6697bcaa53012bfbb
+    landing_revision: null
+    audit_ids:
+    - audit-b4728feba5a7
+    kind: result
+    applied: true
+    retired_at: '2026-08-24T01:27:06.188706+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1328
+    audit_id: audit-b4728feba5a7
+    attempt_id: attempt-4284efaf83d2
+    target_state: Done
+    evidence_fingerprint: 5afe5472112b1cac4d9f3a323071e2001dbe0dc88643adb31af26fb6f164963a
+    status: In Validation
+    audit_ids:
+    - audit-b4728feba5a7
+    kind: result
+    applied: true
+    created_at: '2026-08-24T01:27:06.188717+00:00'
+    applied_at: '2026-08-24T01:27:13.425240+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -57,7 +87,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1328
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -66,7 +96,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-4284efaf83d2
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -78,6 +108,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1328
       selected_ref: aaac848e78bef6ee935df3c6697bcaa53012bfbb
       selected_sha: aaac848e78bef6ee935df3c6697bcaa53012bfbb
+      verdict: pass
+      completed_at: '2026-08-24T01:27:06.188513+00:00'
+      ended_at: '2026-08-24T01:27:06.188513+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -88,7 +121,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T01:10:38.663923+00:00'
     selected_ref: aaac848e78bef6ee935df3c6697bcaa53012bfbb
     selected_sha: aaac848e78bef6ee935df3c6697bcaa53012bfbb
-    updated_at: '2026-08-24T01:21:59.951417+00:00'
+    updated_at: '2026-08-24T01:27:06.188513+00:00'
   - version: 1
     audit_id: audit-6a7e254a8bb2
     project_id: proj-14849f1b
@@ -110,6 +143,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-b4728feba5a7
     selected_ref: aaac848e78bef6ee935df3c6697bcaa53012bfbb
     selected_sha: aaac848e78bef6ee935df3c6697bcaa53012bfbb
+    updated_at: '2026-08-24T01:27:06.188513+00:00'
+    eligible_at: '2026-08-24T01:27:06.188513+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4284efaf83d2
@@ -163,5 +198,18 @@ author: oompah
 created: 2026-08-24 01:22
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 01:27
+---
+Audit PASS — Done
+
+Implementation verified: OpenCode ACP backend now applies 10 MiB stream limit (limit=MAX_LINE_SIZE) to subprocess creation, mirroring agent.py pattern. Regression test added to verify limit is passed to asyncio.create_subprocess_exec. Full gate (make test) passed for exact SHA. Fixes asyncio ValueError from oversized stream chunks affecting completion auditors.
+
+Safe evidence:
+- implementation: limit=MAX_LINE_SIZE applied at oompah/acp_backends/opencode.py:443 to asyncio.create_subprocess_exec
+- constant: MAX_LINE_SIZE = 10 * 1024 * 1024 bytes (10 MiB) from oompah/agent.py:21
+- test: test_run_turn_sets_large_subprocess_stream_limit verifies limit kwarg is passed correctly
+- quality_gate: make test passed for SHA aaac848e78bef6ee935df3c6697bcaa53012bfbb in 179.5 seconds
 ---
 <!-- COMMENTS:END -->
