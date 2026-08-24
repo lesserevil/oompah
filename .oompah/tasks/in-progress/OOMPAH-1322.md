@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:15:25.298559Z'
-updated_at: '2026-08-24T14:57:07.229575Z'
+updated_at: '2026-08-24T15:03:15.497167Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -329,5 +329,16 @@ author: oompah
 created: 2026-08-24 14:56
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 15:03
+---
+**Understanding**: The issue reports that orchestrator logs a WARNING when pre-provider contributor evidence persistence times out. The error message 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' is being auto-filed by error_watcher as a task, but it should either: (1) be handled gracefully without triggering error_watcher, or (2) the timeout should be increased for slow trackers.
+
+**Planned approach**: 
+1. Examine the timeout calculation logic in _stage_work_contributor_launch (oompah/orchestrator.py ~line 57837)
+2. Check error_watcher.py to understand why this WARNING is being auto-filed
+3. Determine if the timeout is genuinely too short or if this should be handled as a non-error
+4. Implement fix to either increase timeout or suppress error_watcher triggering
 ---
 <!-- COMMENTS:END -->
