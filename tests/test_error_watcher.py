@@ -458,11 +458,15 @@ class TestFingerprintNormalization:
         )
 
     def test_checkpoint_push_failure_counter_values_collapse(self):
+        # Timer-based failures (debounce, max_delay) log at WARNING level and are
+        # not captured by error_watcher, so they don't generate fingerprints (OOMPAH-1326).
+        # Only manual failures (terminal_status, shutdown) log at ERROR level and
+        # trigger error_watcher.  Test with a critical flush reason instead.
         w, _ = self._make_watcher()
         fingerprints = {
             self._fp(
                 w,
-                f"Checkpoint flush FAILED (reason=debounce); push_failures={value}",
+                f"Checkpoint flush FAILED (reason=shutdown); push_failures={value}",
                 source="backend:checkpoint_queue",
             )
             for value in range(1, 26)
@@ -470,6 +474,9 @@ class TestFingerprintNormalization:
         assert len(fingerprints) == 1
 
     def test_checkpoint_trigger_reasons_share_explicit_incident(self):
+        # Only manual failure reasons (terminal_status, shutdown, human_edit) log at
+        # ERROR level and are captured by error_watcher. Timer-based failures
+        # (debounce, max_delay) log at WARNING level and don't trigger error_watcher (OOMPAH-1326).
         w, _ = self._make_watcher()
         fingerprints = {
             self._fp(
@@ -479,7 +486,7 @@ class TestFingerprintNormalization:
                 error_class="checkpoint_queue.flush_failed",
                 incident_key="state_branch_checkpoint_publish",
             )
-            for reason in ("debounce", "max_delay", "terminal_status:Done")
+            for reason in ("terminal_status:Done", "terminal_status:Merged", "shutdown")
         }
         assert len(fingerprints) == 1
 
