@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1198
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-121'
 parent: null
@@ -11,14 +11,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:04.107366Z'
-updated_at: '2026-08-24T13:29:17.182422Z'
+updated_at: '2026-08-24T14:54:40.480136Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -77,7 +77,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 97a10575-ebce-4732-ae31-b62827e9069f
+oompah.agent_run_id: 17530e92-5ce4-4d97-9977-637bb9403ce5
 oompah.work_contributors:
   runs:
   - run_id: 3c5e1f31236f4ba89bcebe5074b1098d--contributor-4256b9f40773
@@ -447,5 +447,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 17s
 - Log: OOMPAH-1198__20260824T132741Z.jsonl
+---
+author: oompah
+created: 2026-08-24 14:54
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
