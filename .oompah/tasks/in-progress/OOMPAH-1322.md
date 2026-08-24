@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:15:25.298559Z'
-updated_at: '2026-08-24T15:12:06.737027Z'
+updated_at: '2026-08-24T15:12:25.026301Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -367,5 +367,16 @@ The changes prevent these gracefully-handled timeout conditions from being captu
 These are normal retry conditions, not actual errors. By lowering the log level to INFO, they won't trigger error_watcher's ERROR+ handler, preventing auto-filing of unnecessary tasks.
 
 Changes committed and pushed to branch OOMPAH-1322.
+---
+author: oompah
+created: 2026-08-24 15:12
+---
+**Verification**: All tests pass successfully.
+
+Ran focused tests on the affected code:
+- test_provider_retirement.py: 21/21 tests passed ✓
+- test_error_watcher.py: 126/126 tests passed ✓
+
+The fix successfully prevents error_watcher from auto-filing these expected timeout conditions while maintaining all existing error-handling and logging functionality.
 ---
 <!-- COMMENTS:END -->
