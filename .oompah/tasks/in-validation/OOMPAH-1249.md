@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T16:07:17.780951Z'
-updated_at: '2026-08-24T15:28:36.880011Z'
+updated_at: '2026-08-24T15:30:28.183137Z'
 work_branch: OOMPAH-1249
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/896
@@ -248,6 +248,8 @@ oompah.terminal_audit:
       onto ae653b4f2. Rearming exhausted terminal audit.
     authorized_at: '2026-08-24T15:28:26.015117+00:00'
     mode: infrastructure_recovery
+    consumed_at: '2026-08-24T15:30:26.402775+00:00'
+    consumed_workflow_job_id: workflow-job-7882a861ca4848399646c291bd9e1af1
   version: 1
   pending_chain:
   - version: 1
