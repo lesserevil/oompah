@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1329
 type: task
-status: Open
+status: Ready to Integrate
 priority: null
 title: Stop over-budget workflow reconciliation from hot-looping worker admission
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T01:36:28.768799Z'
-updated_at: '2026-08-24T01:50:31.828948Z'
+updated_at: '2026-08-24T01:50:39.706040Z'
 work_branch: OOMPAH-1329
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 371719b5-9bbc-4ef2-9eb3-463362b66297
   request_fingerprint: 42c3c0fde84cd2ad321f76f112089c3ffe9d915f0fc8cafd65d70f412596c940
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.integration:
   version: 2
   state: ready
