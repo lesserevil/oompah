@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-24T23:55:29.086737Z'
+updated_at: '2026-08-24T23:55:35.716303Z'
 work_branch: OOMPAH-1206
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/902
@@ -353,8 +353,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-112658c5545a
     kind: audit_rearm
-    applied: false
+    applied: true
     created_at: '2026-08-24T23:55:21.139128+00:00'
+    applied_at: '2026-08-24T23:55:33.575733+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-d8dcc1adb045
