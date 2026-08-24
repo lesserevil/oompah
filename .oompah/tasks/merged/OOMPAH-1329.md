@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T01:36:28.768799Z'
-updated_at: '2026-08-24T02:35:55.684994Z'
+updated_at: '2026-08-24T02:36:29.066005Z'
 work_branch: OOMPAH-1329
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/907
@@ -226,13 +226,13 @@ oompah.terminal_audit:
     selected_ref: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
     selected_sha: bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
 oompah.task_costs:
-  total_input_tokens: 658
-  total_output_tokens: 15417
+  total_input_tokens: 996
+  total_output_tokens: 23679
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 658
-      output_tokens: 15417
+      input_tokens: 996
+      output_tokens: 23679
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -241,6 +241,12 @@ oompah.task_costs:
     output_tokens: 15417
     cost_usd: 0.0
     recorded_at: '2026-08-24T02:27:48.744329+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 338
+    output_tokens: 8262
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T02:36:25.745187+00:00'
 ---
 ## Summary
 
@@ -342,5 +348,15 @@ Safe evidence:
 - acceptance_criteria_verification.later_stable_reconciliation_can_publish: Flag only suppresses immediate continuation; periodic/authority-change wake can retry
 - full_gate_status: make test PASSED (179.5s) - exact head bb2cbaf913fb5faefa18ffa59acefaa76d2dfada
 - code_inspection: Changes minimal, focused, and correct: deadline tracking + flag setting + suppression check
+---
+author: oompah
+created: 2026-08-24 02:36
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 93, Tool calls: 41
+- Tokens: 338 in / 8.3K out [8.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 20s
+- Log: OOMPAH-1329__20260824T022822Z.jsonl
 ---
 <!-- COMMENTS:END -->
