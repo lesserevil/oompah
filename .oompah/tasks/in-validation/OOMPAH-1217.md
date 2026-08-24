@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:53.373319Z'
-updated_at: '2026-08-24T01:07:09.530616Z'
+updated_at: '2026-08-24T01:07:21.896202Z'
 work_branch: OOMPAH-1217
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/897
@@ -733,5 +733,10 @@ author: oompah
 created: 2026-08-24 00:20
 ---
 Terminal audit rearmed by project owner after recovery: Auditor transport fixed and deployed in OOMPAH-1327 / PR #904: AgentSession subprocess streams now use MAX_LINE_SIZE, preventing oversized JSON-RPC lines from crashing terminal audits.
+---
+author: oompah
+created: 2026-08-24 01:07
+---
+Auditor dispatched (attempt #1, candidate: prov-6cf41c89/switchyard/auto)
 ---
 <!-- COMMENTS:END -->
