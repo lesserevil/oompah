@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:56:45.420158Z'
-updated_at: '2026-08-24T13:32:01.900088Z'
+updated_at: '2026-08-24T13:36:58.080813Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -362,5 +362,32 @@ Planned approach:
 5. Add tests to prevent regression
 
 Starting investigation now.
+---
+author: oompah
+created: 2026-08-24 13:36
+---
+**DISCOVERY**
+
+Located the error in oompah/orchestrator.py at line 58070 in the `_stage_work_contributor_launch()` function.
+
+Root cause: The persistence timeout for writing contributor evidence (provider/model info) is calculated with too aggressive defaults. When calculating `persistence_timeout` (line 58026):
+
+```python
+persistence_timeout = max(
+    min(control_timeout, termination_timeout / 2.0),
+    0.05,
+)
+```
+
+With defaults:
+- control_timeout = 5.0 (terminal_control_lock_timeout_seconds default)
+- termination_timeout = 10.0 (worker_termination_timeout_ms default ÷ 1000)
+- Result: persistence_timeout = max(min(5.0, 5.0), 0.05) = 5.0 seconds
+
+This 5-second timeout is too aggressive for tracker persistence operations (writing to tracker, state-branch updates, etc.), causing normal operations to timeout and get logged as warnings. These warnings are then picked up by error_watcher and auto-filed as tasks.
+
+The code comment indicates this timeout is meant to be overridden in production via 'contributor_evidence_persist_timeout_seconds' config, but the default calculation should be more reasonable.
+
+Fix: Increase the derived persistence timeout calculation to allow more time for tracker operations.
 ---
 <!-- COMMENTS:END -->
