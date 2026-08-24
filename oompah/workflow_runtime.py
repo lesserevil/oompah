@@ -2891,10 +2891,16 @@ class WorkflowRuntime:
                         )
                 scoped_retry = report.pop("_scoped_publication_retry", None)
                 if not scoped_retry:
+                    if (
+                        report.get("requires_reconcile") is True
+                        and time.monotonic() >= deadline_at
+                    ):
+                        report["restart_deadline_exceeded"] = True
                     break
                 scoped_publication_retries += 1
                 if time.monotonic() >= deadline_at:
                     report["scoped_publication_retry_exhausted"] = True
+                    report["restart_deadline_exceeded"] = True
                     break
                 self._reconcile_thread.correction_active = True
         except _WorkflowReconciliationInterrupted:
