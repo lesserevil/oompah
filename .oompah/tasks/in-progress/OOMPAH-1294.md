@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:53:32.349118Z'
-updated_at: '2026-08-24T08:56:21.423600Z'
+updated_at: '2026-08-24T08:56:52.387628Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -438,5 +438,10 @@ author: oompah
 created: 2026-08-24 08:56
 ---
 Implementation: Added suppression logic to _TaskLoggingHandler.emit() in error_watcher.py that skips log records with the 'pre_provider_retirement' extra attribute (set by orchestrator.py for bounded task-authority deadline timeouts). This prevents these expected operational conditions from being auto-filed as error tasks. Also added comprehensive test: test_handler_suppresses_pre_provider_retirement_errors. All 125 error_watcher tests and 21 provider_retirement tests pass.
+---
+author: oompah
+created: 2026-08-24 08:56
+---
+Verification: All tests pass. Changes committed and pushed to branch OOMPAH-1294. The fix prevents pre-provider retirement errors (bounded task-authority deadline timeouts) from being auto-filed as error tasks, addressing the root cause of OOMPAH-1294. No regressions detected.
 ---
 <!-- COMMENTS:END -->
