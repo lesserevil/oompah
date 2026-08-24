@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:28:31.897753Z'
-updated_at: '2026-08-24T17:28:43.706357Z'
+updated_at: '2026-08-24T17:30:33.778519Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -115,7 +115,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1331
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -141,6 +141,22 @@ oompah.terminal_audit:
       failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
         auditor capability policy denied a path outside the repository worktree'
       next_retry_at: '2026-08-24T17:28:36.208192+00:00'
+    - version: 1
+      attempt_id: attempt-1d2393768dc7
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+      created_at: '2026-08-24T17:30:28.597834+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-24T17:30:28.597834+00:00'
+      branch_key: OOMPAH-1331
+      selected_ref: origin/OOMPAH-1331
+      selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
+      candidate_rotation_count: 1
     source_generation: 1
     requested_by:
       version: 1
@@ -151,7 +167,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-34bc00c97981
     selected_ref: origin/OOMPAH-1331
     selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
-    updated_at: '2026-08-24T17:28:26.208230+00:00'
+    updated_at: '2026-08-24T17:30:28.597834+00:00'
     eligible_at: '2026-08-24T17:16:59.920832+00:00'
   attempt_history:
   - version: 1
@@ -189,6 +205,22 @@ oompah.terminal_audit:
     failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
       auditor capability policy denied a path outside the repository worktree'
     next_retry_at: '2026-08-24T17:28:36.208192+00:00'
+  - version: 1
+    attempt_id: attempt-1d2393768dc7
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+    created_at: '2026-08-24T17:30:28.597834+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-24T17:30:28.597834+00:00'
+    branch_key: OOMPAH-1331
+    selected_ref: origin/OOMPAH-1331
+    selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
+    candidate_rotation_count: 1
 oompah.lifecycle_revision: 1
 oompah.task_costs:
   total_input_tokens: 1120
@@ -325,5 +357,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 9m 54s
 - Log: OOMPAH-1331__20260824T171908Z.jsonl
+---
+author: oompah
+created: 2026-08-24 17:30
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
 ---
 <!-- COMMENTS:END -->
