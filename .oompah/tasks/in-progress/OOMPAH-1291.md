@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:34:19.692606Z'
-updated_at: '2026-08-24T11:18:03.347502Z'
+updated_at: '2026-08-24T11:19:00.136948Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -530,5 +530,10 @@ author: oompah
 created: 2026-08-24 11:18
 ---
 Understanding: The orchestrator already logs pre-provider contributor evidence timeouts at WARNING level with a 'pre_provider_retirement' extra attribute. However, error_watcher's emit() handler needs an early-return guard to suppress these controlled warnings so they don't get auto-filed as tasks. The fix should check for the pre_provider_retirement attribute in the LogRecord and return early without calling report_error().
+---
+author: oompah
+created: 2026-08-24 11:19
+---
+Discovery: The orchestrator logs pre-provider contributor evidence timeouts at WARNING level (line 58069 in orchestrator.py) with a 'pre_provider_retirement' extra dict attribute. The error_watcher installs a logging handler at ERROR level (line 92 in error_watcher.py), which means it should NOT catch WARNING logs. However, there are controlled retirement paths where the system gracefully degrades, and these should never trigger error_watcher.
 ---
 <!-- COMMENTS:END -->
