@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T09:43:03.353905Z'
-updated_at: '2026-08-24T14:10:05.310541Z'
+updated_at: '2026-08-24T14:13:28.992642Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -241,5 +241,22 @@ Implementation plan:
 1. Add a parameter to flush() to indicate timer-based calls
 2. When timer-based, log at WARNING level (with error_class/incident_key as extra fields)
 3. Manual flushes continue to log at ERROR level
+---
+author: oompah
+created: 2026-08-24 14:13
+---
+Implementation: Modified checkpoint_queue.py to differentiate between timer-based and manual flush failures.
+
+Changes made:
+1. Added _timer_based parameter to flush() method (defaults to False)
+2. Timer-based flushes now log at WARNING level (not ERROR) for transient failures
+3. Manual flushes continue to log at ERROR level for critical failures
+4. _timer_flush() now passes _timer_based=True when calling flush()
+
+This prevents error_watcher from auto-filing tasks for transient timer-based failures (debounce, max-delay) while keeping critical manual failures (terminal_status, shutdown) visible.
+
+Also updated related tests in test_error_watcher.py:
+- test_checkpoint_push_failure_counter_values_collapse: now tests 'shutdown' reason instead of 'debounce'
+- test_checkpoint_trigger_reasons_share_explicit_incident: now tests only manual failure reasons (terminal_status, shutdown)
 ---
 <!-- COMMENTS:END -->
