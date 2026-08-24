@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:27.547026Z'
-updated_at: '2026-08-24T06:50:47.365894Z'
+updated_at: '2026-08-24T06:52:26.720578Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -440,5 +440,10 @@ author: oompah
 created: 2026-08-24 06:50
 ---
 IMPLEMENTATION: Changed worker failure logging from WARNING to DEBUG level in three places: (1) ACP worker (line 64761), (2) API worker (line 63594), (3) CLI worker (line 65115). Updated comments to explain that DEBUG level prevents both the ERROR-level logging handler AND LogFileWatcher from capturing these transient, non-provider-health errors. Added regression tests to verify DEBUG logs are not captured by error_watcher.
+---
+author: oompah
+created: 2026-08-24 06:52
+---
+VERIFICATION: All tests pass - 126 error_watcher tests, 58 ACP agent tests, 31 worker orchestrator tests, 148 total error_watcher-related tests. Changes verified to not cause regressions. Fix successfully prevents error_watcher from auto-filing transient worker failures by logging them at DEBUG level instead of WARNING level.
 ---
 <!-- COMMENTS:END -->
