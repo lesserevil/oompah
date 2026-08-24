@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-24T00:23:36.594432Z'
+updated_at: '2026-08-24T00:24:03.021512Z'
 work_branch: OOMPAH-1268
 target_branch: null
 review_url: null
@@ -491,12 +491,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1268
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-2a2742149645
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+      created_at: '2026-08-24T00:23:49.918783+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-24T00:23:49.918783+00:00'
+      branch_key: OOMPAH-1268
+      selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+      selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     source_generation: 3
     requested_by:
       version: 1
@@ -507,6 +522,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T00:20:56.111128+00:00'
     selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
     selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    updated_at: '2026-08-24T00:23:49.918783+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-74a35a09ad49
@@ -626,6 +642,21 @@ oompah.terminal_audit:
     ended_at: '2026-08-23T22:31:06.173203+00:00'
     failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
     next_retry_at: '2026-08-23T22:31:46.173171+00:00'
+  - version: 1
+    attempt_id: attempt-2a2742149645
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: da30b7a6ccedceaf8cc735f5290bf067841dbc17aa83f0e54aba507e7f7dae28
+    created_at: '2026-08-24T00:23:49.918783+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-24T00:23:49.918783+00:00'
+    branch_key: OOMPAH-1268
+    selected_ref: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
+    selected_sha: 859aa8a5a9fcf82063f312f6d16f8eb4ae288631
 ---
 ## Summary
 
@@ -929,5 +960,15 @@ author: oompah
 created: 2026-08-24 00:21
 ---
 Terminal audit rearmed by project owner after recovery: Auditor transport fixed and deployed in OOMPAH-1327 / PR #904: AgentSession subprocess streams now use MAX_LINE_SIZE, preventing oversized JSON-RPC lines from crashing terminal audits.
+---
+author: oompah
+created: 2026-08-24 00:23
+---
+Auditor dispatched (attempt #1, candidate: prov-6cf41c89/switchyard/auto)
+---
+author: oompah
+created: 2026-08-24 00:24
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
