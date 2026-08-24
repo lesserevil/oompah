@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:53:32.349118Z'
-updated_at: '2026-08-24T07:11:38.685971Z'
+updated_at: '2026-08-24T07:12:06.879952Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -127,16 +127,16 @@ oompah.work_contributors:
     model_id: switchyard/auto
     focus: general
     source_branch: OOMPAH-1294
-    source_sha: null
-    completed_at: ''
+    source_sha: 8c81b69c713e9bb6a1da8906b7e637f1ea6a1696
+    completed_at: '2026-08-24T07:12:00.788941+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1803
+  total_input_tokens: 204
+  total_output_tokens: 1925
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1803
+      input_tokens: 204
+      output_tokens: 1925
       cost_usd: 0.0
   runs:
   - profile: default
@@ -145,6 +145,12 @@ oompah.task_costs:
     output_tokens: 1803
     cost_usd: 0.0
     recorded_at: '2026-08-21T16:43:34.277808+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 194
+    output_tokens: 122
+    cost_usd: 0.0
+    recorded_at: '2026-08-24T07:12:00.781884+00:00'
 ---
 ## Summary
 
@@ -316,5 +322,15 @@ author: oompah
 created: 2026-08-24 07:11
 ---
 Implementation/Change: no code changes in this branch; suppression for pre-provider retirement already exists in error_watcher.py:_TaskLoggingHandler.emit (skips records with pre_provider_retirement extra), and the bounded deadline timeout behavior is covered by tests in tests/test_provider_retirement.py (pre_provider_evidence_timeout_releases_task_authority). Verification: pytest -q tests/test_provider_retirement.py (21 passed). Remaining risk: if this log path is emitted without the pre_provider_retirement extra, we may need to adjust logger attribution.
+---
+author: oompah
+created: 2026-08-24 07:12
+---
+Run #1 [attempt=1, profile=default, role=fast -> Opencode/Switchyard/switchyard/auto]
+- Turns: 24, Tool calls: 24
+- Tokens: 194 in / 122 out [58.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 53s
+- Log: OOMPAH-1294__20260824T070323Z.jsonl
 ---
 <!-- COMMENTS:END -->
