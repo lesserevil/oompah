@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:16:52.125972Z'
-updated_at: '2026-08-24T09:44:40.276475Z'
+updated_at: '2026-08-24T09:46:21.831543Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -377,5 +377,10 @@ author: oompah
 created: 2026-08-24 09:44
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 09:46
+---
+**Understanding**: Investigating error in backend:orchestrator where dispatch candidates fail due to contributor_evidence_unavailable error. The error indicates a timing issue with recording provider/model evidence before task-authority deadline. Planning to: (1) locate the orchestrator dispatch code, (2) find evidence recording logic, (3) identify the deadline enforcement, (4) determine root cause and implement fix.
 ---
 <!-- COMMENTS:END -->
