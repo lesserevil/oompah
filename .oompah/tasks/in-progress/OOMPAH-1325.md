@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T08:06:24.549306Z'
-updated_at: '2026-08-24T12:05:17.747754Z'
+updated_at: '2026-08-24T12:08:59.941606Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -239,5 +239,10 @@ author: oompah
 created: 2026-08-24 12:05
 ---
 Understanding: Issue OOMPAH-1325 reports a timeout error in backend:orchestrator where 'pre-provider contributor evidence exceeded its bounded task-authority deadline' with a 30-second timeout. This occurs when oompah operates on the provenanceguardedtracker project. The error is unhandled and auto-filed. Plan: (1) Locate the error message in code, (2) understand what operation times out, (3) identify root cause, (4) implement graceful handling or fix timeout issue, (5) verify no regression in error_watcher.
+---
+author: oompah
+created: 2026-08-24 12:08
+---
+Discovery: Found the timeout handling in orchestrator.py:58070. The code logs a WARNING when 'Pre-provider contributor evidence' persistence task exceeds its timeout (default 30s or configured). The timeout is caught and handled gracefully - work is retired for retry. The warning is informational but being picked up by error_watcher and auto-filed. Root cause: This is a legitimate timeout scenario that's already handled correctly, but logged at WARNING level which may be too verbose for normal operation.
 ---
 <!-- COMMENTS:END -->
