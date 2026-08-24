@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:34:19.692606Z'
-updated_at: '2026-08-24T09:21:46.442709Z'
+updated_at: '2026-08-24T09:21:56.527277Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -402,5 +402,10 @@ author: oompah
 created: 2026-08-24 09:21
 ---
 Understanding: this error originates from orchestrator pre-provider contributor evidence persistence timing out; aim to ensure it is treated as an expected, non-fatal retirement path so error_watcher doesn't auto-file a bug. Plan: locate the exact logger/exception path and confirm it logs at WARNING or is otherwise suppressed.
+---
+author: oompah
+created: 2026-08-24 09:21
+---
+Discovery: orchestrator handles this timeout in _stage_work_contributor_launch() (oompah/orchestrator.py around 58070) and logs it as WARNING with pre_provider_retirement extra; it returns a string instead of raising, so it should be treated as a controlled retirement path. The tests already assert the bounded task-authority deadline error behavior (tests/test_provider_retirement.py around 445/735). So this specific log-line should not trigger error_watcher unless it is being logged at ERROR elsewhere or not tagged/suppressed.
 ---
 <!-- COMMENTS:END -->
