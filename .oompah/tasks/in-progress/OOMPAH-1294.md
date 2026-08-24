@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:53:32.349118Z'
-updated_at: '2026-08-24T08:54:18.064835Z'
+updated_at: '2026-08-24T08:56:21.423600Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -433,5 +433,10 @@ author: oompah
 created: 2026-08-24 08:54
 ---
 Discovery: The WARNING message is logged at WARNING level with extra={'pre_provider_retirement': {...}}, so it correctly doesn't reach the ERROR-level handler. However, the intent is to suppress this type of message from auto-filing tasks if it ever gets logged at ERROR level (defensive future-proofing). Solution: Add suppression check in _TaskLoggingHandler.emit() to skip records with pre_provider_retirement extra, plus a test to verify it works.
+---
+author: oompah
+created: 2026-08-24 08:56
+---
+Implementation: Added suppression logic to _TaskLoggingHandler.emit() in error_watcher.py that skips log records with the 'pre_provider_retirement' extra attribute (set by orchestrator.py for bounded task-authority deadline timeouts). This prevents these expected operational conditions from being auto-filed as error tasks. Also added comprehensive test: test_handler_suppresses_pre_provider_retirement_errors. All 125 error_watcher tests and 21 provider_retirement tests pass.
 ---
 <!-- COMMENTS:END -->
