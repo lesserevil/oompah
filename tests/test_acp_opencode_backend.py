@@ -228,21 +228,45 @@ class _FakeStreamWriter:
 
 
 class _FakeStreamReader:
-    """Async generator that yields byte lines from a list of strings."""
+    """Async byte-line reader backed by a list of strings.
 
-    def __init__(self, lines: list[str]):
+    Supports both ``async for`` iteration and ``readline()``/``read()`` so it
+    matches the asyncio.StreamReader surface the backend now uses. A line may
+    be an ``Exception`` instance to simulate ``readline()`` raising (e.g. an
+    oversized-line ValueError), after which ``read()`` drains to the next
+    newline. (OOMPAH-1330)
+    """
+
+    def __init__(self, lines: list):
         self._lines = list(lines)
         self._index = 0
+        self._drain_pending = False
 
     def __aiter__(self):
         return self
 
     async def __anext__(self) -> bytes:
-        if self._index >= len(self._lines):
+        line = await self.readline()
+        if not line:
             raise StopAsyncIteration
+        return line
+
+    async def readline(self) -> bytes:
+        if self._index >= len(self._lines):
+            return b""
         line = self._lines[self._index]
         self._index += 1
-        return line.encode("utf-8")
+        if isinstance(line, BaseException):
+            self._drain_pending = True
+            raise line
+        return line.encode("utf-8") if isinstance(line, str) else line
+
+    async def read(self, n: int = -1) -> bytes:
+        # Used only to drain an oversized frame after readline() raised.
+        if self._drain_pending:
+            self._drain_pending = False
+            return b"\n"
+        return b""
 
 
 def _json_msg(type: str, /, session_id: str = "session-123", **kwargs) -> str:
@@ -336,6 +360,37 @@ class TestOpencodeSessionLifecycle:
         assert session.turn_count == 0
         assert session.last_error is None
         assert session.permission_denials == []
+
+    @pytest.mark.asyncio
+    async def test_run_turn_survives_oversized_stdout_line(self):
+        # OOMPAH-1330: a single JSON-RPC line larger than the StreamReader
+        # buffer made readline() raise ValueError and crashed the whole
+        # audit. The backend must drain/skip the oversized frame and keep
+        # processing subsequent well-formed lines instead of failing.
+        proc = _build_mock_proc(
+            stdout_lines=[
+                _json_msg("step_start", session_id="sid-oversize"),
+                ValueError(
+                    "Separator is found, but chunk is longer than limit"
+                ),
+                _json_msg(
+                    "step_finish",
+                    part={
+                        "type": "step-finish",
+                        "tokens": {"total": 0, "input": 0, "output": 0},
+                        "cost": 0,
+                    },
+                ),
+            ],
+            return_code=0,
+        )
+
+        session, events = await self._drive_session(proc)
+
+        # The session completed cleanly despite the oversized line, and the
+        # terminal step_finish after it was still processed.
+        assert session.status == "succeeded"
+        assert session.last_error is None
 
     @pytest.mark.asyncio
     async def test_run_turn_sets_large_subprocess_stream_limit(self):
