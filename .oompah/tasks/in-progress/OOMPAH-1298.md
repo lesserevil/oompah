@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:00:50.331057Z'
-updated_at: '2026-08-24T10:19:04.514082Z'
+updated_at: '2026-08-24T10:26:49.187843Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -365,5 +365,26 @@ Issue: A backend orchestrator error occurs when pre-provider contributor evidenc
 - Task authority/deadline enforcement logic
 
 Starting investigation now.
+---
+author: oompah
+created: 2026-08-24 10:26
+---
+**Discovery**
+
+Root cause found in `oompah/orchestrator.py:_stage_work_contributor_launch()`:
+
+The pre-provider contributor evidence persistence timeout is calculated as:
+\`\`\`python
+control_timeout = max(float(getattr(self.config, 'terminal_control_lock_timeout_seconds', 5.0)), 0.1)
+termination_timeout = max(float(getattr(self.config, 'worker_termination_timeout_ms', 10_000)) / 1000.0, 0.1)
+persistence_timeout = max(min(control_timeout, termination_timeout / 2.0), 0.05)
+# Result: max(min(5.0, 5.0), 0.05) = 5.0 seconds
+\`\`\`
+
+The default 5-second timeout is too aggressive for tracker I/O operations. When persisting contributor evidence (provider/model info) to the tracker takes longer than 5 seconds, the operation times out and triggers error_watcher.
+
+The code has a config override (`contributor_evidence_persist_timeout_seconds`) but it defaults to None, leaving the tight derived timeout as the fallback.
+
+**Fix**: Increase the default persistence timeout to a reasonable value (15-20 seconds) to allow for network delays and tracker latency.
 ---
 <!-- COMMENTS:END -->
