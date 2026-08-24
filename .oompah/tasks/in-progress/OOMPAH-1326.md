@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T09:43:03.353905Z'
-updated_at: '2026-08-24T14:14:57.278176Z'
+updated_at: '2026-08-24T14:17:15.391332Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -283,5 +283,28 @@ Key changes:
 All changes compile successfully. The fix prevents error_watcher from auto-filing tasks for transient timer-based checkpoint flush failures while keeping critical manual failures visible for error_watcher processing.
 
 Commit: 0d9de7856 (OOMPAH-1326: Log timer-based checkpoint flush failures at WARNING level)
+---
+author: oompah
+created: 2026-08-24 14:17
+---
+Verification - Test Results: All tests pass!
+
+Ran focused tests for the changes:
+- tests/test_checkpoint_coalescing.py: 66/66 passed ✓
+  - 2 new tests added:
+    * test_timer_based_flush_logs_warning_not_error: PASSED
+    * test_manual_flush_logs_error_not_warning: PASSED
+- tests/test_error_watcher.py: 124/124 passed ✓
+  - 2 tests modified:
+    * test_checkpoint_push_failure_counter_values_collapse: PASSED
+    * test_checkpoint_trigger_reasons_share_explicit_incident: PASSED
+
+All tests verify that:
+1. Timer-based flush failures (debounce, max-delay) log at WARNING level
+2. Manual/critical flush failures (terminal_status, shutdown) log at ERROR level
+3. Error watcher behavior is correctly updated to only flag critical failures
+4. Existing functionality is preserved (no regressions)
+
+Changes are ready for merge.
 ---
 <!-- COMMENTS:END -->
