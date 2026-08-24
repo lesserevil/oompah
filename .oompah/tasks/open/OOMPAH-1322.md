@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:15:25.298559Z'
-updated_at: '2026-08-24T06:29:17.386522Z'
+updated_at: '2026-08-24T09:44:10.094381Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,15 +36,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ACP provider launch was blocked because unhealthy=['Claude:health_unknown',
-    'Claude:health_unknown', 'Claude:health_unknown', 'Opencode/Switchyard:health_unknown'];
-    missing_audit_capability=['Codex']
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 0c1bb8489544ae424be6c0191323a55d2ff86630a54780533444a1b87fe04c0c:166657
+  claim_owner: 37ccaa87-ad5a-4d18-9016-1bf917e62c3a
+  claimed_at: '2026-08-24T09:44:05.552494+00:00'
+  claim_expires_at: '2026-08-24T10:14:05.552494+00:00'
   retry_count: 2
-  retry_after: '2026-08-24T06:31:07.168108+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
