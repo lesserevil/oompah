@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:59:54.516015Z'
-updated_at: '2026-08-24T01:01:29.887896Z'
+updated_at: '2026-08-24T01:02:32.179250Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -126,6 +126,14 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
   - run_id: 90f3b6ce5ed44ba2b87d62ffeeb43bce--contributor-86e3ac8153e1
+    provider_id: prov-6cf41c89
+    provider_name: Opencode/Switchyard
+    model_id: switchyard/auto
+    focus: general
+    source_branch: OOMPAH-1297
+    source_sha: null
+    completed_at: ''
+  - run_id: a7649179eaef4bcdb858e79440d46dfc--contributor-86e3ac8153e1
     provider_id: prov-6cf41c89
     provider_name: Opencode/Switchyard
     model_id: switchyard/auto
