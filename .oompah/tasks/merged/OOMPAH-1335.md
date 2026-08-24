@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1335
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Remove stale local Git URL rewrites during managed-clone credential sanitation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:56:39.839941Z'
-updated_at: '2026-08-24T22:50:19.790464Z'
+updated_at: '2026-08-24T23:37:19.081239Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,6 +39,7 @@ oompah.terminal_audit:
     digest: cf12e5b1ba11bbf041369aeaeee9cc8ec566784dbfb3512d345b8078c8053d01
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1335","audit-4c771cc6b972","attempt-387e50ad4d02"]': '2026-08-24T22:49:28.600911+00:00'
+    '["proj-14849f1b","OOMPAH-1335","audit-ee0391b798eb","attempt-a88132fd5e76"]': '2026-08-24T23:37:14.907851+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1335
@@ -53,6 +54,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-24T22:49:28.600929+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1335
+    target_state: Merged
+    evidence_fingerprint: cf12e5b1ba11bbf041369aeaeee9cc8ec566784dbfb3512d345b8078c8053d01
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1335
+    selected_sha: 76fe97764a3b56bf7d922eabd49cd8f94844f1e3
+    landing_revision: null
+    audit_ids:
+    - audit-ee0391b798eb
+    kind: result
+    applied: true
+    retired_at: '2026-08-24T23:37:14.907871+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1335
@@ -67,6 +81,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T22:49:28.600940+00:00'
     applied_at: '2026-08-24T22:49:36.436895+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1335
+    audit_id: audit-ee0391b798eb
+    attempt_id: attempt-a88132fd5e76
+    target_state: Merged
+    evidence_fingerprint: cf12e5b1ba11bbf041369aeaeee9cc8ec566784dbfb3512d345b8078c8053d01
+    status: Merged
+    audit_ids:
+    - audit-ee0391b798eb
+    kind: result
+    applied: false
+    created_at: '2026-08-24T23:37:14.907883+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -114,7 +140,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1335
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -123,7 +149,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a88132fd5e76
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -135,6 +161,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1335
       selected_ref: origin/OOMPAH-1335
       selected_sha: 76fe97764a3b56bf7d922eabd49cd8f94844f1e3
+      verdict: pass
+      completed_at: '2026-08-24T23:37:14.907672+00:00'
+      ended_at: '2026-08-24T23:37:14.907672+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -145,7 +174,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-4c771cc6b972
     selected_ref: origin/OOMPAH-1335
     selected_sha: 76fe97764a3b56bf7d922eabd49cd8f94844f1e3
-    updated_at: '2026-08-24T22:50:03.237004+00:00'
+    updated_at: '2026-08-24T23:37:14.907672+00:00'
     eligible_at: '2026-08-24T22:49:28.600756+00:00'
   attempt_history:
   - version: 1
@@ -178,7 +207,7 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1335
     selected_ref: origin/OOMPAH-1335
     selected_sha: 76fe97764a3b56bf7d922eabd49cd8f94844f1e3
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.task_costs:
   total_input_tokens: 242
   total_output_tokens: 9349
