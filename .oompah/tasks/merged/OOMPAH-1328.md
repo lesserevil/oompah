@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T00:59:00.469186Z'
-updated_at: '2026-08-24T01:32:33.544796Z'
+updated_at: '2026-08-24T01:32:39.563064Z'
 work_branch: OOMPAH-1328
 target_branch: null
 review_url: null
@@ -104,8 +104,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-6a7e254a8bb2
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-24T01:32:29.266591+00:00'
+    applied_at: '2026-08-24T01:32:37.722337+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -306,5 +307,18 @@ author: oompah
 created: 2026-08-24 01:27
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-24 01:32
+---
+Audit PASS — Merged
+
+Implementation verified: OpenCode ACP backend correctly applies 10 MiB stream limit (limit=MAX_LINE_SIZE) to asyncio.create_subprocess_exec at oompah/acp_backends/opencode.py:436-443. Regression test test_run_turn_sets_large_subprocess_stream_limit verifies the limit parameter is passed correctly. Full gate (make test) passed for exact head SHA in 179.51 seconds. All task acceptance criteria met.
+
+Safe evidence:
+- implementation: limit=MAX_LINE_SIZE parameter applied to asyncio.create_subprocess_exec at oompah/acp_backends/opencode.py lines 436-443
+- constant: MAX_LINE_SIZE = 10 * 1024 * 1024 bytes (10 MiB) from oompah/agent.py:21
+- test_coverage: test_run_turn_sets_large_subprocess_stream_limit in tests/test_acp_opencode_backend.py mocks asyncio.create_subprocess_exec and verifies limit kwarg equals MAX_LINE_SIZE
+- quality_gate: make test passed for SHA aaac848e78bef6ee935df3c6697bcaa53012bfbb in 179.51 seconds
 ---
 <!-- COMMENTS:END -->
