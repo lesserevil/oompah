@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:27.547026Z'
-updated_at: '2026-08-24T06:52:26.720578Z'
-work_branch: null
+updated_at: '2026-08-24T06:52:56.622172Z'
+work_branch: OOMPAH-1196
 target_branch: null
 review_url: null
 review_number: null
@@ -70,7 +70,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: dce37804-b9f9-41e0-b572-aa7a5bbead26
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 71b1976e1cee4120b339e39218832094--contributor-4256b9f40773
@@ -193,6 +193,18 @@ oompah.task_costs:
     output_tokens: 1579
     cost_usd: 0.0
     recorded_at: '2026-08-23T23:05:52.313646+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1196
+  base_branch: main
+  base_sha: 4988991309ba81b6b2cf06aa30528bf5f21b0a82
+  head_sha: 65571324f84bb08575d39921a1315d81d7d8ca4f
+  submitted_at: '2026-08-24T06:52:42.735850+00:00'
+  updated_at: '2026-08-24T06:52:42.735850+00:00'
+oompah.work_branch: OOMPAH-1196
 ---
 ## Summary
 
@@ -445,5 +457,10 @@ author: oompah
 created: 2026-08-24 06:52
 ---
 VERIFICATION: All tests pass - 126 error_watcher tests, 58 ACP agent tests, 31 worker orchestrator tests, 148 total error_watcher-related tests. Changes verified to not cause regressions. Fix successfully prevents error_watcher from auto-filing transient worker failures by logging them at DEBUG level instead of WARNING level.
+---
+author: oompah
+created: 2026-08-24 06:52
+---
+Fixed ACP worker failure error logging: Changed from WARNING to DEBUG level to prevent error_watcher auto-filing transient, non-provider-health errors. Applied fix to ACP worker (line 64761), API worker (line 63594), and CLI worker (line 65115). LogFileWatcher no longer picks up these DEBUG-level logs even if they contain ERROR keywords. All 148 error_watcher tests pass. Regression-free.
 ---
 <!-- COMMENTS:END -->
