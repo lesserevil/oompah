@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:29:16.227300Z'
-updated_at: '2026-08-24T11:02:10.129834Z'
+updated_at: '2026-08-24T16:30:07.691994Z'
 work_branch: OOMPAH-1208
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/909
@@ -502,5 +502,14 @@ author: oompah
 created: 2026-08-24 11:01
 ---
 Branch quality gate passed for `ddfc08864e3e162d23f23999b94956c153cfcbfd` using `make test` in 183.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-24 16:30
+---
+Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
+
+Source: `backend:server`
+
+Message: Update issue API error: TaskTransitionNotApplied('OOMPAH-1330: In Progress was not applied (rejected: transition.project_owner_authority_required)')
 ---
 <!-- COMMENTS:END -->
