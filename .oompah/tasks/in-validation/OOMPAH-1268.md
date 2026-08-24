@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-18T16:49:48.891025Z'
-updated_at: '2026-08-24T00:21:32.978914Z'
+updated_at: '2026-08-24T00:23:36.594432Z'
 work_branch: OOMPAH-1268
 target_branch: null
 review_url: null
@@ -268,6 +268,8 @@ oompah.terminal_audit:
       from crashing terminal audits.'
     authorized_at: '2026-08-24T00:20:56.111128+00:00'
     mode: infrastructure_recovery
+    consumed_at: '2026-08-24T00:23:35.236842+00:00'
+    consumed_workflow_job_id: workflow-job-44d24f5b684b492b8bec55458cd662ce
   version: 1
   pending_chain:
   - version: 1
