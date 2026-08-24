@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:03:40.977842Z'
-updated_at: '2026-08-24T23:53:08.696773Z'
+updated_at: '2026-08-24T23:57:35.383562Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -130,6 +130,8 @@ oompah.terminal_audit:
       with submit_audit_result bridge remain.'
     authorized_at: '2026-08-24T23:52:57.886943+00:00'
     mode: infrastructure_recovery
+    consumed_at: '2026-08-24T23:57:33.879223+00:00'
+    consumed_workflow_job_id: workflow-job-e25c2d72ae45494081ded8105910d07e
   version: 1
   pending_chain:
   - version: 1
