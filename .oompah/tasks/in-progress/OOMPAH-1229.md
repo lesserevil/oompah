@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:37:50.327401Z'
-updated_at: '2026-08-24T09:16:11.836737Z'
+updated_at: '2026-08-24T09:18:46.261372Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -461,5 +461,10 @@ author: oompah
 created: 2026-08-24 09:16
 ---
 **Discovery:** Found the race condition in `tests/test_ws_fault_injection.py::TestLiveDashboardConvergence::test_four_completion_snapshots_converge_to_zero_running_chips`. The test broadcasts 4 state transitions via `ws.portal.call(server_module._broadcast, ...)` and then immediately asserts that all 4 messages were dropped. However, portal.call() may return before all broadcasts are fully processed by the fault injector (timing-dependent). On Python 3.13's faster execution, the assertion fires before the 4th broadcast completes, causing intermittent test failures. **Fix approach:** Replace timing-dependent observation with explicit bounded synchronization: (1) Add an asyncio.Event that signals when a broadcast message has been fully captured by the fault injector, (2) Wait for exactly 4 broadcasts with bounded timeout before asserting, (3) This preserves the real WebSocket/broadcast path while proving all 4 were processed.
+---
+author: oompah
+created: 2026-08-24 09:18
+---
+**Implementation:** Fixed the race condition by replacing timing-dependent observation with explicit bounded synchronization. Changes: (1) Extended `_wire_fault_injector()` helper to accept an `on_capture` callback parameter that's invoked when envelopes are captured by the fault injector, (2) Modified `test_four_completion_snapshots_converge_to_zero_running_chips()` to use a threading.Condition to signal when each of the 4 completion snapshots is captured, (3) Added bounded wait (5s timeout) before asserting to ensure all 4 broadcasts are processed before validation. The test now passes reliably on Python 3.12 and should work on Python 3.13 as well.
 ---
 <!-- COMMENTS:END -->
