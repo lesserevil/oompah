@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:56:45.420158Z'
-updated_at: '2026-08-24T13:57:10.455743Z'
-work_branch: null
+updated_at: '2026-08-24T13:57:28.121928Z'
+work_branch: OOMPAH-1283
 target_branch: null
 review_url: null
 review_number: null
@@ -167,6 +167,7 @@ oompah.integration:
   head_sha: 5675c150cfb6e1400c10de0f5a6a6704f128d50e
   submitted_at: '2026-08-24T13:56:56.571810+00:00'
   updated_at: '2026-08-24T13:56:56.571810+00:00'
+oompah.work_branch: OOMPAH-1283
 ---
 ## Summary
 
@@ -437,5 +438,10 @@ Changes committed and pushed to branch OOMPAH-1283:
 - Configuration option still allows production override
 
 The fix addresses the root cause: tracker persistence operations now have sufficient time to complete without triggering spurious error_watcher tasks.
+---
+author: oompah
+created: 2026-08-24 13:57
+---
+Fixed aggressive persistence timeout for contributor evidence. Increased default timeout from 5s to 10s to allow tracker operations to complete successfully without triggering spurious error_watcher tasks. Root cause: the timeout calculation was being capped by control_timeout (meant for locks) instead of using the full termination_timeout window. All tests pass.
 ---
 <!-- COMMENTS:END -->
