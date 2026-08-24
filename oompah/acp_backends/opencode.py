@@ -95,6 +95,25 @@ class _OpencodeCounters:
             pass
 
 
+def _drain_oversized_line(stream: Any):
+    """Consume bytes of an over-limit line until the next newline.
+
+    ``StreamReader.readline`` raises when a single line exceeds the buffer
+    limit but leaves the buffered bytes in place. Reading in bounded chunks
+    with ``read`` (which has no separator requirement) discards the oversized
+    frame so the reader can resume on the next well-formed JSON-RPC line
+    instead of raising indefinitely. (OOMPAH-1330)
+    """
+
+    async def _drain() -> None:
+        while True:
+            chunk = await stream.read(65536)
+            if not chunk or b"\n" in chunk:
+                return
+
+    return _drain()
+
+
 def _truncate(value: Any, limit: int = 1500) -> Any:
     """Redact + truncate tool inputs/outputs before they hit the JSONL log.
 
@@ -478,7 +497,27 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             # Read JSON-lines from stdout (`opencode run --format json`).
             stdout = self._proc.stdout
             saw_terminal = False
-            async for line in stdout:
+            while True:
+                try:
+                    line = await stdout.readline()
+                except (ValueError, asyncio.LimitOverrunError) as exc:
+                    # A single JSON-RPC line exceeded the StreamReader buffer
+                    # (asyncio raises "Separator is found, but chunk is longer
+                    # than limit"). Historically this crashed the whole audit.
+                    # Drain the oversized frame without a newline separator and
+                    # skip it instead of failing the session. (OOMPAH-1330)
+                    logger.warning(
+                        "opencode stdout line exceeded stream buffer; "
+                        "draining and skipping oversized frame: %s",
+                        exc,
+                    )
+                    try:
+                        await _drain_oversized_line(stdout)
+                    except Exception:  # pragma: no cover - defensive
+                        break
+                    continue
+                if not line:
+                    break
                 if self._stop_requested:
                     self._status = "interrupted"
                     return
