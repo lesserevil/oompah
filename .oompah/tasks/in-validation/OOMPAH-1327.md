@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1327
 type: task
-status: Backlog
+status: In Validation
 priority: null
 title: '[backend:agent] Auditor subprocess readline crashes on lines >64KiB (Separator
   is found, but chunk is longer than limit)'
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-23T21:54:32.810884Z'
-updated_at: '2026-08-23T21:54:32.810884Z'
+updated_at: '2026-08-24T00:16:41.104183Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,6 +25,65 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 8f85a250-1070-4c56-9175-6156032292b9
   request_fingerprint: 0478bc00db58f4b66809697c958bb69f71680af4fb9c32d7d90335fd2c1c0752
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-76cfa3e76835
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1327
+    digest: ec54d37a26f0a8ac377ed6cba16e297bf2b6247c1dba88c9b0d096f10a89d6ee
+  - version: 1
+    audit_id: audit-baa4202ff705
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1327
+    digest: ec54d37a26f0a8ac377ed6cba16e297bf2b6247c1dba88c9b0d096f10a89d6ee
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-76cfa3e76835
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1327
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ec54d37a26f0a8ac377ed6cba16e297bf2b6247c1dba88c9b0d096f10a89d6ee
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-24T00:16:35.208700+00:00'
+    eligible_at: '2026-08-24T00:16:35.208700+00:00'
+    selected_ref: origin/OOMPAH-1327
+    selected_sha: a1bdfad376af434e72551b698b2171863b4857dd
+  - version: 1
+    audit_id: audit-baa4202ff705
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1327
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ec54d37a26f0a8ac377ed6cba16e297bf2b6247c1dba88c9b0d096f10a89d6ee
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-24T00:16:35.208700+00:00'
+    prerequisite_audit_id: audit-76cfa3e76835
+    selected_ref: origin/OOMPAH-1327
+    selected_sha: a1bdfad376af434e72551b698b2171863b4857dd
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -62,3 +121,11 @@ Pass limit=MAX_LINE_SIZE to asyncio.create_subprocess_exec in AgentSession.start
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-24 00:16
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+<!-- COMMENTS:END -->
