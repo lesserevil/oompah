@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-24T00:27:10.387932Z'
+updated_at: '2026-08-24T00:36:53.337128Z'
 work_branch: OOMPAH-1206
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/902
@@ -532,12 +532,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1206
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-460442832e23
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
+      created_at: '2026-08-24T00:36:48.212153+00:00'
+      provider_id: prov-6cf41c89
+      model: switchyard/auto
+      started_at: '2026-08-24T00:36:48.212153+00:00'
+      branch_key: OOMPAH-1206
+      selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+      selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     source_generation: 3
     requested_by:
       version: 1
@@ -548,6 +563,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T00:19:27.889391+00:00'
     selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+    updated_at: '2026-08-24T00:36:48.212153+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-08569515fd73
@@ -667,6 +683,21 @@ oompah.terminal_audit:
     ended_at: '2026-08-23T22:40:32.903033+00:00'
     failure_reason: 'ValueError: Separator is found, but chunk is longer than limit'
     next_retry_at: '2026-08-23T22:41:12.903014+00:00'
+  - version: 1
+    attempt_id: attempt-460442832e23
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
+    created_at: '2026-08-24T00:36:48.212153+00:00'
+    provider_id: prov-6cf41c89
+    model: switchyard/auto
+    started_at: '2026-08-24T00:36:48.212153+00:00'
+    branch_key: OOMPAH-1206
+    selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+    selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
 ---
 ## Summary
 
@@ -1016,5 +1047,10 @@ author: oompah
 created: 2026-08-24 00:19
 ---
 Terminal audit rearmed by project owner after recovery: Auditor transport fixed and deployed in OOMPAH-1327 / PR #904: AgentSession subprocess streams now use MAX_LINE_SIZE, preventing oversized JSON-RPC lines from crashing terminal audits.
+---
+author: oompah
+created: 2026-08-24 00:36
+---
+Auditor dispatched (attempt #1, candidate: prov-6cf41c89/switchyard/auto)
 ---
 <!-- COMMENTS:END -->
