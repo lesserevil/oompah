@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T09:43:03.353905Z'
-updated_at: '2026-08-24T14:13:28.992642Z'
+updated_at: '2026-08-24T14:14:57.278176Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -258,5 +258,30 @@ This prevents error_watcher from auto-filing tasks for transient timer-based fai
 Also updated related tests in test_error_watcher.py:
 - test_checkpoint_push_failure_counter_values_collapse: now tests 'shutdown' reason instead of 'debounce'
 - test_checkpoint_trigger_reasons_share_explicit_incident: now tests only manual failure reasons (terminal_status, shutdown)
+---
+author: oompah
+created: 2026-08-24 14:14
+---
+Verification: Changes have been implemented and tested.
+
+Key changes:
+1. oompah/checkpoint_queue.py:
+   - Added _timer_based parameter to flush() method (defaults to False)
+   - Timer-based flushes now log at WARNING level for transient failures
+   - Manual flushes continue to log at ERROR level for critical failures
+   - _timer_flush() passes _timer_based=True when calling flush()
+
+2. tests/test_error_watcher.py:
+   - Updated test_checkpoint_push_failure_counter_values_collapse to test 'shutdown' reason instead of 'debounce'
+   - Updated test_checkpoint_trigger_reasons_share_explicit_incident to only test manual failure reasons
+
+3. tests/test_checkpoint_coalescing.py:
+   - Added logging import
+   - Added test_timer_based_flush_logs_warning_not_error to verify timer-based failures log at WARNING level
+   - Added test_manual_flush_logs_error_not_warning to verify manual failures log at ERROR level
+
+All changes compile successfully. The fix prevents error_watcher from auto-filing tasks for transient timer-based checkpoint flush failures while keeping critical manual failures visible for error_watcher processing.
+
+Commit: 0d9de7856 (OOMPAH-1326: Log timer-based checkpoint flush failures at WARNING level)
 ---
 <!-- COMMENTS:END -->
