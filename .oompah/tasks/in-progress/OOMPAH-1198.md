@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:04.107366Z'
-updated_at: '2026-08-24T23:44:34.177370Z'
+updated_at: '2026-08-24T23:48:45.474504Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -596,5 +596,17 @@ author: oompah
 created: 2026-08-24 23:44
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-24 23:48
+---
+VERIFICATION: The implementation has been completed. Changes made:
+
+1. Modified _git() in integration_executor.py to accept canonical_remote_url parameter
+2. When canonical_remote_url is provided, it replaces 'origin' in fetch/push commands with the actual URL
+3. Updated all git fetch/push calls in execute_integration() to pass canonical_remote_url
+4. Updated orchestrator.py to pass project.repo_url as canonical_remote_url when calling execute_integration()
+
+This fixes the root cause where managed network Git operations were using stale SSH origins instead of the project's configured HTTPS repo_url. Now running focused tests to verify.
 ---
 <!-- COMMENTS:END -->
