@@ -454,6 +454,47 @@ def test_pre_provider_evidence_timeout_releases_task_authority(tmp_path) -> None
     asyncio.run(scenario())
 
 
+def test_pre_provider_evidence_timeout_uses_fallback_when_unconfigured(tmp_path) -> None:
+    """Verify fallback timeout is reasonable when config is missing."""
+    async def scenario() -> None:
+        orch = _orchestrator(tmp_path)
+        # Simulate missing configuration by setting to None
+        orch.config.contributor_evidence_persist_timeout_seconds = None  # type: ignore
+        # Default termination timeout is 100ms (from _orchestrator)
+        # So fallback should be min(30.0, 0.1) = 0.1 seconds
+        entry = _entry()
+        orch.state.running[entry.issue.id] = entry
+        orch.provider_store.get = MagicMock(return_value=None)
+        orch._reserve_auditor_for_contributor = AsyncMock(return_value=([], None))
+        orch._release_audit_budget_reservation = MagicMock(return_value=True)
+        persistence_started = threading.Event()
+        release_persistence = threading.Event()
+
+        def blocked_persistence(*_args, **_kwargs) -> None:
+            persistence_started.set()
+            release_persistence.wait(timeout=2)
+
+        orch._persist_work_contributor = blocked_persistence
+        staging = asyncio.create_task(
+            orch._stage_work_contributor_launch(
+                entry.issue,
+                run_id=entry.run_id,
+                provider_id="acp",
+                provider_name="acp",
+                model="sdk-managed",
+            )
+        )
+        assert await asyncio.to_thread(persistence_started.wait, 0.5)
+        error = await staging
+        # Should timeout as expected (using fallback)
+        assert "bounded task-authority deadline" in str(error)
+        assert entry.provider_started is False
+        release_persistence.set()
+        await asyncio.sleep(0)
+
+    asyncio.run(scenario())
+
+
 def test_contributor_evidence_takes_project_lock_before_policy_lock(tmp_path) -> None:
     """Contributor publication cannot invert ProjectStore.update lock order."""
 

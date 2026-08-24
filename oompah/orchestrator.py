@@ -58023,15 +58023,14 @@ class Orchestrator:
                     / 1000.0,
                     0.1,
                 )
-                persistence_timeout = max(
-                    min(control_timeout, termination_timeout / 2.0),
-                    0.05,
-                )
+                # Tracker metadata writes need more time than the control lock
+                # cycle. Use a configured value if available, otherwise default
+                # to 30 seconds (well above the 5-second control timeout).
                 # A dedicated deadline lets slow tracker/state-branch evidence
                 # writes finish instead of retiring with
                 # contributor_evidence_unavailable and starving implementation
                 # dispatch.  When configured it is authoritative (production
-                # raises it well above the derived control floor).
+                # typically sets it to 60 seconds or higher).
                 configured_evidence_timeout = getattr(
                     self.config,
                     "contributor_evidence_persist_timeout_seconds",
@@ -58040,6 +58039,13 @@ class Orchestrator:
                 if configured_evidence_timeout is not None:
                     persistence_timeout = max(
                         float(configured_evidence_timeout), 0.05
+                    )
+                else:
+                    # Fallback default if configuration is missing: use a
+                    # reasonable value that accommodates tracker latency.
+                    persistence_timeout = max(
+                        min(30.0, termination_timeout),
+                        0.05,
                     )
 
                 try:
