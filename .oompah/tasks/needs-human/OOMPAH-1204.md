@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:25:06.282819Z'
-updated_at: '2026-08-24T18:32:02.962458Z'
+updated_at: '2026-08-24T23:54:52.104552Z'
 work_branch: OOMPAH-1204
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/906
@@ -243,6 +243,40 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T18:27:30.320316+00:00'
     applied_at: '2026-08-24T18:27:38.025274+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1204
+    audit_id: audit-c8037e0c9b43
+    attempt_id: audit-rearm:audit-c8037e0c9b43
+    target_state: Done
+    evidence_fingerprint: 9b4ef5eec9ffd666f17a687246d3690f36a85a4e73bf5567569a60af146d1da3
+    status: In Validation
+    audit_ids:
+    - audit-c8037e0c9b43
+    kind: audit_rearm
+    applied: false
+    created_at: '2026-08-24T23:54:49.707267+00:00'
+  oompah.terminal_audit_rearm_history:
+  - version: 2
+    audit_id: audit-c8037e0c9b43
+    superseded_audit_id: audit-ff87a53c40a4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1204
+    target_state: Done
+    evidence_fingerprint: 9b4ef5eec9ffd666f17a687246d3690f36a85a4e73bf5567569a60af146d1da3
+    workflow_revision: null
+    selected_ref: b8bea43d1f7348eaf3bca1f0a02adeaf84534bb6
+    selected_sha: b8bea43d1f7348eaf3bca1f0a02adeaf84534bb6
+    landing_revision: null
+    source_generation: 2
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Verdict-capable independent auditor capacity restored: OOMPAH-1333 excludes
+      incapable OpenCode/native subscription transports; healthy Claude candidates
+      with submit_audit_result bridge remain.'
+    authorized_at: '2026-08-24T23:54:49.707114+00:00'
+    mode: infrastructure_recovery
   version: 1
   pending_chain:
   - version: 1
@@ -250,7 +284,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1204
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -340,7 +374,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T14:28:15.973036+00:00'
     selected_ref: b8bea43d1f7348eaf3bca1f0a02adeaf84534bb6
     selected_sha: b8bea43d1f7348eaf3bca1f0a02adeaf84534bb6
-    updated_at: '2026-08-24T18:27:30.320156+00:00'
+    updated_at: '2026-08-24T23:54:49.707114+00:00'
   - version: 1
     audit_id: audit-3f481f0885a4
     project_id: proj-14849f1b
@@ -363,6 +397,27 @@ oompah.terminal_audit:
     selected_ref: b8bea43d1f7348eaf3bca1f0a02adeaf84534bb6
     selected_sha: b8bea43d1f7348eaf3bca1f0a02adeaf84534bb6
     updated_at: '2026-08-24T18:32:01.426088+00:00'
+  - version: 1
+    audit_id: audit-c8037e0c9b43
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1204
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9b4ef5eec9ffd666f17a687246d3690f36a85a4e73bf5567569a60af146d1da3
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Review
+    created_at: '2026-08-24T23:54:49.707114+00:00'
+    eligible_at: '2026-08-24T23:54:49.707114+00:00'
+    selected_ref: b8bea43d1f7348eaf3bca1f0a02adeaf84534bb6
+    selected_sha: b8bea43d1f7348eaf3bca1f0a02adeaf84534bb6
   attempt_history:
   - version: 1
     attempt_id: attempt-ed73f0da0f44
