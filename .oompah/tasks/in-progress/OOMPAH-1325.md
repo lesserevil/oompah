@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T08:06:24.549306Z'
-updated_at: '2026-08-24T12:14:09.714884Z'
+updated_at: '2026-08-24T12:16:26.984588Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -249,5 +249,10 @@ author: oompah
 created: 2026-08-24 12:14
 ---
 Implementation: Changed three logger.warning() calls in orchestrator.py:_stage_work_contributor_launch to logger.debug() for gracefully-handled timeout scenarios. Lines changed: 57957 (prior evidence pending), 58070 (evidence timeout), 58106 (cancelled evidence timeout). These are expected timeouts with automatic retry - logging at DEBUG avoids triggering error_watcher while still supporting diagnostics.
+---
+author: oompah
+created: 2026-08-24 12:16
+---
+Verification: All tests pass. Ran test_provider_retirement.py (21 tests), test_error_watcher_orchestrator.py (13 tests), and orchestrator handler tests with 'contributor' filter (71 tests). Changes verified - three logger.warning calls converted to logger.debug for gracefully-handled timeout scenarios. This prevents error_watcher from auto-filing expected timeouts.
 ---
 <!-- COMMENTS:END -->
