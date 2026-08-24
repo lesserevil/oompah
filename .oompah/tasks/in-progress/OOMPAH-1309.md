@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:20:13.480283Z'
-updated_at: '2026-08-24T08:30:31.262489Z'
-work_branch: null
+updated_at: '2026-08-24T08:30:57.521722Z'
+work_branch: OOMPAH-1309
 target_branch: null
 review_url: null
 review_number: null
@@ -77,7 +77,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 09b240ec-3ad4-4e1d-98ae-7ed81acaa577
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: d63d714267264481a004b625ec6020a0--contributor-a8b0475e7b09
@@ -152,6 +152,18 @@ oompah.task_costs:
     output_tokens: 1732
     cost_usd: 0.0
     recorded_at: '2026-08-23T23:00:03.022015+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1309
+  base_branch: main
+  base_sha: 4988991309ba81b6b2cf06aa30528bf5f21b0a82
+  head_sha: 365ad3ac5195ef902ed0f2d35c479478140e8bc3
+  submitted_at: '2026-08-24T08:30:40.109644+00:00'
+  updated_at: '2026-08-24T08:30:40.109644+00:00'
+oompah.work_branch: OOMPAH-1309
 ---
 ## Summary
 
@@ -333,5 +345,10 @@ author: oompah
 created: 2026-08-24 08:30
 ---
 VERIFICATION: Changes committed and pushed to branch OOMPAH-1309. Test results: ✓ test_provider_retirement.py (21 tests passed) ✓ test_error_watcher.py (124 tests passed) ✓ test_error_watcher_orchestrator.py (13 tests passed) ✓ test_orchestrator_handlers.py (large test suite passed). Fix is ready: The two logger.warning() calls in orchestrator.py have been changed to logger.info() for contributor evidence timeout cases, preventing error_watcher from being triggered while maintaining detailed logging.
+---
+author: oompah
+created: 2026-08-24 08:30
+---
+Fixed contributor evidence timeout error_watcher trigger by changing log level from WARNING to INFO. The timeout is expected behavior that's handled gracefully, and INFO-level messages don't trigger error_watcher's ERROR+ filter.
 ---
 <!-- COMMENTS:END -->
