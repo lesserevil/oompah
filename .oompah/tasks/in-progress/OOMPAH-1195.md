@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:17.683117Z'
-updated_at: '2026-08-24T10:37:52.021556Z'
+updated_at: '2026-08-24T10:46:52.869906Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -537,5 +537,26 @@ Fixed the bug in orchestrator.py's _run_project_network_git() method.
 - tests/test_orchestrator_canonical_remote_url.py: Added 12 unit tests covering all cases
 
 All 12 tests pass.
+---
+author: oompah
+created: 2026-08-24 10:46
+---
+## Verification - All Tests Pass
+
+Ran comprehensive tests to verify the fix:
+- 12 new unit tests for the transformation function: all pass
+- 123 epic_rebase_state tests: all pass
+- 12 managed_git_credentials tests: all pass
+- Total: 147 tests pass
+
+The fix correctly handles:
+1. Replacing 'origin' with canonical URL in fetch/push/ls-remote/pull/clone
+2. Refspec transformations for fetch to maintain origin tracking
+3. Edge cases like fetch --all, empty refspecs, etc.
+4. Preserving all other git arguments and behavior
+
+Changes pushed to origin/OOMPAH-1195.
+
+The error 'ACP worker failed issue_id=TRICKLE-137' will no longer occur because orchestrator now uses the canonical HTTPS URL instead of stale SSH origins during epic/workspace operations. This prevents authentication failures and error_watcher from being triggered.
 ---
 <!-- COMMENTS:END -->
