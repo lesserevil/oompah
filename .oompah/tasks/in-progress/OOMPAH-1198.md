@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:04.107366Z'
-updated_at: '2026-08-24T21:23:04.271360Z'
+updated_at: '2026-08-24T21:23:35.059479Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -180,6 +180,14 @@ oompah.work_contributors:
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-luna
+    focus: general
+    source_branch: OOMPAH-1198
+    source_sha: null
+    completed_at: ''
+  - run_id: 6e98950e9c0a4ab09a0215689d39b20a--contributor-4256b9f40773
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
     focus: general
     source_branch: OOMPAH-1198
     source_sha: null
@@ -508,5 +516,10 @@ author: oompah
 created: 2026-08-24 21:23
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-24 21:23
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
