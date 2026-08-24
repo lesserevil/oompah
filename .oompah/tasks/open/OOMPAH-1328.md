@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1328
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Apply large stream limit to OpenCode ACP subprocesses
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T00:59:00.469186Z'
-updated_at: '2026-08-24T00:59:00.469186Z'
+updated_at: '2026-08-24T01:00:49.187994Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 32623887-6658-4507-aebe-1f82fa244df7
   request_fingerprint: 3e72702ee72c5191f330bc2235080b55d6d11adf9beb0ee63295241e50b8ada2
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -35,3 +36,11 @@ Completion auditors using the OpenCode ACP backend still fail with ValueError: S
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-24 01:00
+---
+Root cause confirmed in the live server: OpenCode completion auditors bypass AgentSession and create subprocess streams without MAX_LINE_SIZE. Implementing the missing limit with regression coverage.
+---
+<!-- COMMENTS:END -->
