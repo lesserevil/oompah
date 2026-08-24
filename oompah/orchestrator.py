@@ -58023,9 +58023,12 @@ class Orchestrator:
                     / 1000.0,
                     0.1,
                 )
+                # Calculate baseline timeout from control and termination timeouts,
+                # but ensure a minimum of 15 seconds for slow tracker operations.
+                # The configured value (default 30 seconds) is authoritative when set.
                 persistence_timeout = max(
                     min(control_timeout, termination_timeout / 2.0),
-                    0.05,
+                    15.0,  # Minimum 15 seconds for slow tracker operations
                 )
                 # A dedicated deadline lets slow tracker/state-branch evidence
                 # writes finish instead of retiring with
@@ -58040,6 +58043,13 @@ class Orchestrator:
                 if configured_evidence_timeout is not None:
                     persistence_timeout = max(
                         float(configured_evidence_timeout), 0.05
+                    )
+                else:
+                    # Fallback: if configured timeout is not available, use a
+                    # more generous calculated value to avoid starving agents
+                    # on slow trackers like provenanceguardedtracker.
+                    persistence_timeout = max(
+                        persistence_timeout, 30.0
                     )
 
                 try:
