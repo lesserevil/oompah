@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:28:12.589940Z'
-updated_at: '2026-08-25T01:47:33.357016Z'
+updated_at: '2026-08-25T01:47:51.766431Z'
 work_branch: OOMPAH-1254
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/899
@@ -355,5 +355,10 @@ author: oompah
 created: 2026-08-25 01:37
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-25 01:47
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
 ---
 <!-- COMMENTS:END -->
