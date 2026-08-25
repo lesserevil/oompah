@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:33.669681Z'
-updated_at: '2026-08-25T00:12:43.235148Z'
+updated_at: '2026-08-25T00:13:03.001604Z'
 work_branch: OOMPAH-1200
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/908
@@ -136,8 +136,8 @@ oompah.work_contributors:
     source_sha: 9fca74edd35ac86a91c1e33650829ffce7f81ed0
     completed_at: '2026-08-21T10:23:56.479461+00:00'
 oompah.task_costs:
-  total_input_tokens: 918
-  total_output_tokens: 19813
+  total_input_tokens: 935
+  total_output_tokens: 25101
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -145,8 +145,8 @@ oompah.task_costs:
       output_tokens: 19608
       cost_usd: 0.0
     unknown:
-      input_tokens: 394
-      output_tokens: 205
+      input_tokens: 411
+      output_tokens: 5493
       cost_usd: 0.0
   runs:
   - profile: default
@@ -173,6 +173,12 @@ oompah.task_costs:
     output_tokens: 102
     cost_usd: 0.0
     recorded_at: '2026-08-24T16:58:22.497877+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 17
+    output_tokens: 5288
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T00:12:59.679649+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -871,5 +877,15 @@ Safe evidence:
 - changed_files: oompah/orchestrator.py, tests/test_error_watcher.py
 - fix_sites: 3 (lines 63594, 64762, 65116)
 - new_tests: TestWorkerFailureLogging::test_debug_level_logs_not_captured_by_handler, TestWorkerFailureLogging::test_exception_with_error_keyword_in_debug_not_captured
+---
+author: oompah
+created: 2026-08-25 00:13
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 32, Tool calls: 19
+- Tokens: 17 in / 5.3K out [5.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 33s
+- Log: OOMPAH-1200__20260825T000448Z.jsonl
 ---
 <!-- COMMENTS:END -->
