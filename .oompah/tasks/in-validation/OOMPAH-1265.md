@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-25T23:44:00.198491Z'
+updated_at: '2026-08-25T23:44:09.314387Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -109,13 +109,17 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2011
+  total_input_tokens: 60
+  total_output_tokens: 2700
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 2011
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 50
+      output_tokens: 689
       cost_usd: 0.0
   runs:
   - profile: default
@@ -124,6 +128,12 @@ oompah.task_costs:
     output_tokens: 2011
     cost_usd: 0.0
     recorded_at: '2026-08-20T23:10:27.549405+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 50
+    output_tokens: 689
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T23:44:00.248018+00:00'
 oompah.work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 oompah.integration:
   version: 2
@@ -337,5 +347,15 @@ author: oompah
 created: 2026-08-25 23:44
 ---
 Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-25 23:44
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 0, Tool calls: 29
+- Tokens: 50 in / 689 out [739 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 11m 57s
+- Log: OOMPAH-1265__20260825T233228Z.jsonl
 ---
 <!-- COMMENTS:END -->
