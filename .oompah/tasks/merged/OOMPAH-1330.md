@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:03:40.977842Z'
-updated_at: '2026-08-25T00:17:21.037857Z'
+updated_at: '2026-08-25T00:17:27.500074Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -120,8 +120,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-db9b42b3f57e
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-25T00:17:16.271026+00:00'
+    applied_at: '2026-08-25T00:17:25.546894+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-db9b42b3f57e
@@ -670,5 +671,30 @@ author: oompah
 created: 2026-08-25 00:04
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 00:17
+---
+Audit PASS — Merged
+
+OOMPAH-1330 implementation verified: OpenCode ACP auditor transport now gracefully survives >64KiB JSON-RPC lines by draining oversized frames instead of crashing. Implementation adds error handling with drain-and-skip recovery, comprehensive regression test, and maintains full compatibility with all existing tests. 144 ACP/OpenCode tests pass including new regression test. No regressions in other backends.
+
+Safe evidence:
+- test_results.test_acp_opencode_backend: 41 passed
+- test_results.test_acp_backends: 45 passed
+- test_results.test_acp_agent: 58 passed
+- test_results.total_acp_tests: 144 passed
+- implementation_changes.files_modified: oompah/acp_backends/opencode.py, tests/test_acp_opencode_backend.py
+- implementation_changes.new_function: _drain_oversized_line() gracefully drains oversized frames
+- implementation_changes.error_handling: Catches ValueError and asyncio.LimitOverrunError from readline()
+- implementation_changes.stream_limit: create_subprocess_exec called with limit=MAX_LINE_SIZE
+- acceptance_criteria.no_crash_on_large_payloads: verified
+- acceptance_criteria.graceful_recovery: verified
+- acceptance_criteria.regression_test: test_run_turn_survives_oversized_stdout_line passes
+- acceptance_criteria.no_regressions: verified
+- acceptance_criteria.commit_attribution: verified
+- commit.sha: 585382bbb8f5e02b8938dacc4653786b18af0107
+- commit.author: oompah
+- commit.trailer: Co-authored-by: oompah <lesserevil@users.noreply.github.com>
 ---
 <!-- COMMENTS:END -->
