@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:28:31.897753Z'
-updated_at: '2026-08-25T00:15:49.551528Z'
+updated_at: '2026-08-25T00:15:56.987344Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -121,8 +121,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-46b37e27c1ce
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-25T00:15:44.591811+00:00'
+    applied_at: '2026-08-25T00:15:55.169570+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-46b37e27c1ce
@@ -633,5 +634,28 @@ author: oompah
 created: 2026-08-25 00:03
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 00:15
+---
+Audit PASS — Merged
+
+Fix correctly addresses OOMPAH-1331. The source_scan_deferred flag distinguishes publication deferrals from scan failures, allowing restart reconstruction to finalize when reconciliation is complete despite source_scan_complete=False. All 274 related tests pass (51 liveness + 56 controller + 167 runtime), including two new regression tests that verify both the deferred-finalizes and fail-closed non-deferred cases. Backward compatible with defaults to False. Minimal changes, well-documented, properly scoped.
+
+Safe evidence:
+- fix_summary: Introduced source_scan_deferred flag to distinguish publication deferrals (excluded already-covered terminal-audit tasks) from genuine source scan failures
+- files_modified[0]: oompah/workflow_controller.py: Added source_scan_deferred field to ControllerObservation
+- files_modified[1]: oompah/workflow_liveness_metrics.py: Added source_scan_deferred parameter and source_scan_effectively_complete logic
+- files_modified[2]: oompah/workflow_runtime.py: Sets source_scan_deferred=True when publication excludes covered tasks
+- files_modified[3]: tests/test_workflow_liveness_metrics.py: Added two regression tests
+- test_results.workflow_liveness_metrics: 51 passed (includes new tests)
+- test_results.workflow_controller: 56 passed
+- test_results.workflow_runtime: 167 passed
+- test_results.total_related_tests: 274 passed
+- acceptance_criteria.convergence_on_full_materialization: PASS - test_publication_deferred_scan_finalizes_when_fully_reconciled verifies scan_complete=True, reconstruction_pending=False
+- acceptance_criteria.no_divergence_blocks_finalization: PASS - source_scan_deferred eliminates phantom divergence
+- acceptance_criteria.graceful_restart_reevaluates: PASS - computed fresh each observation, not persisted
+- backward_compatibility: PASS - defaults to False, preserving existing behavior
+- code_quality: PASS - Minimal (74 additions, 2 deletions), focused changes with clear documentation
 ---
 <!-- COMMENTS:END -->
