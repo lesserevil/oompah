@@ -12,8 +12,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T16:53:55.710371Z'
-updated_at: '2026-08-25T22:37:31.508322Z'
-work_branch: null
+updated_at: '2026-08-25T22:37:49.433560Z'
+work_branch: OOMPAH-1338
 target_branch: null
 review_url: null
 review_number: null
@@ -116,6 +116,7 @@ oompah.integration:
   head_sha: 07ecca55f22409dde6263523adccc5354632797c
   submitted_at: '2026-08-25T22:37:20.529212+00:00'
   updated_at: '2026-08-25T22:37:20.529212+00:00'
+oompah.work_branch: OOMPAH-1338
 ---
 ## Summary
 
@@ -242,5 +243,10 @@ author: oompah
 created: 2026-08-25 22:36
 ---
 Verification: All 4 regression tests pass. Tests cover: (1) closed database returns 503 with 'store_closed' code, (2) closed database logs WARNING not ERROR, (3) other SQL errors still return 500 and log ERROR, (4) non-SQL errors still return 500 and log ERROR. No regressions observed in exception handling for other error types.
+---
+author: oompah
+created: 2026-08-25 22:37
+---
+Fixed Reviews API closed database error handling. The /api/v1/reviews endpoint now detects sqlite3.ProgrammingError with 'closed database' and returns 503 with actionable message instead of logging ERROR. This prevents false alarms in error_watcher while other error types continue to be properly reported. Added 4 regression tests validating the fix and backward compatibility.
 ---
 <!-- COMMENTS:END -->
