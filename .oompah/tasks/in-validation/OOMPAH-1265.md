@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-25T23:44:09.314387Z'
+updated_at: '2026-08-25T23:45:15.074295Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -163,7 +163,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1265
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -189,6 +189,22 @@ oompah.terminal_audit:
       failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
         auditor capability policy denied access to a credential-like file'
       next_retry_at: '2026-08-25T23:43:59.568620+00:00'
+    - version: 1
+      attempt_id: attempt-d6969c16c393
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+      created_at: '2026-08-25T23:45:03.803164+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-25T23:45:03.803164+00:00'
+      branch_key: epic-OOMPAH-1231--task-OOMPAH-1265
+      selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+      selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+      candidate_rotation_count: 1
     source_generation: 1
     requested_by:
       version: 1
@@ -199,7 +215,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-25T23:15:50.519008+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-25T23:43:49.568655+00:00'
+    updated_at: '2026-08-25T23:45:03.803164+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f1e85028019b
@@ -221,6 +237,22 @@ oompah.terminal_audit:
     failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
       auditor capability policy denied access to a credential-like file'
     next_retry_at: '2026-08-25T23:43:59.568620+00:00'
+  - version: 1
+    attempt_id: attempt-d6969c16c393
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+    created_at: '2026-08-25T23:45:03.803164+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-25T23:45:03.803164+00:00'
+    branch_key: epic-OOMPAH-1231--task-OOMPAH-1265
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -357,5 +389,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 11m 57s
 - Log: OOMPAH-1265__20260825T233228Z.jsonl
+---
+author: oompah
+created: 2026-08-25 23:45
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-25 23:45
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
