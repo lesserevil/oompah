@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:38.960190Z'
-updated_at: '2026-08-25T22:14:24.272027Z'
+updated_at: '2026-08-25T22:15:42.437474Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -189,5 +189,10 @@ author: oompah
 created: 2026-08-25 22:14
 ---
 **Discovery**: Found the root cause in oompah/orchestrator.py line 15360-15374. The stop_until_safe() method catches all exceptions from stop() and logs them with logger.exception(), which logs at ERROR level and triggers error_watcher. The test test_safe_stop_retries_retired_snapshot_without_backend_error explicitly asserts this message should NOT appear. The issue is that logger.exception() is too aggressive - we should use logger.warning() instead so errors are logged for debugging but don't trigger error_watcher.
+---
+author: oompah
+created: 2026-08-25 22:15
+---
+**Implementation**: Changed logging level from logger.exception() to logger.warning() in stop_until_safe() at oompah/orchestrator.py:15360-15375. This prevents error_watcher from being triggered when shutdown attempts fail but the process remains alive and retries. The exception message is still logged for debugging purposes, but at WARNING level instead of ERROR level.
 ---
 <!-- COMMENTS:END -->
