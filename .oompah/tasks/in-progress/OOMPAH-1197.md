@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-25T01:12:45.234490Z'
+updated_at: '2026-08-25T01:13:27.542221Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -557,5 +557,10 @@ author: oompah
 created: 2026-08-25 01:12
 ---
 Root cause likely lives in orchestrator's exception->log-level choice for ACP worker failures. We found the exact log template in oompah/orchestrator.py:_run_acp_worker (logger.debug currently). Next step: verify whether some other catch/log path for backend:orchestrator logs at ERROR (likely from an underlying exception or re-raised TrackerError), which would trigger error_watcher. We'll trace other occurrences of the same template and any ERROR logs in the ACP worker path, then add regression tests mirroring OOMPAH-345 (ensure expected ACP worker failures log at WARNING/DEBUG so error_watcher doesn't file tasks).
+---
+author: oompah
+created: 2026-08-25 01:13
+---
+Key insight: orchestrator.py already logs 'ACP worker failed issue_id=...' at DEBUG (not ERROR), so it should not trigger error_watcher. That means the auto-filed TRICKLE-119 likely came from a different ERROR-level log line in the ACP worker call stack (maybe a tracker/task write or workspace fetch) that includes the same issue_id via logging extra. Next: add a focused regression test that asserts any Exception path inside the ACP worker logs ACP worker failures at WARNING/DEBUG only (never ERROR) when it includes extra.issue_id. We'll implement by exercising the orchestrator's ACP worker path with a forced exception and capturing logging records to ensure no ERROR lines containing 'ACP worker failed issue_id=' are emitted.
 ---
 <!-- COMMENTS:END -->
