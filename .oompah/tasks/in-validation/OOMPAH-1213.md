@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:50:52.786229Z'
-updated_at: '2026-08-24T23:56:10.770200Z'
+updated_at: '2026-08-25T00:21:32.863414Z'
 work_branch: OOMPAH-1213
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/895
@@ -374,6 +374,8 @@ oompah.terminal_audit:
       with submit_audit_result bridge remain.'
     authorized_at: '2026-08-24T23:55:52.140655+00:00'
     mode: infrastructure_recovery
+    consumed_at: '2026-08-25T00:21:18.086982+00:00'
+    consumed_workflow_job_id: workflow-job-0c04531b843240aaa55dc9626a700561
   version: 1
   pending_chain:
   - version: 1
@@ -695,12 +697,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1213
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 0be5dc22447d8e61d317e4d046481be1c6170edb89ce02264cc0c6b5a198147b
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-7d431061701b
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 0be5dc22447d8e61d317e4d046481be1c6170edb89ce02264cc0c6b5a198147b
+      created_at: '2026-08-25T00:21:21.226172+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-25T00:21:21.226172+00:00'
+      branch_key: OOMPAH-1213
+      selected_ref: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
+      selected_sha: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
     source_generation: 4
     requested_by:
       version: 1
@@ -712,6 +729,7 @@ oompah.terminal_audit:
     selected_ref: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
     selected_sha: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
     workflow_revision: f8e345804f381f9cffa9c50cb924682f90c5bd2b4e6b162e81ec65339f70d8fc
+    updated_at: '2026-08-25T00:21:21.226172+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-bda598eb26e4
@@ -890,6 +908,21 @@ oompah.terminal_audit:
     ended_at: '2026-08-24T18:38:23.664659+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-24T18:39:03.664633+00:00'
+  - version: 1
+    attempt_id: attempt-7d431061701b
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0be5dc22447d8e61d317e4d046481be1c6170edb89ce02264cc0c6b5a198147b
+    created_at: '2026-08-25T00:21:21.226172+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-25T00:21:21.226172+00:00'
+    branch_key: OOMPAH-1213
+    selected_ref: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
+    selected_sha: 5109f99df52a9c3470ad663a7c67c2f079d5fcf0
 ---
 ## Summary
 
@@ -1356,5 +1389,15 @@ author: oompah
 created: 2026-08-24 23:56
 ---
 Terminal audit rearmed by project owner after recovery: Verdict-capable independent auditor capacity restored: OOMPAH-1333 excludes incapable OpenCode/native subscription transports; healthy Claude candidates with submit_audit_result bridge remain.
+---
+author: oompah
+created: 2026-08-25 00:21
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-25 00:21
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
