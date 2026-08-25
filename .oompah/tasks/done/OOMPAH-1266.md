@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-25T20:34:23.046287Z'
+updated_at: '2026-08-25T20:34:39.640490Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -121,8 +121,8 @@ oompah.work_contributors:
     source_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
     completed_at: '2026-08-21T06:39:04.544183+00:00'
 oompah.task_costs:
-  total_input_tokens: 3426
-  total_output_tokens: 28087
+  total_input_tokens: 3451
+  total_output_tokens: 36776
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -130,8 +130,8 @@ oompah.task_costs:
       output_tokens: 27309
       cost_usd: 0.0
     unknown:
-      input_tokens: 2486
-      output_tokens: 778
+      input_tokens: 2511
+      output_tokens: 9467
       cost_usd: 0.0
   runs:
   - profile: default
@@ -188,6 +188,12 @@ oompah.task_costs:
     output_tokens: 40
     cost_usd: 0.0
     recorded_at: '2026-08-24T18:45:44.734764+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 25
+    output_tokens: 8689
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T20:34:36.264987+00:00'
 oompah.work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 oompah.integration:
   version: 2
@@ -1586,5 +1592,15 @@ Safe evidence:
 - new_regression_tests[0]: test_submission_record_preserves_integrated_generation_on_late_submit (webhook-before-submit)
 - new_regression_tests[1]: test_submission_record_creates_ready_for_new_head_after_integrated (new-head reflow)
 - new_regression_tests[2]: test_submission_record_preserves_ready_on_same_generation_retry (idempotency)
+---
+author: oompah
+created: 2026-08-25 20:34
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 52, Tool calls: 28
+- Tokens: 25 in / 8.7K out [8.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 51s
+- Log: OOMPAH-1266__20260825T202802Z.jsonl
 ---
 <!-- COMMENTS:END -->
