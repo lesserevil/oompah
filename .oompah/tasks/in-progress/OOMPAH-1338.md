@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T16:53:55.710371Z'
-updated_at: '2026-08-25T22:38:00.225963Z'
+updated_at: '2026-08-25T22:38:35.701036Z'
 work_branch: OOMPAH-1338
 target_branch: null
 review_url: null
@@ -248,5 +248,10 @@ author: oompah
 created: 2026-08-25 22:37
 ---
 Fixed Reviews API closed database error handling. The /api/v1/reviews endpoint now detects sqlite3.ProgrammingError with 'closed database' and returns 503 with actionable message instead of logging ERROR. This prevents false alarms in error_watcher while other error types continue to be properly reported. Added 4 regression tests validating the fix and backward compatibility.
+---
+author: oompah
+created: 2026-08-25 22:38
+---
+COMPLETED: Fixed OOMPAH-1338 - Reviews API closed database error handling. Root cause: endpoint logged ERROR for all exceptions, triggering error_watcher. Solution: detect sqlite3.ProgrammingError with 'closed database' and return 503/WARNING instead of 500/ERROR. Verification: all 4 regression tests pass, backward compatibility maintained. Code committed and pushed to branch OOMPAH-1338, task submitted for integration.
 ---
 <!-- COMMENTS:END -->
