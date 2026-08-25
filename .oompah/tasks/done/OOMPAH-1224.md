@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-25T00:59:30.871458Z'
+updated_at: '2026-08-25T00:59:37.150568Z'
 work_branch: OOMPAH-1224
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/900
@@ -320,8 +320,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-45144dab3af0
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-25T00:59:26.257999+00:00'
+    applied_at: '2026-08-25T00:59:35.522789+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-49872de05682
@@ -1362,5 +1363,21 @@ author: oompah
 created: 2026-08-25 00:37
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 00:59
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- quality_gate: make test passed twice for 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+- stores_with_active_calls: coordination.py (8+ sites), integration_queue.py (get, items)
+- stores_defined_not_called: review_capacity.py, task_transition_service.py, workflow_jobs.py, implementation_workflow_adapter.py
+- test_coverage_for_recovery: none — no dedicated test for _ensure_conn recovery path found in tests/
+- acceptance_criteria_1: error no longer occurs in protected paths
+- acceptance_criteria_2: root cause resolved
+- acceptance_criteria_3: no regression, all tests pass
 ---
 <!-- COMMENTS:END -->
