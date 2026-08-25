@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T18:29:09.896071Z'
-updated_at: '2026-08-25T19:21:12.326578Z'
+updated_at: '2026-08-25T19:21:20.455432Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -276,5 +276,10 @@ author: oompah
 created: 2026-08-25 19:21
 ---
 Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-25 19:21
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
