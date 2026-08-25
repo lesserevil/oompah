@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:29:16.227300Z'
-updated_at: '2026-08-25T01:47:04.355164Z'
+updated_at: '2026-08-25T01:56:53.969327Z'
 work_branch: OOMPAH-1208
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/909
@@ -206,6 +206,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1208
     digest: e736059442c110deeb583d66eed2acb5b1cb58b9e4bdf29cc8c2da8dceacffb6
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1208","audit-468a913d8a14","attempt-53408d46a4e0"]': '2026-08-25T01:56:44.810804+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1208
+    target_state: Done
+    evidence_fingerprint: e736059442c110deeb583d66eed2acb5b1cb58b9e4bdf29cc8c2da8dceacffb6
+    workflow_revision: null
+    selected_ref: ddfc08864e3e162d23f23999b94956c153cfcbfd
+    selected_sha: ddfc08864e3e162d23f23999b94956c153cfcbfd
+    landing_revision: null
+    audit_ids:
+    - audit-468a913d8a14
+    kind: result
+    applied: true
+    retired_at: '2026-08-25T01:56:44.810833+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1208
+    audit_id: audit-468a913d8a14
+    attempt_id: attempt-53408d46a4e0
+    target_state: Done
+    evidence_fingerprint: e736059442c110deeb583d66eed2acb5b1cb58b9e4bdf29cc8c2da8dceacffb6
+    status: In Validation
+    audit_ids:
+    - audit-468a913d8a14
+    kind: result
+    applied: true
+    created_at: '2026-08-25T01:56:44.810849+00:00'
+    applied_at: '2026-08-25T01:56:52.665120+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -213,7 +243,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1208
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -222,7 +252,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-53408d46a4e0
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -234,6 +264,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1208
       selected_ref: ddfc08864e3e162d23f23999b94956c153cfcbfd
       selected_sha: ddfc08864e3e162d23f23999b94956c153cfcbfd
+      verdict: pass
+      completed_at: '2026-08-25T01:56:44.810493+00:00'
+      ended_at: '2026-08-25T01:56:44.810493+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -244,7 +277,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-25T01:36:49.860758+00:00'
     selected_ref: ddfc08864e3e162d23f23999b94956c153cfcbfd
     selected_sha: ddfc08864e3e162d23f23999b94956c153cfcbfd
-    updated_at: '2026-08-25T01:46:53.582783+00:00'
+    updated_at: '2026-08-25T01:56:44.810493+00:00'
   - version: 1
     audit_id: audit-500f230081a9
     project_id: proj-14849f1b
@@ -266,6 +299,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-468a913d8a14
     selected_ref: ddfc08864e3e162d23f23999b94956c153cfcbfd
     selected_sha: ddfc08864e3e162d23f23999b94956c153cfcbfd
+    updated_at: '2026-08-25T01:56:44.810493+00:00'
+    eligible_at: '2026-08-25T01:56:44.810493+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-53408d46a4e0
@@ -615,5 +650,21 @@ author: oompah
 created: 2026-08-25 01:47
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 01:56
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- regression_test: tests/test_task_transition_service.py::test_api_authority_allowed_for_backlog_to_in_progress_transition PASSED in 1.78s
+- full_gate_sha: ddfc08864e3e162d23f23999b94956c153cfcbfd
+- full_gate_result: passed
+- full_gate_duration_seconds: 183.1
+- changed_files: oompah/task_transition_service.py, tests/test_task_transition_service.py
+- fix_location_1: _direct_owner_commit_conflict lines 1653-1681: API authority allowed, lease guard skipped
+- fix_location_2: _execute_admitted lines 2297-2303: API authority allowed for BACKLOG->IN_PROGRESS gate
 ---
 <!-- COMMENTS:END -->
