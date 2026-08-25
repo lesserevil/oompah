@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T16:53:55.710371Z'
-updated_at: '2026-08-25T22:05:05.125238Z'
+updated_at: '2026-08-25T22:18:35.626148Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -162,5 +162,15 @@ author: oompah
 created: 2026-08-25 22:05
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-25 22:18
+---
+Understanding: Reviews API currently logs ERROR and returns 500 for all exceptions; this can trigger error_watcher. Plan: catch sqlite3 ProgrammingError 'closed database' at /api/v1/reviews, log WARNING instead, and return a 503 with actionable message. Discovery: Found /api/v1/reviews handler in oompah/server.py (around logger.error('Reviews API error...')). Implementation: added special-case handling for closed DB ProgrammingError in that endpoint to avoid ERROR-level logs; added regression test. Verification: pytest -q tests/test_server_reviews_closed_database.py
+---
+author: oompah
+created: 2026-08-25 22:18
+---
+Discovery: The /api/v1/reviews endpoint in oompah/server.py always logs ERROR on any exception (logger.error('Reviews API error...')), which is exactly what causes error_watcher to auto-file. Fix point is in the endpoint-level exception handler; other stores already have re-open-on-close guards but this route’s top-level catch was still logging ERROR.
 ---
 <!-- COMMENTS:END -->
