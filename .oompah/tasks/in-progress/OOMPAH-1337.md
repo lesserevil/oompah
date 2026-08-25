@@ -12,8 +12,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:38.960190Z'
-updated_at: '2026-08-25T22:19:40.997146Z'
-work_branch: null
+updated_at: '2026-08-25T22:20:19.801119Z'
+work_branch: OOMPAH-1337
 target_branch: null
 review_url: null
 review_number: null
@@ -73,7 +73,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: b944afe7-5d8f-4098-a476-311ab8c0ae65
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: ad5ad528f8494b5497ad9ed59b4a313c--contributor-4256b9f40773
@@ -108,6 +108,18 @@ oompah.task_costs:
     output_tokens: 1323
     cost_usd: 0.0
     recorded_at: '2026-08-25T20:24:28.203369+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1337
+  base_branch: main
+  base_sha: 6b5c7d23599bd72013a9ee256e67ec621885fdb6
+  head_sha: f963602b000272ee9e27e0eb3258de0daa95fb84
+  submitted_at: '2026-08-25T22:19:54.053040+00:00'
+  updated_at: '2026-08-25T22:19:54.053040+00:00'
+oompah.work_branch: OOMPAH-1337
 ---
 ## Summary
 
@@ -204,5 +216,10 @@ author: oompah
 created: 2026-08-25 22:19
 ---
 **Completion**: Fix implemented and tested. Changed orchestrator shutdown logging from logger.exception() (ERROR level) to logger.warning() in stop_until_safe() method. This prevents error_watcher from triggering when exceptions occur during shutdown retry, while still logging the errors for debugging. Added comprehensive test to verify the logging level is WARNING, not ERROR. All existing and new tests pass without regression.
+---
+author: oompah
+created: 2026-08-25 22:20
+---
+Fixed orchestrator shutdown error logging to prevent error_watcher from being triggered. Changed from logger.exception() to logger.warning() when retrying failed shutdowns.
 ---
 <!-- COMMENTS:END -->
