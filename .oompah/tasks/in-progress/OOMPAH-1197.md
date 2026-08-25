@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-25T19:58:23.598186Z'
+updated_at: '2026-08-25T20:01:06.342507Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -698,5 +698,10 @@ author: oompah
 created: 2026-08-25 19:58
 ---
 **Implementation**: Changed the logging level for WorkspaceError, AgentError, and PromptError exceptions from ERROR to WARNING in orchestrator.py:65119. These are expected/transient worker failures that should not trigger error_watcher auto-filing. Added a comment explaining that these exceptions are normal failure modes. This aligns with the generic Exception handler at line 65129 which already logs at DEBUG level with a similar rationale.
+---
+author: oompah
+created: 2026-08-25 20:01
+---
+**Verification**: All error_watcher and ACP worker tests pass (148 error_watcher tests + 702 ACP tests all passing). The fix successfully prevents ERROR-level logging for expected/transient worker failures while maintaining proper logging for actual backend errors.
 ---
 <!-- COMMENTS:END -->
