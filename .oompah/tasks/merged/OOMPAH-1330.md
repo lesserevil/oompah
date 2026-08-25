@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1330
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Auditor OpenCode ACP transport crashes on >64KiB JSON-RPC lines (Separator
   is found, but chunk is longer than limit)
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:03:40.977842Z'
-updated_at: '2026-08-25T00:04:04.898503Z'
+updated_at: '2026-08-25T00:17:21.037857Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,6 +41,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1330","audit-880d1098e31e","attempt-e72e33d5aa6d"]': '2026-08-24T17:15:38.475264+00:00'
     '["proj-14849f1b","OOMPAH-1330","audit-436fa43dadd4","no-auditor-audit-436fa43dadd4-3"]': '2026-08-24T17:46:08.331151+00:00'
+    '["proj-14849f1b","OOMPAH-1330","audit-db9b42b3f57e","attempt-d641842c4fef"]': '2026-08-25T00:17:16.270996+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1330
@@ -65,6 +66,7 @@ oompah.terminal_audit:
     landing_revision: null
     audit_ids:
     - audit-436fa43dadd4
+    - audit-db9b42b3f57e
     kind: result
     applied: true
     retired_at: '2026-08-24T17:46:08.331170+00:00'
@@ -108,6 +110,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T23:52:57.887115+00:00'
     applied_at: '2026-08-24T23:53:05.414728+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1330
+    audit_id: audit-db9b42b3f57e
+    attempt_id: attempt-d641842c4fef
+    target_state: Merged
+    evidence_fingerprint: 648cfbb5a46f2eac6fcd37b46d7fa0879085d7a392aaf39499e395f9e13383fb
+    status: Merged
+    audit_ids:
+    - audit-db9b42b3f57e
+    kind: result
+    applied: false
+    created_at: '2026-08-25T00:17:16.271026+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-db9b42b3f57e
@@ -282,7 +296,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1330
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -291,7 +305,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-d641842c4fef
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -303,6 +317,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1330
       selected_ref: origin/OOMPAH-1330
       selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
+      verdict: pass
+      completed_at: '2026-08-25T00:17:16.270826+00:00'
+      ended_at: '2026-08-25T00:17:16.270826+00:00'
     source_generation: 2
     requested_by:
       version: 1
@@ -313,7 +330,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T23:52:57.886943+00:00'
     selected_ref: origin/OOMPAH-1330
     selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
-    updated_at: '2026-08-25T00:03:53.421228+00:00'
+    updated_at: '2026-08-25T00:17:16.270826+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e72e33d5aa6d
@@ -410,7 +427,7 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1330
     selected_ref: origin/OOMPAH-1330
     selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.task_costs:
   total_input_tokens: 763
   total_output_tokens: 11260
