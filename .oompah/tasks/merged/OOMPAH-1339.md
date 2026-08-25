@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1339
 type: bug
-status: In Validation
+status: Merged
 priority: null
 title: WorkflowJobStore reopens SQLite without reopening authority lock fd after orchestrator
   replacement
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T17:06:31.999323Z'
-updated_at: '2026-08-25T17:45:37.319471Z'
+updated_at: '2026-08-25T17:53:04.890819Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,6 +40,7 @@ oompah.terminal_audit:
     digest: b002c8352ba6fc7f6bf480630fa72c5d8c01660e66ddbc0d61c04c90a1d8b178
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1339","audit-bc4ca808c89c","attempt-97aa86d601a4"]': '2026-08-25T17:44:37.417479+00:00'
+    '["proj-14849f1b","OOMPAH-1339","audit-4d14c45d66a2","attempt-6689ccab8ba7"]': '2026-08-25T17:53:00.270272+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1339
@@ -54,6 +55,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-25T17:44:37.417496+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1339
+    target_state: Merged
+    evidence_fingerprint: b002c8352ba6fc7f6bf480630fa72c5d8c01660e66ddbc0d61c04c90a1d8b178
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1339
+    selected_sha: 03bec6e4fa7ab35f7ea6349b51537c4e356766ed
+    landing_revision: null
+    audit_ids:
+    - audit-4d14c45d66a2
+    kind: result
+    applied: true
+    retired_at: '2026-08-25T17:53:00.270291+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1339
@@ -68,6 +82,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-25T17:44:37.417507+00:00'
     applied_at: '2026-08-25T17:44:44.842672+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1339
+    audit_id: audit-4d14c45d66a2
+    attempt_id: attempt-6689ccab8ba7
+    target_state: Merged
+    evidence_fingerprint: b002c8352ba6fc7f6bf480630fa72c5d8c01660e66ddbc0d61c04c90a1d8b178
+    status: Merged
+    audit_ids:
+    - audit-4d14c45d66a2
+    kind: result
+    applied: false
+    created_at: '2026-08-25T17:53:00.270303+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -115,7 +141,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1339
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -124,7 +150,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-6689ccab8ba7
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -136,6 +162,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1339
       selected_ref: origin/OOMPAH-1339
       selected_sha: 03bec6e4fa7ab35f7ea6349b51537c4e356766ed
+      verdict: pass
+      completed_at: '2026-08-25T17:53:00.270096+00:00'
+      ended_at: '2026-08-25T17:53:00.270096+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -146,7 +175,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-bc4ca808c89c
     selected_ref: origin/OOMPAH-1339
     selected_sha: 03bec6e4fa7ab35f7ea6349b51537c4e356766ed
-    updated_at: '2026-08-25T17:45:19.098665+00:00'
+    updated_at: '2026-08-25T17:53:00.270096+00:00'
     eligible_at: '2026-08-25T17:44:37.417275+00:00'
   attempt_history:
   - version: 1
@@ -179,7 +208,7 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1339
     selected_ref: origin/OOMPAH-1339
     selected_sha: 03bec6e4fa7ab35f7ea6349b51537c4e356766ed
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.task_costs:
   total_input_tokens: 282
   total_output_tokens: 8481
