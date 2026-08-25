@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-25T00:59:37.150568Z'
+updated_at: '2026-08-25T00:59:54.090749Z'
 work_branch: OOMPAH-1224
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/900
@@ -113,8 +113,8 @@ oompah.work_contributors:
     source_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
     completed_at: '2026-08-21T02:22:29.651486+00:00'
 oompah.task_costs:
-  total_input_tokens: 21907
-  total_output_tokens: 29738
+  total_input_tokens: 21957
+  total_output_tokens: 47060
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -122,8 +122,8 @@ oompah.task_costs:
       output_tokens: 29305
       cost_usd: 0.0
     unknown:
-      input_tokens: 20911
-      output_tokens: 433
+      input_tokens: 20961
+      output_tokens: 17755
       cost_usd: 0.0
   runs:
   - profile: default
@@ -180,6 +180,12 @@ oompah.task_costs:
     output_tokens: 109
     cost_usd: 0.0
     recorded_at: '2026-08-24T20:46:01.615500+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 50
+    output_tokens: 17322
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T00:59:48.146369+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -1379,5 +1385,15 @@ Safe evidence:
 - acceptance_criteria_1: error no longer occurs in protected paths
 - acceptance_criteria_2: root cause resolved
 - acceptance_criteria_3: no regression, all tests pass
+---
+author: oompah
+created: 2026-08-25 00:59
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 106, Tool calls: 65
+- Tokens: 50 in / 17.3K out [17.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 22m 28s
+- Log: OOMPAH-1224__20260825T003747Z.jsonl
 ---
 <!-- COMMENTS:END -->
