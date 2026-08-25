@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-25T19:49:16.936604Z'
+updated_at: '2026-08-25T19:52:10.910459Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -683,5 +683,10 @@ author: oompah
 created: 2026-08-25 19:49
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-25 19:52
+---
+**Understanding**: This is a bug where error_watcher auto-filed TRICKLE-119 due to an ACP worker failure in backend:orchestrator. From previous investigation, the ACP worker failure log ('ACP worker failed issue_id=...') is logged at DEBUG level in orchestrator.py, which should not trigger error_watcher since it only catches logging.ERROR+ records. However, TRICKLE-119 was still auto-filed, suggesting an ERROR-level log containing or related to the same issue_id was emitted. Plan: (1) Verify the current logging levels in orchestrator.py for ACP worker failures; (2) Search for any ERROR-level logging paths that might include issue_id; (3) Ensure ACP worker failures are logged at WARNING/DEBUG only; (4) Run regression tests to verify error_watcher behavior is correct.
 ---
 <!-- COMMENTS:END -->
