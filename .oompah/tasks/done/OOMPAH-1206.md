@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-25T00:34:37.149638Z'
+updated_at: '2026-08-25T00:34:42.705906Z'
 work_branch: OOMPAH-1206
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/902
@@ -368,8 +368,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-112658c5545a
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-25T00:34:32.476307+00:00'
+    applied_at: '2026-08-25T00:34:41.342095+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-d8dcc1adb045
@@ -1736,5 +1737,20 @@ author: oompah
 created: 2026-08-25 00:28
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 00:34
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- quality_gate: make test passed for 87d0fb17ef59b25e150b63e4f5c55bc170c22df7 in 194.5s
+- config_change: oompah/config.py:1200 contributor_evidence_persist_timeout_seconds: float = 60.0 (was 30.0)
+- env_default_change: oompah/config.py:2059 OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS default 60.0 (was 30.0)
+- test_default: tests/test_config.py:124 asserts == 60.0
+- regression_test: tests/test_provider_retirement.py:411 test_pre_provider_evidence_timeout_releases_task_authority
+- error_path_coverage: tests/test_orchestrator_handlers.py covers contributor_evidence_unavailable propagation
 ---
 <!-- COMMENTS:END -->
