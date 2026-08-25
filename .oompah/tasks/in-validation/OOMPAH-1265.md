@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-25T23:32:12.486990Z'
+updated_at: '2026-08-25T23:44:00.198491Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -153,7 +153,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1265
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -162,7 +162,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f1e85028019b
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -174,6 +174,11 @@ oompah.terminal_audit:
       branch_key: epic-OOMPAH-1231--task-OOMPAH-1265
       selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
       selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+      failure_classification: policy_incompatibility
+      ended_at: '2026-08-25T23:43:49.568655+00:00'
+      failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
+        auditor capability policy denied access to a credential-like file'
+      next_retry_at: '2026-08-25T23:43:59.568620+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -184,12 +189,12 @@ oompah.terminal_audit:
     eligible_at: '2026-08-25T23:15:50.519008+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-25T23:31:59.037434+00:00'
+    updated_at: '2026-08-25T23:43:49.568655+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f1e85028019b
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -201,6 +206,11 @@ oompah.terminal_audit:
     branch_key: epic-OOMPAH-1231--task-OOMPAH-1265
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+    failure_classification: policy_incompatibility
+    ended_at: '2026-08-25T23:43:49.568655+00:00'
+    failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
+      auditor capability policy denied access to a credential-like file'
+    next_retry_at: '2026-08-25T23:43:59.568620+00:00'
 ---
 ## Summary
 
@@ -322,5 +332,10 @@ author: oompah
 created: 2026-08-25 23:32
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 23:44
+---
+Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
 ---
 <!-- COMMENTS:END -->
