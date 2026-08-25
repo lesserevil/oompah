@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:28:31.897753Z'
-updated_at: '2026-08-25T00:15:56.987344Z'
+updated_at: '2026-08-25T00:16:24.719250Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -421,13 +421,13 @@ oompah.terminal_audit:
     selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
 oompah.lifecycle_revision: 4
 oompah.task_costs:
-  total_input_tokens: 1198
-  total_output_tokens: 32011
+  total_input_tokens: 1448
+  total_output_tokens: 40376
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1198
-      output_tokens: 32011
+      input_tokens: 1448
+      output_tokens: 40376
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -454,6 +454,12 @@ oompah.task_costs:
     output_tokens: 452
     cost_usd: 0.0
     recorded_at: '2026-08-24T17:49:42.552936+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 250
+    output_tokens: 8365
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T00:16:21.642693+00:00'
 ---
 ## Summary
 
@@ -657,5 +663,15 @@ Safe evidence:
 - acceptance_criteria.graceful_restart_reevaluates: PASS - computed fresh each observation, not persisted
 - backward_compatibility: PASS - defaults to False, preserving existing behavior
 - code_quality: PASS - Minimal (74 additions, 2 deletions), focused changes with clear documentation
+---
+author: oompah
+created: 2026-08-25 00:16
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 67, Tool calls: 30
+- Tokens: 250 in / 8.4K out [8.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 12m 49s
+- Log: OOMPAH-1331__20260825T000402Z.jsonl
 ---
 <!-- COMMENTS:END -->
