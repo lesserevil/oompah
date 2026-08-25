@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1339
 type: bug
-status: Backlog
+status: In Validation
 priority: null
 title: WorkflowJobStore reopens SQLite without reopening authority lock fd after orchestrator
   replacement
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T17:06:31.999323Z'
-updated_at: '2026-08-25T17:06:31.999323Z'
+updated_at: '2026-08-25T17:28:06.536089Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,6 +25,65 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 6bfbe7cd-9636-4871-b6e9-62d93de0b66a
   request_fingerprint: f24e943b5e6131e0adbc23102abf8f7da3216631cfbddeeecf46021130d96f4d
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-bc4ca808c89c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1339
+    digest: b002c8352ba6fc7f6bf480630fa72c5d8c01660e66ddbc0d61c04c90a1d8b178
+  - version: 1
+    audit_id: audit-4d14c45d66a2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1339
+    digest: b002c8352ba6fc7f6bf480630fa72c5d8c01660e66ddbc0d61c04c90a1d8b178
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-bc4ca808c89c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1339
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b002c8352ba6fc7f6bf480630fa72c5d8c01660e66ddbc0d61c04c90a1d8b178
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-25T17:27:58.896529+00:00'
+    eligible_at: '2026-08-25T17:27:58.896529+00:00'
+    selected_ref: origin/OOMPAH-1339
+    selected_sha: 03bec6e4fa7ab35f7ea6349b51537c4e356766ed
+  - version: 1
+    audit_id: audit-4d14c45d66a2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1339
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b002c8352ba6fc7f6bf480630fa72c5d8c01660e66ddbc0d61c04c90a1d8b178
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: Backlog
+    created_at: '2026-08-25T17:27:58.896529+00:00'
+    prerequisite_audit_id: audit-bc4ca808c89c
+    selected_ref: origin/OOMPAH-1339
+    selected_sha: 03bec6e4fa7ab35f7ea6349b51537c4e356766ed
+  attempt_history: []
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -55,3 +114,11 @@ Task submission can persistently fail with HTTP 400 `file descriptor cannot be a
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-25 17:28
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+<!-- COMMENTS:END -->
