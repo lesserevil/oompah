@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T08:43:25.263614Z'
-updated_at: '2026-08-25T21:12:03.114567Z'
+updated_at: '2026-08-25T21:22:49.485252Z'
 work_branch: OOMPAH-1267
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/901
@@ -199,6 +199,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1267
     digest: 7ef376f1e2c5e980511868445e146c71c2cc1c1d5ed8c10e8ade8ba0ce92b3bd
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1267","audit-3cc38dea85bb","attempt-96d9562d9819"]': '2026-08-25T21:22:40.642897+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1267
+    target_state: Done
+    evidence_fingerprint: 7ef376f1e2c5e980511868445e146c71c2cc1c1d5ed8c10e8ade8ba0ce92b3bd
+    workflow_revision: null
+    selected_ref: db3015ed8d47d8fbcab85831d798d21d8dcce0a2
+    selected_sha: db3015ed8d47d8fbcab85831d798d21d8dcce0a2
+    landing_revision: null
+    audit_ids:
+    - audit-3cc38dea85bb
+    kind: result
+    applied: true
+    retired_at: '2026-08-25T21:22:40.642913+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1267
+    audit_id: audit-3cc38dea85bb
+    attempt_id: attempt-96d9562d9819
+    target_state: Done
+    evidence_fingerprint: 7ef376f1e2c5e980511868445e146c71c2cc1c1d5ed8c10e8ade8ba0ce92b3bd
+    status: In Validation
+    audit_ids:
+    - audit-3cc38dea85bb
+    kind: result
+    applied: true
+    created_at: '2026-08-25T21:22:40.642923+00:00'
+    applied_at: '2026-08-25T21:22:48.187619+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -206,7 +236,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1267
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -215,7 +245,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-96d9562d9819
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -227,6 +257,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1267
       selected_ref: db3015ed8d47d8fbcab85831d798d21d8dcce0a2
       selected_sha: db3015ed8d47d8fbcab85831d798d21d8dcce0a2
+      verdict: pass
+      completed_at: '2026-08-25T21:22:40.642734+00:00'
+      ended_at: '2026-08-25T21:22:40.642734+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -237,7 +270,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-25T20:57:21.879304+00:00'
     selected_ref: db3015ed8d47d8fbcab85831d798d21d8dcce0a2
     selected_sha: db3015ed8d47d8fbcab85831d798d21d8dcce0a2
-    updated_at: '2026-08-25T21:11:43.716224+00:00'
+    updated_at: '2026-08-25T21:22:40.642734+00:00'
   - version: 1
     audit_id: audit-bb030a3c2a92
     project_id: proj-14849f1b
@@ -259,6 +292,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-3cc38dea85bb
     selected_ref: db3015ed8d47d8fbcab85831d798d21d8dcce0a2
     selected_sha: db3015ed8d47d8fbcab85831d798d21d8dcce0a2
+    updated_at: '2026-08-25T21:22:40.642734+00:00'
+    eligible_at: '2026-08-25T21:22:40.642734+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-96d9562d9819
@@ -531,5 +566,19 @@ author: oompah
 created: 2026-08-25 21:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 21:22
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- focused_test_run: 3/3 passed in 9.55s (test_replacement_timeout_rolls_back_before_concurrent_replacement, test_replacement_succeeds_when_handler_completes_before_timeout, test_repeated_replacement_timeout_detection_under_load)
+- production_drain_timeout_s: 1.0 (unchanged in orchestrator.py:2306)
+- fix_mechanism: threading.Event first_replacement_attempted replaces time.sleep(0.05); wait(timeout=10) fires only after first attempt completes
+- make_test_result: passed at db3015ed8d47d8fbcab85831d798d21d8dcce0a2 in 187.1s (first run) and 187.2s (second run)
+- no_timeout_widening: test uses 0.05s drain timeout (shortened); production 1.0s unchanged
 ---
 <!-- COMMENTS:END -->
