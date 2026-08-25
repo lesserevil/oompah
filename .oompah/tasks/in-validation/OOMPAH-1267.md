@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1267
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Make restart replacement rollback test deterministic under concurrent gates
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T08:43:25.263614Z'
-updated_at: '2026-08-24T08:54:28.988185Z'
+updated_at: '2026-08-25T20:57:29.067409Z'
 work_branch: OOMPAH-1267
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/901
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 74c46553-2c2b-43cf-a780-9f13e770c900
   request_fingerprint: c93c49f73d14f0dbd98db4eaf2f0bc6f44f4965a6f4e68ab29b4fa036d4eeecd
-oompah.lifecycle_revision: 6
+oompah.lifecycle_revision: 7
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -186,6 +186,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/901
 oompah.review_number: '901'
 oompah.target_branch: main
 oompah.review_head: db3015ed8d47d8fbcab85831d798d21d8dcce0a2
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-3cc38dea85bb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1267
+    digest: 7ef376f1e2c5e980511868445e146c71c2cc1c1d5ed8c10e8ade8ba0ce92b3bd
+  - version: 1
+    audit_id: audit-bb030a3c2a92
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1267
+    digest: 7ef376f1e2c5e980511868445e146c71c2cc1c1d5ed8c10e8ade8ba0ce92b3bd
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-3cc38dea85bb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1267
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7ef376f1e2c5e980511868445e146c71c2cc1c1d5ed8c10e8ade8ba0ce92b3bd
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-25T20:57:21.879304+00:00'
+    eligible_at: '2026-08-25T20:57:21.879304+00:00'
+    selected_ref: db3015ed8d47d8fbcab85831d798d21d8dcce0a2
+    selected_sha: db3015ed8d47d8fbcab85831d798d21d8dcce0a2
+  - version: 1
+    audit_id: audit-bb030a3c2a92
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1267
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7ef376f1e2c5e980511868445e146c71c2cc1c1d5ed8c10e8ade8ba0ce92b3bd
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-25T20:57:21.879304+00:00'
+    prerequisite_audit_id: audit-3cc38dea85bb
+    selected_ref: db3015ed8d47d8fbcab85831d798d21d8dcce0a2
+    selected_sha: db3015ed8d47d8fbcab85831d798d21d8dcce0a2
+  attempt_history: []
 ---
 ## Summary
 
@@ -427,5 +485,10 @@ author: oompah
 created: 2026-08-24 08:53
 ---
 Branch quality gate passed for `db3015ed8d47d8fbcab85831d798d21d8dcce0a2` using `make test` in 187.2s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-25 20:57
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
