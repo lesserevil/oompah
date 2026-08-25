@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-25T19:55:23.486452Z'
+updated_at: '2026-08-25T19:58:23.598186Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -693,5 +693,10 @@ author: oompah
 created: 2026-08-25 19:55
 ---
 **Discovery**: Found the root cause at orchestrator.py:65114-65120. In the _run_acp_worker function, WorkspaceError, AgentError, and PromptError exceptions are being logged at ERROR level with extra={issue_id}, which triggers error_watcher. However, looking at lines 65121-65130, there's already a generic Exception handler that logs at DEBUG level with a comment explaining these are expected transient failures that shouldn't trigger error_watcher. The fix is to change the ERROR logging for (WorkspaceError, AgentError, PromptError) to WARNING or DEBUG to match the intent already documented in the generic handler.
+---
+author: oompah
+created: 2026-08-25 19:58
+---
+**Implementation**: Changed the logging level for WorkspaceError, AgentError, and PromptError exceptions from ERROR to WARNING in orchestrator.py:65119. These are expected/transient worker failures that should not trigger error_watcher auto-filing. Added a comment explaining that these exceptions are normal failure modes. This aligns with the generic Exception handler at line 65129 which already logs at DEBUG level with a similar rationale.
 ---
 <!-- COMMENTS:END -->
