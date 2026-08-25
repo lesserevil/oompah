@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:53.373319Z'
-updated_at: '2026-08-25T00:54:54.061622Z'
+updated_at: '2026-08-25T00:55:43.808045Z'
 work_branch: OOMPAH-1217
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/897
@@ -115,8 +115,8 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 18078
-  total_output_tokens: 2876
+  total_input_tokens: 18119
+  total_output_tokens: 14258
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -124,8 +124,8 @@ oompah.task_costs:
       output_tokens: 2010
       cost_usd: 0.0
     unknown:
-      input_tokens: 18068
-      output_tokens: 866
+      input_tokens: 18109
+      output_tokens: 12248
       cost_usd: 0.0
   runs:
   - profile: default
@@ -176,6 +176,12 @@ oompah.task_costs:
     output_tokens: 143
     cost_usd: 0.0
     recorded_at: '2026-08-24T18:43:59.896031+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 41
+    output_tokens: 11382
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T00:55:39.481102+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -1405,5 +1411,15 @@ Safe evidence:
 - error_watcher_mechanism_test: test_warning_not_detected (PASS)
 - quality_gate: make test PASSED at 486e53196e7bb4c2ff4bdcd988be46ec8debba65 in 183.5s
 - minor_finding: No explicit caplog log-level regression test following project pattern; fix verified in source instead
+---
+author: oompah
+created: 2026-08-25 00:55
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 78, Tool calls: 41
+- Tokens: 41 in / 11.4K out [11.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 18m 51s
+- Log: OOMPAH-1217__20260825T003705Z.jsonl
 ---
 <!-- COMMENTS:END -->
