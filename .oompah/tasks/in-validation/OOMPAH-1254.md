@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:28:12.589940Z'
-updated_at: '2026-08-25T01:37:29.427598Z'
+updated_at: '2026-08-25T01:47:33.357016Z'
 work_branch: OOMPAH-1254
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/899
@@ -155,12 +155,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1254
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 673d2addbd6199c772b9e96d1e8f497b3533f27cc81ff9b385b590a8cbba153b
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-45c67241c50c
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 673d2addbd6199c772b9e96d1e8f497b3533f27cc81ff9b385b590a8cbba153b
+      created_at: '2026-08-25T01:47:31.122064+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-25T01:47:31.122064+00:00'
+      branch_key: OOMPAH-1254
+      selected_ref: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
+      selected_sha: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
     source_generation: 1
     requested_by:
       version: 1
@@ -171,6 +186,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-25T01:37:19.702847+00:00'
     selected_ref: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
     selected_sha: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
+    updated_at: '2026-08-25T01:47:31.122064+00:00'
   - version: 1
     audit_id: audit-87569e599c91
     project_id: proj-14849f1b
@@ -192,7 +208,22 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-88e07bc49fbc
     selected_ref: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
     selected_sha: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-45c67241c50c
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 673d2addbd6199c772b9e96d1e8f497b3533f27cc81ff9b385b590a8cbba153b
+    created_at: '2026-08-25T01:47:31.122064+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-25T01:47:31.122064+00:00'
+    branch_key: OOMPAH-1254
+    selected_ref: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
+    selected_sha: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
 ---
 ## Summary
 
