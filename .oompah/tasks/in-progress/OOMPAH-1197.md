@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-25T20:01:06.342507Z'
+updated_at: '2026-08-25T20:02:12.961074Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -703,5 +703,10 @@ author: oompah
 created: 2026-08-25 20:01
 ---
 **Verification**: All error_watcher and ACP worker tests pass (148 error_watcher tests + 702 ACP tests all passing). The fix successfully prevents ERROR-level logging for expected/transient worker failures while maintaining proper logging for actual backend errors.
+---
+author: oompah
+created: 2026-08-25 20:02
+---
+**Completion**: Fixed the ACP worker failure auto-filing bug by changing the logging level for expected/transient worker failures (WorkspaceError, AgentError, PromptError) from ERROR to WARNING in orchestrator.py:65119. This prevents error_watcher from auto-filing tasks for normal worker failures like TRICKLE-119. All tests pass (850+ tests verified). Change committed and pushed to branch OOMPAH-1197.
 ---
 <!-- COMMENTS:END -->
