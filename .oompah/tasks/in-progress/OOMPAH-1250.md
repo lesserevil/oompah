@@ -13,7 +13,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-25T01:24:45.207631Z'
+updated_at: '2026-08-25T01:25:09.673968Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -220,6 +220,14 @@ oompah.work_contributors:
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-luna
+    focus: general
+    source_branch: OOMPAH-1250
+    source_sha: null
+    completed_at: ''
+  - run_id: 8dc17e97b5274db59f289d4cc27d6ca6--contributor-86e3ac8153e1
+    provider_id: prov-6cf41c89
+    provider_name: Opencode/Switchyard
+    model_id: switchyard/auto
     focus: general
     source_branch: OOMPAH-1250
     source_sha: null
