@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:29:16.227300Z'
-updated_at: '2026-08-25T17:33:46.026252Z'
+updated_at: '2026-08-25T17:48:58.356271Z'
 work_branch: OOMPAH-1208
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/909
@@ -293,7 +293,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1208
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -318,6 +318,22 @@ oompah.terminal_audit:
       origin: coordinator_abandoned_recovery
       ended_at: '2026-08-25T17:33:44.082919+00:00'
       failure_reason: auditor session abandoned after attempt TTL
+    - version: 1
+      attempt_id: attempt-6c2adc136970
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: e736059442c110deeb583d66eed2acb5b1cb58b9e4bdf29cc8c2da8dceacffb6
+      created_at: '2026-08-25T17:48:52.782516+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-25T17:48:52.782516+00:00'
+      branch_key: OOMPAH-1208
+      selected_ref: ddfc08864e3e162d23f23999b94956c153cfcbfd
+      selected_sha: ddfc08864e3e162d23f23999b94956c153cfcbfd
+      candidate_rotation_count: 1
     source_generation: 1
     requested_by:
       version: 1
@@ -328,7 +344,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-468a913d8a14
     selected_ref: ddfc08864e3e162d23f23999b94956c153cfcbfd
     selected_sha: ddfc08864e3e162d23f23999b94956c153cfcbfd
-    updated_at: '2026-08-25T01:59:46.311898+00:00'
+    updated_at: '2026-08-25T17:48:52.782516+00:00'
     eligible_at: '2026-08-25T01:56:44.810493+00:00'
   attempt_history:
   - version: 1
@@ -365,6 +381,22 @@ oompah.terminal_audit:
     origin: coordinator_abandoned_recovery
     ended_at: '2026-08-25T17:33:44.082919+00:00'
     failure_reason: auditor session abandoned after attempt TTL
+  - version: 1
+    attempt_id: attempt-6c2adc136970
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e736059442c110deeb583d66eed2acb5b1cb58b9e4bdf29cc8c2da8dceacffb6
+    created_at: '2026-08-25T17:48:52.782516+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-25T17:48:52.782516+00:00'
+    branch_key: OOMPAH-1208
+    selected_ref: ddfc08864e3e162d23f23999b94956c153cfcbfd
+    selected_sha: ddfc08864e3e162d23f23999b94956c153cfcbfd
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -729,5 +761,10 @@ author: oompah
 created: 2026-08-25 01:59
 ---
 Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-25 17:48
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
 ---
 <!-- COMMENTS:END -->
