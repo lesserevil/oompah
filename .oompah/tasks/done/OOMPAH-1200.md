@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:33.669681Z'
-updated_at: '2026-08-25T00:12:37.579576Z'
+updated_at: '2026-08-25T00:12:43.235148Z'
 work_branch: OOMPAH-1200
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/908
@@ -257,8 +257,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-f36cd2475580
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-25T00:12:32.786831+00:00'
+    applied_at: '2026-08-25T00:12:41.877950+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-f36cd2475580
@@ -854,5 +855,21 @@ author: oompah
 created: 2026-08-25 00:04
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 00:12
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- gate_sha: 9fca74edd35ac86a91c1e33650829ffce7f81ed0
+- gate_command: make test
+- gate_result: passed
+- gate_duration_s: 187.2
+- changed_files: oompah/orchestrator.py, tests/test_error_watcher.py
+- fix_sites: 3 (lines 63594, 64762, 65116)
+- new_tests: TestWorkerFailureLogging::test_debug_level_logs_not_captured_by_handler, TestWorkerFailureLogging::test_exception_with_error_keyword_in_debug_not_captured
 ---
 <!-- COMMENTS:END -->
