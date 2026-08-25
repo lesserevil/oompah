@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1340
 type: bug
-status: In Validation
+status: Merged
 priority: null
 title: Task submit rejects generated helper paths that were deleted from the submitted
   head
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T18:29:09.896071Z'
-updated_at: '2026-08-25T19:21:20.455432Z'
+updated_at: '2026-08-25T19:43:11.009574Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,6 +40,7 @@ oompah.terminal_audit:
     digest: c38b91cc5f8b575cda68843348eb959d4c9a249545034b5e0e78d6e31a64576e
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1340","audit-a08fa7910e1a","attempt-b18460037370"]': '2026-08-25T19:20:25.604041+00:00'
+    '["proj-14849f1b","OOMPAH-1340","audit-a9d23f4f58f2","attempt-21c8f20800b1"]': '2026-08-25T19:43:06.569469+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1340
@@ -54,6 +55,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-25T19:20:25.604057+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1340
+    target_state: Merged
+    evidence_fingerprint: c38b91cc5f8b575cda68843348eb959d4c9a249545034b5e0e78d6e31a64576e
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1340
+    selected_sha: c4d9c48eba5a2dfc282596debb2b5843ab50919b
+    landing_revision: null
+    audit_ids:
+    - audit-a9d23f4f58f2
+    kind: result
+    applied: true
+    retired_at: '2026-08-25T19:43:06.569489+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1340
@@ -68,6 +82,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-25T19:20:25.604068+00:00'
     applied_at: '2026-08-25T19:20:33.036590+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1340
+    audit_id: audit-a9d23f4f58f2
+    attempt_id: attempt-21c8f20800b1
+    target_state: Merged
+    evidence_fingerprint: c38b91cc5f8b575cda68843348eb959d4c9a249545034b5e0e78d6e31a64576e
+    status: Merged
+    audit_ids:
+    - audit-a9d23f4f58f2
+    kind: result
+    applied: false
+    created_at: '2026-08-25T19:43:06.569503+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -115,7 +141,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1340
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -124,7 +150,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-21c8f20800b1
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -136,6 +162,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1340
       selected_ref: origin/OOMPAH-1340
       selected_sha: c4d9c48eba5a2dfc282596debb2b5843ab50919b
+      verdict: pass
+      completed_at: '2026-08-25T19:43:06.569295+00:00'
+      ended_at: '2026-08-25T19:43:06.569295+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -146,7 +175,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-a08fa7910e1a
     selected_ref: origin/OOMPAH-1340
     selected_sha: c4d9c48eba5a2dfc282596debb2b5843ab50919b
-    updated_at: '2026-08-25T19:20:59.743380+00:00'
+    updated_at: '2026-08-25T19:43:06.569295+00:00'
     eligible_at: '2026-08-25T19:20:25.603837+00:00'
   attempt_history:
   - version: 1
@@ -179,7 +208,7 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1340
     selected_ref: origin/OOMPAH-1340
     selected_sha: c4d9c48eba5a2dfc282596debb2b5843ab50919b
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.task_costs:
   total_input_tokens: 450
   total_output_tokens: 12760
