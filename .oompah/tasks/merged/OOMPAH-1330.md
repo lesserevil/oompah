@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:03:40.977842Z'
-updated_at: '2026-08-25T00:17:27.500074Z'
+updated_at: '2026-08-25T00:17:46.237426Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -430,13 +430,13 @@ oompah.terminal_audit:
     selected_sha: 585382bbb8f5e02b8938dacc4653786b18af0107
 oompah.lifecycle_revision: 4
 oompah.task_costs:
-  total_input_tokens: 763
-  total_output_tokens: 11260
+  total_input_tokens: 1061
+  total_output_tokens: 20378
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 763
-      output_tokens: 11260
+      input_tokens: 1061
+      output_tokens: 20378
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -463,6 +463,12 @@ oompah.task_costs:
     output_tokens: 926
     cost_usd: 0.0
     recorded_at: '2026-08-24T17:41:56.605464+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 298
+    output_tokens: 9118
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T00:17:42.984951+00:00'
 ---
 ## Summary
 
@@ -696,5 +702,15 @@ Safe evidence:
 - commit.sha: 585382bbb8f5e02b8938dacc4653786b18af0107
 - commit.author: oompah
 - commit.trailer: Co-authored-by: oompah <lesserevil@users.noreply.github.com>
+---
+author: oompah
+created: 2026-08-25 00:17
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 82, Tool calls: 36
+- Tokens: 298 in / 9.1K out [9.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 13m 45s
+- Log: OOMPAH-1330__20260825T000415Z.jsonl
 ---
 <!-- COMMENTS:END -->
