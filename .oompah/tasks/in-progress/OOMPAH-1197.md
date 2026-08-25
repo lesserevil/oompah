@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-25T01:25:57.122293Z'
+updated_at: '2026-08-25T01:27:04.822040Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -198,16 +198,16 @@ oompah.work_contributors:
     model_id: switchyard/auto
     focus: general
     source_branch: OOMPAH-1197
-    source_sha: null
-    completed_at: ''
+    source_sha: 0682f1e8e95da3612181636da404850cf31e389a
+    completed_at: '2026-08-25T01:26:54.724396+00:00'
 oompah.task_costs:
-  total_input_tokens: 20
-  total_output_tokens: 4096
+  total_input_tokens: 14770
+  total_output_tokens: 4221
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 20
-      output_tokens: 4096
+      input_tokens: 14770
+      output_tokens: 4221
       cost_usd: 0.0
   runs:
   - profile: default
@@ -222,6 +222,12 @@ oompah.task_costs:
     output_tokens: 1788
     cost_usd: 0.0
     recorded_at: '2026-08-24T14:02:58.232588+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 14750
+    output_tokens: 125
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T01:26:54.704273+00:00'
 ---
 ## Summary
 
@@ -567,5 +573,15 @@ author: oompah
 created: 2026-08-25 01:25
 ---
 Implementation status: I traced the exact ACP worker failure log site: orchestrator.py:64776 logs 'ACP worker failed issue_id=...' (currently at DEBUG, so it shouldn’t trigger error_watcher). To protect against regressions where a future ACP failure path logs that string at ERROR, I added a regression test in tests/test_orchestrator_handlers.py ensuring _run_acp_worker doesn’t emit ERROR records containing 'ACP worker failed issue_id'. Focus remains on confirming in real worker runs whether TRICKLE-119 came from a different ERROR log line; no code change beyond the new test.
+---
+author: oompah
+created: 2026-08-25 01:26
+---
+Run #1 [attempt=1, profile=default, role=fast -> Opencode/Switchyard/switchyard/auto]
+- Turns: 99, Tool calls: 99
+- Tokens: 14.8K in / 125 out [170.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 20m 59s
+- Log: OOMPAH-1197__20260825T010727Z.jsonl
 ---
 <!-- COMMENTS:END -->
