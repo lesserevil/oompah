@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-25T19:52:10.910459Z'
+updated_at: '2026-08-25T19:55:23.486452Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -688,5 +688,10 @@ author: oompah
 created: 2026-08-25 19:52
 ---
 **Understanding**: This is a bug where error_watcher auto-filed TRICKLE-119 due to an ACP worker failure in backend:orchestrator. From previous investigation, the ACP worker failure log ('ACP worker failed issue_id=...') is logged at DEBUG level in orchestrator.py, which should not trigger error_watcher since it only catches logging.ERROR+ records. However, TRICKLE-119 was still auto-filed, suggesting an ERROR-level log containing or related to the same issue_id was emitted. Plan: (1) Verify the current logging levels in orchestrator.py for ACP worker failures; (2) Search for any ERROR-level logging paths that might include issue_id; (3) Ensure ACP worker failures are logged at WARNING/DEBUG only; (4) Run regression tests to verify error_watcher behavior is correct.
+---
+author: oompah
+created: 2026-08-25 19:55
+---
+**Discovery**: Found the root cause at orchestrator.py:65114-65120. In the _run_acp_worker function, WorkspaceError, AgentError, and PromptError exceptions are being logged at ERROR level with extra={issue_id}, which triggers error_watcher. However, looking at lines 65121-65130, there's already a generic Exception handler that logs at DEBUG level with a comment explaining these are expected transient failures that shouldn't trigger error_watcher. The fix is to change the ERROR logging for (WorkspaceError, AgentError, PromptError) to WARNING or DEBUG to match the intent already documented in the generic handler.
 ---
 <!-- COMMENTS:END -->
