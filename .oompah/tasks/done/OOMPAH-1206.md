@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-25T00:34:42.705906Z'
+updated_at: '2026-08-25T00:34:57.657125Z'
 work_branch: OOMPAH-1206
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/902
@@ -115,8 +115,8 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 80778
-  total_output_tokens: 2960
+  total_input_tokens: 80790
+  total_output_tokens: 6824
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -124,8 +124,8 @@ oompah.task_costs:
       output_tokens: 2069
       cost_usd: 0.0
     unknown:
-      input_tokens: 80768
-      output_tokens: 891
+      input_tokens: 80780
+      output_tokens: 4755
       cost_usd: 0.0
   runs:
   - profile: default
@@ -200,6 +200,12 @@ oompah.task_costs:
     output_tokens: 214
     cost_usd: 0.0
     recorded_at: '2026-08-24T19:31:55.170234+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 12
+    output_tokens: 3864
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T00:34:54.598333+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -1752,5 +1758,15 @@ Safe evidence:
 - test_default: tests/test_config.py:124 asserts == 60.0
 - regression_test: tests/test_provider_retirement.py:411 test_pre_provider_evidence_timeout_releases_task_authority
 - error_path_coverage: tests/test_orchestrator_handlers.py covers contributor_evidence_unavailable propagation
+---
+author: oompah
+created: 2026-08-25 00:34
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 22, Tool calls: 13
+- Tokens: 12 in / 3.9K out [3.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 24s
+- Log: OOMPAH-1206__20260825T002848Z.jsonl
 ---
 <!-- COMMENTS:END -->
