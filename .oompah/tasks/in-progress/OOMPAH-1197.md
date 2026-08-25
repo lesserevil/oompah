@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-25T19:05:02.821194Z'
+updated_at: '2026-08-25T19:05:15.559115Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -644,5 +644,10 @@ author: oompah
 created: 2026-08-25 19:05
 ---
 Implementation: No code change required in this branch so far—_run_acp_worker already uses logger.debug (DEBUG) for 'ACP worker failed issue_id=...'. To avoid regressions, I validated existing ErrorWatcher+Orchestrator unit tests and executed targeted pytest for the watcher wiring.
+---
+author: oompah
+created: 2026-08-25 19:05
+---
+Verification: ran pytest for existing suites covering ErrorWatcher + orchestrator wiring: tests/test_error_watcher_orchestrator.py::TestOrchestratorAutoCloseHook::test_failed_run_does_not_auto_close and tests/test_error_watcher.py::TestErrorWatcher::test_report_error_creates_task (both passed). Current state shows orchestrator already avoids ERROR-level logging for this ACP failure signature, so TRICKLE-119 should no longer auto-file unless another ERROR-level path matches the same pattern.
 ---
 <!-- COMMENTS:END -->
