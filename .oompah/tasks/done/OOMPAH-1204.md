@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:25:06.282819Z'
-updated_at: '2026-08-25T00:33:51.544462Z'
+updated_at: '2026-08-25T00:34:21.876769Z'
 work_branch: OOMPAH-1204
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/906
@@ -147,8 +147,8 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 1016
-  total_output_tokens: 2306
+  total_input_tokens: 1019
+  total_output_tokens: 2542
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -156,8 +156,8 @@ oompah.task_costs:
       output_tokens: 1967
       cost_usd: 0.0
     unknown:
-      input_tokens: 1006
-      output_tokens: 339
+      input_tokens: 1009
+      output_tokens: 575
       cost_usd: 0.0
   runs:
   - profile: default
@@ -184,6 +184,12 @@ oompah.task_costs:
     output_tokens: 168
     cost_usd: 0.0
     recorded_at: '2026-08-24T18:23:34.946940+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 3
+    output_tokens: 236
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T00:34:18.783869+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -920,5 +926,15 @@ Safe evidence:
 - test_config_env_override: assert cfg.contributor_evidence_persist_timeout_seconds == 45.0 (tests/test_config.py:162)
 - test_retirement_timeout_paths: 4 tests in test_provider_retirement.py set timeout=0.1 to exercise authority-release on timeout
 - env_example_updated: .env.example:282 documents OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS=30
+---
+author: oompah
+created: 2026-08-25 00:34
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 55, Tool calls: 36
+- Tokens: 3 in / 236 out [239 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 13m 28s
+- Log: OOMPAH-1204__20260825T002112Z.jsonl
 ---
 <!-- COMMENTS:END -->
