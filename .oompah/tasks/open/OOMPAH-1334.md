@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1334
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: '[backend:server] Create issue API error: StateBranchFetchError(''Cannot sync
   state branch \''oompah/state/proj-3e4e9214\'': git fetch origin \''oompah/state/proj-3e4e9214\''
@@ -13,13 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:31:41.109952Z'
-updated_at: '2026-08-24T21:43:40.054688Z'
+updated_at: '2026-08-25T00:45:23.426430Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
