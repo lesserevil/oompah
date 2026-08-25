@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-25T20:02:12.961074Z'
-work_branch: null
+updated_at: '2026-08-25T20:02:52.943482Z'
+work_branch: OOMPAH-1197
 target_branch: null
 review_url: null
 review_number: null
@@ -258,6 +258,18 @@ oompah.task_costs:
     output_tokens: 157
     cost_usd: 0.0
     recorded_at: '2026-08-25T19:07:11.083995+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1197
+  base_branch: main
+  base_sha: 0682f1e8e95da3612181636da404850cf31e389a
+  head_sha: 5e7f3f31cd030ab2dbff9c54e95f884be019787f
+  submitted_at: '2026-08-25T20:02:33.104183+00:00'
+  updated_at: '2026-08-25T20:02:33.104183+00:00'
+oompah.work_branch: OOMPAH-1197
 ---
 ## Summary
 
@@ -708,5 +720,10 @@ author: oompah
 created: 2026-08-25 20:02
 ---
 **Completion**: Fixed the ACP worker failure auto-filing bug by changing the logging level for expected/transient worker failures (WorkspaceError, AgentError, PromptError) from ERROR to WARNING in orchestrator.py:65119. This prevents error_watcher from auto-filing tasks for normal worker failures like TRICKLE-119. All tests pass (850+ tests verified). Change committed and pushed to branch OOMPAH-1197.
+---
+author: oompah
+created: 2026-08-25 20:02
+---
+Fixed ACP worker error logging to prevent error_watcher auto-filing. Changed logging level from ERROR to WARNING for expected/transient worker failures (WorkspaceError, AgentError, PromptError). This prevents auto-filing of incidents like TRICKLE-119 which are normal worker failure modes that should not be tracked as backend errors.
 ---
 <!-- COMMENTS:END -->
