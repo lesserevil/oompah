@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:47.623989Z'
-updated_at: '2026-08-25T00:54:16.012310Z'
+updated_at: '2026-08-25T00:54:22.538453Z'
 work_branch: OOMPAH-1201
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/893
@@ -348,8 +348,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-d45f1da00632
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-25T00:54:11.310319+00:00'
+    applied_at: '2026-08-25T00:54:20.721725+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-8f90fc4a4a35
@@ -1653,5 +1654,23 @@ author: oompah
 created: 2026-08-25 00:36
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 00:54
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- fix_locations._run_api_worker: oompah/orchestrator.py line ~63575: logger.warning('API worker failed issue_id=%s: %s', ...)
+- fix_locations._run_acp_worker: oompah/orchestrator.py line ~64742: logger.warning('ACP worker failed issue_id=%s: %s', ...)
+- fix_locations._run_cli_worker: oompah/orchestrator.py line ~65095: logger.warning('Worker unexpected error issue_id=%s issue_identifier=%s: %s', ...)
+- error_watcher_mechanism: _ERROR_LINE_RE = re.compile(r'(?i)\b(ERROR|CRITICAL|FATAL|SEVERE)\b') — WARNING not matched
+- test_coverage: test_error_watcher.py: test_warning_not_detected asserts _detect_error_level('WARNING: disk space low') is None
+- gate: make test passed at b6644c5739285af3b2da1d9d1e91077ed094845b in 190.9s (authoritative, authority_current=true)
+- acceptance_criteria.no_trigger: PASS — logger.warning not caught by _ERROR_LINE_RE
+- acceptance_criteria.root_cause_resolved: PASS — documented in code comments
+- acceptance_criteria.no_regression: PASS — full gate passed
 ---
 <!-- COMMENTS:END -->
