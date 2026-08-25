@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:28:31.897753Z'
-updated_at: '2026-08-24T23:57:20.179768Z'
+updated_at: '2026-08-25T00:03:40.584427Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -280,12 +280,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1331
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-e3f0c29cfcda
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+      created_at: '2026-08-25T00:03:29.881319+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-25T00:03:29.881319+00:00'
+      branch_key: OOMPAH-1331
+      selected_ref: origin/OOMPAH-1331
+      selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
     source_generation: 2
     requested_by:
       version: 1
@@ -296,6 +311,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T23:53:16.591185+00:00'
     selected_ref: origin/OOMPAH-1331
     selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
+    updated_at: '2026-08-25T00:03:29.881319+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fccf5a75d857
@@ -370,6 +386,21 @@ oompah.terminal_audit:
       auditor capability policy permits only read-only repository inspection and configured
       test commands; command denied'
     next_retry_at: '2026-08-24T17:50:17.810563+00:00'
+  - version: 1
+    attempt_id: attempt-e3f0c29cfcda
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+    created_at: '2026-08-25T00:03:29.881319+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-25T00:03:29.881319+00:00'
+    branch_key: OOMPAH-1331
+    selected_ref: origin/OOMPAH-1331
+    selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
 oompah.lifecycle_revision: 3
 oompah.task_costs:
   total_input_tokens: 1198
@@ -575,5 +606,15 @@ author: oompah
 created: 2026-08-24 23:53
 ---
 Terminal audit rearmed by project owner after recovery: Verdict-capable independent auditor capacity restored: OOMPAH-1333 excludes incapable OpenCode/native subscription transports; healthy Claude candidates with submit_audit_result bridge remain.
+---
+author: oompah
+created: 2026-08-25 00:03
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-25 00:03
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
