@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:38.960190Z'
-updated_at: '2026-08-25T22:05:33.204418Z'
+updated_at: '2026-08-25T22:14:24.272027Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -184,5 +184,10 @@ author: oompah
 created: 2026-08-25 22:05
 ---
 **Understanding**: Investigating orchestrator shutdown error. The issue is that a shutdown attempt fails with 'Orchestrator shutdown attempt failed; retaining process and retrying' which is being auto-filed by error_watcher. Planned approach: (1) Locate orchestrator shutdown logic, (2) identify root cause of shutdown failure, (3) implement fix or add graceful handling, (4) add tests to prevent regression.
+---
+author: oompah
+created: 2026-08-25 22:14
+---
+**Discovery**: Found the root cause in oompah/orchestrator.py line 15360-15374. The stop_until_safe() method catches all exceptions from stop() and logs them with logger.exception(), which logs at ERROR level and triggers error_watcher. The test test_safe_stop_retries_retired_snapshot_without_backend_error explicitly asserts this message should NOT appear. The issue is that logger.exception() is too aggressive - we should use logger.warning() instead so errors are logged for debugging but don't trigger error_watcher.
 ---
 <!-- COMMENTS:END -->
