@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:29:16.227300Z'
-updated_at: '2026-08-25T17:55:07.668230Z'
+updated_at: '2026-08-25T17:55:24.974788Z'
 work_branch: OOMPAH-1208
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/909
@@ -162,8 +162,8 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 32
-  total_output_tokens: 7587
+  total_input_tokens: 51
+  total_output_tokens: 12853
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -171,8 +171,8 @@ oompah.task_costs:
       output_tokens: 1859
       cost_usd: 0.0
     unknown:
-      input_tokens: 22
-      output_tokens: 5728
+      input_tokens: 41
+      output_tokens: 10994
       cost_usd: 0.0
   runs:
   - profile: default
@@ -187,6 +187,12 @@ oompah.task_costs:
     output_tokens: 5728
     cost_usd: 0.0
     recorded_at: '2026-08-25T01:57:23.869514+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 19
+    output_tokens: 5266
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T17:55:20.331799+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -819,5 +825,15 @@ Safe evidence:
 - fix_location_1: _direct_owner_commit_conflict lines 1653-1681: API authority allowed, lease guard skipped for API
 - fix_location_2: _execute_admitted lines 2299-2303: API authority allowed for BACKLOG->IN_PROGRESS gate
 - no_regression: ORCHESTRATOR authority still rejected at transition.project_owner_authority_required as verified by adjacent test suite
+---
+author: oompah
+created: 2026-08-25 17:55
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 39, Tool calls: 20
+- Tokens: 19 in / 5.3K out [5.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 24s
+- Log: OOMPAH-1208__20260825T174914Z.jsonl
 ---
 <!-- COMMENTS:END -->
