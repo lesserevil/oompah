@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1265
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Prove external-prerequisite lifecycle convergence and observability
 parent: OOMPAH-1231
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-25T21:51:03.280247Z'
+updated_at: '2026-08-25T23:16:00.582927Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -28,7 +28,7 @@ oompah.create_once:
   creation_marker: oompah-1231-lifecycle-acceptance-v1
   request_fingerprint: 4f48f1f0e957c03ae28cb1f4f01e0f52c4c6c9020d902bc67d1cfb4f69389377
 oompah.start_blocked_by: *id001
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: d1a591bae50708aaf359f111881a4071d274e23ddea4e3a15cbe53430d1b5800
@@ -138,6 +138,38 @@ oompah.integration:
   submitted_at: '2026-08-21T01:38:38.884666+00:00'
   dependency_heads:
     OOMPAH-1266: dea44bc88fd4017054f38934f30c01d06e9aca87
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-203317319620
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1265
+    digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-203317319620
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1265
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-25T23:15:50.519008+00:00'
+    eligible_at: '2026-08-25T23:15:50.519008+00:00'
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+  attempt_history: []
 ---
 ## Summary
 
@@ -244,5 +276,10 @@ author: oompah
 created: 2026-08-21 01:39
 ---
 Frontend developer focus complete. Work submitted for integration. Summary: External-prerequisite lifecycle implementation is production-ready with comprehensive frontend testing and verification. All 95+ UI tests passing covering dashboard alerts, accessibility, keyboard navigation, live regions, responsive layout, and security. Task detail properly exposes resolution fields. No regressions detected. Ready for orchestrator integration after OOMPAH-1266 lands per finish-order dependency.
+---
+author: oompah
+created: 2026-08-25 23:16
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
