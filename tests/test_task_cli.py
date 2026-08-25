@@ -22,6 +22,7 @@ Covers:
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from unittest.mock import MagicMock, call, patch
 
@@ -1463,6 +1464,55 @@ class TestCmdCoordinate:
             "kind": "interface-change",
             "idempotency_key": "iface-v1",
         }
+
+    def test_submission_evidence_excludes_deleted_paths(self, tmp_path):
+        repo = tmp_path / "repo"
+        origin = tmp_path / "origin.git"
+        subprocess.run(["git", "init", "--bare", str(origin)], check=True)
+        subprocess.run(["git", "init", "-b", "main", str(repo)], check=True)
+        subprocess.run(
+            ["git", "-C", str(repo), "config", "user.name", "Test"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "config", "user.email", "test@example.test"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "remote", "add", "origin", str(origin)],
+            check=True,
+        )
+        helper = repo / ".oompah-no-hooks" / "prepare-commit-msg"
+        helper.parent.mkdir()
+        helper.write_text("#!/bin/sh\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-m", "base with helper"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "push", "-u", "origin", "main"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "checkout", "-b", "TASK-1"],
+            check=True,
+        )
+        helper.unlink()
+        (repo / "feature.py").write_text("value = 1\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-m", "remove helper"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "push", "-u", "origin", "TASK-1"],
+            check=True,
+        )
+
+        evidence = task_cli._git_submission_evidence(cwd=str(repo))
+
+        assert evidence["changed_paths"] == ["feature.py"]
 
     def test_checkpoint_includes_git_evidence_and_changed_paths(self):
         args = _make_args(

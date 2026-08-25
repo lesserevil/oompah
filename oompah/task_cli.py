@@ -870,7 +870,13 @@ def _git_submission_evidence(
     if base_sha:
         try:
             changed = subprocess.run(
-                ["git", "diff", "--name-only", f"{base_sha}..HEAD"],
+                [
+                    "git",
+                    "diff",
+                    "--name-only",
+                    "--diff-filter=ACMRTUXB",
+                    f"{base_sha}..HEAD",
+                ],
                 check=False,
                 capture_output=True,
                 text=True,
