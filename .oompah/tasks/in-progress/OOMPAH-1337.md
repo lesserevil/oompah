@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1337
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Orchestrator shutdown attempt failed; retaining process
   and retrying'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:38.960190Z'
-updated_at: '2026-08-25T22:03:51.179834Z'
+updated_at: '2026-08-25T22:04:08.506308Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-6f0e83c8e44c413d864c213fbfd4e455
   actor: shedwards
