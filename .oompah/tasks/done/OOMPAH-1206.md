@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1206
 type: bug
-status: In Validation
+status: Done
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue TRICKLE-121:
   All 2 dispatch candidates unavailable: prov-651d553c/sonnet: contributor_evidence_unavailable:
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:28:18.549010Z'
-updated_at: '2026-08-25T00:28:37.537299Z'
+updated_at: '2026-08-25T00:34:37.149638Z'
 work_branch: OOMPAH-1206
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/902
 review_number: '902'
 review_head: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
 merged_at: null
-oompah.lifecycle_revision: 13
+oompah.lifecycle_revision: 14
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -234,6 +234,7 @@ oompah.terminal_audit:
     '["proj-14849f1b","OOMPAH-1206","audit-d8dcc1adb045","infrastructure-exhausted-audit-d8dcc1adb045-3"]': '2026-08-23T22:44:08.491021+00:00'
     '["proj-14849f1b","OOMPAH-1206","audit-d276a3dd5bfa","no-auditor-audit-d276a3dd5bfa-3"]': '2026-08-24T02:38:46.772315+00:00'
     '["proj-14849f1b","OOMPAH-1206","audit-7a35819e84b7","no-auditor-audit-7a35819e84b7-3"]': '2026-08-24T19:34:11.767086+00:00'
+    '["proj-14849f1b","OOMPAH-1206","audit-112658c5545a","attempt-1c7c8f3a83f5"]': '2026-08-25T00:34:32.476275+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1206
@@ -248,6 +249,7 @@ oompah.terminal_audit:
     - audit-d8dcc1adb045
     - audit-d276a3dd5bfa
     - audit-7a35819e84b7
+    - audit-112658c5545a
     kind: result
     applied: true
     retired_at: '2026-08-21T13:51:23.460149+00:00'
@@ -356,6 +358,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T23:55:21.139128+00:00'
     applied_at: '2026-08-24T23:55:33.575733+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1206
+    audit_id: audit-112658c5545a
+    attempt_id: attempt-1c7c8f3a83f5
+    target_state: Done
+    evidence_fingerprint: 98ad9e07b072e508a44db7e9586621de084699464dc5f9b474c492aacf4c9f15
+    status: Done
+    audit_ids:
+    - audit-112658c5545a
+    kind: result
+    applied: false
+    created_at: '2026-08-25T00:34:32.476307+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-d8dcc1adb045
@@ -862,7 +876,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1206
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -871,7 +885,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-1c7c8f3a83f5
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -883,6 +897,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1206
       selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
       selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
+      verdict: pass
+      completed_at: '2026-08-25T00:34:32.476138+00:00'
+      ended_at: '2026-08-25T00:34:32.476138+00:00'
     source_generation: 5
     requested_by:
       version: 1
@@ -893,7 +910,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T23:55:21.139028+00:00'
     selected_ref: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
     selected_sha: 87d0fb17ef59b25e150b63e4f5c55bc170c22df7
-    updated_at: '2026-08-25T00:28:13.845762+00:00'
+    updated_at: '2026-08-25T00:34:32.476138+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-08569515fd73
