@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:14:43.227832Z'
-updated_at: '2026-08-25T18:08:29.970802Z'
+updated_at: '2026-08-25T18:12:17.111313Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -551,5 +551,18 @@ author: oompah
 created: 2026-08-25 18:08
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-25 18:12
+---
+**Understanding:** The issue is a WARNING log from backend:orchestrator when contributor evidence persistence times out. This happens in _stage_work_contributor_launch() when asyncio.wait_for() times out while writing metadata to the tracker. The timeout is only 5.0 seconds, which is insufficient for slow trackers like provenanceguardedtracker. The error_watcher is picking up this WARNING and auto-filing it as a task.
+
+**Root Cause:** When configured_evidence_persist_timeout_seconds is set or defaults to a low value (5.0s), it's used as-is without respecting a minimum for slow trackers. The code has a comment about ensuring 30 seconds for slow trackers but that only applies when no configured value is set.
+
+**Planned Approach:** 
+1. Find where timeout is being set to 5.0 seconds
+2. Ensure minimum timeout respects slow tracker needs even when configured  
+3. Alternatively: lower logging level so error_watcher doesn't trigger on graceful timeouts
+4. Add tests to verify the fix
 ---
 <!-- COMMENTS:END -->
