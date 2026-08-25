@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-25T19:04:50.605275Z'
+updated_at: '2026-08-25T19:05:02.821194Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -639,5 +639,10 @@ author: oompah
 created: 2026-08-25 19:04
 ---
 Discovery: In oompah/orchestrator.py:_run_acp_worker, failures are caught and logged as DEBUG (not ERROR): 'ACP worker failed issue_id=%s: %s' with extra={'issue_id': issue.id}. ErrorWatcher only installs a handler at logging.ERROR, so this DEBUG line should not trigger auto-file. Next step: verify no other ERROR-level log contains the same string and add a guard regression test if missing.
+---
+author: oompah
+created: 2026-08-25 19:05
+---
+Implementation: No code change required in this branch so far—_run_acp_worker already uses logger.debug (DEBUG) for 'ACP worker failed issue_id=...'. To avoid regressions, I validated existing ErrorWatcher+Orchestrator unit tests and executed targeted pytest for the watcher wiring.
 ---
 <!-- COMMENTS:END -->
