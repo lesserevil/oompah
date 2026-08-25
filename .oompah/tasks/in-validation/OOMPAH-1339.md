@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T17:06:31.999323Z'
-updated_at: '2026-08-25T17:44:46.279632Z'
+updated_at: '2026-08-25T17:45:05.826786Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -150,6 +150,22 @@ oompah.terminal_audit:
     selected_ref: origin/OOMPAH-1339
     selected_sha: 03bec6e4fa7ab35f7ea6349b51537c4e356766ed
 oompah.lifecycle_revision: 1
+oompah.task_costs:
+  total_input_tokens: 282
+  total_output_tokens: 8481
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 282
+      output_tokens: 8481
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 282
+    output_tokens: 8481
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T17:45:00.800014+00:00'
 ---
 ## Summary
 
@@ -220,5 +236,15 @@ Safe evidence:
 - key_tests[0]: test_closed_store_recovers_sqlite_and_authority_lock
 - key_tests[1]: test_repeated_close_recovery_cycles_do_not_close_unrelated_fd
 - key_tests[2]: test_close_rejected_during_authority_mutation
+---
+author: oompah
+created: 2026-08-25 17:45
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 78, Tool calls: 34
+- Tokens: 282 in / 8.5K out [8.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 9s
+- Log: OOMPAH-1339__20260825T173422Z.jsonl
 ---
 <!-- COMMENTS:END -->
