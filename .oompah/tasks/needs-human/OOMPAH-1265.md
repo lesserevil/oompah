@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1265
 type: task
-status: In Validation
+status: Needs Human
 priority: 1
 title: Prove external-prerequisite lifecycle convergence and observability
 parent: OOMPAH-1231
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-25T23:51:21.944235Z'
+updated_at: '2026-08-25T23:54:11.981275Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -28,7 +28,7 @@ oompah.create_once:
   creation_marker: oompah-1231-lifecycle-acceptance-v1
   request_fingerprint: 4f48f1f0e957c03ae28cb1f4f01e0f52c4c6c9020d902bc67d1cfb4f69389377
 oompah.start_blocked_by: *id001
-oompah.lifecycle_revision: 4
+oompah.lifecycle_revision: 5
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: d1a591bae50708aaf359f111881a4071d274e23ddea4e3a15cbe53430d1b5800
@@ -164,6 +164,35 @@ oompah.terminal_audit:
     digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1265","audit-203317319620","attempt-d6969c16c393"]': '2026-08-25T23:51:03.429700+00:00'
+    '["proj-14849f1b","OOMPAH-1265","audit-203317319620","no-auditor-audit-203317319620-2"]': '2026-08-25T23:54:02.881492+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1265
+    target_state: Done
+    evidence_fingerprint: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+    workflow_revision: null
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+    landing_revision: null
+    audit_ids:
+    - audit-203317319620
+    kind: result
+    applied: true
+    retired_at: '2026-08-25T23:54:02.881507+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1265
+    audit_id: audit-203317319620
+    attempt_id: no-auditor-audit-203317319620-2
+    target_state: Done
+    evidence_fingerprint: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+    status: Needs Human
+    audit_ids:
+    - audit-203317319620
+    kind: result
+    applied: true
+    created_at: '2026-08-25T23:54:02.881517+00:00'
+    applied_at: '2026-08-25T23:54:10.690372+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -171,7 +200,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1265
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -217,6 +246,21 @@ oompah.terminal_audit:
       failure_classification: infrastructure_error
       ended_at: '2026-08-25T23:51:03.429571+00:00'
       failure_reason: retry ceiling reached; verdict left pending
+    - version: 1
+      attempt_id: no-auditor-audit-203317319620-2
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+      verdict: fail
+      failure_classification: no_auditor
+      origin: coordinator_retry_exhaustion
+      created_at: '2026-08-25T23:54:02.881342+00:00'
+      completed_at: '2026-08-25T23:54:02.881342+00:00'
+      selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+      selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
     source_generation: 1
     requested_by:
       version: 1
@@ -227,7 +271,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-25T23:15:50.519008+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-25T23:51:03.429571+00:00'
+    updated_at: '2026-08-25T23:54:02.881342+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f1e85028019b
@@ -421,5 +465,12 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 6m 12s
 - Log: OOMPAH-1265__20260825T234527Z.jsonl
+---
+author: oompah
+created: 2026-08-25 23:54
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
