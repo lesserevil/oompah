@@ -117,6 +117,52 @@ def test_spec_payload_is_canonical_json_and_part_of_identity():
         spec(payload={"not-json": {1, 2}})
 
 
+def test_closed_store_recovers_sqlite_and_authority_lock(tmp_path, clock):
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"), clock=clock)
+    store.close()
+
+    assert store._authority_lock_fd == -1
+
+    queued = store.enqueue(spec())
+
+    assert queued.state is WorkflowJobState.QUEUED
+    assert store.get(queued.job_id) == queued
+    assert store._authority_lock_fd >= 0
+    store.close()
+
+
+def test_repeated_close_recovery_cycles_do_not_close_unrelated_fd(tmp_path, clock):
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"), clock=clock)
+
+    for index in range(3):
+        store.close()
+        retired_fd = store._authority_lock_fd
+        assert retired_fd == -1
+        with open(tmp_path / f"sentinel-{index}", "w", encoding="utf-8") as sentinel:
+            sentinel_fd = sentinel.fileno()
+            store.close()
+            os.fstat(sentinel_fd)
+        queued = store.enqueue(
+            spec(key=f"audit:g{index}", generation=f"g{index}")
+        )
+        assert queued.state is WorkflowJobState.QUEUED
+        assert store._authority_lock_fd >= 0
+
+    store.close()
+
+
+def test_close_rejected_during_authority_mutation(store):
+    with store.snapshot_authority_guard():
+        with pytest.raises(
+            WorkflowJobStoreError,
+            match="during an authority mutation",
+        ):
+            store.close()
+
+    store.close()
+    assert store._authority_lock_fd == -1
+
+
 def test_enqueue_persists_every_execution_fence_and_event(store):
     job = store.enqueue(spec(payload={"review_id": 42, "refresh": True}))
 

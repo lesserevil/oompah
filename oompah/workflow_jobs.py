@@ -955,16 +955,7 @@ class WorkflowJobStore:
         self._clock = clock
         self._id_factory = id_factory or (lambda: f"workflow-job-{uuid.uuid4().hex}")
         self._lock = threading.RLock()
-        lock_flags = os.O_CREAT | os.O_RDWR
-        if hasattr(os, "O_CLOEXEC"):
-            lock_flags |= os.O_CLOEXEC
-        if hasattr(os, "O_NOFOLLOW"):
-            lock_flags |= os.O_NOFOLLOW
-        self._authority_lock_fd = os.open(
-            f"{self.path}.authority.lock",
-            lock_flags,
-            0o600,
-        )
+        self._authority_lock_fd = self._open_authority_lock()
         self._authority_lock_depth = 0
         try:
             self._conn = sqlite3.connect(
@@ -995,21 +986,57 @@ class WorkflowJobStore:
                     self._authority_lock_fd = -1
             raise
 
+    def _open_authority_lock(self) -> int:
+        """Open the process-local handle for the cross-process authority lock."""
+
+        lock_flags = os.O_CREAT | os.O_RDWR
+        if hasattr(os, "O_CLOEXEC"):
+            lock_flags |= os.O_CLOEXEC
+        if hasattr(os, "O_NOFOLLOW"):
+            lock_flags |= os.O_NOFOLLOW
+        return os.open(f"{self.path}.authority.lock", lock_flags, 0o600)
+
+    def _ensure_conn(self) -> None:
+        """Re-open SQLite after a stale reference observes orchestrator close."""
+
+        try:
+            self._conn.execute("SELECT 1")
+        except sqlite3.ProgrammingError:
+            self._conn = sqlite3.connect(
+                self.path,
+                check_same_thread=False,
+                timeout=10,
+            )
+            self._conn.row_factory = sqlite3.Row
+            self._conn.execute("PRAGMA foreign_keys=ON")
+            self._conn.execute("PRAGMA busy_timeout=10000")
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute("PRAGMA synchronous=NORMAL")
+
     @contextmanager
     def _authority_mutation_guard(self) -> Iterator[None]:
-        """Serialize authority writes across every connection to this store."""
+        """Serialize authority writes and recover stale replacement handles."""
 
         with self._lock:
             outermost = self._authority_lock_depth == 0
+            acquired_fd: int | None = None
             if outermost:
-                fcntl.flock(self._authority_lock_fd, fcntl.LOCK_EX)
+                if self._authority_lock_fd < 0:
+                    self._authority_lock_fd = self._open_authority_lock()
+                acquired_fd = self._authority_lock_fd
+                fcntl.flock(acquired_fd, fcntl.LOCK_EX)
+                try:
+                    self._ensure_conn()
+                except Exception:
+                    fcntl.flock(acquired_fd, fcntl.LOCK_UN)
+                    raise
             self._authority_lock_depth += 1
             try:
                 yield
             finally:
                 self._authority_lock_depth -= 1
-                if outermost:
-                    fcntl.flock(self._authority_lock_fd, fcntl.LOCK_UN)
+                if outermost and acquired_fd is not None:
+                    fcntl.flock(acquired_fd, fcntl.LOCK_UN)
 
     @contextmanager
     def snapshot_authority_guard(self) -> Iterator[None]:
@@ -1496,31 +1523,16 @@ class WorkflowJobStore:
 
     def close(self) -> None:
         with self._lock:
+            if self._authority_lock_depth:
+                raise WorkflowJobStoreError(
+                    "cannot close workflow job store during an authority mutation"
+                )
             self._conn.close()
-            if self._authority_lock_fd >= 0:
-                os.close(self._authority_lock_fd)
-                self._authority_lock_fd = -1
+            authority_fd = self._authority_lock_fd
+            self._authority_lock_fd = -1
+            if authority_fd >= 0:
+                os.close(authority_fd)
 
-    def _ensure_conn(self) -> None:
-        """Re-open the connection if it was closed, preventing 'closed database' errors.
-        
-        This handles the race condition where an orchestrator is replaced and the
-        old store may be garbage collected while API threads still hold references
-        to it and try to access it.
-        """
-        try:
-            # Test if the connection is alive by executing a simple query
-            self._conn.execute("SELECT 1")
-        except sqlite3.ProgrammingError:
-            # Connection is closed, re-open it
-            self._conn = sqlite3.connect(
-                self.path,
-                check_same_thread=False,
-                timeout=10,
-            )
-            self._conn.row_factory = sqlite3.Row
-            self._conn.execute("PRAGMA busy_timeout=10000")
-            self._conn.execute("PRAGMA journal_mode=WAL")
 
     def record_landing_facts(
         self,
