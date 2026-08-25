@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T08:43:25.263614Z'
-updated_at: '2026-08-25T21:22:49.485252Z'
+updated_at: '2026-08-25T21:23:06.799095Z'
 work_branch: OOMPAH-1267
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/901
@@ -155,13 +155,17 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2118
+  total_input_tokens: 39
+  total_output_tokens: 13570
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 2118
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 29
+      output_tokens: 11452
       cost_usd: 0.0
   runs:
   - profile: default
@@ -170,6 +174,12 @@ oompah.task_costs:
     output_tokens: 2118
     cost_usd: 0.0
     recorded_at: '2026-08-21T00:42:37.228764+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 29
+    output_tokens: 11452
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T21:23:03.688151+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -580,5 +590,15 @@ Safe evidence:
 - fix_mechanism: threading.Event first_replacement_attempted replaces time.sleep(0.05); wait(timeout=10) fires only after first attempt completes
 - make_test_result: passed at db3015ed8d47d8fbcab85831d798d21d8dcce0a2 in 187.1s (first run) and 187.2s (second run)
 - no_timeout_widening: test uses 0.05s drain timeout (shortened); production 1.0s unchanged
+---
+author: oompah
+created: 2026-08-25 21:23
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 49, Tool calls: 29
+- Tokens: 29 in / 11.5K out [11.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 16s
+- Log: OOMPAH-1267__20260825T211237Z.jsonl
 ---
 <!-- COMMENTS:END -->
