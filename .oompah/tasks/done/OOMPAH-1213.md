@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:50:52.786229Z'
-updated_at: '2026-08-25T00:31:20.165660Z'
+updated_at: '2026-08-25T00:31:26.472188Z'
 work_branch: OOMPAH-1213
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/895
@@ -318,8 +318,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-5b05e98dfed4
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-25T00:31:15.262895+00:00'
+    applied_at: '2026-08-25T00:31:24.838632+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-9d5ccd0cee7d
@@ -1416,5 +1417,22 @@ author: oompah
 created: 2026-08-25 00:21
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 00:31
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- fix_location_1: oompah/orchestrator.py:9608 - publication_done.wait(timeout=5.0) in _schedule_restart_issue_recovery_for_resume()
+- fix_location_2: oompah/orchestrator.py:70920 - publication_done.wait(timeout=5.0) in _arm_retry_timer_for_recovery()
+- error_message_present: oompah/orchestrator.py:9611 - 'restart recovery publication was not acknowledged'
+- test_ack_failure: tests/test_event_driven_loop.py:2280 - test_restart_recovery_ack_failure_retains_row_and_quiesces
+- test_cross_loop_waits: tests/test_event_driven_loop.py:462 - test_cross_loop_resume_waits_for_failed_task_publication
+- test_cross_loop_rejects: tests/test_event_driven_loop.py:516 - test_cross_loop_resume_fails_closed_when_loop_rejects_callback
+- quality_gate: make test passed for SHA 5109f99df52a9c3470ad663a7c67c2f079d5fcf0 in 189.1s
+- root_cause: 1.0s timeout too tight for cross-thread event loop publication under load; increased to 5.0s
 ---
 <!-- COMMENTS:END -->
