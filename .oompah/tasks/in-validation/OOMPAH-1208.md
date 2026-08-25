@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:29:16.227300Z'
-updated_at: '2026-08-25T01:59:55.731980Z'
+updated_at: '2026-08-25T17:33:46.026252Z'
 work_branch: OOMPAH-1208
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/909
@@ -293,7 +293,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1208
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -302,7 +302,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-23019c7884ff
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -314,6 +314,10 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1208
       selected_ref: ddfc08864e3e162d23f23999b94956c153cfcbfd
       selected_sha: ddfc08864e3e162d23f23999b94956c153cfcbfd
+      failure_classification: infrastructure_error
+      origin: coordinator_abandoned_recovery
+      ended_at: '2026-08-25T17:33:44.082919+00:00'
+      failure_reason: auditor session abandoned after attempt TTL
     source_generation: 1
     requested_by:
       version: 1
@@ -345,7 +349,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-23019c7884ff
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -357,6 +361,10 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1208
     selected_ref: ddfc08864e3e162d23f23999b94956c153cfcbfd
     selected_sha: ddfc08864e3e162d23f23999b94956c153cfcbfd
+    failure_classification: infrastructure_error
+    origin: coordinator_abandoned_recovery
+    ended_at: '2026-08-25T17:33:44.082919+00:00'
+    failure_reason: auditor session abandoned after attempt TTL
 ---
 ## Summary
 
