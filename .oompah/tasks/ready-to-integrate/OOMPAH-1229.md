@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1229
 type: task
-status: In Review
+status: Ready to Integrate
 priority: null
 title: Stabilize WebSocket completion fault-injection synchronization
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:37:50.327401Z'
-updated_at: '2026-08-25T01:36:35.672799Z'
+updated_at: '2026-08-25T01:37:47.573036Z'
 work_branch: OOMPAH-1229
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/912
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 1392a045-7295-4cfd-8a46-295cbe950be9
   request_fingerprint: cc9c91296985b97656c171e2976056fe6d8bbd5cabb832cae4e84348f15dddcc
-oompah.lifecycle_revision: 4
+oompah.lifecycle_revision: 5
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
