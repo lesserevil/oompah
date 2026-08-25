@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T16:53:55.710371Z'
-updated_at: '2026-08-25T22:18:45.522866Z'
+updated_at: '2026-08-25T22:19:00.951399Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -177,5 +177,10 @@ author: oompah
 created: 2026-08-25 22:18
 ---
 Implementation: in oompah/server.py (api_v1_reviews list handler), detect sqlite3.ProgrammingError containing 'closed database' and degrade gracefully: log WARNING and return 503 {code: store_closed, message: 'retry shortly'} instead of logging ERROR/500. Added regression test tests/test_server_reviews_closed_database.py.
+---
+author: oompah
+created: 2026-08-25 22:19
+---
+Verification: ran pytest -q tests/test_server_reviews_closed_database.py (PASS). Ran make test but it exceeded the handoff timeout; no failures observed in completed portion.
 ---
 <!-- COMMENTS:END -->
