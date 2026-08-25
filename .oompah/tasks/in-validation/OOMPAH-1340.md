@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T18:29:09.896071Z'
-updated_at: '2026-08-25T19:01:03.923050Z'
+updated_at: '2026-08-25T19:20:34.494618Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,6 +38,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1340
     digest: c38b91cc5f8b575cda68843348eb959d4c9a249545034b5e0e78d6e31a64576e
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1340","audit-a08fa7910e1a","attempt-b18460037370"]': '2026-08-25T19:20:25.604041+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1340
+    target_state: Done
+    evidence_fingerprint: c38b91cc5f8b575cda68843348eb959d4c9a249545034b5e0e78d6e31a64576e
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1340
+    selected_sha: c4d9c48eba5a2dfc282596debb2b5843ab50919b
+    landing_revision: null
+    audit_ids:
+    - audit-a08fa7910e1a
+    kind: result
+    applied: true
+    retired_at: '2026-08-25T19:20:25.604057+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1340
+    audit_id: audit-a08fa7910e1a
+    attempt_id: attempt-b18460037370
+    target_state: Done
+    evidence_fingerprint: c38b91cc5f8b575cda68843348eb959d4c9a249545034b5e0e78d6e31a64576e
+    status: In Validation
+    audit_ids:
+    - audit-a08fa7910e1a
+    kind: result
+    applied: true
+    created_at: '2026-08-25T19:20:25.604068+00:00'
+    applied_at: '2026-08-25T19:20:33.036590+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -45,7 +75,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1340
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -54,7 +84,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-b18460037370
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -66,6 +96,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1340
       selected_ref: origin/OOMPAH-1340
       selected_sha: c4d9c48eba5a2dfc282596debb2b5843ab50919b
+      verdict: pass
+      completed_at: '2026-08-25T19:20:25.603837+00:00'
+      ended_at: '2026-08-25T19:20:25.603837+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -76,7 +109,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-25T18:45:13.020693+00:00'
     selected_ref: origin/OOMPAH-1340
     selected_sha: c4d9c48eba5a2dfc282596debb2b5843ab50919b
-    updated_at: '2026-08-25T19:00:48.699363+00:00'
+    updated_at: '2026-08-25T19:20:25.603837+00:00'
   - version: 1
     audit_id: audit-a9d23f4f58f2
     project_id: proj-14849f1b
@@ -98,6 +131,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-a08fa7910e1a
     selected_ref: origin/OOMPAH-1340
     selected_sha: c4d9c48eba5a2dfc282596debb2b5843ab50919b
+    updated_at: '2026-08-25T19:20:25.603837+00:00'
+    eligible_at: '2026-08-25T19:20:25.603837+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-b18460037370
@@ -159,5 +194,26 @@ author: oompah
 created: 2026-08-25 19:01
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 19:20
+---
+Audit PASS — Done
+
+OOMPAH-1340 fix is complete and correct. Changed `_git_submission_evidence()` to exclude deleted paths from submission evidence using `--diff-filter=ACMRTUXB`. Comprehensive testing confirms: (1) deleted helpers no longer block submission, (2) generated helpers present in HEAD remain rejected by server validation, (3) regression test verifies the fix behavior end-to-end. All 345 targeted tests pass including server-side validation test that confirms generated helpers are still rejected when present.
+
+Safe evidence:
+- test_results.regression_test: test_submission_evidence_excludes_deleted_paths PASSED - verifies deleted helpers excluded from changed_paths
+- test_results.server_validation_test: test_submit_endpoint_rejects_generated_worktree_helper_evidence PASSED - confirms server still rejects generated helpers
+- test_results.task_cli_tests: 158 passed
+- test_results.unpushed_gate_tests: 30 passed
+- test_results.worker_submission_tests: 29 passed
+- test_results.targeted_tests: 345 passed (helpers/submission/changed_path related)
+- code_changes.file: oompah/task_cli.py
+- code_changes.change: Added --diff-filter=ACMRTUXB to git diff command to exclude deleted paths (D) from changed_paths
+- code_changes.diff_filter_explanation: ACMRTUXB includes: Added, Copied, Modified, Renamed, Type-changed, Unmerged, paired changes; excludes Deleted
+- acceptance_criteria.deleted_helpers_accepted: true - regression test confirms deletion no longer blocks submission
+- acceptance_criteria.added_helpers_rejected: true - server validation test confirms rejection when present
+- acceptance_criteria.deleted_files_not_corrupted: true - diff filter ensures only real changes included
 ---
 <!-- COMMENTS:END -->
