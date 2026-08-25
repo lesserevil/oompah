@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T18:29:09.896071Z'
-updated_at: '2026-08-25T19:21:04.782641Z'
+updated_at: '2026-08-25T19:21:12.326578Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -271,5 +271,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 20m 1s
 - Log: OOMPAH-1340__20260825T190118Z.jsonl
+---
+author: oompah
+created: 2026-08-25 19:21
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
 ---
 <!-- COMMENTS:END -->
