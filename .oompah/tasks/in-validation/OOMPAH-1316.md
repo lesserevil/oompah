@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:48:11.061409Z'
-updated_at: '2026-08-25T22:41:02.621450Z'
+updated_at: '2026-08-25T22:45:10.643591Z'
 work_branch: OOMPAH-1316
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/903
@@ -144,6 +144,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1316
     digest: e5830b5262a5a540a044e98f8ab3f3aa0137dc7203c37296372e15d6ef26a534
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1316","audit-a359395fa5a8","attempt-ed79a8ebb7d6"]': '2026-08-25T22:45:00.322706+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1316
+    target_state: Done
+    evidence_fingerprint: e5830b5262a5a540a044e98f8ab3f3aa0137dc7203c37296372e15d6ef26a534
+    workflow_revision: null
+    selected_ref: 7e932a894d16d6f5530dbf43a2eebb93db8684ba
+    selected_sha: 7e932a894d16d6f5530dbf43a2eebb93db8684ba
+    landing_revision: null
+    audit_ids:
+    - audit-a359395fa5a8
+    kind: result
+    applied: true
+    retired_at: '2026-08-25T22:45:00.322723+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1316
+    audit_id: audit-a359395fa5a8
+    attempt_id: attempt-ed79a8ebb7d6
+    target_state: Done
+    evidence_fingerprint: e5830b5262a5a540a044e98f8ab3f3aa0137dc7203c37296372e15d6ef26a534
+    status: In Validation
+    audit_ids:
+    - audit-a359395fa5a8
+    kind: result
+    applied: true
+    created_at: '2026-08-25T22:45:00.322734+00:00'
+    applied_at: '2026-08-25T22:45:09.292841+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -151,7 +181,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1316
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -160,7 +190,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ed79a8ebb7d6
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -172,6 +202,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1316
       selected_ref: 7e932a894d16d6f5530dbf43a2eebb93db8684ba
       selected_sha: 7e932a894d16d6f5530dbf43a2eebb93db8684ba
+      verdict: pass
+      completed_at: '2026-08-25T22:45:00.322517+00:00'
+      ended_at: '2026-08-25T22:45:00.322517+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -182,7 +215,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-25T22:36:39.734117+00:00'
     selected_ref: 7e932a894d16d6f5530dbf43a2eebb93db8684ba
     selected_sha: 7e932a894d16d6f5530dbf43a2eebb93db8684ba
-    updated_at: '2026-08-25T22:40:51.572267+00:00'
+    updated_at: '2026-08-25T22:45:00.322517+00:00'
   - version: 1
     audit_id: audit-e3508d682e48
     project_id: proj-14849f1b
@@ -204,6 +237,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-a359395fa5a8
     selected_ref: 7e932a894d16d6f5530dbf43a2eebb93db8684ba
     selected_sha: 7e932a894d16d6f5530dbf43a2eebb93db8684ba
+    updated_at: '2026-08-25T22:45:00.322517+00:00'
+    eligible_at: '2026-08-25T22:45:00.322517+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ed79a8ebb7d6
@@ -341,5 +376,22 @@ author: oompah
 created: 2026-08-25 22:41
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 22:45
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- fix_location: oompah/orchestrator.py:58066
+- fix_description: logger.error() changed to logger.warning() for pre-provider contributor evidence timeout message
+- error_watcher_filter_level: logging.ERROR (error_watcher.py:92)
+- test_coverage: test_pre_provider_evidence_timeout_releases_task_authority in tests/test_provider_retirement.py
+- quality_gate_sha: 7e932a894d16d6f5530dbf43a2eebb93db8684ba
+- quality_gate_result: passed
+- quality_gate_command: make test
+- quality_gate_duration_seconds: 193.9
 ---
 <!-- COMMENTS:END -->
