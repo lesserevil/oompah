@@ -14,6 +14,7 @@ import math
 import os
 import re
 import signal
+import sqlite3
 import subprocess
 import threading
 import time
@@ -22477,6 +22478,18 @@ async def api_list_reviews():
             _api_cache.set("reviews:all", reviews, ttl_ms=10000)
             response = JSONResponse(reviews)
         return response
+    except sqlite3.ProgrammingError as exc:
+        if "closed database" in str(exc):
+            logger.warning("Reviews API temporarily unavailable (database closed): %s", exc)
+            return JSONResponse(
+                {"error": {"code": "store_closed", "message": "Database temporarily unavailable, please retry shortly"}},
+                status_code=503,
+            )
+        logger.error("Reviews API error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "fetch_failed", "message": str(exc)}},
+            status_code=500,
+        )
     except Exception as exc:
         logger.error("Reviews API error: %s", exc)
         return JSONResponse(
