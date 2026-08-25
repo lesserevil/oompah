@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T16:53:55.710371Z'
-updated_at: '2026-08-25T22:18:35.626148Z'
+updated_at: '2026-08-25T22:18:45.522866Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -172,5 +172,10 @@ author: oompah
 created: 2026-08-25 22:18
 ---
 Discovery: The /api/v1/reviews endpoint in oompah/server.py always logs ERROR on any exception (logger.error('Reviews API error...')), which is exactly what causes error_watcher to auto-file. Fix point is in the endpoint-level exception handler; other stores already have re-open-on-close guards but this route’s top-level catch was still logging ERROR.
+---
+author: oompah
+created: 2026-08-25 22:18
+---
+Implementation: in oompah/server.py (api_v1_reviews list handler), detect sqlite3.ProgrammingError containing 'closed database' and degrade gracefully: log WARNING and return 503 {code: store_closed, message: 'retry shortly'} instead of logging ERROR/500. Added regression test tests/test_server_reviews_closed_database.py.
 ---
 <!-- COMMENTS:END -->
