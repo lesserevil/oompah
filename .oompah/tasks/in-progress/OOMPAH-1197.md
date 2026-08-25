@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-25T19:05:15.559115Z'
+updated_at: '2026-08-25T19:07:19.851617Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -214,16 +214,16 @@ oompah.work_contributors:
     model_id: switchyard/auto
     focus: general
     source_branch: OOMPAH-1197
-    source_sha: null
-    completed_at: ''
+    source_sha: 0682f1e8e95da3612181636da404850cf31e389a
+    completed_at: '2026-08-25T19:07:11.097426+00:00'
 oompah.task_costs:
-  total_input_tokens: 14770
-  total_output_tokens: 4221
+  total_input_tokens: 15115
+  total_output_tokens: 4378
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 14770
-      output_tokens: 4221
+      input_tokens: 15115
+      output_tokens: 4378
       cost_usd: 0.0
   runs:
   - profile: default
@@ -244,6 +244,12 @@ oompah.task_costs:
     output_tokens: 125
     cost_usd: 0.0
     recorded_at: '2026-08-25T01:26:54.704273+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 345
+    output_tokens: 157
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T19:07:11.083995+00:00'
 ---
 ## Summary
 
@@ -649,5 +655,15 @@ author: oompah
 created: 2026-08-25 19:05
 ---
 Verification: ran pytest for existing suites covering ErrorWatcher + orchestrator wiring: tests/test_error_watcher_orchestrator.py::TestOrchestratorAutoCloseHook::test_failed_run_does_not_auto_close and tests/test_error_watcher.py::TestErrorWatcher::test_report_error_creates_task (both passed). Current state shows orchestrator already avoids ERROR-level logging for this ACP failure signature, so TRICKLE-119 should no longer auto-file unless another ERROR-level path matches the same pattern.
+---
+author: oompah
+created: 2026-08-25 19:07
+---
+Run #1 [attempt=1, profile=default, role=fast -> Opencode/Switchyard/switchyard/auto]
+- Turns: 43, Tool calls: 43
+- Tokens: 345 in / 157 out [53.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 34s
+- Log: OOMPAH-1197__20260825T190300Z.jsonl
 ---
 <!-- COMMENTS:END -->
