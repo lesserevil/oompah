@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T08:43:25.263614Z'
-updated_at: '2026-08-25T21:28:48.450384Z'
+updated_at: '2026-08-25T21:29:03.629541Z'
 work_branch: OOMPAH-1267
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/901
@@ -155,8 +155,8 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 39
-  total_output_tokens: 13570
+  total_input_tokens: 63
+  total_output_tokens: 20801
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -164,8 +164,8 @@ oompah.task_costs:
       output_tokens: 2118
       cost_usd: 0.0
     unknown:
-      input_tokens: 29
-      output_tokens: 11452
+      input_tokens: 53
+      output_tokens: 18683
       cost_usd: 0.0
   runs:
   - profile: default
@@ -180,6 +180,12 @@ oompah.task_costs:
     output_tokens: 11452
     cost_usd: 0.0
     recorded_at: '2026-08-25T21:23:03.688151+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 24
+    output_tokens: 7231
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T21:28:57.800036+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -687,5 +693,15 @@ Safe evidence:
 - make_test_result: passed at db3015ed8d47d8fbcab85831d798d21d8dcce0a2 in 187.1s and 187.2s
 - production_guarantee_assertions: server._orchestrator is old after first timeout-failure; old._lifecycle_publication_closed is False after first failure; server._orchestrator is second_new after second succeeds; old._lifecycle_publication_closed is True after second succeeds
 - total_test_functions_in_file: 23 top-level test functions visible in test_restart_api.py
+---
+author: oompah
+created: 2026-08-25 21:29
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 47, Tool calls: 25
+- Tokens: 24 in / 7.2K out [7.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 36s
+- Log: OOMPAH-1267__20260825T212342Z.jsonl
 ---
 <!-- COMMENTS:END -->
