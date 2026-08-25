@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T18:29:09.896071Z'
-updated_at: '2026-08-25T19:43:11.009574Z'
+updated_at: '2026-08-25T19:43:18.653312Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -92,8 +92,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-a9d23f4f58f2
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-25T19:43:06.569503+00:00'
+    applied_at: '2026-08-25T19:43:17.017593+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -310,5 +311,30 @@ author: oompah
 created: 2026-08-25 19:21
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 19:43
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- code_changes.file: oompah/task_cli.py
+- code_changes.change: Added --diff-filter=ACMRTUXB to git diff command in _git_submission_evidence function
+- code_changes.filter_explanation: Excludes deleted paths (D) while preserving A=Added, C=Copied, M=Modified, R=Renamed, T=Type-changed, U=Unmerged, X=Unknown, B=Paired changes
+- test_evidence.regression_test: test_submission_evidence_excludes_deleted_paths PASSED
+- test_evidence.server_validation_test: test_submit_endpoint_rejects_generated_worktree_helper_evidence PASSED
+- test_evidence.task_cli_tests: 158 passed
+- test_evidence.worker_submission_tests: 29 passed
+- test_evidence.submission_fencing_tests: 20 passed
+- test_evidence.total_critical_tests: 207 passed
+- acceptance_criteria.deleted_helpers_excluded: true - regression test confirms deletion no longer blocks submission
+- acceptance_criteria.generated_helpers_present_rejected: true - server validation test confirms rejection when present
+- acceptance_criteria.deleted_files_not_corrupted: true - diff filter ensures only real changes included
+- regression_test_coverage: End-to-end test with real git repo, helper file deletion, source file addition
+- test_command: python -m pytest tests/test_task_cli.py tests/test_worker_submission.py tests/test_submission_fencing.py
+- test_result: 207 passed in 16.24s
+- head_sha: c4d9c48eba5a2dfc282596debb2b5843ab50919b
 ---
 <!-- COMMENTS:END -->
