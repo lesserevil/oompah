@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T17:06:31.999323Z'
-updated_at: '2026-08-25T17:53:04.890819Z'
+updated_at: '2026-08-25T17:53:11.393614Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -92,8 +92,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-4d14c45d66a2
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-25T17:53:00.270303+00:00'
+    applied_at: '2026-08-25T17:53:09.728093+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -315,5 +316,29 @@ author: oompah
 created: 2026-08-25 17:45
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 17:53
+---
+Audit PASS — Merged
+
+OOMPAH-1339 implementation verified. WorkflowJobStore now safely recovers both SQLite connection and authority lock descriptor after orchestrator replacement. All acceptance criteria met: no mutation path calls flock with fd=-1; stale references recover atomically; all 1642 workflow tests pass including key recovery/close regression tests.
+
+Safe evidence:
+- implementation_verification.authority_mutation_guard: Checks fd < 0 and reopens via _open_authority_lock() before flock
+- implementation_verification.open_authority_lock: Preserves O_CLOEXEC, O_NOFOLLOW, 0o600 mode
+- implementation_verification.close_method: Detaches fd before closing (idempotent), rejects reentrant close
+- implementation_verification.ensure_conn: Reopens SQLite connection when needed
+- test_results.workflow_jobs_tests: 128/128 passed
+- test_results.key_regression_tests[0]: test_closed_store_recovers_sqlite_and_authority_lock - PASSED
+- test_results.key_regression_tests[1]: test_repeated_close_recovery_cycles_do_not_close_unrelated_fd - PASSED
+- test_results.key_regression_tests[2]: test_close_rejected_during_authority_mutation - PASSED
+- test_results.workflow_related_tests: 1642/1642 passed
+- acceptance_criteria.no_flock_negative_fd: PASS - fd recovered before flock in _authority_mutation_guard
+- acceptance_criteria.trickle_122_submission: PASS - automatic fd recovery prevents submission failure
+- acceptance_criteria.existing_tests_pass: PASS - 1642 workflow-related tests all pass
+- code_quality.commit_message: Proper format with project standard trailer
+- code_quality.thread_safety: Protected under existing RLock
+- code_quality.git_sha: 03bec6e4fa7ab35f7ea6349b51537c4e356766ed
 ---
 <!-- COMMENTS:END -->
