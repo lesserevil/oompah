@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:29:16.227300Z'
-updated_at: '2026-08-25T01:56:53.969327Z'
+updated_at: '2026-08-25T01:57:27.953272Z'
 work_branch: OOMPAH-1208
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/909
@@ -162,13 +162,17 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1859
+  total_input_tokens: 32
+  total_output_tokens: 7587
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 1859
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 22
+      output_tokens: 5728
       cost_usd: 0.0
   runs:
   - profile: default
@@ -177,6 +181,12 @@ oompah.task_costs:
     output_tokens: 1859
     cost_usd: 0.0
     recorded_at: '2026-08-21T09:31:43.909664+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 22
+    output_tokens: 5728
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T01:57:23.869514+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -666,5 +676,15 @@ Safe evidence:
 - changed_files: oompah/task_transition_service.py, tests/test_task_transition_service.py
 - fix_location_1: _direct_owner_commit_conflict lines 1653-1681: API authority allowed, lease guard skipped
 - fix_location_2: _execute_admitted lines 2297-2303: API authority allowed for BACKLOG->IN_PROGRESS gate
+---
+author: oompah
+created: 2026-08-25 01:57
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 36, Tool calls: 21
+- Tokens: 22 in / 5.7K out [5.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 27s
+- Log: OOMPAH-1208__20260825T014717Z.jsonl
 ---
 <!-- COMMENTS:END -->
