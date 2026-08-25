@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T18:29:09.896071Z'
-updated_at: '2026-08-25T19:43:18.653312Z'
+updated_at: '2026-08-25T19:43:40.259688Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -211,13 +211,13 @@ oompah.terminal_audit:
     selected_sha: c4d9c48eba5a2dfc282596debb2b5843ab50919b
 oompah.lifecycle_revision: 2
 oompah.task_costs:
-  total_input_tokens: 450
-  total_output_tokens: 12760
+  total_input_tokens: 724
+  total_output_tokens: 20704
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 450
-      output_tokens: 12760
+      input_tokens: 724
+      output_tokens: 20704
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -226,6 +226,12 @@ oompah.task_costs:
     output_tokens: 12760
     cost_usd: 0.0
     recorded_at: '2026-08-25T19:20:53.793391+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 274
+    output_tokens: 7944
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T19:43:33.771371+00:00'
 ---
 ## Summary
 
@@ -336,5 +342,15 @@ Safe evidence:
 - test_command: python -m pytest tests/test_task_cli.py tests/test_worker_submission.py tests/test_submission_fencing.py
 - test_result: 207 passed in 16.24s
 - head_sha: c4d9c48eba5a2dfc282596debb2b5843ab50919b
+---
+author: oompah
+created: 2026-08-25 19:43
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 74, Tool calls: 33
+- Tokens: 274 in / 7.9K out [8.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 22m 24s
+- Log: OOMPAH-1340__20260825T192131Z.jsonl
 ---
 <!-- COMMENTS:END -->
