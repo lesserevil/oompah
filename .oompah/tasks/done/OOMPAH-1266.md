@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1266
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Fence late task submission from regressing landed integration authority
 parent: OOMPAH-1231
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-25T20:27:52.332985Z'
+updated_at: '2026-08-25T20:34:15.673997Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: o1263-post-merge-submit-provenance-regression
   request_fingerprint: 9a9d8d03687f81678f5061a4c7f6ca12b789b64399e6fd9b92b89ef14dc3e4b5
-oompah.lifecycle_revision: 12
+oompah.lifecycle_revision: 13
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 9f3a0a5a59f2a06ff79051089822dbfee82b28352e54ad90889e4e0d3419a375
@@ -217,6 +217,7 @@ oompah.terminal_audit:
     '["proj-14849f1b","OOMPAH-1266","audit-97804bbb892c","infrastructure-exhausted-audit-97804bbb892c-3"]': '2026-08-21T15:40:21.194395+00:00'
     '["proj-14849f1b","OOMPAH-1266","audit-c7c92f145c10","infrastructure-exhausted-audit-c7c92f145c10-3"]': '2026-08-23T22:56:05.355470+00:00'
     '["proj-14849f1b","OOMPAH-1266","audit-3bc41860abf1","no-auditor-audit-3bc41860abf1-3"]': '2026-08-24T04:22:33.850001+00:00'
+    '["proj-14849f1b","OOMPAH-1266","audit-5d3114a16fa3","attempt-60c9ddd49012"]': '2026-08-25T20:34:11.087880+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1266
@@ -230,6 +231,7 @@ oompah.terminal_audit:
     - audit-97804bbb892c
     - audit-c7c92f145c10
     - audit-3bc41860abf1
+    - audit-5d3114a16fa3
     kind: result
     applied: true
     retired_at: '2026-08-21T15:40:21.194412+00:00'
@@ -312,6 +314,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T15:27:42.298187+00:00'
     applied_at: '2026-08-24T15:27:51.572523+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1266
+    audit_id: audit-5d3114a16fa3
+    attempt_id: attempt-60c9ddd49012
+    target_state: Done
+    evidence_fingerprint: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+    status: Done
+    audit_ids:
+    - audit-5d3114a16fa3
+    kind: result
+    applied: false
+    created_at: '2026-08-25T20:34:11.087914+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-c7c92f145c10
@@ -738,7 +752,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1266
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -747,7 +761,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-60c9ddd49012
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -759,6 +773,9 @@ oompah.terminal_audit:
       branch_key: epic-OOMPAH-1231--task-OOMPAH-1266
       selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
       selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+      verdict: pass
+      completed_at: '2026-08-25T20:34:11.087719+00:00'
+      ended_at: '2026-08-25T20:34:11.087719+00:00'
     source_generation: 5
     requested_by:
       version: 1
@@ -769,7 +786,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-25T20:18:19.671471+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-25T20:27:41.508768+00:00'
+    updated_at: '2026-08-25T20:34:11.087719+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ebdec741f7d0
