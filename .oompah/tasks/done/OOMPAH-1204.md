@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:25:06.282819Z'
-updated_at: '2026-08-25T00:33:45.015298Z'
+updated_at: '2026-08-25T00:33:51.544462Z'
 work_branch: OOMPAH-1204
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/906
@@ -268,8 +268,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-c8037e0c9b43
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-25T00:33:40.339683+00:00'
+    applied_at: '2026-08-25T00:33:49.521809+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-c8037e0c9b43
@@ -897,5 +898,27 @@ author: oompah
 created: 2026-08-25 00:20
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 00:33
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: b8bea43d1f7348eaf3bca1f0a02adeaf84534bb6
+- gate_result: passed
+- gate_command: make test
+- gate_duration_seconds: 179.3
+- gate_passed_count: 2
+- config_default: contributor_evidence_persist_timeout_seconds = 30.0 (oompah/config.py:1200)
+- env_default: OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS default=30.0 (oompah/config.py:2059)
+- orchestrator_fix: max(float(configured_evidence_timeout), 0.05) replaces min(control_timeout, termination_timeout/2) (oompah/orchestrator.py:58041)
+- floor_added: max(min(control, term/2), 15.0) baseline; max(persistence_timeout, 30.0) unconfigured fallback
+- test_config_default: assert cfg.contributor_evidence_persist_timeout_seconds == 30.0 (tests/test_config.py:124)
+- test_config_env_override: assert cfg.contributor_evidence_persist_timeout_seconds == 45.0 (tests/test_config.py:162)
+- test_retirement_timeout_paths: 4 tests in test_provider_retirement.py set timeout=0.1 to exercise authority-release on timeout
+- env_example_updated: .env.example:282 documents OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS=30
 ---
 <!-- COMMENTS:END -->
