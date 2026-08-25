@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:31:41.109952Z'
-updated_at: '2026-08-25T23:16:30.031725Z'
+updated_at: '2026-08-25T23:17:15.606155Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -50,6 +50,14 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
   - run_id: 8ea7504851674b408b69fb6cd9212567--contributor-86e3ac8153e1
+    provider_id: prov-6cf41c89
+    provider_name: Opencode/Switchyard
+    model_id: switchyard/auto
+    focus: duplicate_detector
+    source_branch: OOMPAH-1334
+    source_sha: null
+    completed_at: ''
+  - run_id: 8233cd92adbc43b495674d3784bd6051--contributor-86e3ac8153e1
     provider_id: prov-6cf41c89
     provider_name: Opencode/Switchyard
     model_id: switchyard/auto
