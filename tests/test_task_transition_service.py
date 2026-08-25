@@ -888,6 +888,38 @@ async def test_existing_api_backlog_promotion_policy_is_unchanged(tmp_path):
     assert tracker.updates == [("TASK-1", "Open")]
 
 
+@pytest.mark.asyncio
+async def test_api_authority_allowed_for_backlog_to_in_progress_transition(tmp_path):
+    """Test that API authority (oompah's backend:server) can transition from Backlog to In Progress.
+    
+    This allows oompah to manage its own task transitions through its internal API,
+    without requiring PROJECT_OWNER authority for system operations.
+    Fixes OOMPAH-1208: backend:server was failing to update task status due to
+    missing authority for BACKLOG -> IN_PROGRESS transitions.
+    """
+    issue = _issue(
+        state="Backlog",
+        assignment_id=None,
+        description="Task with actionable description",
+    )
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+
+    applied = await service.execute(
+        _intent(
+            issue,
+            requested_status="In Progress",
+            actor="oompah",
+            authority=TransitionAuthority.API,
+            reason_code="api.status_updated",
+            evidence_generation="api-claim-1",
+        )
+    )
+
+    assert applied.disposition is TransitionDisposition.APPLIED
+    assert tracker.updates == [("TASK-1", "In Progress")]
+
+
 def test_active_claims_for_tasks_returns_only_live_matching_claims(tmp_path):
     issue = _issue(state="Backlog", assignment_id=None)
     tracker = FakeTracker(issue)
