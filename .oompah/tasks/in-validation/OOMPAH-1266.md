@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-25T20:18:25.387935Z'
+updated_at: '2026-08-25T20:27:52.332985Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -738,12 +738,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1266
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-60c9ddd49012
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+      created_at: '2026-08-25T20:27:41.508768+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-25T20:27:41.508768+00:00'
+      branch_key: epic-OOMPAH-1231--task-OOMPAH-1266
+      selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+      selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
     source_generation: 5
     requested_by:
       version: 1
@@ -754,6 +769,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-25T20:18:19.671471+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+    updated_at: '2026-08-25T20:27:41.508768+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ebdec741f7d0
@@ -971,6 +987,21 @@ oompah.terminal_audit:
     ended_at: '2026-08-24T18:45:44.738351+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-24T18:46:04.738324+00:00'
+  - version: 1
+    attempt_id: attempt-60c9ddd49012
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c4206a9d3736d547fbb9e49b43f50960ec265eee41234a71d7d81e4e15b76bdd
+    created_at: '2026-08-25T20:27:41.508768+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-25T20:27:41.508768+00:00'
+    branch_key: epic-OOMPAH-1231--task-OOMPAH-1266
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
 ---
 ## Summary
 
@@ -1509,5 +1540,15 @@ author: oompah
 created: 2026-08-24 18:45
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-25 20:27
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-25 20:27
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
