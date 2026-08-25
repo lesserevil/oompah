@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1338
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:server] Reviews API error: ProgrammingError(''Cannot operate on a
   closed database.'')'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T16:53:55.710371Z'
-updated_at: '2026-08-25T22:04:20.198984Z'
+updated_at: '2026-08-25T22:05:05.125238Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-6f0e83c8e44c413d864c213fbfd4e455
   actor: shedwards
@@ -67,6 +67,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-1338
     source_sha: 2663cf7f063915c0037a983d77cca94bc0a984c3
     completed_at: '2026-08-25T20:24:54.111699+00:00'
+  - run_id: 537fbdc6df264501b00f2b4ba6e312e6--contributor-86e3ac8153e1
+    provider_id: prov-6cf41c89
+    provider_name: Opencode/Switchyard
+    model_id: switchyard/auto
+    focus: general
+    source_branch: OOMPAH-1338
+    source_sha: null
+    completed_at: ''
 oompah.task_costs:
   total_input_tokens: 32526
   total_output_tokens: 103
@@ -149,5 +157,10 @@ author: oompah
 created: 2026-08-25 22:04
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-25 22:05
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
