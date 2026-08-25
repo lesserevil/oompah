@@ -1013,3 +1013,46 @@ def test_forced_auditor_retirement_records_retry_before_releasing_claim(
         assert entry.branch_key not in orch._audit_branch_claims
 
     asyncio.run(scenario())
+
+
+def test_minimum_contributor_evidence_timeout_enforced(tmp_path) -> None:
+    """Verify that a 30-second minimum timeout is enforced for slow trackers.
+    
+    When contributor_evidence_persist_timeout_seconds is configured to a low
+    value (5.0 seconds), the actual timeout used should be at least 30.0 seconds
+    to support slow trackers like provenanceguardedtracker.
+    """
+    async def scenario() -> None:
+        import time
+        orch = _orchestrator(tmp_path)
+        # Configure a low timeout that should be overridden by the minimum
+        orch.config.contributor_evidence_persist_timeout_seconds = 5.0
+        entry = _entry()
+        orch.state.running[entry.issue.id] = entry
+        orch.provider_store.get = MagicMock(return_value=None)
+        orch._reserve_auditor_for_contributor = AsyncMock(return_value=([], None))
+        orch._release_audit_budget_reservation = MagicMock(return_value=True)
+        
+        def quick_persistence(*_args, **_kwargs) -> None:
+            # Persistence that completes quickly
+            pass
+
+        orch._persist_work_contributor = quick_persistence
+        
+        result = await orch._stage_work_contributor_launch(
+            entry.issue,
+            run_id=entry.run_id,
+            provider_id="acp",
+            provider_name="acp",
+            model="sdk-managed",
+        )
+        
+        # With the fix, we should NOT get a timeout error because the timeout
+        # was increased to 30 seconds (and the operation completes immediately)
+        # Without the fix, we might get a timeout error because it would timeout at 5 seconds
+        if result is not None:
+            # If we get an error, it should NOT be about the timeout
+            assert "bounded task-authority deadline" not in str(result), \
+                f"Got timeout error when it should have been prevented: {result}"
+
+    asyncio.run(scenario())

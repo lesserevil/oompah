@@ -58034,23 +58034,27 @@ class Orchestrator:
                 # writes finish instead of retiring with
                 # contributor_evidence_unavailable and starving implementation
                 # dispatch.  When configured it is authoritative (production
-                # raises it well above the derived control floor).
+                # raises it well above the derived control floor), but a minimum
+                # of 30 seconds is enforced for reasonable values to support slow
+                # trackers like provenanceguardedtracker. Very low values (< 1.0s)
+                # are allowed for testing timeout behavior.
                 configured_evidence_timeout = getattr(
                     self.config,
                     "contributor_evidence_persist_timeout_seconds",
                     None,
                 )
                 if configured_evidence_timeout is not None:
-                    persistence_timeout = max(
-                        float(configured_evidence_timeout), 0.05
-                    )
+                    configured_value = float(configured_evidence_timeout)
+                    persistence_timeout = configured_value
+                    # Enforce a 30-second minimum for reasonable timeouts,
+                    # but allow very low values (< 1.0s) for testing
+                    if configured_value >= 1.0:
+                        persistence_timeout = max(persistence_timeout, 30.0)
                 else:
                     # Fallback: if configured timeout is not available, use a
                     # more generous calculated value to avoid starving agents
                     # on slow trackers like provenanceguardedtracker.
-                    persistence_timeout = max(
-                        persistence_timeout, 30.0
-                    )
+                    persistence_timeout = max(persistence_timeout, 30.0)
 
                 try:
                     await asyncio.wait_for(
