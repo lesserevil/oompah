@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:14:43.227832Z'
-updated_at: '2026-08-25T18:28:15.984046Z'
+updated_at: '2026-08-25T18:33:34.243356Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -582,5 +582,26 @@ author: oompah
 created: 2026-08-25 18:28
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-25 18:33
+---
+**Understanding & Discovery:**
+
+Found the root cause in oompah/orchestrator.py:_stage_work_contributor_launch() (lines ~57837-58150).
+
+The issue is in the timeout configuration logic (lines 58032-58053):
+- When a timeout is explicitly configured via contributor_evidence_persist_timeout_seconds, it uses that value directly with only a minimum of 0.05 seconds
+- The comment says 30+ seconds is needed for slow trackers like provenanceguardedtracker, BUT this minimum is only applied when NO configured value is set
+- When configured_evidence_timeout is not None, the code does: max(float(configured_evidence_timeout), 0.05) - allowing 5.0 second timeouts
+- This causes timeouts on slow trackers and triggers the WARNING log that error_watcher picks up
+
+**Planned Fix:**
+1. Ensure the 30-second minimum is enforced EVEN when a timeout is explicitly configured
+2. Change the logic to: max(configured_value OR calculated_value, 30.0)
+3. This respects explicit configuration while ensuring slow trackers don't timeout
+4. Add tests to verify the minimum timeout is enforced
+
+**Key Issue:** The comment is misleading - it says configured is authoritative, but it needs a minimum threshold.
 ---
 <!-- COMMENTS:END -->
