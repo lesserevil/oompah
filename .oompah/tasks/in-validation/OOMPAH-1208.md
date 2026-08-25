@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1208
 type: bug
-status: In Review
+status: In Validation
 priority: 2
 title: '[backend:server] Update issue API error: TaskTransitionNotApplied(''OOMPAH-1207:
   In Progress was not applied (rejected: transition.project_owner_authority_required)'')'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:29:16.227300Z'
-updated_at: '2026-08-24T16:30:07.691994Z'
+updated_at: '2026-08-25T01:36:56.566708Z'
 work_branch: OOMPAH-1208
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/909
 review_number: '909'
 review_head: ddfc08864e3e162d23f23999b94956c153cfcbfd
 merged_at: null
-oompah.lifecycle_revision: 6
+oompah.lifecycle_revision: 7
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -193,6 +193,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/909
 oompah.review_number: '909'
 oompah.target_branch: main
 oompah.review_head: ddfc08864e3e162d23f23999b94956c153cfcbfd
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-468a913d8a14
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1208
+    digest: e736059442c110deeb583d66eed2acb5b1cb58b9e4bdf29cc8c2da8dceacffb6
+  - version: 1
+    audit_id: audit-500f230081a9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1208
+    digest: e736059442c110deeb583d66eed2acb5b1cb58b9e4bdf29cc8c2da8dceacffb6
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-468a913d8a14
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1208
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e736059442c110deeb583d66eed2acb5b1cb58b9e4bdf29cc8c2da8dceacffb6
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-25T01:36:49.860758+00:00'
+    eligible_at: '2026-08-25T01:36:49.860758+00:00'
+    selected_ref: ddfc08864e3e162d23f23999b94956c153cfcbfd
+    selected_sha: ddfc08864e3e162d23f23999b94956c153cfcbfd
+  - version: 1
+    audit_id: audit-500f230081a9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1208
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e736059442c110deeb583d66eed2acb5b1cb58b9e4bdf29cc8c2da8dceacffb6
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-25T01:36:49.860758+00:00'
+    prerequisite_audit_id: audit-468a913d8a14
+    selected_ref: ddfc08864e3e162d23f23999b94956c153cfcbfd
+    selected_sha: ddfc08864e3e162d23f23999b94956c153cfcbfd
+  attempt_history: []
 ---
 ## Summary
 
@@ -511,5 +569,10 @@ Duplicate error_watcher occurrence suppressed; this task already tracks the same
 Source: `backend:server`
 
 Message: Update issue API error: TaskTransitionNotApplied('OOMPAH-1330: In Progress was not applied (rejected: transition.project_owner_authority_required)')
+---
+author: oompah
+created: 2026-08-25 01:36
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
