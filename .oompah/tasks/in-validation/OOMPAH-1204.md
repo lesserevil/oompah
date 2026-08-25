@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T01:25:06.282819Z'
-updated_at: '2026-08-24T23:55:08.053116Z'
+updated_at: '2026-08-25T00:20:36.487806Z'
 work_branch: OOMPAH-1204
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/906
@@ -278,6 +278,8 @@ oompah.terminal_audit:
       with submit_audit_result bridge remain.'
     authorized_at: '2026-08-24T23:54:49.707114+00:00'
     mode: infrastructure_recovery
+    consumed_at: '2026-08-25T00:20:35.183564+00:00'
+    consumed_workflow_job_id: workflow-job-25424018efbe44d59dfe05cdaebf977a
   version: 1
   pending_chain:
   - version: 1
