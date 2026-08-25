@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T02:29:16.227300Z'
-updated_at: '2026-08-25T17:54:58.814256Z'
+updated_at: '2026-08-25T17:55:07.668230Z'
 work_branch: OOMPAH-1208
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/909
@@ -270,8 +270,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-500f230081a9
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-25T17:54:52.064471+00:00'
+    applied_at: '2026-08-25T17:55:04.626829+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -800,5 +801,23 @@ author: oompah
 created: 2026-08-25 17:49
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 17:55
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- regression_test: tests/test_task_transition_service.py::test_api_authority_allowed_for_backlog_to_in_progress_transition PASSED in 1.74s
+- adjacent_suite: 32/32 tests matching backlog/direct_owner/authority passed in 5.33s
+- full_gate_sha: ddfc08864e3e162d23f23999b94956c153cfcbfd
+- full_gate_result: passed
+- full_gate_duration_seconds: 183.1
+- changed_files: oompah/task_transition_service.py, tests/test_task_transition_service.py
+- fix_location_1: _direct_owner_commit_conflict lines 1653-1681: API authority allowed, lease guard skipped for API
+- fix_location_2: _execute_admitted lines 2299-2303: API authority allowed for BACKLOG->IN_PROGRESS gate
+- no_regression: ORCHESTRATOR authority still rejected at transition.project_owner_authority_required as verified by adjacent test suite
 ---
 <!-- COMMENTS:END -->
