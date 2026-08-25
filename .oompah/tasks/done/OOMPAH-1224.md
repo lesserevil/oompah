@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1224
 type: bug
-status: In Validation
+status: Done
 priority: 2
 title: '[backend:server] Issue detail API error: ProgrammingError(''Cannot operate
   on a closed database.'')'
@@ -12,14 +12,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T07:24:01.242921Z'
-updated_at: '2026-08-25T00:37:32.657929Z'
+updated_at: '2026-08-25T00:59:30.871458Z'
 work_branch: OOMPAH-1224
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/900
 review_number: '900'
 review_head: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
 merged_at: null
-oompah.lifecycle_revision: 13
+oompah.lifecycle_revision: 14
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -213,6 +213,7 @@ oompah.terminal_audit:
     '["proj-14849f1b","OOMPAH-1224","audit-e15ca9ca9b7f","infrastructure-exhausted-audit-e15ca9ca9b7f-3"]': '2026-08-24T00:33:25.283103+00:00'
     '["proj-14849f1b","OOMPAH-1224","audit-49872de05682","no-auditor-audit-49872de05682-3"]': '2026-08-24T04:25:30.546551+00:00'
     '["proj-14849f1b","OOMPAH-1224","audit-c209863a0cf9","no-auditor-audit-c209863a0cf9-3"]': '2026-08-24T20:51:43.208687+00:00'
+    '["proj-14849f1b","OOMPAH-1224","audit-45144dab3af0","attempt-787618a64759"]': '2026-08-25T00:59:26.257967+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1224
@@ -226,6 +227,7 @@ oompah.terminal_audit:
     - audit-e15ca9ca9b7f
     - audit-49872de05682
     - audit-c209863a0cf9
+    - audit-45144dab3af0
     kind: result
     applied: true
     retired_at: '2026-08-24T00:33:25.283117+00:00'
@@ -308,6 +310,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T23:56:45.723254+00:00'
     applied_at: '2026-08-24T23:56:52.595996+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1224
+    audit_id: audit-45144dab3af0
+    attempt_id: attempt-787618a64759
+    target_state: Done
+    evidence_fingerprint: fdb0a7e362aa42a9ce8eb57ee0b64e3ab0beae750529aecace8beae71bc989ca
+    status: Done
+    audit_ids:
+    - audit-45144dab3af0
+    kind: result
+    applied: false
+    created_at: '2026-08-25T00:59:26.257999+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-49872de05682
@@ -698,7 +712,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1224
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -707,7 +721,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-787618a64759
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -719,6 +733,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1224
       selected_ref: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
       selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
+      verdict: pass
+      completed_at: '2026-08-25T00:59:26.257810+00:00'
+      ended_at: '2026-08-25T00:59:26.257810+00:00'
     source_generation: 4
     requested_by:
       version: 1
@@ -730,7 +747,7 @@ oompah.terminal_audit:
     selected_ref: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
     selected_sha: 4f8cc5f6edcf27ff6400d23f2f999da92b3d12bb
     workflow_revision: 71f6297718a1833ec1a9f2c922367d43a0c7ea6d6c76e9c5f4fba12dbedd3ce1
-    updated_at: '2026-08-25T00:37:05.352574+00:00'
+    updated_at: '2026-08-25T00:59:26.257810+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fdb2399fa251
