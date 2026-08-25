@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1331
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Restart reconstruction never finalizes (1 unexplained divergence) leaving stale
   action_required=19 and permanent restart_overdue
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T16:28:31.897753Z'
-updated_at: '2026-08-25T00:03:40.584427Z'
+updated_at: '2026-08-25T00:15:49.551528Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,6 +42,7 @@ oompah.terminal_audit:
     '["proj-14849f1b","OOMPAH-1331","audit-34bc00c97981","attempt-fccf5a75d857"]': '2026-08-24T17:16:59.921038+00:00'
     '["proj-14849f1b","OOMPAH-1331","audit-ad3efba187b4","attempt-1d2393768dc7"]': '2026-08-24T17:41:19.461234+00:00'
     '["proj-14849f1b","OOMPAH-1331","audit-ad3efba187b4","no-auditor-audit-ad3efba187b4-3"]': '2026-08-24T17:50:49.284458+00:00'
+    '["proj-14849f1b","OOMPAH-1331","audit-46b37e27c1ce","attempt-e3f0c29cfcda"]': '2026-08-25T00:15:44.591781+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1331
@@ -66,6 +67,7 @@ oompah.terminal_audit:
     landing_revision: null
     audit_ids:
     - audit-ad3efba187b4
+    - audit-46b37e27c1ce
     kind: result
     applied: true
     retired_at: '2026-08-24T17:50:49.284477+00:00'
@@ -109,6 +111,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-24T23:53:16.591355+00:00'
     applied_at: '2026-08-24T23:53:22.942201+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1331
+    audit_id: audit-46b37e27c1ce
+    attempt_id: attempt-e3f0c29cfcda
+    target_state: Merged
+    evidence_fingerprint: 2f42f5bc26ff73d05a270cfeb550a9d34cd30dc3c7f4182f4f49ddc36d258bd9
+    status: Merged
+    audit_ids:
+    - audit-46b37e27c1ce
+    kind: result
+    applied: false
+    created_at: '2026-08-25T00:15:44.591811+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-46b37e27c1ce
@@ -280,7 +294,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1331
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -289,7 +303,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e3f0c29cfcda
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -301,6 +315,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1331
       selected_ref: origin/OOMPAH-1331
       selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
+      verdict: pass
+      completed_at: '2026-08-25T00:15:44.591590+00:00'
+      ended_at: '2026-08-25T00:15:44.591590+00:00'
     source_generation: 2
     requested_by:
       version: 1
@@ -311,7 +328,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-24T23:53:16.591185+00:00'
     selected_ref: origin/OOMPAH-1331
     selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
-    updated_at: '2026-08-25T00:03:29.881319+00:00'
+    updated_at: '2026-08-25T00:15:44.591590+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fccf5a75d857
@@ -401,7 +418,7 @@ oompah.terminal_audit:
     branch_key: OOMPAH-1331
     selected_ref: origin/OOMPAH-1331
     selected_sha: c98f49444f27de8d3faba8e80c791632e52220e5
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.task_costs:
   total_input_tokens: 1198
   total_output_tokens: 32011
