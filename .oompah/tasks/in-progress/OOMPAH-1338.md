@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T16:53:55.710371Z'
-updated_at: '2026-08-25T22:33:06.253908Z'
+updated_at: '2026-08-25T22:36:05.360764Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -226,5 +226,10 @@ author: oompah
 created: 2026-08-25 22:33
 ---
 Implementation: Modified /api/v1/reviews endpoint in oompah/server.py to detect sqlite3.ProgrammingError with 'closed database' message. When detected: log WARNING instead of ERROR (preventing error_watcher trigger), return 503 with code 'store_closed' and actionable message instead of 500. Other SQL and non-SQL errors continue logging ERROR as before, maintaining backward compatibility. Added regression tests in tests/test_server_reviews_closed_database.py.
+---
+author: oompah
+created: 2026-08-25 22:36
+---
+Verification: All 4 regression tests pass. Tests cover: (1) closed database returns 503 with 'store_closed' code, (2) closed database logs WARNING not ERROR, (3) other SQL errors still return 500 and log ERROR, (4) non-SQL errors still return 500 and log ERROR. No regressions observed in exception handling for other error types.
 ---
 <!-- COMMENTS:END -->
