@@ -378,9 +378,13 @@ class TestUpdateIssueApiStateBranchFetchError:
     @pytest.mark.parametrize(
         "reason_code",
         [
-            "transition.illegal_edge",
+            "transition.direct_owner_claim_authority_required",
             "transition.generation_required",
             "transition.head_mismatch",
+            "transition.illegal_edge",
+            "transition.owner_claim_authority_unavailable",
+            "transition.project_owner_authority_required",
+            "transition.validation_submission_authority_required",
         ],
     )
     def test_transition_rejection_returns_conflict_without_warning_or_error(
