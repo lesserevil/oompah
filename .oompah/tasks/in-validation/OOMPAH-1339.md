@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T17:06:31.999323Z'
-updated_at: '2026-08-25T17:34:05.044396Z'
+updated_at: '2026-08-25T17:44:46.279632Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,6 +38,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1339
     digest: b002c8352ba6fc7f6bf480630fa72c5d8c01660e66ddbc0d61c04c90a1d8b178
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1339","audit-bc4ca808c89c","attempt-97aa86d601a4"]': '2026-08-25T17:44:37.417479+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1339
+    target_state: Done
+    evidence_fingerprint: b002c8352ba6fc7f6bf480630fa72c5d8c01660e66ddbc0d61c04c90a1d8b178
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1339
+    selected_sha: 03bec6e4fa7ab35f7ea6349b51537c4e356766ed
+    landing_revision: null
+    audit_ids:
+    - audit-bc4ca808c89c
+    kind: result
+    applied: true
+    retired_at: '2026-08-25T17:44:37.417496+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1339
+    audit_id: audit-bc4ca808c89c
+    attempt_id: attempt-97aa86d601a4
+    target_state: Done
+    evidence_fingerprint: b002c8352ba6fc7f6bf480630fa72c5d8c01660e66ddbc0d61c04c90a1d8b178
+    status: In Validation
+    audit_ids:
+    - audit-bc4ca808c89c
+    kind: result
+    applied: true
+    created_at: '2026-08-25T17:44:37.417507+00:00'
+    applied_at: '2026-08-25T17:44:44.842672+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -45,7 +75,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1339
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -54,7 +84,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-97aa86d601a4
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -66,6 +96,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1339
       selected_ref: origin/OOMPAH-1339
       selected_sha: 03bec6e4fa7ab35f7ea6349b51537c4e356766ed
+      verdict: pass
+      completed_at: '2026-08-25T17:44:37.417275+00:00'
+      ended_at: '2026-08-25T17:44:37.417275+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -76,7 +109,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-25T17:27:58.896529+00:00'
     selected_ref: origin/OOMPAH-1339
     selected_sha: 03bec6e4fa7ab35f7ea6349b51537c4e356766ed
-    updated_at: '2026-08-25T17:33:48.189501+00:00'
+    updated_at: '2026-08-25T17:44:37.417275+00:00'
   - version: 1
     audit_id: audit-4d14c45d66a2
     project_id: proj-14849f1b
@@ -98,6 +131,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-bc4ca808c89c
     selected_ref: origin/OOMPAH-1339
     selected_sha: 03bec6e4fa7ab35f7ea6349b51537c4e356766ed
+    updated_at: '2026-08-25T17:44:37.417275+00:00'
+    eligible_at: '2026-08-25T17:44:37.417275+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-97aa86d601a4
@@ -161,5 +196,29 @@ author: oompah
 created: 2026-08-25 17:34
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 17:44
+---
+Audit PASS — Done
+
+OOMPAH-1339 implementation complete and verified. WorkflowJobStore now safely recovers both SQLite connection and authority lock descriptor after orchestrator replacement. No mutation path calls flock with fd=-1. All 128 workflow_jobs tests + 234 workflow infrastructure tests pass. Repeated close/recovery cycles are safe and don't leak descriptors. Ready for production.
+
+Safe evidence:
+- implementation_summary.key_changes[0]: _authority_mutation_guard checks if fd < 0 and reopens before flock
+- implementation_summary.key_changes[1]: _open_authority_lock preserves O_CLOEXEC, O_NOFOLLOW, 0o600
+- implementation_summary.key_changes[2]: close() detaches fd before closing (idempotent)
+- implementation_summary.key_changes[3]: reentrant close during mutations is rejected
+- implementation_summary.files_changed[0]: oompah/workflow_jobs.py
+- implementation_summary.files_changed[1]: tests/test_workflow_jobs.py
+- implementation_summary.test_results.workflow_jobs_tests: 128/128 passed
+- implementation_summary.test_results.close_recover_restart_tests: 127/127 passed
+- implementation_summary.test_results.workflow_infrastructure_tests: 234/234 passed
+- acceptance_criteria.no_flock_negative_fd: PASS - fd recovered before flock in _authority_mutation_guard
+- acceptance_criteria.trickle_122_submission: PASS - automatic fd recovery prevents submission failure
+- acceptance_criteria.existing_tests_pass: PASS - all 362 related tests pass
+- key_tests[0]: test_closed_store_recovers_sqlite_and_authority_lock
+- key_tests[1]: test_repeated_close_recovery_cycles_do_not_close_unrelated_fd
+- key_tests[2]: test_close_rejected_during_authority_mutation
 ---
 <!-- COMMENTS:END -->
