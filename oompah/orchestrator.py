@@ -65111,7 +65111,12 @@ class Orchestrator:
         except (WorkspaceError, AgentError, PromptError) as exc:
             exit_reason = "abnormal"
             error_msg = str(exc)
-            logger.error(
+            # Log at WARNING level (not ERROR) to avoid triggering error_watcher
+            # for expected/transient worker failures (workspace, agent setup,
+            # prompt rendering). These are normal failure modes that should not
+            # be tracked as backend errors. See also the generic Exception
+            # handler below which logs at DEBUG for the same reason.
+            logger.warning(
                 "Worker failed issue_id=%s issue_identifier=%s error=%s",
                 issue.id,
                 issue.identifier,
