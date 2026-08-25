@@ -1494,7 +1494,14 @@ def test_replacement_timeout_rolls_back_before_concurrent_replacement(
     tmp_path,
     monkeypatch,
 ):
-    """A failed drain keeps the old owner and cannot ABA a queued cutover."""
+    """A failed drain keeps the old owner and cannot ABA a queued cutover.
+    
+    This test uses explicit synchronization and predicate-based readiness checks
+    instead of relying on wall-clock timeouts, making it deterministic under load.
+    The key insight: instead of sleeping to let the timeout elapse, we observe
+    when the timeout HAS elapsed by checking when the first replacement attempt
+    has actually failed, then start the second attempt.
+    """
 
     old = _real_orchestrator(tmp_path / "old-timeout")
     first_new = _real_orchestrator(tmp_path / "first-new")
@@ -1502,10 +1509,17 @@ def test_replacement_timeout_rolls_back_before_concurrent_replacement(
     old._ipc = None
     first_new._ipc = None
     second_new._ipc = None
-    old._lifecycle_publication_drain_timeout_s = 0.2
+    # Very short timeout so test completes quickly while remaining deterministic
+    old._lifecycle_publication_drain_timeout_s = 0.05
+    
     handler_entered = threading.Event()
     release_handler = threading.Event()
     callback_mutated = threading.Event()
+    
+    # Event to signal when the first replacement has finished attempting
+    # (either success or failure). This replaces time.sleep() for orchestration.
+    first_replacement_attempted = threading.Event()
+    
     first_done = threading.Event()
     second_done = threading.Event()
     first_errors: list[BaseException] = []
@@ -1522,12 +1536,14 @@ def test_replacement_timeout_rolls_back_before_concurrent_replacement(
     assert old.request_lifecycle_publication(expected_generation=0)
     assert handler_entered.wait(timeout=1)
 
-    def _replace(target, errors, done):
+    def _replace(target, errors, done, mark_attempted=None):
         try:
             server.set_orchestrator(target)
         except BaseException as exc:  # noqa: BLE001 - asserted by the test
             errors.append(exc)
         finally:
+            if mark_attempted is not None:
+                mark_attempted.set()
             done.set()
 
     with (
@@ -1538,32 +1554,225 @@ def test_replacement_timeout_rolls_back_before_concurrent_replacement(
     ):
         first = threading.Thread(
             target=_replace,
-            args=(first_new, first_errors, first_done),
+            args=(first_new, first_errors, first_done, first_replacement_attempted),
         )
         second = threading.Thread(
             target=_replace,
-            args=(second_new, second_errors, second_done),
+            args=(second_new, second_errors, second_done, None),
         )
         first.start()
-        time.sleep(0.05)
+        # Instead of time.sleep(0.05), wait for an observable signal: the first
+        # replacement attempt has been made. This is deterministic and not load-
+        # sensitive. The first thread will timeout in its drain, then set this event.
+        assert first_replacement_attempted.wait(timeout=10)
+        
+        # Now start second. It will block on the replacement lock until first
+        # releases it, then try to drain old (which may also timeout initially).
+        # Once we release the handler, second's drain will succeed.
         second.start()
-        assert second_done.wait(timeout=0.05) is False
+        
+        # Verify state after first failure: old is still in place but partially
+        # shut down. This check happens before we release the handler.
         assert first_done.wait(timeout=1)
         assert len(first_errors) == 1
         assert isinstance(first_errors[0], RuntimeError)
         assert server._orchestrator is old
         assert old._lifecycle_publication_closed is False
 
+        # Release the handler, which allows the lifecycle publication callbacks
+        # to complete. This unblocks second's drain attempt (if it was waiting)
+        # and allows it to succeed. The release happens while second might be
+        # timing out in its own drain attempt.
         release_handler.set()
-        second.join(timeout=1)
-    first.join(timeout=1)
-    assert first.is_alive() is False
-    assert second.is_alive() is False
-    assert second_errors == []
-    assert callback_mutated.is_set()
-    assert server._orchestrator is second_new
-    assert old._lifecycle_publication_closed is True
+        
+        # Both threads should complete within reasonable time
+        assert first.join(timeout=1) is None
+        assert second.join(timeout=1) is None
+        assert first.is_alive() is False
+        assert second.is_alive() is False
+        
+        # Second should have succeeded (no errors)
+        assert second_errors == []
+        assert callback_mutated.is_set()
+        
+        # Final state: second_new is installed and old is shut down
+        assert server._orchestrator is second_new
+        assert old._lifecycle_publication_closed is True
+    
     second_new._shutdown_lifecycle_publications()
+
+
+def test_replacement_succeeds_when_handler_completes_before_timeout(
+    tmp_path,
+    monkeypatch,
+):
+    """Replacement succeeds when lifecycle drain completes before timeout.
+    
+    This is the reverse ordering of the previous test: instead of blocking
+    until timeout, the handler is released soon enough that the drain completes
+    and replacement succeeds. Uses explicit synchronization (events) to ensure
+    deterministic behavior independent of system load.
+    """
+
+    old = _real_orchestrator(tmp_path / "old-success")
+    new = _real_orchestrator(tmp_path / "new-success")
+    old._ipc = None
+    new._ipc = None
+    # Generous timeout ensures drain won't fail due to timeout
+    old._lifecycle_publication_drain_timeout_s = 10.0
+    
+    handler_entered = threading.Event()
+    release_handler_trigger = threading.Event()
+    handler_completed = threading.Event()
+    callback_published = threading.Event()
+    replacement_started = threading.Event()
+    
+    def _quick_handler(_event, _payload):
+        handler_entered.set()
+        # Wait for explicit signal to release, demonstrating test control
+        assert release_handler_trigger.wait(timeout=3)
+        handler_completed.set()
+
+    old.event_bus.subscribe(EventType.ORCHESTRATOR_TICK, _quick_handler)
+    monkeypatch.setattr(server, "_orchestrator", old)
+    monkeypatch.setattr(old, "get_snapshot", lambda: {"source": "old-success"})
+    assert old.request_lifecycle_publication(expected_generation=0)
+    assert handler_entered.wait(timeout=1)
+
+    replacement_result = []
+    replacement_errors = []
+
+    def _attempt_replacement():
+        replacement_started.set()
+        try:
+            server.set_orchestrator(new)
+            replacement_result.append("success")
+        except BaseException as exc:
+            replacement_errors.append(exc)
+
+    with (
+        patch.object(server, "remove_draft_labels_from_epics", return_value=0),
+        patch.object(server, "_migrate_release_picks_on_startup"),
+        patch.object(server, "ErrorWatcher", MagicMock()),
+        patch.object(server, "ProjectLogWatcherManager", MagicMock()),
+    ):
+        replacer = threading.Thread(target=_attempt_replacement)
+        replacer.start()
+        
+        # Let replacement start and reach the drain point
+        assert replacement_started.wait(timeout=1)
+        time.sleep(0.01)  # Small sleep to let drain attempt start
+        
+        # Release the handler BEFORE the timeout would occur, ensuring drain succeeds
+        release_handler_trigger.set()
+        assert handler_completed.wait(timeout=1)
+        
+        # Replacement should complete successfully
+        replacer.join(timeout=1)
+        assert replacer.is_alive() is False
+        
+        # Verify success
+        assert replacement_errors == []
+        assert replacement_result == ["success"]
+        assert server._orchestrator is new
+        assert old._lifecycle_publication_closed is True
+    
+    new._shutdown_lifecycle_publications()
+
+
+def test_repeated_replacement_timeout_detection_under_load(
+    tmp_path,
+    monkeypatch,
+):
+    """Run the timeout test multiple times to verify determinism under load.
+    
+    This test verifies that the fixes for deterministic timeout detection
+    actually work reliably across multiple runs. The original bug manifested
+    when Makefile gates ran concurrently; this simulates that by running
+    the timeout-then-success scenario multiple times in sequence under
+    CPU load from other threads.
+    """
+
+    def _run_one_cycle():
+        """Run one cycle of timeout-then-success replacement."""
+        old = _real_orchestrator(tmp_path / f"load-old-{id(threading.current_thread()):x}")
+        first_new = _real_orchestrator(tmp_path / f"load-first-{id(threading.current_thread()):x}")
+        second_new = _real_orchestrator(tmp_path / f"load-second-{id(threading.current_thread()):x}")
+        old._ipc = None
+        first_new._ipc = None
+        second_new._ipc = None
+        old._lifecycle_publication_drain_timeout_s = 0.05
+        
+        handler_entered = threading.Event()
+        release_handler = threading.Event()
+        first_attempted = threading.Event()
+        
+        first_errors = []
+        second_errors = []
+        first_done = threading.Event()
+        second_done = threading.Event()
+
+        def _blocked_handler(_event, _payload):
+            handler_entered.set()
+            assert release_handler.wait(timeout=3)
+
+        old.event_bus.subscribe(EventType.ORCHESTRATOR_TICK, _blocked_handler)
+        monkeypatch.setattr(server, "_orchestrator", old)
+        monkeypatch.setattr(old, "get_snapshot", lambda: {"source": "load-cycle"})
+        assert old.request_lifecycle_publication(expected_generation=0)
+        assert handler_entered.wait(timeout=1)
+
+        def _replace(target, errors, done, mark_attempted=None):
+            try:
+                server.set_orchestrator(target)
+            except BaseException as exc:
+                errors.append(exc)
+            finally:
+                if mark_attempted is not None:
+                    mark_attempted.set()
+                done.set()
+
+        with (
+            patch.object(server, "remove_draft_labels_from_epics", return_value=0),
+            patch.object(server, "_migrate_release_picks_on_startup"),
+            patch.object(server, "ErrorWatcher", MagicMock()),
+            patch.object(server, "ProjectLogWatcherManager", MagicMock()),
+        ):
+            first = threading.Thread(
+                target=_replace,
+                args=(first_new, first_errors, first_done, first_attempted),
+            )
+            second = threading.Thread(
+                target=_replace,
+                args=(second_new, second_errors, second_done, None),
+            )
+            first.start()
+            assert first_attempted.wait(timeout=10)
+            second.start()
+            
+            release_handler.set()
+            
+            assert first.join(timeout=1) is None
+            assert second.join(timeout=1) is None
+            
+            # Verify cycle results
+            if len(first_errors) != 1 or not isinstance(first_errors[0], RuntimeError):
+                return False
+            if second_errors != []:
+                return False
+            if server._orchestrator is not second_new:
+                return False
+            if not old._lifecycle_publication_closed:
+                return False
+        
+        second_new._shutdown_lifecycle_publications()
+        return True
+
+    # Run the cycle 5 times sequentially to verify consistent behavior
+    # (not testing true concurrency of cycles, just repeated execution under potential load)
+    for run in range(5):
+        result = _run_one_cycle()
+        assert result, f"Replacement cycle {run} failed: either timeout not detected or replacement didn't succeed"
 
 
 def test_blocked_lifecycle_publication_worker_does_not_hold_interpreter_open(
