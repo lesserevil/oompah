@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T16:53:55.710371Z'
-updated_at: '2026-08-25T22:31:13.476074Z'
+updated_at: '2026-08-25T22:33:06.253908Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -221,5 +221,10 @@ author: oompah
 created: 2026-08-25 22:31
 ---
 Understanding: The /api/v1/reviews endpoint in oompah/server.py (line 22345) catches all exceptions and logs ERROR, which triggers error_watcher. Issue: when the database connection closes unexpectedly, sqlite3.ProgrammingError('Cannot operate on a closed database') is raised and logged as ERROR, auto-filing a task. Fix: detect this specific error case and return 503 with actionable message instead of logging ERROR. This allows the Reviews API to degrade gracefully without false alarms.
+---
+author: oompah
+created: 2026-08-25 22:33
+---
+Implementation: Modified /api/v1/reviews endpoint in oompah/server.py to detect sqlite3.ProgrammingError with 'closed database' message. When detected: log WARNING instead of ERROR (preventing error_watcher trigger), return 503 with code 'store_closed' and actionable message instead of 500. Other SQL and non-SQL errors continue logging ERROR as before, maintaining backward compatibility. Added regression tests in tests/test_server_reviews_closed_database.py.
 ---
 <!-- COMMENTS:END -->
