@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:28:12.589940Z'
-updated_at: '2026-08-25T17:39:21.878741Z'
+updated_at: '2026-08-25T17:39:28.023454Z'
 work_branch: OOMPAH-1254
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/899
@@ -212,8 +212,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-87569e599c91
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-25T17:39:16.686275+00:00'
+    applied_at: '2026-08-25T17:39:26.573498+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -507,5 +508,23 @@ author: oompah
 created: 2026-08-25 17:34
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 17:39
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- selected_sha: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
+- quality_gate: make test passed (194s, authority_current=true)
+- fix_location: oompah/server.py:4149 - transition.project_owner_authority_required added to expected_policy_rejections set
+- related_codes_added: direct_owner_claim_authority_required (4138), owner_claim_authority_unavailable (4147), validation_submission_authority_required (4157)
+- test_file: tests/test_state_branch_fetch_error.py
+- test_method: TestUpdateIssueApiStateBranchFetchError.test_transition_rejection_returns_conflict_without_warning_or_error
+- test_parametrize_count: 7 reason codes including all 4 new authority codes
+- test_asserts: HTTP 409 AND no WARNING/ERROR-level oompah.server logs for all parametrized reason codes
+- task_transition_service_test: tests/test_task_transition_service.py:866 asserts project_owner_authority_required reason code
 ---
 <!-- COMMENTS:END -->
