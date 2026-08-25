@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-25T01:13:27.542221Z'
+updated_at: '2026-08-25T01:25:57.122293Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -562,5 +562,10 @@ author: oompah
 created: 2026-08-25 01:13
 ---
 Key insight: orchestrator.py already logs 'ACP worker failed issue_id=...' at DEBUG (not ERROR), so it should not trigger error_watcher. That means the auto-filed TRICKLE-119 likely came from a different ERROR-level log line in the ACP worker call stack (maybe a tracker/task write or workspace fetch) that includes the same issue_id via logging extra. Next: add a focused regression test that asserts any Exception path inside the ACP worker logs ACP worker failures at WARNING/DEBUG only (never ERROR) when it includes extra.issue_id. We'll implement by exercising the orchestrator's ACP worker path with a forced exception and capturing logging records to ensure no ERROR lines containing 'ACP worker failed issue_id=' are emitted.
+---
+author: oompah
+created: 2026-08-25 01:25
+---
+Implementation status: I traced the exact ACP worker failure log site: orchestrator.py:64776 logs 'ACP worker failed issue_id=...' (currently at DEBUG, so it shouldn’t trigger error_watcher). To protect against regressions where a future ACP failure path logs that string at ERROR, I added a regression test in tests/test_orchestrator_handlers.py ensuring _run_acp_worker doesn’t emit ERROR records containing 'ACP worker failed issue_id'. Focus remains on confirming in real worker runs whether TRICKLE-119 came from a different ERROR log line; no code change beyond the new test.
 ---
 <!-- COMMENTS:END -->
