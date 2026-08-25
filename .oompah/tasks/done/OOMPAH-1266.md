@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T04:54:34.556175Z'
-updated_at: '2026-08-25T20:34:15.673997Z'
+updated_at: '2026-08-25T20:34:23.046287Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1266
 target_branch: null
 review_url: null
@@ -324,8 +324,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-5d3114a16fa3
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-25T20:34:11.087914+00:00'
+    applied_at: '2026-08-25T20:34:21.467318+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-c7c92f145c10
@@ -1567,5 +1568,23 @@ author: oompah
 created: 2026-08-25 20:27
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 20:34
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- quality_gate: make test passed for dea44bc88fd4017054f38934f30c01d06e9aca87 in 186.8s (authority_current=True)
+- fence_location: oompah/server.py lines 6129-6153 in _submission_record()
+- fence_condition: existing.state=='integrated' AND matching head_sha, task_branch, base_branch, base_sha, post_landed_parent_id
+- fence_action: returns existing integrated record, not fresh ready
+- oompah628_preserved: different-head submits still create fresh ready records (lines 6160-6175)
+- focused_tests: 23/23 passed in tests/test_submission_fencing.py in 13.71s
+- new_regression_tests[0]: test_submission_record_preserves_integrated_generation_on_late_submit (webhook-before-submit)
+- new_regression_tests[1]: test_submission_record_creates_ready_for_new_head_after_integrated (new-head reflow)
+- new_regression_tests[2]: test_submission_record_preserves_ready_on_same_generation_retry (idempotency)
 ---
 <!-- COMMENTS:END -->
