@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:36.934588Z'
-updated_at: '2026-08-25T23:38:54.822656Z'
+updated_at: '2026-08-25T23:39:14.448530Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -157,5 +157,10 @@ author: oompah
 created: 2026-08-25 23:37
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-25 23:39
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
