@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-14T08:43:25.263614Z'
-updated_at: '2026-08-25T21:28:42.043846Z'
+updated_at: '2026-08-25T21:28:48.450384Z'
 work_branch: OOMPAH-1267
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/901
@@ -263,8 +263,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-bb030a3c2a92
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-25T21:28:37.447693+00:00'
+    applied_at: '2026-08-25T21:28:46.563034+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -669,5 +670,22 @@ author: oompah
 created: 2026-08-25 21:23
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 21:28
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- production_drain_timeout_s: 1.0 (unchanged at orchestrator.py:2306)
+- fix_mechanism: threading.Event first_replacement_attempted.wait(timeout=10) replaces time.sleep(0.05); fires after first thread completes, not after elapsed time
+- test_drain_timeout_s: 0.05 (shortened from 0.2; not widened)
+- new_tests[0]: test_replacement_succeeds_when_handler_completes_before_timeout (reverse ordering)
+- new_tests[1]: test_repeated_replacement_timeout_detection_under_load (parallel load)
+- make_test_result: passed at db3015ed8d47d8fbcab85831d798d21d8dcce0a2 in 187.1s and 187.2s
+- production_guarantee_assertions: server._orchestrator is old after first timeout-failure; old._lifecycle_publication_closed is False after first failure; server._orchestrator is second_new after second succeeds; old._lifecycle_publication_closed is True after second succeeds
+- total_test_functions_in_file: 23 top-level test functions visible in test_restart_api.py
 ---
 <!-- COMMENTS:END -->
