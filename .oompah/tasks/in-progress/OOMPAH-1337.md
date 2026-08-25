@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:38.960190Z'
-updated_at: '2026-08-25T22:04:25.158451Z'
+updated_at: '2026-08-25T22:05:33.204418Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -179,5 +179,10 @@ author: oompah
 created: 2026-08-25 22:04
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-25 22:05
+---
+**Understanding**: Investigating orchestrator shutdown error. The issue is that a shutdown attempt fails with 'Orchestrator shutdown attempt failed; retaining process and retrying' which is being auto-filed by error_watcher. Planned approach: (1) Locate orchestrator shutdown logic, (2) identify root cause of shutdown failure, (3) implement fix or add graceful handling, (4) add tests to prevent regression.
 ---
 <!-- COMMENTS:END -->
