@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:28:12.589940Z'
-updated_at: '2026-08-25T01:59:36.153439Z'
+updated_at: '2026-08-25T17:34:10.093664Z'
 work_branch: OOMPAH-1254
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/899
@@ -235,12 +235,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1254
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 673d2addbd6199c772b9e96d1e8f497b3533f27cc81ff9b385b590a8cbba153b
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-b6add19b1235
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 673d2addbd6199c772b9e96d1e8f497b3533f27cc81ff9b385b590a8cbba153b
+      created_at: '2026-08-25T17:34:08.390954+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-25T17:34:08.390954+00:00'
+      branch_key: OOMPAH-1254
+      selected_ref: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
+      selected_sha: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
     source_generation: 1
     requested_by:
       version: 1
@@ -251,7 +266,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-88e07bc49fbc
     selected_ref: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
     selected_sha: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
-    updated_at: '2026-08-25T01:58:59.548696+00:00'
+    updated_at: '2026-08-25T17:34:08.390954+00:00'
     eligible_at: '2026-08-25T01:58:59.548696+00:00'
   attempt_history:
   - version: 1
@@ -266,6 +281,21 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: sonnet
     started_at: '2026-08-25T01:47:31.122064+00:00'
+    branch_key: OOMPAH-1254
+    selected_ref: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
+    selected_sha: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
+  - version: 1
+    attempt_id: attempt-b6add19b1235
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 673d2addbd6199c772b9e96d1e8f497b3533f27cc81ff9b385b590a8cbba153b
+    created_at: '2026-08-25T17:34:08.390954+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-25T17:34:08.390954+00:00'
     branch_key: OOMPAH-1254
     selected_ref: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
     selected_sha: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
