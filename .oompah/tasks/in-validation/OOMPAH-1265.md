@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-25T23:45:15.074295Z'
+updated_at: '2026-08-25T23:51:04.927216Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -156,6 +156,8 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1265
     digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1265","audit-203317319620","attempt-d6969c16c393"]': '2026-08-25T23:51:03.429700+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -163,7 +165,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1265
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -192,7 +194,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-d6969c16c393
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -205,6 +207,10 @@ oompah.terminal_audit:
       selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
       selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
       candidate_rotation_count: 1
+      verdict: fail
+      failure_classification: infrastructure_error
+      ended_at: '2026-08-25T23:51:03.429571+00:00'
+      failure_reason: retry ceiling reached; verdict left pending
     source_generation: 1
     requested_by:
       version: 1
@@ -215,7 +221,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-25T23:15:50.519008+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-25T23:45:03.803164+00:00'
+    updated_at: '2026-08-25T23:51:03.429571+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f1e85028019b
