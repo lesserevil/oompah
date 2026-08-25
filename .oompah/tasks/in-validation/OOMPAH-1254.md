@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:28:12.589940Z'
-updated_at: '2026-08-25T01:48:07.818994Z'
+updated_at: '2026-08-25T01:59:08.795346Z'
 work_branch: OOMPAH-1254
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/899
@@ -148,6 +148,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1254
     digest: 673d2addbd6199c772b9e96d1e8f497b3533f27cc81ff9b385b590a8cbba153b
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1254","audit-88e07bc49fbc","attempt-45c67241c50c"]': '2026-08-25T01:58:59.548880+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1254
+    target_state: Done
+    evidence_fingerprint: 673d2addbd6199c772b9e96d1e8f497b3533f27cc81ff9b385b590a8cbba153b
+    workflow_revision: null
+    selected_ref: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
+    selected_sha: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
+    landing_revision: null
+    audit_ids:
+    - audit-88e07bc49fbc
+    kind: result
+    applied: true
+    retired_at: '2026-08-25T01:58:59.548895+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1254
+    audit_id: audit-88e07bc49fbc
+    attempt_id: attempt-45c67241c50c
+    target_state: Done
+    evidence_fingerprint: 673d2addbd6199c772b9e96d1e8f497b3533f27cc81ff9b385b590a8cbba153b
+    status: In Validation
+    audit_ids:
+    - audit-88e07bc49fbc
+    kind: result
+    applied: true
+    created_at: '2026-08-25T01:58:59.548904+00:00'
+    applied_at: '2026-08-25T01:59:07.492281+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -155,7 +185,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1254
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -164,7 +194,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-45c67241c50c
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -176,6 +206,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1254
       selected_ref: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
       selected_sha: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
+      verdict: pass
+      completed_at: '2026-08-25T01:58:59.548696+00:00'
+      ended_at: '2026-08-25T01:58:59.548696+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -186,7 +219,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-25T01:37:19.702847+00:00'
     selected_ref: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
     selected_sha: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
-    updated_at: '2026-08-25T01:47:31.122064+00:00'
+    updated_at: '2026-08-25T01:58:59.548696+00:00'
   - version: 1
     audit_id: audit-87569e599c91
     project_id: proj-14849f1b
@@ -208,6 +241,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-88e07bc49fbc
     selected_ref: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
     selected_sha: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
+    updated_at: '2026-08-25T01:58:59.548696+00:00'
+    eligible_at: '2026-08-25T01:58:59.548696+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-45c67241c50c
@@ -365,5 +400,23 @@ author: oompah
 created: 2026-08-25 01:48
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 01:59
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- selected_sha: 9993a92831f7916a0e8319cd0e1d06cc3423d37c
+- quality_gate: make test passed (194s, authority_current=true)
+- fix_location: oompah/server.py:4149 - transition.project_owner_authority_required added to expected_policy_rejections
+- related_codes_added: direct_owner_claim_authority_required, owner_claim_authority_unavailable, validation_submission_authority_required
+- test_file: tests/test_state_branch_fetch_error.py
+- test_class: TestUpdateIssueApiStateBranchFetchError
+- test_method: test_transition_rejection_returns_conflict_without_warning_or_error
+- test_asserts: HTTP 409 AND no ERROR-level oompah.server logs for all four new reason codes
+- task_transition_service_test: tests/test_task_transition_service.py:866 also asserts project_owner_authority_required reason code
 ---
 <!-- COMMENTS:END -->
