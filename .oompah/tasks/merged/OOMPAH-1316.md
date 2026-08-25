@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:48:11.061409Z'
-updated_at: '2026-08-25T22:47:50.150347Z'
+updated_at: '2026-08-25T22:47:56.190667Z'
 work_branch: OOMPAH-1316
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/903
@@ -208,8 +208,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-e3508d682e48
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-25T22:47:45.608714+00:00'
+    applied_at: '2026-08-25T22:47:54.586667+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -482,5 +483,23 @@ author: oompah
 created: 2026-08-25 22:45
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-25 22:47
+---
+Audit PASS — Merged
+
+Fix verified. `logger.error()` was changed to `logger.warning()` at oompah/orchestrator.py:58066 for the pre-provider contributor evidence timeout message. error_watcher.py:92 filters at logging.ERROR, so WARNING-level logs no longer trigger auto-filing. Test `test_pre_provider_evidence_timeout_releases_task_authority` covers the timeout path. Full gate `make test` passed at exact SHA 7e932a894d16d6f5530dbf43a2eebb93db8684ba (authoritative, 193.9s). All acceptance criteria satisfied. PASS.
+
+Safe evidence:
+- fix_location: oompah/orchestrator.py:58066
+- fix_description: logger.error() changed to logger.warning() for pre-provider contributor evidence timeout message
+- error_watcher_filter_level: logging.ERROR (error_watcher.py:92)
+- test_coverage: test_pre_provider_evidence_timeout_releases_task_authority in tests/test_provider_retirement.py
+- quality_gate_sha: 7e932a894d16d6f5530dbf43a2eebb93db8684ba
+- quality_gate_result: passed
+- quality_gate_command: make test
+- quality_gate_duration_seconds: 193.9
+- prior_audit_result: pass (attempt #1, same evidence)
 ---
 <!-- COMMENTS:END -->
