@@ -22478,6 +22478,13 @@ async def api_list_reviews():
             response = JSONResponse(reviews)
         return response
     except Exception as exc:
+        import sqlite3
+        if isinstance(exc, sqlite3.ProgrammingError) and "closed database" in str(exc).lower():
+            logger.warning("Reviews API temporary store failure: %s", exc)
+            return JSONResponse(
+                {"error": {"code": "store_closed", "message": "Review data temporarily unavailable; retry shortly."}},
+                status_code=503,
+            )
         logger.error("Reviews API error: %s", exc)
         return JSONResponse(
             {"error": {"code": "fetch_failed", "message": str(exc)}},
