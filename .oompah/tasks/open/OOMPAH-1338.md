@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T16:53:55.710371Z'
-updated_at: '2026-08-25T20:24:12.670893Z'
+updated_at: '2026-08-25T20:25:04.682429Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,14 +32,25 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 3b919e3a33c919aadfbcfc8cf23a19b5e4c1307b7458dd7e1b1e3924fa92f1de
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-25T20:24:54.108589+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: b69f9168cb20548795d6dea40f7ebea5d17458d903d8262f668c9661ab9eccbb:168473
-  claim_owner: a40199ea-9091-4b96-87de-6f33f559f142
-  claimed_at: '2026-08-25T20:22:45.272175+00:00'
-  claim_expires_at: '2026-08-25T20:52:45.272175+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: The closest related active incident in the corpus is\
+    \ **OOMPAH-1015** (backend `backend:terminal_audit_enforcement` malformed pre-recovery\
+    \ finalization metadata for `proj-14849f1b`), but it\u2019s a different backend\
+    \ component and error class than this task\u2019s `ProgrammingError('Cannot operate\
+    \ on a closed database.')` from `backend:server`.\nFocus handoff: duplicate_detector\
+    \  \nDuplicate preflight verdict: no_duplicate  \nMatches: none  \n\nEvidence:\
+    \ The closest related active incident in the corpus is **OOMPAH-1015** (backend\
+    \ `backend:terminal_audit_enforcement` malformed pre-recovery finalization metadata\
+    \ for `proj-14849f1b`), but it\u2019s a different backend component and error\
+    \ class than this task\u2019s `ProgrammingError('Cannot operate on a closed database.')`\
+    \ from `backend:server`."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
@@ -54,8 +65,24 @@ oompah.work_contributors:
     model_id: switchyard/auto
     focus: duplicate_detector
     source_branch: OOMPAH-1338
-    source_sha: null
-    completed_at: ''
+    source_sha: 2663cf7f063915c0037a983d77cca94bc0a984c3
+    completed_at: '2026-08-25T20:24:54.111699+00:00'
+oompah.task_costs:
+  total_input_tokens: 32526
+  total_output_tokens: 103
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 32526
+      output_tokens: 103
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 32526
+    output_tokens: 103
+    cost_usd: 0.0
+    recorded_at: '2026-08-25T20:24:54.107718+00:00'
 ---
 ## Summary
 
@@ -107,5 +134,15 @@ author: oompah
 created: 2026-08-25 20:24
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-25 20:24
+---
+Run #1 [attempt=1, profile=default, role=fast -> Opencode/Switchyard/switchyard/auto]
+- Turns: 0, Tool calls: 0
+- Tokens: 32.5K in / 103 out [41.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 37s
+- Log: OOMPAH-1338__20260825T202424Z.jsonl
 ---
 <!-- COMMENTS:END -->
