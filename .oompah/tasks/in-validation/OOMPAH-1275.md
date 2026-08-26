@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:19.724794Z'
-updated_at: '2026-08-26T20:41:21.651865Z'
+updated_at: '2026-08-26T20:41:43.381902Z'
 work_branch: OOMPAH-1275
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/937
@@ -97,13 +97,17 @@ oompah.work_contributors:
     source_sha: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
     completed_at: '2026-08-21T06:31:12.032874+00:00'
 oompah.task_costs:
-  total_input_tokens: 556
-  total_output_tokens: 17410
+  total_input_tokens: 570
+  total_output_tokens: 24472
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 556
       output_tokens: 17410
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 14
+      output_tokens: 7062
       cost_usd: 0.0
   runs:
   - profile: default
@@ -118,6 +122,12 @@ oompah.task_costs:
     output_tokens: 15698
     cost_usd: 0.0
     recorded_at: '2026-08-21T06:31:12.028048+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 14
+    output_tokens: 7062
+    cost_usd: 0.0
+    recorded_at: '2026-08-26T20:41:40.218827+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -447,5 +457,15 @@ Safe evidence:
 - test_default: tests/test_config.py:124 asserts 60.0
 - test_override: tests/test_config.py:162 asserts 45.0 override works
 - test_retirement: tests/test_provider_retirement.py has test_pre_provider_evidence_timeout_releases_task_authority
+---
+author: oompah
+created: 2026-08-26 20:41
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 34, Tool calls: 19
+- Tokens: 14 in / 7.1K out [7.1K total]
+- Cost: $0.0000
+- Exit: scheduler_pause, Duration: 6m 50s
+- Log: OOMPAH-1275__20260826T203508Z.jsonl
 ---
 <!-- COMMENTS:END -->
