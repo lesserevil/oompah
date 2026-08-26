@@ -503,3 +503,114 @@ class TestCreateIssueSourceTaskId:
         call_kwargs = mock_tracker.create_issue.call_args.kwargs
         description = call_kwargs.get("description", "")
         assert "Triggered by: example-org/oompah-tasks#99" in description
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/issues — StateBranchFetchError handling (OOMPAH-1334)
+# ---------------------------------------------------------------------------
+
+class TestCreateIssueStateBranchFetchError:
+    """Tests that StateBranchFetchError is handled gracefully (503 + WARNING, not ERROR)."""
+
+    def test_state_branch_fetch_error_returns_503_and_logs_warning(self, client):
+        """StateBranchFetchError should return 503 with retryable=True and log WARNING (not ERROR)."""
+        from oompah.tracker import StateBranchFetchError
+        
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        # Simulate a git fetch failure during issue creation
+        error_msg = "Cannot sync state branch 'oompah/state/proj-123': git fetch origin failed: Permission denied"
+        mock_tracker.create_issue.side_effect = StateBranchFetchError(error_msg)
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+            patch.object(server_module.logger, "warning") as mock_warning_log,
+            patch.object(server_module.logger, "error") as mock_error_log,
+        ):
+            resp = client.post(
+                "/api/v1/issues",
+                json={
+                    "title": "Test issue",
+                    "project_id": "proj-1",
+                    "description": "Test description",
+                },
+            )
+
+        # Should return 503 Service Unavailable
+        assert resp.status_code == 503
+        
+        # Response should indicate retryable error
+        resp_json = resp.json()
+        assert resp_json["error"]["code"] == "state_branch_fetch_failed"
+        assert resp_json["error"]["retryable"] is True
+        assert error_msg in resp_json["error"]["message"]
+        
+        # Should log at WARNING level (not ERROR) to avoid triggering error_watcher
+        mock_warning_log.assert_called_once()
+        assert "state branch fetch" in mock_warning_log.call_args[0][0].lower()
+        
+        # ERROR logger should NOT have been called
+        mock_error_log.assert_not_called()
+
+    def test_generic_exception_still_returns_500_and_logs_error(self, client):
+        """Generic exceptions should still return 500 and log ERROR (not affected by StateBranchFetchError handler)."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        # Simulate a different error (not StateBranchFetchError)
+        mock_tracker.create_issue.side_effect = RuntimeError("Some other error")
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+            patch.object(server_module.logger, "error") as mock_error_log,
+            patch.object(server_module.logger, "warning") as mock_warning_log,
+        ):
+            resp = client.post(
+                "/api/v1/issues",
+                json={
+                    "title": "Test issue",
+                    "project_id": "proj-1",
+                    "description": "Test description",
+                },
+            )
+
+        # Should return 500 Internal Server Error
+        assert resp.status_code == 500
+        
+        # Response should have generic error code
+        resp_json = resp.json()
+        assert resp_json["error"]["code"] == "create_failed"
+        
+        # Should log at ERROR level for non-StateBranchFetchError exceptions
+        mock_error_log.assert_called_once()
+        
+        # WARNING logger should NOT have been called
+        mock_warning_log.assert_not_called()
+
+    def test_state_branch_fetch_error_does_not_trigger_error_watcher(self, client):
+        """StateBranchFetchError should log at WARNING level to prevent error_watcher auto-filing."""
+        from oompah.tracker import StateBranchFetchError
+        
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        error_msg = "Cannot sync state branch: git fetch failed"
+        mock_tracker.create_issue.side_effect = StateBranchFetchError(error_msg)
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+            patch.object(server_module.logger, "warning") as mock_warning_log,
+        ):
+            resp = client.post(
+                "/api/v1/issues",
+                json={
+                    "title": "Test",
+                    "project_id": "proj-1",
+                    "description": "Test",
+                },
+            )
+
+        assert resp.status_code == 503
+        # Verify that WARNING was logged (not ERROR), so error_watcher won't trigger
+        mock_warning_log.assert_called_once()
+        log_message = mock_warning_log.call_args[0][0]
+        # The log message should indicate it's a state branch fetch issue
+        assert "state branch fetch" in log_message.lower()

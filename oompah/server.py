@@ -9493,6 +9493,8 @@ async def api_create_issue(request: Request):
     * absent / anything else — Verbatim write (back-compat default).
     """
     try:
+        from oompah.tracker import StateBranchFetchError
+        
         orch = _get_orchestrator()
         raw_idempotency_key = request.headers.get("Idempotency-Key")
         idempotency_key = (
@@ -9819,6 +9821,21 @@ async def api_create_issue(request: Request):
                 "error": {
                     "code": "task_create_busy",
                     "message": retry_message,
+                    "retryable": True,
+                }
+            },
+            status_code=503,
+        )
+    except StateBranchFetchError as exc:
+        # State branch fetch errors (e.g., network/auth issues with remote git)
+        # are transient/environmental and should not trigger error_watcher.
+        # Log as WARNING instead of ERROR and return 503 (Service Unavailable).
+        logger.warning("Create issue API error (state branch fetch): %s", exc)
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "state_branch_fetch_failed",
+                    "message": str(exc),
                     "retryable": True,
                 }
             },
