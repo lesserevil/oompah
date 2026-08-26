@@ -5004,6 +5004,79 @@ def _parent_scoped_child_fixture(*, revision="a" * 40):
     return task, parent, _parent_scoped_child_fact(revision=revision)
 
 
+def test_landing_request_resolver_scopes_parent_head_observations(tmp_path):
+    task = issue("TASK-A")
+    task.state = "Done"
+    task.parent_id = "E-1"
+    task.work_branch = "TASK-A"
+    parent = issue("E-1")
+    parent.issue_type = "epic"
+    parent.state = "Merged"
+    parent.work_branch = "epic/E-1"
+    parent.target_branch = "main"
+    parent.integration = None
+    tracker = Tracker([task, parent])
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    store.record_landing_facts(
+        project_id="project-1",
+        task_id=parent.identifier,
+        facts=(
+            _parent_scoped_child_fact(
+                source=parent.work_branch,
+                target=parent.target_branch,
+                revision="b" * 40,
+            ).to_dict(),
+        ),
+    )
+    landing_fact_calls = 0
+    original_latest = store.latest_landing_facts_for_pair
+
+    def latest_landing_facts_for_pair(**kwargs):
+        nonlocal landing_fact_calls
+        landing_fact_calls += 1
+        return original_latest(**kwargs)
+
+    store.latest_landing_facts_for_pair = latest_landing_facts_for_pair
+
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=tracker,
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+        workflow_store=store,
+        landing_collector=StableParentLandingCollector(),
+        parent_source_head_resolver=lambda _branch: "b" * 40,
+    )
+    authoritative = {item.identifier: item for item in (task, parent)}
+    children = {parent.identifier.casefold(): (task,)}
+
+    with resolver.observation_scope():
+        first = resolver(
+            task,
+            authoritative_issues=authoritative,
+            authoritative_children=children,
+        )
+        second = resolver(
+            task,
+            authoritative_issues=authoritative,
+            authoritative_children=children,
+        )
+    assert first == second
+    # One lookup resolves the terminal parent head and one resolves the
+    # parent's child-landing fact. The repeated request reuses both.
+    assert landing_fact_calls == 2
+
+    resolver(
+        task,
+        authoritative_issues=authoritative,
+        authoritative_children=children,
+    )
+    assert landing_fact_calls == 3
+    store.close()
+
+
 def test_post_landed_parent_target_requires_fresh_exact_landing_fact(tmp_path):
     task = issue("TASK-A")
     task.parent_id = "E-1"

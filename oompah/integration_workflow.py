@@ -15,6 +15,7 @@ import contextlib
 import hashlib
 import inspect
 import re
+import threading
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
@@ -379,6 +380,44 @@ class IntegrationLandingRequestResolver:
         self.forge_review_resolver = forge_review_resolver
         self.landing_collector = landing_collector
         self.parent_source_head_resolver = parent_source_head_resolver
+        self._observation_state = threading.local()
+
+    @contextlib.contextmanager
+    def observation_scope(self):
+        """Memoize request resolution for one authoritative world scan.
+
+        Resolving a Done child can consult its parent, children, queue row,
+        persisted landing evidence, forge review, and remote branch head.  A
+        large rollup otherwise repeats those external observations once per
+        child even though all children are evaluated from the same immutable
+        tracker cut.  The cache is thread-local and deliberately discarded at
+        the publication boundary so later generations always observe fresh
+        authority.
+        """
+
+        previous_requests = getattr(self._observation_state, "requests", None)
+        previous_parent_heads = getattr(
+            self._observation_state, "parent_heads", None
+        )
+        self._observation_state.requests = {}
+        self._observation_state.parent_heads = {}
+        try:
+            yield
+        finally:
+            if previous_requests is None:
+                try:
+                    del self._observation_state.requests
+                except AttributeError:
+                    pass
+            else:
+                self._observation_state.requests = previous_requests
+            if previous_parent_heads is None:
+                try:
+                    del self._observation_state.parent_heads
+                except AttributeError:
+                    pass
+            else:
+                self._observation_state.parent_heads = previous_parent_heads
 
     @staticmethod
     def _git_revision(value: object) -> str | None:
@@ -861,6 +900,24 @@ class IntegrationLandingRequestResolver:
         parent: Issue,
         source_branch: str,
     ) -> str | None:
+        cache = getattr(self._observation_state, "parent_heads", None)
+        cache_key = (
+            parent.identifier,
+            issue_authority_version(parent),
+            source_branch,
+        )
+        if cache is not None and cache_key in cache:
+            return cache[cache_key]
+        result = self._trusted_terminal_parent_head_uncached(parent, source_branch)
+        if cache is not None:
+            cache[cache_key] = result
+        return result
+
+    def _trusted_terminal_parent_head_uncached(
+        self,
+        parent: Issue,
+        source_branch: str,
+    ) -> str | None:
         if canonicalize_status(parent.state) not in {MERGED, ARCHIVED}:
             return None
         integration = getattr(parent, "integration", None)
@@ -1190,6 +1247,11 @@ class IntegrationLandingRequestResolver:
         authoritative_issues: Mapping[str, Issue] | None = None,
         authoritative_children: Mapping[str, Sequence[Issue]] | None = None,
     ) -> tuple[LandingRequest, ...]:
+        scoped_requests = getattr(self._observation_state, "requests", None)
+        cache_key = (task.identifier, issue_authority_version(task), include_ready)
+        if scoped_requests is not None and cache_key in scoped_requests:
+            return scoped_requests[cache_key]
+
         value = self._record_value(task)
         row = self._queue_row(task)
         record_state = str(value.get("state") or "").strip().lower()
@@ -1275,7 +1337,7 @@ class IntegrationLandingRequestResolver:
         if not source or not target:
             return ()
         try:
-            return (
+            result = (
                 LandingRequest(
                     source,
                     target,
@@ -1286,7 +1348,10 @@ class IntegrationLandingRequestResolver:
                 ),
             )
         except ValueError:
-            return ()
+            result = ()
+        if scoped_requests is not None:
+            scoped_requests[cache_key] = result
+        return result
 
 
 class IntegrationWorkflowController:

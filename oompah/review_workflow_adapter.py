@@ -14,6 +14,7 @@ import contextlib
 import re
 import threading
 from collections.abc import Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any
@@ -102,6 +103,33 @@ class FreshReviewFactSource:
             raise ValueError("project_id is required")
         self._local = threading.local()
 
+    @contextmanager
+    def observation_scope(self):
+        """Share one successful forge listing across a reconciliation pass.
+
+        The review controller evaluates every In Review task from one tracker
+        snapshot. Fetching the same project's complete open-review list once
+        per task is both expensive and less coherent than selecting all task
+        reviews from one provider observation. The scope is thread-local and
+        discarded before the next authoritative pass.
+        """
+
+        previous = getattr(self._local, "open_reviews", None)
+        self._local.open_reviews = None
+        self._local.open_reviews_loaded = False
+        try:
+            yield
+        finally:
+            if previous is None:
+                for name in ("open_reviews", "open_reviews_loaded"):
+                    try:
+                        delattr(self._local, name)
+                    except AttributeError:
+                        pass
+            else:
+                self._local.open_reviews = previous
+                self._local.open_reviews_loaded = True
+
     def _project(self) -> Any:
         project = self.orchestrator.project_store.get(self.project_id)
         if project is None:
@@ -174,6 +202,26 @@ class FreshReviewFactSource:
         provider_label = (
             _text(provider_name()) if callable(provider_name) else type(provider).__name__
         )
+        reviews = None
+        if getattr(self._local, "open_reviews_loaded", False):
+            reviews = getattr(self._local, "open_reviews", None)
+        else:
+            try:
+                reviews = provider.list_open_reviews(repo)
+            except Exception as exc:  # noqa: BLE001 - provider evidence boundary
+                raise ReviewObservationUnavailable(
+                    "review provider unavailable"
+                ) from exc
+            if (
+                reviews is None
+                or getattr(provider, "last_open_reviews_fetch_ok", True) is False
+            ):
+                raise ReviewObservationUnavailable("review provider unavailable")
+            reviews = tuple(reviews)
+            if hasattr(self._local, "open_reviews_loaded"):
+                self._local.open_reviews = reviews
+                self._local.open_reviews_loaded = True
+
         raw = review_fact_source(
             provider,
             repo,
@@ -181,6 +229,7 @@ class FreshReviewFactSource:
             review_id=_text(issue.review_number) or None,
             source_branch=self._source(issue) or None,
             capacity={"limit": int(getattr(project, "max_in_flight_prs", 1))},
+            open_reviews=reviews,
         )(issue)
         observation = self._observation(raw)
         contexts[issue.identifier] = FreshReviewContext(

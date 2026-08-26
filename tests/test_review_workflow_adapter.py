@@ -284,6 +284,28 @@ def test_fresh_source_distinguishes_provider_failure_from_empty(
         store.close()
 
 
+def test_fresh_source_observation_scope_fetches_open_reviews_once(
+    tmp_path, monkeypatch
+):
+    provider = Provider([review(ci=CIStatus.PASSED)])
+    orchestrator, binding, store, capacity = composition(
+        tmp_path, monkeypatch, provider
+    )
+    source = binding.review_controller.collector.sources[FactDomain.REVIEW_CI]
+    try:
+        with source.observation_scope():
+            assert source(task("project-1"))["ci"] == "passed"
+            assert source(task("project-1"))["ci"] == "passed"
+        assert provider.list_calls == 1
+
+        with source.observation_scope():
+            assert source(task("project-1"))["ci"] == "passed"
+        assert provider.list_calls == 2
+    finally:
+        capacity.close()
+        store.close()
+
+
 def test_handler_factory_covers_all_declared_review_actions(
     tmp_path, monkeypatch
 ):

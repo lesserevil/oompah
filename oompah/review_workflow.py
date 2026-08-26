@@ -218,6 +218,7 @@ def review_fact_source(
     source_branch: str | None = None,
     capacity: Mapping[str, Any] | None = None,
     source_exists: Callable[[str], bool | None] | None = None,
+    open_reviews: Sequence[Any] | None = None,
 ):
     """Build a collector source that preserves timeout vs empty semantics.
 
@@ -228,14 +229,16 @@ def review_fact_source(
     """
 
     def collect(_issue: Issue) -> Mapping[str, Any]:
-        try:
-            reviews = provider.list_open_reviews(repo)
-        except Exception as exc:  # noqa: BLE001 - collector turns this into a fact error
-            raise ReviewObservationUnavailable("review provider unavailable") from exc
-        if getattr(provider, "last_open_reviews_fetch_ok", True) is False:
-            raise ReviewObservationUnavailable("review provider unavailable")
+        reviews = open_reviews
         if reviews is None:
-            raise ReviewObservationUnavailable("review provider returned no result")
+            try:
+                reviews = provider.list_open_reviews(repo)
+            except Exception as exc:  # noqa: BLE001 - collector turns this into a fact error
+                raise ReviewObservationUnavailable("review provider unavailable") from exc
+            if getattr(provider, "last_open_reviews_fetch_ok", True) is False:
+                raise ReviewObservationUnavailable("review provider unavailable")
+            if reviews is None:
+                raise ReviewObservationUnavailable("review provider returned no result")
         selected = None
         if review_id:
             selected = next(
