@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:10.725032Z'
-updated_at: '2026-08-26T19:32:00.686762Z'
+updated_at: '2026-08-26T20:26:53.964781Z'
 work_branch: OOMPAH-1344
 target_branch: null
 review_url: null
@@ -75,5 +75,10 @@ author: oompah
 created: 2026-08-26 19:31
 ---
 Direct implementation is committed and pushed. Keep this task reserved for the current manual recovery session; do not dispatch it to the oompah worker.
+---
+author: oompah
+created: 2026-08-26 20:26
+---
+Validation update: combined focused suites pass (756 tests). Full make test reached 20,447 passed with only tests/test_restart_api.py::test_repeated_replacement_timeout_detection_under_load timing out under parallel load; rerunning that test alone passes. No product failure observed.
 ---
 <!-- COMMENTS:END -->
