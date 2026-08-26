@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:53:32.349118Z'
-updated_at: '2026-08-26T04:48:47.155916Z'
+updated_at: '2026-08-26T04:48:55.579693Z'
 work_branch: OOMPAH-1294
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/910
@@ -243,8 +243,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-af7bed539b77
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-26T04:48:39.641998+00:00'
+    applied_at: '2026-08-26T04:48:53.362910+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -617,5 +618,21 @@ author: oompah
 created: 2026-08-26 04:37
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 04:48
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- suppression_guard_location: oompah/error_watcher.py:654-655 — hasattr(record, 'pre_provider_retirement') early-return guard
+- orchestrator_log_level: WARNING at orchestrator.py:58066 for bounded task-authority deadline message
+- orchestrator_extra_attribute: pre_provider_retirement attached at orchestrator.py:58075, 57960, 58111
+- new_test: TestTaskLoggingHandlerErrorClass::test_handler_suppresses_pre_provider_retirement_errors — PASSED
+- non_regression_tests: 3 pre-existing TestTaskLoggingHandlerErrorClass tests all PASSED
+- full_gate_sha: 949ae454f8872550c530743a531a6a76b6fbfd50
+- full_gate_result: passed (make test, 199.5s)
 ---
 <!-- COMMENTS:END -->
