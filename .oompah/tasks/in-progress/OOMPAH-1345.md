@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:16.245447Z'
-updated_at: '2026-08-26T20:30:24.889456Z'
+updated_at: '2026-08-26T20:30:38.806349Z'
 work_branch: OOMPAH-1345
 target_branch: main
 review_url: null
@@ -83,5 +83,10 @@ author: oompah
 created: 2026-08-26 20:26
 ---
 Validation update: combined focused suites pass (756 tests). Full make test reached 20,447 passed with only tests/test_restart_api.py::test_repeated_replacement_timeout_detection_under_load timing out under parallel load; rerunning that test alone passes. No product failure observed.
+---
+author: oompah
+created: 2026-08-26 20:30
+---
+Reviews API now returns the scheduler-maintained generation-aware snapshot without request-path forge I/O; focused reviews tests pass.
 ---
 <!-- COMMENTS:END -->
