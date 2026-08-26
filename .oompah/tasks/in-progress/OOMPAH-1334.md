@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:31:41.109952Z'
-updated_at: '2026-08-26T06:43:59.609824Z'
+updated_at: '2026-08-26T06:54:47.179662Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -389,5 +389,10 @@ author: oompah
 created: 2026-08-26 06:43
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-08-26 06:54
+---
+Implemented: server.create_issue now catches StateBranchFetchError and degrades gracefully (503 + WARNING) instead of logging ERROR, preventing error_watcher auto-filing. Files: oompah/server.py, tests/test_server_create_issue.py. Test: pytest -q tests/test_server_create_issue.py::TestCreateIssueStateBranchFetchError::test_state_branch_fetch_error_returns_503_and_logs_warning. Note: Unable to submit because current worktree branch is OOMPAH-1219, but task expects OOMPAH-1334.
 ---
 <!-- COMMENTS:END -->
