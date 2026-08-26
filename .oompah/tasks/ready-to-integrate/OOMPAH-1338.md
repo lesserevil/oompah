@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T16:53:55.710371Z'
-updated_at: '2026-08-25T22:39:14.430894Z'
+updated_at: '2026-08-26T06:24:41.005881Z'
 work_branch: OOMPAH-1338
 target_branch: null
 review_url: null
@@ -253,5 +253,14 @@ author: oompah
 created: 2026-08-25 22:38
 ---
 COMPLETED: Fixed OOMPAH-1338 - Reviews API closed database error handling. Root cause: endpoint logged ERROR for all exceptions, triggering error_watcher. Solution: detect sqlite3.ProgrammingError with 'closed database' and return 503/WARNING instead of 500/ERROR. Verification: all 4 regression tests pass, backward compatibility maintained. Code committed and pushed to branch OOMPAH-1338, task submitted for integration.
+---
+author: oompah
+created: 2026-08-26 06:24
+---
+Duplicate error_watcher occurrence suppressed; this task already tracks the same dedup fingerprint.
+
+Source: `backend:server`
+
+Message: Reviews API error: ProgrammingError('Cannot operate on a closed database.')
 ---
 <!-- COMMENTS:END -->
