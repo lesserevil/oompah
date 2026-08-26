@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1336
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:__main__] Orchestrator thread crashed'
 parent: null
@@ -11,14 +11,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:36.934588Z'
-updated_at: '2026-08-26T00:57:56.305735Z'
+updated_at: '2026-08-26T00:58:04.892660Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 oompah.last_batch:
   batch_id: batch-6f0e83c8e44c413d864c213fbfd4e455
   actor: shedwards
