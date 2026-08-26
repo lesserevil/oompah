@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:31:41.109952Z'
-updated_at: '2026-08-26T07:15:59.113982Z'
+updated_at: '2026-08-26T07:22:21.819431Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -440,5 +440,27 @@ created: 2026-08-26 07:15
 3. Log with logger.warning() and return 503 status code
 4. Add comprehensive unit tests to verify behavior
 5. Run tests to verify no regressions
+---
+author: oompah
+created: 2026-08-26 07:22
+---
+**Discovery & Implementation**: Found and fixed the issue in oompah/server.py api_create_issue endpoint.
+
+**Root cause**: When the tracker.create_issue() call raises StateBranchFetchError (git fetch failures), it was caught by the generic Exception handler which logs at ERROR level, triggering error_watcher auto-filing.
+
+**Fix applied**:
+1. Added import: from oompah.tracker import StateBranchFetchError
+2. Added specific exception handler for StateBranchFetchError before generic Exception handler
+3. Changed logging from ERROR to WARNING (prevents error_watcher trigger)
+4. Return 503 Service Unavailable (not 500) with retryable=True flag
+5. Error code: state_branch_fetch_failed
+
+**Tests added**: 
+- test_state_branch_fetch_error_returns_503_and_logs_warning: Verifies 503 response and WARNING log
+- test_generic_exception_still_returns_500_and_logs_error: Verifies other exceptions still log ERROR 
+- test_state_branch_fetch_error_does_not_trigger_error_watcher: Confirms WARNING-level logging
+
+**Test results**: All 24 tests pass (3 new + 21 existing, no regressions)
+Files modified: oompah/server.py, tests/test_server_create_issue.py
 ---
 <!-- COMMENTS:END -->
