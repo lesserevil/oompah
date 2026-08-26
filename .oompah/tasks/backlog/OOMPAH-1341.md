@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T16:14:26.107948Z'
-updated_at: '2026-08-26T16:14:26.107948Z'
+updated_at: '2026-08-26T16:16:42.298308Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,3 +56,11 @@ The configured stalled-task watchdog never runs in production when WorkflowRunti
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-26 16:16
+---
+Direct owner: I am implementing this watchdog/review-capacity fix now and will carry it through tests, PR merge, deployment, and live verification. No separate agent dispatch is required.
+---
+<!-- COMMENTS:END -->
