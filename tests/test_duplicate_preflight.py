@@ -746,8 +746,9 @@ def test_ready_standalone_config_source_reuses_remote_observation():
         wraps=original_recovery,
     ) as recovery:
         sources = orch._workflow_shadow_sources(issue)
-        first = sources[FactDomain.CONFIG](issue)
-        second = sources[FactDomain.CONFIG](issue)
+        with sources[FactDomain.CONFIG].observation_scope():
+            first = sources[FactDomain.CONFIG](issue)
+            second = sources[FactDomain.CONFIG](issue)
 
     assert first == second
     assert recovery.call_count == 1

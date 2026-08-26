@@ -281,6 +281,7 @@ class WorkflowProjectBinding:
         [WorkDecision, Mapping[str, Any], str | None], bool
     ] | None = None
     terminal_audit_publication_lock: Callable[[], Any] | None = None
+    observation_sources: tuple[Any, ...] = ()
     terminal_authority_revision_source: Callable[[], int] | None = None
     terminal_authority_changes_source: Callable[
         [int], tuple[int, frozenset[str] | None]
@@ -1510,6 +1511,7 @@ class WorkflowRuntime:
                 epic_controller=epic_controller,
                 terminal_audit_workflow=terminal_workflow,
                 transition_journal=journal,
+                observation_sources=tuple(sources.values()),
                 terminal_audit_proof_source=terminal_audit_proof_source,
                 terminal_audit_snapshot_proof_source=(
                     terminal_audit_snapshot_proof_source
@@ -2832,6 +2834,7 @@ class WorkflowRuntime:
                 ),
                 getattr(binding.epic_collector, "landing_collector", None),
             )
+            scoped_objects = (*binding.observation_sources, *scoped_objects)
             for scoped_object in scoped_objects:
                 identity = id(scoped_object)
                 if scoped_object is None or identity in seen:

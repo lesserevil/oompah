@@ -15922,10 +15922,18 @@ class Orchestrator:
 
         # These closures are reused for every task in a project reconciliation
         # pass. Cache expensive immutable reads by their complete authority
-        # identity; a new call to this factory creates a fresh generation scope.
+        # identity; ``observation_scope`` clears the cache at each generation.
         accepted_recovery_cache: dict[
             tuple[str, str, str, str], tuple[bool, str, str, OwnerClaim | None]
         ] = {}
+
+        @contextlib.contextmanager
+        def observation_scope():
+            accepted_recovery_cache.clear()
+            try:
+                yield
+            finally:
+                accepted_recovery_cache.clear()
 
         def active_durable_job(
             current: Issue,
@@ -16663,7 +16671,7 @@ class Orchestrator:
                 value["duplicate_screening_error"] = type(exc).__name__
             return value
 
-        return {
+        result = {
             FactDomain.TERMINAL_AUDIT: terminal_audit,
             FactDomain.REVIEW_CI: review_ci,
             FactDomain.IMPLEMENTATION_AUTHORITY: implementation_authority,
@@ -16671,6 +16679,9 @@ class Orchestrator:
             FactDomain.RETRY_BUDGET: retry_budget,
             FactDomain.CONFIG: config,
         }
+        for source in result.values():
+            setattr(source, "observation_scope", observation_scope)
+        return result
 
     def _universal_workflow_fact_collector(
         self,
