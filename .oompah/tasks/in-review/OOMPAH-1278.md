@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1278
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=OOMPAH-1206 identifier=OOMPAH-1206 run_id=492b9a9720f6490dbdbde0e0652e76a2
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:48:41.811265Z'
-updated_at: '2026-08-26T16:48:43.817251Z'
+updated_at: '2026-08-26T16:48:56.848206Z'
 work_branch: OOMPAH-1278
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/941
 review_number: '941'
-review_head: null
+review_head: 65e92b0fd75a91e4f845adea4765ae3e57670b6d
 merged_at: null
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -135,6 +135,7 @@ oompah.work_branch: OOMPAH-1278
 oompah.review_url: https://github.com/lesserevil/oompah/pull/941
 oompah.review_number: '941'
 oompah.target_branch: main
+oompah.review_head: 65e92b0fd75a91e4f845adea4765ae3e57670b6d
 ---
 ## Summary
 
