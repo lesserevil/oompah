@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1345
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Serve reviews API from a bounded generation-aware snapshot
 parent: OOMPAH-1342
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:16.245447Z'
-updated_at: '2026-08-26T18:46:18.330652Z'
+updated_at: '2026-08-26T18:49:22.151653Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,6 +25,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: manual-service-recovery-20260826-reviews-api
   request_fingerprint: 5a3db0f23c9f70bbbab1f418eae47d0ecb3157c46df451e04969ebec76c5df55
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1344
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Bound workflow reconciliation and deduplicate forge observations
 parent: OOMPAH-1342
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:10.725032Z'
-updated_at: '2026-08-26T18:46:13.491951Z'
+updated_at: '2026-08-26T18:49:16.010610Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,6 +25,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: manual-service-recovery-20260826-reconcile
   request_fingerprint: e6c78ba0978cc6d0161af8a4dfd78cefb2d4c74f979a7ef712c76116bc784ea9
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
