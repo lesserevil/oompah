@@ -8,10 +8,11 @@ parent: OOMPAH-1342
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-26T18:43:16.245447Z'
-updated_at: '2026-08-26T19:30:59.936115Z'
+updated_at: '2026-08-26T19:32:06.959889Z'
 work_branch: OOMPAH-1345
 target_branch: null
 review_url: null
@@ -69,5 +70,10 @@ author: oompah
 created: 2026-08-26 19:30
 ---
 Implementation complete under direct owner claim; focused tests pass.
+---
+author: oompah
+created: 2026-08-26 19:32
+---
+Direct implementation is committed and pushed. Keep this task reserved for the current manual recovery session; do not dispatch it to the oompah worker.
 ---
 <!-- COMMENTS:END -->
