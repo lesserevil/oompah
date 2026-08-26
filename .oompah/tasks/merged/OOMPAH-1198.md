@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:04.107366Z'
-updated_at: '2026-08-26T23:41:56.964940Z'
+updated_at: '2026-08-26T23:42:19.856634Z'
 work_branch: OOMPAH-1198
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/943
@@ -209,8 +209,8 @@ oompah.work_contributors:
     source_sha: 7b780193a56696ec1961f882b1916d967d5f8032
     completed_at: '2026-08-25T00:00:41.508877+00:00'
 oompah.task_costs:
-  total_input_tokens: 321
-  total_output_tokens: 20457
+  total_input_tokens: 332
+  total_output_tokens: 24176
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -218,8 +218,8 @@ oompah.task_costs:
       output_tokens: 12661
       cost_usd: 0.0
     unknown:
-      input_tokens: 37
-      output_tokens: 7796
+      input_tokens: 48
+      output_tokens: 11515
       cost_usd: 0.0
   runs:
   - profile: default
@@ -258,6 +258,12 @@ oompah.task_costs:
     output_tokens: 7796
     cost_usd: 0.0
     recorded_at: '2026-08-26T20:43:08.138080+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 11
+    output_tokens: 3719
+    cost_usd: 0.0
+    recorded_at: '2026-08-26T23:42:16.805332+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -945,5 +951,15 @@ Safe evidence:
 - fix_summary: canonical_remote_url param replaces stale SSH origin for fetch/push in _git(); execute_integration() passes it through; orchestrator supplies project.repo_url
 - regression_tests: test_managed_git_credentials.py::test_project_network_runner_uses_canonical_remote_over_stale_origin, test_managed_git_credentials.py::test_private_epic_dispatch_refreshes_through_canonical_remote
 - supplemental_tests: test_epic_rebase_state.py canonical_remote_url assertions, test_oompah_md_tracker_state_branch.py::test_managed_canonical_remote_overrides_stale_origin_and_ambient_rewrite, test_projects.py::test_canonical_remote_url_is_server_owned
+---
+author: oompah
+created: 2026-08-26 23:42
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 23, Tool calls: 13
+- Tokens: 11 in / 3.7K out [3.7K total]
+- Cost: $0.0000
+- Exit: scheduler_pause, Duration: 4m 32s
+- Log: OOMPAH-1198__20260826T233802Z.jsonl
 ---
 <!-- COMMENTS:END -->
