@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:05.336022Z'
-updated_at: '2026-08-26T18:54:57.411199Z'
+updated_at: '2026-08-26T18:56:36.266275Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,3 +37,11 @@ Execute workstream 1 of plans/service-throughput-recovery.md without delegating 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-26 18:56
+---
+Direct implementation ownership assigned to the current manual recovery session (owner claim: shedwards). The project is paused and the human-only fence is present; do not dispatch this task to an autonomous worker.
+---
+<!-- COMMENTS:END -->

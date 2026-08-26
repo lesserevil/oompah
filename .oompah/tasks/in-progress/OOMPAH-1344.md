@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:10.725032Z'
-updated_at: '2026-08-26T18:55:19.689970Z'
+updated_at: '2026-08-26T18:56:41.478888Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,3 +37,11 @@ Implement workstream 2 of plans/service-throughput-recovery.md. Profile the dura
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-26 18:56
+---
+Direct implementation ownership assigned to the current manual recovery session (owner claim: shedwards). The project is paused and the human-only fence is present; do not dispatch this task to an autonomous worker.
+---
+<!-- COMMENTS:END -->
