@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:36.934588Z'
-updated_at: '2026-08-26T00:58:26.104711Z'
+updated_at: '2026-08-26T01:01:33.633554Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -237,5 +237,23 @@ author: oompah
 created: 2026-08-26 00:58
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-26 01:01
+---
+**Understanding & Investigation Plan**
+
+The issue is that the orchestrator thread is crashing and error_watcher is auto-filing it as a task. Looking at the code flow:
+
+1. In __main__.py, _run_orchestrator_thread() calls asyncio.run(orchestrator.run())
+2. When any exception occurs, it logs: logger.exception('Orchestrator thread crashed', extra=extra)
+3. This ERROR-level log is intercepted by error_watcher and auto-filed as a task
+
+Current approach:
+- Locate the actual root cause of the orchestrator crash
+- Either fix the crash or add proper error handling/recovery
+- Ensure error_watcher is not triggered for expected failures
+
+Starting investigation of orchestrator.py to identify what's causing the crash.
 ---
 <!-- COMMENTS:END -->
