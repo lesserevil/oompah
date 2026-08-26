@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:36.934588Z'
-updated_at: '2026-08-26T01:16:12.222829Z'
+updated_at: '2026-08-26T01:16:23.268856Z'
 work_branch: OOMPAH-1336
 target_branch: null
 review_url: null
@@ -339,5 +339,10 @@ The fix properly handles:
 3. Unexpected crashes (ERROR level - will trigger error_watcher for investigation)
 
 Code is ready for review and integration.
+---
+author: oompah
+created: 2026-08-26 01:16
+---
+Fixed orchestrator thread crash auto-filing by improving exception handling and error classification. Expected shutdown errors now logged at appropriate level (INFO/WARNING) instead of ERROR, preventing spurious error_watcher task creation. Genuine crashes still trigger error_watcher. All tests passing.
 ---
 <!-- COMMENTS:END -->
