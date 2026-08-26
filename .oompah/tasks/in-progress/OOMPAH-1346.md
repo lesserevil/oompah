@@ -12,8 +12,8 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:27.314224Z'
-updated_at: '2026-08-26T18:57:01.318138Z'
-work_branch: null
+updated_at: '2026-08-26T19:29:25.256226Z'
+work_branch: OOMPAH-1346
 target_branch: null
 review_url: null
 review_number: null
@@ -26,6 +26,18 @@ oompah.create_once:
   creation_marker: manual-service-recovery-20260826-storage
   request_fingerprint: 6f66fb1566bdbad6da13f55ff0f2452ac19762cc3b8a1311af536d410e883581
 oompah.lifecycle_revision: 2
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-1346
+  base_branch: epic-OOMPAH-1342
+  base_sha: d258fc16b1478ff902139c66cdb3e51fa96d209c
+  head_sha: f7c4fc4a89012e7173bb09e6ffd3743fdd32f0d6
+  submitted_at: '2026-08-26T19:29:12.982338+00:00'
+  updated_at: '2026-08-26T19:29:12.982338+00:00'
+oompah.work_branch: OOMPAH-1346
 ---
 ## Summary
 
@@ -43,5 +55,10 @@ author: oompah
 created: 2026-08-26 18:57
 ---
 Direct implementation ownership assigned to the current manual recovery session (owner claim: shedwards). The project is paused and the human-only fence is present; do not dispatch this task to an autonomous worker.
+---
+author: oompah
+created: 2026-08-26 19:29
+---
+Added bounded age-based retention for cold workflow events, removed scheduler-path VACUUM, documented configuration, and added tests. Focused storage/config suite passes.
 ---
 <!-- COMMENTS:END -->
