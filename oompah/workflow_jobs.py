@@ -5579,6 +5579,60 @@ class WorkflowJobStore:
                 raise
         return {"events": archived_events}
 
+    def prune_archived_events(
+        self,
+        *,
+        older_than: float,
+        max_events: int = 50000,
+    ) -> int:
+        """Delete a bounded batch of expired cold audit events.
+
+        The archive is operational history rather than scheduling authority.
+        Deletion is intentionally restricted to the cold table and bounded by
+        both age and row count; the persisted event high-water mark keeps ABA
+        protection monotonic after old rows are removed.
+        """
+
+        cutoff = float(older_than)
+        event_budget = max(1, int(max_events))
+        with self._authority_mutation_guard():
+            owns_transaction = not self._conn.in_transaction
+            if owns_transaction:
+                self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                rows = self._conn.execute(
+                    """
+                    SELECT sequence
+                      FROM workflow_job_events_archive
+                     WHERE archived_at < ?
+                     ORDER BY sequence
+                     LIMIT ?
+                    """,
+                    (cutoff, event_budget),
+                ).fetchall()
+                if not rows:
+                    if owns_transaction:
+                        self._conn.commit()
+                    return 0
+                lo = min(int(row["sequence"]) for row in rows)
+                hi = max(int(row["sequence"]) for row in rows)
+                cursor = self._conn.execute(
+                    """
+                    DELETE FROM workflow_job_events_archive
+                     WHERE archived_at < ?
+                       AND sequence >= ? AND sequence <= ?
+                    """,
+                    (cutoff, lo, hi),
+                )
+                deleted = int(cursor.rowcount)
+                if owns_transaction:
+                    self._conn.commit()
+                return deleted
+            except Exception:
+                if owns_transaction:
+                    self._conn.rollback()
+                raise
+
     def vacuum(self) -> None:
         """Reclaim free pages after large archival deletes.
 

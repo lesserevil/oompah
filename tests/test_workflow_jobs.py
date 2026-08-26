@@ -4459,6 +4459,20 @@ def test_archive_rollback_preserves_high_water(store, clock):
     assert after == before
 
 
+def test_prune_archived_events_is_age_and_batch_bounded(store, clock):
+    _seed_rollback_events(
+        store, clock, project_id="p", task_id="TRICKLE-OLD", count=12
+    )
+    store.archive_rollback_events(max_events=1000, keep_recent=0, now=10.0)
+
+    assert store.prune_archived_events(older_than=11.0, max_events=5) == 5
+    assert store._conn.execute(  # noqa: SLF001
+        "SELECT count(*) AS c FROM workflow_job_events_archive"
+    ).fetchone()["c"] == 7
+    assert store.prune_archived_events(older_than=9.0, max_events=50) == 0
+    assert store.prune_archived_events(older_than=11.0, max_events=50) == 7
+
+
 def test_vacuum_runs_without_error(store, clock):
     _seed_rollback_events(
         store, clock, project_id="p", task_id="TRICKLE-V", count=20

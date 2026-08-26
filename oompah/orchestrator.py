@@ -6391,19 +6391,41 @@ class Orchestrator:
                     "Workflow rollback-event archival deferred: %s",
                     type(exc).__name__,
                 )
-        # Reclaim freed pages only after a substantial drain, since VACUUM
-        # rewrites the whole database file and is comparatively expensive.
-        if relocated >= 10000:
-            vacuum = getattr(store, "vacuum", None)
-            if vacuum is not None:
-                try:
-                    vacuum()
-                except Exception as exc:  # noqa: BLE001 - best effort
-                    logger.warning(
-                        "Workflow job-store VACUUM deferred: %s",
-                        type(exc).__name__,
+        pruner = getattr(store, "prune_archived_events", None)
+        pruned = 0
+        if callable(pruner):
+            try:
+                pruned = int(
+                    pruner(
+                        older_than=(
+                            time.time()
+                            - self.config.workflow_event_archive_retention_seconds
+                        ),
+                        max_events=self.config.workflow_event_archive_batch_size,
                     )
-        return relocated
+                )
+            except Exception as exc:  # noqa: BLE001 - retry on next sweep
+                logger.warning(
+                    "Workflow archived-event retention deferred: %s",
+                    type(exc).__name__,
+                )
+        self._maintenance_status["workflow_event_archival"] = {
+            "last_run_at": datetime.now(timezone.utc).isoformat(),
+            "relocated": relocated,
+            "pruned": pruned,
+            "retention_seconds": (
+                self.config.workflow_event_archive_retention_seconds
+            ),
+            "batch_size": self.config.workflow_event_archive_batch_size,
+            "deferred": bool(
+                pruned >= self.config.workflow_event_archive_batch_size
+            ),
+        }
+        # VACUUM rewrites the whole database and previously ran on the shared
+        # scheduler executor. Leave file compaction to an explicit offline
+        # operator operation; bounded row retention keeps routine housekeeping
+        # responsive and releases pages for SQLite reuse.
+        return relocated + pruned
 
     def _reconcile_inactive_owner_claims(self) -> int:
         """Retry stale exact-claim retirement without superseding active work."""
