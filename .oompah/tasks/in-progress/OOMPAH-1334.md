@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:31:41.109952Z'
-updated_at: '2026-08-26T06:42:34.112846Z'
+updated_at: '2026-08-26T06:43:51.629930Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -131,6 +131,14 @@ oompah.work_contributors:
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-luna
+    focus: security
+    source_branch: OOMPAH-1334
+    source_sha: null
+    completed_at: ''
+  - run_id: aaea5160b8d248c4b36a8f8209e922f1--contributor-86e3ac8153e1
+    provider_id: prov-6cf41c89
+    provider_name: Opencode/Switchyard
+    model_id: switchyard/auto
     focus: security
     source_branch: OOMPAH-1334
     source_sha: null
