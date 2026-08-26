@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1271
 type: bug
-status: In Review
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=OOMPAH-1195 identifier=OOMPAH-1195 run_id=ced25410896e41afb3bf7d9c9eb3e65d
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:36:38.933130Z'
-updated_at: '2026-08-26T11:47:50.854525Z'
+updated_at: '2026-08-26T11:58:31.154272Z'
 work_branch: OOMPAH-1271
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/934
 review_number: '934'
 review_head: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
 merged_at: null
-oompah.lifecycle_revision: 6
+oompah.lifecycle_revision: 7
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -213,6 +213,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/934
 oompah.review_number: '934'
 oompah.target_branch: main
 oompah.review_head: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-cc12bba240b1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1271
+    digest: fa0117f358b3c86e0e5dfed361493d9830b08b5c75a199448ef4d986f9d115c2
+  - version: 1
+    audit_id: audit-f06cf46c6fe1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1271
+    digest: fa0117f358b3c86e0e5dfed361493d9830b08b5c75a199448ef4d986f9d115c2
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-cc12bba240b1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1271
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fa0117f358b3c86e0e5dfed361493d9830b08b5c75a199448ef4d986f9d115c2
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-26T11:58:22.572916+00:00'
+    eligible_at: '2026-08-26T11:58:22.572916+00:00'
+    selected_ref: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
+    selected_sha: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
+  - version: 1
+    audit_id: audit-f06cf46c6fe1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1271
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fa0117f358b3c86e0e5dfed361493d9830b08b5c75a199448ef4d986f9d115c2
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-26T11:58:22.572916+00:00'
+    prerequisite_audit_id: audit-cc12bba240b1
+    selected_ref: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
+    selected_sha: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
+  attempt_history: []
 ---
 ## Summary
 
@@ -596,5 +654,10 @@ author: oompah
 created: 2026-08-26 11:46
 ---
 Branch quality gate passed for `9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7` using `make test` in 192.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-26 11:58
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
