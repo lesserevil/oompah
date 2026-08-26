@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:15:47.974297Z'
-updated_at: '2026-08-26T02:58:06.638617Z'
+updated_at: '2026-08-26T02:58:21.905903Z'
 work_branch: OOMPAH-1219
 target_branch: main
 review_url: ''
@@ -127,8 +127,8 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 13
-  total_output_tokens: 1915
+  total_input_tokens: 56
+  total_output_tokens: 15183
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -136,8 +136,8 @@ oompah.task_costs:
       output_tokens: 1661
       cost_usd: 0.0
     unknown:
-      input_tokens: 3
-      output_tokens: 254
+      input_tokens: 46
+      output_tokens: 13522
       cost_usd: 0.0
   runs:
   - profile: default
@@ -152,6 +152,12 @@ oompah.task_costs:
     output_tokens: 254
     cost_usd: 0.0
     recorded_at: '2026-08-26T01:23:50.886764+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 43
+    output_tokens: 13268
+    cost_usd: 0.0
+    recorded_at: '2026-08-26T02:58:18.967565+00:00'
 oompah.integration:
   version: 2
   state: integrated
@@ -660,5 +666,15 @@ Audit FAIL — missing tests. Routing task to Open.
 
 Instructions:
 - Add a caplog-based test in test_provider_retirement.py that triggers _stage_work_contributor_launch timeout via a blocked _persist_work_contributor, then asserts no ERROR record contains 'bounded task-authority deadline' and a WARNING record does. Follow the pattern in test_task_cost_telemetry.py::test_shutdown_timeout_logs_warning_not_error.
+---
+author: oompah
+created: 2026-08-26 02:58
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 82, Tool calls: 46
+- Tokens: 43 in / 13.3K out [13.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 37s
+- Log: OOMPAH-1219__20260826T024704Z.jsonl
 ---
 <!-- COMMENTS:END -->
