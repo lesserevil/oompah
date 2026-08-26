@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:14:39.219900Z'
-updated_at: '2026-08-26T04:48:36.947656Z'
+updated_at: '2026-08-26T04:49:22.044823Z'
 work_branch: OOMPAH-1301
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/923
@@ -105,13 +105,17 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1559
+  total_input_tokens: 24
+  total_output_tokens: 5604
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 1559
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 14
+      output_tokens: 4045
       cost_usd: 0.0
   runs:
   - profile: default
@@ -120,6 +124,12 @@ oompah.task_costs:
     output_tokens: 1559
     cost_usd: 0.0
     recorded_at: '2026-08-21T03:39:17.815063+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 14
+    output_tokens: 4045
+    cost_usd: 0.0
+    recorded_at: '2026-08-26T04:49:17.412961+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -476,5 +486,15 @@ Safe evidence:
 - test_assertions: asserts ERROR records empty AND WARNING records non-empty for bounded-task-authority-deadline message
 - full_gate_result: make test PASSED at 669845780ab945d5558aefebf1375fb86366dfc0 (191s, recorded 2026-08-26 03:14)
 - accepted_sha: 669845780ab945d5558aefebf1375fb86366dfc0
+---
+author: oompah
+created: 2026-08-26 04:49
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 24, Tool calls: 17
+- Tokens: 14 in / 4.0K out [4.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 59s
+- Log: OOMPAH-1301__20260826T043845Z.jsonl
 ---
 <!-- COMMENTS:END -->

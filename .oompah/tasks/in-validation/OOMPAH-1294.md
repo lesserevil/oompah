@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:53:32.349118Z'
-updated_at: '2026-08-26T04:48:55.579693Z'
+updated_at: '2026-08-26T04:49:32.080566Z'
 work_branch: OOMPAH-1294
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/910
@@ -154,13 +154,17 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 3002
-  total_output_tokens: 2220
+  total_input_tokens: 3018
+  total_output_tokens: 6518
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 3002
       output_tokens: 2220
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 16
+      output_tokens: 4298
       cost_usd: 0.0
   runs:
   - profile: default
@@ -187,6 +191,12 @@ oompah.task_costs:
     output_tokens: 156
     cost_usd: 0.0
     recorded_at: '2026-08-24T08:12:33.826352+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 16
+    output_tokens: 4298
+    cost_usd: 0.0
+    recorded_at: '2026-08-26T04:49:19.572449+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -634,5 +644,15 @@ Safe evidence:
 - non_regression_tests: 3 pre-existing TestTaskLoggingHandlerErrorClass tests all PASSED
 - full_gate_sha: 949ae454f8872550c530743a531a6a76b6fbfd50
 - full_gate_result: passed (make test, 199.5s)
+---
+author: oompah
+created: 2026-08-26 04:49
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 33, Tool calls: 18
+- Tokens: 16 in / 4.3K out [4.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 12m 4s
+- Log: OOMPAH-1294__20260826T043735Z.jsonl
 ---
 <!-- COMMENTS:END -->
