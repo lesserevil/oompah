@@ -299,6 +299,9 @@ def _make_mock_orch() -> MagicMock:
     orch.project_store.list_all.return_value = [project]
     orch.state.running = {}
     orch._yolo_repo_config_errors = {}
+    orch._reviews_cache = {project.id: []}
+    orch._reviews_cache_generation = {project.id: 1}
+    orch._reviews_cache_updated_at = {project.id: "2026-06-02T16:00:00+00:00"}
     return orch
 
 
@@ -335,6 +338,14 @@ class TestApiListReviewsChurnMagnet:
         """When review.churn_magnet is True, the API item has churn_magnet
         and churn_magnet_files fields."""
         orch = _make_mock_orch()
+        cached = ReviewRequest(
+            id="42", title="PR #42", url="https://example.test/42",
+            author="alice", state="open", source_branch="feat-branch",
+            target_branch="main", created_at="2026-06-02T16:00:00Z",
+            updated_at="2026-06-02T16:00:00Z", churn_magnet=True,
+            churn_magnet_files=["src/main.py", "core/engine.py"],
+        )
+        orch._reviews_cache["proj-1"] = [cached]
         with (
             patch.object(server_module, "_get_orchestrator", return_value=orch),
             patch.object(
@@ -362,6 +373,12 @@ class TestApiListReviewsChurnMagnet:
         """A PR that is NOT a churn magnet must NOT have churn_magnet=True
         in the top-level item (since it wasn't set by YOLO)."""
         orch = _make_mock_orch()
+        orch._reviews_cache["proj-1"] = [ReviewRequest(
+            id="42", title="PR #42", url="https://example.test/42",
+            author="alice", state="open", source_branch="feat-branch",
+            target_branch="main", created_at="2026-06-02T16:00:00Z",
+            updated_at="2026-06-02T16:00:00Z",
+        )]
         with (
             patch.object(server_module, "_get_orchestrator", return_value=orch),
             patch.object(
@@ -388,6 +405,21 @@ class TestApiListReviewsChurnMagnet:
                                      churn_magnet_files=["src/main.py"])
         reviews.append(_make_review_dict("43", churn_magnet=False)[0])
         orch = _make_mock_orch()
+        orch._reviews_cache["proj-1"] = [
+            ReviewRequest(
+                id="42", title="PR #42", url="https://example.test/42",
+                author="alice", state="open", source_branch="feat-branch",
+                target_branch="main", created_at="2026-06-02T16:00:00Z",
+                updated_at="2026-06-02T16:00:00Z", churn_magnet=True,
+                churn_magnet_files=["src/main.py"],
+            ),
+            ReviewRequest(
+                id="43", title="PR #43", url="https://example.test/43",
+                author="alice", state="open", source_branch="other-branch",
+                target_branch="main", created_at="2026-06-02T16:00:00Z",
+                updated_at="2026-06-02T16:00:00Z",
+            ),
+        ]
         with (
             patch.object(server_module, "_get_orchestrator", return_value=orch),
             patch.object(

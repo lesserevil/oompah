@@ -2040,7 +2040,9 @@ class Orchestrator:
         self._review_lifecycle_lock = threading.RLock()
         self._review_lifecycle_generation: dict[str, int] = {}
         self._closed_review_fences: dict[tuple[str, str], int] = {}
+        self._reviews_cache: dict[str, list[ReviewRequest]] = {}
         self._reviews_cache_generation: dict[str, int] = {}
+        self._reviews_cache_updated_at: dict[str, str] = {}
         # Installed by bootstrap after the project-scoped terminal coordinator
         # exists.  Keeping the slot on the orchestrator lets API, WebSocket,
         # and scheduler snapshots all observe the same durable runtime.
@@ -33734,6 +33736,9 @@ class Orchestrator:
             cache[project_key] = live_reviews
             self._reviews_cache = cache
             self._reviews_cache_generation[project_key] = current_generation
+            self._reviews_cache_updated_at[project_key] = datetime.now(
+                timezone.utc
+            ).isoformat()
             self._reconcile_review_capacity_from_live_reviews(
                 project_key,
                 live_reviews,
@@ -33763,6 +33768,9 @@ class Orchestrator:
                     continue
                 cache[project_key] = list(reviews or [])
                 self._reviews_cache_generation[project_key] = current
+                self._reviews_cache_updated_at[project_key] = datetime.now(
+                    timezone.utc
+                ).isoformat()
             self._reviews_cache = cache
             return cache
 
@@ -34132,6 +34140,9 @@ class Orchestrator:
             ]
             self._reviews_cache = cache
             self._reviews_cache_generation[project_key] = generation
+            self._reviews_cache_updated_at[project_key] = datetime.now(
+                timezone.utc
+            ).isoformat()
             self._release_review_capacity(
                 project_key,
                 review_id=review_key or None,

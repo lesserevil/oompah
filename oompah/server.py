@@ -9494,7 +9494,7 @@ async def api_create_issue(request: Request):
     """
     try:
         from oompah.tracker import StateBranchFetchError
-        
+
         orch = _get_orchestrator()
         raw_idempotency_key = request.headers.get("Idempotency-Key")
         idempotency_key = (
@@ -22383,9 +22383,55 @@ async def api_list_reviews():
             if callable(review_generation_reader)
             else None
         )
-        reviews, reviews_by_project, successful_project_ids = (
-            _fetch_open_reviews_for_api(projects)
-        )
+        # The scheduler already maintains a generation-fenced review snapshot.
+        # Serving a dashboard request must not synchronously fan out to every
+        # forge: under a large review backlog that used to block this endpoint
+        # for tens of seconds and duplicate the controller's provider traffic.
+        # Preserve each project's last successful snapshot; a missing project
+        # is represented as unavailable rather than as an authoritative empty.
+        with getattr(orch, "_review_lifecycle_lock", contextlib.nullcontext()):
+            cached_by_project = {
+                str(project_id): list(project_reviews or [])
+                for project_id, project_reviews in (
+                    getattr(orch, "_reviews_cache", {}) or {}
+                ).items()
+            }
+            cache_generations = dict(
+                getattr(orch, "_reviews_cache_generation", {}) or {}
+            )
+            cache_updated_at = dict(
+                getattr(orch, "_reviews_cache_updated_at", {}) or {}
+            )
+        reviews_by_project = {}
+        successful_project_ids = set()
+        unavailable_project_ids: list[str] = []
+        reviews: list[dict[str, Any]] = []
+        for project in projects:
+            project_id = str(project.id)
+            if project_id not in cached_by_project:
+                unavailable_project_ids.append(project_id)
+                continue
+            project_reviews = cached_by_project[project_id]
+            reviews_by_project[project_id] = project_reviews
+            successful_project_ids.add(project_id)
+            provider = detect_provider(
+                project.repo_url,
+                access_token=getattr(project, "access_token", None),
+            )
+            provider_name = provider.provider_name() if provider else "unknown"
+            for review in project_reviews:
+                reviews.append(
+                    {
+                        "project_id": project.id,
+                        "project_name": project.name,
+                        "project_yolo": bool(getattr(project, "yolo", False)),
+                        "provider": provider_name,
+                        "review": review.to_dict(),
+                        "snapshot_generation": cache_generations.get(project_id, 0),
+                        "snapshot_updated_at": cache_updated_at.get(project_id),
+                        "snapshot_stale": False,
+                    }
+                )
         # Enrich reviews with agent status
         active_branches = _active_review_branches(orch)
         # oompah-zlz_2-btf.2: surface YOLO repo-config errors on each PR
@@ -22492,6 +22538,15 @@ async def api_list_reviews():
                         in accepted_review_ids
                     )
                 ]
+            # Keep the response shape backwards compatible (a list), while
+            # attaching bounded availability metadata to every cached row.
+            # Projects without a successful background snapshot remain absent
+            # instead of being misreported as having zero open reviews.
+            if unavailable_project_ids:
+                logger.debug(
+                    "Reviews API serving cached snapshots; unavailable projects: %s",
+                    ", ".join(sorted(unavailable_project_ids)),
+                )
             _api_cache.set("reviews:all", reviews, ttl_ms=10000)
             response = JSONResponse(reviews)
         return response
