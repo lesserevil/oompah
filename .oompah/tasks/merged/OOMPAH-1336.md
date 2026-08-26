@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1336
 type: bug
-status: In Validation
+status: Merged
 priority: 2
 title: '[backend:__main__] Orchestrator thread crashed'
 parent: null
@@ -11,14 +11,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:36.934588Z'
-updated_at: '2026-08-26T08:31:33.446744Z'
+updated_at: '2026-08-26T08:35:52.852365Z'
 work_branch: OOMPAH-1336
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/926
 review_number: '926'
 review_head: bb994f542710f9624f0f7b631eacd5b493f9ff3e
 merged_at: null
-oompah.lifecycle_revision: 7
+oompah.lifecycle_revision: 8
 oompah.last_batch:
   batch_id: batch-6f0e83c8e44c413d864c213fbfd4e455
   actor: shedwards
@@ -167,6 +167,7 @@ oompah.terminal_audit:
     digest: 181caa988f3d9fdbc74a9e828499829b3000db923fd0874525fb5d1493bf5e4b
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1336","audit-0ffe9710b1e7","attempt-ebc017eb4541"]': '2026-08-26T08:19:12.979975+00:00'
+    '["proj-14849f1b","OOMPAH-1336","audit-79f5f204e6d0","attempt-feba503f6a36"]': '2026-08-26T08:35:48.145804+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1336
@@ -181,6 +182,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-26T08:19:12.979992+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1336
+    target_state: Merged
+    evidence_fingerprint: 181caa988f3d9fdbc74a9e828499829b3000db923fd0874525fb5d1493bf5e4b
+    workflow_revision: null
+    selected_ref: bb994f542710f9624f0f7b631eacd5b493f9ff3e
+    selected_sha: bb994f542710f9624f0f7b631eacd5b493f9ff3e
+    landing_revision: null
+    audit_ids:
+    - audit-79f5f204e6d0
+    kind: result
+    applied: true
+    retired_at: '2026-08-26T08:35:48.145823+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1336
@@ -195,6 +209,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-26T08:19:12.980002+00:00'
     applied_at: '2026-08-26T08:19:20.868000+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1336
+    audit_id: audit-79f5f204e6d0
+    attempt_id: attempt-feba503f6a36
+    target_state: Merged
+    evidence_fingerprint: 181caa988f3d9fdbc74a9e828499829b3000db923fd0874525fb5d1493bf5e4b
+    status: Merged
+    audit_ids:
+    - audit-79f5f204e6d0
+    kind: result
+    applied: false
+    created_at: '2026-08-26T08:35:48.145834+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -242,7 +268,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1336
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -251,7 +277,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-feba503f6a36
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -263,6 +289,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1336
       selected_ref: bb994f542710f9624f0f7b631eacd5b493f9ff3e
       selected_sha: bb994f542710f9624f0f7b631eacd5b493f9ff3e
+      verdict: pass
+      completed_at: '2026-08-26T08:35:48.145656+00:00'
+      ended_at: '2026-08-26T08:35:48.145656+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -273,7 +302,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-0ffe9710b1e7
     selected_ref: bb994f542710f9624f0f7b631eacd5b493f9ff3e
     selected_sha: bb994f542710f9624f0f7b631eacd5b493f9ff3e
-    updated_at: '2026-08-26T08:31:12.562498+00:00'
+    updated_at: '2026-08-26T08:35:48.145656+00:00'
     eligible_at: '2026-08-26T08:19:12.979818+00:00'
   attempt_history:
   - version: 1
