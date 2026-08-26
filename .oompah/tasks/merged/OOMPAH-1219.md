@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1219
 type: bug
-status: Needs Human
+status: Merged
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-131 identifier=TRICKLE-131 run_id=2d79f805f82c4604845eb835cf99a115
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:15:47.974297Z'
-updated_at: '2026-08-26T04:13:37.622007Z'
+updated_at: '2026-08-26T15:48:59.974167Z'
 work_branch: OOMPAH-1219
 target_branch: main
 review_url: ''
 review_number: ''
 review_head: ''
 merged_at: null
-oompah.lifecycle_revision: 13
+oompah.lifecycle_revision: 14
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -262,6 +262,28 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-26T02:57:55.973779+00:00'
     applied_at: '2026-08-26T02:58:05.036151+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-8fdfd3670add
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1219
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ee6c7b56f1e229537df02f33bd43e502ec3a3e54905a7ec815fa810110ca85ba
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reviewed merged PR #920 (merge commit ef0f623c8) and verified the
+      auditor-requested caplog regression is present on main in tests/test_provider_retirement.py,
+      asserting bounded task-authority timeout logs WARNING and no ERROR. The Needs
+      Human projection is stale after the completed fix and test evidence.'
+    created_at: '2026-08-26T15:48:55.258931+00:00'
+    selected_ref: d8d6e978895657d9f97f2306fb244583c5cb9ed4
+    selected_sha: d8d6e978895657d9f97f2306fb244583c5cb9ed4
+    applied: false
   version: 1
   pending_chain:
   - version: 1
