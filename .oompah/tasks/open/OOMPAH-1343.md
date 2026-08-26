@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1343
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Stabilize production and clear current workflow blockers
 parent: OOMPAH-1342
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:05.336022Z'
-updated_at: '2026-08-26T18:46:04.405903Z'
+updated_at: '2026-08-26T18:49:08.033097Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,6 +25,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: manual-service-recovery-20260826-stabilize
   request_fingerprint: dabe0aa14096afda9b212472b2eaaa2df9e97ca7dfa2885df9a800f491946d7e
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
