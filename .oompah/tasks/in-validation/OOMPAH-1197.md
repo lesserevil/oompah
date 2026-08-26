@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1197
 type: bug
-status: In Review
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-119'
 parent: null
@@ -11,14 +11,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-26T05:08:28.064025Z'
+updated_at: '2026-08-26T06:14:08.551658Z'
 work_branch: OOMPAH-1197
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/925
 review_number: '925'
 review_head: 5e7f3f31cd030ab2dbff9c54e95f884be019787f
 merged_at: null
-oompah.lifecycle_revision: 6
+oompah.lifecycle_revision: 7
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -274,6 +274,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/925
 oompah.review_number: '925'
 oompah.target_branch: main
 oompah.review_head: 5e7f3f31cd030ab2dbff9c54e95f884be019787f
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-fd003cc208fd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1197
+    digest: 620573f342a874c8bc926d999db98d0d23a72aa4a50bb434ede61653bc3741fc
+  - version: 1
+    audit_id: audit-3f04afa18396
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1197
+    digest: 620573f342a874c8bc926d999db98d0d23a72aa4a50bb434ede61653bc3741fc
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-fd003cc208fd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1197
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 620573f342a874c8bc926d999db98d0d23a72aa4a50bb434ede61653bc3741fc
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-26T06:13:59.361374+00:00'
+    eligible_at: '2026-08-26T06:13:59.361374+00:00'
+    selected_ref: 5e7f3f31cd030ab2dbff9c54e95f884be019787f
+    selected_sha: 5e7f3f31cd030ab2dbff9c54e95f884be019787f
+  - version: 1
+    audit_id: audit-3f04afa18396
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1197
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 620573f342a874c8bc926d999db98d0d23a72aa4a50bb434ede61653bc3741fc
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-26T06:13:59.361374+00:00'
+    prerequisite_audit_id: audit-fd003cc208fd
+    selected_ref: 5e7f3f31cd030ab2dbff9c54e95f884be019787f
+    selected_sha: 5e7f3f31cd030ab2dbff9c54e95f884be019787f
+  attempt_history: []
 ---
 ## Summary
 
@@ -739,5 +797,10 @@ author: oompah
 created: 2026-08-26 05:07
 ---
 Branch quality gate passed for `5e7f3f31cd030ab2dbff9c54e95f884be019787f` using `make test` in 189.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-26 06:14
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
