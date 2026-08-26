@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1346
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Bound workflow history and workspace storage growth
 parent: OOMPAH-1342
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:27.314224Z'
-updated_at: '2026-08-26T18:46:22.697034Z'
+updated_at: '2026-08-26T18:49:31.760124Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,6 +25,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: manual-service-recovery-20260826-storage
   request_fingerprint: 6f66fb1566bdbad6da13f55ff0f2452ac19762cc3b8a1311af536d410e883581
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
