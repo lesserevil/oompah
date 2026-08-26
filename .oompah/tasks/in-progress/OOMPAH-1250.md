@@ -13,7 +13,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-26T03:47:12.329688Z'
+updated_at: '2026-08-26T03:55:30.110329Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -832,5 +832,10 @@ author: oompah
 created: 2026-08-26 03:47
 ---
 IMPLEMENTATION: Created gitlab_intake_bridge.py with forge-neutral intake bridge for GitLab. Key components: (1) project_uses_gitlab_issue_intake() checks forge_kind==gitlab + external_issue_intake_enabled, (2) GitLab-specific metadata key oompah.external.gitlab + external:gitlab label, (3) idempotent issue/comment import mirroring GitHub flow, (4) terminal status comment/closure via sync_gitlab_issue_intake_statuses_for_project(), (5) polling recovery via poll_gitlab_issue_intake_project(). Updated orchestrator.py to call GitLab intake functions alongside GitHub ones with same 300s interval and 120s runtime. Fixed Project object construction issues.
+---
+author: oompah
+created: 2026-08-26 03:55
+---
+VERIFICATION: All tests pass! Created 10 GitLab intake tests (project_uses_gitlab_issue_intake checks, ensure_native_issue, comment import, heading demote, description formatting, status sync). All 60 GitHub intake regression tests pass. Orchestrator successfully imports and calls GitLab functions. Core implementation complete with provider-qualified oompah.external.gitlab metadata, idempotent import, terminal status mirroring, and polling recovery.
 ---
 <!-- COMMENTS:END -->
