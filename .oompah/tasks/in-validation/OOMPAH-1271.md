@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:36:38.933130Z'
-updated_at: '2026-08-26T12:32:59.234816Z'
+updated_at: '2026-08-26T12:33:13.320257Z'
 work_branch: OOMPAH-1271
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/934
@@ -176,13 +176,17 @@ oompah.work_contributors:
     source_sha: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
     completed_at: '2026-08-24T01:16:33.558880+00:00'
 oompah.task_costs:
-  total_input_tokens: 492
-  total_output_tokens: 18794
+  total_input_tokens: 536
+  total_output_tokens: 35884
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 492
       output_tokens: 18794
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 44
+      output_tokens: 17090
       cost_usd: 0.0
   runs:
   - profile: default
@@ -197,6 +201,12 @@ oompah.task_costs:
     output_tokens: 17174
     cost_usd: 0.0
     recorded_at: '2026-08-24T01:16:33.553549+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 44
+    output_tokens: 17090
+    cost_usd: 0.0
+    recorded_at: '2026-08-26T12:33:08.872563+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -754,5 +764,15 @@ Safe evidence:
 - test_retirement_coverage: tests/test_provider_retirement.py exercises timeout behavior with new field
 - env_example_updated: .env.example documented OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS
 - minor_doc_gap: .env.example shows example value 30 but code default is 60.0
+---
+author: oompah
+created: 2026-08-26 12:33
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 77, Tool calls: 41
+- Tokens: 44 in / 17.1K out [17.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 15m 5s
+- Log: OOMPAH-1271__20260826T121829Z.jsonl
 ---
 <!-- COMMENTS:END -->
