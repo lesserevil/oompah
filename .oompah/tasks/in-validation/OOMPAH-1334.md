@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1334
 type: bug
-status: In Review
+status: In Validation
 priority: 2
 title: '[backend:server] Create issue API error: StateBranchFetchError(''Cannot sync
   state branch \''oompah/state/proj-3e4e9214\'': git fetch origin \''oompah/state/proj-3e4e9214\''
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:31:41.109952Z'
-updated_at: '2026-08-26T10:06:36.063514Z'
+updated_at: '2026-08-26T10:32:31.546122Z'
 work_branch: OOMPAH-1334
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/932
 review_number: '932'
 review_head: 54945b27c2558ecfb7949b7c20794149841c687d
 merged_at: null
-oompah.lifecycle_revision: 6
+oompah.lifecycle_revision: 7
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: e0cd2b77f43728f834e3be4a42ef4726942676842c4590fe2c09b52d09db6c5c
@@ -189,6 +189,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/932
 oompah.review_number: '932'
 oompah.target_branch: main
 oompah.review_head: 54945b27c2558ecfb7949b7c20794149841c687d
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-e75b9a4a7b7a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1334
+    digest: d24220ed361df0350cdd93258654ca879f61597baaa373ca17ba55f50eb0a054
+  - version: 1
+    audit_id: audit-e3bd863664c8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1334
+    digest: d24220ed361df0350cdd93258654ca879f61597baaa373ca17ba55f50eb0a054
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e75b9a4a7b7a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1334
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d24220ed361df0350cdd93258654ca879f61597baaa373ca17ba55f50eb0a054
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-26T10:32:19.694303+00:00'
+    eligible_at: '2026-08-26T10:32:19.694303+00:00'
+    selected_ref: 54945b27c2558ecfb7949b7c20794149841c687d
+    selected_sha: 54945b27c2558ecfb7949b7c20794149841c687d
+  - version: 1
+    audit_id: audit-e3bd863664c8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1334
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d24220ed361df0350cdd93258654ca879f61597baaa373ca17ba55f50eb0a054
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-26T10:32:19.694303+00:00'
+    prerequisite_audit_id: audit-e75b9a4a7b7a
+    selected_ref: 54945b27c2558ecfb7949b7c20794149841c687d
+    selected_sha: 54945b27c2558ecfb7949b7c20794149841c687d
+  attempt_history: []
 ---
 ## Summary
 
@@ -505,5 +563,10 @@ author: oompah
 created: 2026-08-26 10:05
 ---
 Branch quality gate passed for `54945b27c2558ecfb7949b7c20794149841c687d` using `make test` in 196.4s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-26 10:32
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
