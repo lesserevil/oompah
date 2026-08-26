@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:36:38.933130Z'
-updated_at: '2026-08-26T12:36:27.345993Z'
+updated_at: '2026-08-26T12:36:33.463435Z'
 work_branch: OOMPAH-1271
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/934
@@ -290,8 +290,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-f06cf46c6fe1
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-26T12:36:22.762254+00:00'
+    applied_at: '2026-08-26T12:36:32.103090+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -843,5 +844,24 @@ author: oompah
 created: 2026-08-26 12:33
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 12:36
+---
+Audit PASS — Merged
+
+Audit PASS — Merged. All evidence verified at SHA 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7. The fix adds contributor_evidence_persist_timeout_seconds=60.0 (config default) that overrides the derived 5.0s timeout in the orchestrator, directly addressing the "Pre-provider contributor evidence exceeded its bounded task-authority deadline" error. Quality gate make test passed twice. Config field, orchestrator usage, test assertions, and .env.example documentation all confirmed present and correct.
+
+Safe evidence:
+- accepted_sha: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
+- quality_gate: make test passed twice (188.3s, 192.1s) on exact accepted SHA
+- config_field: oompah/config.py:1204 contributor_evidence_persist_timeout_seconds: float = 60.0
+- from_workflow_default: oompah/config.py:2062-2064 OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS defaults to 60.0
+- orchestrator_code: oompah/orchestrator.py:58032-58039 reads contributor_evidence_persist_timeout_seconds and applies as persistence_timeout
+- error_message_site: oompah/orchestrator.py:58067 error still present but guarded by 60s timeout instead of 5s
+- test_config_assertion: tests/test_config.py:124 assert cfg.contributor_evidence_persist_timeout_seconds == 60.0
+- test_retirement_coverage: tests/test_provider_retirement.py: 4 test cases exercise contributor_evidence_persist_timeout_seconds=0.1 for timeout behavior
+- env_example_updated: .env.example:282 OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS=30 documented
+- minor_doc_gap: .env.example shows example value 30 but code default is 60.0 (non-blocking, example != default)
 ---
 <!-- COMMENTS:END -->
