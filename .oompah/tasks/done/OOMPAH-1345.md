@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1345
 type: task
-status: Ready to Integrate
+status: Done
 priority: 1
 title: Serve reviews API from a bounded generation-aware snapshot
 parent: OOMPAH-1342
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T18:43:16.245447Z'
-updated_at: '2026-08-26T22:52:26.615333Z'
+updated_at: '2026-08-26T22:53:39.531512Z'
 work_branch: OOMPAH-1345
 target_branch: main
 review_url: null
@@ -25,7 +25,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: manual-service-recovery-20260826-reviews-api
   request_fingerprint: 5a3db0f23c9f70bbbab1f418eae47d0ecb3157c46df451e04969ebec76c5df55
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.integration:
   version: 2
   state: ready
@@ -40,6 +40,30 @@ oompah.integration:
   updated_at: '2026-08-26T20:30:13.595059+00:00'
 oompah.work_branch: OOMPAH-1345
 oompah.target_branch: main
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d7cbada03f12
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1345
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6459838e31d8def8b65f223e1d10fb86fdbc2f0a6fce6b134d7268edc4d1deaa
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct owner completed implementation; exact commits are on the published
+      epic branch and make test passed with 20,449 tests.
+    created_at: '2026-08-26T22:53:34.544899+00:00'
+    selected_ref: f13ca97b66bea10214dadec8464737557a4a04e8
+    selected_sha: f13ca97b66bea10214dadec8464737557a4a04e8
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
