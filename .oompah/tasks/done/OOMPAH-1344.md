@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T18:43:10.725032Z'
-updated_at: '2026-08-26T22:53:19.018736Z'
+updated_at: '2026-08-26T22:53:24.851611Z'
 work_branch: OOMPAH-1344
 target_branch: main
 review_url: null
@@ -59,7 +59,21 @@ oompah.terminal_audit:
     created_at: '2026-08-26T22:53:14.353836+00:00'
     selected_ref: f74fdd4cf5d6370c502dfdf317f511645a75d54d
     selected_sha: f74fdd4cf5d6370c502dfdf317f511645a75d54d
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1344
+    target_state: Done
+    evidence_fingerprint: a524eb9e788ead25a6014b0488e93928be2667f23f3a4cdba2b0a18d3585fe12
+    workflow_revision: null
+    selected_ref: f74fdd4cf5d6370c502dfdf317f511645a75d54d
+    selected_sha: f74fdd4cf5d6370c502dfdf317f511645a75d54d
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-26T22:53:23.375823+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -120,5 +134,12 @@ author: oompah
 created: 2026-08-26 22:50
 ---
 Full repository test gate completed successfully: 20,449 passed, 7 skipped, 2 xfailed. Changes are pushed and included in epic PR #951.
+---
+author: oompah
+created: 2026-08-26 22:53
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct owner completed implementation; exact commits are on the published epic branch and make test passed with 20,449 tests.
 ---
 <!-- COMMENTS:END -->
