@@ -16337,12 +16337,80 @@ class Orchestrator:
                 and integration_head
                 and accepted_submission_branch(current)
             ):
-                value.update(
-                    self._ready_standalone_submission_recovery_facts(
-                        current,
-                        integration,
-                    )
+                task_branch = str(
+                    getattr(integration, "task_branch", None)
+                    or current.work_branch
+                    or current.branch_name
+                    or ""
+                ).strip()
+                project = self.project_store.get(str(current.project_id or ""))
+                target_branch = str(
+                    getattr(integration, "base_branch", None)
+                    or current.target_branch
+                    or getattr(project, "default_branch", None)
+                    or "main"
+                ).strip()
+                recovery_key = (
+                    current.identifier,
+                    task_branch,
+                    integration_head,
+                    target_branch,
                 )
+                recovery_result = accepted_recovery_cache.get(recovery_key)
+                if recovery_result is None:
+                    recovery_result = self._accepted_submission_recovery_authority(
+                        current,
+                        task_branch=task_branch,
+                        accepted_head=integration_head,
+                        target_branch=target_branch,
+                    )
+                    accepted_recovery_cache[recovery_key] = recovery_result
+                _, recovery_state, observed_branch_head, _ = recovery_result
+                value["accepted_submission_recovery_state"] = recovery_state
+                value["accepted_submission_head"] = integration_head
+                if observed_branch_head:
+                    value["accepted_submission_branch_head"] = observed_branch_head
+                reviews = self._workflow_shadow_reviews(current)
+                if len(reviews) != 1:
+                    if reviews:
+                        value["accepted_submission_review_count"] = len(reviews)
+                else:
+                    review = reviews[0]
+                    review_id = str(getattr(review, "id", "") or "").strip()
+                    review_head = str(
+                        getattr(review, "head_sha", "") or ""
+                    ).strip().lower()
+                    value["accepted_submission_review_id"] = review_id
+                    if review_head:
+                        value["accepted_submission_review_head"] = review_head
+                    try:
+                        expected_repository = extract_repo_slug(
+                            str(getattr(project, "repo_url", "") or "")
+                        ).strip().casefold()
+                    except Exception:
+                        expected_repository = ""
+                    if not bool(
+                        project is not None
+                        and str(getattr(review, "state", "") or "").strip().lower()
+                        == "open"
+                        and str(getattr(review, "source_branch", "") or "").strip()
+                        == task_branch
+                        and str(getattr(review, "target_branch", "") or "").strip()
+                        == target_branch
+                        and expected_repository
+                        and str(getattr(review, "source_repository", "") or "")
+                        .strip()
+                        .casefold()
+                        == expected_repository
+                        and str(getattr(review, "target_repository", "") or "")
+                        .strip()
+                        .casefold()
+                        == expected_repository
+                        and re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", review_head)
+                        and observed_branch_head
+                        and review_head == observed_branch_head
+                    ):
+                        value["accepted_submission_review_identity"] = "ambiguous"
             if (
                 canonicalize_status(current.state)
                 in {OPEN, IN_PROGRESS, NEEDS_CI_FIX, NEEDS_REBASE}
