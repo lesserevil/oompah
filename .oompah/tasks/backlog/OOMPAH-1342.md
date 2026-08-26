@@ -5,14 +5,16 @@ status: Backlog
 priority: 1
 title: Recover production service throughput and workflow progress
 parent: null
-children: []
+children:
+- OOMPAH-1343
+- OOMPAH-1344
 blocked_by: []
 start_blocked_by: []
 labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-26T18:42:41.866488Z'
+updated_at: '2026-08-26T18:43:12.555441Z'
 work_branch: null
 target_branch: null
 review_url: null
