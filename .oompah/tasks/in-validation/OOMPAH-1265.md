@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-26T15:54:50.827192Z'
+updated_at: '2026-08-26T15:55:06.717257Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -321,7 +321,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1265
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -348,6 +348,22 @@ oompah.terminal_audit:
         auditor capability policy permits only read-only repository inspection and
         configured test commands; command denied'
       next_retry_at: '2026-08-26T15:54:50.614719+00:00'
+    - version: 1
+      attempt_id: attempt-a03169665d4c
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+      created_at: '2026-08-26T15:54:59.579484+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-26T15:54:59.579484+00:00'
+      branch_key: epic-OOMPAH-1231--task-OOMPAH-1265
+      selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+      selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+      candidate_rotation_count: 1
     source_generation: 2
     requested_by:
       version: 1
@@ -358,7 +374,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T15:47:01.735367+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-26T15:54:40.614752+00:00'
+    updated_at: '2026-08-26T15:54:59.579484+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f1e85028019b
@@ -417,6 +433,22 @@ oompah.terminal_audit:
       auditor capability policy permits only read-only repository inspection and configured
       test commands; command denied'
     next_retry_at: '2026-08-26T15:54:50.614719+00:00'
+  - version: 1
+    attempt_id: attempt-a03169665d4c
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+    created_at: '2026-08-26T15:54:59.579484+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-26T15:54:59.579484+00:00'
+    branch_key: epic-OOMPAH-1231--task-OOMPAH-1265
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -610,5 +642,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 43s
 - Log: OOMPAH-1265__20260826T155121Z.jsonl
+---
+author: oompah
+created: 2026-08-26 15:55
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/opus)
 ---
 <!-- COMMENTS:END -->
