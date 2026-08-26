@@ -157,6 +157,11 @@ from oompah.github_intake_bridge import (
     project_uses_github_issue_intake,
     sync_github_issue_intake_statuses_for_project,
 )
+from oompah.gitlab_intake_bridge import (
+    poll_gitlab_issue_intake_project,
+    project_uses_gitlab_issue_intake,
+    sync_gitlab_issue_intake_statuses_for_project,
+)
 from oompah.models import (
     AgentProfile,
     AgentTotals,
@@ -14905,6 +14910,7 @@ class Orchestrator:
         self._maybe_run_merged_labels()
         self._maybe_run_release_pick_reconciliation()
         self._maybe_sync_github_issue_intake()
+        self._maybe_sync_gitlab_issue_intake()
         self._maybe_run_stalled_task_watchdog()
 
     def _run_non_lifecycle_housekeeping(self) -> None:
@@ -49132,6 +49138,81 @@ class Orchestrator:
                     exc,
                 )
         self._maintenance_status["github_issue_intake"] = {
+            **metrics,
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def _maybe_sync_gitlab_issue_intake(self) -> None:
+        """Periodically sync external GitLab intake for native Markdown projects."""
+        self._run_maintenance_job(
+            "gitlab_issue_intake",
+            self._sync_gitlab_issue_intake_pass,
+            min_interval_s=300.0,
+            max_runtime_s=120.0,
+        )
+
+    def _sync_gitlab_issue_intake_pass(self) -> None:
+        """Import GitLab intake and mirror status changes for enabled projects."""
+        metrics = {
+            "projects": 0,
+            "imported": 0,
+            "status_scanned": 0,
+            "status_commented": 0,
+            "status_closed": 0,
+            "errors": 0,
+        }
+        for project in self.project_store.list_all():
+            if self._job_deadline_exceeded("gitlab_issue_intake"):
+                break
+            if not project_uses_gitlab_issue_intake(project):
+                continue
+            metrics["projects"] += 1
+            project_name = getattr(project, "name", "?")
+            auth_alert_source = f"gitlab_intake_auth:{project_name}"
+            try:
+                metrics["imported"] += poll_gitlab_issue_intake_project(self, project)
+                status_metrics = sync_gitlab_issue_intake_statuses_for_project(
+                    self,
+                    project,
+                )
+                metrics["status_scanned"] += int(status_metrics.get("scanned", 0))
+                metrics["status_commented"] += int(status_metrics.get("commented", 0))
+                metrics["status_closed"] += int(status_metrics.get("closed", 0))
+                metrics["errors"] += int(status_metrics.get("errors", 0))
+                self._replace_alert_source(auth_alert_source)
+            except TrackerAuthError as exc:
+                metrics["errors"] += 1
+                self._replace_alert_source(
+                    auth_alert_source,
+                    {
+                        "level": "error",
+                        "source": auth_alert_source,
+                        "action_required": True,
+                        "title": (
+                            f"GitLab intake authentication failure for project "
+                            f"{project_name!r}"
+                        ),
+                        "message": (
+                            f"Oompah cannot fetch GitLab issues for project "
+                            f"{project_name!r}: {exc}. "
+                            "Set the project's access_token to a token with "
+                            "read access to the intake repository, or configure "
+                            "GITLAB_TOKEN that covers this repository."
+                        ),
+                        "action": (
+                            "Configure a GitLab token with read access for "
+                            f"project {project_name!r}."
+                        ),
+                    }
+                )
+            except Exception as exc:  # noqa: BLE001
+                metrics["errors"] += 1
+                logger.debug(
+                    "GitLab issue intake sync failed for project %s: %s",
+                    getattr(project, "name", "?"),
+                    exc,
+                )
+        self._maintenance_status["gitlab_issue_intake"] = {
             **metrics,
             "finished_at": datetime.now(timezone.utc).isoformat(),
         }
