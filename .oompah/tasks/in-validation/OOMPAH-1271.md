@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:36:38.933130Z'
-updated_at: '2026-08-26T12:18:17.759326Z'
+updated_at: '2026-08-26T12:32:59.234816Z'
 work_branch: OOMPAH-1271
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/934
@@ -226,6 +226,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1271
     digest: fa0117f358b3c86e0e5dfed361493d9830b08b5c75a199448ef4d986f9d115c2
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1271","audit-cc12bba240b1","attempt-ef677bddb1b2"]': '2026-08-26T12:32:50.123913+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1271
+    target_state: Done
+    evidence_fingerprint: fa0117f358b3c86e0e5dfed361493d9830b08b5c75a199448ef4d986f9d115c2
+    workflow_revision: null
+    selected_ref: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
+    selected_sha: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
+    landing_revision: null
+    audit_ids:
+    - audit-cc12bba240b1
+    kind: result
+    applied: true
+    retired_at: '2026-08-26T12:32:50.123931+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1271
+    audit_id: audit-cc12bba240b1
+    attempt_id: attempt-ef677bddb1b2
+    target_state: Done
+    evidence_fingerprint: fa0117f358b3c86e0e5dfed361493d9830b08b5c75a199448ef4d986f9d115c2
+    status: In Validation
+    audit_ids:
+    - audit-cc12bba240b1
+    kind: result
+    applied: true
+    created_at: '2026-08-26T12:32:50.123941+00:00'
+    applied_at: '2026-08-26T12:32:57.901158+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -233,7 +263,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1271
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -242,7 +272,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ef677bddb1b2
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -254,6 +284,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1271
       selected_ref: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
       selected_sha: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
+      verdict: pass
+      completed_at: '2026-08-26T12:32:50.123732+00:00'
+      ended_at: '2026-08-26T12:32:50.123732+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -264,7 +297,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T11:58:22.572916+00:00'
     selected_ref: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
     selected_sha: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
-    updated_at: '2026-08-26T12:18:00.156841+00:00'
+    updated_at: '2026-08-26T12:32:50.123732+00:00'
   - version: 1
     audit_id: audit-f06cf46c6fe1
     project_id: proj-14849f1b
@@ -286,6 +319,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-cc12bba240b1
     selected_ref: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
     selected_sha: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
+    updated_at: '2026-08-26T12:32:50.123732+00:00'
+    eligible_at: '2026-08-26T12:32:50.123732+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ef677bddb1b2
@@ -700,5 +735,24 @@ author: oompah
 created: 2026-08-26 12:18
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 12:32
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- accepted_sha: 9e532db36828aa6c19ec7a6f34d5ae9ece1c0fc7
+- quality_gate: make test passed twice (188.3s, 192.1s)
+- effective_fix: contributor_evidence_persist_timeout_seconds=60.0 overrides old 5.0s calculation in orchestrator
+- config_field: oompah/config.py:1204 contributor_evidence_persist_timeout_seconds: float = 60.0
+- from_workflow_default: oompah/config.py:2062-2064 passes 60.0 as default
+- orchestrator_code: oompah/orchestrator.py:58027-58040 checks and applies the configured value
+- test_config_assertion: tests/test_config.py:124 assert cfg.contributor_evidence_persist_timeout_seconds == 60.0
+- test_retirement_coverage: tests/test_provider_retirement.py exercises timeout behavior with new field
+- env_example_updated: .env.example documented OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS
+- minor_doc_gap: .env.example shows example value 30 but code default is 60.0
 ---
 <!-- COMMENTS:END -->
