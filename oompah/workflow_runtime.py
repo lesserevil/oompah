@@ -2805,23 +2805,39 @@ class WorkflowRuntime:
                 raise _WorkflowReconciliationInterrupted
 
     def _enter_landing_observation_scopes(self, stack: ExitStack) -> None:
-        """Bind landing target caches to one complete world attempt."""
+        """Bind request and landing caches to one complete world attempt."""
 
         seen: set[int] = set()
         for binding in self.project_bindings.values():
-            collectors = (
-                binding.collector,
-                getattr(binding.review_controller, "collector", None),
-                getattr(binding.integration_controller, "collector", None),
-                binding.epic_collector,
+            integration_controller = getattr(
+                binding, "integration_controller", None
             )
-            for collector in collectors:
-                landing = getattr(collector, "landing_collector", None)
-                identity = id(landing)
-                if landing is None or identity in seen:
+            scoped_objects = (
+                getattr(integration_controller, "landing_request_resolver", None),
+                getattr(
+                    getattr(binding.review_controller, "collector", None),
+                    "sources",
+                    {},
+                ).get(FactDomain.REVIEW_CI),
+                getattr(binding.collector, "landing_collector", None),
+                getattr(
+                    getattr(binding.review_controller, "collector", None),
+                    "landing_collector",
+                    None,
+                ),
+                getattr(
+                    getattr(integration_controller, "collector", None),
+                    "landing_collector",
+                    None,
+                ),
+                getattr(binding.epic_collector, "landing_collector", None),
+            )
+            for scoped_object in scoped_objects:
+                identity = id(scoped_object)
+                if scoped_object is None or identity in seen:
                     continue
                 seen.add(identity)
-                scope = getattr(landing, "observation_scope", None)
+                scope = getattr(scoped_object, "observation_scope", None)
                 if callable(scope):
                     stack.enter_context(scope())
 
