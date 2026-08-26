@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:51.761397Z'
-updated_at: '2026-08-26T01:22:33.498603Z'
+updated_at: '2026-08-26T01:22:39.863691Z'
 work_branch: OOMPAH-1216
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/918
@@ -257,8 +257,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-acedc0ea4429
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-26T01:22:29.049997+00:00'
+    applied_at: '2026-08-26T01:22:38.063231+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -647,5 +648,22 @@ author: oompah
 created: 2026-08-26 01:20
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 01:22
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- fix_location: oompah/orchestrator.py:58066 — logger.warning( confirmed by search_files
+- message_text: Pre-provider contributor evidence exceeded its bounded task-authority deadline
+- error_watcher_handler_level: error_watcher.py:92 — _handler.setLevel(logging.ERROR) — WARNING below threshold
+- error_watcher_regex: error_watcher.py:695-697 — _ERROR_LINE_RE matches only ERROR|CRITICAL|FATAL|SEVERE
+- full_gate_result: make test PASSED at bf19e7aa4b8da8bfac1850d47e235951b30ab075 in ~192s (twice, authoritative)
+- acceptance_1: PASS — logger.warning() not captured by error_watcher ERROR threshold
+- acceptance_2: PASS — root cause (wrong log level) identified and resolved
+- acceptance_3: PASS — full test suite passes, only targeted log level changed
 ---
 <!-- COMMENTS:END -->
