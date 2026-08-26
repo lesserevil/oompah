@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-19T01:37:27.110739Z'
-updated_at: '2026-08-21T10:50:21.581875Z'
+updated_at: '2026-08-26T18:03:56.895271Z'
 work_branch: OOMPAH-1269
 target_branch: null
 review_url: null
@@ -306,5 +306,10 @@ author: oompah
 created: 2026-08-21 10:50
 ---
 Fixed publication_rollback storm livelock by bounding event emission and reclaiming ledger. PR #885-890 addressed all aspects: aggregate events prevent ledger explosion, archival + VACUUM reclaim historical rows, larger batch drains accelerate backlog clearance. Added regression test for multi-generation rollback. Root cause (workflow_authority_revision churn) remains quiescent; marked for follow-up investigation.
+---
+author: oompah
+created: 2026-08-26 18:03
+---
+Branch quality gate passed for `6e9226700f9bfcab2dcd6e7a3f9d1b106888e8f8` using `make test` in 194.5s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
