@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-26T15:55:06.717257Z'
+updated_at: '2026-08-26T15:55:16.094060Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -647,5 +647,10 @@ author: oompah
 created: 2026-08-26 15:55
 ---
 Auditor dispatched (attempt #2, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-26 15:55
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
