@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1250
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Restore GitLab external issue intake for native Markdown projects
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-26T03:57:51.970878Z'
+updated_at: '2026-08-26T03:58:31.589894Z'
 work_branch: OOMPAH-1250
 target_branch: null
 review_url: null
@@ -26,7 +26,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: b14bdf4d-7f07-48e7-bea5-bd9a4c15a754
   request_fingerprint: 35c587882c8a948f1f7683918040d652db1c9e5eb82d33f59e8351c7a160037b
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
