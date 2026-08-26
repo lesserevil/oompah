@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1229
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Stabilize WebSocket completion fault-injection synchronization
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:37:50.327401Z'
-updated_at: '2026-08-26T00:20:51.723881Z'
+updated_at: '2026-08-26T02:20:23.130777Z'
 work_branch: OOMPAH-1229
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/912
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 1392a045-7295-4cfd-8a46-295cbe950be9
   request_fingerprint: cc9c91296985b97656c171e2976056fe6d8bbd5cabb832cae4e84348f15dddcc
-oompah.lifecycle_revision: 6
+oompah.lifecycle_revision: 7
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -231,6 +231,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/912
 oompah.review_number: '912'
 oompah.target_branch: main
 oompah.review_head: 3ea3b8853dd3606c9994c774f4719d84e539fd22
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-22fa9020be72
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1229
+    digest: 3fd180d0296928a5b4e7269cfde6038a7127cce0b75fbd497a2405bf2e95b6cf
+  - version: 1
+    audit_id: audit-dd7d4e2fef68
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1229
+    digest: 3fd180d0296928a5b4e7269cfde6038a7127cce0b75fbd497a2405bf2e95b6cf
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-22fa9020be72
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1229
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3fd180d0296928a5b4e7269cfde6038a7127cce0b75fbd497a2405bf2e95b6cf
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-26T02:20:14.327849+00:00'
+    eligible_at: '2026-08-26T02:20:14.327849+00:00'
+    selected_ref: 3ea3b8853dd3606c9994c774f4719d84e539fd22
+    selected_sha: 3ea3b8853dd3606c9994c774f4719d84e539fd22
+  - version: 1
+    audit_id: audit-dd7d4e2fef68
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1229
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3fd180d0296928a5b4e7269cfde6038a7127cce0b75fbd497a2405bf2e95b6cf
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-26T02:20:14.327849+00:00'
+    prerequisite_audit_id: audit-22fa9020be72
+    selected_ref: 3ea3b8853dd3606c9994c774f4719d84e539fd22
+    selected_sha: 3ea3b8853dd3606c9994c774f4719d84e539fd22
+  attempt_history: []
 ---
 ## Summary
 
