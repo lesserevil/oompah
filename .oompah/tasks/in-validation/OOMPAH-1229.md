@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:37:50.327401Z'
-updated_at: '2026-08-26T02:37:54.846216Z'
+updated_at: '2026-08-26T02:42:47.506301Z'
 work_branch: OOMPAH-1229
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/912
@@ -244,6 +244,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1229
     digest: 3fd180d0296928a5b4e7269cfde6038a7127cce0b75fbd497a2405bf2e95b6cf
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1229","audit-22fa9020be72","attempt-8d0ce76e1ab3"]': '2026-08-26T02:42:38.441966+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1229
+    target_state: Done
+    evidence_fingerprint: 3fd180d0296928a5b4e7269cfde6038a7127cce0b75fbd497a2405bf2e95b6cf
+    workflow_revision: null
+    selected_ref: 3ea3b8853dd3606c9994c774f4719d84e539fd22
+    selected_sha: 3ea3b8853dd3606c9994c774f4719d84e539fd22
+    landing_revision: null
+    audit_ids:
+    - audit-22fa9020be72
+    kind: result
+    applied: true
+    retired_at: '2026-08-26T02:42:38.442002+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1229
+    audit_id: audit-22fa9020be72
+    attempt_id: attempt-8d0ce76e1ab3
+    target_state: Done
+    evidence_fingerprint: 3fd180d0296928a5b4e7269cfde6038a7127cce0b75fbd497a2405bf2e95b6cf
+    status: In Validation
+    audit_ids:
+    - audit-22fa9020be72
+    kind: result
+    applied: true
+    created_at: '2026-08-26T02:42:38.442020+00:00'
+    applied_at: '2026-08-26T02:42:46.140850+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -251,7 +281,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1229
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -260,7 +290,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-8d0ce76e1ab3
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -272,6 +302,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1229
       selected_ref: 3ea3b8853dd3606c9994c774f4719d84e539fd22
       selected_sha: 3ea3b8853dd3606c9994c774f4719d84e539fd22
+      verdict: pass
+      completed_at: '2026-08-26T02:42:38.441694+00:00'
+      ended_at: '2026-08-26T02:42:38.441694+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -282,7 +315,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T02:20:14.327849+00:00'
     selected_ref: 3ea3b8853dd3606c9994c774f4719d84e539fd22
     selected_sha: 3ea3b8853dd3606c9994c774f4719d84e539fd22
-    updated_at: '2026-08-26T02:37:41.731088+00:00'
+    updated_at: '2026-08-26T02:42:38.441694+00:00'
   - version: 1
     audit_id: audit-dd7d4e2fef68
     project_id: proj-14849f1b
@@ -304,6 +337,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-22fa9020be72
     selected_ref: 3ea3b8853dd3606c9994c774f4719d84e539fd22
     selected_sha: 3ea3b8853dd3606c9994c774f4719d84e539fd22
+    updated_at: '2026-08-26T02:42:38.441694+00:00'
+    eligible_at: '2026-08-26T02:42:38.441694+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8d0ce76e1ab3
@@ -606,5 +641,23 @@ author: oompah
 created: 2026-08-26 02:37
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 02:42
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- fix_location: tests/test_ws_fault_injection.py
+- synchronization_mechanism: threading.Condition with 5s bounded deadline (no time.sleep correctness)
+- _wire_fault_injector_change: Added on_capture parameter invoked before drop predicate at line 128-129
+- test_method: test_four_completion_snapshots_converge_to_zero_running_chips
+- captures_array: captured_completion_snapshots=[False,False,False,False] indexed by 3-len(running)
+- quality_gate_sha: 3ea3b8853dd3606c9994c774f4719d84e539fd22
+- quality_gate_result: passed
+- quality_gate_runs: 2 (181.2s and 184.8s)
+- sleep_in_test_file: none found
 ---
 <!-- COMMENTS:END -->
