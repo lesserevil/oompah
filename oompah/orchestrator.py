@@ -28868,6 +28868,7 @@ class Orchestrator:
             repo_identity=project.repo_url or project.repo_path or project.id,
             access_token=getattr(project, "access_token", None),
             forge_kind=getattr(project, "forge_kind", "github"),
+            canonical_remote_url=project.repo_url,
             retry_forced=(
                 bool(retry_forced)
                 if retry_forced is not None

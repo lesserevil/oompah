@@ -109,15 +109,30 @@ def _git(
     repo_path: str,
     *args: str,
     timeout: int = 60,
+    canonical_remote_url: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     access_token, forge_kind = _PROJECT_CREDENTIALS.get() or (None, "github")
+    
+    # Replace "origin" with canonical_remote_url for network operations.
+    # This repairs stale SSH origins without persisting credentials or
+    # mutating repository configuration.
+    command_args = list(args)
+    if (
+        canonical_remote_url
+        and len(command_args) > 0
+        and command_args[0] in ("push", "fetch")
+        and len(command_args) > 1
+        and command_args[1] == "origin"
+    ):
+        command_args[1] = canonical_remote_url
+    
     with git_credential_environment(
         forge_kind=forge_kind,
         access_token=access_token,
         base_env=_make_git_env(),
     ) as env:
         result = subprocess.run(
-            ["git", "-C", repo_path, *args],
+            ["git", "-C", repo_path, *command_args],
             check=False,
             capture_output=True,
             text=True,
@@ -304,6 +319,7 @@ def execute_integration(
     ]
     | None = None,
     gate_owner_factory: Callable[[str], QualityGateOwner] | None = None,
+    canonical_remote_url: str | None = None,
 ) -> IntegrationExecutionResult:
     """Rebase, test, and compare-and-swap one task onto an epic branch."""
 
@@ -367,7 +383,13 @@ def execute_integration(
                     ),
                 )
             for worktree in (epic_worktree, task_worktree):
-                fetched = _git(worktree, "fetch", "--prune", "origin")
+                fetched = _git(
+                    worktree,
+                    "fetch",
+                    "--prune",
+                    "origin",
+                    canonical_remote_url=canonical_remote_url,
+                )
                 if fetched.returncode != 0:
                     message, auth_status = _git_failure_message(
                         "integration fetch", fetched
@@ -974,7 +996,13 @@ def execute_integration(
             authority_failure = _authority_failure("before epic commit")
             if authority_failure is not None:
                 return authority_failure
-            fetched = _git(epic_worktree, "fetch", "origin", epic_branch)
+            fetched = _git(
+                epic_worktree,
+                "fetch",
+                "origin",
+                epic_branch,
+                canonical_remote_url=canonical_remote_url,
+            )
             if fetched.returncode != 0:
                 message, auth_status = _git_failure_message(
                     "epic branch verification fetch", fetched
@@ -990,7 +1018,13 @@ def execute_integration(
             # different worktree after this epic checkout's earlier fetch.  Fetch
             # the exact task ref into the epic repository both to verify the
             # remote head and to make its object available for the ff-only merge.
-            fetched_task = _git(epic_worktree, "fetch", "origin", task_branch)
+            fetched_task = _git(
+                epic_worktree,
+                "fetch",
+                "origin",
+                task_branch,
+                canonical_remote_url=canonical_remote_url,
+            )
             if fetched_task.returncode != 0:
                 message, auth_status = _git_failure_message(
                     "task branch verification fetch", fetched_task
@@ -1101,12 +1135,19 @@ def execute_integration(
                 f"--force-with-lease=refs/heads/{epic_branch}:{expected_epic_sha}",
                 "origin",
                 f"HEAD:refs/heads/{epic_branch}",
+                canonical_remote_url=canonical_remote_url,
             )
             if pushed_epic.returncode != 0:
                 message, auth_status = _git_failure_message(
                     "epic branch push", pushed_epic
                 )
-                _git(epic_worktree, "fetch", "origin", epic_branch)
+                _git(
+                    epic_worktree,
+                    "fetch",
+                    "origin",
+                    epic_branch,
+                    canonical_remote_url=canonical_remote_url,
+                )
                 _git(epic_worktree, "reset", "--hard", f"origin/{epic_branch}")
                 return IntegrationExecutionResult(
                     status=auth_status or "epic_head_race",
