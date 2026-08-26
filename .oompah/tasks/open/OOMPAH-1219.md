@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1219
 type: bug
-status: In Validation
+status: Open
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-131 identifier=TRICKLE-131 run_id=2d79f805f82c4604845eb835cf99a115
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:15:47.974297Z'
-updated_at: '2026-08-26T02:46:50.384870Z'
+updated_at: '2026-08-26T02:58:06.638617Z'
 work_branch: OOMPAH-1219
 target_branch: main
 review_url: ''
 review_number: ''
 review_head: ''
 merged_at: null
-oompah.lifecycle_revision: 10
+oompah.lifecycle_revision: 11
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -194,6 +194,7 @@ oompah.terminal_audit:
     digest: 1ffd152d74c94bfebe214a0e7e0825074af4a74c3284511b101a510ea93aa906
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1219","audit-cb1d2c6ffc05","attempt-c2890f89407f"]': '2026-08-26T01:23:14.406632+00:00'
+    '["proj-14849f1b","OOMPAH-1219","audit-488d528cc184","attempt-c7757ad552fa"]': '2026-08-26T02:57:55.973741+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1219
@@ -208,6 +209,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-26T01:23:14.406646+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1219
+    target_state: Done
+    evidence_fingerprint: 1ffd152d74c94bfebe214a0e7e0825074af4a74c3284511b101a510ea93aa906
+    workflow_revision: null
+    selected_ref: f88eeb613d5a361210824f55d3213b83da3ddb28
+    selected_sha: f88eeb613d5a361210824f55d3213b83da3ddb28
+    landing_revision: null
+    audit_ids:
+    - audit-488d528cc184
+    kind: result
+    applied: true
+    retired_at: '2026-08-26T02:57:55.973766+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1219
@@ -222,6 +236,19 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-26T01:23:14.406655+00:00'
     applied_at: '2026-08-26T01:23:21.981756+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1219
+    audit_id: audit-488d528cc184
+    attempt_id: attempt-c7757ad552fa
+    target_state: Done
+    evidence_fingerprint: 1ffd152d74c94bfebe214a0e7e0825074af4a74c3284511b101a510ea93aa906
+    status: Open
+    audit_ids:
+    - audit-488d528cc184
+    kind: result
+    applied: true
+    created_at: '2026-08-26T02:57:55.973779+00:00'
+    applied_at: '2026-08-26T02:58:05.036151+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -292,7 +319,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1219
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -301,7 +328,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c7757ad552fa
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -313,6 +340,10 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1219
       selected_ref: f88eeb613d5a361210824f55d3213b83da3ddb28
       selected_sha: f88eeb613d5a361210824f55d3213b83da3ddb28
+      verdict: fail
+      failure_classification: missing_tests
+      completed_at: '2026-08-26T02:57:55.973595+00:00'
+      ended_at: '2026-08-26T02:57:55.973595+00:00'
     source_generation: 2
     requested_by:
       version: 1
@@ -323,7 +354,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T02:44:07.314085+00:00'
     selected_ref: f88eeb613d5a361210824f55d3213b83da3ddb28
     selected_sha: f88eeb613d5a361210824f55d3213b83da3ddb28
-    updated_at: '2026-08-26T02:46:28.743348+00:00'
+    updated_at: '2026-08-26T02:57:55.973595+00:00'
   - version: 1
     audit_id: audit-63c5a7a8f9c9
     project_id: proj-14849f1b
@@ -619,5 +650,15 @@ author: oompah
 created: 2026-08-26 02:46
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 02:58
+---
+Audit FAIL — missing tests. Routing task to Open.
+
+[REDACTED]
+
+Instructions:
+- Add a caplog-based test in test_provider_retirement.py that triggers _stage_work_contributor_launch timeout via a blocked _persist_work_contributor, then asserts no ERROR record contains 'bounded task-authority deadline' and a WARNING record does. Follow the pattern in test_task_cost_telemetry.py::test_shutdown_timeout_logs_warning_not_error.
 ---
 <!-- COMMENTS:END -->
