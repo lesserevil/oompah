@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:36.934588Z'
-updated_at: '2026-08-26T08:35:52.852365Z'
+updated_at: '2026-08-26T08:35:59.176536Z'
 work_branch: OOMPAH-1336
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/926
@@ -219,8 +219,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-79f5f204e6d0
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-26T08:35:48.145834+00:00'
+    applied_at: '2026-08-26T08:35:57.386871+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -623,5 +624,24 @@ author: oompah
 created: 2026-08-26 08:31
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 08:35
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- full_gate_sha: bb994f542710f9624f0f7b631eacd5b493f9ff3e
+- full_gate_result: passed
+- full_gate_command: make test
+- full_gate_duration_seconds: 184.0
+- focused_test_orchestrator_thread: 5/5 passed
+- focused_test_error_watcher_orchestrator: 13/13 passed
+- changed_files: oompah/orchestrator_thread.py, oompah/__main__.py, tests/test_orchestrator_thread.py
+- new_test_count: 3 new tests in test_orchestrator_thread.py
+- key_change: _run_orchestrator_thread_wrapped() uses tiered log levels: INFO for expected_shutdown, WARNING for rollout gate, ERROR for genuine crashes
+- regression_guard: test_unexpected_generic_scheduler_failure_keeps_crash_classification verifies generic errors still produce ERROR-level crash log
 ---
 <!-- COMMENTS:END -->
