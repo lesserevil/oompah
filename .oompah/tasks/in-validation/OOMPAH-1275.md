@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1275
 type: bug
-status: In Review
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue OOMPAH-1198:
   All 2 dispatch candidates unavailable: prov-651d553c/haiku: contributor_evidence_unavailable:
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:19.724794Z'
-updated_at: '2026-08-26T18:27:21.964468Z'
+updated_at: '2026-08-26T18:52:24.365442Z'
 work_branch: OOMPAH-1275
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/937
 review_number: '937'
 review_head: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
 merged_at: null
-oompah.lifecycle_revision: 6
+oompah.lifecycle_revision: 7
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -134,6 +134,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/937
 oompah.review_number: '937'
 oompah.target_branch: main
 oompah.review_head: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-6f2164e767f5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1275
+    digest: ddf101b949400f7a724f0b79d1275f41822de7073a57873aa16c1a6fd2b8e56b
+  - version: 1
+    audit_id: audit-17c802014b4d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1275
+    digest: ddf101b949400f7a724f0b79d1275f41822de7073a57873aa16c1a6fd2b8e56b
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-6f2164e767f5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1275
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ddf101b949400f7a724f0b79d1275f41822de7073a57873aa16c1a6fd2b8e56b
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-26T18:52:15.691326+00:00'
+    eligible_at: '2026-08-26T18:52:15.691326+00:00'
+    selected_ref: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
+    selected_sha: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
+  - version: 1
+    audit_id: audit-17c802014b4d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1275
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ddf101b949400f7a724f0b79d1275f41822de7073a57873aa16c1a6fd2b8e56b
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-26T18:52:15.691326+00:00'
+    prerequisite_audit_id: audit-6f2164e767f5
+    selected_ref: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
+    selected_sha: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
+  attempt_history: []
 ---
 ## Summary
 
