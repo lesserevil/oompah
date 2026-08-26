@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T08:06:24.549306Z'
-updated_at: '2026-08-26T08:13:06.443153Z'
+updated_at: '2026-08-26T08:34:43.960419Z'
 work_branch: OOMPAH-1325
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/911
@@ -152,6 +152,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1325
     digest: 837767d9ef599cd56db0c3515c4812bc148748ed8c08c7065f2d420cfbcdcc56
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1325","audit-0934c79787c5","attempt-a41103518558"]': '2026-08-26T08:34:34.778384+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1325
+    target_state: Done
+    evidence_fingerprint: 837767d9ef599cd56db0c3515c4812bc148748ed8c08c7065f2d420cfbcdcc56
+    workflow_revision: 0ae097556eaed31487b36552f9484accda9cd108e36818eec822cd33ba955c36
+    selected_ref: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
+    selected_sha: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
+    landing_revision: null
+    audit_ids:
+    - audit-0934c79787c5
+    kind: result
+    applied: true
+    retired_at: '2026-08-26T08:34:34.778400+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1325
+    audit_id: audit-0934c79787c5
+    attempt_id: attempt-a41103518558
+    target_state: Done
+    evidence_fingerprint: 837767d9ef599cd56db0c3515c4812bc148748ed8c08c7065f2d420cfbcdcc56
+    status: In Validation
+    audit_ids:
+    - audit-0934c79787c5
+    kind: result
+    applied: true
+    created_at: '2026-08-26T08:34:34.778410+00:00'
+    applied_at: '2026-08-26T08:34:42.635862+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -159,7 +189,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1325
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -168,7 +198,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a41103518558
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -180,6 +210,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1325
       selected_ref: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
       selected_sha: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
+      verdict: pass
+      completed_at: '2026-08-26T08:34:34.778161+00:00'
+      ended_at: '2026-08-26T08:34:34.778161+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -191,7 +224,7 @@ oompah.terminal_audit:
     selected_ref: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
     selected_sha: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
     workflow_revision: 0ae097556eaed31487b36552f9484accda9cd108e36818eec822cd33ba955c36
-    updated_at: '2026-08-26T08:12:55.359436+00:00'
+    updated_at: '2026-08-26T08:34:34.778161+00:00'
   - version: 1
     audit_id: audit-2f4228493850
     project_id: proj-14849f1b
@@ -214,6 +247,8 @@ oompah.terminal_audit:
     selected_ref: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
     selected_sha: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
     workflow_revision: 0ae097556eaed31487b36552f9484accda9cd108e36818eec822cd33ba955c36
+    updated_at: '2026-08-26T08:34:34.778161+00:00'
+    eligible_at: '2026-08-26T08:34:34.778161+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a41103518558
@@ -391,5 +426,32 @@ author: oompah
 created: 2026-08-26 08:13
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 08:34
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- code_change.file: oompah/orchestrator.py
+- code_change.changed_lines: 57956, 58069, 58105
+- code_change.change: logger.warning() → logger.debug() for all three contributor evidence timeout scenarios in _stage_work_contributor_launch
+- code_change.confirmed_via: search_files
+- error_watcher_mechanism.in_process_handler: _TaskLoggingHandler.setLevel(logging.ERROR) at error_watcher.py:92
+- error_watcher_mechanism.log_file_watcher: _ERROR_LINE_RE matches ERROR|CRITICAL|FATAL|SEVERE only
+- error_watcher_mechanism.conclusion: logger.debug() at level 10 does not trigger either mechanism
+- quality_gate.command: make test
+- quality_gate.result: passed
+- quality_gate.sha: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
+- quality_gate.duration_seconds: 182.2
+- quality_gate.authority: current
+- acceptance_criteria.no_error_watcher_trigger: pass - DEBUG level not captured
+- acceptance_criteria.root_cause_resolved: pass - logging level fix in place
+- acceptance_criteria.no_regression: pass - full test suite passed
+- gap_noted.missing_test: No dedicated test verifying log level is DEBUG for contributor evidence timeouts to prevent error_watcher regression
+- gap_noted.pattern_exists_at: tests/test_dispatch_loop_heartbeat.py:251 test_stale_alert_is_warning_not_error_watcher_incident
+- gap_noted.severity: quality concern, not blocking - acceptance criteria met
 ---
 <!-- COMMENTS:END -->
