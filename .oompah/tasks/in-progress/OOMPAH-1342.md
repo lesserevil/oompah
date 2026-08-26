@@ -16,7 +16,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-26T22:50:59.775750Z'
+updated_at: '2026-08-26T23:36:45.284891Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,5 +47,10 @@ author: oompah
 created: 2026-08-26 22:50
 ---
 Recovery implementation is pushed on epic-OOMPAH-1342 and PR #951. Full make test passes: 20,449 passed, 7 skipped, 2 xfailed. Production remains globally paused; storage reclaimed from 93% to 79% used, and /api/v1/reviews dropped from >20s timeout to ~0.08s on the deployed candidate.
+---
+author: oompah
+created: 2026-08-26 23:36
+---
+Progress update: PR #951 merged to main at 13718ac1c after GitHub CI passed. Focused suites pass (756) and the full local gate passes (20,449 passed, 7 skipped, 2 xfailed). Production is deployed on that revision and remains globally paused. Disk pressure was relieved from 93% to 79%; the reviews endpoint returns from memory in under 0.1s. Remaining controlled work is production re-enable/canary and explicit disposition of historical exhausted jobs.
 ---
 <!-- COMMENTS:END -->

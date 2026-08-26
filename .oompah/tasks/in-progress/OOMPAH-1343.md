@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:05.336022Z'
-updated_at: '2026-08-26T23:13:21.979277Z'
+updated_at: '2026-08-26T23:36:48.774753Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-08-26 23:13
 ---
 Stabilization work completed so far: merged PRs #937/#943/#946, deployed main and then recovery PR #951, corrected protected CI policy, increased evidence timeout, reclaimed about 107 GB by removing inactive build/test artifacts, configured log rotation, and retained stale terminal provenance for TRICKLE-128/TRICKLE-129. Service remains globally paused for final exhausted-job disposition and rollout verification.
+---
+author: oompah
+created: 2026-08-26 23:36
+---
+Progress update: PR #951 merged to main at 13718ac1c after GitHub CI passed. Focused suites pass (756) and the full local gate passes (20,449 passed, 7 skipped, 2 xfailed). Production is deployed on that revision and remains globally paused. Disk pressure was relieved from 93% to 79%; the reviews endpoint returns from memory in under 0.1s. Remaining controlled work is production re-enable/canary and explicit disposition of historical exhausted jobs.
 ---
 <!-- COMMENTS:END -->
