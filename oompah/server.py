@@ -22366,9 +22366,9 @@ async def api_list_reviews():
     try:
         orch = _get_orchestrator()
         projects = orch.project_store.list_all()
-        cached = _api_cache.get("reviews:all")
-        if cached is not None:
-            return JSONResponse(cached)
+        # The orchestrator's generation-fenced cache is already the canonical
+        # read model. Do not add a second TTL cache here: doing so can retain a
+        # pre-webhook response after the underlying generation advances.
         # Index projects by id for fast lookup in the loop below.
         _project_by_id = {p.id: p for p in projects}
         review_generation_reader = getattr(type(orch), "_review_generation", None)
@@ -22429,7 +22429,9 @@ async def api_list_reviews():
                         "review": review.to_dict(),
                         "snapshot_generation": cache_generations.get(project_id, 0),
                         "snapshot_updated_at": cache_updated_at.get(project_id),
-                        "snapshot_stale": False,
+                        "snapshot_stale": not bool(
+                            cache_updated_at.get(project_id)
+                        ),
                     }
                 )
         # Enrich reviews with agent status
@@ -22547,8 +22549,17 @@ async def api_list_reviews():
                     "Reviews API serving cached snapshots; unavailable projects: %s",
                     ", ".join(sorted(unavailable_project_ids)),
                 )
-            _api_cache.set("reviews:all", reviews, ttl_ms=10000)
-            response = JSONResponse(reviews)
+            response = JSONResponse(
+                reviews,
+                headers={
+                    "X-Oompah-Review-Snapshot-State": (
+                        "partial" if unavailable_project_ids else "current"
+                    ),
+                    "X-Oompah-Review-Snapshot-Unavailable-Projects": ",".join(
+                        sorted(unavailable_project_ids)
+                    ),
+                },
+            )
         return response
     except sqlite3.ProgrammingError as exc:
         if "closed database" in str(exc):
