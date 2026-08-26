@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1216
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-136 identifier=TRICKLE-136 run_id=b556f246ba9f4b658b4f5218d3a5623b
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:51.761397Z'
-updated_at: '2026-08-26T00:11:12.168783Z'
+updated_at: '2026-08-26T00:11:20.848293Z'
 work_branch: OOMPAH-1216
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/918
 review_number: '918'
 review_head: bf19e7aa4b8da8bfac1850d47e235951b30ab075
 merged_at: null
-oompah.lifecycle_revision: 5
+oompah.lifecycle_revision: 6
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
