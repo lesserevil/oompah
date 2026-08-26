@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:14:39.219900Z'
-updated_at: '2026-08-26T04:54:12.362853Z'
+updated_at: '2026-08-26T04:54:40.528710Z'
 work_branch: OOMPAH-1301
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/923
@@ -105,8 +105,8 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 24
-  total_output_tokens: 5604
+  total_input_tokens: 38
+  total_output_tokens: 8880
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -114,8 +114,8 @@ oompah.task_costs:
       output_tokens: 1559
       cost_usd: 0.0
     unknown:
-      input_tokens: 14
-      output_tokens: 4045
+      input_tokens: 28
+      output_tokens: 7321
       cost_usd: 0.0
   runs:
   - profile: default
@@ -130,6 +130,12 @@ oompah.task_costs:
     output_tokens: 4045
     cost_usd: 0.0
     recorded_at: '2026-08-26T04:49:17.412961+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 14
+    output_tokens: 3276
+    cost_usd: 0.0
+    recorded_at: '2026-08-26T04:54:37.511952+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -581,5 +587,15 @@ Safe evidence:
 - full_gate_result: make test PASSED at 669845780ab945d5558aefebf1375fb86366dfc0 (191.1s, recorded 2026-08-26 03:14)
 - accepted_sha: 669845780ab945d5558aefebf1375fb86366dfc0
 - graceful_return: function returns descriptive message and retires pre-provider runtime for retry on timeout
+---
+author: oompah
+created: 2026-08-26 04:54
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 24, Tool calls: 12
+- Tokens: 14 in / 3.3K out [3.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 44s
+- Log: OOMPAH-1301__20260826T045013Z.jsonl
 ---
 <!-- COMMENTS:END -->
