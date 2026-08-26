@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1342
 type: epic
-status: Open
+status: In Progress
 priority: 1
 title: Recover production service throughput and workflow progress
 parent: null
@@ -16,7 +16,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-26T20:26:29.581460Z'
+updated_at: '2026-08-26T20:49:52.283078Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,7 +29,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: manual-service-recovery-20260826-epic
   request_fingerprint: 070158bda33ab0d0629239fafe161aeb566b706e18982b59d6073e52830bd282
-oompah.lifecycle_revision: 1
+oompah.lifecycle_revision: 2
 ---
 ## Summary
 
