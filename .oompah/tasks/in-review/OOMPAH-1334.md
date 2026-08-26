@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1334
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 2
 title: '[backend:server] Create issue API error: StateBranchFetchError(''Cannot sync
   state branch \''oompah/state/proj-3e4e9214\'': git fetch origin \''oompah/state/proj-3e4e9214\''
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:31:41.109952Z'
-updated_at: '2026-08-26T08:18:25.423412Z'
+updated_at: '2026-08-26T08:18:45.231815Z'
 work_branch: OOMPAH-1334
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/932
 review_number: '932'
-review_head: null
+review_head: 54945b27c2558ecfb7949b7c20794149841c687d
 merged_at: null
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: e0cd2b77f43728f834e3be4a42ef4726942676842c4590fe2c09b52d09db6c5c
@@ -187,6 +187,8 @@ oompah.integration:
 oompah.work_branch: OOMPAH-1334
 oompah.review_url: https://github.com/lesserevil/oompah/pull/932
 oompah.review_number: '932'
+oompah.target_branch: main
+oompah.review_head: 54945b27c2558ecfb7949b7c20794149841c687d
 ---
 ## Summary
 
