@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:15:47.974297Z'
-updated_at: '2026-08-26T04:06:30.458575Z'
+updated_at: '2026-08-26T04:06:46.129605Z'
 work_branch: OOMPAH-1219
 target_branch: main
 review_url: ''
@@ -122,6 +122,14 @@ oompah.work_contributors:
     provider_id: prov-651d553c
     provider_name: Claude
     model_id: haiku
+    focus: general
+    source_branch: OOMPAH-1219
+    source_sha: null
+    completed_at: ''
+  - run_id: beef70f4b13d4ef9a8a84d4ad093794d--contributor-86e3ac8153e1
+    provider_id: prov-6cf41c89
+    provider_name: Opencode/Switchyard
+    model_id: switchyard/auto
     focus: general
     source_branch: OOMPAH-1219
     source_sha: null
