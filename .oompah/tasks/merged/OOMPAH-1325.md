@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T08:06:24.549306Z'
-updated_at: '2026-08-26T08:39:59.853814Z'
+updated_at: '2026-08-26T08:40:14.997642Z'
 work_branch: OOMPAH-1325
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/911
@@ -108,8 +108,8 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 75
-  total_output_tokens: 23677
+  total_input_tokens: 96
+  total_output_tokens: 29799
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -117,8 +117,8 @@ oompah.task_costs:
       output_tokens: 2139
       cost_usd: 0.0
     unknown:
-      input_tokens: 65
-      output_tokens: 21538
+      input_tokens: 86
+      output_tokens: 27660
       cost_usd: 0.0
   runs:
   - profile: default
@@ -133,6 +133,12 @@ oompah.task_costs:
     output_tokens: 21538
     cost_usd: 0.0
     recorded_at: '2026-08-26T08:35:12.255860+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 21
+    output_tokens: 6122
+    cost_usd: 0.0
+    recorded_at: '2026-08-26T08:40:11.860213+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -571,5 +577,15 @@ Safe evidence:
 - gap_noted.missing_test: No dedicated test asserting DEBUG log level for contributor evidence timeout paths
 - gap_noted.pattern_exists_at: tests/test_dispatch_loop_heartbeat.py:251 test_stale_alert_is_warning_not_error_watcher_incident
 - gap_noted.severity: quality concern, not blocking
+---
+author: oompah
+created: 2026-08-26 08:40
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 35, Tool calls: 23
+- Tokens: 21 in / 6.1K out [6.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 44s
+- Log: OOMPAH-1325__20260826T083544Z.jsonl
 ---
 <!-- COMMENTS:END -->
