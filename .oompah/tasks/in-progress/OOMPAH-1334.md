@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:31:41.109952Z'
-updated_at: '2026-08-26T07:22:21.819431Z'
+updated_at: '2026-08-26T07:23:05.305794Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -462,5 +462,17 @@ created: 2026-08-26 07:22
 
 **Test results**: All 24 tests pass (3 new + 21 existing, no regressions)
 Files modified: oompah/server.py, tests/test_server_create_issue.py
+---
+author: oompah
+created: 2026-08-26 07:23
+---
+**Verification**: 
+- Code changes committed to branch OOMPAH-1334
+- All 24 tests pass (3 new + 21 existing)
+- StateBranchFetchError now: logs WARNING, returns 503, sets retryable=true
+- Generic exceptions still: log ERROR, return 500 (no regression)
+- Git branch up to date with origin/OOMPAH-1334
+
+Ready for submission.
 ---
 <!-- COMMENTS:END -->
