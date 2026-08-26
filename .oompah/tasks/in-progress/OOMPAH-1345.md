@@ -13,9 +13,9 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:16.245447Z'
-updated_at: '2026-08-26T20:26:59.786815Z'
+updated_at: '2026-08-26T20:30:24.889456Z'
 work_branch: OOMPAH-1345
-target_branch: null
+target_branch: main
 review_url: null
 review_number: null
 review_head: null
@@ -31,14 +31,16 @@ oompah.integration:
   version: 2
   state: ready
   attempts: 0
-  mode: queue
+  mode: standalone
+  post_landed_parent_id: OOMPAH-1342
   task_branch: OOMPAH-1345
-  base_branch: epic-OOMPAH-1342
+  base_branch: main
   base_sha: d258fc16b1478ff902139c66cdb3e51fa96d209c
   head_sha: f13ca97b66bea10214dadec8464737557a4a04e8
-  submitted_at: '2026-08-26T19:21:55.780979+00:00'
-  updated_at: '2026-08-26T19:21:55.780979+00:00'
+  submitted_at: '2026-08-26T20:30:13.595059+00:00'
+  updated_at: '2026-08-26T20:30:13.595059+00:00'
 oompah.work_branch: OOMPAH-1345
+oompah.target_branch: main
 ---
 ## Summary
 
