@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:16.245447Z'
-updated_at: '2026-08-26T19:22:06.373003Z'
+updated_at: '2026-08-26T19:28:35.951945Z'
 work_branch: OOMPAH-1345
 target_branch: null
 review_url: null
@@ -60,5 +60,10 @@ author: oompah
 created: 2026-08-26 19:22
 ---
 Changed reviews API to serve the scheduler review snapshot without synchronous forge fanout, with generation metadata and regression coverage. Focused API tests pass (58).
+---
+author: oompah
+created: 2026-08-26 19:28
+---
+Reviews API now returns the scheduler-maintained generation-aware snapshot without request-path forge I/O; focused reviews tests pass.
 ---
 <!-- COMMENTS:END -->
