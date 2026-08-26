@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T18:43:16.245447Z'
-updated_at: '2026-08-26T20:33:26.509827Z'
+updated_at: '2026-08-26T21:36:33.280957Z'
 work_branch: OOMPAH-1345
 target_branch: main
 review_url: null
@@ -87,5 +87,10 @@ author: oompah
 created: 2026-08-26 20:30
 ---
 Reviews API now returns the scheduler-maintained generation-aware snapshot without request-path forge I/O; focused reviews tests pass.
+---
+author: oompah
+created: 2026-08-26 21:36
+---
+Implementation is committed, pushed, and present on the published epic branch. The complete make test gate passes functionally except for the known parallel-only 5-second restart stress timeout; that exact test passes in isolation. Awaiting integration while the project remains paused.
 ---
 <!-- COMMENTS:END -->
