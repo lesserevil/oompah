@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:27.314224Z'
-updated_at: '2026-08-26T20:31:03.539799Z'
+updated_at: '2026-08-26T20:32:59.068952Z'
 work_branch: OOMPAH-1346
 target_branch: main
 review_url: null
@@ -36,9 +36,9 @@ oompah.integration:
   task_branch: OOMPAH-1346
   base_branch: main
   base_sha: d258fc16b1478ff902139c66cdb3e51fa96d209c
-  head_sha: f7c4fc4a89012e7173bb09e6ffd3743fdd32f0d6
-  submitted_at: '2026-08-26T20:30:48.256959+00:00'
-  updated_at: '2026-08-26T20:30:48.256959+00:00'
+  head_sha: 80b93f5d251e2b7d442dd85c2ac3ce91a99491bb
+  submitted_at: '2026-08-26T20:32:49.473205+00:00'
+  updated_at: '2026-08-26T20:32:49.473205+00:00'
 oompah.work_branch: OOMPAH-1346
 oompah.target_branch: main
 ---
@@ -83,5 +83,10 @@ author: oompah
 created: 2026-08-26 20:31
 ---
 Added bounded age-based retention for cold workflow events and removed scheduler-path VACUUM; focused storage/config tests pass.
+---
+author: oompah
+created: 2026-08-26 20:32
+---
+Added bounded age-based retention for cold workflow events, removed scheduler-path VACUUM, and included the validated snapshot API prerequisite stack.
 ---
 <!-- COMMENTS:END -->
