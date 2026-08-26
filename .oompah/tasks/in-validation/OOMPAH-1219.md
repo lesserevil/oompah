@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1219
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-131 identifier=TRICKLE-131 run_id=2d79f805f82c4604845eb835cf99a115
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:15:47.974297Z'
-updated_at: '2026-08-26T02:43:59.972465Z'
+updated_at: '2026-08-26T02:44:11.975547Z'
 work_branch: OOMPAH-1219
 target_branch: main
 review_url: ''
 review_number: ''
 review_head: ''
 merged_at: null
-oompah.lifecycle_revision: 9
+oompah.lifecycle_revision: 10
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -182,6 +182,16 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1219
     digest: 5a4489832bd7ed2fe943365736d0513ccd8150eaf8c590c2fa3b102448a98e42
+  - version: 1
+    audit_id: audit-488d528cc184
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1219
+    digest: 1ffd152d74c94bfebe214a0e7e0825074af4a74c3284511b101a510ea93aa906
+  - version: 1
+    audit_id: audit-63c5a7a8f9c9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1219
+    digest: 1ffd152d74c94bfebe214a0e7e0825074af4a74c3284511b101a510ea93aa906
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1219","audit-cb1d2c6ffc05","attempt-c2890f89407f"]': '2026-08-26T01:23:14.406632+00:00'
   oompah.terminal_audit_retirements:
@@ -219,7 +229,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1219
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -277,6 +287,48 @@ oompah.terminal_audit:
     selected_ref: f88eeb613d5a361210824f55d3213b83da3ddb28
     selected_sha: f88eeb613d5a361210824f55d3213b83da3ddb28
     updated_at: '2026-08-26T01:27:17.153443+00:00'
+  - version: 1
+    audit_id: audit-488d528cc184
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1219
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1ffd152d74c94bfebe214a0e7e0825074af4a74c3284511b101a510ea93aa906
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: standalone-ready-reconciliation
+      source: oompah
+    previous_state: Ready to Integrate
+    created_at: '2026-08-26T02:44:07.314085+00:00'
+    eligible_at: '2026-08-26T02:44:07.314085+00:00'
+    selected_ref: f88eeb613d5a361210824f55d3213b83da3ddb28
+    selected_sha: f88eeb613d5a361210824f55d3213b83da3ddb28
+  - version: 1
+    audit_id: audit-63c5a7a8f9c9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1219
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1ffd152d74c94bfebe214a0e7e0825074af4a74c3284511b101a510ea93aa906
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: standalone-ready-reconciliation
+      source: oompah
+    previous_state: Ready to Integrate
+    created_at: '2026-08-26T02:44:07.314085+00:00'
+    prerequisite_audit_id: audit-488d528cc184
+    selected_ref: f88eeb613d5a361210824f55d3213b83da3ddb28
+    selected_sha: f88eeb613d5a361210824f55d3213b83da3ddb28
   attempt_history:
   - version: 1
     attempt_id: attempt-c2890f89407f
