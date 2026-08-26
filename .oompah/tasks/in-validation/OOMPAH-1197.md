@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-26T06:49:11.568243Z'
+updated_at: '2026-08-26T06:49:25.089546Z'
 work_branch: OOMPAH-1197
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/925
@@ -225,13 +225,17 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 15115
-  total_output_tokens: 4378
+  total_input_tokens: 15144
+  total_output_tokens: 11596
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 15115
       output_tokens: 4378
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 29
+      output_tokens: 7218
       cost_usd: 0.0
   runs:
   - profile: default
@@ -258,6 +262,12 @@ oompah.task_costs:
     output_tokens: 157
     cost_usd: 0.0
     recorded_at: '2026-08-25T19:07:11.083995+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 29
+    output_tokens: 7218
+    cost_usd: 0.0
+    recorded_at: '2026-08-26T06:49:20.296432+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -892,5 +902,15 @@ Safe evidence:
 - error_watcher_threshold: oompah/error_watcher.py:92 setLevel(logging.ERROR) — WARNING not captured
 - test_class: tests/test_error_watcher.py TestWorkerFailureLogging (lines 1834+)
 - regression_coverage: test_debug_level_logs_not_captured_by_handler, test_exception_with_error_keyword_in_debug_not_captured
+---
+author: oompah
+created: 2026-08-26 06:49
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 54, Tool calls: 28
+- Tokens: 29 in / 7.2K out [7.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 12m 15s
+- Log: OOMPAH-1197__20260826T063731Z.jsonl
 ---
 <!-- COMMENTS:END -->
