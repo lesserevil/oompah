@@ -1143,7 +1143,9 @@ class ServiceConfig:
     # Maximum time an owner terminal-control request may wait for the shared
     # project mutation lock.  Timing out is fail-closed and retryable; it never
     # leaves a background mutation running after the API response.
-    terminal_control_lock_timeout_seconds: float = 5.0
+    # Increased from 5.0 to 15.0 (OOMPAH-1271) to allow more time for slow tracker
+    # operations during pre-provider contributor evidence writes.
+    terminal_control_lock_timeout_seconds: float = 15.0
     # A synchronous adapter which remains live after its operation timeout
     # retains a non-expiring durable quarantine. Quarantine persistence has
     # its own store-operation deadline so a short adapter timeout cannot also
@@ -1188,7 +1190,9 @@ class ServiceConfig:
     # manual termination. A worker that ignores cancellation must not wedge
     # the scheduler or prevent the service from stopping.
     # Configurable via OOMPAH_WORKER_TERMINATION_TIMEOUT_MS.
-    worker_termination_timeout_ms: int = 10000
+    # Increased from 10000 to 20000 (OOMPAH-1271) to allow more time for
+    # pre-provider contributor evidence writes to slow trackers.
+    worker_termination_timeout_ms: int = 20000
 
     # Bounded deadline for the pre-provider contributor-evidence write (a
     # tracker/state-branch metadata upsert taken under the project + auditor
