@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T09:37:50.327401Z'
-updated_at: '2026-08-26T02:50:20.478685Z'
+updated_at: '2026-08-26T02:50:27.091720Z'
 work_branch: OOMPAH-1229
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/912
@@ -308,8 +308,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-dd7d4e2fef68
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-26T02:50:15.470463+00:00'
+    applied_at: '2026-08-26T02:50:25.115101+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -748,5 +749,23 @@ author: oompah
 created: 2026-08-26 02:46
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 02:50
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- fix_location: tests/test_ws_fault_injection.py
+- synchronization_mechanism: threading.Condition with 5s bounded deadline, captures_condition.wait(timeout=0.1) loop — no time.sleep correctness
+- _wire_fault_injector_change: on_capture parameter added at line 108, invoked before drop predicate at lines 128-129
+- test_method: TestLiveDashboardConvergence::test_four_completion_snapshots_converge_to_zero_running_chips
+- captures_array: captured_completion_snapshots=[False,False,False,False] indexed by 3-len(running)
+- sleep_in_test_file: none found (confirmed via search)
+- quality_gate_sha: 3ea3b8853dd3606c9994c774f4719d84e539fd22
+- quality_gate_result: passed
+- quality_gate_runs: 2 (181.2s and 184.8s)
 ---
 <!-- COMMENTS:END -->
