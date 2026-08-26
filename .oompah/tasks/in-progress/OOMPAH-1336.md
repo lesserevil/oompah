@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:36.934588Z'
-updated_at: '2026-08-26T01:05:48.879448Z'
+updated_at: '2026-08-26T01:12:58.408020Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -281,5 +281,34 @@ The problem: We're not properly handling expected shutdown scenarios or distingu
 - Actual unexpected crashes
 
 Next: Improve exception handling to only log genuine unexpected crashes.
+---
+author: oompah
+created: 2026-08-26 01:12
+---
+**Implementation: Improved Exception Handling**
+
+Fixed the issue by improving exception classification and logging levels in the orchestrator thread.
+
+Changes made:
+
+1. **oompah/orchestrator_thread.py**
+   - Added EXPECTED_SHUTDOWN_ERROR_CLASS to classify expected shutdown errors
+   - Extended orchestrator_thread_error_fields() to recognize:
+     * 'orchestrator run overlap detected' - expected during shutdown
+     * 'durable restart-issue conversion is incomplete' - expected during shutdown
+   - These errors no longer trigger error_watcher because they're logged at INFO/WARNING level
+
+2. **oompah/__main__.py**
+   - Improved _run_orchestrator_thread() to use appropriate log levels:
+     * INFO level for expected shutdown scenarios (won't trigger error_watcher)
+     * WARNING level for validation failures like WorkflowRolloutGateError
+     * ERROR level only for unexpected crashes (will trigger error_watcher)
+   - This prevents expected failures from creating spurious error tasks
+
+3. **tests/test_orchestrator_thread.py**
+   - Added tests for the new expected shutdown error classifications
+   - All existing tests continue to pass
+
+The fix ensures that only genuine unexpected crashes trigger error_watcher, while graceful shutdowns and expected failures are handled appropriately.
 ---
 <!-- COMMENTS:END -->
