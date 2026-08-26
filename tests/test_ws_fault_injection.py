@@ -105,12 +105,18 @@ def _state_with_running(running: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _wire_fault_injector(original_send_ws, predicate, captured=None):
+def _wire_fault_injector(original_send_ws, predicate, captured=None, on_capture=None):
     """Return a real ``_send_ws`` wrapper that faults after envelope creation.
 
     ``_send_ws`` receives the un-enveloped application payload.  Replacing the
     socket's ``send_text`` for the duration of the original call lets tests
     inspect/drop/replay the actual protocol envelope, including its sequence.
+    
+    Args:
+        original_send_ws: The original _send_ws function to wrap
+        predicate: Function that returns True if the envelope should be dropped
+        captured: Optional list to append captured envelopes to
+        on_capture: Optional callable that gets invoked when an envelope is captured
     """
     async def patched_send_ws(ws, msg):
         original_send_text = ws.send_text
@@ -119,6 +125,8 @@ def _wire_fault_injector(original_send_ws, predicate, captured=None):
             envelope = json.loads(raw_text)
             if captured is not None:
                 captured.append(envelope)
+            if on_capture is not None:
+                on_capture(envelope)
             if predicate(envelope):
                 return
             await original_send_text(raw_text)
@@ -734,6 +742,25 @@ class TestLiveDashboardConvergence:
         original_send_ws = server_module._send_ws
         prior_orch = server_module._orchestrator
         server_module._orchestrator = _make_mock_orch()
+        
+        # Synchronization: wait for all 4 completion snapshots to be captured
+        # by the fault injector before asserting. This replaces timing-dependent
+        # observation with an explicit bounded wait.
+        captures_lock = threading.Lock()
+        captures_condition = threading.Condition(captures_lock)
+        captured_completion_snapshots = [False, False, False, False]  # Track each completion
+        
+        def track_completion_snapshot(envelope):
+            """Signal when a completion snapshot is captured."""
+            data = envelope.get("data")
+            running = data.get("running") if isinstance(data, dict) else None
+            if envelope.get("type") == "state" and isinstance(running, list):
+                if len(running) in {0, 1, 2, 3}:
+                    # Map running count to completion index: 3→0, 2→1, 1→2, 0→3
+                    completion_index = 3 - len(running)
+                    with captures_condition:
+                        captured_completion_snapshots[completion_index] = True
+                        captures_condition.notify_all()
 
         def drop_completion_states(envelope):
             data = envelope.get("data")
@@ -747,7 +774,7 @@ class TestLiveDashboardConvergence:
             return False
 
         patched_send_ws = _wire_fault_injector(
-            original_send_ws, drop_completion_states
+            original_send_ws, drop_completion_states, on_capture=track_completion_snapshot
         )
         try:
             server_module._update_state_snapshot(_state_with_running(completed_auditors))
@@ -787,7 +814,23 @@ class TestLiveDashboardConvergence:
                             server_module._current_state_message(),
                         )
 
-                    assert len(dropped) == 4
+                    # Wait for all 4 completion snapshots to be captured by the
+                    # fault injector with a bounded timeout. This proves all 4
+                    # broadcasts were processed before we assert.
+                    timeout = time.time() + 5.0  # 5-second timeout
+                    with captures_condition:
+                        while not all(captured_completion_snapshots):
+                            remaining_time = timeout - time.time()
+                            if remaining_time <= 0:
+                                raise AssertionError(
+                                    f"Timeout waiting for 4 completion snapshots. "
+                                    f"Captured: {sum(captured_completion_snapshots)}/4"
+                                )
+                            captures_condition.wait(timeout=0.1)
+
+                    assert len(dropped) == 4, (
+                        f"Expected 4 dropped completion snapshots, got {len(dropped)}"
+                    )
                     assert [message["delivery_seq"] for message in dropped] == sorted(
                         message["delivery_seq"] for message in dropped
                     )
