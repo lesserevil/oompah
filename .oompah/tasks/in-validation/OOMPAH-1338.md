@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T16:53:55.710371Z'
-updated_at: '2026-08-26T09:33:05.581177Z'
+updated_at: '2026-08-26T09:40:34.307304Z'
 work_branch: OOMPAH-1338
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/931
@@ -134,6 +134,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1338
     digest: 7a849a29e69f69e147bb60c848187bf3d42eaed5756d86a0c976d3e6de66e281
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1338","audit-e6f2e065777f","attempt-55e9ea1ac6cb"]': '2026-08-26T09:40:25.873137+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1338
+    target_state: Done
+    evidence_fingerprint: 7a849a29e69f69e147bb60c848187bf3d42eaed5756d86a0c976d3e6de66e281
+    workflow_revision: null
+    selected_ref: 07ecca55f22409dde6263523adccc5354632797c
+    selected_sha: 07ecca55f22409dde6263523adccc5354632797c
+    landing_revision: null
+    audit_ids:
+    - audit-e6f2e065777f
+    kind: result
+    applied: true
+    retired_at: '2026-08-26T09:40:25.873155+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1338
+    audit_id: audit-e6f2e065777f
+    attempt_id: attempt-55e9ea1ac6cb
+    target_state: Done
+    evidence_fingerprint: 7a849a29e69f69e147bb60c848187bf3d42eaed5756d86a0c976d3e6de66e281
+    status: In Validation
+    audit_ids:
+    - audit-e6f2e065777f
+    kind: result
+    applied: true
+    created_at: '2026-08-26T09:40:25.873165+00:00'
+    applied_at: '2026-08-26T09:40:32.976952+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -141,7 +171,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1338
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -150,7 +180,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-55e9ea1ac6cb
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -162,6 +192,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1338
       selected_ref: 07ecca55f22409dde6263523adccc5354632797c
       selected_sha: 07ecca55f22409dde6263523adccc5354632797c
+      verdict: pass
+      completed_at: '2026-08-26T09:40:25.872957+00:00'
+      ended_at: '2026-08-26T09:40:25.872957+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -172,7 +205,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T09:14:35.289750+00:00'
     selected_ref: 07ecca55f22409dde6263523adccc5354632797c
     selected_sha: 07ecca55f22409dde6263523adccc5354632797c
-    updated_at: '2026-08-26T09:32:48.614574+00:00'
+    updated_at: '2026-08-26T09:40:25.872957+00:00'
   - version: 1
     audit_id: audit-dd429bfb4701
     project_id: proj-14849f1b
@@ -194,6 +227,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-e6f2e065777f
     selected_ref: 07ecca55f22409dde6263523adccc5354632797c
     selected_sha: 07ecca55f22409dde6263523adccc5354632797c
+    updated_at: '2026-08-26T09:40:25.872957+00:00'
+    eligible_at: '2026-08-26T09:40:25.872957+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-55e9ea1ac6cb
@@ -380,5 +415,20 @@ author: oompah
 created: 2026-08-26 09:33
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 09:40
+---
+Audit PASS — Done
+
+Fix verified. The /api/v1/reviews endpoint in oompah/server.py now catches sqlite3.ProgrammingError with 'closed database', logs WARNING (not ERROR), and returns HTTP 503 with code 'store_closed'. Other error types continue logging ERROR/500. All 4 regression tests in tests/test_server_reviews_closed_database.py pass. HEAD SHA 07ecca55f22409dde6263523adccc5354632797c matches audit contract. Full make test gate previously passed for this SHA. Implementation and test coverage meet acceptance criteria.
+
+Safe evidence:
+- head_sha: 07ecca55f22409dde6263523adccc5354632797c
+- focused_tests: 4 passed in 0.91s
+- test_file: tests/test_server_reviews_closed_database.py
+- implementation_location: oompah/server.py lines 22481-22492
+- full_gate: make test passed (189s and 190s, twice)
+- fix_approach: sqlite3.ProgrammingError with 'closed database' -> 503+WARNING; other errors -> 500+ERROR unchanged
 ---
 <!-- COMMENTS:END -->
