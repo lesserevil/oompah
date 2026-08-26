@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:10.725032Z'
-updated_at: '2026-08-26T19:20:28.505683Z'
+updated_at: '2026-08-26T19:28:53.611309Z'
 work_branch: OOMPAH-1344
 target_branch: null
 review_url: null
@@ -34,9 +34,9 @@ oompah.integration:
   task_branch: OOMPAH-1344
   base_branch: epic-OOMPAH-1342
   base_sha: d258fc16b1478ff902139c66cdb3e51fa96d209c
-  head_sha: f13ca97b66bea10214dadec8464737557a4a04e8
-  submitted_at: '2026-08-26T19:20:17.525422+00:00'
-  updated_at: '2026-08-26T19:20:17.525422+00:00'
+  head_sha: f7c4fc4a89012e7173bb09e6ffd3743fdd32f0d6
+  submitted_at: '2026-08-26T19:28:42.901454+00:00'
+  updated_at: '2026-08-26T19:28:42.901454+00:00'
 oompah.work_branch: OOMPAH-1344
 ---
 ## Summary
@@ -60,5 +60,10 @@ author: oompah
 created: 2026-08-26 19:20
 ---
 Added generation-scoped integration resolver and review-provider caches. Focused workflow tests pass (366).
+---
+author: oompah
+created: 2026-08-26 19:28
+---
+Generation-scoped caches deduplicate review listings and parent landing resolution while preserving exact authority boundaries; focused workflow tests pass.
 ---
 <!-- COMMENTS:END -->
