@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1265
 type: task
-status: Needs Human
+status: In Validation
 priority: 1
 title: Prove external-prerequisite lifecycle convergence and observability
 parent: OOMPAH-1231
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-25T23:54:11.981275Z'
+updated_at: '2026-08-26T15:47:11.072932Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -28,7 +28,7 @@ oompah.create_once:
   creation_marker: oompah-1231-lifecycle-acceptance-v1
   request_fingerprint: 4f48f1f0e957c03ae28cb1f4f01e0f52c4c6c9020d902bc67d1cfb4f69389377
 oompah.start_blocked_by: *id001
-oompah.lifecycle_revision: 5
+oompah.lifecycle_revision: 6
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: d1a591bae50708aaf359f111881a4071d274e23ddea4e3a15cbe53430d1b5800
@@ -193,6 +193,42 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-25T23:54:02.881517+00:00'
     applied_at: '2026-08-25T23:54:10.690372+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1265
+    audit_id: audit-b5efe744bcec
+    attempt_id: audit-rearm:audit-b5efe744bcec
+    target_state: Done
+    evidence_fingerprint: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+    status: In Validation
+    audit_ids:
+    - audit-b5efe744bcec
+    kind: audit_rearm
+    applied: true
+    created_at: '2026-08-26T15:47:01.735776+00:00'
+    applied_at: '2026-08-26T15:47:07.624041+00:00'
+  oompah.terminal_audit_rearm_history:
+  - version: 2
+    audit_id: audit-b5efe744bcec
+    superseded_audit_id: audit-203317319620
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1265
+    target_state: Done
+    evidence_fingerprint: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+    workflow_revision: null
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+    landing_revision: null
+    source_generation: 2
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Project owner reviewed the completed implementation and restored verdict-capable
+      independent auditor capacity. OOMPAH-1219 now includes the requested caplog
+      regression; OOMPAH-1265 implementation is integrated with focused acceptance
+      evidence.
+    authorized_at: '2026-08-26T15:47:01.735367+00:00'
+    mode: infrastructure_recovery
   version: 1
   pending_chain:
   - version: 1
@@ -200,7 +236,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1265
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -271,7 +307,28 @@ oompah.terminal_audit:
     eligible_at: '2026-08-25T23:15:50.519008+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-25T23:54:02.881342+00:00'
+    updated_at: '2026-08-26T15:47:01.735367+00:00'
+  - version: 1
+    audit_id: audit-b5efe744bcec
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1265
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+    attempts: []
+    source_generation: 2
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-26T15:47:01.735367+00:00'
+    eligible_at: '2026-08-26T15:47:01.735367+00:00'
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
   attempt_history:
   - version: 1
     attempt_id: attempt-f1e85028019b
@@ -472,5 +529,10 @@ created: 2026-08-25 23:54
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-26 15:47
+---
+Terminal audit rearmed by project owner after recovery: Project owner reviewed the completed implementation and restored verdict-capable independent auditor capacity. OOMPAH-1219 now includes the requested caplog regression; OOMPAH-1265 implementation is integrated with focused acceptance evidence.
 ---
 <!-- COMMENTS:END -->
