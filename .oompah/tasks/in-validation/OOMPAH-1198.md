@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:04.107366Z'
-updated_at: '2026-08-26T20:34:34.977407Z'
+updated_at: '2026-08-26T20:42:54.724312Z'
 work_branch: OOMPAH-1198
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/943
@@ -279,6 +279,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1198
     digest: 53e82ef5f1df588a3ff24eb87ca3bed97e0c87891c520a74adf9ef44dc9947d7
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1198","audit-fc15be7f75b1","attempt-22013689cf98"]': '2026-08-26T20:42:39.032297+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1198
+    target_state: Done
+    evidence_fingerprint: 53e82ef5f1df588a3ff24eb87ca3bed97e0c87891c520a74adf9ef44dc9947d7
+    workflow_revision: null
+    selected_ref: 7b780193a56696ec1961f882b1916d967d5f8032
+    selected_sha: 7b780193a56696ec1961f882b1916d967d5f8032
+    landing_revision: null
+    audit_ids:
+    - audit-fc15be7f75b1
+    kind: result
+    applied: true
+    retired_at: '2026-08-26T20:42:39.032314+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1198
+    audit_id: audit-fc15be7f75b1
+    attempt_id: attempt-22013689cf98
+    target_state: Done
+    evidence_fingerprint: 53e82ef5f1df588a3ff24eb87ca3bed97e0c87891c520a74adf9ef44dc9947d7
+    status: In Validation
+    audit_ids:
+    - audit-fc15be7f75b1
+    kind: result
+    applied: true
+    created_at: '2026-08-26T20:42:39.032325+00:00'
+    applied_at: '2026-08-26T20:42:52.059795+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -286,7 +316,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1198
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -295,7 +325,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-22013689cf98
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -307,6 +337,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1198
       selected_ref: 7b780193a56696ec1961f882b1916d967d5f8032
       selected_sha: 7b780193a56696ec1961f882b1916d967d5f8032
+      verdict: pass
+      completed_at: '2026-08-26T20:42:39.032150+00:00'
+      ended_at: '2026-08-26T20:42:39.032150+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -317,7 +350,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T18:52:39.521109+00:00'
     selected_ref: 7b780193a56696ec1961f882b1916d967d5f8032
     selected_sha: 7b780193a56696ec1961f882b1916d967d5f8032
-    updated_at: '2026-08-26T20:34:23.933796+00:00'
+    updated_at: '2026-08-26T20:42:39.032150+00:00'
   - version: 1
     audit_id: audit-1e9843855692
     project_id: proj-14849f1b
@@ -339,6 +372,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-fc15be7f75b1
     selected_ref: 7b780193a56696ec1961f882b1916d967d5f8032
     selected_sha: 7b780193a56696ec1961f882b1916d967d5f8032
+    updated_at: '2026-08-26T20:42:39.032150+00:00'
+    eligible_at: '2026-08-26T20:42:39.032150+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-22013689cf98
@@ -792,5 +827,18 @@ author: oompah
 created: 2026-08-26 20:34
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 20:42
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- quality_gate: make test passed at 7b780193a56696ec1961f882b1916d967d5f8032 in 188.9s
+- key_files_changed: oompah/integration_executor.py, oompah/orchestrator.py, oompah/projects.py
+- regression_tests: test_managed_git_credentials.py::test_project_network_runner_uses_canonical_remote_over_stale_origin, test_private_epic_dispatch_refreshes_through_canonical_remote
+- fix_summary: canonical_remote_url param replaces stale SSH origin for fetch/push in execute_integration; orchestrator passes project.repo_url
 ---
 <!-- COMMENTS:END -->
