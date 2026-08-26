@@ -159,6 +159,8 @@ def test_housekeeping_bundle_contains_only_non_lifecycle_operations() -> None:
         "_maybe_heal_repos",
         "_maybe_cleanup_worktrees",
         "_maybe_cleanup_storage",
+        "_maybe_run_stalled_task_watchdog",
+        "_maybe_cleanup_stale_reviews",
         "_run_maintenance_job",
         "_update_repo_hygiene_health",
     }
@@ -171,11 +173,15 @@ def test_runtime_housekeeping_schedules_owner_claim_retirement() -> None:
     orchestrator._maybe_cleanup_storage = Mock()
     orchestrator._reconcile_inactive_owner_claims = Mock()
     orchestrator._archive_workflow_events = Mock()
+    orchestrator._maybe_run_stalled_task_watchdog = Mock()
+    orchestrator._maybe_cleanup_stale_reviews = Mock()
     orchestrator._run_maintenance_job = Mock()
     orchestrator._update_repo_hygiene_health = Mock()
 
     orchestrator._run_non_lifecycle_housekeeping()
 
+    orchestrator._maybe_run_stalled_task_watchdog.assert_called_once_with()
+    orchestrator._maybe_cleanup_stale_reviews.assert_called_once_with()
     orchestrator._run_maintenance_job.assert_any_call(
         "owner_claim_retirements",
         orchestrator._reconcile_inactive_owner_claims,
