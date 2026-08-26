@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:15:47.974297Z'
-updated_at: '2026-08-26T02:44:11.975547Z'
+updated_at: '2026-08-26T02:46:33.314594Z'
 work_branch: OOMPAH-1219
 target_branch: main
 review_url: ''
@@ -292,12 +292,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1219
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 1ffd152d74c94bfebe214a0e7e0825074af4a74c3284511b101a510ea93aa906
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-c7757ad552fa
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 1ffd152d74c94bfebe214a0e7e0825074af4a74c3284511b101a510ea93aa906
+      created_at: '2026-08-26T02:46:28.743348+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-26T02:46:28.743348+00:00'
+      branch_key: OOMPAH-1219
+      selected_ref: f88eeb613d5a361210824f55d3213b83da3ddb28
+      selected_sha: f88eeb613d5a361210824f55d3213b83da3ddb28
     source_generation: 2
     requested_by:
       version: 1
@@ -308,6 +323,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T02:44:07.314085+00:00'
     selected_ref: f88eeb613d5a361210824f55d3213b83da3ddb28
     selected_sha: f88eeb613d5a361210824f55d3213b83da3ddb28
+    updated_at: '2026-08-26T02:46:28.743348+00:00'
   - version: 1
     audit_id: audit-63c5a7a8f9c9
     project_id: proj-14849f1b
@@ -342,6 +358,21 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: sonnet
     started_at: '2026-08-26T01:08:54.109303+00:00'
+    branch_key: OOMPAH-1219
+    selected_ref: f88eeb613d5a361210824f55d3213b83da3ddb28
+    selected_sha: f88eeb613d5a361210824f55d3213b83da3ddb28
+  - version: 1
+    attempt_id: attempt-c7757ad552fa
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1ffd152d74c94bfebe214a0e7e0825074af4a74c3284511b101a510ea93aa906
+    created_at: '2026-08-26T02:46:28.743348+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-26T02:46:28.743348+00:00'
     branch_key: OOMPAH-1219
     selected_ref: f88eeb613d5a361210824f55d3213b83da3ddb28
     selected_sha: f88eeb613d5a361210824f55d3213b83da3ddb28
