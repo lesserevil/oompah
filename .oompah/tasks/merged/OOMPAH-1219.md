@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:15:47.974297Z'
-updated_at: '2026-08-26T15:48:59.974167Z'
+updated_at: '2026-08-26T15:49:06.284219Z'
 work_branch: OOMPAH-1219
 target_branch: main
 review_url: ''
@@ -235,6 +235,22 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-26T02:57:55.973766+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1219
+    target_state: Merged
+    evidence_fingerprint: ee6c7b56f1e229537df02f33bd43e502ec3a3e54905a7ec815fa810110ca85ba
+    workflow_revision: null
+    selected_ref: d8d6e978895657d9f97f2306fb244583c5cb9ed4
+    selected_sha: d8d6e978895657d9f97f2306fb244583c5cb9ed4
+    landing_revision: null
+    audit_ids:
+    - audit-cb1d2c6ffc05
+    - audit-670e17aba5a7
+    - audit-488d528cc184
+    - audit-63c5a7a8f9c9
+    kind: override
+    applied: true
+    retired_at: '2026-08-26T15:49:04.502901+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1219
@@ -249,6 +265,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-26T01:23:14.406655+00:00'
     applied_at: '2026-08-26T01:23:21.981756+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-1219
     audit_id: audit-488d528cc184
@@ -262,6 +279,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-26T02:57:55.973779+00:00'
     applied_at: '2026-08-26T02:58:05.036151+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-8fdfd3670add
@@ -283,7 +301,7 @@ oompah.terminal_audit:
     created_at: '2026-08-26T15:48:55.258931+00:00'
     selected_ref: d8d6e978895657d9f97f2306fb244583c5cb9ed4
     selected_sha: d8d6e978895657d9f97f2306fb244583c5cb9ed4
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -721,5 +739,12 @@ author: oompah
 created: 2026-08-26 04:12
 ---
 Test coverage added to assert bounded task-authority deadline timeout logs WARNING (not ERROR)
+---
+author: oompah
+created: 2026-08-26 15:49
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reviewed merged PR #920 (merge commit ef0f623c8) and verified the auditor-requested caplog regression is present on main in tests/test_provider_retirement.py, asserting bounded task-authority timeout logs WARNING and no ERROR. The Needs Human projection is stale after the completed fix and test evidence.
 ---
 <!-- COMMENTS:END -->
