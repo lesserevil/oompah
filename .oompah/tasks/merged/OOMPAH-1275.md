@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:19.724794Z'
-updated_at: '2026-08-26T23:42:47.767543Z'
+updated_at: '2026-08-26T23:42:59.463459Z'
 work_branch: OOMPAH-1275
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/937
@@ -211,8 +211,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-17c802014b4d
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-26T23:42:38.805501+00:00'
+    applied_at: '2026-08-26T23:42:55.840200+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -536,5 +537,22 @@ author: oompah
 created: 2026-08-26 23:38
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 23:42
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- quality_gate: make test passed 198.5s at cf17526b11ef1a1cdf27c1bcbae1075859ed69f8 (authority_current=true)
+- config_change: contributor_evidence_persist_timeout_seconds: float = 60.0 at oompah/config.py:1200 (was 30.0; no 30.0 references remain)
+- env_var_default: OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS defaults to 60.0 at config.py:2059
+- env_example: .env.example:281-282 updated to (default: 60)
+- test_default: tests/test_config.py:124 asserts contributor_evidence_persist_timeout_seconds == 60.0
+- test_override: tests/test_config.py:162 asserts 45.0 env-var override works
+- test_regression: tests/test_provider_retirement.py:411 test_pre_provider_evidence_timeout_releases_task_authority covers exact failure scenario
+- regression_assertions: error contains 'bounded task-authority deadline'; provider_started=False; session=None; audit budget released
 ---
 <!-- COMMENTS:END -->
