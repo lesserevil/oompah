@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1265
 type: task
-status: Needs Human
+status: In Validation
 priority: 1
 title: Prove external-prerequisite lifecycle convergence and observability
 parent: OOMPAH-1231
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-26T16:04:05.941103Z'
+updated_at: '2026-08-26T23:30:57.056985Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -28,7 +28,7 @@ oompah.create_once:
   creation_marker: oompah-1231-lifecycle-acceptance-v1
   request_fingerprint: 4f48f1f0e957c03ae28cb1f4f01e0f52c4c6c9020d902bc67d1cfb4f69389377
 oompah.start_blocked_by: *id001
-oompah.lifecycle_revision: 7
+oompah.lifecycle_revision: 8
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: d1a591bae50708aaf359f111881a4071d274e23ddea4e3a15cbe53430d1b5800
@@ -233,6 +233,19 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-26T16:03:56.473909+00:00'
     applied_at: '2026-08-26T16:04:04.379736+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1265
+    audit_id: audit-31d155eda57d
+    attempt_id: audit-rearm:audit-31d155eda57d
+    target_state: Done
+    evidence_fingerprint: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+    status: In Validation
+    audit_ids:
+    - audit-31d155eda57d
+    kind: audit_rearm
+    applied: true
+    created_at: '2026-08-26T23:30:47.013918+00:00'
+    applied_at: '2026-08-26T23:30:54.109957+00:00'
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-b5efe744bcec
@@ -258,6 +271,26 @@ oompah.terminal_audit:
     mode: infrastructure_recovery
     consumed_at: '2026-08-26T15:50:49.446719+00:00'
     consumed_workflow_job_id: workflow-job-9b0381611b54424593fbb8f38dec9647
+  - version: 2
+    audit_id: audit-31d155eda57d
+    superseded_audit_id: audit-b5efe744bcec
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1265
+    target_state: Done
+    evidence_fingerprint: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+    workflow_revision: null
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+    landing_revision: null
+    source_generation: 3
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Independent Claude, Codex, and OpenCode auditor candidates are configured
+      and healthy; rearm the exact integrated head after the prior candidate exhaustion.
+    authorized_at: '2026-08-26T23:30:47.013716+00:00'
+    mode: infrastructure_recovery
   version: 1
   pending_chain:
   - version: 1
@@ -342,7 +375,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1265
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -416,7 +449,28 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T15:47:01.735367+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-26T16:03:56.473698+00:00'
+    updated_at: '2026-08-26T23:30:47.013716+00:00'
+  - version: 1
+    audit_id: audit-31d155eda57d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1265
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+    attempts: []
+    source_generation: 3
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-26T23:30:47.013716+00:00'
+    eligible_at: '2026-08-26T23:30:47.013716+00:00'
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
   attempt_history:
   - version: 1
     attempt_id: attempt-f1e85028019b
@@ -722,5 +776,10 @@ created: 2026-08-26 16:04
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-26 23:30
+---
+Terminal audit rearmed by project owner after recovery: Independent Claude, Codex, and OpenCode auditor candidates are configured and healthy; rearm the exact integrated head after the prior candidate exhaustion.
 ---
 <!-- COMMENTS:END -->
