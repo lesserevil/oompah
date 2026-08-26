@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:05.336022Z'
-updated_at: '2026-08-26T20:26:23.833812Z'
+updated_at: '2026-08-26T23:13:21.979277Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-08-26 19:00
 ---
 Progress: paused all managed projects; updated local protected-workflow policy to current ci.yml blob 269db57c687e533bfaa90d961cf4c53f4069a7a8 and required job test (3.12); set contributor evidence timeout to 60s; merged green recovery PRs #937, #943, and #946 serially; deployed main d258fc16b with make graceful; retained terminal provenance for stale Done tasks TRICKLE-128 and TRICKLE-129. Remaining operator actions are tracked in the recovery plan.
+---
+author: oompah
+created: 2026-08-26 23:13
+---
+Stabilization work completed so far: merged PRs #937/#943/#946, deployed main and then recovery PR #951, corrected protected CI policy, increased evidence timeout, reclaimed about 107 GB by removing inactive build/test artifacts, configured log rotation, and retained stale terminal provenance for TRICKLE-128/TRICKLE-129. Service remains globally paused for final exhausted-job disposition and rollout verification.
 ---
 <!-- COMMENTS:END -->
