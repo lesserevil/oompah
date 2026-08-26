@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-26T15:50:50.911602Z'
+updated_at: '2026-08-26T15:51:04.578387Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -315,12 +315,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1265
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-c8f9c2471876
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+      created_at: '2026-08-26T15:50:57.509219+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-26T15:50:57.509219+00:00'
+      branch_key: epic-OOMPAH-1231--task-OOMPAH-1265
+      selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+      selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
     source_generation: 2
     requested_by:
       version: 1
@@ -331,6 +346,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T15:47:01.735367+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+    updated_at: '2026-08-26T15:50:57.509219+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f1e85028019b
@@ -368,6 +384,21 @@ oompah.terminal_audit:
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
     candidate_rotation_count: 1
+  - version: 1
+    attempt_id: attempt-c8f9c2471876
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+    created_at: '2026-08-26T15:50:57.509219+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-26T15:50:57.509219+00:00'
+    branch_key: epic-OOMPAH-1231--task-OOMPAH-1265
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
 ---
 ## Summary
 
@@ -536,5 +567,10 @@ author: oompah
 created: 2026-08-26 15:47
 ---
 Terminal audit rearmed by project owner after recovery: Project owner reviewed the completed implementation and restored verdict-capable independent auditor capacity. OOMPAH-1219 now includes the requested caplog regression; OOMPAH-1265 implementation is integrated with focused acceptance evidence.
+---
+author: oompah
+created: 2026-08-26 15:51
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
 ---
 <!-- COMMENTS:END -->
