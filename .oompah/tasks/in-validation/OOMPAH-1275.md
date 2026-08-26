@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:19.724794Z'
-updated_at: '2026-08-26T20:35:00.361931Z'
+updated_at: '2026-08-26T20:41:21.651865Z'
 work_branch: OOMPAH-1275
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/937
@@ -147,6 +147,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1275
     digest: ddf101b949400f7a724f0b79d1275f41822de7073a57873aa16c1a6fd2b8e56b
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1275","audit-6f2164e767f5","attempt-d869e0bea31d"]': '2026-08-26T20:41:12.480456+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1275
+    target_state: Done
+    evidence_fingerprint: ddf101b949400f7a724f0b79d1275f41822de7073a57873aa16c1a6fd2b8e56b
+    workflow_revision: null
+    selected_ref: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
+    selected_sha: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
+    landing_revision: null
+    audit_ids:
+    - audit-6f2164e767f5
+    kind: result
+    applied: true
+    retired_at: '2026-08-26T20:41:12.480472+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1275
+    audit_id: audit-6f2164e767f5
+    attempt_id: attempt-d869e0bea31d
+    target_state: Done
+    evidence_fingerprint: ddf101b949400f7a724f0b79d1275f41822de7073a57873aa16c1a6fd2b8e56b
+    status: In Validation
+    audit_ids:
+    - audit-6f2164e767f5
+    kind: result
+    applied: true
+    created_at: '2026-08-26T20:41:12.480483+00:00'
+    applied_at: '2026-08-26T20:41:20.352104+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -154,7 +184,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1275
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -163,7 +193,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-d869e0bea31d
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -175,6 +205,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1275
       selected_ref: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
       selected_sha: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
+      verdict: pass
+      completed_at: '2026-08-26T20:41:12.480299+00:00'
+      ended_at: '2026-08-26T20:41:12.480299+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -185,7 +218,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T18:52:15.691326+00:00'
     selected_ref: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
     selected_sha: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
-    updated_at: '2026-08-26T20:34:44.610496+00:00'
+    updated_at: '2026-08-26T20:41:12.480299+00:00'
   - version: 1
     audit_id: audit-17c802014b4d
     project_id: proj-14849f1b
@@ -207,6 +240,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-6f2164e767f5
     selected_ref: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
     selected_sha: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
+    updated_at: '2026-08-26T20:41:12.480299+00:00'
+    eligible_at: '2026-08-26T20:41:12.480299+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d869e0bea31d
@@ -395,5 +430,22 @@ author: oompah
 created: 2026-08-26 20:35
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 20:41
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- quality_gate: make test passed 198.5s
+- selected_sha: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
+- config_change: contributor_evidence_persist_timeout_seconds: float = 60.0 (was 30.0) at oompah/config.py:1200
+- from_workflow_change: OOMPAH_CONTRIBUTOR_EVIDENCE_PERSIST_TIMEOUT_SECONDS default 60.0 at config.py:2059
+- env_example: .env.example:282 updated to (default: 60)
+- test_default: tests/test_config.py:124 asserts 60.0
+- test_override: tests/test_config.py:162 asserts 45.0 override works
+- test_retirement: tests/test_provider_retirement.py has test_pre_provider_evidence_timeout_releases_task_authority
 ---
 <!-- COMMENTS:END -->
