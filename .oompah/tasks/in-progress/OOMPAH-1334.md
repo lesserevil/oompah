@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:31:41.109952Z'
-updated_at: '2026-08-26T06:54:47.179662Z'
+updated_at: '2026-08-26T06:55:01.780959Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -141,16 +141,16 @@ oompah.work_contributors:
     model_id: switchyard/auto
     focus: security
     source_branch: OOMPAH-1334
-    source_sha: null
-    completed_at: ''
+    source_sha: b149dbc8aafc583f248d223a176ba1c4817323c7
+    completed_at: '2026-08-26T06:54:55.320043+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1773
+  total_input_tokens: 162
+  total_output_tokens: 1887
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1773
+      input_tokens: 162
+      output_tokens: 1887
       cost_usd: 0.0
   runs:
   - profile: default
@@ -159,6 +159,12 @@ oompah.task_costs:
     output_tokens: 1773
     cost_usd: 0.0
     recorded_at: '2026-08-26T05:03:13.213487+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 152
+    output_tokens: 114
+    cost_usd: 0.0
+    recorded_at: '2026-08-26T06:54:55.313327+00:00'
 ---
 ## Summary
 
@@ -394,5 +400,15 @@ author: oompah
 created: 2026-08-26 06:54
 ---
 Implemented: server.create_issue now catches StateBranchFetchError and degrades gracefully (503 + WARNING) instead of logging ERROR, preventing error_watcher auto-filing. Files: oompah/server.py, tests/test_server_create_issue.py. Test: pytest -q tests/test_server_create_issue.py::TestCreateIssueStateBranchFetchError::test_state_branch_fetch_error_returns_503_and_logs_warning. Note: Unable to submit because current worktree branch is OOMPAH-1219, but task expects OOMPAH-1334.
+---
+author: oompah
+created: 2026-08-26 06:54
+---
+Run #1 [attempt=1, profile=default, role=fast -> Opencode/Switchyard/switchyard/auto]
+- Turns: 67, Tool calls: 67
+- Tokens: 152 in / 114 out [90.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 12m 23s
+- Log: OOMPAH-1334__20260826T064403Z.jsonl
 ---
 <!-- COMMENTS:END -->
