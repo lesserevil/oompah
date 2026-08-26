@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:36.934588Z'
-updated_at: '2026-08-26T08:13:26.923126Z'
+updated_at: '2026-08-26T08:19:22.230570Z'
 work_branch: OOMPAH-1336
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/926
@@ -155,6 +155,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1336
     digest: 181caa988f3d9fdbc74a9e828499829b3000db923fd0874525fb5d1493bf5e4b
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1336","audit-0ffe9710b1e7","attempt-ebc017eb4541"]': '2026-08-26T08:19:12.979975+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1336
+    target_state: Done
+    evidence_fingerprint: 181caa988f3d9fdbc74a9e828499829b3000db923fd0874525fb5d1493bf5e4b
+    workflow_revision: null
+    selected_ref: bb994f542710f9624f0f7b631eacd5b493f9ff3e
+    selected_sha: bb994f542710f9624f0f7b631eacd5b493f9ff3e
+    landing_revision: null
+    audit_ids:
+    - audit-0ffe9710b1e7
+    kind: result
+    applied: true
+    retired_at: '2026-08-26T08:19:12.979992+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1336
+    audit_id: audit-0ffe9710b1e7
+    attempt_id: attempt-ebc017eb4541
+    target_state: Done
+    evidence_fingerprint: 181caa988f3d9fdbc74a9e828499829b3000db923fd0874525fb5d1493bf5e4b
+    status: In Validation
+    audit_ids:
+    - audit-0ffe9710b1e7
+    kind: result
+    applied: true
+    created_at: '2026-08-26T08:19:12.980002+00:00'
+    applied_at: '2026-08-26T08:19:20.868000+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -162,7 +192,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1336
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -171,7 +201,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ebc017eb4541
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -183,6 +213,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1336
       selected_ref: bb994f542710f9624f0f7b631eacd5b493f9ff3e
       selected_sha: bb994f542710f9624f0f7b631eacd5b493f9ff3e
+      verdict: pass
+      completed_at: '2026-08-26T08:19:12.979818+00:00'
+      ended_at: '2026-08-26T08:19:12.979818+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -193,7 +226,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T07:50:58.297845+00:00'
     selected_ref: bb994f542710f9624f0f7b631eacd5b493f9ff3e
     selected_sha: bb994f542710f9624f0f7b631eacd5b493f9ff3e
-    updated_at: '2026-08-26T08:13:07.775077+00:00'
+    updated_at: '2026-08-26T08:19:12.979818+00:00'
   - version: 1
     audit_id: audit-79f5f204e6d0
     project_id: proj-14849f1b
@@ -215,6 +248,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-0ffe9710b1e7
     selected_ref: bb994f542710f9624f0f7b631eacd5b493f9ff3e
     selected_sha: bb994f542710f9624f0f7b631eacd5b493f9ff3e
+    updated_at: '2026-08-26T08:19:12.979818+00:00'
+    eligible_at: '2026-08-26T08:19:12.979818+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ebc017eb4541
@@ -462,5 +497,22 @@ author: oompah
 created: 2026-08-26 08:13
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 08:19
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- full_gate_sha: bb994f542710f9624f0f7b631eacd5b493f9ff3e
+- full_gate_result: passed
+- full_gate_command: make test
+- full_gate_duration_seconds: 184.0
+- changed_files: oompah/orchestrator_thread.py, oompah/__main__.py, tests/test_orchestrator_thread.py
+- new_test_count: 3 new tests in test_orchestrator_thread.py
+- key_change: _run_orchestrator_thread_wrapped() uses tiered log levels: INFO for expected_shutdown, WARNING for rollout gate, ERROR for genuine crashes
+- regression_guard: test_unexpected_generic_scheduler_failure_keeps_crash_classification verifies generic errors still produce ERROR-level crash log
 ---
 <!-- COMMENTS:END -->
