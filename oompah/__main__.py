@@ -547,8 +547,32 @@ async def _run(
             message, extra = orchestrator_thread_error_fields(exc)
             logger.exception(message, extra=extra)
 
+    def _run_orchestrator_thread_wrapped() -> None:
+        """Run the orchestrator thread with improved error classification."""
+        try:
+            asyncio.run(orchestrator.run())
+        except Exception as exc:  # noqa: BLE001 -- thread boundary must be logged
+            from oompah.orchestrator_thread import (
+                EXPECTED_SHUTDOWN_ERROR_CLASS,
+                WORKFLOW_ROLLOUT_GATE_ERROR_CLASS,
+                orchestrator_thread_error_fields,
+            )
+            
+            message, extra = orchestrator_thread_error_fields(exc)
+            error_class = extra.get("error_class", "")
+            
+            # Only log expected shutdown scenarios at INFO level (won't trigger error_watcher)
+            if error_class == EXPECTED_SHUTDOWN_ERROR_CLASS:
+                logger.info(message)
+            # Log workflow gate rejections at WARNING level (validation failure, not a crash)
+            elif error_class == WORKFLOW_ROLLOUT_GATE_ERROR_CLASS:
+                logger.warning(message)
+            # Log unexpected crashes at ERROR level (will trigger error_watcher for investigation)
+            else:
+                logger.exception(message, extra=extra)
+
     orch_thread = threading.Thread(
-        target=_run_orchestrator_thread,
+        target=_run_orchestrator_thread_wrapped,
         name="oompah-orchestrator",
         daemon=True,
     )
