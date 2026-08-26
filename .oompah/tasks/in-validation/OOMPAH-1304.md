@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:16:50.124021Z'
-updated_at: '2026-08-26T05:48:51.805279Z'
+updated_at: '2026-08-26T05:49:24.689254Z'
 work_branch: OOMPAH-1304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/922
@@ -105,13 +105,17 @@ oompah.work_contributors:
     source_sha: 60207017f836bbfee22ccd06a8adcfa579cbb2a5
     completed_at: '2026-08-21T12:27:39.539953+00:00'
 oompah.task_costs:
-  total_input_tokens: 364
-  total_output_tokens: 10766
+  total_input_tokens: 384
+  total_output_tokens: 16227
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 364
       output_tokens: 10766
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 20
+      output_tokens: 5461
       cost_usd: 0.0
   runs:
   - profile: default
@@ -126,6 +130,12 @@ oompah.task_costs:
     output_tokens: 8979
     cost_usd: 0.0
     recorded_at: '2026-08-21T12:27:39.535376+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 20
+    output_tokens: 5461
+    cost_usd: 0.0
+    recorded_at: '2026-08-26T05:49:15.781777+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -433,5 +443,15 @@ Safe evidence:
 - test_coverage: test_provider_retirement.py:445,735 assert 'bounded task-authority deadline' in return value
 - full_gate: make test passed twice for exact SHA — 189.7s and 192.6s
 - acceptance_criteria: all three acceptance criteria met
+---
+author: oompah
+created: 2026-08-26 05:49
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 40, Tool calls: 23
+- Tokens: 20 in / 5.5K out [5.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 43s
+- Log: OOMPAH-1304__20260826T053856Z.jsonl
 ---
 <!-- COMMENTS:END -->
