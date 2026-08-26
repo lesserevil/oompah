@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-26T06:53:27.054200Z'
+updated_at: '2026-08-26T06:53:32.873780Z'
 work_branch: OOMPAH-1197
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/925
@@ -351,8 +351,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-3f04afa18396
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-26T06:53:22.390624+00:00'
+    applied_at: '2026-08-26T06:53:31.533517+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -981,5 +982,23 @@ author: oompah
 created: 2026-08-26 06:49
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 06:53
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- quality_gate: make test passed for 5e7f3f31cd030ab2dbff9c54e95f884be019787f (189.5s, twice confirmed)
+- fix_location: oompah/orchestrator.py:65119 logger.warning() for WorkspaceError/AgentError/PromptError — previously ERROR
+- fix_comment: orchestrator.py:65114-65118 documents rationale: expected/transient failures should not trigger error_watcher
+- debug_log_location: oompah/orchestrator.py:64776 logger.debug() for 'ACP worker failed issue_id=...' — already below ERROR threshold
+- error_watcher_threshold: oompah/error_watcher.py:92 setLevel(logging.ERROR) — WARNING not captured
+- test_class: tests/test_error_watcher.py TestWorkerFailureLogging (line 1834)
+- test_coverage[0]: test_debug_level_logs_not_captured_by_handler (line 1841)
+- test_coverage[1]: test_exception_with_error_keyword_in_debug_not_captured (line 1864)
+- generic_handler: orchestrator.py:65126-65134 generic Exception handler logs at DEBUG for same reason
 ---
 <!-- COMMENTS:END -->
