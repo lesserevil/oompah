@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1256
 type: bug
-status: Open
+status: Done
 priority: 2
 title: '[backend:server] Add comment API error: ProjectError(''Unknown project'')'
 parent: null
@@ -13,14 +13,14 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-26T23:07:02.722207Z'
+updated_at: '2026-08-26T23:19:52.013002Z'
 work_branch: OOMPAH-1256
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 5
+oompah.lifecycle_revision: 6
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -262,6 +262,31 @@ oompah.integration:
   submitted_at: '2026-08-21T14:55:42.879570+00:00'
   updated_at: '2026-08-21T14:55:42.879570+00:00'
 oompah.work_branch: OOMPAH-1256
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-fb5f5415e948
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1256
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7918ba4764c434c97e274e0d6b99f14fbf07d5a8a78315fb91e387260506eb7b
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Verified current main already has canonical project ID/name resolution
+      and passes 206 focused terminal-status/task-handoff tests; superseded PR #952
+      was closed because it regressed 15 tests.'
+    created_at: '2026-08-26T23:19:47.258127+00:00'
+    selected_ref: 952616edb1e06cfbebeeead8219d558018ad2faa
+    selected_sha: 952616edb1e06cfbebeeead8219d558018ad2faa
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
