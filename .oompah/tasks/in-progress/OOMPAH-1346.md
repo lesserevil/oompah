@@ -6,13 +6,14 @@ priority: 1
 title: Bound workflow history and workspace storage growth
 parent: OOMPAH-1342
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-1345
 start_blocked_by: []
 labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:27.314224Z'
-updated_at: '2026-08-26T19:32:13.347288Z'
+updated_at: '2026-08-26T20:26:20.102501Z'
 work_branch: OOMPAH-1346
 target_branch: null
 review_url: null

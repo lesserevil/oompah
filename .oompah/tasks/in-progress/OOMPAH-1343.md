@@ -6,13 +6,14 @@ priority: 1
 title: Stabilize production and clear current workflow blockers
 parent: OOMPAH-1342
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-1346
 start_blocked_by: []
 labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:05.336022Z'
-updated_at: '2026-08-26T19:00:22.212797Z'
+updated_at: '2026-08-26T20:26:23.833812Z'
 work_branch: null
 target_branch: null
 review_url: null

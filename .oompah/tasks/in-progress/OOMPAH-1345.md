@@ -6,13 +6,14 @@ priority: 1
 title: Serve reviews API from a bounded generation-aware snapshot
 parent: OOMPAH-1342
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-1344
 start_blocked_by: []
 labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:16.245447Z'
-updated_at: '2026-08-26T19:32:06.959889Z'
+updated_at: '2026-08-26T20:26:16.382354Z'
 work_branch: OOMPAH-1345
 target_branch: null
 review_url: null
