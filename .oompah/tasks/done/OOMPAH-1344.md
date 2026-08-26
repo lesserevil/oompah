@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T18:43:10.725032Z'
-updated_at: '2026-08-26T22:53:24.851611Z'
+updated_at: '2026-08-26T23:12:47.228551Z'
 work_branch: OOMPAH-1344
 target_branch: main
 review_url: null
@@ -74,6 +74,28 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-26T22:53:23.375823+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'Implementation is merged to main in PR #951 at 13718ac1c; retain the
+      completed child as terminal provenance.'
+    marked_at: '2026-08-26T23:12:45.865758+00:00'
+    updated_at: '2026-08-26T23:12:45.865758+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'Implementation is merged to main in PR #951 at 13718ac1c; retain the
+        completed child as terminal provenance.'
+      recorded_at: '2026-08-26T23:12:45.865758+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []
