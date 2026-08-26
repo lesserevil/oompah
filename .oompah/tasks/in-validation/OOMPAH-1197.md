@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-26T06:37:18.261668Z'
+updated_at: '2026-08-26T06:49:11.568243Z'
 work_branch: OOMPAH-1197
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/925
@@ -287,6 +287,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1197
     digest: 620573f342a874c8bc926d999db98d0d23a72aa4a50bb434ede61653bc3741fc
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1197","audit-fd003cc208fd","attempt-5edf8b5e3d9f"]': '2026-08-26T06:49:02.507942+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1197
+    target_state: Done
+    evidence_fingerprint: 620573f342a874c8bc926d999db98d0d23a72aa4a50bb434ede61653bc3741fc
+    workflow_revision: null
+    selected_ref: 5e7f3f31cd030ab2dbff9c54e95f884be019787f
+    selected_sha: 5e7f3f31cd030ab2dbff9c54e95f884be019787f
+    landing_revision: null
+    audit_ids:
+    - audit-fd003cc208fd
+    kind: result
+    applied: true
+    retired_at: '2026-08-26T06:49:02.507958+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1197
+    audit_id: audit-fd003cc208fd
+    attempt_id: attempt-5edf8b5e3d9f
+    target_state: Done
+    evidence_fingerprint: 620573f342a874c8bc926d999db98d0d23a72aa4a50bb434ede61653bc3741fc
+    status: In Validation
+    audit_ids:
+    - audit-fd003cc208fd
+    kind: result
+    applied: true
+    created_at: '2026-08-26T06:49:02.507969+00:00'
+    applied_at: '2026-08-26T06:49:10.132571+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -294,7 +324,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1197
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -303,7 +333,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5edf8b5e3d9f
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -315,6 +345,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1197
       selected_ref: 5e7f3f31cd030ab2dbff9c54e95f884be019787f
       selected_sha: 5e7f3f31cd030ab2dbff9c54e95f884be019787f
+      verdict: pass
+      completed_at: '2026-08-26T06:49:02.507779+00:00'
+      ended_at: '2026-08-26T06:49:02.507779+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -325,7 +358,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T06:13:59.361374+00:00'
     selected_ref: 5e7f3f31cd030ab2dbff9c54e95f884be019787f
     selected_sha: 5e7f3f31cd030ab2dbff9c54e95f884be019787f
-    updated_at: '2026-08-26T06:37:01.347794+00:00'
+    updated_at: '2026-08-26T06:49:02.507779+00:00'
   - version: 1
     audit_id: audit-3f04afa18396
     project_id: proj-14849f1b
@@ -347,6 +380,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-fd003cc208fd
     selected_ref: 5e7f3f31cd030ab2dbff9c54e95f884be019787f
     selected_sha: 5e7f3f31cd030ab2dbff9c54e95f884be019787f
+    updated_at: '2026-08-26T06:49:02.507779+00:00'
+    eligible_at: '2026-08-26T06:49:02.507779+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5edf8b5e3d9f
@@ -843,5 +878,19 @@ author: oompah
 created: 2026-08-26 06:37
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 06:49
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- quality_gate: make test passed for 5e7f3f31cd030ab2dbff9c54e95f884be019787f (189.5s)
+- fix_location: oompah/orchestrator.py:65119 logger.warning() for WorkspaceError/AgentError/PromptError
+- error_watcher_threshold: oompah/error_watcher.py:92 setLevel(logging.ERROR) — WARNING not captured
+- test_class: tests/test_error_watcher.py TestWorkerFailureLogging (lines 1834+)
+- regression_coverage: test_debug_level_logs_not_captured_by_handler, test_exception_with_error_keyword_in_debug_not_captured
 ---
 <!-- COMMENTS:END -->
