@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1256
 type: bug
-status: Needs CI Fix
+status: Open
 priority: 2
 title: '[backend:server] Add comment API error: ProjectError(''Unknown project'')'
 parent: null
@@ -13,14 +13,14 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-26T22:57:58.303596Z'
+updated_at: '2026-08-26T23:07:02.722207Z'
 work_branch: OOMPAH-1256
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 4
+oompah.lifecycle_revision: 5
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -742,5 +742,19 @@ FAILED tests/test_terminal_status_interfaces.py::test_task_handoff_set_status_wi
 
 make: *** [Makefile:421: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-26 23:07
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #1)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+**Evidence head:** `952616edb1e06cfbebeeead8219d558018ad2faa`
+**Evidence result:** `comment_ci_passing`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
