@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:42:19.724794Z'
-updated_at: '2026-08-26T23:42:59.463459Z'
+updated_at: '2026-08-26T23:43:15.864264Z'
 work_branch: OOMPAH-1275
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/937
@@ -97,8 +97,8 @@ oompah.work_contributors:
     source_sha: cf17526b11ef1a1cdf27c1bcbae1075859ed69f8
     completed_at: '2026-08-21T06:31:12.032874+00:00'
 oompah.task_costs:
-  total_input_tokens: 570
-  total_output_tokens: 24472
+  total_input_tokens: 585
+  total_output_tokens: 28238
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -106,8 +106,8 @@ oompah.task_costs:
       output_tokens: 17410
       cost_usd: 0.0
     unknown:
-      input_tokens: 14
-      output_tokens: 7062
+      input_tokens: 29
+      output_tokens: 10828
       cost_usd: 0.0
   runs:
   - profile: default
@@ -128,6 +128,12 @@ oompah.task_costs:
     output_tokens: 7062
     cost_usd: 0.0
     recorded_at: '2026-08-26T20:41:40.218827+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 15
+    output_tokens: 3766
+    cost_usd: 0.0
+    recorded_at: '2026-08-26T23:43:10.356841+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -554,5 +560,15 @@ Safe evidence:
 - test_override: tests/test_config.py:162 asserts 45.0 env-var override works
 - test_regression: tests/test_provider_retirement.py:411 test_pre_provider_evidence_timeout_releases_task_authority covers exact failure scenario
 - regression_assertions: error contains 'bounded task-authority deadline'; provider_started=False; session=None; audit budget released
+---
+author: oompah
+created: 2026-08-26 23:43
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 23, Tool calls: 15
+- Tokens: 15 in / 3.8K out [3.8K total]
+- Cost: $0.0000
+- Exit: scheduler_pause, Duration: 5m 2s
+- Log: OOMPAH-1275__20260826T233827Z.jsonl
 ---
 <!-- COMMENTS:END -->
