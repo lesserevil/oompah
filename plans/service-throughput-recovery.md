@@ -43,6 +43,17 @@ Oompah cannot dispatch these recovery tasks.
 5. Repair current deployment configuration and stale operator-action records,
    then verify recovery with the production rollout gate.
 
+## Tracked implementation
+
+- `OOMPAH-1343` — stabilize production and clear current workflow blockers.
+- `OOMPAH-1344` — bound workflow reconciliation and deduplicate forge observations.
+- `OOMPAH-1345` — serve the reviews API from a bounded generation-aware snapshot.
+- `OOMPAH-1346` — bound workflow history and workspace storage growth.
+
+These are children of `OOMPAH-1342`. During recovery they are protected by
+explicit direct-owner claims and the service is globally paused so no managed
+implementation worker can take them over.
+
 ## Workstreams
 
 ### 1. Stabilize and recover the deployment
