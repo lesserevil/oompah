@@ -15896,6 +15896,13 @@ class Orchestrator:
     def _workflow_shadow_sources(self, issue: Issue) -> dict[FactDomain, Any]:
         """Build read-only fact adapters over the current legacy runtime."""
 
+        # These closures are reused for every task in a project reconciliation
+        # pass. Cache expensive immutable reads by their complete authority
+        # identity; a new call to this factory creates a fresh generation scope.
+        accepted_recovery_cache: dict[
+            tuple[str, str, str, str], tuple[bool, str, str, OwnerClaim | None]
+        ] = {}
+
         def active_durable_job(
             current: Issue,
             actions: set[str],
@@ -16360,17 +16367,27 @@ class Orchestrator:
                     or getattr(project, "default_branch", None)
                     or "main"
                 ).strip()
+                recovery_key = (
+                    current.identifier,
+                    task_branch,
+                    integration_head,
+                    target_branch,
+                )
+                recovery_result = accepted_recovery_cache.get(recovery_key)
+                if recovery_result is None:
+                    recovery_result = self._accepted_submission_recovery_authority(
+                        current,
+                        task_branch=task_branch,
+                        accepted_head=integration_head,
+                        target_branch=target_branch,
+                    )
+                    accepted_recovery_cache[recovery_key] = recovery_result
                 (
                     recovery_authorized,
                     recovery_state,
                     observed_branch_head,
                     recovery_claim,
-                ) = self._accepted_submission_recovery_authority(
-                    current,
-                    task_branch=task_branch,
-                    accepted_head=integration_head,
-                    target_branch=target_branch,
-                )
+                ) = recovery_result
                 value["accepted_submission_recovery_state"] = recovery_state
                 value["accepted_submission_head"] = integration_head
                 accepted_submission_recovery_parked = not recovery_authorized

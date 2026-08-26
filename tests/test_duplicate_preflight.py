@@ -12,7 +12,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -726,6 +726,31 @@ def test_ready_standalone_config_projects_exact_accepted_remote_head():
     )
     assert config["accepted_submission_head"] == "a" * 40
     assert config["accepted_submission_branch_head"] == "a" * 40
+
+
+def test_ready_standalone_config_source_reuses_remote_observation():
+    issue = _ready_standalone_submission()
+    orch = _orch(_Tracker([issue]))
+    orch.project_store.get.return_value = Project(
+        id="project-1",
+        name="project",
+        repo_url="https://github.com/org/repo.git",
+        repo_path="/repo",
+        default_branch="main",
+    )
+    orch.project_store.remote_branch_head.return_value = "a" * 40
+    original_recovery = orch._accepted_submission_recovery_authority
+    with patch.object(
+        orch,
+        "_accepted_submission_recovery_authority",
+        wraps=original_recovery,
+    ) as recovery:
+        sources = orch._workflow_shadow_sources(issue)
+        first = sources[FactDomain.CONFIG](issue)
+        second = sources[FactDomain.CONFIG](issue)
+
+    assert first == second
+    assert recovery.call_count == 1
 
 
 def test_ready_standalone_config_projects_advanced_remote_generation():
