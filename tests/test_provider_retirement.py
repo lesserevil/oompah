@@ -1015,17 +1015,15 @@ def test_forced_auditor_retirement_records_retry_before_releasing_claim(
     asyncio.run(scenario())
 
 
-def test_pre_provider_evidence_timeout_logs_warning_not_error(tmp_path, caplog):
-    """Contributor evidence timeout must log at WARNING, not ERROR.
-    
-    This is a transient failure (timeout waiting for tracker write) that is
-    retried and degraded gracefully. Logging at ERROR would trigger
-    error_watcher to auto-file duplicate bug tasks on each occurrence.
-    
-    Regression test for OOMPAH-1301.
+def test_pre_provider_evidence_timeout_logs_debug_not_error(tmp_path, caplog):
+    """Contributor evidence timeout must remain below ERROR.
+
+    This handled transient failure is already returned to the scheduler for a
+    bounded retry. DEBUG avoids both error_watcher auto-filing and warning-flood
+    duplication while retaining structured retirement telemetry.
     """
     import logging as _logging
-    
+
     async def scenario() -> None:
         orch = _orchestrator(tmp_path)
         orch.config.terminal_control_lock_timeout_seconds = 0.1
@@ -1043,7 +1041,7 @@ def test_pre_provider_evidence_timeout_logs_warning_not_error(tmp_path, caplog):
             release_persistence.wait(timeout=2)
 
         orch._persist_work_contributor = blocked_persistence
-        
+
         with caplog.at_level(_logging.DEBUG, logger="oompah.orchestrator"):
             staging = asyncio.create_task(
                 orch._stage_work_contributor_launch(
@@ -1066,7 +1064,7 @@ def test_pre_provider_evidence_timeout_logs_warning_not_error(tmp_path, caplog):
             orch.issue_transition_lock(entry.issue.id).release()
             release_persistence.set()
             await asyncio.sleep(0)
-        
+
         # The key contract: error_watcher only fires on ERROR, so we must
         # NOT have logged at ERROR for a transient timeout.
         error_records = [
@@ -1080,15 +1078,15 @@ def test_pre_provider_evidence_timeout_logs_warning_not_error(tmp_path, caplog):
             "the error_watcher would auto-file a duplicate bug task "
             "on every timeout occurrence. See OOMPAH-1301."
         )
-        
-        warning_records = [
+
+        debug_records = [
             r
             for r in caplog.records
-            if r.levelname == "WARNING" and r.name.startswith("oompah.orchestrator")
+            if r.levelname == "DEBUG" and r.name.startswith("oompah.orchestrator")
             and "bounded task-authority deadline" in r.getMessage()
         ]
-        assert warning_records, (
-            "Expected a WARNING level log mentioning the contributor evidence timeout."
+        assert debug_records, (
+            "Expected a DEBUG record for the handled contributor evidence timeout."
         )
 
     asyncio.run(scenario())
