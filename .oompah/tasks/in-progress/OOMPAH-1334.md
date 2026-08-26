@@ -13,8 +13,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:31:41.109952Z'
-updated_at: '2026-08-26T07:23:05.305794Z'
-work_branch: null
+updated_at: '2026-08-26T07:23:30.274545Z'
+work_branch: OOMPAH-1334
 target_branch: null
 review_url: null
 review_number: null
@@ -68,7 +68,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 9c73714c-9e74-4602-8db1-795c8f5aa1a2
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: bea67738991e4257ac1a7695dd8b76ec--contributor-a8b0475e7b09
@@ -173,6 +173,18 @@ oompah.task_costs:
     output_tokens: 114
     cost_usd: 0.0
     recorded_at: '2026-08-26T06:54:55.313327+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1334
+  base_branch: main
+  base_sha: b149dbc8aafc583f248d223a176ba1c4817323c7
+  head_sha: 54945b27c2558ecfb7949b7c20794149841c687d
+  submitted_at: '2026-08-26T07:23:15.057184+00:00'
+  updated_at: '2026-08-26T07:23:15.057184+00:00'
+oompah.work_branch: OOMPAH-1334
 ---
 ## Summary
 
@@ -474,5 +486,10 @@ created: 2026-08-26 07:23
 - Git branch up to date with origin/OOMPAH-1334
 
 Ready for submission.
+---
+author: oompah
+created: 2026-08-26 07:23
+---
+Fixed StateBranchFetchError handling in api_create_issue to degrade gracefully (503 + WARNING) instead of triggering error_watcher. Added comprehensive tests verifying correct logging level and HTTP status code.
 ---
 <!-- COMMENTS:END -->
