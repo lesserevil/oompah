@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:16:50.124021Z'
-updated_at: '2026-08-26T05:38:41.461884Z'
+updated_at: '2026-08-26T05:48:51.805279Z'
 work_branch: OOMPAH-1304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/922
@@ -155,6 +155,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1304
     digest: db9c1896e27a1a6ac3d1d2190e5106c5598b8cc1479cc3a29645897477400aa1
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1304","audit-623be0a37e9a","attempt-6a7502da7977"]': '2026-08-26T05:48:40.910687+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1304
+    target_state: Done
+    evidence_fingerprint: db9c1896e27a1a6ac3d1d2190e5106c5598b8cc1479cc3a29645897477400aa1
+    workflow_revision: null
+    selected_ref: 60207017f836bbfee22ccd06a8adcfa579cbb2a5
+    selected_sha: 60207017f836bbfee22ccd06a8adcfa579cbb2a5
+    landing_revision: null
+    audit_ids:
+    - audit-623be0a37e9a
+    kind: result
+    applied: true
+    retired_at: '2026-08-26T05:48:40.910704+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1304
+    audit_id: audit-623be0a37e9a
+    attempt_id: attempt-6a7502da7977
+    target_state: Done
+    evidence_fingerprint: db9c1896e27a1a6ac3d1d2190e5106c5598b8cc1479cc3a29645897477400aa1
+    status: In Validation
+    audit_ids:
+    - audit-623be0a37e9a
+    kind: result
+    applied: true
+    created_at: '2026-08-26T05:48:40.910715+00:00'
+    applied_at: '2026-08-26T05:48:50.486114+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -162,7 +192,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1304
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -171,7 +201,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-6a7502da7977
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -183,6 +213,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1304
       selected_ref: 60207017f836bbfee22ccd06a8adcfa579cbb2a5
       selected_sha: 60207017f836bbfee22ccd06a8adcfa579cbb2a5
+      verdict: pass
+      completed_at: '2026-08-26T05:48:40.910507+00:00'
+      ended_at: '2026-08-26T05:48:40.910507+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -193,7 +226,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T05:23:50.851120+00:00'
     selected_ref: 60207017f836bbfee22ccd06a8adcfa579cbb2a5
     selected_sha: 60207017f836bbfee22ccd06a8adcfa579cbb2a5
-    updated_at: '2026-08-26T05:38:29.266292+00:00'
+    updated_at: '2026-08-26T05:48:40.910507+00:00'
   - version: 1
     audit_id: audit-8262e7be44e7
     project_id: proj-14849f1b
@@ -215,6 +248,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-623be0a37e9a
     selected_ref: 60207017f836bbfee22ccd06a8adcfa579cbb2a5
     selected_sha: 60207017f836bbfee22ccd06a8adcfa579cbb2a5
+    updated_at: '2026-08-26T05:48:40.910507+00:00'
+    eligible_at: '2026-08-26T05:48:40.910507+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6a7502da7977
@@ -382,5 +417,21 @@ author: oompah
 created: 2026-08-26 05:38
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 05:48
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- selected_sha: 60207017f836bbfee22ccd06a8adcfa579cbb2a5
+- key_change: orchestrator.py:58066 logger.warning() (was logger.error())
+- error_watcher_threshold: error_watcher.py:92 setLevel(logging.ERROR) — WARNING is below threshold
+- graceful_degradation: return string 'bounded task-authority deadline' preserved at orchestrator.py:58084-58090
+- test_coverage: test_provider_retirement.py:445,735 assert 'bounded task-authority deadline' in return value
+- full_gate: make test passed twice for exact SHA — 189.7s and 192.6s
+- acceptance_criteria: all three acceptance criteria met
 ---
 <!-- COMMENTS:END -->
