@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:51.761397Z'
-updated_at: '2026-08-26T01:18:11.303977Z'
+updated_at: '2026-08-26T01:19:17.728736Z'
 work_branch: OOMPAH-1216
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/918
@@ -149,13 +149,17 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1954
+  total_input_tokens: 13
+  total_output_tokens: 2151
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 1954
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 3
+      output_tokens: 197
       cost_usd: 0.0
   runs:
   - profile: default
@@ -164,6 +168,12 @@ oompah.task_costs:
     output_tokens: 1954
     cost_usd: 0.0
     recorded_at: '2026-08-21T05:21:48.887042+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 3
+    output_tokens: 197
+    cost_usd: 0.0
+    recorded_at: '2026-08-26T01:19:12.874164+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -558,5 +568,15 @@ Safe evidence:
 - acceptance_1: PASS — error_watcher will not trigger on WARNING-level message
 - acceptance_2: PASS — root cause identified and resolved by log level change
 - acceptance_3: PASS — full suite passes, only targeted message level changed
+---
+author: oompah
+created: 2026-08-26 01:19
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 29, Tool calls: 19
+- Tokens: 3 in / 197 out [200 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 37s
+- Log: OOMPAH-1216__20260826T010854Z.jsonl
 ---
 <!-- COMMENTS:END -->
