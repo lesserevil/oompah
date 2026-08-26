@@ -2040,7 +2040,9 @@ class Orchestrator:
         self._review_lifecycle_lock = threading.RLock()
         self._review_lifecycle_generation: dict[str, int] = {}
         self._closed_review_fences: dict[tuple[str, str], int] = {}
+        self._reviews_cache: dict[str, list[ReviewRequest]] = {}
         self._reviews_cache_generation: dict[str, int] = {}
+        self._reviews_cache_updated_at: dict[str, str] = {}
         # Installed by bootstrap after the project-scoped terminal coordinator
         # exists.  Keeping the slot on the orchestrator lets API, WebSocket,
         # and scheduler snapshots all observe the same durable runtime.
@@ -6389,19 +6391,41 @@ class Orchestrator:
                     "Workflow rollback-event archival deferred: %s",
                     type(exc).__name__,
                 )
-        # Reclaim freed pages only after a substantial drain, since VACUUM
-        # rewrites the whole database file and is comparatively expensive.
-        if relocated >= 10000:
-            vacuum = getattr(store, "vacuum", None)
-            if vacuum is not None:
-                try:
-                    vacuum()
-                except Exception as exc:  # noqa: BLE001 - best effort
-                    logger.warning(
-                        "Workflow job-store VACUUM deferred: %s",
-                        type(exc).__name__,
+        pruner = getattr(store, "prune_archived_events", None)
+        pruned = 0
+        if callable(pruner):
+            try:
+                pruned = int(
+                    pruner(
+                        older_than=(
+                            time.time()
+                            - self.config.workflow_event_archive_retention_seconds
+                        ),
+                        max_events=self.config.workflow_event_archive_batch_size,
                     )
-        return relocated
+                )
+            except Exception as exc:  # noqa: BLE001 - retry on next sweep
+                logger.warning(
+                    "Workflow archived-event retention deferred: %s",
+                    type(exc).__name__,
+                )
+        self._maintenance_status["workflow_event_archival"] = {
+            "last_run_at": datetime.now(timezone.utc).isoformat(),
+            "relocated": relocated,
+            "pruned": pruned,
+            "retention_seconds": (
+                self.config.workflow_event_archive_retention_seconds
+            ),
+            "batch_size": self.config.workflow_event_archive_batch_size,
+            "deferred": bool(
+                pruned >= self.config.workflow_event_archive_batch_size
+            ),
+        }
+        # VACUUM rewrites the whole database and previously ran on the shared
+        # scheduler executor. Leave file compaction to an explicit offline
+        # operator operation; bounded row retention keeps routine housekeeping
+        # responsive and releases pages for SQLite reuse.
+        return relocated + pruned
 
     def _reconcile_inactive_owner_claims(self) -> int:
         """Retry stale exact-claim retirement without superseding active work."""
@@ -15896,6 +15920,13 @@ class Orchestrator:
     def _workflow_shadow_sources(self, issue: Issue) -> dict[FactDomain, Any]:
         """Build read-only fact adapters over the current legacy runtime."""
 
+        # These closures are reused for every task in a project reconciliation
+        # pass. Cache expensive immutable reads by their complete authority
+        # identity; a new call to this factory creates a fresh generation scope.
+        accepted_recovery_cache: dict[
+            tuple[str, str, str, str], tuple[bool, str, str, OwnerClaim | None]
+        ] = {}
+
         def active_durable_job(
             current: Issue,
             actions: set[str],
@@ -16330,12 +16361,80 @@ class Orchestrator:
                 and integration_head
                 and accepted_submission_branch(current)
             ):
-                value.update(
-                    self._ready_standalone_submission_recovery_facts(
-                        current,
-                        integration,
-                    )
+                task_branch = str(
+                    getattr(integration, "task_branch", None)
+                    or current.work_branch
+                    or current.branch_name
+                    or ""
+                ).strip()
+                project = self.project_store.get(str(current.project_id or ""))
+                target_branch = str(
+                    getattr(integration, "base_branch", None)
+                    or current.target_branch
+                    or getattr(project, "default_branch", None)
+                    or "main"
+                ).strip()
+                recovery_key = (
+                    current.identifier,
+                    task_branch,
+                    integration_head,
+                    target_branch,
                 )
+                recovery_result = accepted_recovery_cache.get(recovery_key)
+                if recovery_result is None:
+                    recovery_result = self._accepted_submission_recovery_authority(
+                        current,
+                        task_branch=task_branch,
+                        accepted_head=integration_head,
+                        target_branch=target_branch,
+                    )
+                    accepted_recovery_cache[recovery_key] = recovery_result
+                _, recovery_state, observed_branch_head, _ = recovery_result
+                value["accepted_submission_recovery_state"] = recovery_state
+                value["accepted_submission_head"] = integration_head
+                if observed_branch_head:
+                    value["accepted_submission_branch_head"] = observed_branch_head
+                reviews = self._workflow_shadow_reviews(current)
+                if len(reviews) != 1:
+                    if reviews:
+                        value["accepted_submission_review_count"] = len(reviews)
+                else:
+                    review = reviews[0]
+                    review_id = str(getattr(review, "id", "") or "").strip()
+                    review_head = str(
+                        getattr(review, "head_sha", "") or ""
+                    ).strip().lower()
+                    value["accepted_submission_review_id"] = review_id
+                    if review_head:
+                        value["accepted_submission_review_head"] = review_head
+                    try:
+                        expected_repository = extract_repo_slug(
+                            str(getattr(project, "repo_url", "") or "")
+                        ).strip().casefold()
+                    except Exception:
+                        expected_repository = ""
+                    if not bool(
+                        project is not None
+                        and str(getattr(review, "state", "") or "").strip().lower()
+                        == "open"
+                        and str(getattr(review, "source_branch", "") or "").strip()
+                        == task_branch
+                        and str(getattr(review, "target_branch", "") or "").strip()
+                        == target_branch
+                        and expected_repository
+                        and str(getattr(review, "source_repository", "") or "")
+                        .strip()
+                        .casefold()
+                        == expected_repository
+                        and str(getattr(review, "target_repository", "") or "")
+                        .strip()
+                        .casefold()
+                        == expected_repository
+                        and re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", review_head)
+                        and observed_branch_head
+                        and review_head == observed_branch_head
+                    ):
+                        value["accepted_submission_review_identity"] = "ambiguous"
             if (
                 canonicalize_status(current.state)
                 in {OPEN, IN_PROGRESS, NEEDS_CI_FIX, NEEDS_REBASE}
@@ -16360,17 +16459,27 @@ class Orchestrator:
                     or getattr(project, "default_branch", None)
                     or "main"
                 ).strip()
+                recovery_key = (
+                    current.identifier,
+                    task_branch,
+                    integration_head,
+                    target_branch,
+                )
+                recovery_result = accepted_recovery_cache.get(recovery_key)
+                if recovery_result is None:
+                    recovery_result = self._accepted_submission_recovery_authority(
+                        current,
+                        task_branch=task_branch,
+                        accepted_head=integration_head,
+                        target_branch=target_branch,
+                    )
+                    accepted_recovery_cache[recovery_key] = recovery_result
                 (
                     recovery_authorized,
                     recovery_state,
                     observed_branch_head,
                     recovery_claim,
-                ) = self._accepted_submission_recovery_authority(
-                    current,
-                    task_branch=task_branch,
-                    accepted_head=integration_head,
-                    target_branch=target_branch,
-                )
+                ) = recovery_result
                 value["accepted_submission_recovery_state"] = recovery_state
                 value["accepted_submission_head"] = integration_head
                 accepted_submission_recovery_parked = not recovery_authorized
@@ -33649,6 +33758,9 @@ class Orchestrator:
             cache[project_key] = live_reviews
             self._reviews_cache = cache
             self._reviews_cache_generation[project_key] = current_generation
+            self._reviews_cache_updated_at[project_key] = datetime.now(
+                timezone.utc
+            ).isoformat()
             self._reconcile_review_capacity_from_live_reviews(
                 project_key,
                 live_reviews,
@@ -33678,6 +33790,9 @@ class Orchestrator:
                     continue
                 cache[project_key] = list(reviews or [])
                 self._reviews_cache_generation[project_key] = current
+                self._reviews_cache_updated_at[project_key] = datetime.now(
+                    timezone.utc
+                ).isoformat()
             self._reviews_cache = cache
             return cache
 
@@ -34047,6 +34162,9 @@ class Orchestrator:
             ]
             self._reviews_cache = cache
             self._reviews_cache_generation[project_key] = generation
+            self._reviews_cache_updated_at[project_key] = datetime.now(
+                timezone.utc
+            ).isoformat()
             self._release_review_capacity(
                 project_key,
                 review_id=review_key or None,

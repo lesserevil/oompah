@@ -38,6 +38,22 @@ def _make_mock_orch(repo_config_errors: dict | None = None) -> MagicMock:
     # Empty running set so no reviews look agent-active.
     orch.state.running = {}
     orch._yolo_repo_config_errors = repo_config_errors or {}
+    review = ReviewRequest(
+        id="42",
+        title="PR #42",
+        url="https://github.com/org/repo/pull/42",
+        author="alice",
+        state="open",
+        source_branch="feat-branch",
+        target_branch="main",
+        created_at="2026-06-02T16:00:00Z",
+        updated_at="2026-06-02T16:00:00Z",
+        ci_status="passed",
+        auto_merge_enabled=False,
+    )
+    orch._reviews_cache = {project.id: [review]}
+    orch._reviews_cache_generation = {project.id: 1}
+    orch._reviews_cache_updated_at = {project.id: "2026-06-02T16:00:00+00:00"}
     return orch
 
 
@@ -198,6 +214,10 @@ class TestApiListReviewsRepoConfig:
                 "operation": "enqueue",
             }
         })
+        orch._reviews_cache["proj-1"] = [
+            _make_review_request("42"),
+            _make_review_request("43"),
+        ]
         with (
             patch.object(server_module, "_get_orchestrator", return_value=orch),
             patch.object(
@@ -230,6 +250,9 @@ class TestApiListReviewsRepoConfig:
         }
         reviews = _make_review_dict("267")
         reviews[0]["review"]["source_branch"] = "epic-TRICKLE-1"
+        active_review = _make_review_request("267")
+        active_review.source_branch = "epic-TRICKLE-1"
+        orch._reviews_cache["proj-1"] = [active_review]
 
         with (
             patch.object(server_module, "_get_orchestrator", return_value=orch),
@@ -246,17 +269,43 @@ class TestApiListReviewsRepoConfig:
         assert resp.json()[0]["agent_active"] is True
 
 
-class TestApiListReviewsSyncsOrchestratorCache:
-    def test_empty_reviews_payload_clears_stale_reviews_summary(self, client):
+class TestApiListReviewsSnapshotServing:
+    def test_cache_miss_never_calls_forge(self, client):
         project = _make_project(yolo=True)
-        orch = _ReviewCacheOrch(project, [_make_review_request("42")])
+        review = _make_review_request("42")
+        orch = _ReviewCacheOrch(project, [review])
+        orch._reviews_cache_generation = {"proj-1": 7}
+        orch._reviews_cache_updated_at = {
+            "proj-1": "2026-06-02T16:00:00+00:00"
+        }
 
         with (
             patch.object(server_module, "_get_orchestrator", return_value=orch),
             patch.object(
-                server_module, "_fetch_open_reviews_for_api",
-                return_value=_make_fetch_result([], typed_reviews=[]),
-            ),
+                server_module, "_fetch_open_reviews_for_api"
+            ) as fetch_reviews,
+            patch.object(server_module._api_cache, "get", return_value=None),
+            patch.object(server_module._api_cache, "set"),
+        ):
+            resp = client.get("/api/v1/reviews")
+
+        assert resp.status_code == 200, resp.text
+        fetch_reviews.assert_not_called()
+        payload = resp.json()
+        assert payload[0]["review"]["id"] == "42"
+        assert payload[0]["snapshot_generation"] == 7
+        assert payload[0]["snapshot_updated_at"] == "2026-06-02T16:00:00+00:00"
+        assert payload[0]["snapshot_stale"] is False
+
+
+class TestApiListReviewsSyncsOrchestratorCache:
+    def test_empty_cached_snapshot_returns_immediately(self, client):
+        project = _make_project(yolo=True)
+        orch = _ReviewCacheOrch(project, [])
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "_fetch_open_reviews_for_api") as fetch_reviews,
             patch.object(server_module._api_cache, "get", return_value=None),
             patch.object(server_module._api_cache, "set"),
         ):
@@ -264,31 +313,26 @@ class TestApiListReviewsSyncsOrchestratorCache:
 
         assert resp.status_code == 200, resp.text
         assert resp.json() == []
+        fetch_reviews.assert_not_called()
         assert orch._reviews_cache == {"proj-1": []}
         assert orch._unmerged_review_branches == set()
         assert orch._reviews_summary()["total"] == 0
-        assert orch._last_emitted_reviews_summary["total"] == 0
-        assert orch.notify_count == 1
+        assert orch.notify_count == 0
 
-    def test_reviews_payload_rebuilds_cache_as_review_requests(self, client):
+    def test_reviews_payload_reads_cache_as_review_requests(self, client):
         project = _make_project(yolo=True)
-        orch = _ReviewCacheOrch(project, [])
+        orch = _ReviewCacheOrch(project, [_make_review_request("42")])
 
         with (
             patch.object(server_module, "_get_orchestrator", return_value=orch),
-            patch.object(
-                server_module, "_fetch_open_reviews_for_api",
-                return_value=_make_fetch_result(
-                    _make_review_dict("42"),
-                    typed_reviews=[_make_review_request("42")],
-                ),
-            ),
+            patch.object(server_module, "_fetch_open_reviews_for_api") as fetch_reviews,
             patch.object(server_module._api_cache, "get", return_value=None),
             patch.object(server_module._api_cache, "set"),
         ):
             resp = client.get("/api/v1/reviews")
 
         assert resp.status_code == 200, resp.text
+        fetch_reviews.assert_not_called()
         cached_reviews = orch._reviews_cache["proj-1"]
         assert len(cached_reviews) == 1
         assert isinstance(cached_reviews[0], ReviewRequest)
@@ -298,24 +342,22 @@ class TestApiListReviewsSyncsOrchestratorCache:
         assert orch._reviews_summary()["total"] == 1
         assert orch._reviews_summary()["yolo_pending"] == 1
 
-    def test_failed_project_fetch_does_not_clear_existing_cache(self, client):
+    def test_unavailable_project_preserves_existing_snapshot(self, client):
         project = _make_project(yolo=True)
         stale_review = _make_review_request("42")
         orch = _ReviewCacheOrch(project, [stale_review])
 
         with (
             patch.object(server_module, "_get_orchestrator", return_value=orch),
-            patch.object(
-                server_module, "_fetch_open_reviews_for_api",
-                return_value=_make_fetch_result([], typed_reviews=[], successful=False),
-            ),
+            patch.object(server_module, "_fetch_open_reviews_for_api") as fetch_reviews,
             patch.object(server_module._api_cache, "get", return_value=None),
             patch.object(server_module._api_cache, "set"),
         ):
             resp = client.get("/api/v1/reviews")
 
         assert resp.status_code == 200, resp.text
-        assert resp.json() == []
+        assert resp.json()[0]["review"]["id"] == "42"
+        fetch_reviews.assert_not_called()
         assert orch._reviews_cache == {"proj-1": [stale_review]}
         assert orch._unmerged_review_branches == {"feat-branch"}
         assert orch._reviews_summary()["total"] == 1

@@ -1495,7 +1495,7 @@ def test_replacement_timeout_rolls_back_before_concurrent_replacement(
     monkeypatch,
 ):
     """A failed drain keeps the old owner and cannot ABA a queued cutover.
-    
+
     This test uses explicit synchronization and predicate-based readiness checks
     instead of relying on wall-clock timeouts, making it deterministic under load.
     The key insight: instead of sleeping to let the timeout elapse, we observe
@@ -1511,15 +1511,15 @@ def test_replacement_timeout_rolls_back_before_concurrent_replacement(
     second_new._ipc = None
     # Very short timeout so test completes quickly while remaining deterministic
     old._lifecycle_publication_drain_timeout_s = 0.05
-    
+
     handler_entered = threading.Event()
     release_handler = threading.Event()
     callback_mutated = threading.Event()
-    
+
     # Event to signal when the first replacement has finished attempting
     # (either success or failure). This replaces time.sleep() for orchestration.
     first_replacement_attempted = threading.Event()
-    
+
     first_done = threading.Event()
     second_done = threading.Event()
     first_errors: list[BaseException] = []
@@ -1565,12 +1565,12 @@ def test_replacement_timeout_rolls_back_before_concurrent_replacement(
         # replacement attempt has been made. This is deterministic and not load-
         # sensitive. The first thread will timeout in its drain, then set this event.
         assert first_replacement_attempted.wait(timeout=10)
-        
+
         # Now start second. It will block on the replacement lock until first
         # releases it, then try to drain old (which may also timeout initially).
         # Once we release the handler, second's drain will succeed.
         second.start()
-        
+
         # Verify state after first failure: old is still in place but partially
         # shut down. This check happens before we release the handler.
         assert first_done.wait(timeout=1)
@@ -1584,21 +1584,21 @@ def test_replacement_timeout_rolls_back_before_concurrent_replacement(
         # and allows it to succeed. The release happens while second might be
         # timing out in its own drain attempt.
         release_handler.set()
-        
+
         # Both threads should complete within reasonable time
         assert first.join(timeout=1) is None
         assert second.join(timeout=1) is None
         assert first.is_alive() is False
         assert second.is_alive() is False
-        
+
         # Second should have succeeded (no errors)
         assert second_errors == []
         assert callback_mutated.is_set()
-        
+
         # Final state: second_new is installed and old is shut down
         assert server._orchestrator is second_new
         assert old._lifecycle_publication_closed is True
-    
+
     second_new._shutdown_lifecycle_publications()
 
 
@@ -1607,7 +1607,7 @@ def test_replacement_succeeds_when_handler_completes_before_timeout(
     monkeypatch,
 ):
     """Replacement succeeds when lifecycle drain completes before timeout.
-    
+
     This is the reverse ordering of the previous test: instead of blocking
     until timeout, the handler is released soon enough that the drain completes
     and replacement succeeds. Uses explicit synchronization (events) to ensure
@@ -1620,13 +1620,13 @@ def test_replacement_succeeds_when_handler_completes_before_timeout(
     new._ipc = None
     # Generous timeout ensures drain won't fail due to timeout
     old._lifecycle_publication_drain_timeout_s = 10.0
-    
+
     handler_entered = threading.Event()
     release_handler_trigger = threading.Event()
     handler_completed = threading.Event()
     callback_published = threading.Event()
     replacement_started = threading.Event()
-    
+
     def _quick_handler(_event, _payload):
         handler_entered.set()
         # Wait for explicit signal to release, demonstrating test control
@@ -1658,34 +1658,35 @@ def test_replacement_succeeds_when_handler_completes_before_timeout(
     ):
         replacer = threading.Thread(target=_attempt_replacement)
         replacer.start()
-        
+
         # Let replacement start and reach the drain point
         assert replacement_started.wait(timeout=1)
         time.sleep(0.01)  # Small sleep to let drain attempt start
-        
+
         # Release the handler BEFORE the timeout would occur, ensuring drain succeeds
         release_handler_trigger.set()
         assert handler_completed.wait(timeout=1)
-        
+
         # Replacement should complete successfully
         replacer.join(timeout=1)
         assert replacer.is_alive() is False
-        
+
         # Verify success
         assert replacement_errors == []
         assert replacement_result == ["success"]
         assert server._orchestrator is new
         assert old._lifecycle_publication_closed is True
-    
+
     new._shutdown_lifecycle_publications()
 
 
+@pytest.mark.timeout(30)
 def test_repeated_replacement_timeout_detection_under_load(
     tmp_path,
     monkeypatch,
 ):
     """Run the timeout test multiple times to verify determinism under load.
-    
+
     This test verifies that the fixes for deterministic timeout detection
     actually work reliably across multiple runs. The original bug manifested
     when Makefile gates ran concurrently; this simulates that by running
@@ -1702,11 +1703,11 @@ def test_repeated_replacement_timeout_detection_under_load(
         first_new._ipc = None
         second_new._ipc = None
         old._lifecycle_publication_drain_timeout_s = 0.05
-        
+
         handler_entered = threading.Event()
         release_handler = threading.Event()
         first_attempted = threading.Event()
-        
+
         first_errors = []
         second_errors = []
         first_done = threading.Event()
@@ -1749,12 +1750,12 @@ def test_repeated_replacement_timeout_detection_under_load(
             first.start()
             assert first_attempted.wait(timeout=10)
             second.start()
-            
+
             release_handler.set()
-            
+
             assert first.join(timeout=1) is None
             assert second.join(timeout=1) is None
-            
+
             # Verify cycle results
             if len(first_errors) != 1 or not isinstance(first_errors[0], RuntimeError):
                 return False
@@ -1764,7 +1765,7 @@ def test_repeated_replacement_timeout_detection_under_load(
                 return False
             if not old._lifecycle_publication_closed:
                 return False
-        
+
         second_new._shutdown_lifecycle_publications()
         return True
 
