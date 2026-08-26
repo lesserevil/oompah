@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:36.934588Z'
-updated_at: '2026-08-26T08:35:59.176536Z'
+updated_at: '2026-08-26T08:36:24.983781Z'
 work_branch: OOMPAH-1336
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/926
@@ -111,8 +111,8 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 22
-  total_output_tokens: 5712
+  total_input_tokens: 36
+  total_output_tokens: 8687
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -120,8 +120,8 @@ oompah.task_costs:
       output_tokens: 1454
       cost_usd: 0.0
     unknown:
-      input_tokens: 12
-      output_tokens: 4258
+      input_tokens: 26
+      output_tokens: 7233
       cost_usd: 0.0
   runs:
   - profile: default
@@ -136,6 +136,12 @@ oompah.task_costs:
     output_tokens: 4258
     cost_usd: 0.0
     recorded_at: '2026-08-26T08:20:09.944543+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 14
+    output_tokens: 2975
+    cost_usd: 0.0
+    recorded_at: '2026-08-26T08:36:21.933305+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -643,5 +649,15 @@ Safe evidence:
 - new_test_count: 3 new tests in test_orchestrator_thread.py
 - key_change: _run_orchestrator_thread_wrapped() uses tiered log levels: INFO for expected_shutdown, WARNING for rollout gate, ERROR for genuine crashes
 - regression_guard: test_unexpected_generic_scheduler_failure_keeps_crash_classification verifies generic errors still produce ERROR-level crash log
+---
+author: oompah
+created: 2026-08-26 08:36
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 23, Tool calls: 12
+- Tokens: 14 in / 3.0K out [3.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 59s
+- Log: OOMPAH-1336__20260826T083142Z.jsonl
 ---
 <!-- COMMENTS:END -->
