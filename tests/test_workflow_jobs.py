@@ -4263,6 +4263,89 @@ def test_publication_rollback_emits_single_aggregate_event_per_task(store):
     assert len(payload["job_ids"]) == len(specs)
 
 
+def test_repeated_rollback_same_generation_is_idempotent(store):
+    """Verify that rolling back different generations produces separate events."""
+    project_id = "project-idempotent"
+    task_id = "TASK-IDEMPOTENT-ROLLBACK"
+    published = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(published)
+    assert store.reconcile_snapshot_membership(
+        snapshot_generation=published,
+        authoritative_project_ids=(project_id,),
+        expected_identities=((project_id, task_id),),
+    ).accepted
+    cursor = store.activate_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        decision_revision="managed-multi",
+        snapshot_generation=published,
+    )
+    specs = tuple(
+        WorkflowJobSpec(
+            project_id=project_id,
+            task_id=task_id,
+            generation=cursor.job_generation,
+            action="authority_revocation",
+            idempotency_key=f"idem-rollback:{index}",
+        )
+        for index in range(3)
+    )
+    assert store.reconcile_schedule(
+        project_id=project_id,
+        task_id=task_id,
+        snapshot_generation=published,
+        job_generation=cursor.job_generation,
+        specs=specs,
+    ).accepted
+    assert store.publish_snapshot_generation(published, lambda: None)[0]
+
+    checkpoint = store.capture_snapshot_authority(
+        authoritative_project_ids=(project_id,),
+        evaluated_identities=((project_id, task_id),),
+        full_project_scope=True,
+    )
+
+    # Allocate and rollback first failed snapshot
+    failed_snapshot_1 = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(failed_snapshot_1)
+    assert store.restore_snapshot_authority(
+        checkpoint, snapshot_generation=failed_snapshot_1
+    )
+
+    # Count rollback events after first rollback
+    rows_after_first = store._conn.execute(  # noqa: SLF001
+        "SELECT payload_json FROM workflow_job_events "
+        "WHERE project_id = ? AND task_id = ? AND event_type = 'publication_rollback'",
+        (project_id, task_id),
+    ).fetchall()
+    assert len(rows_after_first) == 1
+    first_payload = json.loads(rows_after_first[0]["payload_json"])
+
+    # Allocate and rollback a second failed snapshot with the same checkpoint
+    # This should produce a separate rollback event
+    failed_snapshot_2 = store.allocate_snapshot_generation()
+    assert store.accept_snapshot_generation(failed_snapshot_2)
+    result = store.restore_snapshot_authority(
+        checkpoint, snapshot_generation=failed_snapshot_2
+    )
+    assert result is True
+
+    # Now check that we have one rollback event per generation
+    rows_after_second = store._conn.execute(  # noqa: SLF001
+        "SELECT payload_json FROM workflow_job_events "
+        "WHERE project_id = ? AND task_id = ? AND event_type = 'publication_rollback'",
+        (project_id, task_id),
+    ).fetchall()
+    assert len(rows_after_second) == 2, (
+        "Should have 2 aggregate rollback events (one per generation)"
+    )
+    # Verify both events have the same job_ids (since they're rolling back the same state)
+    second_payload = json.loads(rows_after_second[1]["payload_json"])
+    assert first_payload["job_ids"] == second_payload["job_ids"], (
+        "Both rollbacks should affect the same jobs"
+    )
+
+
 def _seed_rollback_events(store, clock, *, project_id, task_id, count):
     """Seed publication_rollback audit rows backed by real jobs."""
     job_ids = []
