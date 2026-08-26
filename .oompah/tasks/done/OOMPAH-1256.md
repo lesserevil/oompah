@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-26T23:19:52.013002Z'
+updated_at: '2026-08-26T23:19:58.188246Z'
 work_branch: OOMPAH-1256
 target_branch: null
 review_url: null
@@ -283,7 +283,21 @@ oompah.terminal_audit:
     created_at: '2026-08-26T23:19:47.258127+00:00'
     selected_ref: 952616edb1e06cfbebeeead8219d558018ad2faa
     selected_sha: 952616edb1e06cfbebeeead8219d558018ad2faa
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1256
+    target_state: Done
+    evidence_fingerprint: 7918ba4764c434c97e274e0d6b99f14fbf07d5a8a78315fb91e387260506eb7b
+    workflow_revision: null
+    selected_ref: 952616edb1e06cfbebeeead8219d558018ad2faa
+    selected_sha: 952616edb1e06cfbebeeead8219d558018ad2faa
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-26T23:19:56.384759+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -781,5 +795,12 @@ created: 2026-08-26 23:07
 **Evidence result:** `comment_ci_passing`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-26 23:19
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Verified current main already has canonical project ID/name resolution and passes 206 focused terminal-status/task-handoff tests; superseded PR #952 was closed because it regressed 15 tests.
 ---
 <!-- COMMENTS:END -->
