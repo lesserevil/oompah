@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:31:41.109952Z'
-updated_at: '2026-08-26T07:10:12.569078Z'
+updated_at: '2026-08-26T07:15:59.113982Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -428,5 +428,17 @@ author: oompah
 created: 2026-08-26 07:10
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-08-26 07:15
+---
+**Understanding**: The issue is that when the api_create_issue endpoint encounters a StateBranchFetchError (e.g., due to network/auth issues with git), it logs the error using logger.error() which triggers error_watcher auto-filing. The fix is to catch StateBranchFetchError specifically and log it as WARNING instead of ERROR, while returning a 503 (Service Unavailable) status instead of 500. This degrades gracefully without triggering error_watcher.
+
+**Planned approach**: 
+1. Add StateBranchFetchError import at the api_create_issue function level
+2. Add a specific except handler for StateBranchFetchError after the existing handlers but before the generic Exception handler
+3. Log with logger.warning() and return 503 status code
+4. Add comprehensive unit tests to verify behavior
+5. Run tests to verify no regressions
 ---
 <!-- COMMENTS:END -->
