@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:31:41.109952Z'
-updated_at: '2026-08-26T10:50:38.366184Z'
+updated_at: '2026-08-26T10:58:54.248578Z'
 work_branch: OOMPAH-1334
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/932
@@ -202,6 +202,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1334
     digest: d24220ed361df0350cdd93258654ca879f61597baaa373ca17ba55f50eb0a054
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1334","audit-e75b9a4a7b7a","attempt-4f024288e3ba"]': '2026-08-26T10:58:42.938450+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1334
+    target_state: Done
+    evidence_fingerprint: d24220ed361df0350cdd93258654ca879f61597baaa373ca17ba55f50eb0a054
+    workflow_revision: null
+    selected_ref: 54945b27c2558ecfb7949b7c20794149841c687d
+    selected_sha: 54945b27c2558ecfb7949b7c20794149841c687d
+    landing_revision: null
+    audit_ids:
+    - audit-e75b9a4a7b7a
+    kind: result
+    applied: true
+    retired_at: '2026-08-26T10:58:42.938482+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1334
+    audit_id: audit-e75b9a4a7b7a
+    attempt_id: attempt-4f024288e3ba
+    target_state: Done
+    evidence_fingerprint: d24220ed361df0350cdd93258654ca879f61597baaa373ca17ba55f50eb0a054
+    status: In Validation
+    audit_ids:
+    - audit-e75b9a4a7b7a
+    kind: result
+    applied: true
+    created_at: '2026-08-26T10:58:42.938501+00:00'
+    applied_at: '2026-08-26T10:58:52.665279+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -209,7 +239,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1334
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -218,7 +248,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-4f024288e3ba
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -230,6 +260,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1334
       selected_ref: 54945b27c2558ecfb7949b7c20794149841c687d
       selected_sha: 54945b27c2558ecfb7949b7c20794149841c687d
+      verdict: pass
+      completed_at: '2026-08-26T10:58:42.938158+00:00'
+      ended_at: '2026-08-26T10:58:42.938158+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -240,7 +273,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T10:32:19.694303+00:00'
     selected_ref: 54945b27c2558ecfb7949b7c20794149841c687d
     selected_sha: 54945b27c2558ecfb7949b7c20794149841c687d
-    updated_at: '2026-08-26T10:50:21.984100+00:00'
+    updated_at: '2026-08-26T10:58:42.938158+00:00'
   - version: 1
     audit_id: audit-e3bd863664c8
     project_id: proj-14849f1b
@@ -262,6 +295,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-e75b9a4a7b7a
     selected_ref: 54945b27c2558ecfb7949b7c20794149841c687d
     selected_sha: 54945b27c2558ecfb7949b7c20794149841c687d
+    updated_at: '2026-08-26T10:58:42.938158+00:00'
+    eligible_at: '2026-08-26T10:58:42.938158+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4f024288e3ba
@@ -609,5 +644,27 @@ author: oompah
 created: 2026-08-26 10:50
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 10:58
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 54945b27c2558ecfb7949b7c20794149841c687d
+- gate_result: passed
+- gate_command: make test
+- gate_duration_seconds: 196.4
+- fix_file: oompah/server.py
+- test_file: tests/test_server_create_issue.py
+- test_class: TestCreateIssueStateBranchFetchError
+- test_count_added: 3
+- log_level_on_StateBranchFetchError: WARNING
+- http_status_on_StateBranchFetchError: 503
+- error_code: state_branch_fetch_failed
+- retryable: True
+- generic_exception_still_logs: ERROR at 500
 ---
 <!-- COMMENTS:END -->
