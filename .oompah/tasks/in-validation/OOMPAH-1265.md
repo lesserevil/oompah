@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-26T15:47:11.072932Z'
+updated_at: '2026-08-26T15:50:50.911602Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -229,6 +229,8 @@ oompah.terminal_audit:
       evidence.
     authorized_at: '2026-08-26T15:47:01.735367+00:00'
     mode: infrastructure_recovery
+    consumed_at: '2026-08-26T15:50:49.446719+00:00'
+    consumed_workflow_job_id: workflow-job-9b0381611b54424593fbb8f38dec9647
   version: 1
   pending_chain:
   - version: 1
