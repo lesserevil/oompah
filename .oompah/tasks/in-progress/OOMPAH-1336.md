@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:36.934588Z'
-updated_at: '2026-08-26T01:01:33.633554Z'
+updated_at: '2026-08-26T01:05:48.879448Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -255,5 +255,31 @@ Current approach:
 - Ensure error_watcher is not triggered for expected failures
 
 Starting investigation of orchestrator.py to identify what's causing the crash.
+---
+author: oompah
+created: 2026-08-26 01:05
+---
+**Discovery: Error Handling Issue**
+
+Found the key issue in __main__.py:
+
+The orchestrator thread is wrapped in a catch-all exception handler:
+```python
+def _run_orchestrator_thread() -> None:
+    try:
+        asyncio.run(orchestrator.run())
+    except Exception as exc:
+        message, extra = orchestrator_thread_error_fields(exc)
+        logger.exception(message, extra=extra)  # Always logs at ERROR level!
+```
+
+This causes ANY exception to be logged at ERROR level, triggering error_watcher to auto-file a task. The orchestrator_thread_error_fields() function only distinguishes WorkflowRolloutGateError - everything else returns 'Orchestrator thread crashed'.
+
+The problem: We're not properly handling expected shutdown scenarios or distinguishing between:
+- Graceful shutdown (daemon thread exiting normally)
+- Expected operational failures (already handled)  
+- Actual unexpected crashes
+
+Next: Improve exception handling to only log genuine unexpected crashes.
 ---
 <!-- COMMENTS:END -->
