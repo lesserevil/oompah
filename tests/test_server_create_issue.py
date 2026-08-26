@@ -6,6 +6,7 @@ Covers auto-add 'draft' label to new epics (type=epic) created via POST /api/v1/
 from __future__ import annotations
 
 import threading
+import logging
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -15,6 +16,7 @@ from fastapi.testclient import TestClient
 import oompah.server as server_module
 from oompah.server import app
 from oompah.models import Issue
+from oompah.tracker import StateBranchFetchError
 
 
 # ---------------------------------------------------------------------------
@@ -379,6 +381,36 @@ class TestCreateIssuePriority:
 # ---------------------------------------------------------------------------
 # POST /api/v1/issues — source_task_id metadata (TASK-460.3 AC#2)
 # ---------------------------------------------------------------------------
+
+class TestCreateIssueStateBranchFetchError:
+    def test_state_branch_fetch_error_returns_503_and_logs_warning(self, client, caplog):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+
+        def create_issue(**_fields):
+            raise StateBranchFetchError("Cannot sync state branch 'oompah/state/proj-abc': git fetch origin 'oompah/state/proj-abc' failed: network unreachable. Remediation: verify network access and remote URL.")
+
+        mock_tracker.create_issue.side_effect = create_issue
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            with caplog.at_level(logging.WARNING, logger="oompah"):
+                resp = client.post(
+                    "/api/v1/issues",
+                    json={
+                        "title": "My Task",
+                        "type": "task",
+                        "project_id": "proj-1",
+                        "description": "Test task",
+                    },
+                )
+
+        assert resp.status_code == 503
+        data = resp.json()
+        assert data["error"]["code"] == "state_branch_fetch_failed"
+        assert any("Create issue state-branch sync skipped" in r.message for r in caplog.records)
+
 
 class TestCreateIssueSourceTaskId:
     """Tests that source_task_id is prepended to description across tracker backends."""

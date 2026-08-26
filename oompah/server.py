@@ -9824,6 +9824,14 @@ async def api_create_issue(request: Request):
             status_code=503,
         )
     except Exception as exc:
+        from oompah.tracker import StateBranchFetchError
+
+        if isinstance(exc, StateBranchFetchError) or _transition_tracker_error_type(exc) == StateBranchFetchError.__name__:
+            logger.warning("Create issue state-branch sync skipped: %s", exc)
+            return JSONResponse(
+                {"error": {"code": "state_branch_fetch_failed", "message": str(exc)}},
+                status_code=503,
+            )
         logger.error("Create issue API error: %s", exc)
         return JSONResponse(
             {"error": {"code": "create_failed", "message": str(exc)}},
