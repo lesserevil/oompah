@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:00:51.761397Z'
-updated_at: '2026-08-26T01:08:44.013620Z'
+updated_at: '2026-08-26T01:18:11.303977Z'
 work_branch: OOMPAH-1216
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/918
@@ -193,6 +193,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1216
     digest: 03fa9a1ad513656a93694d98848ef07bb93b714e885d1545435dfe52ca8343c6
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1216","audit-d94d2d158600","attempt-45525c99c833"]': '2026-08-26T01:18:02.300148+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1216
+    target_state: Done
+    evidence_fingerprint: 03fa9a1ad513656a93694d98848ef07bb93b714e885d1545435dfe52ca8343c6
+    workflow_revision: null
+    selected_ref: bf19e7aa4b8da8bfac1850d47e235951b30ab075
+    selected_sha: bf19e7aa4b8da8bfac1850d47e235951b30ab075
+    landing_revision: null
+    audit_ids:
+    - audit-d94d2d158600
+    kind: result
+    applied: true
+    retired_at: '2026-08-26T01:18:02.300166+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1216
+    audit_id: audit-d94d2d158600
+    attempt_id: attempt-45525c99c833
+    target_state: Done
+    evidence_fingerprint: 03fa9a1ad513656a93694d98848ef07bb93b714e885d1545435dfe52ca8343c6
+    status: In Validation
+    audit_ids:
+    - audit-d94d2d158600
+    kind: result
+    applied: true
+    created_at: '2026-08-26T01:18:02.300177+00:00'
+    applied_at: '2026-08-26T01:18:09.979076+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -200,7 +230,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1216
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -209,7 +239,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-45525c99c833
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -221,6 +251,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1216
       selected_ref: bf19e7aa4b8da8bfac1850d47e235951b30ab075
       selected_sha: bf19e7aa4b8da8bfac1850d47e235951b30ab075
+      verdict: pass
+      completed_at: '2026-08-26T01:18:02.299953+00:00'
+      ended_at: '2026-08-26T01:18:02.299953+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -231,7 +264,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T01:05:06.472326+00:00'
     selected_ref: bf19e7aa4b8da8bfac1850d47e235951b30ab075
     selected_sha: bf19e7aa4b8da8bfac1850d47e235951b30ab075
-    updated_at: '2026-08-26T01:08:32.796710+00:00'
+    updated_at: '2026-08-26T01:18:02.299953+00:00'
   - version: 1
     audit_id: audit-acedc0ea4429
     project_id: proj-14849f1b
@@ -253,6 +286,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-d94d2d158600
     selected_ref: bf19e7aa4b8da8bfac1850d47e235951b30ab075
     selected_sha: bf19e7aa4b8da8bfac1850d47e235951b30ab075
+    updated_at: '2026-08-26T01:18:02.299953+00:00'
+    eligible_at: '2026-08-26T01:18:02.299953+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-45525c99c833
@@ -504,5 +539,24 @@ author: oompah
 created: 2026-08-26 01:08
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 01:18
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- fix_location: oompah/orchestrator.py:58066 — logger.warning( replaces prior logger.error()
+- message_confirmed: Pre-provider contributor evidence exceeded its bounded task-authority deadline
+- error_watcher_threshold: error_watcher.py:92 _handler.setLevel(logging.ERROR) — WARNING is below threshold
+- error_watcher_regex: error_watcher.py:696 _ERROR_LINE_RE matches only ERROR|CRITICAL|FATAL|SEVERE
+- full_gate_result: make test PASSED at bf19e7aa4b8da8bfac1850d47e235951b30ab075 in ~192s (twice)
+- functional_tests: test_pre_provider_evidence_timeout_releases_task_authority, test_pre_provider_timeout_exits_without_ghost_and_authority_lanes_continue
+- caplog_test_for_level: absent — no explicit assertion that log level is WARNING not ERROR
+- acceptance_1: PASS — error_watcher will not trigger on WARNING-level message
+- acceptance_2: PASS — root cause identified and resolved by log level change
+- acceptance_3: PASS — full suite passes, only targeted message level changed
 ---
 <!-- COMMENTS:END -->
