@@ -12,8 +12,8 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:10.725032Z'
-updated_at: '2026-08-26T18:56:41.478888Z'
-work_branch: null
+updated_at: '2026-08-26T19:20:28.505683Z'
+work_branch: OOMPAH-1344
 target_branch: null
 review_url: null
 review_number: null
@@ -26,6 +26,18 @@ oompah.create_once:
   creation_marker: manual-service-recovery-20260826-reconcile
   request_fingerprint: e6c78ba0978cc6d0161af8a4dfd78cefb2d4c74f979a7ef712c76116bc784ea9
 oompah.lifecycle_revision: 2
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: queue
+  task_branch: OOMPAH-1344
+  base_branch: epic-OOMPAH-1342
+  base_sha: d258fc16b1478ff902139c66cdb3e51fa96d209c
+  head_sha: f13ca97b66bea10214dadec8464737557a4a04e8
+  submitted_at: '2026-08-26T19:20:17.525422+00:00'
+  updated_at: '2026-08-26T19:20:17.525422+00:00'
+oompah.work_branch: OOMPAH-1344
 ---
 ## Summary
 
@@ -43,5 +55,10 @@ author: oompah
 created: 2026-08-26 18:56
 ---
 Direct implementation ownership assigned to the current manual recovery session (owner claim: shedwards). The project is paused and the human-only fence is present; do not dispatch this task to an autonomous worker.
+---
+author: oompah
+created: 2026-08-26 19:20
+---
+Added generation-scoped integration resolver and review-provider caches. Focused workflow tests pass (366).
 ---
 <!-- COMMENTS:END -->
