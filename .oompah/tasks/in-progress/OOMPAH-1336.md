@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:36.934588Z'
-updated_at: '2026-08-26T01:12:58.408020Z'
+updated_at: '2026-08-26T01:14:58.287321Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -310,5 +310,22 @@ Changes made:
    - All existing tests continue to pass
 
 The fix ensures that only genuine unexpected crashes trigger error_watcher, while graceful shutdowns and expected failures are handled appropriately.
+---
+author: oompah
+created: 2026-08-26 01:14
+---
+**Verification: Tests Passed**
+
+Ran focused test suites and verified the fix:
+- tests/test_orchestrator_thread.py: 5 tests PASSED (new tests for expected shutdown scenarios)
+- tests/test_error_watcher_orchestrator.py: 13 tests PASSED (auto-close and error classification)
+- Total: 18 tests PASSED
+
+The fix properly handles:
+1. Expected shutdown errors (INFO level - won't trigger error_watcher)
+2. Validation failures (WARNING level - documented but not a crash)
+3. Unexpected crashes (ERROR level - will trigger error_watcher for investigation)
+
+Code is ready for review and integration.
 ---
 <!-- COMMENTS:END -->
