@@ -13,12 +13,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:15:47.974297Z'
-updated_at: '2026-08-26T01:37:49.282710Z'
+updated_at: '2026-08-26T02:43:59.972465Z'
 work_branch: OOMPAH-1219
 target_branch: main
-review_url: https://github.com/lesserevil/oompah/pull/920
-review_number: '920'
-review_head: f88eeb613d5a361210824f55d3213b83da3ddb28
+review_url: ''
+review_number: ''
+review_head: ''
 merged_at: null
 oompah.lifecycle_revision: 9
 oompah.last_batch:
@@ -154,20 +154,21 @@ oompah.task_costs:
     recorded_at: '2026-08-26T01:23:50.886764+00:00'
 oompah.integration:
   version: 2
-  state: ready
+  state: integrated
   attempts: 0
   mode: standalone
   task_branch: OOMPAH-1219
   base_branch: main
   base_sha: 064329e5d2a01ad926518bee9594a240e02824aa
   head_sha: f88eeb613d5a361210824f55d3213b83da3ddb28
+  integrated_sha: f88eeb613d5a361210824f55d3213b83da3ddb28
   submitted_at: '2026-08-21T05:36:23.861801+00:00'
-  updated_at: '2026-08-25T20:56:54.271515+00:00'
+  updated_at: '2026-08-26T02:43:43.375560+00:00'
 oompah.work_branch: OOMPAH-1219
-oompah.review_url: https://github.com/lesserevil/oompah/pull/920
-oompah.review_number: '920'
+oompah.review_url: ''
+oompah.review_number: ''
 oompah.target_branch: main
-oompah.review_head: f88eeb613d5a361210824f55d3213b83da3ddb28
+oompah.review_head: ''
 oompah.terminal_audit:
   queued_comment_posted: true
   oompah.terminal_audit_tracker_projections:
