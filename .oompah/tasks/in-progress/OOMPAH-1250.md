@@ -13,7 +13,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-26T03:34:58.831823Z'
+updated_at: '2026-08-26T03:37:03.250967Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -822,5 +822,10 @@ author: oompah
 created: 2026-08-26 03:34
 ---
 UNDERSTANDING: Need to implement GitLab external issue intake bridge (like GitHub intake). Will create gitlab_intake_bridge.py with idempotent import, provider-qualified metadata, polling recovery, and webhook routing. Must preserve GitHub behavior via compatibility wrappers. Accepting criteria: oompah_md GitLab project imports complete issue into Proposed, copies human comments once, archives on external close, mirrors Merged/Archived to GitLab, handles missed webhooks via poll, passes GitHub + GitLab regression tests.
+---
+author: oompah
+created: 2026-08-26 03:37
+---
+DISCOVERY: Analyzed github_intake_bridge.py structure. Key functions to replicate for GitLab: (1) project_uses_*_intake(), (2) *_issue_intake_repo_slug(), (3) event_matches_*_intake(), (4) poll_*_issue_intake_project() for polling recovery, (5) sync_*_intake_statuses_for_project() for mirroring terminal status. Also need to create gitlab_intake_bridge.py with GitLab-specific tracker interactions and provider-qualified oompah.external.gitlab metadata. Will now check server webhook routing and implement forge-neutral bridge.
 ---
 <!-- COMMENTS:END -->
