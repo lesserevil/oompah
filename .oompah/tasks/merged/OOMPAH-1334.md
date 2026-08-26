@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1334
 type: bug
-status: In Validation
+status: Merged
 priority: 2
 title: '[backend:server] Create issue API error: StateBranchFetchError(''Cannot sync
   state branch \''oompah/state/proj-3e4e9214\'': git fetch origin \''oompah/state/proj-3e4e9214\''
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:31:41.109952Z'
-updated_at: '2026-08-26T11:03:41.988323Z'
+updated_at: '2026-08-26T11:06:42.007741Z'
 work_branch: OOMPAH-1334
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/932
 review_number: '932'
 review_head: 54945b27c2558ecfb7949b7c20794149841c687d
 merged_at: null
-oompah.lifecycle_revision: 7
+oompah.lifecycle_revision: 8
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: e0cd2b77f43728f834e3be4a42ef4726942676842c4590fe2c09b52d09db6c5c
@@ -214,6 +214,7 @@ oompah.terminal_audit:
     digest: d24220ed361df0350cdd93258654ca879f61597baaa373ca17ba55f50eb0a054
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1334","audit-e75b9a4a7b7a","attempt-4f024288e3ba"]': '2026-08-26T10:58:42.938450+00:00'
+    '["proj-14849f1b","OOMPAH-1334","audit-e3bd863664c8","attempt-a48bbecdd1c8"]': '2026-08-26T11:06:37.594261+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1334
@@ -228,6 +229,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-26T10:58:42.938482+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1334
+    target_state: Merged
+    evidence_fingerprint: d24220ed361df0350cdd93258654ca879f61597baaa373ca17ba55f50eb0a054
+    workflow_revision: null
+    selected_ref: 54945b27c2558ecfb7949b7c20794149841c687d
+    selected_sha: 54945b27c2558ecfb7949b7c20794149841c687d
+    landing_revision: null
+    audit_ids:
+    - audit-e3bd863664c8
+    kind: result
+    applied: true
+    retired_at: '2026-08-26T11:06:37.594283+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1334
@@ -242,6 +256,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-26T10:58:42.938501+00:00'
     applied_at: '2026-08-26T10:58:52.665279+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1334
+    audit_id: audit-e3bd863664c8
+    attempt_id: attempt-a48bbecdd1c8
+    target_state: Merged
+    evidence_fingerprint: d24220ed361df0350cdd93258654ca879f61597baaa373ca17ba55f50eb0a054
+    status: Merged
+    audit_ids:
+    - audit-e3bd863664c8
+    kind: result
+    applied: false
+    created_at: '2026-08-26T11:06:37.594296+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -289,7 +315,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1334
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -298,7 +324,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a48bbecdd1c8
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -310,6 +336,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1334
       selected_ref: 54945b27c2558ecfb7949b7c20794149841c687d
       selected_sha: 54945b27c2558ecfb7949b7c20794149841c687d
+      verdict: pass
+      completed_at: '2026-08-26T11:06:37.594108+00:00'
+      ended_at: '2026-08-26T11:06:37.594108+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -320,7 +349,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-e75b9a4a7b7a
     selected_ref: 54945b27c2558ecfb7949b7c20794149841c687d
     selected_sha: 54945b27c2558ecfb7949b7c20794149841c687d
-    updated_at: '2026-08-26T11:03:30.706285+00:00'
+    updated_at: '2026-08-26T11:06:37.594108+00:00'
     eligible_at: '2026-08-26T10:58:42.938158+00:00'
   attempt_history:
   - version: 1
