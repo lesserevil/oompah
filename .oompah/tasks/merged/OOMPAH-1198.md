@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:04.107366Z'
-updated_at: '2026-08-26T23:41:50.552097Z'
+updated_at: '2026-08-26T23:41:56.964940Z'
 work_branch: OOMPAH-1198
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/943
@@ -343,8 +343,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-1e9843855692
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-26T23:41:45.178050+00:00'
+    applied_at: '2026-08-26T23:41:55.104245+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -929,5 +930,20 @@ author: oompah
 created: 2026-08-26 23:37
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 23:41
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- quality_gate: make test passed at 7b780193a56696ec1961f882b1916d967d5f8032 in 188.9s
+- branch_head_sha: 7b780193a56696ec1961f882b1916d967d5f8032
+- key_files_changed: oompah/integration_executor.py, oompah/orchestrator.py, oompah/projects.py
+- fix_summary: canonical_remote_url param replaces stale SSH origin for fetch/push in _git(); execute_integration() passes it through; orchestrator supplies project.repo_url
+- regression_tests: test_managed_git_credentials.py::test_project_network_runner_uses_canonical_remote_over_stale_origin, test_managed_git_credentials.py::test_private_epic_dispatch_refreshes_through_canonical_remote
+- supplemental_tests: test_epic_rebase_state.py canonical_remote_url assertions, test_oompah_md_tracker_state_branch.py::test_managed_canonical_remote_overrides_stale_origin_and_ambient_rewrite, test_projects.py::test_canonical_remote_url_is_server_owned
 ---
 <!-- COMMENTS:END -->
