@@ -1033,6 +1033,8 @@ class ServiceConfig:
     storage_cleanup_batch_size: int = 50
     storage_cleanup_max_bytes: int = 50 * 1024 * 1024 * 1024
     storage_cleanup_log_retention_seconds: int = 7 * 24 * 60 * 60
+    workflow_event_archive_retention_seconds: int = 30 * 24 * 60 * 60
+    workflow_event_archive_batch_size: int = 50000
     repo_hygiene_safely_prunable_age_seconds: int = 7 * 24 * 60 * 60
     repo_hygiene_safely_prunable_count_warning: int = 10
     repo_hygiene_safely_prunable_count_critical: int = 50
@@ -1359,6 +1361,12 @@ class ServiceConfig:
         self.storage_cleanup_max_bytes = max(int(self.storage_cleanup_max_bytes), 0)
         self.storage_cleanup_log_retention_seconds = max(
             int(self.storage_cleanup_log_retention_seconds), 60
+        )
+        self.workflow_event_archive_retention_seconds = max(
+            int(self.workflow_event_archive_retention_seconds), 60
+        )
+        self.workflow_event_archive_batch_size = max(
+            int(self.workflow_event_archive_batch_size), 1
         )
         self.repo_hygiene_safely_prunable_age_seconds = max(
             int(self.repo_hygiene_safely_prunable_age_seconds), 1
@@ -1915,6 +1923,14 @@ class ServiceConfig:
                 "OOMPAH_STORAGE_CLEANUP_LOG_RETENTION_SECONDS",
                 None,
                 7 * 24 * 60 * 60,
+            ),
+            workflow_event_archive_retention_seconds=_env_int(
+                "OOMPAH_WORKFLOW_EVENT_ARCHIVE_RETENTION_SECONDS",
+                None,
+                30 * 24 * 60 * 60,
+            ),
+            workflow_event_archive_batch_size=_env_int(
+                "OOMPAH_WORKFLOW_EVENT_ARCHIVE_BATCH_SIZE", None, 50000
             ),
             repo_hygiene_safely_prunable_age_seconds=_env_int(
                 "OOMPAH_REPO_HYGIENE_SAFELY_PRUNABLE_AGE_SECONDS",
