@@ -12,9 +12,9 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:10.725032Z'
-updated_at: '2026-08-26T20:26:53.964781Z'
+updated_at: '2026-08-26T20:29:47.807791Z'
 work_branch: OOMPAH-1344
-target_branch: null
+target_branch: main
 review_url: null
 review_number: null
 review_head: null
@@ -30,14 +30,16 @@ oompah.integration:
   version: 2
   state: ready
   attempts: 0
-  mode: queue
+  mode: standalone
+  post_landed_parent_id: OOMPAH-1342
   task_branch: OOMPAH-1344
-  base_branch: epic-OOMPAH-1342
+  base_branch: main
   base_sha: d258fc16b1478ff902139c66cdb3e51fa96d209c
-  head_sha: f7c4fc4a89012e7173bb09e6ffd3743fdd32f0d6
-  submitted_at: '2026-08-26T19:28:42.901454+00:00'
-  updated_at: '2026-08-26T19:28:42.901454+00:00'
+  head_sha: f74fdd4cf5d6370c502dfdf317f511645a75d54d
+  submitted_at: '2026-08-26T20:29:33.494624+00:00'
+  updated_at: '2026-08-26T20:29:33.494624+00:00'
 oompah.work_branch: OOMPAH-1344
+oompah.target_branch: main
 ---
 ## Summary
 
@@ -80,5 +82,10 @@ author: oompah
 created: 2026-08-26 20:26
 ---
 Validation update: combined focused suites pass (756 tests). Full make test reached 20,447 passed with only tests/test_restart_api.py::test_repeated_replacement_timeout_detection_under_load timing out under parallel load; rerunning that test alone passes. No product failure observed.
+---
+author: oompah
+created: 2026-08-26 20:29
+---
+Generation-scoped caches deduplicate review listings and parent landing resolution while preserving exact authority boundaries; focused workflow tests pass.
 ---
 <!-- COMMENTS:END -->
