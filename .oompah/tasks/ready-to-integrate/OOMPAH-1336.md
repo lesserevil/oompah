@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1336
 type: bug
-status: In Review
+status: Ready to Integrate
 priority: 2
 title: '[backend:__main__] Orchestrator thread crashed'
 parent: null
@@ -11,14 +11,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:36.934588Z'
-updated_at: '2026-08-26T03:58:18.670797Z'
+updated_at: '2026-08-26T03:58:45.948280Z'
 work_branch: OOMPAH-1336
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/926
 review_number: '926'
 review_head: bb994f542710f9624f0f7b631eacd5b493f9ff3e
 merged_at: null
-oompah.lifecycle_revision: 4
+oompah.lifecycle_revision: 5
 oompah.last_batch:
   batch_id: batch-6f0e83c8e44c413d864c213fbfd4e455
   actor: shedwards
