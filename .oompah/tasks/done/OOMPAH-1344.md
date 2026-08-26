@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1344
 type: task
-status: Ready to Integrate
+status: Done
 priority: 1
 title: Bound workflow reconciliation and deduplicate forge observations
 parent: OOMPAH-1342
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T18:43:10.725032Z'
-updated_at: '2026-08-26T22:52:20.485408Z'
+updated_at: '2026-08-26T22:53:19.018736Z'
 work_branch: OOMPAH-1344
 target_branch: main
 review_url: null
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: manual-service-recovery-20260826-reconcile
   request_fingerprint: e6c78ba0978cc6d0161af8a4dfd78cefb2d4c74f979a7ef712c76116bc784ea9
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.integration:
   version: 2
   state: ready
@@ -39,6 +39,30 @@ oompah.integration:
   updated_at: '2026-08-26T20:29:33.494624+00:00'
 oompah.work_branch: OOMPAH-1344
 oompah.target_branch: main
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-8e8a06d21a0c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1344
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a524eb9e788ead25a6014b0488e93928be2667f23f3a4cdba2b0a18d3585fe12
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct owner completed implementation; exact commits are on the published
+      epic branch and make test passed with 20,449 tests.
+    created_at: '2026-08-26T22:53:14.353836+00:00'
+    selected_ref: f74fdd4cf5d6370c502dfdf317f511645a75d54d
+    selected_sha: f74fdd4cf5d6370c502dfdf317f511645a75d54d
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
