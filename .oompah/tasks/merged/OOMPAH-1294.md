@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:53:32.349118Z'
-updated_at: '2026-08-26T04:56:17.970012Z'
+updated_at: '2026-08-26T04:56:28.333217Z'
 work_branch: OOMPAH-1294
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/910
@@ -280,8 +280,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-4a1cea68e5f2
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-26T04:56:10.489916+00:00'
+    applied_at: '2026-08-26T04:56:25.013953+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -723,5 +724,23 @@ author: oompah
 created: 2026-08-26 04:50
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 04:56
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- suppression_guard_location: oompah/error_watcher.py:654-655 — if hasattr(record, 'pre_provider_retirement'): return
+- guard_comment: Lines 650-653 document reason referencing OOMPAH-1294
+- orchestrator_log_level: WARNING at orchestrator.py:58066 for 'Pre-provider contributor evidence exceeded its bounded task-authority deadline'
+- orchestrator_extra_sites: pre_provider_retirement extra attached at orchestrator.py:57960, 58075, 58111
+- new_test: tests/test_error_watcher.py:877 — TestTaskLoggingHandlerErrorClass::test_handler_suppresses_pre_provider_retirement_errors
+- test_assertion: watcher.report_error.assert_not_called() at line 910 after emit() with pre_provider_retirement attribute
+- full_gate_sha: 949ae454f8872550c530743a531a6a76b6fbfd50
+- full_gate_result: passed (make test, 199.5s) — reused authoritative gate evidence
+- previous_audit_result: PASS from prior auditor attempt (2026-08-26 04:48)
 ---
 <!-- COMMENTS:END -->
