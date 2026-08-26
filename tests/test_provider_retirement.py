@@ -408,7 +408,7 @@ def test_lifecycle_gate_prevents_launch_and_persists_exactly_one_recovery(
     ]
 
 
-def test_pre_provider_evidence_timeout_releases_task_authority(tmp_path) -> None:
+def test_pre_provider_evidence_timeout_releases_task_authority(tmp_path, caplog) -> None:
     async def scenario() -> None:
         orch = _orchestrator(tmp_path)
         orch.config.terminal_control_lock_timeout_seconds = 0.1
@@ -448,6 +448,17 @@ def test_pre_provider_evidence_timeout_releases_task_authority(tmp_path) -> None
         assert entry.provider_started is False
         assert entry.session is None
         orch._release_audit_budget_reservation.assert_called_once()
+
+        bounded_logs = [
+            r
+            for r in caplog.records
+            if "bounded task-authority deadline" in r.getMessage()
+            and r.name == "oompah.orchestrator"
+        ]
+        assert bounded_logs, "Expected bounded-task-authority log message"
+        assert not any(r.levelno == 40 for r in bounded_logs)
+        assert any(r.levelno == 30 for r in bounded_logs)
+
         release_persistence.set()
         await asyncio.sleep(0)
 
