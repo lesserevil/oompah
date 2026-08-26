@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:31:41.109952Z'
-updated_at: '2026-08-26T11:06:42.007741Z'
+updated_at: '2026-08-26T11:06:48.160630Z'
 work_branch: OOMPAH-1334
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/932
@@ -266,8 +266,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-e3bd863664c8
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-26T11:06:37.594296+00:00'
+    applied_at: '2026-08-26T11:06:46.450001+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -755,5 +756,30 @@ author: oompah
 created: 2026-08-26 11:03
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 11:06
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 54945b27c2558ecfb7949b7c20794149841c687d
+- gate_result: passed
+- gate_command: make test
+- gate_duration_seconds: 196.4
+- fix_file: oompah/server.py
+- fix_lines: 9828-9842
+- test_file: tests/test_server_create_issue.py
+- test_class: TestCreateIssueStateBranchFetchError
+- test_count_added: 3
+- log_level_on_StateBranchFetchError: WARNING
+- http_status_on_StateBranchFetchError: 503
+- error_code: state_branch_fetch_failed
+- retryable: True
+- generic_exception_still_logs: ERROR at 500
+- handler_placement: before generic except Exception
+- import_style: local import inside api_create_issue
 ---
 <!-- COMMENTS:END -->
