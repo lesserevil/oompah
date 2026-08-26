@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:36.517429Z'
-updated_at: '2026-08-25T20:03:35.146202Z'
+updated_at: '2026-08-26T01:41:28.965123Z'
 work_branch: OOMPAH-1197
 target_branch: null
 review_url: null
@@ -725,5 +725,10 @@ author: oompah
 created: 2026-08-25 20:02
 ---
 Fixed ACP worker error logging to prevent error_watcher auto-filing. Changed logging level from ERROR to WARNING for expected/transient worker failures (WorkspaceError, AgentError, PromptError). This prevents auto-filing of incidents like TRICKLE-119 which are normal worker failure modes that should not be tracked as backend errors.
+---
+author: oompah
+created: 2026-08-26 01:41
+---
+Branch quality gate passed for `5e7f3f31cd030ab2dbff9c54e95f884be019787f` using `make test` in 194.4s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
