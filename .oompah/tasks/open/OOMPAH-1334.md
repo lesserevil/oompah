@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:31:41.109952Z'
-updated_at: '2026-08-26T03:34:27.446357Z'
+updated_at: '2026-08-26T03:34:35.863899Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -77,6 +77,14 @@ oompah.work_contributors:
     provider_id: prov-6cf41c89
     provider_name: Opencode/Switchyard
     model_id: switchyard/auto
+    focus: duplicate_detector
+    source_branch: OOMPAH-1334
+    source_sha: null
+    completed_at: ''
+  - run_id: 82afd37cee14461bb7d162d9dcccaa7f--contributor-a8b0475e7b09
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
     focus: duplicate_detector
     source_branch: OOMPAH-1334
     source_sha: null
@@ -241,5 +249,10 @@ author: oompah
 created: 2026-08-26 03:34
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-26 03:34
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
