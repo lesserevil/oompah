@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1256
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 2
 title: '[backend:server] Add comment API error: ProjectError(''Unknown project'')'
 parent: null
@@ -10,16 +10,17 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - focus-complete:docs
+- ci-fix
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-21T14:56:19.218427Z'
+updated_at: '2026-08-26T22:57:58.303596Z'
 work_branch: OOMPAH-1256
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -680,5 +681,66 @@ author: oompah
 created: 2026-08-21 14:55
 ---
 Fixed 'Unknown project' error in add-comment API by implementing name-based project resolution fallback in _canonical_managed_project_id. The fix applies project_store.get() and find_by_name() methods, matching the pattern from _tracker_for_project. Comprehensive tests added covering unit and integration scenarios. All existing tests pass without regression.
+---
+author: oompah
+created: 2026-08-26 22:57
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-1256`
+Target: `main`
+Head: `952616edb1e06cfbebeeead8219d558018ad2faa`
+Command: `make test`
+Result: `failed`
+Process: exited with return code 2
+Termination source: `process_exit`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+stVerifyPassword::test_valid_apr1_password
+tests/test_http_auth.py::TestLoadHtpasswdFile::test_valid_multiple_entries
+tests/test_http_auth.py::TestVerifierCallable::test_multiple_users
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-s7sf47g_/run/workspace/tests/test_http_auth.py:49: DeprecationWarning: the method passlib.context.CryptContext.encrypt() is deprecated as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash() instead.
+    return ctx.encrypt("password")
+
+tests/test_mcp_gateway.py::test_mcp_client_can_initialize_list_allowed_tools_and_call_state
+tests/test_mcp_gateway.py::test_authenticated_mcp_client_can_initialize_list_and_call_protected_api
+  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/contextlib.py:105: DeprecationWarning: Use `streamable_http_client` instead.
+    self.gen = func(*args, **kwds)
+
+tests/test_sdk_install_guards.py::TestClaudeSessionMcpServerGuard::test_no_tool_catalog_skips_mcp_server_path
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-s7sf47g_/run/workspace/oompah/acp_backends/claude.py:532: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    async for msg in client.receive_response():
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json
+tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-s7sf47g_/run/workspace/.venv/lib/python3.12/site-packages/httpx/_models.py:408: DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.
+    headers, stream = encode_request(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_task_handoff.py::TestTaskHandoffEndpoint::test_authenticated_worker_can_comment_and_transition_own_task
+FAILED tests/test_task_handoff.py::TestTaskHandoffEndpoint::test_enforce_nonterminal_status_label_uses_durable_single_writer
+FAILED tests/test_task_handoff.py::TestTaskHandoffEndpoint::test_scoped_ready_status_and_labels_require_authoritative_submit
+FAILED tests/test_task_handoff.py::TestTaskHandoffEndpoint::test_enforce_nonterminal_status_uses_durable_single_writer[Needs Answer]
+FAILED tests/test_task_handoff.py::TestTaskHandoffEndpoint::test_enforce_nonterminal_status_uses_durable_single_writer[Needs Human]
+FAILED tests/test_task_handoff.py::TestTaskHandoffEndpoint::test_enforce_status_label_removal_requires_destination_status
+FAILED tests/test_task_handoff.py::TestHandoffTokenFailClosed::test_codex_assigned_session_can_view_and_comment_its_task
+FAILED tests/test_task_handoff.py::TestTaskHandoffEndpoint::test_scoped_direct_validation_status_and_label_are_rejected
+FAILED tests/test_task_handoff.py::TestOOMPAH650WorkerLifetimeCredentials::test_endpoint_aborts_mutation_when_permit_revoked_mid_operation
+FAILED tests/test_task_handoff.py::TestOOMPAH650WorkerLifetimeCredentials::test_temporary_retirement_denial_does_not_degrade_auth_health[operation_admission]
+FAILED tests/test_terminal_status_interfaces.py::test_patch_owner_override_accepts_project_name_alias
+FAILED tests/test_terminal_status_interfaces.py::test_patch_terminal_alias_stages_with_canonical_project_id
+FAILED tests/test_terminal_status_interfaces.py::test_patch_unknown_project_alias_fails_closed_without_configuration_details
+FAILED tests/test_terminal_status_interfaces.py::test_patch_owner_override_alias_rejects_unauthorized_actor
+FAILED tests/test_terminal_status_interfaces.py::test_task_handoff_set_status_with_project_alias_succeeds_for_authorized_owner
+= 15 failed, 20376 passed, 22 skipped, 2 xfailed, 37 warnings in 168.90s (0:02:48) =
+
+make: *** [Makefile:421: test] Error 1
+```
 ---
 <!-- COMMENTS:END -->
