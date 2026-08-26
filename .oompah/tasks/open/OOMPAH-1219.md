@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1219
 type: bug
-status: In Validation
+status: Open
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=TRICKLE-131 identifier=TRICKLE-131 run_id=2d79f805f82c4604845eb835cf99a115
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:15:47.974297Z'
-updated_at: '2026-08-26T01:09:09.351464Z'
+updated_at: '2026-08-26T01:23:23.438681Z'
 work_branch: OOMPAH-1219
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/920
 review_number: '920'
 review_head: f88eeb613d5a361210824f55d3213b83da3ddb28
 merged_at: null
-oompah.lifecycle_revision: 7
+oompah.lifecycle_revision: 8
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -171,6 +171,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1219
     digest: 5a4489832bd7ed2fe943365736d0513ccd8150eaf8c590c2fa3b102448a98e42
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1219","audit-cb1d2c6ffc05","attempt-c2890f89407f"]': '2026-08-26T01:23:14.406632+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1219
+    target_state: Done
+    evidence_fingerprint: 5a4489832bd7ed2fe943365736d0513ccd8150eaf8c590c2fa3b102448a98e42
+    workflow_revision: null
+    selected_ref: f88eeb613d5a361210824f55d3213b83da3ddb28
+    selected_sha: f88eeb613d5a361210824f55d3213b83da3ddb28
+    landing_revision: null
+    audit_ids:
+    - audit-cb1d2c6ffc05
+    kind: result
+    applied: true
+    retired_at: '2026-08-26T01:23:14.406646+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1219
+    audit_id: audit-cb1d2c6ffc05
+    attempt_id: attempt-c2890f89407f
+    target_state: Done
+    evidence_fingerprint: 5a4489832bd7ed2fe943365736d0513ccd8150eaf8c590c2fa3b102448a98e42
+    status: Open
+    audit_ids:
+    - audit-cb1d2c6ffc05
+    kind: result
+    applied: true
+    created_at: '2026-08-26T01:23:14.406655+00:00'
+    applied_at: '2026-08-26T01:23:21.981756+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -178,7 +208,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1219
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -187,7 +217,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c2890f89407f
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -199,6 +229,10 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1219
       selected_ref: f88eeb613d5a361210824f55d3213b83da3ddb28
       selected_sha: f88eeb613d5a361210824f55d3213b83da3ddb28
+      verdict: fail
+      failure_classification: missing_tests
+      completed_at: '2026-08-26T01:23:14.406520+00:00'
+      ended_at: '2026-08-26T01:23:14.406520+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -209,7 +243,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T01:05:32.800895+00:00'
     selected_ref: f88eeb613d5a361210824f55d3213b83da3ddb28
     selected_sha: f88eeb613d5a361210824f55d3213b83da3ddb28
-    updated_at: '2026-08-26T01:08:54.109303+00:00'
+    updated_at: '2026-08-26T01:23:14.406520+00:00'
   - version: 1
     audit_id: audit-670e17aba5a7
     project_id: proj-14849f1b
@@ -463,5 +497,12 @@ author: oompah
 created: 2026-08-26 01:09
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 01:23
+---
+Audit FAIL — missing tests. Routing task to Open.
+
+[REDACTED]
 ---
 <!-- COMMENTS:END -->
