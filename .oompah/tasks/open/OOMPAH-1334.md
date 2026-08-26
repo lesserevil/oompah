@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-24T21:31:41.109952Z'
-updated_at: '2026-08-26T01:57:36.072285Z'
+updated_at: '2026-08-26T01:57:56.257417Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 01856b12-d621-4f80-8a5b-d1fb7ff80313
+oompah.agent_run_id: 1e4087f6-a2af-447a-a9d6-590c0c60a697
 oompah.work_contributors:
   runs:
   - run_id: bea67738991e4257ac1a7695dd8b76ec--contributor-a8b0475e7b09
@@ -208,5 +208,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Opencode/Switchyard/switchyard/
 - Cost: $0.0000
 - Exit: error, Duration: 1m 27s
 - Log: OOMPAH-1334__20260826T003739Z.jsonl
+---
+author: oompah
+created: 2026-08-26 01:57
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
