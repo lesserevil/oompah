@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T08:06:24.549306Z'
-updated_at: '2026-08-26T08:34:43.960419Z'
+updated_at: '2026-08-26T08:35:19.300407Z'
 work_branch: OOMPAH-1325
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/911
@@ -108,13 +108,17 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2139
+  total_input_tokens: 75
+  total_output_tokens: 23677
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 2139
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 65
+      output_tokens: 21538
       cost_usd: 0.0
   runs:
   - profile: default
@@ -123,6 +127,12 @@ oompah.task_costs:
     output_tokens: 2139
     cost_usd: 0.0
     recorded_at: '2026-08-24T07:37:53.770547+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 65
+    output_tokens: 21538
+    cost_usd: 0.0
+    recorded_at: '2026-08-26T08:35:12.255860+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -230,12 +240,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1325
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 837767d9ef599cd56db0c3515c4812bc148748ed8c08c7065f2d420cfbcdcc56
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-81b7d5bfa089
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 837767d9ef599cd56db0c3515c4812bc148748ed8c08c7065f2d420cfbcdcc56
+      created_at: '2026-08-26T08:35:17.200342+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-26T08:35:17.200342+00:00'
+      branch_key: OOMPAH-1325
+      selected_ref: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
+      selected_sha: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
     source_generation: 1
     requested_by:
       version: 1
@@ -247,7 +272,7 @@ oompah.terminal_audit:
     selected_ref: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
     selected_sha: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
     workflow_revision: 0ae097556eaed31487b36552f9484accda9cd108e36818eec822cd33ba955c36
-    updated_at: '2026-08-26T08:34:34.778161+00:00'
+    updated_at: '2026-08-26T08:35:17.200342+00:00'
     eligible_at: '2026-08-26T08:34:34.778161+00:00'
   attempt_history:
   - version: 1
@@ -262,6 +287,21 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: sonnet
     started_at: '2026-08-26T08:12:55.359436+00:00'
+    branch_key: OOMPAH-1325
+    selected_ref: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
+    selected_sha: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
+  - version: 1
+    attempt_id: attempt-81b7d5bfa089
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 837767d9ef599cd56db0c3515c4812bc148748ed8c08c7065f2d420cfbcdcc56
+    created_at: '2026-08-26T08:35:17.200342+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-26T08:35:17.200342+00:00'
     branch_key: OOMPAH-1325
     selected_ref: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
     selected_sha: fa6cffbc078a591a2df05fbf674ed34c0e7ad1e8
@@ -453,5 +493,15 @@ Safe evidence:
 - gap_noted.missing_test: No dedicated test verifying log level is DEBUG for contributor evidence timeouts to prevent error_watcher regression
 - gap_noted.pattern_exists_at: tests/test_dispatch_loop_heartbeat.py:251 test_stale_alert_is_warning_not_error_watcher_incident
 - gap_noted.severity: quality concern, not blocking - acceptance criteria met
+---
+author: oompah
+created: 2026-08-26 08:35
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 105, Tool calls: 68
+- Tokens: 65 in / 21.5K out [21.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 22m 13s
+- Log: OOMPAH-1325__20260826T081324Z.jsonl
 ---
 <!-- COMMENTS:END -->
