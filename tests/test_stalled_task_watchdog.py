@@ -1046,6 +1046,113 @@ class TestOrchestratorIntegration:
 
         mock_wdg.assert_called_once()
 
+    def test_runtime_housekeeping_runs_watchdog_and_review_cleanup(self, tmp_path):
+        """Durable-runtime housekeeping must schedule both remediation lanes."""
+        orch = _make_orchestrator(tmp_path)
+        with patch.object(orch, "_maybe_heal_repos"), patch.object(
+            orch, "_maybe_cleanup_worktrees"
+        ), patch.object(orch, "_maybe_cleanup_storage"), patch.object(
+            orch, "_update_repo_hygiene_health"
+        ), patch.object(
+            orch, "_maybe_run_stalled_task_watchdog"
+        ) as watchdog, patch.object(
+            orch, "_maybe_cleanup_stale_reviews"
+        ) as reviews, patch.object(orch, "_run_maintenance_job"):
+            orch._run_non_lifecycle_housekeeping()
+
+        watchdog.assert_called_once_with()
+        reviews.assert_called_once_with()
+
+    def test_stale_review_cleanup_closes_target_contained_review(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        project = MagicMock(
+            id="project-a",
+            repo_path=str(tmp_path),
+            repo_url="https://github.com/example/repo.git",
+            access_token=None,
+        )
+        orch.project_store.list_all.return_value = [project]
+        review = MagicMock(
+            id="42",
+            state="open",
+            source_branch="feature",
+            target_branch="main",
+            head_sha="a" * 40,
+        )
+        provider = MagicMock()
+        provider.list_open_reviews.return_value = [review]
+        provider.last_open_reviews_fetch_ok = True
+        provider.get_review.return_value = review
+        provider.close_review.return_value = (True, "closed")
+        orch._review_lifecycle_generation = {"project-a": 0}
+        orch._reviews_cache = {"project-a": [review]}
+        orch._reviews_cache_generation = {"project-a": 0}
+        orch._release_review_capacity = MagicMock()
+        orch._publish_live_open_reviews = MagicMock(return_value=True)
+
+        with patch(
+            "oompah.orchestrator.detect_provider", return_value=provider
+        ), patch(
+            "oompah.orchestrator.extract_repo_slug", return_value="example/repo"
+        ), patch(
+            "oompah.orchestrator.subprocess.run"
+        ) as run:
+            run.side_effect = [
+                MagicMock(returncode=0, stdout="", stderr=""),
+            ]
+            with patch.object(orch, "_git_is_ancestor", return_value=True):
+                orch._do_stale_review_cleanup()
+
+        provider.close_review.assert_called_once()
+        orch._release_review_capacity.assert_called_once_with(
+            "project-a", review_id="42"
+        )
+        assert orch._maintenance_status["stale_review_cleanup"]["reviews_closed"] == 1
+
+    def test_stale_review_cleanup_preserves_unique_review(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        project = MagicMock(
+            id="project-a",
+            repo_path=str(tmp_path),
+            repo_url="https://github.com/example/repo.git",
+            access_token=None,
+        )
+        orch.project_store.list_all.return_value = [project]
+        review = MagicMock(
+            id="42",
+            state="open",
+            source_branch="feature",
+            target_branch="main",
+            head_sha="a" * 40,
+        )
+        provider = MagicMock()
+        provider.list_open_reviews.return_value = [review]
+        provider.last_open_reviews_fetch_ok = True
+        provider.get_review.return_value = review
+        orch._review_lifecycle_generation = {"project-a": 0}
+        orch._reviews_cache = {"project-a": [review]}
+        orch._reviews_cache_generation = {"project-a": 0}
+        orch._release_review_capacity = MagicMock()
+        orch._publish_live_open_reviews = MagicMock(return_value=True)
+
+        with patch(
+            "oompah.orchestrator.detect_provider", return_value=provider
+        ), patch(
+            "oompah.orchestrator.extract_repo_slug", return_value="example/repo"
+        ), patch(
+            "oompah.orchestrator.subprocess.run"
+        ) as run:
+            run.side_effect = [
+                MagicMock(returncode=0, stdout="", stderr=""),
+                MagicMock(returncode=0, stdout="+ abc unique\n", stderr=""),
+            ]
+            with patch.object(orch, "_git_is_ancestor", return_value=False):
+                orch._do_stale_review_cleanup()
+
+        provider.close_review.assert_not_called()
+        orch._release_review_capacity.assert_not_called()
+        assert orch._maintenance_status["stale_review_cleanup"]["reviews_skipped"] == 1
+
     def test_watchdog_run_id_increments(self, tmp_path):
         """Each _do_stalled_task_watchdog call uses an incrementing run_id."""
         orch = _make_orchestrator(tmp_path)

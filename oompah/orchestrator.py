@@ -14924,6 +14924,15 @@ class Orchestrator:
         self._maybe_heal_repos()
         self._maybe_cleanup_worktrees()
         self._maybe_cleanup_storage()
+        # The stalled-task watchdog owns only evidence-backed repair through
+        # TaskTransitionService. It remains safe in durable mode because the
+        # final status write is generation-fenced by that service rather than
+        # performed by a legacy lifecycle sweep. (OOMPAH-1341)
+        self._maybe_run_stalled_task_watchdog()
+        # Forge review retirement does not choose task lifecycle. It only
+        # closes reviews whose exact head is already contained in the target
+        # and releases their exact capacity reservation.
+        self._maybe_cleanup_stale_reviews()
         # Direct-owner retirement removes stale authority after a lifecycle
         # decision has already committed; it never chooses or writes task
         # status.  Production ticks use this durable-runtime housekeeping
@@ -17433,6 +17442,11 @@ class Orchestrator:
             batch_saturated and self._request_workflow_batch_continuation()
         )
 
+        if self._maintenance_future is not None and self._maintenance_future.done():
+            try:
+                self._maintenance_future.result()
+            except Exception as exc:  # noqa: BLE001 - surface background failure
+                logger.warning("Non-lifecycle housekeeping failed: %s", exc)
         if self._maintenance_future is None or self._maintenance_future.done():
             self._maintenance_future = asyncio.get_running_loop().run_in_executor(
                 self._tick_pool, self._run_non_lifecycle_housekeeping
@@ -49165,6 +49179,146 @@ class Orchestrator:
             min_interval_s=interval_s,
         )
 
+    def _maybe_cleanup_stale_reviews(self) -> None:
+        """Periodically reclaim forge reviews whose exact heads already landed."""
+
+        interval_s = float(
+            getattr(self.config, "stalled_task_watchdog_interval_seconds", 300)
+        )
+        self._run_maintenance_job(
+            "stale_review_cleanup",
+            self._do_stale_review_cleanup,
+            min_interval_s=interval_s,
+        )
+
+    def _do_stale_review_cleanup(self) -> None:
+        """Close target-contained open reviews and release exact capacity.
+
+        A fresh successful forge listing and exact review detail are required.
+        Missing heads/targets, provider failures, or unique unlanded commits
+        always fail closed. This operation never changes task status.
+        """
+
+        result: dict[str, Any] = {
+            "last_run_at": datetime.now(timezone.utc).isoformat(),
+            "projects_scanned": 0,
+            "reviews_scanned": 0,
+            "reviews_closed": 0,
+            "reviews_skipped": 0,
+            "errors": [],
+            "decisions": [],
+        }
+        for project in self.project_store.list_all():
+            repo_path = str(getattr(project, "repo_path", "") or "").strip()
+            repo_url = str(getattr(project, "repo_url", "") or "").strip()
+            if not repo_path or not repo_url or not os.path.isdir(repo_path):
+                continue
+            provider = detect_provider(repo_url, access_token=project.access_token)
+            if provider is None:
+                continue
+            slug = extract_repo_slug(repo_url)
+            try:
+                reviews = provider.list_open_reviews(slug)
+                if getattr(provider, "last_open_reviews_fetch_ok", True) is False:
+                    raise RuntimeError("forge open-review listing was unavailable")
+                reviews = list(reviews or [])
+            except Exception as exc:  # noqa: BLE001 - cleanup must fail closed
+                result["errors"].append(f"{project.id}: {exc}")
+                continue
+            result["projects_scanned"] += 1
+            for listed in reviews:
+                result["reviews_scanned"] += 1
+                review_id = str(getattr(listed, "id", "") or "").strip()
+                if not review_id:
+                    result["reviews_skipped"] += 1
+                    continue
+                try:
+                    review = provider.get_review(slug, review_id) or listed
+                except Exception as exc:  # noqa: BLE001 - exact detail required
+                    result["errors"].append(f"{project.id}#{review_id}: {exc}")
+                    continue
+                state = str(getattr(review, "state", "") or "open").lower()
+                source = str(getattr(review, "source_branch", "") or "").strip()
+                target = str(getattr(review, "target_branch", "") or "").strip()
+                head = str(getattr(review, "head_sha", "") or "").strip().lower()
+                if state != "open" or not source or not target or not head:
+                    result["reviews_skipped"] += 1
+                    continue
+                try:
+                    fetch = subprocess.run(
+                        ["git", "fetch", "--quiet", "origin", target],
+                        cwd=repo_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=60,
+                        check=False,
+                    )
+                    if fetch.returncode != 0:
+                        raise RuntimeError(fetch.stderr.strip()[:300] or "git fetch failed")
+                    target_ref = f"origin/{target}"
+                    landed = self._git_is_ancestor(repo_path, head, target_ref)
+                    if not landed:
+                        cherry = subprocess.run(
+                            ["git", "cherry", target_ref, head],
+                            cwd=repo_path,
+                            capture_output=True,
+                            text=True,
+                            timeout=30,
+                            check=False,
+                        )
+                        landed = bool(
+                            cherry.returncode == 0
+                            and not any(
+                                line.startswith("+")
+                                for line in cherry.stdout.splitlines()
+                            )
+                        )
+                    if not landed:
+                        result["reviews_skipped"] += 1
+                        continue
+                    success, message = provider.close_review(
+                        slug,
+                        review_id,
+                        comment=(
+                            "Oompah watchdog closed this obsolete review because "
+                            "its exact reviewed head is already represented on "
+                            f"the target branch `{target}`."
+                        ),
+                    )
+                    if not success:
+                        result["errors"].append(
+                            f"{project.id}#{review_id}: {message}"
+                        )
+                        continue
+                    self._release_review_capacity(
+                        str(project.id),
+                        review_id=review_id,
+                    )
+                    result["reviews_closed"] += 1
+                    result["decisions"].append(
+                        {
+                            "project_id": str(project.id),
+                            "review_id": review_id,
+                            "source_branch": source,
+                            "target_branch": target,
+                            "head_sha": head,
+                            "reason": "review head already represented on target",
+                        }
+                    )
+                except Exception as exc:  # noqa: BLE001 - per-review fail closed
+                    result["errors"].append(f"{project.id}#{review_id}: {exc}")
+            self._publish_live_open_reviews(
+                str(project.id),
+                [
+                    review
+                    for review in reviews
+                    if str(getattr(review, "id", "") or "")
+                    not in {item["review_id"] for item in result["decisions"]}
+                ],
+                observed_generation=self._review_generation(str(project.id)),
+            )
+        self._maintenance_status["stale_review_cleanup"] = result
+
     def _do_stalled_task_watchdog(self) -> None:
         """Inner body of the stalled-task watchdog; called under the maintenance gate.
 
@@ -74016,6 +74170,18 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "integration_audit": dict(
                     getattr(self, "_maintenance_status", {}).get(
                         "integration_audit", {}
+                    )
+                    or {}
+                ),
+                "stalled_task_watchdog": dict(
+                    getattr(self, "_maintenance_status", {}).get(
+                        "stalled_task_watchdog", {}
+                    )
+                    or {}
+                ),
+                "stale_review_cleanup": dict(
+                    getattr(self, "_maintenance_status", {}).get(
+                        "stale_review_cleanup", {}
                     )
                     or {}
                 ),
