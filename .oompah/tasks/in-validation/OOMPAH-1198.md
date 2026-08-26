@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:04.107366Z'
-updated_at: '2026-08-26T18:52:48.141105Z'
+updated_at: '2026-08-26T20:34:34.977407Z'
 work_branch: OOMPAH-1198
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/943
@@ -286,12 +286,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1198
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 53e82ef5f1df588a3ff24eb87ca3bed97e0c87891c520a74adf9ef44dc9947d7
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-22013689cf98
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 53e82ef5f1df588a3ff24eb87ca3bed97e0c87891c520a74adf9ef44dc9947d7
+      created_at: '2026-08-26T20:34:23.933796+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-26T20:34:23.933796+00:00'
+      branch_key: OOMPAH-1198
+      selected_ref: 7b780193a56696ec1961f882b1916d967d5f8032
+      selected_sha: 7b780193a56696ec1961f882b1916d967d5f8032
     source_generation: 1
     requested_by:
       version: 1
@@ -302,6 +317,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T18:52:39.521109+00:00'
     selected_ref: 7b780193a56696ec1961f882b1916d967d5f8032
     selected_sha: 7b780193a56696ec1961f882b1916d967d5f8032
+    updated_at: '2026-08-26T20:34:23.933796+00:00'
   - version: 1
     audit_id: audit-1e9843855692
     project_id: proj-14849f1b
@@ -323,7 +339,22 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-fc15be7f75b1
     selected_ref: 7b780193a56696ec1961f882b1916d967d5f8032
     selected_sha: 7b780193a56696ec1961f882b1916d967d5f8032
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-22013689cf98
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 53e82ef5f1df588a3ff24eb87ca3bed97e0c87891c520a74adf9ef44dc9947d7
+    created_at: '2026-08-26T20:34:23.933796+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-26T20:34:23.933796+00:00'
+    branch_key: OOMPAH-1198
+    selected_ref: 7b780193a56696ec1961f882b1916d967d5f8032
+    selected_sha: 7b780193a56696ec1961f882b1916d967d5f8032
 ---
 ## Summary
 
@@ -751,5 +782,15 @@ author: oompah
 created: 2026-08-26 18:52
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-26 20:34
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-26 20:34
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
