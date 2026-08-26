@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:14:39.219900Z'
-updated_at: '2026-08-26T04:54:04.800621Z'
+updated_at: '2026-08-26T04:54:12.362853Z'
 work_branch: OOMPAH-1301
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/923
@@ -213,8 +213,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-57bb0ab6a861
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-26T04:54:00.647590+00:00'
+    applied_at: '2026-08-26T04:54:10.552975+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -565,5 +566,20 @@ author: oompah
 created: 2026-08-26 04:50
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-26 04:54
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- fix_location: oompah/orchestrator.py:58066 — logger.warning() confirmed by search_files
+- test_name: tests/test_provider_retirement.py::test_pre_provider_evidence_timeout_logs_warning_not_error
+- test_assertions: asserts ERROR records empty AND WARNING records non-empty for bounded-task-authority-deadline message
+- full_gate_result: make test PASSED at 669845780ab945d5558aefebf1375fb86366dfc0 (191.1s, recorded 2026-08-26 03:14)
+- accepted_sha: 669845780ab945d5558aefebf1375fb86366dfc0
+- graceful_return: function returns descriptive message and retires pre-provider runtime for retry on timeout
 ---
 <!-- COMMENTS:END -->
