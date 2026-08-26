@@ -16,7 +16,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-26T20:49:52.283078Z'
+updated_at: '2026-08-26T22:50:59.775750Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,3 +41,11 @@ Implement the accepted recovery plan in plans/service-throughput-recovery.md. Th
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-26 22:50
+---
+Recovery implementation is pushed on epic-OOMPAH-1342 and PR #951. Full make test passes: 20,449 passed, 7 skipped, 2 xfailed. Production remains globally paused; storage reclaimed from 93% to 79% used, and /api/v1/reviews dropped from >20s timeout to ~0.08s on the deployed candidate.
+---
+<!-- COMMENTS:END -->
