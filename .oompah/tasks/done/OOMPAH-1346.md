@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1346
 type: task
-status: Ready to Integrate
+status: Done
 priority: 1
 title: Bound workflow history and workspace storage growth
 parent: OOMPAH-1342
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T18:43:27.314224Z'
-updated_at: '2026-08-26T22:52:37.095670Z'
+updated_at: '2026-08-26T22:54:01.209409Z'
 work_branch: OOMPAH-1346
 target_branch: main
 review_url: null
@@ -25,7 +25,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: manual-service-recovery-20260826-storage
   request_fingerprint: 6f66fb1566bdbad6da13f55ff0f2452ac19762cc3b8a1311af536d410e883581
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.integration:
   version: 2
   state: ready
@@ -40,6 +40,30 @@ oompah.integration:
   updated_at: '2026-08-26T20:32:49.473205+00:00'
 oompah.work_branch: OOMPAH-1346
 oompah.target_branch: main
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-b6cc696ac229
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1346
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f4fa02a3211469ea7e8d5bd18c3f80b419b01e1e5002f7b8a5de1e1bfccf2b3b
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct owner completed implementation; exact commits are on the published
+      epic branch and make test passed with 20,449 tests.
+    created_at: '2026-08-26T22:53:56.088261+00:00'
+    selected_ref: 80b93f5d251e2b7d442dd85c2ac3ce91a99491bb
+    selected_sha: 80b93f5d251e2b7d442dd85c2ac3ce91a99491bb
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
