@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T04:15:47.974297Z'
-updated_at: '2026-08-26T01:23:23.438681Z'
+updated_at: '2026-08-26T01:23:56.937090Z'
 work_branch: OOMPAH-1219
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/920
@@ -127,13 +127,17 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1661
+  total_input_tokens: 13
+  total_output_tokens: 1915
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 1661
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 3
+      output_tokens: 254
       cost_usd: 0.0
   runs:
   - profile: default
@@ -142,6 +146,12 @@ oompah.task_costs:
     output_tokens: 1661
     cost_usd: 0.0
     recorded_at: '2026-08-21T01:51:42.865262+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 3
+    output_tokens: 254
+    cost_usd: 0.0
+    recorded_at: '2026-08-26T01:23:50.886764+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -504,5 +514,15 @@ created: 2026-08-26 01:23
 Audit FAIL — missing tests. Routing task to Open.
 
 [REDACTED]
+---
+author: oompah
+created: 2026-08-26 01:23
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 61, Tool calls: 35
+- Tokens: 3 in / 254 out [257 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 14m 52s
+- Log: OOMPAH-1219__20260826T010918Z.jsonl
 ---
 <!-- COMMENTS:END -->
