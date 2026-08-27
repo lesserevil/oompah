@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:49:42.029230Z'
-updated_at: '2026-08-27T03:56:20.328112Z'
+updated_at: '2026-08-27T03:56:35.713893Z'
 work_branch: OOMPAH-1317
 target_branch: null
 review_url: null
@@ -154,7 +154,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:56:10.771805+00:00'
     selected_ref: 7f520b136c0c66ef3236fcb6128275d5fd78978d
     selected_sha: 7f520b136c0c66ef3236fcb6128275d5fd78978d
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1317
+    target_state: Archived
+    evidence_fingerprint: 419bb60d72877d31b0c4ff015d18efdf76caa0c880a945049a3ab6e49e98d8fd
+    workflow_revision: null
+    selected_ref: 7f520b136c0c66ef3236fcb6128275d5fd78978d
+    selected_sha: 7f520b136c0c66ef3236fcb6128275d5fd78978d
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:56:31.218618+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -269,5 +283,12 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 19m 27s
 - Log: OOMPAH-1317__20260821T083832Z.jsonl
+---
+author: oompah
+created: 2026-08-27 03:56
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
