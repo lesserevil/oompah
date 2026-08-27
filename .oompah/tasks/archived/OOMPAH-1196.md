@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:27.547026Z'
-updated_at: '2026-08-27T03:39:59.249379Z'
+updated_at: '2026-08-27T03:40:05.140729Z'
 work_branch: OOMPAH-1196
 target_branch: null
 review_url: null
@@ -229,7 +229,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:39:53.013426+00:00'
     selected_ref: 65571324f84bb08575d39921a1315d81d7d8ca4f
     selected_sha: 65571324f84bb08575d39921a1315d81d7d8ca4f
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1196
+    target_state: Archived
+    evidence_fingerprint: a8f5fe962ba25c9ce1a59ac0845d7c1b6e377be1224f1f78368401dd72fe10b8
+    workflow_revision: null
+    selected_ref: 65571324f84bb08575d39921a1315d81d7d8ca4f
+    selected_sha: 65571324f84bb08575d39921a1315d81d7d8ca4f
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:40:03.734732+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -490,5 +504,12 @@ author: oompah
 created: 2026-08-24 06:52
 ---
 Fixed ACP worker failure error logging: Changed from WARNING to DEBUG level to prevent error_watcher auto-filing transient, non-provider-health errors. Applied fix to ACP worker (line 64761), API worker (line 63594), and CLI worker (line 65115). LogFileWatcher no longer picks up these DEBUG-level logs even if they contain ERROR keywords. All 148 error_watcher tests pass. Regression-free.
+---
+author: oompah
+created: 2026-08-27 03:40
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
