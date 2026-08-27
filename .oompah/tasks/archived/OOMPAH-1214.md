@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:56:36.835031Z'
-updated_at: '2026-08-27T03:41:38.325848Z'
+updated_at: '2026-08-27T03:41:52.770371Z'
 work_branch: OOMPAH-1214
 target_branch: null
 review_url: null
@@ -221,7 +221,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:41:28.089860+00:00'
     selected_ref: 94c622052242a3ad2dd70f6a85d4ee3dc6b5ef2c
     selected_sha: 94c622052242a3ad2dd70f6a85d4ee3dc6b5ef2c
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1214
+    target_state: Archived
+    evidence_fingerprint: ca1eb6e3c3dcbfa75628183709f9a10daabc2cf5dc97472915dca92c35cc0d20
+    workflow_revision: null
+    selected_ref: 94c622052242a3ad2dd70f6a85d4ee3dc6b5ef2c
+    selected_sha: 94c622052242a3ad2dd70f6a85d4ee3dc6b5ef2c
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:41:50.404635+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -511,5 +525,12 @@ author: oompah
 created: 2026-08-24 06:47
 ---
 Fixed pre-provider contributor evidence timeout issue by ensuring configured 60-second timeout is always available as fallback instead of calculated 5-second timeout
+---
+author: oompah
+created: 2026-08-27 03:41
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
