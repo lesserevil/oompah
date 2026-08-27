@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:59:49.640067Z'
-updated_at: '2026-08-27T02:30:40.638497Z'
+updated_at: '2026-08-27T03:34:11.113406Z'
 work_branch: OOMPAH-1284
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/958
@@ -157,6 +157,32 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/958
 oompah.review_number: '958'
 oompah.target_branch: main
 oompah.review_head: 3d5e73f8a962713087619ea661ed51ae771c0833
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-453593cdc488
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1284
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9199f358e1b141124ee50604a95bc13256055044707b7c3855fc87c1d0880c98
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Superseded by fixes already merged to main: production now uses a 60-second
+      contributor-evidence persistence timeout, logs the expected bounded timeout
+      at DEBUG, and excludes expected pre-provider retirement from error intake. The
+      stale branch conflicts with newer recovery work and must not be rebased or merged.'
+    created_at: '2026-08-27T03:34:07.820454+00:00'
+    selected_ref: 3d5e73f8a962713087619ea661ed51ae771c0833
+    selected_sha: 3d5e73f8a962713087619ea661ed51ae771c0833
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
