@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T18:43:10.725032Z'
-updated_at: '2026-08-26T23:14:08.015957Z'
+updated_at: '2026-08-27T01:56:33.041962Z'
 work_branch: OOMPAH-1344
 target_branch: main
 review_url: null
@@ -163,5 +163,10 @@ created: 2026-08-26 22:53
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Direct owner completed implementation; exact commits are on the published epic branch and make test passed with 20,449 tests.
+---
+author: oompah
+created: 2026-08-27 01:56
+---
+Additional network-I/O fix is in PR #957: authoritative target refs are now observed with one stable multi-ref ls-remote/fetch per project reconciliation rather than once per task. Focused project/runtime tests: 435 passed. Production measurement before this follow-up remained 155.7-200.9s, dominated by Oompah integration (112.8-180.5s); project was re-paused after measurement.
 ---
 <!-- COMMENTS:END -->
