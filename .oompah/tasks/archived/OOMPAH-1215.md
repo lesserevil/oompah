@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:59:31.498539Z'
-updated_at: '2026-08-27T03:42:14.779071Z'
+updated_at: '2026-08-27T03:42:28.742147Z'
 work_branch: OOMPAH-1215
 target_branch: null
 review_url: null
@@ -182,7 +182,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:42:05.025185+00:00'
     selected_ref: e7307ccdb8033f0514968be835d703c1a8e216c3
     selected_sha: e7307ccdb8033f0514968be835d703c1a8e216c3
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1215
+    target_state: Archived
+    evidence_fingerprint: 3347b9c26234a6498f05f8071cebdfe32c96bd9aa04abbb6ca76e2d16fd3d6fa
+    workflow_revision: null
+    selected_ref: e7307ccdb8033f0514968be835d703c1a8e216c3
+    selected_sha: e7307ccdb8033f0514968be835d703c1a8e216c3
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:42:25.374368+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -383,5 +397,12 @@ author: oompah
 created: 2026-08-21 10:22
 ---
 Fixed pre-provider contributor evidence timeout from being auto-filed by error_watcher by changing log level from ERROR to WARNING. Timeout is a graceful failure condition that returns an error message for retry, not an exception.
+---
+author: oompah
+created: 2026-08-27 03:42
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
