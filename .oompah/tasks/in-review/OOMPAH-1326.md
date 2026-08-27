@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1326
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 2
 title: '[backend:checkpoint_queue] Checkpoint flush FAILED (reason=debounce); push_failures=1'
 parent: null
@@ -11,14 +11,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T09:43:03.353905Z'
-updated_at: '2026-08-27T23:44:04.874184Z'
+updated_at: '2026-08-27T23:44:18.601466Z'
 work_branch: OOMPAH-1326
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/963
 review_number: '963'
 review_head: 0d9de7856326baaee84418eaf7c6fb8848f1b3e1
 merged_at: null
-oompah.lifecycle_revision: 5
+oompah.lifecycle_revision: 6
 oompah.last_batch:
   batch_id: batch-406b98cf5aef4911b932a9c5924b23e6
   actor: shedwards
