@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1342
 type: epic
-status: In Progress
+status: In Validation
 priority: 1
 title: Recover production service throughput and workflow progress
 parent: null
@@ -16,7 +16,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-27T16:16:19.831413Z'
+updated_at: '2026-08-27T16:35:05.370849Z'
 work_branch: epic-OOMPAH-1342
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/957
@@ -29,12 +29,74 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: manual-service-recovery-20260826-epic
   request_fingerprint: 070158bda33ab0d0629239fafe161aeb566b706e18982b59d6073e52830bd282
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.review_url: https://github.com/lesserevil/oompah/pull/957
 oompah.review_number: '957'
 oompah.work_branch: epic-OOMPAH-1342
 oompah.target_branch: main
 oompah.review_head: c838c152de0ba072b527b6b07076cdcd61f03745
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-e19f7d1f2d16
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1342
+    digest: 7770ca18ce34d7d40f3ded77ee64eb779eb526edd15c61a2bbf2ae48784acf01
+  - version: 1
+    audit_id: audit-317deb859e7d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1342
+    digest: 7770ca18ce34d7d40f3ded77ee64eb779eb526edd15c61a2bbf2ae48784acf01
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e19f7d1f2d16
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1342
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7770ca18ce34d7d40f3ded77ee64eb779eb526edd15c61a2bbf2ae48784acf01
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah
+      source: orchestrator
+    previous_state: In Progress
+    created_at: '2026-08-27T16:34:53.776144+00:00'
+    eligible_at: '2026-08-27T16:34:53.776144+00:00'
+    selected_ref: origin/main
+    selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
+    landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
+    workflow_revision: 7088c4d3100c5c8660e950261aa8d55e7144382d8c1990b19383b04048b5cf62
+  - version: 1
+    audit_id: audit-317deb859e7d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1342
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7770ca18ce34d7d40f3ded77ee64eb779eb526edd15c61a2bbf2ae48784acf01
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah
+      source: orchestrator
+    previous_state: In Progress
+    created_at: '2026-08-27T16:34:53.776144+00:00'
+    prerequisite_audit_id: audit-e19f7d1f2d16
+    selected_ref: origin/main
+    selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
+    landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
+    workflow_revision: 7088c4d3100c5c8660e950261aa8d55e7144382d8c1990b19383b04048b5cf62
+  attempt_history: []
 ---
 ## Summary
 
