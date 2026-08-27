@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-27T20:40:43.577727Z'
+updated_at: '2026-08-27T22:28:01.185468Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -81,5 +81,10 @@ author: oompah
 created: 2026-08-27 20:40
 ---
 Implementing directly now. Dedicated clone: /tmp/oompah-1350.AOtPdi/repo, branch OOMPAH-1350-gitlab-merge-queue. Initial code changes are focused on GitLab provider exact train enrollment/observation and route-compensation cleanup; Trickle remains paused.
+---
+author: oompah
+created: 2026-08-27 22:28
+---
+Implementation complete on OOMPAH-1350-gitlab-merge-queue at 5461a0d9a; PR #967 opened. Changes: exact-head GitLab merge-train endpoint; active train and detailed merge-state normalization; divergence query; fail-closed direct GitLab review merge in durable and legacy paths; no duplicate merge scheduling for already-enqueued reviews; exact stale standalone MR retirement and capacity release during route compensation; corrected UI/docs. Validation: focused suite 1,157 passed / 2 skipped; full make test 20,459 passed / 7 skipped / 2 xfailed. Trickle remains paused and GitLab merge trains remain disabled until merge/deploy and controlled cleanup.
 ---
 <!-- COMMENTS:END -->
