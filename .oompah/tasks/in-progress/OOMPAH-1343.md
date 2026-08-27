@@ -9,11 +9,10 @@ children: []
 blocked_by:
 - OOMPAH-1346
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-26T18:43:05.336022Z'
-updated_at: '2026-08-27T01:37:33.378193Z'
+updated_at: '2026-08-27T02:03:35.674516Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,6 +26,31 @@ oompah.create_once:
   creation_marker: manual-service-recovery-20260826-stabilize
   request_fingerprint: dabe0aa14096afda9b212472b2eaaa2df9e97ca7dfa2885df9a800f491946d7e
 oompah.lifecycle_revision: 2
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-9d525c6808de
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1343
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 44858374fcae441b678a146cd402adbabae44996fb13e0785e2cc91ec0fbd358
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Production stabilization completed: recovery PRs landed, service deployed,
+      CI policy corrected, disk reclaimed, stale terminal records retained, and full
+      gate passed.'
+    created_at: '2026-08-27T02:03:34.182583+00:00'
+    selected_ref: origin/OOMPAH-1343
+    selected_sha: a299d602249ff64ef1703b6c172e45eb38255827
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
