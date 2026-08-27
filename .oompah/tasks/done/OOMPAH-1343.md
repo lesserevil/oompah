@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T18:43:05.336022Z'
-updated_at: '2026-08-27T02:03:40.158120Z'
+updated_at: '2026-08-27T02:03:46.049085Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,7 +47,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T02:03:34.182583+00:00'
     selected_ref: origin/OOMPAH-1343
     selected_sha: a299d602249ff64ef1703b6c172e45eb38255827
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1343
+    target_state: Done
+    evidence_fingerprint: 44858374fcae441b678a146cd402adbabae44996fb13e0785e2cc91ec0fbd358
+    workflow_revision: null
+    selected_ref: origin/OOMPAH-1343
+    selected_sha: a299d602249ff64ef1703b6c172e45eb38255827
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T02:03:44.595168+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -88,5 +102,12 @@ author: oompah
 created: 2026-08-27 01:37
 ---
 Production verification after PR #953: with Oompah and Trickle enabled, a full 1,493-task reconciliation completed and published in 155.7s (previously 239-334s); Oompah integration phase fell from 176-310s to 112.8s and Trickle to 9.6s. This is materially improved but still exceeds the 120s target, so global dispatch is paused again pending further optimization.
+---
+author: oompah
+created: 2026-08-27 02:03
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Production stabilization completed: recovery PRs landed, service deployed, CI policy corrected, disk reclaimed, stale terminal records retained, and full gate passed.
 ---
 <!-- COMMENTS:END -->
