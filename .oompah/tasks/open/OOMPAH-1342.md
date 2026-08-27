@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1342
 type: epic
-status: Needs Human
+status: Open
 priority: 1
 title: Recover production service throughput and workflow progress
 parent: null
@@ -16,7 +16,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-27T17:19:26.940153Z'
+updated_at: '2026-08-27T17:24:26.600404Z'
 work_branch: epic-OOMPAH-1342
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/957
@@ -29,7 +29,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: manual-service-recovery-20260826-epic
   request_fingerprint: 070158bda33ab0d0629239fafe161aeb566b706e18982b59d6073e52830bd282
-oompah.lifecycle_revision: 4
+oompah.lifecycle_revision: 5
 oompah.review_url: https://github.com/lesserevil/oompah/pull/957
 oompah.review_number: '957'
 oompah.work_branch: epic-OOMPAH-1342
@@ -174,7 +174,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1342
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -192,6 +192,7 @@ oompah.terminal_audit:
     selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
     landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
     workflow_revision: 7088c4d3100c5c8660e950261aa8d55e7144382d8c1990b19383b04048b5cf62
+    updated_at: '2026-08-27T17:24:24.755820+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5fa847dac389
@@ -406,5 +407,18 @@ Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 6m 29s
 - Log: OOMPAH-1342__20260827T171315Z.jsonl
+---
+author: oompah
+created: 2026-08-27 17:24
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #63)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 957 is merged
+**Evidence result:** `merged`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
