@@ -16,7 +16,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-27T16:46:56.840925Z'
+updated_at: '2026-08-27T16:56:49.783753Z'
 work_branch: epic-OOMPAH-1342
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/957
@@ -55,7 +55,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1342
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -64,7 +64,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5fa847dac389
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -77,6 +77,12 @@ oompah.terminal_audit:
       selected_ref: origin/main
       selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
       landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
+      failure_classification: policy_incompatibility
+      ended_at: '2026-08-27T16:56:47.650658+00:00'
+      failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
+        auditor capability policy permits only read-only repository inspection and
+        configured test commands; command denied'
+      next_retry_at: '2026-08-27T16:56:57.650629+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -89,7 +95,7 @@ oompah.terminal_audit:
     selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
     landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
     workflow_revision: 7088c4d3100c5c8660e950261aa8d55e7144382d8c1990b19383b04048b5cf62
-    updated_at: '2026-08-27T16:46:45.022090+00:00'
+    updated_at: '2026-08-27T16:56:47.650658+00:00'
   - version: 1
     audit_id: audit-317deb859e7d
     project_id: proj-14849f1b
@@ -117,7 +123,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-5fa847dac389
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -130,6 +136,12 @@ oompah.terminal_audit:
     selected_ref: origin/main
     selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
     landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
+    failure_classification: policy_incompatibility
+    ended_at: '2026-08-27T16:56:47.650658+00:00'
+    failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
+      auditor capability policy permits only read-only repository inspection and configured
+      test commands; command denied'
+    next_retry_at: '2026-08-27T16:56:57.650629+00:00'
 ---
 ## Summary
 
