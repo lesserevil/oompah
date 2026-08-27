@@ -15917,7 +15917,7 @@ class Orchestrator:
             facts["accepted_submission_review_identity"] = "ambiguous"
         return facts
 
-    def _workflow_shadow_sources(self, issue: Issue) -> dict[FactDomain, Any]:
+    def _workflow_shadow_sources(self, issue: Issue | None) -> dict[FactDomain, Any]:
         """Build read-only fact adapters over the current legacy runtime."""
 
         # These closures are reused for every task in a project reconciliation
