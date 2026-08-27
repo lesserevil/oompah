@@ -6796,7 +6796,7 @@ class ProjectStore:
                 pass
 
         self._disable_worktree_hooks(wt_path)
-        
+
         # Sanitize credential routes from the epic worktree to ensure direct rebase
         # operations can run in isolated environments (OOMPAH-1249)
         try:
@@ -6808,7 +6808,7 @@ class ProjectStore:
             logger.warning(
                 "Could not sanitize epic worktree credentials: %s", exc
             )
-        
+
         logger.info("Epic worktree created path=%s branch=%s", wt_path, branch_name)
         return wt_path
 
@@ -7060,6 +7060,109 @@ class ProjectStore:
                 expected_head_sha=expected_head_sha,
             )
 
+    def remote_branch_heads(
+        self,
+        project_id: str,
+        branches: Sequence[str],
+    ) -> dict[str, str]:
+        """Return one stable advertised snapshot for multiple remote branches.
+
+        Reconciliation often needs dozens of task/epic tips from one project.
+        One ``ls-remote`` plus one batched fetch is both faster and more
+        coherent than the historical two-read/fetch sequence per branch. A
+        second advertisement is the CAS boundary; any movement fails closed.
+        Missing refs are omitted from the returned mapping.
+        """
+
+        project = self._projects.get(project_id)
+        if project is None:
+            raise ProjectError(f"Unknown project: {project_id}")
+        names = tuple(
+            dict.fromkeys(str(branch or "").strip() for branch in branches)
+        )
+        names = tuple(name for name in names if name)
+        if not names:
+            return {}
+
+        with self.project_write_lock(project_id):
+            for name in names:
+                checked = subprocess.run(
+                    ["git", "check-ref-format", f"refs/heads/{name}"],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+                if checked.returncode != 0:
+                    raise ProjectError(f"invalid remote branch {name!r}")
+            refs = tuple(f"refs/heads/{name}" for name in names)
+
+            def advertised() -> dict[str, str]:
+                result = self._run_network_git(
+                    project,
+                    ["git", "ls-remote", "--heads", "origin", *refs],
+                    timeout=30,
+                )
+                if result.returncode != 0:
+                    raise ProjectError(
+                        "could not verify remote branches: "
+                        f"{result.stderr.strip()[:500]}"
+                    )
+                heads: dict[str, str] = {}
+                for line in result.stdout.splitlines():
+                    fields = line.split()
+                    if len(fields) < 2 or fields[1] not in refs:
+                        continue
+                    head = fields[0].strip().lower()
+                    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", head):
+                        raise ProjectError("remote branch has an invalid head")
+                    heads[fields[1].removeprefix("refs/heads/")] = head
+                return heads
+
+            first = advertised()
+            if first:
+                fetch_specs = [
+                    f"+refs/heads/{name}:refs/remotes/origin/{name}"
+                    for name in first
+                ]
+                fetched = self._run_network_git(
+                    project,
+                    ["git", "fetch", "--no-tags", "--quiet", "origin", *fetch_specs],
+                    timeout=60,
+                )
+                if fetched.returncode != 0:
+                    raise ProjectError(
+                        "could not fetch remote branches: "
+                        f"{fetched.stderr.strip()[:500]}"
+                    )
+                for name, head in first.items():
+                    resolved = subprocess.run(
+                        [
+                            "git",
+                            "rev-parse",
+                            "--verify",
+                            f"refs/remotes/origin/{name}^{{commit}}",
+                        ],
+                        cwd=project.repo_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=10,
+                        env=_recovery_git_env(),
+                    )
+                    if (
+                        resolved.returncode != 0
+                        or resolved.stdout.strip().lower() != head
+                    ):
+                        raise ProjectError(
+                            f"origin/{name} moved while it was fetched"
+                        )
+            if advertised() != first:
+                raise ProjectError("remote branches moved while being observed")
+            return first
+
     def remote_branch_head(self, project_id: str, branch: str) -> str | None:
         """Return one stable advertised remote head, or ``None`` if pruned."""
 
@@ -7105,44 +7208,7 @@ class ProjectStore:
                 raise ProjectError(f"remote branch {branch_name!r} has an invalid head")
             return head
 
-        with self.project_write_lock(project_id):
-            first = advertised()
-            if first is None:
-                return None
-            tracking_ref = f"refs/remotes/origin/{branch_name}"
-            fetched = self._run_network_git(
-                project,
-                [
-                    "git",
-                    "fetch",
-                    "--no-tags",
-                    "--quiet",
-                    "origin",
-                    f"+{remote_ref}:{tracking_ref}",
-                ],
-                timeout=60,
-            )
-            if fetched.returncode != 0:
-                raise ProjectError(
-                    f"could not fetch remote branch {branch_name!r}: "
-                    f"{fetched.stderr.strip()[:500]}"
-                )
-            resolved = subprocess.run(
-                ["git", "rev-parse", "--verify", f"{tracking_ref}^{{commit}}"],
-                cwd=project.repo_path,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=10,
-                env=_recovery_git_env(),
-            )
-            observed = str(resolved.stdout or "").strip().lower()
-            second = advertised()
-            if resolved.returncode != 0 or observed != first or second != first:
-                raise ProjectError(
-                    f"remote branch {branch_name!r} moved while being observed"
-                )
-            return first
+        return self.remote_branch_heads(project_id, (branch_name,)).get(branch_name)
 
     def remote_target_contains_head(
         self,
