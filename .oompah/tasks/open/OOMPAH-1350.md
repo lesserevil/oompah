@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-27T19:54:52.699824Z'
+updated_at: '2026-08-27T20:32:21.199625Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,10 @@ author: oompah
 created: 2026-08-27 19:54
 ---
 Root cause of the stale-MR state is now traced: parent landing evidence was recorded for TRICKLE-117/127 using old epic heads already contained in main. That temporarily reclassified children from queue mode (target epic branch) to standalone mode (target main), creating/adopting !7,!8,!14,!15. Later, fresh live parent-source head evidence invalidated the old landing fact and `_reclassify_invalid_parented_standalone` moved the task metadata back to queue mode, but the inverse compensation only rewrites tracker target/integration metadata; it never closes/retargets/releases the now-obsolete open MR. History shows repeated queue↔standalone route oscillation for TRICKLE-119 and TRICKLE-136. This is the direct source of stranded MRs and leaked capacity.
+---
+author: oompah
+created: 2026-08-27 20:32
+---
+Operator-approved containment applied: paused Trickle in Oompah and disabled GitLab merge trains for omniverse/devplat/trickle. Verified GitLab merge_trains_enabled=false; Oompah merge_queue_enabled was already false and remains false. No MRs were merged or closed.
 ---
 <!-- COMMENTS:END -->
