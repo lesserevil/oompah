@@ -16,7 +16,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-27T17:19:09.742810Z'
+updated_at: '2026-08-27T17:19:26.940153Z'
 work_branch: epic-OOMPAH-1342
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/957
@@ -250,13 +250,13 @@ oompah.terminal_audit:
     landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
     candidate_rotation_count: 2
 oompah.task_costs:
-  total_input_tokens: 700
-  total_output_tokens: 10188
+  total_input_tokens: 727
+  total_output_tokens: 25037
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 700
-      output_tokens: 10188
+      input_tokens: 727
+      output_tokens: 25037
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -271,6 +271,12 @@ oompah.task_costs:
     output_tokens: 10017
     cost_usd: 0.0
     recorded_at: '2026-08-27T17:10:30.560423+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 27
+    output_tokens: 14849
+    cost_usd: 0.0
+    recorded_at: '2026-08-27T17:19:23.853579+00:00'
 ---
 ## Summary
 
@@ -390,5 +396,15 @@ Instructions:
 - Run `make test` from the service checkout (or a worktree whose OOMPAH_SERVICE_CHECKOUT marker matches the Git-derived primary) at exactly SHA 08f21678e and record the passing result so the audit scheduler sees exact-head full-gate evidence.
 - If the audit worktree layout cannot produce that evidence, adjust the auditor sandbox OOMPAH_SERVICE_CHECKOUT so it resolves to the same primary as the Git common directory, then redispatch the audit.
 - Optionally attach a workflow-rollout-check result for the current head; the plan calls for it before resuming production but it is not a substitute for the full make test gate.
+---
+author: oompah
+created: 2026-08-27 17:19
+---
+Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 44, Tool calls: 28
+- Tokens: 27 in / 14.8K out [14.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 29s
+- Log: OOMPAH-1342__20260827T171315Z.jsonl
 ---
 <!-- COMMENTS:END -->
