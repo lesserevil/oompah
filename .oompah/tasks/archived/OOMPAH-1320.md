@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:12:08.566823Z'
-updated_at: '2026-08-27T03:57:34.258340Z'
+updated_at: '2026-08-27T03:57:47.793643Z'
 work_branch: OOMPAH-1320
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/927
@@ -139,7 +139,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:57:23.933267+00:00'
     selected_ref: 0595d914ac86b29ea1d557b7892ed30d9abaf741
     selected_sha: 0595d914ac86b29ea1d557b7892ed30d9abaf741
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1320
+    target_state: Archived
+    evidence_fingerprint: d50d9abe60b1fbbe79ddcea133a0ec3205a7ec3bbabb47342eb30fd0bd13676b
+    workflow_revision: null
+    selected_ref: 0595d914ac86b29ea1d557b7892ed30d9abaf741
+    selected_sha: 0595d914ac86b29ea1d557b7892ed30d9abaf741
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:57:45.406792+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -264,5 +278,12 @@ author: oompah
 created: 2026-08-26 07:59
 ---
 Branch quality gate passed for `0595d914ac86b29ea1d557b7892ed30d9abaf741` using `make test` in 182.6s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-27 03:57
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
