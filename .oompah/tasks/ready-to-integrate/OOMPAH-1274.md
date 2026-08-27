@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1274
 type: bug
-status: Needs CI Fix
+status: Ready to Integrate
 priority: 2
 title: '[backend:orchestrator] All dispatch candidates failed for issue OOMPAH-1197:
   All 2 dispatch candidates unavailable: prov-52e94e83/gpt-5.6-luna: contributor_evidence_unavailable:
@@ -14,14 +14,14 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-20T22:42:01.940609Z'
-updated_at: '2026-08-27T01:28:50.926430Z'
+updated_at: '2026-08-27T02:25:48.033963Z'
 work_branch: OOMPAH-1274
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 6
+oompah.lifecycle_revision: 7
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
