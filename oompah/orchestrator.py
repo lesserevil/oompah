@@ -56711,8 +56711,9 @@ class Orchestrator:
                 )
                 return "missing_credentials"
 
+        provider_transport = str(getattr(provider, "transport", "openai_compatible") or "openai_compatible").casefold()
         if require_openai_endpoint is None:
-            require_openai_endpoint = provider_mode != "acp"
+            require_openai_endpoint = provider_mode != "acp" and provider_transport != "pi_ai"
         if require_openai_endpoint:
             endpoint_error = openai_base_url_error(getattr(provider, "base_url", ""))
             if endpoint_error is not None:
@@ -56730,8 +56731,8 @@ class Orchestrator:
         #    requests, so only per-token API providers require an explicit key.
         requires_api_key = (
             provider_mode != "acp"
-            and (getattr(provider, "billing_model", "per_token") or "per_token")
-            == "per_token"
+            and provider_transport != "pi_ai"
+            and (getattr(provider, "billing_model", "per_token") or "per_token") == "per_token"
         )
         if requires_api_key and not getattr(provider, "api_key", ""):
             logger.warning(
@@ -56901,13 +56902,16 @@ class Orchestrator:
                     pc_in, pc_out = provider.get_model_costs(model)
                     if pc_in or pc_out:
                         cost_in, cost_out = pc_in, pc_out
-        # Per-token ACP: prefer SDK-reported total if present. The SDK
-        # knows tier discounts oompah doesn't.
+        # Provider SDKs know tier discounts and cache pricing that the local
+        # fallback table cannot represent. Prefer their exact terminal amount
+        # for metered ACP and pi-ai transports.
         if (
-            mode == "acp"
-            and provider is not None
-            and provider.is_per_token_billed("acp")
+            provider is not None
             and sdk_cost_usd is not None
+            and (
+                (mode == "acp" and provider.is_per_token_billed("acp"))
+                or getattr(provider, "transport", "openai_compatible") == "pi_ai"
+            )
         ):
             try:
                 return float(sdk_cost_usd)
@@ -57809,20 +57813,15 @@ class Orchestrator:
                 output_tokens / 1000.0
             ) * pc_out
 
-        # Per-token ACP providers: prefer SDK-reported total_cost_usd
-        # over the local model_costs lookup (the SDK knows tier
-        # discounts oompah doesn't). Subscription ACP runs short-
-        # circuit above with pc_in/pc_out=0 and stay at $0 regardless
-        # of any SDK number, matching the "subscription bills flat"
-        # contract.
+        # Per-token ACP and pi-ai transports prefer the provider's exact
+        # total over local model_cost estimates. Subscription ACP remains $0.
         sdk_cost = getattr(entry.session, "sdk_cost_usd", None)
         if sdk_cost is not None and profile:
             mode = (getattr(profile, "mode", "auto") or "auto").lower()
             provider = self._resolve_provider(profile) if profile else None
-            if (
-                mode == "acp"
-                and provider is not None
-                and provider.is_per_token_billed("acp")
+            if provider is not None and (
+                (mode == "acp" and provider.is_per_token_billed("acp"))
+                or getattr(provider, "transport", "openai_compatible") == "pi_ai"
             ):
                 try:
                     cost_usd = float(sdk_cost)
@@ -62675,8 +62674,8 @@ class Orchestrator:
             # --- Preflight: check availability before starting the worker ---
             require_openai_endpoint = not (
                 mode == "acp"
-                or str(getattr(target.provider, "mode", "api") or "api").casefold()
-                == "acp"
+                or str(getattr(target.provider, "mode", "api") or "api").casefold() == "acp"
+                or str(getattr(target.provider, "transport", "openai_compatible") or "openai_compatible").casefold() == "pi_ai"
             )
             try:
                 preflight_skip = self._candidate_preflight(
@@ -63060,7 +63059,8 @@ class Orchestrator:
         # setup/session construction. Provider records can change at runtime
         # after the dispatch target was selected; a stale valid target must
         # never make the API agent construct a relative or malformed URL.
-        endpoint_error = openai_base_url_error(getattr(provider, "base_url", ""))
+        provider_transport = str(getattr(provider, "transport", "openai_compatible") or "openai_compatible").casefold()
+        endpoint_error = None if provider_transport == "pi_ai" else openai_base_url_error(getattr(provider, "base_url", ""))
         if endpoint_error is not None:
             msg = f"Invalid OpenAI-compatible provider endpoint: {endpoint_error}"
             if target is not None:
@@ -63546,7 +63546,8 @@ class Orchestrator:
                     api_base_url = provider.base_url
                     api_key = provider.api_key
                     api_model_context = provider.get_model_context(model)
-                    api_endpoint_error = openai_base_url_error(api_base_url)
+                    api_transport = str(getattr(provider, "transport", "openai_compatible") or "openai_compatible").casefold()
+                    api_endpoint_error = None if api_transport == "pi_ai" else openai_base_url_error(api_base_url)
                     api_model_current = bool(
                         not provider.models
                         or model in provider.models
@@ -63665,6 +63666,10 @@ class Orchestrator:
                 ),
                 isolate_remote_write=self._is_epic_rebase_task(issue),
                 coordination_service=self,
+                transport=api_transport,
+                pi_provider_id=(getattr(provider, "pi_provider_id", None) or getattr(provider, "name", None)),
+                pi_provider_name=getattr(provider, "name", None),
+                pi_model_capabilities=tuple(capabilities),
             )
             logger.info(
                 "Agent log for %s -> %s",
@@ -63792,7 +63797,10 @@ class Orchestrator:
                     "max_turns",
                     "stalled",
                 }
-                s.final_cost_observed = False
+                s.sdk_cost_usd = getattr(session, "total_cost_usd", None)
+                s.final_cost_observed = bool(
+                    getattr(session, "final_cost_observed", False)
+                )
 
             if result.status == "ask_question":
                 exit_reason = "ask_question"

@@ -1183,6 +1183,8 @@ class ModelProvider:
     # time by ``from_dict`` so existing providers.json records keep working
     # without operator action. See issue oompah-zlz_2-zvm0 for the rationale.
     provider_type: str = "openai_compatible"
+    transport: str = "openai_compatible"
+    pi_provider_id: str | None = None
     model_roles: dict[str, str] = field(default_factory=dict)
     model_costs: dict[str, dict[str, float]] = field(default_factory=dict)
     # Per-model modality capability map. Keys are model names (matching
@@ -1352,7 +1354,10 @@ class ModelProvider:
             "models": self.models,
             "default_model": self.default_model,
             "provider_type": self.provider_type,
+            "transport": self.transport,
         }
+        if self.pi_provider_id:
+            d["pi_provider_id"] = self.pi_provider_id
         if self.model_roles:
             d["model_roles"] = self.model_roles
         if self.model_costs:
@@ -1413,6 +1418,12 @@ class ModelProvider:
         from oompah.acp_backends.registry import validate_provider_backend
 
         errors: list[str] = list(validate_provider_backend(self, mode))
+        if self.transport not in {"openai_compatible", "pi_ai"}:
+            errors.append(f"Unknown provider transport: {self.transport!r}.")
+        if self.transport == "pi_ai" and mode != "api":
+            errors.append("pi_ai transport requires provider mode='api'")
+        if self.transport == "pi_ai" and not (self.pi_provider_id or self.base_url):
+            errors.append("pi_ai transport requires pi_provider_id or base_url")
         if mode == "acp":
             valid = {"subscription", "per_token"}
             if self.billing_model not in valid:
@@ -1483,6 +1494,9 @@ class ModelProvider:
         )
         if billing_model not in ("subscription", "per_token"):
             billing_model = "subscription"
+        raw_transport = str(d.get("transport", "openai_compatible") or "").strip().lower()
+        transport = raw_transport if raw_transport in {"openai_compatible", "pi_ai"} else "openai_compatible"
+        pi_provider_id = str(d.get("pi_provider_id") or "").strip() or None
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
@@ -1491,6 +1505,8 @@ class ModelProvider:
             models=d.get("models", []),
             default_model=d.get("default_model"),
             provider_type=provider_type,
+            transport=transport,
+            pi_provider_id=pi_provider_id,
             model_roles=d.get("model_roles", {}),
             model_costs=d.get("model_costs", {}),
             model_capabilities={

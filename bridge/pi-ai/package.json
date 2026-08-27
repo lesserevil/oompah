@@ -1,0 +1,1 @@
+{"name":"@lesserevil/oompah-pi-ai-bridge","version":"0.1.0","private":true,"type":"module","description":"Private JSONL transport from Oompah to @earendil-works/pi-ai","engines":{"node":">=22.19.0"},"scripts":{"test":"node --test test/*.test.mjs"},"dependencies":{"@earendil-works/pi-ai":"0.84.3"}}

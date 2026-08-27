@@ -1353,6 +1353,8 @@ function openProviderDialog(provider) {
   editingId = provider ? provider.id : null;
   document.getElementById('dialog-title').textContent = provider ? 'Edit Provider' : 'Add Provider';
   document.getElementById('prov-name').value = provider ? provider.name : '';
+  document.getElementById('prov-transport').value = provider ? (provider.transport || 'openai_compatible') : 'openai_compatible';
+  document.getElementById('prov-pi-provider-id').value = provider ? (provider.pi_provider_id || '') : '';
   // Provider Type is the single source of truth for api/acp (oompah-zlz_2-zvm0).
   // Migrate legacy persisted values (openai/anthropic/custom) -> openai_compatible.
   // The server's ModelProvider.from_dict already normalises on load so
@@ -1403,6 +1405,10 @@ function openProviderDialog(provider) {
 function applyProviderModeVisibility() {
   const ptype = (document.getElementById('prov-type') || {}).value || 'openai_compatible';
   const acp = (ptype === 'acp');
+  const transport = (document.getElementById('prov-transport') || {}).value || 'openai_compatible';
+  const piAi = !acp && transport === 'pi_ai';
+  const piProviderRow = document.getElementById('prov-pi-provider-row');
+  if (piProviderRow) piProviderRow.style.display = piAi ? '' : 'none';
   // ACP-only rows (revealed when acp; hidden otherwise).
   const acpOnlyIds = [
     'prov-backend-row',
@@ -1431,7 +1437,14 @@ function updateFetchModelsButtonState() {
   const btn = document.getElementById('fetch-models-btn');
   if (!btn) return;
   const ptype = (document.getElementById('prov-type') || {}).value || 'openai_compatible';
+  const transport = (document.getElementById('prov-transport') || {}).value || 'openai_compatible';
   if (ptype !== 'acp') {
+    if (transport === 'pi_ai') {
+      btn.disabled = true;
+      btn.title = 'Save the Pi AI provider after adding model identifiers manually.';
+      btn.style.display = '';
+      return;
+    }
     btn.disabled = false;
     btn.title = '';
     btn.style.display = '';
@@ -1775,15 +1788,20 @@ async function submitProvider() {
   // separate Mode radio — the radio was removed.
   const providerType = document.getElementById('prov-type').value || 'openai_compatible';
   const mode = (providerType === 'acp') ? 'acp' : 'api';
-  // Validation parity with the server: api-mode requires base_url; acp
+  const transport = (document.getElementById('prov-transport') || {}).value || 'openai_compatible';
+  const pi_provider_id = document.getElementById('prov-pi-provider-id').value.trim();
+  // Validation parity with the server: direct API mode requires base_url;
   // mode does not (the Claude Agent SDK manages the connection).
   if (!name) return;
-  if (mode === 'api' && !base_url) return;
+  if (mode === 'api' && transport !== 'pi_ai' && !base_url) return;
+  if (mode === 'api' && transport === 'pi_ai' && !pi_provider_id && !base_url) return;
 
   const body = {
     name,
     base_url,
     provider_type: providerType,
+    transport,
+    pi_provider_id: pi_provider_id || undefined,
     models: [...dialogModels],
     default_model: document.getElementById('prov-default-model').value.trim() || undefined,
     mode,
@@ -2188,7 +2206,20 @@ document.addEventListener('keydown', e => {
       <option value="openai_compatible">OpenAI Compatible</option>
       <option value="acp">Agent Control Protocol</option>
     </select>
-    <div class="hint">OpenAI Compatible: OpenAI/vLLM/proxies speaking the chat-completions wire format. Agent Control Protocol: session-shaped SDK backends (Claude SDK today; Codex et al. as support lands).</div>
+    <div class="hint">OpenAI Compatible: Oompah's direct HTTP agent loop. Agent Control Protocol: session-shaped SDK/CLI backends.</div>
+
+    <div id="prov-transport-row">
+      <label for="prov-transport">API Transport</label>
+      <select id="prov-transport" onchange="applyProviderModeVisibility()">
+        <option value="openai_compatible">Direct OpenAI-compatible HTTP</option>
+        <option value="pi_ai">Pi AI provider framework</option>
+      </select>
+      <div class="hint">Pi AI changes model transport only; Oompah still owns the agent loop and guarded tools.</div>
+    </div>
+    <div id="prov-pi-provider-row" style="display:none;">
+      <label for="prov-pi-provider-id">Pi Provider ID</label>
+      <input type="text" id="prov-pi-provider-id" placeholder="e.g., anthropic, openai, jocasta-4000">
+    </div>
 
     <div id="prov-url-row">
       <label for="prov-url">Base URL</label>

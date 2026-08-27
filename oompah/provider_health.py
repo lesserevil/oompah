@@ -266,6 +266,13 @@ class ProviderHealthCache:
                 or "openai_compatible"
             ),
             "backend": str(getattr(provider, "backend", "") or ""),
+            "transport": str(
+                getattr(provider, "transport", "openai_compatible")
+                or "openai_compatible"
+            ),
+            "pi_provider_id": str(
+                getattr(provider, "pi_provider_id", "") or ""
+            ),
             "billing_model": str(
                 getattr(provider, "billing_model", "subscription") or "subscription"
             ),
@@ -937,6 +944,83 @@ def _normalize_acp_error(status: str, last_error: str | None) -> tuple[str, str]
         return "provider_unavailable", detail or "ACP backend session crashed."
     # "failed" or any unexpected status.
     return "unknown_error", detail or f"ACP session ended with status {status!r}."
+
+
+async def run_pi_ai_health_check(
+    provider: "ModelProvider",
+    model: str | None = None,
+    *,
+    before_transport_contact: Callable[[], str | None] | None = None,
+) -> ProviderTestResult:
+    """Probe one exact model through the optional pi-ai transport."""
+
+    from oompah.pi_ai_transport import PiAiTransport, PiAiTransportError
+
+    resolved_model = _pick_model(provider, model)
+    if not resolved_model:
+        return ProviderTestResult(
+            provider_id=provider.id,
+            provider_name=provider.name,
+            model="",
+            success=False,
+            latency_ms=0.0,
+            error_reason="invalid_model",
+            error_detail="Provider has no model configured.",
+        )
+    workspace = tempfile.mkdtemp(prefix="oompah-pi-ai-health-")
+    transport = PiAiTransport(
+        workspace_path=workspace,
+        provider=(getattr(provider, "pi_provider_id", None) or provider.name),
+        provider_name=provider.name,
+        model=resolved_model,
+        api_key=provider.api_key or "",
+        base_url=provider.base_url or "",
+        model_context=provider.get_model_context(resolved_model),
+        model_capabilities=tuple(
+            (getattr(provider, "model_capabilities", None) or {}).get(
+                resolved_model, ("text",)
+            )
+        ),
+        timeout_s=ACP_HEALTH_CHECK_TIMEOUT,
+        before_transport_contact=before_transport_contact,
+    )
+    started = time.monotonic()
+    parts: list[str] = []
+    try:
+        async for event in transport.complete(
+            system_prompt="",
+            messages=[
+                {"role": "user", "content": _TEST_PROMPT, "timestamp": 0}
+            ],
+            tools=[],
+            max_tokens=16,
+        ):
+            if event.get("type") == "text_delta":
+                parts.append(str(event.get("delta") or ""))
+        return ProviderTestResult(
+            provider_id=provider.id,
+            provider_name=provider.name,
+            model=resolved_model,
+            success=True,
+            latency_ms=(time.monotonic() - started) * 1000.0,
+            response_text="".join(parts)[:MAX_RESPONSE_LENGTH],
+        )
+    except PiAiTransportError as exc:
+        if "configuration changed" in str(exc).lower():
+            raise ProviderProbeAuthorityError(str(exc)) from exc
+        reason, detail = _normalize_acp_error("errored", str(exc))
+        return ProviderTestResult(
+            provider_id=provider.id,
+            provider_name=provider.name,
+            model=resolved_model,
+            success=False,
+            latency_ms=(time.monotonic() - started) * 1000.0,
+            error_reason=reason,
+            error_detail=redact_sensitive_text(detail)[:500],
+        )
+    finally:
+        await transport.close()
+        shutil.rmtree(workspace, ignore_errors=True)
 
 
 async def run_acp_health_check(

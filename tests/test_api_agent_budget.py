@@ -449,6 +449,77 @@ class TestCallApiBudget:
 
 
 # ---------------------------------------------------------------------------
+# Pi AI provider transport
+# ---------------------------------------------------------------------------
+
+
+class TestPiAiTransport:
+    def test_pi_ai_response_is_normalized_for_existing_tool_loop(
+        self, tmp_path, monkeypatch
+    ):
+        from oompah.api_agent import ApiAgentSession
+
+        calls = []
+
+        class FakeTransport:
+            def __init__(self, **kwargs):
+                calls.append(kwargs)
+
+            async def complete(self, **kwargs):
+                calls.append(kwargs)
+                yield {
+                    "type": "done",
+                    "message": {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "checking"},
+                            {"type": "toolCall", "id": "call-1", "name": "read_file", "arguments": {"path": "README.md"}},
+                        ],
+                        "api": "openai-completions",
+                        "provider": "jocasta-4000",
+                        "model": "gpt_sol",
+                        "stopReason": "toolUse",
+                        "timestamp": 1,
+                        "usage": {"input": 10, "output": 4, "cacheRead": 2, "cacheWrite": 1, "totalTokens": 17, "cost": {"total": 0.25}},
+                    },
+                }
+
+            async def close(self):
+                return None
+
+        monkeypatch.setattr("oompah.pi_ai_transport.PiAiTransport", FakeTransport)
+        session = ApiAgentSession(
+            base_url="http://jocasta:4000/v1", api_key="secret", model="gpt_sol",
+            workspace_path=str(tmp_path), transport="pi_ai", pi_provider_id="jocasta-4000",
+        )
+        result = asyncio.run(session._call_pi_ai([_msg("user", "inspect")]))
+        assert result["choices"][0]["finish_reason"] == "tool_calls"
+        assert result["choices"][0]["message"]["tool_calls"][0]["function"] == {
+            "name": "read_file", "arguments": '{"path": "README.md"}'
+        }
+        assert result["usage"]["total_tokens"] == 17
+        assert result["usage"]["cost_usd"] == 0.25
+        assert calls[0]["provider"] == "jocasta-4000"
+        assert calls[1]["tools"]
+
+    def test_pi_ai_does_not_require_openai_url(self, tmp_path):
+        from oompah.api_agent import ApiAgentSession
+
+        session = ApiAgentSession(
+            base_url="", api_key="", model="gpt_sol",
+            workspace_path=str(tmp_path), transport="pi_ai", pi_provider_id="jocasta-4000",
+        )
+        assert session.transport == "pi_ai"
+        assert session._url == ""
+
+    def test_unknown_transport_is_rejected(self, tmp_path):
+        from oompah.api_agent import ApiAgentSession
+
+        with pytest.raises(ValueError, match="unknown API transport"):
+            ApiAgentSession(base_url="http://x", api_key="", model="m", workspace_path=str(tmp_path), transport="mystery")
+
+
+# ---------------------------------------------------------------------------
 # Per-dispatch JSONL agent logging — captures every request, response,
 # and activity event so users can audit exactly what each agent received
 # and produced. One file per dispatch.

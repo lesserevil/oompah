@@ -79,6 +79,8 @@ class ProviderStore:
         models: list[str] | None = None,
         default_model: str | None = None,
         provider_type: str = "openai_compatible",
+        transport: str = "openai_compatible",
+        pi_provider_id: str | None = None,
         backend: str | None = None,
         mode: str = "api",
         acp_permission_mode: str | None = None,
@@ -105,6 +107,9 @@ class ProviderStore:
         else:
             pt = "openai_compatible"
         provider_type = pt
+        transport = str(transport or "").strip().lower()
+        if transport not in {"openai_compatible", "pi_ai"}:
+            transport = "openai_compatible"
         # Defensive normalization mirroring ModelProvider.from_dict's
         # safety net: unknown billing_model values fall back to
         # subscription so a typo on the API request can't silently
@@ -124,6 +129,8 @@ class ProviderStore:
             models=models or [],
             default_model=default_model,
             provider_type=provider_type,
+            transport=transport,
+            pi_provider_id=str(pi_provider_id or "").strip() or None,
             backend=backend or None,
             mode=m,
             acp_permission_mode=acp_permission_mode,
@@ -154,6 +161,11 @@ class ProviderStore:
             if "mode" in fields:
                 m = (provider.mode or "api").lower()
                 provider.mode = m if m in ("api", "acp") else "api"
+            if "transport" in fields:
+                value = str(provider.transport or "").strip().lower()
+                provider.transport = value if value in {"openai_compatible", "pi_ai"} else "openai_compatible"
+            if "pi_provider_id" in fields:
+                provider.pi_provider_id = str(provider.pi_provider_id or "").strip() or None
             self._save()
             # Reconcile model_roles whenever the models list changes.
             if "models" in fields:
