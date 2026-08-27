@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:42:36.055994Z'
-updated_at: '2026-08-27T03:41:15.895080Z'
+updated_at: '2026-08-27T03:41:24.540280Z'
 work_branch: OOMPAH-1212
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/945
@@ -384,5 +384,10 @@ created: 2026-08-27 03:41
 Override by oompah-cli: terminal transition to Archived applied by project owner.
 
 Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
+---
+author: oompah
+created: 2026-08-27 03:41
+---
+Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
