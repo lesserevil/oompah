@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-27T20:35:02.455153Z'
+updated_at: '2026-08-27T20:40:43.577727Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -76,5 +76,10 @@ author: oompah
 created: 2026-08-27 20:35
 ---
 Implementation is now underway in dedicated branch OOMPAH-1350-gitlab-merge-queue. Trickle remains paused and GitLab merge trains remain disabled during repair.
+---
+author: oompah
+created: 2026-08-27 20:40
+---
+Implementing directly now. Dedicated clone: /tmp/oompah-1350.AOtPdi/repo, branch OOMPAH-1350-gitlab-merge-queue. Initial code changes are focused on GitLab provider exact train enrollment/observation and route-compensation cleanup; Trickle remains paused.
 ---
 <!-- COMMENTS:END -->
