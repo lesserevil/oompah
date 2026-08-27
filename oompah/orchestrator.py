@@ -15399,10 +15399,11 @@ class Orchestrator:
                     return
             except asyncio.CancelledError:
                 raise
-            except Exception:  # noqa: BLE001 - a process boundary must fail closed
-                logger.exception(
+            except Exception as exc:  # noqa: BLE001 - a process boundary must fail closed
+                logger.warning(
                     "Orchestrator shutdown attempt failed; retaining process "
-                    "and retrying"
+                    "and retrying: %s",
+                    exc,
                 )
             await asyncio.sleep(1.0)
 

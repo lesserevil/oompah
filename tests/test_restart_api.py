@@ -979,6 +979,63 @@ async def test_safe_stop_retries_retired_snapshot_without_backend_error(
 
 
 @pytest.mark.asyncio
+async def test_stop_until_safe_retries_on_exception_without_error_level(
+    tmp_path,
+    monkeypatch,
+    caplog,
+):
+    """Exceptions during stop() are logged at WARNING level, not ERROR."""
+
+    orch = _real_orchestrator(tmp_path)
+    attempt_count = 0
+
+    async def _stop_fails_then_succeeds():
+        nonlocal attempt_count
+        attempt_count += 1
+        if attempt_count < 3:
+            # First two attempts raise an exception
+            raise RuntimeError(f"Stop failed on attempt {attempt_count}")
+        # Third attempt succeeds
+        return True
+
+    monkeypatch.setattr(orch, "stop", _stop_fails_then_succeeds)
+    caplog.set_level("WARNING", logger="oompah.orchestrator")
+
+    stop_task = asyncio.create_task(orch.stop_until_safe())
+    try:
+        # Give it time to fail and retry
+        await asyncio.wait_for(stop_task, timeout=5)
+    finally:
+        if not stop_task.done():
+            stop_task.cancel()
+            try:
+                await stop_task
+            except asyncio.CancelledError:
+                pass
+
+    # Verify that the exception was retried
+    assert attempt_count >= 3
+
+    # Verify that warning messages were logged
+    warning_records = [
+        r for r in caplog.records
+        if r.levelname == "WARNING"
+        and "Orchestrator shutdown attempt failed" in r.getMessage()
+    ]
+    assert len(warning_records) >= 2  # At least 2 failures
+
+    # Verify that NO error-level messages were logged
+    error_records = [
+        r for r in caplog.records
+        if r.levelname in ("ERROR", "CRITICAL")
+        and "Orchestrator shutdown attempt failed" in r.getMessage()
+    ]
+    assert (
+        len(error_records) == 0
+    ), f"Unexpected error-level logs: {error_records}"
+
+
+@pytest.mark.asyncio
 async def test_background_drain_waits_for_admitted_transition_saga(
     tmp_path,
     monkeypatch,
