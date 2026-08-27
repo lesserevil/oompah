@@ -16,7 +16,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-27T17:10:33.671998Z'
+updated_at: '2026-08-27T17:13:03.559498Z'
 work_branch: epic-OOMPAH-1342
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/957
@@ -57,7 +57,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1342
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -106,6 +106,23 @@ oompah.terminal_audit:
       failure_classification: infrastructure_error
       ended_at: '2026-08-27T17:10:14.823738+00:00'
       failure_reason: retry ceiling reached; verdict left pending
+    - version: 1
+      attempt_id: attempt-b76002a449fd
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 7770ca18ce34d7d40f3ded77ee64eb779eb526edd15c61a2bbf2ae48784acf01
+      created_at: '2026-08-27T17:12:51.621229+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-27T17:12:51.621229+00:00'
+      branch_key: epic-OOMPAH-1342
+      selected_ref: origin/main
+      selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
+      landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
+      candidate_rotation_count: 2
     source_generation: 1
     requested_by:
       version: 1
@@ -118,7 +135,7 @@ oompah.terminal_audit:
     selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
     landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
     workflow_revision: 7088c4d3100c5c8660e950261aa8d55e7144382d8c1990b19383b04048b5cf62
-    updated_at: '2026-08-27T17:10:14.823738+00:00'
+    updated_at: '2026-08-27T17:12:51.621229+00:00'
   - version: 1
     audit_id: audit-317deb859e7d
     project_id: proj-14849f1b
@@ -182,6 +199,23 @@ oompah.terminal_audit:
     selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
     landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
     candidate_rotation_count: 1
+  - version: 1
+    attempt_id: attempt-b76002a449fd
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7770ca18ce34d7d40f3ded77ee64eb779eb526edd15c61a2bbf2ae48784acf01
+    created_at: '2026-08-27T17:12:51.621229+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-27T17:12:51.621229+00:00'
+    branch_key: epic-OOMPAH-1342
+    selected_ref: origin/main
+    selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
+    landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
+    candidate_rotation_count: 2
 oompah.task_costs:
   total_input_tokens: 700
   total_output_tokens: 10188
@@ -301,5 +335,15 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 11m 37s
 - Log: OOMPAH-1342__20260827T165911Z.jsonl
+---
+author: oompah
+created: 2026-08-27 17:12
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-27 17:13
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
