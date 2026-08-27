@@ -881,6 +881,14 @@ class WorkflowRuntime:
         # fence: it must remain visible until its revocation effect completes.
         for project_id, tracker, project in project_rows:
             holder: dict[str, WorkflowProjectBinding] = {}
+            legacy_source_factory = getattr(
+                orchestrator, "_workflow_shadow_sources", None
+            )
+            legacy_sources = (
+                legacy_source_factory(None)
+                if callable(legacy_source_factory)
+                else {}
+            )
 
             def dispatch_enabled(*, _project_id=project_id) -> bool:
                 globally_blocked = getattr(
@@ -903,16 +911,9 @@ class WorkflowRuntime:
 
             def source(issue: Any, domain: FactDomain, *, _holder=holder) -> Any:
                 legacy_value: Any = None
-                legacy_sources = getattr(
-                    orchestrator, "_workflow_shadow_sources", None
-                )
-                if callable(legacy_sources):
-                    legacy_source = legacy_sources(issue).get(domain)
-                    legacy_value = (
-                        legacy_source(issue)
-                        if callable(legacy_source)
-                        else legacy_source
-                    )
+                legacy_source = legacy_sources.get(domain)
+                if callable(legacy_source):
+                    legacy_value = legacy_source(issue)
                     if (
                         domain is FactDomain.IMPLEMENTATION_AUTHORITY
                         and isinstance(legacy_value, Mapping)
@@ -1547,7 +1548,11 @@ class WorkflowRuntime:
                 epic_controller=epic_controller,
                 terminal_audit_workflow=terminal_workflow,
                 transition_journal=journal,
-                observation_sources=(target_head_scope, *tuple(sources.values())),
+                observation_sources=(
+                    target_head_scope,
+                    *tuple(legacy_sources.values()),
+                    *tuple(sources.values()),
+                ),
                 terminal_audit_proof_source=terminal_audit_proof_source,
                 terminal_audit_snapshot_proof_source=(
                     terminal_audit_snapshot_proof_source
