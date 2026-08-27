@@ -16,7 +16,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-27T16:56:49.783753Z'
+updated_at: '2026-08-27T16:57:06.614046Z'
 work_branch: epic-OOMPAH-1342
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/957
@@ -142,6 +142,22 @@ oompah.terminal_audit:
       auditor capability policy permits only read-only repository inspection and configured
       test commands; command denied'
     next_retry_at: '2026-08-27T16:56:57.650629+00:00'
+oompah.task_costs:
+  total_input_tokens: 678
+  total_output_tokens: 171
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 678
+      output_tokens: 171
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 678
+    output_tokens: 171
+    cost_usd: 0.0
+    recorded_at: '2026-08-27T16:57:00.183883+00:00'
 ---
 ## Summary
 
@@ -204,5 +220,20 @@ author: oompah
 created: 2026-08-27 16:46
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-27 16:57
+---
+Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-27 16:57
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 34
+- Tokens: 678 in / 171 out [849 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 12s
+- Log: OOMPAH-1342__20260827T164709Z.jsonl
 ---
 <!-- COMMENTS:END -->
