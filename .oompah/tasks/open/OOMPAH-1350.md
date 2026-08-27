@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - human-only
+- priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-27T19:40:59.005770Z'
+updated_at: '2026-08-27T19:41:52.619426Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -50,5 +51,10 @@ Deep production audit confirms multiple defects:
 5. More seriously, !7,!8,!14,!15 are stale MRs targeting main while current accepted task authority targets shared epic branches. For TRICKLE-136, exact head 904d3683 is already integrated into epic-TRICKLE-127, yet !14 remains open against main and now conflicts. Existing wrong-target reviews are preserved but not closed, and stale durable capacity reservations for !7,!8,!14,!15 remain active, defeating max_in_flight_prs=1.
 6. The stale !7/!8/!14/!15 MRs can still be seen by broad review polling/legacy YOLO paths, although durable task review reconciliation is absent after tasks left In Review.
 Implementation needs separate provider queue policy/capability, GitLab exact-head merge-train enrollment (or explicit fail-closed unsupported behavior), normalized queue state, and exact-authority cleanup/quarantine of stale wrong-target reviews plus capacity reservations.
+---
+author: oompah
+created: 2026-08-27 19:41
+---
+Additional production proof: GitLab project API reports merge_pipelines_enabled=true and merge_trains_enabled=true. Historical Oompah review_merge jobs directly merged Trickle !6 and !9; neither appears in GitLab merge-train history. In contrast, manually merged !4 and !5 do have merge-train records and refs/merge-requests/*/train pipelines. Therefore Oompah is demonstrably bypassing Trickle merge trains. Current !7,!8,!14,!15,!19,!20 all report merge_when_pipeline_succeeds=false and none is in the train. Also, the review capacity ledger still has unreleased reservations for stale !7,!8,!14,!15, so the configured max_in_flight_prs=1 is not effective. Keep Oompah project paused while fixing; Trickle should be paused before any implementation rollout that can affect MR lifecycle.
 ---
 <!-- COMMENTS:END -->
