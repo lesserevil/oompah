@@ -16,7 +16,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-27T15:27:18.622453Z'
+updated_at: '2026-08-27T15:58:21.964436Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,5 +67,10 @@ author: oompah
 created: 2026-08-27 15:27
 ---
 Trickle review audit: six non-draft MRs remain and none conflicts. MR !7/TRICKLE-119 and !19/TRICKLE-121 were already green; retried the exact failed macOS jobs for !8/TRICKLE-120 and !14/TRICKLE-136 and both now pass, making those MRs mergeable. !15/TRICKLE-135 and !20/TRICKLE-143 still fail deterministically in ci:test-macos because sccache reports 2,553 compiler cache errors; these need an actual branch fix, not another retry. Removed the untracked .oompah-no-hooks helpers from the four integration worktrees and resubmitted exact remote heads for TRICKLE-119/120/135/136. Automatic lifecycle advancement is not currently occurring because the service and Trickle remain paused for recovery validation.
+---
+author: oompah
+created: 2026-08-27 15:58
+---
+Service resumed with Oompah and Trickle enabled; Exocomp remains paused. After convergence, the latest full two-project reconciliation completed in 57.900s (Oompah integration 28.122s; Trickle integration 7.296s), inside the 120s budget. Workflow liveness is healthy, complete 27/27, with zero divergence, zero action-required decisions, and no source errors. Trickle MRs !7, !8, !14, and !19 are green/mergeable. MRs !15 and !20 remain blocked by reproducible macOS sccache health failures and need implementation repair. Generated worktree helpers were removed and exact heads resubmitted for TRICKLE-119/120/135/136/142.
 ---
 <!-- COMMENTS:END -->
