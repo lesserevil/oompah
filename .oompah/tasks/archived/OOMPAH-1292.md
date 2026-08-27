@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:35:49.377349Z'
-updated_at: '2026-08-27T03:49:39.201026Z'
+updated_at: '2026-08-27T03:49:53.063798Z'
 work_branch: OOMPAH-1292
 target_branch: null
 review_url: null
@@ -164,7 +164,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:49:28.345366+00:00'
     selected_ref: 606011de0c49375b7e074ff84ba56c5a2e7daff3
     selected_sha: 606011de0c49375b7e074ff84ba56c5a2e7daff3
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1292
+    target_state: Archived
+    evidence_fingerprint: b28a32d9ce73c8d9a457319c67846525f05acf042b12af8b280ff0bf5ef63316
+    workflow_revision: null
+    selected_ref: 606011de0c49375b7e074ff84ba56c5a2e7daff3
+    selected_sha: 606011de0c49375b7e074ff84ba56c5a2e7daff3
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:49:50.284444+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -314,5 +328,12 @@ author: oompah
 created: 2026-08-26 17:24
 ---
 Branch quality gate passed for `606011de0c49375b7e074ff84ba56c5a2e7daff3` using `make test` in 195.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-27 03:49
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
