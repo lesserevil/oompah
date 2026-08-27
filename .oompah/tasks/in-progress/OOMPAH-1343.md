@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:43:05.336022Z'
-updated_at: '2026-08-26T23:36:48.774753Z'
+updated_at: '2026-08-27T01:37:33.378193Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,5 +59,10 @@ author: oompah
 created: 2026-08-26 23:36
 ---
 Progress update: PR #951 merged to main at 13718ac1c after GitHub CI passed. Focused suites pass (756) and the full local gate passes (20,449 passed, 7 skipped, 2 xfailed). Production is deployed on that revision and remains globally paused. Disk pressure was relieved from 93% to 79%; the reviews endpoint returns from memory in under 0.1s. Remaining controlled work is production re-enable/canary and explicit disposition of historical exhausted jobs.
+---
+author: oompah
+created: 2026-08-27 01:37
+---
+Production verification after PR #953: with Oompah and Trickle enabled, a full 1,493-task reconciliation completed and published in 155.7s (previously 239-334s); Oompah integration phase fell from 176-310s to 112.8s and Trickle to 9.6s. This is materially improved but still exceeds the 120s target, so global dispatch is paused again pending further optimization.
 ---
 <!-- COMMENTS:END -->
