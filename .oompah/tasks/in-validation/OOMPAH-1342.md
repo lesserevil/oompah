@@ -16,7 +16,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-27T16:35:10.727611Z'
+updated_at: '2026-08-27T16:37:20.472200Z'
 work_branch: epic-OOMPAH-1342
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/957
@@ -144,5 +144,10 @@ author: oompah
 created: 2026-08-27 16:35
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-27 16:37
+---
+Service resumed per operator request with Oompah and Trickle enabled; Exocomp remains paused. After initial correction churn, a full two-project generation completed in 57.900s, liveness healthy/complete 27/27, zero divergence/action-required/source errors. Current service remains unpaused and healthy enough to schedule. Separately, scoped Pi-provider design work is being captured in plans/ without creating implementation tasks until accepted.
 ---
 <!-- COMMENTS:END -->
