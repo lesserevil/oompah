@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1270
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Investigate bulk 'Needs Human' escalation of trickle epic-127 children
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-27T23:39:27.270512Z'
+updated_at: '2026-08-27T23:45:59.562724Z'
 work_branch: OOMPAH-1270
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/964
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: dd8f06f8-0514-4fde-bea0-18833a1f604c
   request_fingerprint: 1fb15da2e64a50b2b029ff1148c8e4aabbad8da4f132224527fa16b749acfae8
-oompah.lifecycle_revision: 6
+oompah.lifecycle_revision: 7
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -154,6 +154,64 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/964
 oompah.review_number: '964'
 oompah.target_branch: main
 oompah.review_head: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-7d6970c3bdd8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1270
+    digest: 48663fbd8e8cdf192c52a9d92d9d596d34427cecd1ec34b46ce7b281e3caa79f
+  - version: 1
+    audit_id: audit-f45c6d7670ec
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1270
+    digest: 48663fbd8e8cdf192c52a9d92d9d596d34427cecd1ec34b46ce7b281e3caa79f
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-7d6970c3bdd8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1270
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 48663fbd8e8cdf192c52a9d92d9d596d34427cecd1ec34b46ce7b281e3caa79f
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-27T23:45:53.229044+00:00'
+    eligible_at: '2026-08-27T23:45:53.229044+00:00'
+    selected_ref: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
+    selected_sha: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
+  - version: 1
+    audit_id: audit-f45c6d7670ec
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1270
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 48663fbd8e8cdf192c52a9d92d9d596d34427cecd1ec34b46ce7b281e3caa79f
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-27T23:45:53.229044+00:00'
+    prerequisite_audit_id: audit-7d6970c3bdd8
+    selected_ref: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
+    selected_sha: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
+  attempt_history: []
 ---
 ## Summary
 
@@ -332,5 +390,10 @@ author: oompah
 created: 2026-08-27 23:38
 ---
 Branch quality gate passed for `709a6f39898d8bbc6aa1969a7042b1c197304cf0` using `make test` in 186.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-27 23:45
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
