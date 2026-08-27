@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-27T23:57:58.447129Z'
+updated_at: '2026-08-27T23:58:44.540064Z'
 work_branch: OOMPAH-1270
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/964
@@ -117,13 +117,17 @@ oompah.work_contributors:
     source_sha: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
     completed_at: '2026-08-21T15:07:42.098216+00:00'
 oompah.task_costs:
-  total_input_tokens: 596
-  total_output_tokens: 17486
+  total_input_tokens: 622
+  total_output_tokens: 30148
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 596
       output_tokens: 17486
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 26
+      output_tokens: 12662
       cost_usd: 0.0
   runs:
   - profile: default
@@ -138,6 +142,12 @@ oompah.task_costs:
     output_tokens: 15905
     cost_usd: 0.0
     recorded_at: '2026-08-21T15:07:42.082361+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 26
+    output_tokens: 12662
+    cost_usd: 0.0
+    recorded_at: '2026-08-27T23:58:39.069589+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -489,5 +499,15 @@ Safe evidence:
 - gap_noted: guard/auto-recovery not implemented; explicitly deferred pending production instrumentation data
 - NEEDS_HUMAN_import: line 47 in task_transition_service.py
 - logger_init: line 66: logger = logging.getLogger(__name__)
+---
+author: oompah
+created: 2026-08-27 23:58
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 53, Tool calls: 27
+- Tokens: 26 in / 12.7K out [12.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 27s
+- Log: OOMPAH-1270__20260827T234929Z.jsonl
 ---
 <!-- COMMENTS:END -->
