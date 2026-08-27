@@ -16,7 +16,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-27T16:57:06.614046Z'
+updated_at: '2026-08-27T16:59:01.839182Z'
 work_branch: epic-OOMPAH-1342
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/957
@@ -55,7 +55,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1342
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -83,6 +83,23 @@ oompah.terminal_audit:
         auditor capability policy permits only read-only repository inspection and
         configured test commands; command denied'
       next_retry_at: '2026-08-27T16:56:57.650629+00:00'
+    - version: 1
+      attempt_id: attempt-54c84dbabf84
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 7770ca18ce34d7d40f3ded77ee64eb779eb526edd15c61a2bbf2ae48784acf01
+      created_at: '2026-08-27T16:58:50.049846+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-27T16:58:50.049846+00:00'
+      branch_key: epic-OOMPAH-1342
+      selected_ref: origin/main
+      selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
+      landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
+      candidate_rotation_count: 1
     source_generation: 1
     requested_by:
       version: 1
@@ -95,7 +112,7 @@ oompah.terminal_audit:
     selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
     landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
     workflow_revision: 7088c4d3100c5c8660e950261aa8d55e7144382d8c1990b19383b04048b5cf62
-    updated_at: '2026-08-27T16:56:47.650658+00:00'
+    updated_at: '2026-08-27T16:58:50.049846+00:00'
   - version: 1
     audit_id: audit-317deb859e7d
     project_id: proj-14849f1b
@@ -142,6 +159,23 @@ oompah.terminal_audit:
       auditor capability policy permits only read-only repository inspection and configured
       test commands; command denied'
     next_retry_at: '2026-08-27T16:56:57.650629+00:00'
+  - version: 1
+    attempt_id: attempt-54c84dbabf84
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7770ca18ce34d7d40f3ded77ee64eb779eb526edd15c61a2bbf2ae48784acf01
+    created_at: '2026-08-27T16:58:50.049846+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-27T16:58:50.049846+00:00'
+    branch_key: epic-OOMPAH-1342
+    selected_ref: origin/main
+    selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
+    landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
+    candidate_rotation_count: 1
 oompah.task_costs:
   total_input_tokens: 678
   total_output_tokens: 171
@@ -235,5 +269,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 12s
 - Log: OOMPAH-1342__20260827T164709Z.jsonl
+---
+author: oompah
+created: 2026-08-27 16:58
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-27 16:59
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
