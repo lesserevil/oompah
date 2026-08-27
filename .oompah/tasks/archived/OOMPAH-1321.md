@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1321
 type: bug
-status: Ready to Integrate
+status: Archived
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=OOMPAH-1204 identifier=OOMPAH-1204 run_id=37bb3ffb15994a02a486b725a59a30ee
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:13:00.356484Z'
-updated_at: '2026-08-27T03:58:02.690030Z'
+updated_at: '2026-08-27T03:58:09.551703Z'
 work_branch: OOMPAH-1321
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.last_batch:
   batch_id: batch-6721ed37af5c4e51ae3558e98f499304
   actor: shedwards
