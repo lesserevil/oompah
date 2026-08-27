@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:11:27.677981Z'
-updated_at: '2026-08-27T23:57:41.450511Z'
+updated_at: '2026-08-27T23:58:19.385309Z'
 work_branch: OOMPAH-1252
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/962
@@ -138,13 +138,17 @@ oompah.work_contributors:
     source_sha: 8b86f978cba5446b1091bd87753d6e1b9a47be4d
     completed_at: '2026-08-23T22:24:00.352824+00:00'
 oompah.task_costs:
-  total_input_tokens: 276
-  total_output_tokens: 8627
+  total_input_tokens: 299
+  total_output_tokens: 21152
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 276
       output_tokens: 8627
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 23
+      output_tokens: 12525
       cost_usd: 0.0
   runs:
   - profile: default
@@ -159,6 +163,12 @@ oompah.task_costs:
     output_tokens: 6663
     cost_usd: 0.0
     recorded_at: '2026-08-23T22:24:00.316360+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 23
+    output_tokens: 12525
+    cost_usd: 0.0
+    recorded_at: '2026-08-27T23:58:13.795852+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -552,5 +562,15 @@ Safe evidence:
 - service_test: tests/test_task_transition_service.py:850 test_backlog_direct_claim_requires_project_owner_authority
 - regression_test: tests/test_state_branch_fetch_error.py TestDurableTransitionErrorClassification and TestUpdateIssueApiStateBranchFetchError
 - note: No server end-to-end test specifically parametrized for project_owner_authority_required -> 409, but general mechanism covered and gate authoritative
+---
+author: oompah
+created: 2026-08-27 23:58
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 45, Tool calls: 25
+- Tokens: 23 in / 12.5K out [12.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 28s
+- Log: OOMPAH-1252__20260827T235005Z.jsonl
 ---
 <!-- COMMENTS:END -->
