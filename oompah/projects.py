@@ -1935,6 +1935,11 @@ class ProjectStore:
             str, list[tuple[int, frozenset[str] | None]]
         ] = {}
         self._tracker_authority_change_floors: dict[str, int] = {}
+        # Short-lived stable remote-head snapshots collapse repeated
+        # reconciliation requests without weakening the two-read CAS used to
+        # populate them. Mutations and explicit refreshes invalidate entries.
+        self._remote_heads_cache: dict[str, tuple[float, dict[str, str]]] = {}
+        self._remote_heads_cache_ttl_seconds = 30.0
 
         self._load()
 
@@ -7085,6 +7090,14 @@ class ProjectStore:
             return {}
 
         with self.project_write_lock(project_id):
+            cached = self._remote_heads_cache.get(project_id)
+            now = time.monotonic()
+            if (
+                cached is not None
+                and now - cached[0] <= self._remote_heads_cache_ttl_seconds
+            ):
+                heads = cached[1]
+                return {name: heads[name] for name in names if name in heads}
             for name in names:
                 checked = subprocess.run(
                     ["git", "check-ref-format", f"refs/heads/{name}"],
@@ -7161,6 +7174,12 @@ class ProjectStore:
                         )
             if advertised() != first:
                 raise ProjectError("remote branches moved while being observed")
+            merged = dict(cached[1]) if cached is not None else {}
+            merged.update(first)
+            for name in names:
+                if name not in first:
+                    merged.pop(name, None)
+            self._remote_heads_cache[project_id] = (time.monotonic(), merged)
             return first
 
     def remote_branch_head(self, project_id: str, branch: str) -> str | None:

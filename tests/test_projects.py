@@ -522,6 +522,33 @@ def test_exact_child_cleanup_preserves_worktree_dirtied_during_remote_delete(
     ).returncode == 0
 
 
+def test_remote_branch_heads_reuses_recent_stable_snapshot(tmp_path):
+    store, _source, _managed, epic_sha, task_sha = _submission_authority_store(
+        tmp_path
+    )
+    original = store._run_network_git
+    calls = []
+
+    def recording(project, args, **kwargs):
+        calls.append(tuple(args))
+        return original(project, args, **kwargs)
+
+    with patch.object(store, "_run_network_git", side_effect=recording):
+        first = store.remote_branch_heads(
+            "proj-authority", ("OOMPAH-814", "epic-OOMPAH-763")
+        )
+        second = store.remote_branch_heads(
+            "proj-authority", ("OOMPAH-814", "epic-OOMPAH-763")
+        )
+
+    assert first == second == {
+        "OOMPAH-814": task_sha,
+        "epic-OOMPAH-763": epic_sha,
+    }
+    assert sum(args[1:3] == ("ls-remote", "--heads") for args in calls) == 2
+    assert sum(args[1] == "fetch" for args in calls) == 1
+
+
 def test_remote_branch_heads_batches_fetch_and_omits_missing_refs(tmp_path):
     store, _source, managed, epic_sha, task_sha = _submission_authority_store(
         tmp_path
