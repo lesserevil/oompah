@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:34:19.692606Z'
-updated_at: '2026-08-27T03:49:02.733695Z'
+updated_at: '2026-08-27T03:49:16.468365Z'
 work_branch: OOMPAH-1291
 target_branch: null
 review_url: null
@@ -295,7 +295,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:48:52.473910+00:00'
     selected_ref: c3ea61344d0d0c7506720ec5d55557814cfd7f19
     selected_sha: c3ea61344d0d0c7506720ec5d55557814cfd7f19
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1291
+    target_state: Archived
+    evidence_fingerprint: c1c2aaa45e2e43d194efa0336007ba804244b842cc22f7c0ad55f9769909c7b9
+    workflow_revision: null
+    selected_ref: c3ea61344d0d0c7506720ec5d55557814cfd7f19
+    selected_sha: c3ea61344d0d0c7506720ec5d55557814cfd7f19
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:49:13.787188+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -590,5 +604,12 @@ author: oompah
 created: 2026-08-24 11:23
 ---
 Fixed pre-provider contributor evidence timeout triggering error_watcher by adding early-return guard in _TaskLoggingHandler.emit() to suppress controlled pre_provider_retirement warnings. All tests pass (125 error_watcher + 13 orchestrator + 5 provider_retirement tests). Solution prevents auto-filing of expected graceful degradation events while maintaining error tracking for real issues.
+---
+author: oompah
+created: 2026-08-27 03:49
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
