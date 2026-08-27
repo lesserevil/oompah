@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-27T19:41:52.619426Z'
+updated_at: '2026-08-27T19:51:47.896994Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-08-27 19:41
 ---
 Additional production proof: GitLab project API reports merge_pipelines_enabled=true and merge_trains_enabled=true. Historical Oompah review_merge jobs directly merged Trickle !6 and !9; neither appears in GitLab merge-train history. In contrast, manually merged !4 and !5 do have merge-train records and refs/merge-requests/*/train pipelines. Therefore Oompah is demonstrably bypassing Trickle merge trains. Current !7,!8,!14,!15,!19,!20 all report merge_when_pipeline_succeeds=false and none is in the train. Also, the review capacity ledger still has unreleased reservations for stale !7,!8,!14,!15, so the configured max_in_flight_prs=1 is not effective. Keep Oompah project paused while fixing; Trickle should be paused before any implementation rollout that can affect MR lifecycle.
+---
+author: oompah
+created: 2026-08-27 19:51
+---
+Correction/additional finding: /api/v1/reviews currently shows 7 open Trickle MRs (new external !23 plus !7,!8,!14,!15,!19,!20), while max_in_flight_prs=1. Durable capacity has four active old reservations (!7,!8,!14,!15). The limit currently counts open reviews but does not cap their already-existing population; because stale reviews are deliberately preserved open, they permanently block new Oompah review delivery and keep obsolete artifacts actionable in broad YOLO review scans. The required fix should atomically retire capacity and close (or explicitly quarantine/exclude) a superseded open review only after exact task/branch/head/target authority proves it obsolete.
 ---
 <!-- COMMENTS:END -->
