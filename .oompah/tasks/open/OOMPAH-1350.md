@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-27T22:28:01.185468Z'
+updated_at: '2026-08-27T23:09:15.860758Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -86,5 +86,10 @@ author: oompah
 created: 2026-08-27 22:28
 ---
 Implementation complete on OOMPAH-1350-gitlab-merge-queue at 5461a0d9a; PR #967 opened. Changes: exact-head GitLab merge-train endpoint; active train and detailed merge-state normalization; divergence query; fail-closed direct GitLab review merge in durable and legacy paths; no duplicate merge scheduling for already-enqueued reviews; exact stale standalone MR retirement and capacity release during route compensation; corrected UI/docs. Validation: focused suite 1,157 passed / 2 skipped; full make test 20,459 passed / 7 skipped / 2 xfailed. Trickle remains paused and GitLab merge trains remain disabled until merge/deploy and controlled cleanup.
+---
+author: oompah
+created: 2026-08-27 23:09
+---
+PR #967 passed CI, merged as 621a590246c3ea705814a2012daf55ff378db2a7, and is deployed. Full make test passed: 20,459 passed, 7 skipped, 2 xfailed. Post-deploy workflow snapshot is healthy and complete with zero divergence, zero action-required decisions, and zero source errors; Trickle remains intentionally paused. Submission CLI cannot close the task because the owner-created implementation branch name differs from the tracker-derived expected branch OOMPAH-1350; final task disposition will be recorded after controlled production cleanup.
 ---
 <!-- COMMENTS:END -->
