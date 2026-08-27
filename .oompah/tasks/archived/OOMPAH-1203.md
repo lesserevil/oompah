@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-13T01:19:28.760792Z'
-updated_at: '2026-08-27T03:40:28.833685Z'
+updated_at: '2026-08-27T03:40:40.127399Z'
 work_branch: OOMPAH-1203
 target_branch: null
 review_url: null
@@ -164,7 +164,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:40:18.452908+00:00'
     selected_ref: 8bc777d5c656e7997cd75e2ad0e8b2518cfd226a
     selected_sha: 8bc777d5c656e7997cd75e2ad0e8b2518cfd226a
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1203
+    target_state: Archived
+    evidence_fingerprint: de70f8c8c162a300d9662ed27f17c9500d56a4d381911082ae91166840f7cbfe
+    workflow_revision: null
+    selected_ref: 8bc777d5c656e7997cd75e2ad0e8b2518cfd226a
+    selected_sha: 8bc777d5c656e7997cd75e2ad0e8b2518cfd226a
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:40:36.817530+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -391,5 +405,12 @@ ERROR tests/test_state_branch_fetch_contributor_evidence.py - ImportError whi...
 
 make: *** [Makefile:421: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-27 03:40
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
