@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:12:05.791721Z'
-updated_at: '2026-08-27T03:56:58.584776Z'
+updated_at: '2026-08-27T03:57:12.329544Z'
 work_branch: OOMPAH-1319
 target_branch: null
 review_url: null
@@ -200,7 +200,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:56:47.551100+00:00'
     selected_ref: 0e2c3167033a534a79fd6479afdce2ee0242d257
     selected_sha: 0e2c3167033a534a79fd6479afdce2ee0242d257
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1319
+    target_state: Archived
+    evidence_fingerprint: 380c875a41d5125368ad510e16315a964bc340e99005ce354c78bb3af059dbc3
+    workflow_revision: null
+    selected_ref: 0e2c3167033a534a79fd6479afdce2ee0242d257
+    selected_sha: 0e2c3167033a534a79fd6479afdce2ee0242d257
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:57:09.861942+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -471,5 +485,12 @@ author: oompah
 created: 2026-08-21 15:41
 ---
 Fixed pre-provider contributor evidence timeout fallback. Changed getattr() default from None to 30.0 seconds in orchestrator.py to ensure proper timeout calculation when config attribute isn't explicitly set. Added regression test. All 22 provider retirement tests pass.
+---
+author: oompah
+created: 2026-08-27 03:57
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
