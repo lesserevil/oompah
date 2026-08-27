@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-27T19:40:41.664951Z'
+updated_at: '2026-08-27T19:40:59.005770Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,3 +37,18 @@ Fix GitLab merge queue semantics exposed by Trickle. Implement exact-head enqueu
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-27 19:40
+---
+Deep production audit confirms multiple defects:
+1. Trickle GitLab project has merge_pipelines_enabled=true and merge_trains_enabled=true, but Oompah project merge_queue_enabled=false, so current review merge policy selects direct PUT /merge rather than train enrollment.
+2. GitLabProvider does not implement enable_auto_merge_exact; queue mode in durable review workflow would call the abstract fail-closed stub. Legacy enable_auto_merge is unfenced (no sha) and uses merge_when_pipeline_succeeds, which docs explicitly say runs outside merge trains.
+3. GitLab ReviewRequest normalization never sets auto_merge_enabled or mergeable_state, so queued/enqueued state cannot be observed or verified.
+4. Six open Trickle MRs are not in a merge train and have MWPS=false. !7,!8,!19 are green; !15,!20 failed; !14 conflicts.
+5. More seriously, !7,!8,!14,!15 are stale MRs targeting main while current accepted task authority targets shared epic branches. For TRICKLE-136, exact head 904d3683 is already integrated into epic-TRICKLE-127, yet !14 remains open against main and now conflicts. Existing wrong-target reviews are preserved but not closed, and stale durable capacity reservations for !7,!8,!14,!15 remain active, defeating max_in_flight_prs=1.
+6. The stale !7/!8/!14/!15 MRs can still be seen by broad review polling/legacy YOLO paths, although durable task review reconciliation is absent after tasks left In Review.
+Implementation needs separate provider queue policy/capability, GitLab exact-head merge-train enrollment (or explicit fail-closed unsupported behavior), normalized queue state, and exact-authority cleanup/quarantine of stale wrong-target reviews plus capacity reservations.
+---
+<!-- COMMENTS:END -->
