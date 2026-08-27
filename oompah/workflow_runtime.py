@@ -28,7 +28,7 @@ import time
 import uuid
 from collections import deque
 from collections.abc import Callable, Mapping, Sequence
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -958,6 +958,22 @@ class WorkflowRuntime:
                 )
             }
             repo_path = getattr(project, "repo_path", "") if project is not None else ""
+            target_head_state = threading.local()
+
+            @contextmanager
+            def target_head_scope():
+                previous = getattr(target_head_state, "heads", None)
+                target_head_state.heads = None
+                try:
+                    yield
+                finally:
+                    if previous is None:
+                        try:
+                            del target_head_state.heads
+                        except AttributeError:
+                            pass
+                    else:
+                        target_head_state.heads = previous
 
             def refresh_target(
                 target: str,
@@ -974,6 +990,26 @@ class WorkflowRuntime:
                 )
                 if not enforce:
                     return None
+                cached_heads = getattr(target_head_state, "heads", None)
+                if cached_heads is None and hasattr(target_head_state, "heads"):
+                    batch_reader = getattr(project_store, "remote_branch_heads", None)
+                    if callable(batch_reader):
+                        candidates = {
+                            str(getattr(project, "default_branch", None) or "").strip(),
+                            str(getattr(project, "branch", None) or "").strip(),
+                        }
+                        candidates.update(
+                            str(getattr(item, "target_branch", None) or "").strip()
+                            for item in (tracker.fetch_all_issues() or ())
+                        )
+                        cached_heads = batch_reader(
+                            _project_id,
+                            tuple(sorted(candidates - {""})),
+                        )
+                        target_head_state.heads = cached_heads
+                if cached_heads is not None:
+                    return cached_heads.get(target)
+
                 remote_ref = f"refs/remotes/origin/{target}"
                 fetched = orchestrator._run_project_network_git(
                     _project,
@@ -1511,7 +1547,7 @@ class WorkflowRuntime:
                 epic_controller=epic_controller,
                 terminal_audit_workflow=terminal_workflow,
                 transition_journal=journal,
-                observation_sources=tuple(sources.values()),
+                observation_sources=(target_head_scope, *tuple(sources.values())),
                 terminal_audit_proof_source=terminal_audit_proof_source,
                 terminal_audit_snapshot_proof_source=(
                     terminal_audit_snapshot_proof_source
