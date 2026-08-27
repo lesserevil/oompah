@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:16:42.294156Z'
-updated_at: '2026-08-27T03:48:01.999432Z'
+updated_at: '2026-08-27T03:48:14.959738Z'
 work_branch: OOMPAH-1289
 target_branch: null
 review_url: null
@@ -154,7 +154,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:47:56.853773+00:00'
     selected_ref: c0bc20a830a6ae213794539391a5c57b8d416e58
     selected_sha: c0bc20a830a6ae213794539391a5c57b8d416e58
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1289
+    target_state: Archived
+    evidence_fingerprint: 0a8c508f3ccd025916804398eb6e12bf67deb348fc68b2870a88e777fc0b4cd0
+    workflow_revision: null
+    selected_ref: c0bc20a830a6ae213794539391a5c57b8d416e58
+    selected_sha: c0bc20a830a6ae213794539391a5c57b8d416e58
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:48:06.589406+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -279,5 +293,17 @@ author: oompah
 created: 2026-08-21 07:54
 ---
 Fixed contributor evidence timeout to log as WARNING instead of ERROR, preventing spurious error_watcher reports. Changed logger.error() to logger.warning() in orchestrator.py line 58066. Added test to verify the fix. All tests pass.
+---
+author: oompah
+created: 2026-08-27 03:48
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
+---
+author: oompah
+created: 2026-08-27 03:48
+---
+Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
