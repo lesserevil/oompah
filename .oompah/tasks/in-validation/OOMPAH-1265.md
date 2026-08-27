@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-26T23:30:57.056985Z'
+updated_at: '2026-08-27T00:25:44.350073Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -291,6 +291,8 @@ oompah.terminal_audit:
       and healthy; rearm the exact integrated head after the prior candidate exhaustion.
     authorized_at: '2026-08-26T23:30:47.013716+00:00'
     mode: infrastructure_recovery
+    consumed_at: '2026-08-27T00:25:42.379203+00:00'
+    consumed_workflow_job_id: workflow-job-9b0381611b54424593fbb8f38dec9647
   version: 1
   pending_chain:
   - version: 1
