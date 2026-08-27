@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:48:41.811265Z'
-updated_at: '2026-08-27T03:44:14.377011Z'
+updated_at: '2026-08-27T03:44:24.598040Z'
 work_branch: OOMPAH-1278
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/941
@@ -162,7 +162,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:44:09.085099+00:00'
     selected_ref: 65e92b0fd75a91e4f845adea4765ae3e57670b6d
     selected_sha: 65e92b0fd75a91e4f845adea4765ae3e57670b6d
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1278
+    target_state: Archived
+    evidence_fingerprint: e852ef494abd97bf6289be8f1017983b9e45fb40c4116652bc7ecbb78e0c2d78
+    workflow_revision: null
+    selected_ref: 65e92b0fd75a91e4f845adea4765ae3e57670b6d
+    selected_sha: 65e92b0fd75a91e4f845adea4765ae3e57670b6d
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:44:18.770179+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -325,5 +339,17 @@ author: oompah
 created: 2026-08-26 16:47
 ---
 Branch quality gate passed for `65e92b0fd75a91e4f845adea4765ae3e57670b6d` using `make test` in 191.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-27 03:44
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
+---
+author: oompah
+created: 2026-08-27 03:44
+---
+Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->

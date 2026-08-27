@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:52:39.685288Z'
-updated_at: '2026-08-26T17:46:25.903414Z'
+updated_at: '2026-08-27T03:44:30.163683Z'
 work_branch: OOMPAH-1279
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/942
@@ -150,6 +150,34 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/942
 oompah.review_number: '942'
 oompah.target_branch: main
 oompah.review_head: 76ba5280312f79696951da1214b3aeb9c8e49ed7
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-b9cf6af0b438
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1279
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c6cb341b5d062c17b5649f86a4ae8ab0b5f4a2dc55feed2bc2fcf9c03d5094ab
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch
+      incident is already fixed on main: persistence uses the 60-second configured
+      bound, expected bounded retirement and pre-request worker failures are below
+      error-intake severity, and provider-retirement behavior has regression coverage.
+      This duplicate auto-filed task must not consume integration capacity or resurrect
+      its stale branch.'
+    created_at: '2026-08-27T03:44:28.598999+00:00'
+    selected_ref: 76ba5280312f79696951da1214b3aeb9c8e49ed7
+    selected_sha: 76ba5280312f79696951da1214b3aeb9c8e49ed7
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
