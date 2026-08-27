@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-27T19:51:47.896994Z'
+updated_at: '2026-08-27T19:54:52.699824Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,10 @@ author: oompah
 created: 2026-08-27 19:51
 ---
 Correction/additional finding: /api/v1/reviews currently shows 7 open Trickle MRs (new external !23 plus !7,!8,!14,!15,!19,!20), while max_in_flight_prs=1. Durable capacity has four active old reservations (!7,!8,!14,!15). The limit currently counts open reviews but does not cap their already-existing population; because stale reviews are deliberately preserved open, they permanently block new Oompah review delivery and keep obsolete artifacts actionable in broad YOLO review scans. The required fix should atomically retire capacity and close (or explicitly quarantine/exclude) a superseded open review only after exact task/branch/head/target authority proves it obsolete.
+---
+author: oompah
+created: 2026-08-27 19:54
+---
+Root cause of the stale-MR state is now traced: parent landing evidence was recorded for TRICKLE-117/127 using old epic heads already contained in main. That temporarily reclassified children from queue mode (target epic branch) to standalone mode (target main), creating/adopting !7,!8,!14,!15. Later, fresh live parent-source head evidence invalidated the old landing fact and `_reclassify_invalid_parented_standalone` moved the task metadata back to queue mode, but the inverse compensation only rewrites tracker target/integration metadata; it never closes/retargets/releases the now-obsolete open MR. History shows repeated queue↔standalone route oscillation for TRICKLE-119 and TRICKLE-136. This is the direct source of stranded MRs and leaked capacity.
 ---
 <!-- COMMENTS:END -->
