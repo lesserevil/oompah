@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:17.683117Z'
-updated_at: '2026-08-27T03:39:32.916100Z'
+updated_at: '2026-08-27T03:39:38.993943Z'
 work_branch: OOMPAH-1195
 target_branch: null
 review_url: null
@@ -241,7 +241,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:39:28.335905+00:00'
     selected_ref: f1cc943d166c5ce6a777348e62e57da581488875
     selected_sha: f1cc943d166c5ce6a777348e62e57da581488875
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1195
+    target_state: Archived
+    evidence_fingerprint: 9866e22f9915cc46e0d13fc23f5be59c932789c7a64066b75308fd12c3a500a8
+    workflow_revision: null
+    selected_ref: f1cc943d166c5ce6a777348e62e57da581488875
+    selected_sha: f1cc943d166c5ce6a777348e62e57da581488875
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:39:37.564484+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -631,5 +645,12 @@ created: 2026-08-24 10:48
 - All git operations now use the canonical HTTPS URL as configured by the project
 
 Status: SUBMITTED for integration
+---
+author: oompah
+created: 2026-08-27 03:39
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
