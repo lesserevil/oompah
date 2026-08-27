@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:40:43.878412Z'
-updated_at: '2026-08-27T03:55:00.637401Z'
+updated_at: '2026-08-27T03:55:14.813019Z'
 work_branch: OOMPAH-1313
 target_branch: null
 review_url: null
@@ -182,7 +182,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:54:53.946533+00:00'
     selected_ref: 6781b20f9281e95740c164f5087bbf217470480e
     selected_sha: 6781b20f9281e95740c164f5087bbf217470480e
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1313
+    target_state: Archived
+    evidence_fingerprint: 9532aa63ff64553aae9a302dff4f45e56b76b54827b6b09cd484146b6b842e41
+    workflow_revision: null
+    selected_ref: 6781b20f9281e95740c164f5087bbf217470480e
+    selected_sha: 6781b20f9281e95740c164f5087bbf217470480e
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:55:07.316204+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -449,5 +463,17 @@ author: oompah
 created: 2026-08-24 09:27
 ---
 Fixed pre-provider contributor evidence timeout by increasing default from 5s to 10-30s. The timeout was too aggressive for tracker metadata persistence, causing legitimate operations to timeout and trigger error_watcher. Solution prioritizes configuration value (60s default) and uses min(30.0, termination_timeout) as fallback. All 617 related tests pass.
+---
+author: oompah
+created: 2026-08-27 03:55
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
+---
+author: oompah
+created: 2026-08-27 03:55
+---
+Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
