@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:41:13.991341Z'
-updated_at: '2026-08-21T14:29:00.081797Z'
+updated_at: '2026-08-27T03:55:20.941587Z'
 work_branch: OOMPAH-1314
 target_branch: null
 review_url: null
@@ -148,6 +148,34 @@ oompah.integration:
   submitted_at: '2026-08-21T14:23:38.952622+00:00'
   updated_at: '2026-08-21T14:23:38.952622+00:00'
 oompah.work_branch: OOMPAH-1314
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-890c21213489
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1314
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f1c7e2d2b384efa8a537e3566d7a8c1f30880f9384957338c281839138e9729a
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch
+      incident is already fixed on main: persistence uses the 60-second configured
+      bound, expected bounded retirement and pre-request worker failures are below
+      error-intake severity, and provider-retirement behavior has regression coverage.
+      This duplicate auto-filed task must not consume integration capacity or resurrect
+      its stale branch.'
+    created_at: '2026-08-27T03:55:19.402902+00:00'
+    selected_ref: 445f41f2d63fd2d0e11266e8560ad0967edd5c22
+    selected_sha: 445f41f2d63fd2d0e11266e8560ad0967edd5c22
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
