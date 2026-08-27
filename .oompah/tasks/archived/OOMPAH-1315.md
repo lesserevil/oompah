@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:41:47.946905Z'
-updated_at: '2026-08-27T03:55:50.228538Z'
+updated_at: '2026-08-27T03:55:58.242411Z'
 work_branch: OOMPAH-1315
 target_branch: null
 review_url: null
@@ -152,7 +152,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:55:45.831362+00:00'
     selected_ref: 0b42e47165b77f737eff0db236eef8303e7cd00f
     selected_sha: 0b42e47165b77f737eff0db236eef8303e7cd00f
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1315
+    target_state: Archived
+    evidence_fingerprint: b7e0770b7810d029fecf8a25d1d12d8e4e65fd288725edd730734c7f1fb2760f
+    workflow_revision: null
+    selected_ref: 0b42e47165b77f737eff0db236eef8303e7cd00f
+    selected_sha: 0b42e47165b77f737eff0db236eef8303e7cd00f
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:55:56.668456+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -293,5 +307,12 @@ author: oompah
 created: 2026-08-21 08:25
 ---
 Fixed pre-provider contributor evidence timeout error reporting by downgrading log level from ERROR to WARNING. This timeout is a handled graceful failure that was incorrectly being reported as a critical error by error_watcher. The fix prevents duplicate task creation during normal operation while preserving diagnostic information and error tracking functionality.
+---
+author: oompah
+created: 2026-08-27 03:55
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
