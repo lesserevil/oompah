@@ -217,14 +217,23 @@ class RecordingTerminalAdapter:
         return TerminalStageResult(True, "audit-1")
 
 
-def composition(tmp_path, monkeypatch, provider, *, project_id="project-1"):
+def composition(
+    tmp_path,
+    monkeypatch,
+    provider,
+    *,
+    project_id="project-1",
+    forge_kind="github",
+    merge_queue_enabled=False,
+):
     tracker = Tracker(task(project_id))
     project = SimpleNamespace(
         id=project_id,
         repo_url="https://example.test/owner/repo.git",
         access_token=None,
         max_in_flight_prs=2,
-        merge_queue_enabled=False,
+        merge_queue_enabled=merge_queue_enabled,
+        forge_kind=forge_kind,
     )
     project_store = SimpleNamespace(
         get=lambda wanted: project if wanted == project_id else None
@@ -703,6 +712,75 @@ async def test_merge_mutates_only_exact_review_and_releases_capacity(
         assert provider.merge_heads == [HEAD]
         assert provider.reviews[0].state == "merged"
         assert capacity.active("project-1") == []
+    finally:
+        capacity.close()
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_gitlab_direct_review_merge_fails_closed(tmp_path, monkeypatch):
+    provider = Provider([review(ci=CIStatus.PASSED)])
+    provider.provider_name = lambda: "gitlab"
+    orchestrator, binding, store, capacity = composition(
+        tmp_path,
+        monkeypatch,
+        provider,
+        forge_kind="gitlab",
+        merge_queue_enabled=False,
+    )
+    decision = binding.review_controller.evaluate((binding.tracker.task,)).tasks[
+        0
+    ].decision
+    store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-1",
+            generation="gitlab-direct-merge-denied",
+            action="review_merge",
+            idempotency_key="gitlab-direct-merge-denied",
+            expected_evidence_revision=decision.evidence_revision,
+            max_attempts=1,
+        )
+    )
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers=build_review_workflow_handlers(orchestrator, binding),
+        transition_services={},
+        worker_id="review-worker",
+    )
+    try:
+        result = await worker.run_once()
+        assert result.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+        exhausted = store.list_jobs(project_id="project-1", task_id="TASK-1")[0]
+        assert "merge_queue_enabled" in (exhausted.last_error or "")
+        assert provider.merge_calls == 0
+    finally:
+        capacity.close()
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_queued_review_is_monitored_without_duplicate_enqueue(
+    tmp_path, monkeypatch
+):
+    queued_review = review(ci=CIStatus.PASSED)
+    queued_review.auto_merge_enabled = True
+    provider = Provider([queued_review])
+    provider.provider_name = lambda: "gitlab"
+    orchestrator, binding, store, capacity = composition(
+        tmp_path,
+        monkeypatch,
+        provider,
+        forge_kind="gitlab",
+        merge_queue_enabled=True,
+    )
+    try:
+        decision = binding.review_controller.evaluate((binding.tracker.task,)).tasks[
+            0
+        ].decision
+        assert decision.reason_code == "review.monitoring"
+        assert decision.durable_jobs == ("review_monitor",)
+        assert provider.merge_calls == 0
     finally:
         capacity.close()
         store.close()

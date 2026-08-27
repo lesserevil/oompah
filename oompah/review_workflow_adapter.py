@@ -1017,9 +1017,22 @@ class ProductionReviewWorkflowBackend:
                     category=WorkflowFailureCategory.STALE_EVIDENCE,
                     retryable=False,
                 )
+            queue_enabled = bool(
+                getattr(provider_context.project, "merge_queue_enabled", False)
+            )
+            provider_name = _text(
+                getattr(snapshot.observation, "provider", None)
+            ).casefold()
+            if provider_name == "gitlab" and not queue_enabled:
+                return ReviewExecutionResult(
+                    "policy_error",
+                    "GitLab review merge requires merge_queue_enabled so the "
+                    "exact head is validated through a merge train",
+                    snapshot.observation,
+                )
             operation = (
                 provider_context.provider.enable_auto_merge_exact
-                if bool(getattr(provider_context.project, "merge_queue_enabled", False))
+                if queue_enabled
                 else provider_context.provider.merge_review_exact
             )
             ok, message = await asyncio.to_thread(

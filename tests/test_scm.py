@@ -3894,6 +3894,52 @@ class TestGitLabListOpenReviews:
         assert r.base_sha == "b" * 40
         assert r.source_repository == "group/project"
         assert r.target_repository == "group/project"
+        assert r.auto_merge_enabled is False
+        assert r.mergeable_state == ""
+
+    def test_requests_divergence_and_fresh_merge_status(self):
+        p = _GL.provider()
+        calls = []
+
+        def fake(method, path, **kwargs):
+            calls.append((method, path, kwargs))
+            return _GL.r([] if path.endswith("/merge_trains") else [self._mr()])
+
+        p._api = fake
+        p.list_open_reviews("group/project")
+
+        params = calls[0][2]["params"]
+        assert params["include_diverged_commits_count"] is True
+        assert params["with_merge_status_recheck"] is True
+
+    def test_maps_active_gitlab_merge_train(self):
+        p = _GL.provider()
+        mr = self._mr(detailed_merge_status="ci_still_running")
+
+        def fake(_method, path, **_kwargs):
+            if path.endswith("/merge_trains"):
+                return _GL.r(
+                    [{"status": "fresh", "merge_request": {"iid": 1}}]
+                )
+            return _GL.r([mr])
+
+        p._api = fake
+        result = p.list_open_reviews("group/project")[0]
+
+        assert result.auto_merge_enabled is True
+        assert result.mergeable_state == "merge_train:fresh"
+
+    def test_detailed_conflict_fails_closed_when_has_conflicts_is_stale(self):
+        p = _GL.provider()
+        mr = self._mr(has_conflicts=False, detailed_merge_status="conflict")
+        p._api = lambda _method, path, **_kwargs: _GL.r(
+            [] if path.endswith("/merge_trains") else [mr]
+        )
+
+        result = p.list_open_reviews("group/project")[0]
+
+        assert result.has_conflicts is True
+        assert result.needs_rebase is True
 
     def test_missing_list_identity_is_hydrated_from_exact_mr_detail(self):
         listed = self._mr()
@@ -3919,6 +3965,7 @@ class TestGitLabListOpenReviews:
         assert review.target_repository == "group/project"
         assert [path for _method, path, _kwargs in calls] == [
             "/projects/group%2Fproject/merge_requests",
+            "/projects/group%2Fproject/merge_trains",
             "/projects/group%2Fproject/merge_requests/1",
         ]
 
@@ -3949,7 +3996,11 @@ class TestGitLabListOpenReviews:
         review = p.list_open_reviews("group/project")[0]
 
         assert review.base_sha == "b" * 40
-        assert p._api.call_count == 1
+        assert p._api.call_count == 2
+        assert not any(
+            call.args[1].endswith("/merge_requests/1")
+            for call in p._api.call_args_list
+        )
 
     @pytest.mark.parametrize(
         "project_ids",
@@ -4106,7 +4157,10 @@ class TestGitLabListOpenReviews:
         review = p.list_open_reviews("g/p")[0]
 
         assert review.ci_status is CIStatus.PASSED
-        assert p._api.call_count == 1
+        assert p._api.call_count == 2
+        assert not any(
+            "/pipelines" in call.args[1] for call in p._api.call_args_list
+        )
 
     def test_draft_mr_detected_from_draft_field(self):
         mr = self._mr(draft=True, work_in_progress=False)
@@ -4536,7 +4590,13 @@ class TestGitLabGetReview:
 
         p._api = fake
         p.get_review("group/project", "42")
-        assert calls == [("GET", "/projects/group%2Fproject/merge_requests/42")]
+        assert calls == [
+            ("GET", "/projects/group%2Fproject/merge_requests/42"),
+            (
+                "GET",
+                "/projects/group%2Fproject/merge_trains/merge_requests/42",
+            ),
+        ]
 
 
 class TestGitLabCreateReview:
@@ -4777,83 +4837,81 @@ class TestGitLabMergeReviewHistoryPreserving:
 
 
 class TestGitLabEnableAutoMerge:
-    """enable_auto_merge uses merge_when_pipeline_succeeds per the spec."""
+    """GitLab exact-head queue support and legacy compatibility."""
 
-    def test_sends_merge_when_pipeline_succeeds_flag(self):
-        """Must use merge_when_pipeline_succeeds — not a direct immediate merge."""
+    def test_legacy_auto_merge_uses_mwps(self):
         p = _GL.provider()
-        merge_json = {}
+        p._api = mock.MagicMock(return_value=_GL.r(code=200))
 
-        def fake(m, path, **kw):
-            if path.endswith("/merge"):
-                merge_json.update(kw.get("json", {}))
-                return _GL.r(code=200)
-            return _GL.r(code=200)
-
-        p._api = fake
         ok, msg = p.enable_auto_merge("g/p", "1")
-        assert ok is True, f"enable_auto_merge failed unexpectedly: {msg}"
-        assert merge_json.get("merge_when_pipeline_succeeds") is True, (
-            "enable_auto_merge must use merge_when_pipeline_succeeds per the plan"
+
+        assert ok is True
+        assert "pipeline" in msg.lower()
+        p._api.assert_called_once_with(
+            "PUT",
+            "/projects/g%2Fp/merge_requests/1/merge",
+            json={"merge_when_pipeline_succeeds": True},
         )
 
-    def test_does_not_force_squash(self):
-        """Auto-merge must not request squash — history preservation required."""
-        p = _GL.provider()
-        merge_json = {}
-
-        def fake(m, path, **kw):
-            if path.endswith("/merge"):
-                merge_json.update(kw.get("json", {}))
-                return _GL.r(code=200)
-            return _GL.r(code=200)
-
-        p._api = fake
-        p.enable_auto_merge("g/p", "1")
-        assert merge_json.get("squash") is not True, (
-            "enable_auto_merge must not force squash"
-        )
-
-    def test_returns_actionable_error_on_approval_policy_rejection(self):
-        """401/403 from GitLab must produce an actionable message."""
-        p = _GL.provider()
-        p._api = lambda m, path, **kw: _GL.r(
-            {"message": "Requires 2 approvals"}, code=403,
-            text="Requires 2 approvals"
-        )
-        ok, msg = p.enable_auto_merge("g/p", "1")
-        assert ok is False
-        assert len(msg) > 0, "Must return non-empty actionable error"
-
-    def test_returns_false_on_405_not_allowed(self):
-        p = _GL.provider()
-        p._api = lambda m, path, **kw: _GL.r(
-            {"message": "Method Not Allowed"}, code=405, text="Method Not Allowed"
-        )
-        ok, msg = p.enable_auto_merge("g/p", "1")
-        assert ok is False
-
-    def test_returns_false_on_network_error(self):
-        import httpx
-        p = _GL.provider()
-        p._api = mock.MagicMock(side_effect=httpx.HTTPError("net"))
-        ok, _msg = p.enable_auto_merge("g/p", "1")
-        assert ok is False
-
-    def test_calls_put_merge_endpoint(self):
+    def test_exact_enqueue_posts_to_merge_train_with_sha(self):
         p = _GL.provider()
         calls = []
 
-        def fake(m, path, **kw):
-            calls.append((m, path))
-            return _GL.r(code=200)
+        def fake(method, path, **kwargs):
+            calls.append((method, path, kwargs))
+            return _GL.r(code=201)
 
         p._api = fake
-        p.enable_auto_merge("group/sub/project", "42")
-        assert any(
-            m == "PUT" and "/merge_requests/42/merge" in path
-            for m, path in calls
-        ), f"Expected PUT to /merge but got: {calls}"
+        ok, msg = p.enable_auto_merge_exact("group/sub/project", "42", "a" * 40)
+
+        assert ok is True
+        assert "merge train" in msg.lower()
+        assert calls == [
+            (
+                "POST",
+                "/projects/group%2Fsub%2Fproject/merge_trains/merge_requests/42",
+                {"json": {"auto_merge": True, "sha": "a" * 40}},
+            )
+        ]
+
+    def test_exact_enqueue_rejects_malformed_sha_without_request(self):
+        p = _GL.provider()
+        p._api = mock.MagicMock()
+
+        ok, msg = p.enable_auto_merge_exact("g/p", "1", "not-a-sha")
+
+        assert ok is False
+        assert "exact head" in msg.lower()
+        p._api.assert_not_called()
+
+    @pytest.mark.parametrize("status_code", [200, 201, 202])
+    def test_exact_enqueue_accepts_gitlab_success_statuses(self, status_code):
+        p = _GL.provider()
+        p._api = mock.MagicMock(return_value=_GL.r(code=status_code))
+
+        assert p.enable_auto_merge_exact("g/p", "1", "b" * 40)[0] is True
+
+    def test_disabled_merge_trains_returns_actionable_error(self):
+        p = _GL.provider()
+        p._api = mock.MagicMock(
+            return_value=_GL.r(code=404, text="Merge Train Merge Request Not Found")
+        )
+
+        ok, msg = p.enable_auto_merge_exact("g/p", "1", "c" * 40)
+
+        assert ok is False
+        assert "enable GitLab merge trains" in msg
+
+    def test_exact_enqueue_returns_false_on_network_error(self):
+        import httpx
+
+        p = _GL.provider()
+        p._api = mock.MagicMock(side_effect=httpx.HTTPError("net"))
+
+        ok, msg = p.enable_auto_merge_exact("g/p", "1", "d" * 40)
+
+        assert ok is False
+        assert "net" in msg
 
 
 class TestGitLabGetPrCommits:

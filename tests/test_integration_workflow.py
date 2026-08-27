@@ -1088,6 +1088,15 @@ class MetadataTracker(Tracker):
         if field == "oompah.target_branch":
             self.issues[identifier].target_branch = str(value or "").strip() or None
             return
+        if field == "oompah.review_url":
+            self.issues[identifier].review_url = str(value or "").strip() or None
+            return
+        if field == "oompah.review_number":
+            self.issues[identifier].review_number = str(value or "").strip() or None
+            return
+        if field == "oompah.review_head":
+            self.issues[identifier].review_head = str(value or "").strip() or None
+            return
         raise AssertionError(field)
 
 
@@ -2774,6 +2783,105 @@ async def test_parent_advance_after_standalone_submit_returns_child_to_queue(
     assert restored.epic_id == parent.identifier
     assert restored.base_branch == "epic/E-1"
     store.close()
+    queue.close()
+
+
+@pytest.mark.asyncio
+async def test_invalidated_parent_landing_retires_exact_stale_review(tmp_path, monkeypatch):
+    task = issue("TASK-A", head="a" * 40)
+    task.parent_id = "E-1"
+    task.target_branch = "main"
+    task.review_number = "17"
+    task.review_url = "https://gitlab.example/mr/17"
+    task.review_head = "a" * 40
+    task.integration = replace(
+        task.integration,
+        mode="standalone",
+        post_landed_parent_id="E-1",
+        base_branch="main",
+        base_sha=None,
+    )
+    parent = issue("E-1")
+    parent.issue_type = "epic"
+    parent.work_branch = "epic/E-1"
+    parent.target_branch = "main"
+    parent.integration = None
+    tracker = MetadataTracker([task, parent])
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
+    provider = SimpleNamespace(
+        last_review_fetch_ok=True,
+        get_review=lambda _repo, _review_id: SimpleNamespace(
+            id="17",
+            state="open",
+            source_branch="TASK-A",
+            target_branch="main",
+            head_sha="a" * 40,
+        ),
+        close_review=lambda _repo, _review_id, **_kwargs: (True, "closed"),
+    )
+    released = []
+    monkeypatch.setattr(
+        "oompah.integration_workflow.detect_provider",
+        lambda *_args, **_kwargs: provider,
+    )
+    monkeypatch.setattr(
+        "oompah.integration_workflow.extract_repo_slug",
+        lambda _url: "org/repo",
+    )
+    project = SimpleNamespace(
+        id="project-1",
+        repo_url="https://gitlab.example/org/repo.git",
+        access_token="token",
+        default_branch="main",
+    )
+    project_store = SimpleNamespace(
+        epic_branch_name=lambda epic_id: f"epic/{epic_id}",
+        get=lambda _project_id: project,
+        project_write_lock=lambda _project_id: nullcontext(),
+    )
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            integration_queue=queue,
+            project_store=project_store,
+            _release_review_capacity=lambda project_id, **kwargs: released.append(
+                (project_id, kwargs)
+            ),
+            request_refresh=lambda: None,
+        ),
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=collector(tracker),
+            integration_controller=SimpleNamespace(
+                landing_request_resolver=SimpleNamespace(
+                    post_landed_parent_target=lambda _issue: None,
+                    current_parent_queue_target=lambda _issue: "epic/E-1",
+                )
+            ),
+        ),
+    )
+    context = SimpleNamespace(
+        job=SimpleNamespace(project_id="project-1", task_id="TASK-A"),
+        check_interrupted=lambda: None,
+    )
+
+    with pytest.raises(WorkflowActionSuperseded, match="current parent queue"):
+        backend._reclassify_invalid_parented_standalone(
+            context,
+            task,
+            task.integration,
+            expected_branch="TASK-A",
+            expected_head="a" * 40,
+        )
+
+    assert task.review_number is None
+    assert task.review_url is None
+    assert task.review_head is None
+    assert released == [
+        ("project-1", {"review_id": "17", "task_id": "TASK-A"})
+    ]
+    assert task.target_branch == "epic/E-1"
+    assert task.integration.mode == "queue"
     queue.close()
 
 

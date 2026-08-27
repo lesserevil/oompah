@@ -53663,6 +53663,11 @@ class Orchestrator:
                         merge_queue
                         and switch_key in self._yolo_already_mergeable_switched
                     )
+                    provider_name = str(
+                        getattr(project, "forge_kind", "")
+                        or getattr(provider, "provider_name", lambda: "")()
+                        or ""
+                    ).strip().lower()
                     if merge_queue and not use_direct_merge_fallback:
                         logger.info(
                             "YOLO: enqueued for merge %s MR #%s (ci=%s)",
@@ -53670,7 +53675,28 @@ class Orchestrator:
                             review_id,
                             review.ci_status,
                         )
-                        success, msg = provider.enable_auto_merge(slug, review_id)
+                        review_head = str(
+                            getattr(review, "head_sha", "") or ""
+                        ).strip().lower()
+                        if provider_name == "gitlab":
+                            if not re.fullmatch(
+                                r"[0-9a-f]{40}|[0-9a-f]{64}", review_head
+                            ):
+                                success, msg = (
+                                    False,
+                                    "Merge queue admission requires an exact review head",
+                                )
+                            else:
+                                success, msg = provider.enable_auto_merge_exact(
+                                    slug,
+                                    review_id,
+                                    review_head,
+                                )
+                        else:
+                            success, msg = provider.enable_auto_merge(
+                                slug,
+                                review_id,
+                            )
                         if success:
                             logger.info(
                                 "YOLO: enqueued %s MR #%s", project.name, review_id
@@ -53808,7 +53834,14 @@ class Orchestrator:
                             review_id,
                             review.ci_status,
                         )
-                        success, msg = provider.merge_review(slug, review_id)
+                        if provider_name == "gitlab":
+                            success, msg = (
+                                False,
+                                "GitLab review merge requires merge_queue_enabled "
+                                "and GitLab Merge Trains",
+                            )
+                        else:
+                            success, msg = provider.merge_review(slug, review_id)
                         if success:
                             self._release_review_capacity(
                                 project.id,
