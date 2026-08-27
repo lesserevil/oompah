@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T16:14:26.107948Z'
-updated_at: '2026-08-27T16:09:04.105374Z'
+updated_at: '2026-08-27T16:25:34.284667Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,13 +32,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: Duplicate screening worker was terminated.
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 384bd1036ee19b49930e7a259d2686cc73b337b8937b3c462daa97996ab215de:172607
+  claim_owner: 86968e48-2056-49f5-aa87-3bb12ce6409f
+  claimed_at: '2026-08-27T16:25:32.695325+00:00'
+  claim_expires_at: '2026-08-27T16:55:32.695325+00:00'
   retry_count: 0
-  retry_after: '2026-08-27T16:08:55.725132+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
