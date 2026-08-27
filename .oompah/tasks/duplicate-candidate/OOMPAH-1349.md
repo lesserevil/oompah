@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-1349
 type: task
-status: Backlog
+status: Duplicate Candidate
 priority: null
 title: Correct GitLab merge queue semantics and stale Trickle MR handling
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-27T19:25:52.410714Z'
-updated_at: '2026-08-27T19:25:52.410714Z'
+updated_at: '2026-08-27T19:48:04.549046Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,6 +25,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: ea112b93-4cc2-4fdb-adea-87770466537e
   request_fingerprint: 9a10eab74f159afef3bac70ef471048e6491d7081ef65d5deb54939ac1a399a3
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
@@ -35,3 +37,11 @@ Fix the GitLab merge path exposed by Trickle. Evidence: GitLab has merge pipelin
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-27 19:47
+---
+Duplicate task created when an earlier task-create request timed out after committing. Canonical task: OOMPAH-1350. Do not dispatch.
+---
+<!-- COMMENTS:END -->
