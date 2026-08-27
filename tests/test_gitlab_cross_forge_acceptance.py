@@ -63,6 +63,10 @@ class _ForgeFixture:
                     return _Response([], 200)
                 return _Response({}, 200)
 
+            if path.endswith("/merge_trains"):
+                return _Response([])
+            if "/merge_trains/merge_requests/" in path:
+                return _Response({}, 202)
             if path.endswith("/merge_requests"):
                 return _Response([{
                     "iid": 7, "title": "Ship widget", "web_url": "https://gitlab.test/acme/widgets/-/merge_requests/7",
@@ -129,7 +133,12 @@ class TestSharedProviderAcceptanceContract:
         forge.provider.add_review_label(forge.repo, "7", "oompah:ready")
         forge.provider.remove_review_label(forge.repo, "7", "oompah:ready")
 
-        ok, message = forge.provider.enable_auto_merge(forge.repo, "7")
+        if forge.name == "gitlab":
+            ok, message = forge.provider.enable_auto_merge_exact(
+                forge.repo, "7", "b" * 40
+            )
+        else:
+            ok, message = forge.provider.enable_auto_merge(forge.repo, "7")
         assert ok is True
         assert message
 

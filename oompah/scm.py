@@ -322,10 +322,9 @@ class ReviewRequest:
     deletions: int = 0
     needs_rebase: bool = False
     has_conflicts: bool = False
-    # GitHub merge-queue / auto-merge state. Populated from the GitHub
-    # pull-request API (``auto_merge`` and ``mergeable_state``). Both are
-    # left at their defaults for GitLab — GitLab merge trains are a
-    # separate feature not adopted in this rollout.
+    # Provider-normalized merge-queue state. GitHub populates this from
+    # ``auto_merge`` and merge-queue membership. GitLab sets it only from
+    # authoritative active merge-train membership.
     auto_merge_enabled: bool = False
     mergeable_state: str = ""
     # True when at least one file changed by this review appears in the
@@ -3501,6 +3500,70 @@ class GitLabProvider(SCMProvider):
             return None
         return hydrated
 
+    def _active_merge_train_entries(
+        self, repo: str
+    ) -> dict[str, Mapping[str, Any]]:
+        """Return active GitLab merge-train entries keyed by MR IID."""
+
+        encoded = self._project_path(repo)
+        try:
+            response = self._api(
+                "GET",
+                f"/projects/{encoded}/merge_trains",
+                params={"scope": "active", "per_page": 100},
+            )
+            if response.status_code != 200:
+                logger.warning(
+                    "GitLab merge-train observation %s: HTTP %d",
+                    repo,
+                    response.status_code,
+                )
+                return {}
+            payload = response.json()
+        except Exception as exc:  # noqa: BLE001 - optional observation
+            logger.warning("GitLab merge-train observation failed for %s: %s", repo, exc)
+            return {}
+        if not isinstance(payload, list):
+            return {}
+        entries: dict[str, Mapping[str, Any]] = {}
+        for raw in payload:
+            if not isinstance(raw, Mapping):
+                return {}
+            merge_request = raw.get("merge_request")
+            if not isinstance(merge_request, Mapping):
+                return {}
+            review_id = str(merge_request.get("iid") or "").strip()
+            if not review_id:
+                return {}
+            entries[review_id] = raw
+        return entries
+
+    def _merge_train_entry(
+        self, repo: str, review_id: str
+    ) -> Mapping[str, Any] | None:
+        """Return one active train entry, or ``None`` when unavailable/absent."""
+
+        encoded = self._project_path(repo)
+        try:
+            response = self._api(
+                "GET",
+                f"/projects/{encoded}/merge_trains/merge_requests/{review_id}",
+            )
+            if response.status_code != 200:
+                return None
+            payload = response.json()
+        except (httpx.HTTPError, json.JSONDecodeError):
+            return None
+        if not isinstance(payload, Mapping):
+            return None
+        merge_request = payload.get("merge_request")
+        if (
+            not isinstance(merge_request, Mapping)
+            or str(merge_request.get("iid") or "").strip() != str(review_id)
+        ):
+            return None
+        return payload
+
     def list_open_reviews(self, repo: str) -> list[ReviewRequest]:
         self.last_open_reviews_fetch_ok = False
         encoded = self._project_path(repo)
@@ -3508,6 +3571,8 @@ class GitLabProvider(SCMProvider):
             r = self._api("GET", f"/projects/{encoded}/merge_requests", params={
                 "state": "opened",
                 "per_page": 100,
+                "include_diverged_commits_count": True,
+                "with_merge_status_recheck": True,
             })
             if r.status_code != 200:
                 logger.warning("GitLab list_open_reviews %s: HTTP %d", repo, r.status_code)
@@ -3516,6 +3581,7 @@ class GitLabProvider(SCMProvider):
         except (httpx.HTTPError, json.JSONDecodeError) as exc:
             logger.warning("GitLab list_open_reviews failed for %s: %s", repo, exc)
             return []
+        train_entries = self._active_merge_train_entries(repo)
         self.last_open_reviews_fetch_ok = True
 
         results = []
@@ -3564,11 +3630,24 @@ class GitLabProvider(SCMProvider):
                     repo, head_sha
                 )
 
-            has_conflicts = mr.get("has_conflicts", False)
+            detailed_merge_status = str(
+                mr.get("detailed_merge_status") or ""
+            ).strip().lower()
+            has_conflicts = bool(mr.get("has_conflicts", False)) or (
+                detailed_merge_status == "conflict"
+            )
             rebase_needed = has_conflicts or (mr.get("diverged_commits_count") or 0) > 0
+            review_id = str(mr.get("iid", mr.get("id", "")))
+            train_entry = train_entries.get(review_id)
+            train_status = str(
+                (train_entry or {}).get("status") or ""
+            ).strip().lower()
+            auto_merge_enabled = train_entry is not None
+            if auto_merge_enabled:
+                detailed_merge_status = f"merge_train:{train_status or 'active'}"
 
             results.append(ReviewRequest(
-                id=str(mr.get("iid", mr.get("id", ""))),
+                id=review_id,
                 title=mr.get("title", ""),
                 url=mr.get("web_url", ""),
                 author=author_name,
@@ -3587,6 +3666,8 @@ class GitLabProvider(SCMProvider):
                 deletions=0,
                 needs_rebase=rebase_needed,
                 has_conflicts=has_conflicts,
+                auto_merge_enabled=auto_merge_enabled,
+                mergeable_state=detailed_merge_status,
                 head_sha=head_sha,
                 base_sha=str((mr.get("diff_refs") or {}).get("base_sha") or ""),
                 source_repository=self._same_project_source_repository(repo, mr),
@@ -3822,6 +3903,7 @@ class GitLabProvider(SCMProvider):
             mr = r.json()
         except (httpx.HTTPError, json.JSONDecodeError):
             return None
+        train_entry = self._merge_train_entry(repo, review_id)
         self.last_review_fetch_ok = True
 
         author = mr.get("author", {})
@@ -3849,8 +3931,18 @@ class GitLabProvider(SCMProvider):
             labels=mr.get("labels") or [],
             draft=mr.get("draft", False) or mr.get("work_in_progress", False),
             needs_rebase=bool(mr.get("has_conflicts", False))
+            or str(mr.get("detailed_merge_status") or "").strip().lower()
+            == "conflict"
             or (mr.get("diverged_commits_count") or 0) > 0,
-            has_conflicts=bool(mr.get("has_conflicts", False)),
+            has_conflicts=bool(mr.get("has_conflicts", False))
+            or str(mr.get("detailed_merge_status") or "").strip().lower()
+            == "conflict",
+            auto_merge_enabled=train_entry is not None,
+            mergeable_state=(
+                f"merge_train:{str(train_entry.get('status') or 'active').lower()}"
+                if train_entry is not None
+                else str(mr.get("detailed_merge_status") or "")
+            ),
             head_sha=str(
                 mr.get("sha")
                 or (mr.get("diff_refs") or {}).get("head_sha")
@@ -4002,31 +4094,70 @@ class GitLabProvider(SCMProvider):
         except (httpx.HTTPError, json.JSONDecodeError):
             return False
 
-    def enable_auto_merge(self, repo: str, review_id: str) -> tuple[bool, str]:
-        """Enable auto-merge for a GitLab MR via merge_when_pipeline_succeeds.
+    def enable_auto_merge_exact(
+        self,
+        repo: str,
+        review_id: str,
+        expected_head_sha: str,
+    ) -> tuple[bool, str]:
+        """Add an exact GitLab MR head to the configured merge train."""
 
-        GitLab merge trains differ from GitHub's merge queue and are not
-        adopted in v1.  Uses ``merge_when_pipeline_succeeds`` so the MR
-        is merged automatically once the pipeline passes.  If GitLab
-        rejects the request due to unmet approvals or policy, the MR is
-        retained and an actionable reason is returned.
-        """
+        expected = str(expected_head_sha or "").strip().lower()
+        if not _is_full_git_sha(expected):
+            return False, "Merge-train enqueue requires an exact head SHA"
         encoded = self._project_path(repo)
         try:
             r = self._api(
+                "POST",
+                f"/projects/{encoded}/merge_trains/merge_requests/{review_id}",
+                json={"auto_merge": True, "sha": expected},
+            )
+            if r.status_code in (200, 201, 202):
+                return True, "MR accepted by GitLab merge train"
+            if r.status_code == 404:
+                return False, (
+                    "Merge-train enqueue unavailable: enable GitLab merge trains "
+                    f"for {repo} and verify MR {review_id} exists"
+                )
+            if r.status_code in (401, 403):
+                return False, (
+                    "Merge-train enqueue rejected: approvals, permissions, or "
+                    f"policy are not satisfied — {r.text[:300]}"
+                )
+            return False, (
+                f"Merge-train enqueue failed: HTTP {r.status_code} {r.text[:300]}"
+            )
+        except httpx.HTTPError as exc:
+            return False, f"Merge-train enqueue failed: {exc}"
+
+    def enable_auto_merge(self, repo: str, review_id: str) -> tuple[bool, str]:
+        """Legacy GitLab auto-merge compatibility path.
+
+        Production review delivery uses :meth:`enable_auto_merge_exact`; this
+        method remains for older embedders until they migrate to exact-head
+        authority.
+        """
+
+        encoded = self._project_path(repo)
+        try:
+            response = self._api(
                 "PUT",
                 f"/projects/{encoded}/merge_requests/{review_id}/merge",
                 json={"merge_when_pipeline_succeeds": True},
             )
-            if r.status_code == 200:
+            if response.status_code == 200:
                 return True, "Auto-merge enabled: will merge when pipeline succeeds"
-            if r.status_code in (401, 403):
-                body = r.text[:300]
-                return False, f"Auto-merge rejected: approvals or policy not satisfied — {body}"
-            if r.status_code == 405:
-                body = r.text[:300]
-                return False, f"Auto-merge not allowed: {body}"
-            return False, f"Auto-merge failed: HTTP {r.status_code} {r.text[:300]}"
+            if response.status_code in (401, 403):
+                return False, (
+                    "Auto-merge rejected: approvals or policy not satisfied — "
+                    f"{response.text[:300]}"
+                )
+            if response.status_code == 405:
+                return False, f"Auto-merge not allowed: {response.text[:300]}"
+            return False, (
+                f"Auto-merge failed: HTTP {response.status_code} "
+                f"{response.text[:300]}"
+            )
         except httpx.HTTPError as exc:
             return False, f"Auto-merge failed: {exc}"
 

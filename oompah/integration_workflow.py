@@ -34,6 +34,7 @@ from oompah.integration import (
 )
 from oompah.integration_queue import STANDALONE_RECLASSIFICATION_REASON
 from oompah.models import EpicRebaseState, Issue
+from oompah.scm import detect_provider, extract_repo_slug
 from oompah.statuses import (
     ARCHIVED,
     DONE,
@@ -2238,6 +2239,13 @@ class OrchestratorIntegrationActionBackend:
                     category=WorkflowFailureCategory.TRANSIENT,
                     retryable=True,
                 )
+            self._retire_superseded_standalone_review(
+                context,
+                current_issue,
+                expected_branch=expected_branch,
+                expected_head=expected_head,
+                replacement_target=queue_target,
+            )
             self.tracker.set_metadata_field(
                 context.job.task_id,
                 "oompah.target_branch",
@@ -2312,6 +2320,120 @@ class OrchestratorIntegrationActionBackend:
                 "stale standalone delivery returned to its current parent queue",
                 replacement_generation=f"queue-parent:{decision.decision_revision}",
             )
+
+    def _retire_superseded_standalone_review(
+        self,
+        context: WorkflowJobContext,
+        issue: Issue,
+        *,
+        expected_branch: str,
+        expected_head: str,
+        replacement_target: str,
+    ) -> None:
+        """Close an exact open review that no longer matches task routing.
+
+        Parent landing evidence can legitimately disappear when a shared epic
+        branch advances. The accepted child then returns from standalone/main
+        delivery to its parent queue. Any already-created review for the old
+        route must be retired before tracker metadata changes, otherwise broad
+        review automation can still merge it and its durable capacity slot is
+        leaked forever.
+        """
+
+        review_id = str(getattr(issue, "review_number", "") or "").strip()
+        review_head = str(getattr(issue, "review_head", "") or "").strip().lower()
+        old_target = str(getattr(issue, "target_branch", "") or "").strip()
+        if not review_id:
+            return
+        if (
+            review_head != expected_head
+            or old_target == replacement_target
+        ):
+            raise WorkflowActionError(
+                "superseded review metadata does not match the exact standalone route",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=True,
+            )
+        project_store = getattr(self.orchestrator, "project_store", None)
+        get_project = getattr(project_store, "get", None)
+        project = get_project(self.project_id) if callable(get_project) else None
+        provider = (
+            detect_provider(
+                str(getattr(project, "repo_url", "") or ""),
+                access_token=getattr(project, "access_token", None),
+            )
+            if project is not None
+            else None
+        )
+        if provider is None:
+            raise WorkflowActionError(
+                "superseded review provider is unavailable",
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            )
+        repo = extract_repo_slug(str(getattr(project, "repo_url", "") or ""))
+        try:
+            observed = provider.get_review(repo, review_id)
+        except Exception as exc:  # noqa: BLE001 - forge authority boundary
+            raise WorkflowActionError(
+                f"superseded review observation failed: {exc}",
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            ) from exc
+        if observed is None or getattr(provider, "last_review_fetch_ok", True) is False:
+            raise WorkflowActionError(
+                "superseded review observation is unavailable",
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            )
+        observed_state = str(getattr(observed, "state", "") or "").strip().lower()
+        observed_id = str(getattr(observed, "id", "") or "").strip()
+        observed_source = str(getattr(observed, "source_branch", "") or "").strip()
+        observed_target = str(getattr(observed, "target_branch", "") or "").strip()
+        observed_head = str(getattr(observed, "head_sha", "") or "").strip().lower()
+        if observed_state in {"closed", "merged"}:
+            release = getattr(self.orchestrator, "_release_review_capacity", None)
+            if callable(release):
+                release(self.project_id, review_id=review_id, task_id=context.job.task_id)
+            return
+        if not (
+            observed_state == "open"
+            and observed_id == review_id
+            and observed_source == expected_branch
+            and observed_target == old_target
+            and observed_target != replacement_target
+            and observed_head == expected_head
+        ):
+            raise WorkflowActionError(
+                "superseded review changed before retirement",
+                category=WorkflowFailureCategory.STALE_EVIDENCE,
+                retryable=True,
+            )
+        context.check_interrupted()
+        closed, message = provider.close_review(
+            repo,
+            review_id,
+            comment=(
+                "Closing superseded Oompah delivery review because the task "
+                "returned to its shared-epic queue.\n\n"
+                f"Accepted source: `{expected_branch}`\n"
+                f"Previous target: `{old_target}`\n"
+                f"Current target: `{replacement_target}`\n"
+                f"Accepted head: `{expected_head}`"
+            ),
+        )
+        context.check_interrupted()
+        if not closed:
+            raise WorkflowActionError(
+                str(message or "superseded review could not be closed"),
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            )
+        release = getattr(self.orchestrator, "_release_review_capacity", None)
+        if callable(release):
+            release(self.project_id, review_id=review_id, task_id=context.job.task_id)
+        for field in ("oompah.review_url", "oompah.review_number", "oompah.review_head"):
+            self.tracker.set_metadata_field(context.job.task_id, field, "")
 
     def _reclassify_queue_submission_if_needed(
         self,
