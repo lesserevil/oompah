@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1270
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Investigate bulk 'Needs Human' escalation of trickle epic-127 children
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-27T16:10:25.969491Z'
+updated_at: '2026-08-27T16:10:35.352539Z'
 work_branch: OOMPAH-1270
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/964
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: dd8f06f8-0514-4fde-bea0-18833a1f604c
   request_fingerprint: 1fb15da2e64a50b2b029ff1148c8e4aabbad8da4f132224527fa16b749acfae8
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
