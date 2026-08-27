@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T23:40:39.902883Z'
-updated_at: '2026-08-27T03:50:15.747962Z'
+updated_at: '2026-08-27T03:50:29.192153Z'
 work_branch: OOMPAH-1293
 target_branch: null
 review_url: null
@@ -166,7 +166,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:50:05.164161+00:00'
     selected_ref: 7f6f2fa44bca6317767ff615be011d03ac0e932a
     selected_sha: 7f6f2fa44bca6317767ff615be011d03ac0e932a
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1293
+    target_state: Archived
+    evidence_fingerprint: 2b5101af9f7df575a04d78556f39e4d956d1c09e2cd86ce98e8d32f4f1438a3d
+    workflow_revision: null
+    selected_ref: 7f6f2fa44bca6317767ff615be011d03ac0e932a
+    selected_sha: 7f6f2fa44bca6317767ff615be011d03ac0e932a
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:50:26.271280+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -306,5 +320,12 @@ author: oompah
 created: 2026-08-21 16:32
 ---
 Fixed pre-provider contributor evidence timeout. Changed persistence timeout calculation from min(control_timeout, termination_timeout/2) to max(termination_timeout, 5.0) to allow slow tracker writes to complete. Increased default fallback timeout from 5s to 10s while preserving configured 60s production override.
+---
+author: oompah
+created: 2026-08-27 03:50
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
