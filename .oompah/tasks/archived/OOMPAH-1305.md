@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1305
 type: bug
-status: In Review
+status: Archived
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=OOMPAH-1212 identifier=OOMPAH-1212 run_id=9dc5cc2c8cef4c9f9f169e0161702ce7
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:16:51.487733Z'
-updated_at: '2026-08-26T18:13:53.272507Z'
+updated_at: '2026-08-27T03:32:34.884500Z'
 work_branch: OOMPAH-1305
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/948
 review_number: '948'
 review_head: 5f238b75b4c77dd4ec3b9c1b7b80a756c950713f
 merged_at: null
-oompah.lifecycle_revision: 18
+oompah.lifecycle_revision: 19
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -142,6 +142,32 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/948
 oompah.review_number: '948'
 oompah.target_branch: main
 oompah.review_head: 5f238b75b4c77dd4ec3b9c1b7b80a756c950713f
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-c3462b273290
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1305
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fa14802cd09cab29ab94dc85453c39fea5961dac72d82787c592564cc4e36657
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Superseded by fixes already merged to main: production now uses a 60-second
+      contributor-evidence persistence timeout, logs the expected bounded timeout
+      at DEBUG, and excludes expected pre-provider retirement from error intake. The
+      stale branch conflicts with newer recovery work and must not be rebased or merged.'
+    created_at: '2026-08-27T03:32:26.488118+00:00'
+    selected_ref: 5f238b75b4c77dd4ec3b9c1b7b80a756c950713f
+    selected_sha: 5f238b75b4c77dd4ec3b9c1b7b80a756c950713f
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
