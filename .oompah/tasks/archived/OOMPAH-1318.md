@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:55:23.301399Z'
-updated_at: '2026-08-27T03:31:41.934964Z'
+updated_at: '2026-08-27T03:31:52.913307Z'
 work_branch: OOMPAH-1318
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/950
@@ -150,7 +150,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:31:36.943789+00:00'
     selected_ref: b7ff325f8dacf095850d2a1ec325448212174535
     selected_sha: b7ff325f8dacf095850d2a1ec325448212174535
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1318
+    target_state: Archived
+    evidence_fingerprint: d2b5116f58ba75471bd748a759766610eb5d92b028baa88daf57128529580506
+    workflow_revision: null
+    selected_ref: b7ff325f8dacf095850d2a1ec325448212174535
+    selected_sha: b7ff325f8dacf095850d2a1ec325448212174535
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:31:46.511082+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -397,5 +411,17 @@ author: oompah
 created: 2026-08-26 06:18
 ---
 Branch quality gate passed for `b7ff325f8dacf095850d2a1ec325448212174535` using `make test` in 181.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-27 03:31
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded by fixes already merged to main: production now uses a 60-second contributor-evidence persistence timeout, logs the expected bounded timeout at DEBUG, and excludes expected pre-provider retirement from error intake. The stale branch conflicts with newer recovery work and must not be rebased or merged.
+---
+author: oompah
+created: 2026-08-27 03:31
+---
+Superseded by fixes already merged to main: production now uses a 60-second contributor-evidence persistence timeout, logs the expected bounded timeout at DEBUG, and excludes expected pre-provider retirement from error intake. The stale branch conflicts with newer recovery work and must not be rebased or merged.
 ---
 <!-- COMMENTS:END -->
