@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-27T23:09:15.860758Z'
+updated_at: '2026-08-27T23:26:25.097509Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -91,5 +91,10 @@ author: oompah
 created: 2026-08-27 23:09
 ---
 PR #967 passed CI, merged as 621a590246c3ea705814a2012daf55ff378db2a7, and is deployed. Full make test passed: 20,459 passed, 7 skipped, 2 xfailed. Post-deploy workflow snapshot is healthy and complete with zero divergence, zero action-required decisions, and zero source errors; Trickle remains intentionally paused. Submission CLI cannot close the task because the owner-created implementation branch name differs from the tracker-derived expected branch OOMPAH-1350; final task disposition will be recorded after controlled production cleanup.
+---
+author: oompah
+created: 2026-08-27 23:26
+---
+Production cleanup completed: stale Trickle MRs !7, !8, !14, and !15 were closed after matching their exact task/source/head/obsolete target; stale capacity reservations released after a fresh forge reconciliation. MRs !19 and !20 were also closed because their live heads differed from the durable accepted heads; source branches were preserved for explicit resubmission. GitLab now reports zero open Trickle MRs. Trickle was re-paused after the reconciliation window.
 ---
 <!-- COMMENTS:END -->
