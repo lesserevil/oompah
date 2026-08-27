@@ -5077,6 +5077,50 @@ def test_landing_request_resolver_scopes_parent_head_observations(tmp_path):
     store.close()
 
 
+def test_landing_request_resolver_scopes_forge_parent_observations(tmp_path):
+    parent = issue("E-1")
+    parent.issue_type = "epic"
+    parent.state = "Merged"
+    parent.work_branch = "epic/E-1"
+    parent.target_branch = "main"
+    parent.integration = None
+    review_calls = 0
+
+    def review_for_branch(_branch):
+        nonlocal review_calls
+        review_calls += 1
+        return SimpleNamespace(
+            id="42",
+            state="merged",
+            source_branch="epic/E-1",
+            target_branch="main",
+            head_sha="b" * 40,
+        )
+
+    resolver = IntegrationLandingRequestResolver(
+        project_id="project-1",
+        tracker=Tracker([parent]),
+        project_store=SimpleNamespace(
+            epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+        ),
+        project_default_branch="main",
+        workflow_store=WorkflowJobStore(str(tmp_path / "workflow.sqlite3")),
+        forge_review_resolver=review_for_branch,
+        landing_collector=StableParentLandingCollector(),
+        parent_source_head_resolver=lambda _branch: "b" * 40,
+    )
+    try:
+        with resolver.observation_scope():
+            assert resolver._forge_parent_head(parent, parent.work_branch)[0] == "b" * 40
+            assert resolver._forge_parent_head(parent, parent.work_branch)[0] == "b" * 40
+        assert review_calls == 1
+
+        resolver._forge_parent_head(parent, parent.work_branch)
+        assert review_calls == 2
+    finally:
+        resolver.workflow_store.close()
+
+
 def test_post_landed_parent_target_requires_fresh_exact_landing_fact(tmp_path):
     task = issue("TASK-A")
     task.parent_id = "E-1"
