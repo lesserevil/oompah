@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-27T20:32:21.199625Z'
+updated_at: '2026-08-27T20:35:02.455153Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,10 @@ author: oompah
 created: 2026-08-27 20:32
 ---
 Operator-approved containment applied: paused Trickle in Oompah and disabled GitLab merge trains for omniverse/devplat/trickle. Verified GitLab merge_trains_enabled=false; Oompah merge_queue_enabled was already false and remains false. No MRs were merged or closed.
+---
+author: oompah
+created: 2026-08-27 20:35
+---
+Implementation is now underway in dedicated branch OOMPAH-1350-gitlab-merge-queue. Trickle remains paused and GitLab merge trains remain disabled during repair.
 ---
 <!-- COMMENTS:END -->
