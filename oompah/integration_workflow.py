@@ -399,8 +399,12 @@ class IntegrationLandingRequestResolver:
         previous_parent_heads = getattr(
             self._observation_state, "parent_heads", None
         )
+        previous_forge_reviews = getattr(
+            self._observation_state, "forge_reviews", None
+        )
         self._observation_state.requests = {}
         self._observation_state.parent_heads = {}
+        self._observation_state.forge_reviews = {}
         try:
             yield
         finally:
@@ -418,6 +422,13 @@ class IntegrationLandingRequestResolver:
                     pass
             else:
                 self._observation_state.parent_heads = previous_parent_heads
+            if previous_forge_reviews is None:
+                try:
+                    del self._observation_state.forge_reviews
+                except AttributeError:
+                    pass
+            else:
+                self._observation_state.forge_reviews = previous_forge_reviews
 
     @staticmethod
     def _git_revision(value: object) -> str | None:
@@ -833,10 +844,16 @@ class IntegrationLandingRequestResolver:
     ) -> tuple[str | None, bool, str | None]:
         if not callable(self.forge_review_resolver):
             return None, False, None
-        try:
-            review = self.forge_review_resolver(source_branch)
-        except Exception:  # noqa: BLE001 - forge evidence boundary
-            return None, True, None
+        cache = getattr(self._observation_state, "forge_reviews", None)
+        if cache is not None and source_branch in cache:
+            review = cache[source_branch]
+        else:
+            try:
+                review = self.forge_review_resolver(source_branch)
+            except Exception:  # noqa: BLE001 - forge evidence boundary
+                return None, True, None
+            if cache is not None:
+                cache[source_branch] = review
         if review is None:
             return None, False, None
         expected_target = self._parent_landing_target(parent)
