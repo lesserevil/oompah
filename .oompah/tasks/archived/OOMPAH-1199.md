@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:22.979573Z'
-updated_at: '2026-08-27T03:35:10.843220Z'
+updated_at: '2026-08-27T03:35:22.903295Z'
 work_branch: OOMPAH-1199
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/955
@@ -210,7 +210,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:35:03.771668+00:00'
     selected_ref: 99d1966926fc94ae138c2e50198a1fa5a9785a72
     selected_sha: 99d1966926fc94ae138c2e50198a1fa5a9785a72
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1199
+    target_state: Archived
+    evidence_fingerprint: c62f0ac97f9903aca3ba242015cfb02f013c0bd6915fc3c6f3fee5bd124e0ba4
+    workflow_revision: null
+    selected_ref: 99d1966926fc94ae138c2e50198a1fa5a9785a72
+    selected_sha: 99d1966926fc94ae138c2e50198a1fa5a9785a72
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:35:16.164295+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -378,5 +392,17 @@ author: oompah
 created: 2026-08-21 16:19
 ---
 Branch quality gate passed for `99d1966926fc94ae138c2e50198a1fa5a9785a72` using `make test` in 187.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-27 03:35
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded by fixes already merged to main: worker pre-request failures now log at DEBUG with structured lifecycle handling. The stale WARNING-only branch conflicts with newer recovery work and must not be rebased or merged.
+---
+author: oompah
+created: 2026-08-27 03:35
+---
+Superseded by fixes already merged to main: worker pre-request failures now log at DEBUG with structured lifecycle handling. The stale WARNING-only branch conflicts with newer recovery work and must not be rebased or merged.
 ---
 <!-- COMMENTS:END -->

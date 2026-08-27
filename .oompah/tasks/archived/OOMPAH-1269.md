@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1269
 type: task
-status: In Review
+status: Archived
 priority: null
 title: publication_rollback storm livelocks trickle reconcile and starves dispatch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-19T01:37:27.110739Z'
-updated_at: '2026-08-26T18:05:05.592987Z'
+updated_at: '2026-08-27T03:35:31.218939Z'
 work_branch: OOMPAH-1269
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/946
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: e4ad1915-a8f5-46d6-a481-5424475d7eb8
   request_fingerprint: 83c914bb2a5339cac782d8d64bf3a68d4cd2eba9819b71b16e9850d49ef9c949
-oompah.lifecycle_revision: 4
+oompah.lifecycle_revision: 5
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -141,6 +141,31 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/946
 oompah.review_number: '946'
 oompah.target_branch: main
 oompah.review_head: 6e9226700f9bfcab2dcd6e7a3f9d1b106888e8f8
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-0c4dabf5e157
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1269
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cc3df9329aabc24cb257347a95f361656bbae96ce0bbdaaeb233a3aeb3088663
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Superseded by merged PRs #885, #886, #890, and the bounded workflow event-retention
+      recovery shipped under OOMPAH-1346. The stale task branch has no commits ahead
+      of main and should be retired.'
+    created_at: '2026-08-27T03:35:26.170850+00:00'
+    selected_ref: 6e9226700f9bfcab2dcd6e7a3f9d1b106888e8f8
+    selected_sha: 6e9226700f9bfcab2dcd6e7a3f9d1b106888e8f8
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
