@@ -412,6 +412,37 @@ class TestProviderAcpFields:
         assert updated.acp_permission_mode == "bypassPermissions"
         assert updated.acp_subscription_only is True
 
+    def test_pi_ai_transport_round_trip(self, tmp_path):
+        path = str(tmp_path / "providers.json")
+        store = ProviderStore(path=path)
+        provider = store.create(
+            name="Pi / Jocasta",
+            base_url="http://jocasta:4000/v1",
+            models=["gpt_sol"],
+            default_model="gpt_sol",
+            transport="pi_ai",
+            pi_provider_id="jocasta-4000",
+        )
+
+        restored = ProviderStore(path=path).get(provider.id)
+
+        assert restored is not None
+        assert restored.transport == "pi_ai"
+        assert restored.pi_provider_id == "jocasta-4000"
+        assert restored.to_dict()["transport"] == "pi_ai"
+
+    def test_unknown_transport_fails_closed_on_load(self):
+        provider = ModelProvider.from_dict(
+            {"id": "p", "name": "n", "base_url": "http://x", "transport": "future"}
+        )
+        assert provider.transport == "openai_compatible"
+
+    def test_pi_ai_transport_requires_api_mode(self):
+        provider = ModelProvider(
+            id="p", name="n", base_url="", mode="acp", transport="pi_ai"
+        )
+        assert "pi_ai transport requires provider mode='api'" in provider.validate_for_mode("acp")
+
     def test_store_update_normalizes_bad_mode(self, tmp_path):
         path = str(tmp_path / "providers.json")
         store = ProviderStore(path=path)
@@ -469,6 +500,22 @@ class TestProviderApiValidation:
             json={"name": "x", "mode": "api"},
         )
         assert r.status_code == 400
+
+    def test_create_pi_ai_without_base_url_succeeds(self, api_client):
+        r = api_client.post(
+            "/api/v1/providers",
+            json={
+                "name": "Pi / Anthropic",
+                "mode": "api",
+                "transport": "pi_ai",
+                "pi_provider_id": "anthropic",
+                "models": ["claude-sonnet-4-6"],
+                "default_model": "claude-sonnet-4-6",
+            },
+        )
+        assert r.status_code == 201, r.text
+        assert r.json()["transport"] == "pi_ai"
+        assert r.json()["pi_provider_id"] == "anthropic"
 
     def test_create_acp_without_base_url_succeeds(self, api_client):
         r = api_client.post(

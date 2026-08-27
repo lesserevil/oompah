@@ -19227,10 +19227,10 @@ async def api_create_provider(request: Request):
                 {"error": {"code": "validation", "message": "Name is required"}},
                 status_code=400,
             )
-        # ACP providers don't need a base_url — the Claude Agent SDK
-        # manages the connection. API providers still need one or the
-        # OpenAI-compatible client can't dispatch a single call.
-        if mode == "api" and not base_url:
+        transport = str(body.get("transport", "openai_compatible") or "").strip().lower()
+        if transport not in {"openai_compatible", "pi_ai"}:
+            return JSONResponse({"error": {"code": "validation", "message": "transport must be 'openai_compatible' or 'pi_ai'"}}, status_code=400)
+        if mode == "api" and transport != "pi_ai" and not base_url:
             return JSONResponse(
                 {
                     "error": {
@@ -19247,6 +19247,8 @@ async def api_create_provider(request: Request):
             models=body.get("models", []),
             default_model=body.get("default_model"),
             provider_type=body.get("provider_type", "openai"),
+            transport=transport,
+            pi_provider_id=body.get("pi_provider_id"),
             # ACP backend selector (used only when an agent profile
             # with mode=acp routes through this provider). None means
             # "default to claude" — preserves back-compat for providers
@@ -19310,6 +19312,8 @@ async def api_update_provider(provider_id: str, request: Request):
             "models",
             "default_model",
             "provider_type",
+            "transport",
+            "pi_provider_id",
             "model_roles",
             "model_costs",
             "model_capabilities",
@@ -19358,7 +19362,13 @@ async def api_update_provider(provider_id: str, request: Request):
             )
         effective_mode = fields.get("mode", existing.mode)
         effective_base_url = fields.get("base_url", existing.base_url)
-        if effective_mode == "api" and not (effective_base_url or "").strip():
+        effective_transport = str(fields.get("transport", existing.transport) or "").strip().lower()
+        if effective_transport not in {"openai_compatible", "pi_ai"}:
+            return JSONResponse({"error": {"code": "validation", "message": "transport must be 'openai_compatible' or 'pi_ai'"}}, status_code=400)
+        fields["transport"] = effective_transport
+        if "pi_provider_id" in fields:
+            fields["pi_provider_id"] = str(fields.get("pi_provider_id") or "").strip() or None
+        if effective_mode == "api" and effective_transport != "pi_ai" and not (effective_base_url or "").strip():
             return JSONResponse(
                 {
                     "error": {
@@ -19431,6 +19441,7 @@ async def api_test_provider(provider_id: str):
         redact_sensitive_text,
         run_acp_health_check,
         run_health_check,
+        run_pi_ai_health_check,
         snapshot_provider_for_probe,
     )
     from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
@@ -19504,7 +19515,12 @@ async def api_test_provider(provider_id: str):
         )
 
     try:
-        if provider.mode == "acp":
+        if getattr(provider, "transport", "openai_compatible") == "pi_ai":
+            result = await run_pi_ai_health_check(
+                provider,
+                before_transport_contact=_contact_authority,
+            )
+        elif provider.mode == "acp":
             # ACP providers are session-based (Claude Agent SDK / OpenAI
             # Agents SDK / opencode CLI, per provider.backend) and must be
             # probed by running a live turn — there is no synchronous HTTP

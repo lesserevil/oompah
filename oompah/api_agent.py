@@ -2178,13 +2178,24 @@ class ApiAgentSession:
         before_transport_contact: Callable[[], str | None] | None = None,
         isolate_remote_write: bool = False,
         coordination_service: Any = None,
+        transport: str = "openai_compatible",
+        pi_provider_id: str | None = None,
+        pi_provider_name: str | None = None,
+        pi_model_capabilities: tuple[str, ...] = ("text",),
+        pi_thinking: str = "off",
     ):
         # Validate before joining.  In particular, an absent base must never
         # turn into the relative path ``/chat/completions``.  This constructor
         # is also the last guard for runtime provider mutations after
         # candidate selection.
-        self.base_url = base_url.strip().rstrip("/") if isinstance(base_url, str) else base_url
-        self._url = openai_chat_completions_url(self.base_url)
+        self.base_url = (
+            base_url.strip().rstrip("/") if isinstance(base_url, str) else base_url
+        )
+        normalized_transport = str(transport or "openai_compatible").strip().lower()
+        self._url = (
+            "" if normalized_transport == "pi_ai"
+            else openai_chat_completions_url(self.base_url)
+        )
         self._api_key = api_key
         # Provider credentials can appear later in an otherwise innocuous
         # response/detail string.  Register the value at session creation so
@@ -2257,6 +2268,16 @@ class ApiAgentSession:
         self._transport_contacted = False
         self._transport_admission_denial: str | None = None
         self.coordination_service = coordination_service
+        self.transport = normalized_transport
+        if self.transport not in {"openai_compatible", "pi_ai"}:
+            raise ValueError(f"unknown API transport: {self.transport!r}")
+        self.pi_provider_id = str(pi_provider_id or "").strip() or self.model
+        self.pi_provider_name = str(pi_provider_name or "").strip() or self.pi_provider_id
+        self.pi_model_capabilities = tuple(pi_model_capabilities or ("text",))
+        self.pi_thinking = str(pi_thinking or "off").strip().lower()
+        self._pi_transport = None
+        self.total_cost_usd: float | None = None
+        self.final_cost_observed = False
         self._force_audit_finalization = False
         # Auditor command output continuations are session-local and stay in
         # the approved tool channel. Normal workers do not need a continuation
@@ -2531,13 +2552,22 @@ class ApiAgentSession:
                     prompt_preview,
                 )
 
-                response = await self._call_api(messages)
+                response = (
+                    await self._call_pi_ai(messages)
+                    if self.transport == "pi_ai"
+                    else await self._call_api(messages)
+                )
 
                 # Accumulate usage
                 usage = response.get("usage", {})
                 total_input += usage.get("prompt_tokens", 0)
                 total_output += usage.get("completion_tokens", 0)
                 total_tokens += usage.get("total_tokens", 0)
+                if self.transport == "pi_ai":
+                    reported_cost = usage.get("cost_usd")
+                    if isinstance(reported_cost, (int, float)) and not isinstance(reported_cost, bool):
+                        self.total_cost_usd = float(reported_cost)
+                        self.final_cost_observed = True
 
                 choices = response.get("choices", [])
                 if not choices:
@@ -2965,6 +2995,56 @@ class ApiAgentSession:
             )
 
     # -- private helpers ----------------------------------------------------
+
+    async def _call_pi_ai(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
+        """Run one provider turn through the minimal pi-ai sidecar."""
+        from oompah.pi_ai_transport import PiAiTransport
+
+        if self._pi_transport is None:
+            self._pi_transport = PiAiTransport(
+                workspace_path=str(self.workspace), provider=self.pi_provider_id,
+                provider_name=self.pi_provider_name, model=self.model,
+                api_key=self._api_key, base_url=self.base_url,
+                model_context=self.model_max_context,
+                model_capabilities=self.pi_model_capabilities,
+                thinking=self.pi_thinking, timeout_s=_HTTP_TIMEOUT,
+                before_transport_contact=self._admit_transport_once,
+            )
+        final_message: dict[str, Any] | None = None
+        async for event in self._pi_transport.complete(
+            system_prompt=self.system_prompt, messages=messages,
+            tools=self._tool_definitions, max_tokens=_DEFAULT_MAX_OUTPUT_TOKENS,
+        ):
+            if event.get("type") == "text_delta":
+                self._log_event("response_delta", text=event.get("delta", ""))
+            elif event.get("type") == "thinking_delta":
+                self._log_event("thinking_delta", text=event.get("delta", ""))
+            elif event.get("type") == "done" and isinstance(event.get("message"), dict):
+                final_message = event["message"]
+            elif event.get("type") == "error":
+                raise RuntimeError(str(event.get("message") or "Pi AI request failed"))
+        if final_message is None:
+            raise RuntimeError("Pi AI bridge completed without a final message")
+        text_parts, tool_calls = [], []
+        for part in final_message.get("content") or []:
+            if not isinstance(part, Mapping):
+                continue
+            if part.get("type") == "text" and isinstance(part.get("text"), str):
+                text_parts.append(part["text"])
+            elif part.get("type") == "toolCall":
+                tool_calls.append({"id": str(part.get("id") or ""), "type": "function", "function": {"name": str(part.get("name") or ""), "arguments": json.dumps(part.get("arguments") or {})}})
+        usage = final_message.get("usage") or {}
+        normalized = {
+            "choices": [{"finish_reason": "tool_calls" if final_message.get("stopReason") == "toolUse" else "length" if final_message.get("stopReason") == "length" else "stop", "message": {"role": "assistant", "content": "".join(text_parts) or None, "tool_calls": tool_calls or None, "api": final_message.get("api"), "provider": final_message.get("provider"), "model": final_message.get("model"), "stopReason": final_message.get("stopReason"), "usage": usage, "timestamp": final_message.get("timestamp")}}],
+            "usage": {"prompt_tokens": int(usage.get("input") or 0), "completion_tokens": int(usage.get("output") or 0), "total_tokens": int(usage.get("totalTokens") or 0), "cache_read_tokens": int(usage.get("cacheRead") or 0), "cache_write_tokens": int(usage.get("cacheWrite") or 0), "cost_usd": (usage.get("cost") or {}).get("total")},
+        }
+        self._log_event("response", body=normalized)
+        return normalized
+
+    async def close(self) -> None:
+        transport, self._pi_transport = self._pi_transport, None
+        if transport is not None:
+            await transport.close()
 
     async def _call_api(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
         """Make one chat completions call with automatic rate-limit retry.

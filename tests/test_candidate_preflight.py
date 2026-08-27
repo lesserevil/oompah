@@ -211,6 +211,16 @@ class TestCandidatePreflight:
 
         assert orch._candidate_preflight(target) == ""
 
+    def test_pi_ai_transport_can_skip_openai_endpoint_check(self, tmp_path):
+        provider = _api_provider(api_key="", billing_model="subscription")
+        provider.base_url = ""
+        provider.transport = "pi_ai"
+        provider.pi_provider_id = "anthropic"
+        orch = _make_orchestrator(tmp_path)
+        target = _make_target(provider=provider, model="m1")
+
+        assert orch._candidate_preflight(target) == ""
+
     def test_usable_candidate_with_budget_under_limit(self, tmp_path):
         """When budget is under limit, a paid model returns '' (usable)."""
         prov = _api_provider(
@@ -618,6 +628,24 @@ def _profile(name: str = "standard", **kw) -> AgentProfile:
 
 class TestRunWorkerPreflightIntegration:
     """_run_worker skips preflight-failed candidates and falls through to the next."""
+
+    def test_pi_ai_transport_routes_through_api_worker(self, tmp_path):
+        issue = _make_issue("feat-pi-ai")
+        provider = _api_provider(pid="pi", models=["m1"])
+        provider.transport = "pi_ai"
+        provider.pi_provider_id = "openai"
+        target = _make_target(provider=provider, model="m1")
+        orch = _make_orch_with_running(tmp_path, issue)
+        orch._resolve_dispatch_targets = MagicMock(return_value=[target])
+        api_worker = AsyncMock()
+        acp_worker = AsyncMock()
+        orch._run_api_worker = api_worker
+        orch._run_acp_worker = acp_worker
+
+        asyncio.run(orch._run_worker(issue, attempt=1, profile=_profile(mode="api")))
+
+        api_worker.assert_awaited_once()
+        acp_worker.assert_not_awaited()
 
     # ------------------------------------------------------------------
     # AC1: budget-exhausted paid → skip; next (free) candidate tried

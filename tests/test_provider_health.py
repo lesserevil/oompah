@@ -38,6 +38,7 @@ from oompah.provider_health import (
     _pick_model,
     run_acp_health_check,
     run_health_check,
+    run_pi_ai_health_check,
 )
 
 
@@ -246,6 +247,17 @@ class TestProviderHealthCache:
 
         cache.record_failure(provider, model="one", reason="auth_failed")
         provider.api_key = "sk-rotated-test-key"
+        assert cache.get(provider, "one") is None
+
+    def test_pi_transport_configuration_change_invalidates_result(self):
+        provider = _make_provider(models=["one"], default_model="one")
+        provider.transport = "pi_ai"
+        provider.pi_provider_id = "openai"
+        cache = ProviderHealthCache()
+        cache.record_failure(provider, model="one", reason="timeout")
+
+        provider.pi_provider_id = "anthropic"
+
         assert cache.get(provider, "one") is None
 
     def test_probe_denial_prevents_http_transport(self):
@@ -1050,6 +1062,31 @@ class TestAcpLiveProbe:
         p = _make_acp_provider(backend=fake_acp_backend_failing)
         result = asyncio.run(run_acp_health_check(p))
         assert result.error_reason in ERROR_REASONS
+
+
+class TestPiAiHealthCheck:
+    def test_success_uses_pi_transport(self, tmp_path, monkeypatch):
+        provider = _make_provider(models=["m"], default_model="m")
+        provider.transport = "pi_ai"
+        provider.pi_provider_id = "openai"
+
+        class FakeTransport:
+            workspace_path = str(tmp_path / "health")
+
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+            async def complete(self, **kwargs):
+                yield {"type": "text_delta", "delta": "4"}
+                yield {"type": "done", "message": {}}
+
+            async def close(self):
+                return None
+
+        monkeypatch.setattr("oompah.pi_ai_transport.PiAiTransport", FakeTransport)
+        result = asyncio.run(run_pi_ai_health_check(provider))
+        assert result.success is True
+        assert result.response_text == "4"
 
 
 class TestNormalizeAcpError:
