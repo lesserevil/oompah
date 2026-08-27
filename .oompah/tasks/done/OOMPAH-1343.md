@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T18:43:05.336022Z'
-updated_at: '2026-08-27T02:03:46.049085Z'
+updated_at: '2026-08-27T02:03:54.891983Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,6 +62,28 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-27T02:03:44.595168+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Operational recovery actions completed and verified; retain task as terminal
+      provenance.
+    marked_at: '2026-08-27T02:03:53.383229+00:00'
+    updated_at: '2026-08-27T02:03:53.383229+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Operational recovery actions completed and verified; retain task as
+        terminal provenance.
+      recorded_at: '2026-08-27T02:03:53.383229+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []
