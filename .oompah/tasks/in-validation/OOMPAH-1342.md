@@ -16,7 +16,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-27T16:59:01.839182Z'
+updated_at: '2026-08-27T17:10:16.176020Z'
 work_branch: epic-OOMPAH-1342
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/957
@@ -48,6 +48,8 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1342
     digest: 7770ca18ce34d7d40f3ded77ee64eb779eb526edd15c61a2bbf2ae48784acf01
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1342","audit-e19f7d1f2d16","attempt-54c84dbabf84"]': '2026-08-27T17:10:14.823867+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -55,7 +57,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1342
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -86,7 +88,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-54c84dbabf84
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -100,6 +102,10 @@ oompah.terminal_audit:
       selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
       landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
       candidate_rotation_count: 1
+      verdict: fail
+      failure_classification: infrastructure_error
+      ended_at: '2026-08-27T17:10:14.823738+00:00'
+      failure_reason: retry ceiling reached; verdict left pending
     source_generation: 1
     requested_by:
       version: 1
@@ -112,7 +118,7 @@ oompah.terminal_audit:
     selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
     landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
     workflow_revision: 7088c4d3100c5c8660e950261aa8d55e7144382d8c1990b19383b04048b5cf62
-    updated_at: '2026-08-27T16:58:50.049846+00:00'
+    updated_at: '2026-08-27T17:10:14.823738+00:00'
   - version: 1
     audit_id: audit-317deb859e7d
     project_id: proj-14849f1b
