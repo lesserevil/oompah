@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:01:23.399466Z'
-updated_at: '2026-08-27T03:51:51.717302Z'
+updated_at: '2026-08-27T03:52:02.290539Z'
 work_branch: OOMPAH-1299
 target_branch: null
 review_url: null
@@ -162,7 +162,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:51:46.967990+00:00'
     selected_ref: f14aee1e215de9f41740046a3057ffc50cc64c71
     selected_sha: f14aee1e215de9f41740046a3057ffc50cc64c71
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1299
+    target_state: Archived
+    evidence_fingerprint: a7d69b4945765b3905ef79aac4e52f68e2e36df58390dcbd0aefe65377ff16e7
+    workflow_revision: null
+    selected_ref: f14aee1e215de9f41740046a3057ffc50cc64c71
+    selected_sha: f14aee1e215de9f41740046a3057ffc50cc64c71
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:51:56.481019+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -415,5 +429,17 @@ created: 2026-08-23 23:56
 - Modified file: oompah/orchestrator.py
 - Commit: f14aee1e2
 - Branch: OOMPAH-1299
+---
+author: oompah
+created: 2026-08-27 03:51
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
+---
+author: oompah
+created: 2026-08-27 03:52
+---
+Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
