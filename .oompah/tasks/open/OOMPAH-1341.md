@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T16:14:26.107948Z'
-updated_at: '2026-08-27T16:08:38.068831Z'
+updated_at: '2026-08-27T16:08:50.013960Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -80,5 +80,10 @@ author: oompah
 created: 2026-08-26 16:16
 ---
 Direct owner: I am implementing this watchdog/review-capacity fix now and will carry it through tests, PR merge, deployment, and live verification. No separate agent dispatch is required.
+---
+author: oompah
+created: 2026-08-27 16:08
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
