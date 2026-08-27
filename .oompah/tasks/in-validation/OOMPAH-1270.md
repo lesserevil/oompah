@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-27T23:49:18.913691Z'
+updated_at: '2026-08-27T23:57:58.447129Z'
 work_branch: OOMPAH-1270
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/964
@@ -167,6 +167,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1270
     digest: 48663fbd8e8cdf192c52a9d92d9d596d34427cecd1ec34b46ce7b281e3caa79f
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1270","audit-7d6970c3bdd8","attempt-dd5650c623b2"]': '2026-08-27T23:57:49.480752+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1270
+    target_state: Done
+    evidence_fingerprint: 48663fbd8e8cdf192c52a9d92d9d596d34427cecd1ec34b46ce7b281e3caa79f
+    workflow_revision: null
+    selected_ref: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
+    selected_sha: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
+    landing_revision: null
+    audit_ids:
+    - audit-7d6970c3bdd8
+    kind: result
+    applied: true
+    retired_at: '2026-08-27T23:57:49.480769+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1270
+    audit_id: audit-7d6970c3bdd8
+    attempt_id: attempt-dd5650c623b2
+    target_state: Done
+    evidence_fingerprint: 48663fbd8e8cdf192c52a9d92d9d596d34427cecd1ec34b46ce7b281e3caa79f
+    status: In Validation
+    audit_ids:
+    - audit-7d6970c3bdd8
+    kind: result
+    applied: true
+    created_at: '2026-08-27T23:57:49.480779+00:00'
+    applied_at: '2026-08-27T23:57:57.029397+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -174,7 +204,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1270
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -183,7 +213,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-dd5650c623b2
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -195,6 +225,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1270
       selected_ref: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
       selected_sha: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
+      verdict: pass
+      completed_at: '2026-08-27T23:57:49.480578+00:00'
+      ended_at: '2026-08-27T23:57:49.480578+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -205,7 +238,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-27T23:45:53.229044+00:00'
     selected_ref: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
     selected_sha: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
-    updated_at: '2026-08-27T23:49:08.197779+00:00'
+    updated_at: '2026-08-27T23:57:49.480578+00:00'
   - version: 1
     audit_id: audit-f45c6d7670ec
     project_id: proj-14849f1b
@@ -227,6 +260,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-7d6970c3bdd8
     selected_ref: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
     selected_sha: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
+    updated_at: '2026-08-27T23:57:49.480578+00:00'
+    eligible_at: '2026-08-27T23:57:49.480578+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-dd5650c623b2
@@ -436,5 +471,23 @@ author: oompah
 created: 2026-08-27 23:49
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-27 23:57
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- instrumentation_locations: task_transition_service.py lines 2620-2629 and 2943-2952
+- log_message_format: Task escalation to Needs Human: task=%s project=%s actor=%s authority=%s reason=%s
+- regression_test: tests/test_task_transition_service.py::test_needs_human_escalation_is_logged_with_authority_source
+- focused_test_result: 1 passed in 1.73s (Python 3.12.12)
+- full_gate_sha: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
+- full_gate_passes: 3 (189.7s, 184.5s, 186.5s)
+- gap_noted: guard/auto-recovery not implemented; explicitly deferred pending production instrumentation data
+- NEEDS_HUMAN_import: line 47 in task_transition_service.py
+- logger_init: line 66: logger = logging.getLogger(__name__)
 ---
 <!-- COMMENTS:END -->
