@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1273
 type: bug
-status: Ready to Integrate
+status: Archived
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=OOMPAH-1198 identifier=OOMPAH-1198 run_id=3c5e1f31236f4ba89bcebe5074b1098d
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T22:41:44.906086Z'
-updated_at: '2026-08-26T17:39:16.260950Z'
+updated_at: '2026-08-27T03:43:12.539375Z'
 work_branch: OOMPAH-1273
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/940
 review_number: '940'
 review_head: a2c14f57eee9bbfe751cc323ad0e854b052f02fe
 merged_at: null
-oompah.lifecycle_revision: 5
+oompah.lifecycle_revision: 6
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -132,6 +132,34 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/940
 oompah.review_number: '940'
 oompah.target_branch: main
 oompah.review_head: a2c14f57eee9bbfe751cc323ad0e854b052f02fe
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-56a2d5654863
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1273
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b58cce9379d1577758478af50c569e9d8d58957b98151c9896297125cf38567f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch
+      incident is already fixed on main: persistence uses the 60-second configured
+      bound, expected bounded retirement and pre-request worker failures are below
+      error-intake severity, and provider-retirement behavior has regression coverage.
+      This duplicate auto-filed task must not consume integration capacity or resurrect
+      its stale branch.'
+    created_at: '2026-08-27T03:43:07.746571+00:00'
+    selected_ref: a2c14f57eee9bbfe751cc323ad0e854b052f02fe
+    selected_sha: a2c14f57eee9bbfe751cc323ad0e854b052f02fe
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
