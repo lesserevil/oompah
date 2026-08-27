@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:37:52.344051Z'
-updated_at: '2026-08-27T03:33:21.473344Z'
+updated_at: '2026-08-27T03:33:30.602350Z'
 work_branch: OOMPAH-1211
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/947
@@ -451,5 +451,10 @@ created: 2026-08-27 03:33
 Override by oompah-cli: terminal transition to Archived applied by project owner.
 
 Reason: Superseded by fixes already merged to main: production now uses a 60-second contributor-evidence persistence timeout, logs the expected bounded timeout at DEBUG, and excludes expected pre-provider retirement from error intake. The stale branch conflicts with newer recovery work and must not be rebased or merged.
+---
+author: oompah
+created: 2026-08-27 03:33
+---
+Superseded by fixes already merged to main: production now uses a 60-second contributor-evidence persistence timeout, logs the expected bounded timeout at DEBUG, and excludes expected pre-provider retirement from error intake. The stale branch conflicts with newer recovery work and must not be rebased or merged.
 ---
 <!-- COMMENTS:END -->
