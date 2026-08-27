@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-27T00:27:52.827513Z'
+updated_at: '2026-08-27T00:28:11.303182Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -318,6 +318,28 @@ oompah.terminal_audit:
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
     applied: true
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: Owner-verified integrated implementation and full test evidence retained
+      after repeated auditor transport/policy failures.
+    marked_at: '2026-08-27T00:28:09.830844+00:00'
+    updated_at: '2026-08-27T00:28:09.830844+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: Owner-verified integrated implementation and full test evidence retained
+        after repeated auditor transport/policy failures.
+      recorded_at: '2026-08-27T00:28:09.830844+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain:
   - version: 1
