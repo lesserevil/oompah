@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1315
 type: bug
-status: Ready to Integrate
+status: Archived
 priority: 2
 title: '[backend:orchestrator] Pre-provider contributor evidence exceeded its bounded
   task-authority deadline issue_id=OOMPAH-1195 identifier=OOMPAH-1195 run_id=ab79167446334859bc98d8c203215877
@@ -13,14 +13,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:41:47.946905Z'
-updated_at: '2026-08-21T08:26:00.757414Z'
+updated_at: '2026-08-27T03:55:50.228538Z'
 work_branch: OOMPAH-1315
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.last_batch:
   batch_id: batch-1c1d234dcdd64c5ba5a90080c24b1e3a
   actor: shedwards
@@ -128,6 +128,34 @@ oompah.integration:
   submitted_at: '2026-08-21T08:25:36.685440+00:00'
   updated_at: '2026-08-21T08:25:36.685440+00:00'
 oompah.work_branch: OOMPAH-1315
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-eac61e1fcd70
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1315
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b7e0770b7810d029fecf8a25d1d12d8e4e65fd288725edd730734c7f1fb2760f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch
+      incident is already fixed on main: persistence uses the 60-second configured
+      bound, expected bounded retirement and pre-request worker failures are below
+      error-intake severity, and provider-retirement behavior has regression coverage.
+      This duplicate auto-filed task must not consume integration capacity or resurrect
+      its stale branch.'
+    created_at: '2026-08-27T03:55:45.831362+00:00'
+    selected_ref: 0b42e47165b77f737eff0db236eef8303e7cd00f
+    selected_sha: 0b42e47165b77f737eff0db236eef8303e7cd00f
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
