@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-27T19:25:52.410714Z'
-updated_at: '2026-08-27T19:48:04.549046Z'
+updated_at: '2026-08-27T19:50:27.442178Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,5 +43,10 @@ author: oompah
 created: 2026-08-27 19:47
 ---
 Duplicate task created when an earlier task-create request timed out after committing. Canonical task: OOMPAH-1350. Do not dispatch.
+---
+author: oompah
+created: 2026-08-27 19:50
+---
+Canonical duplicate: OOMPAH-1350. This duplicate exists only because the second task-create request timed out after committing.
 ---
 <!-- COMMENTS:END -->

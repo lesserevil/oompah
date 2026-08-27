@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-27T19:24:45.971039Z'
-updated_at: '2026-08-27T19:43:12.999694Z'
+updated_at: '2026-08-27T19:50:24.288203Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,5 +43,10 @@ author: oompah
 created: 2026-08-27 19:43
 ---
 Duplicate task created when the CLI request timed out after the server had committed it. Canonical investigation/fix task: OOMPAH-1350. Do not dispatch or implement this duplicate.
+---
+author: oompah
+created: 2026-08-27 19:50
+---
+Canonical duplicate: OOMPAH-1350. This duplicate exists only because the first task-create request timed out after committing.
 ---
 <!-- COMMENTS:END -->
