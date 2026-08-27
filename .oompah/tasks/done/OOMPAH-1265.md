@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1265
 type: task
-status: In Validation
+status: Done
 priority: 1
 title: Prove external-prerequisite lifecycle convergence and observability
 parent: OOMPAH-1231
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-27T00:26:45.514343Z'
+updated_at: '2026-08-27T00:27:46.743807Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -28,7 +28,7 @@ oompah.create_once:
   creation_marker: oompah-1231-lifecycle-acceptance-v1
   request_fingerprint: 4f48f1f0e957c03ae28cb1f4f01e0f52c4c6c9020d902bc67d1cfb4f69389377
 oompah.start_blocked_by: *id001
-oompah.lifecycle_revision: 8
+oompah.lifecycle_revision: 9
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: d1a591bae50708aaf359f111881a4071d274e23ddea4e3a15cbe53430d1b5800
@@ -293,6 +293,26 @@ oompah.terminal_audit:
     mode: infrastructure_recovery
     consumed_at: '2026-08-27T00:25:42.379203+00:00'
     consumed_workflow_job_id: workflow-job-9b0381611b54424593fbb8f38dec9647
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-1cc32bf63b0a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1265
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Owner verified the integrated head and full test evidence; repeated audit
+      attempts were infrastructure/policy failures without a contrary verdict.
+    created_at: '2026-08-27T00:27:42.347577+00:00'
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+    applied: false
   version: 1
   pending_chain:
   - version: 1
