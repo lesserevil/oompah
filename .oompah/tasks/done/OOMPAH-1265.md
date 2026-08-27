@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-27T00:27:46.743807Z'
+updated_at: '2026-08-27T00:27:52.827513Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -190,7 +190,8 @@ oompah.terminal_audit:
     audit_ids:
     - audit-203317319620
     - audit-b5efe744bcec
-    kind: result
+    - audit-31d155eda57d
+    kind: override
     applied: true
     retired_at: '2026-08-25T23:54:02.881507+00:00'
   oompah.terminal_audit_result_intents:
@@ -207,6 +208,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-25T23:54:02.881517+00:00'
     applied_at: '2026-08-25T23:54:10.690372+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-1265
     audit_id: audit-b5efe744bcec
@@ -220,6 +222,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-26T15:47:01.735776+00:00'
     applied_at: '2026-08-26T15:47:07.624041+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-1265
     audit_id: audit-b5efe744bcec
@@ -233,6 +236,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-26T16:03:56.473909+00:00'
     applied_at: '2026-08-26T16:04:04.379736+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-1265
     audit_id: audit-31d155eda57d
@@ -246,6 +250,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-26T23:30:47.013918+00:00'
     applied_at: '2026-08-26T23:30:54.109957+00:00'
+    retired_by_override: true
   oompah.terminal_audit_rearm_history:
   - version: 2
     audit_id: audit-b5efe744bcec
@@ -312,7 +317,7 @@ oompah.terminal_audit:
     created_at: '2026-08-27T00:27:42.347577+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -477,7 +482,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1265
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -511,7 +516,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T23:30:47.013716+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
-    updated_at: '2026-08-27T00:26:38.133596+00:00'
+    updated_at: '2026-08-27T00:27:51.373378+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f1e85028019b
@@ -865,5 +870,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 47s
 - Log: OOMPAH-1265__20260827T002615Z.jsonl
+---
+author: oompah
+created: 2026-08-27 00:27
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Owner verified the integrated head and full test evidence; repeated audit attempts were infrastructure/policy failures without a contrary verdict.
 ---
 <!-- COMMENTS:END -->
