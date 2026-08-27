@@ -318,21 +318,22 @@ The same secret value must be set in the GitLab project hook. Oompah manages
 this automatically when callback resolution succeeds and the token has
 Maintainer role.
 
-### Auto-merge semantics
+### Merge-train semantics
 
-GitLab auto-merge uses `merge_when_pipeline_succeeds`. When oompah requests an
-auto-merge on a merge request, it sets this flag via the GitLab API. The MR is
-merged automatically once all required pipeline jobs pass.
+For GitLab, Oompah's **Merge Queue** project option means GitLab Merge Trains.
+Enable both `merge_pipelines_enabled` and `merge_trains_enabled` in GitLab, then
+enable the option in Oompah. Oompah submits the accepted source SHA to GitLab's
+merge-train endpoint; GitLab tests the synthesized result before landing it.
 
-If GitLab rejects the auto-merge request (because approvals are required or
-policy is unmet), oompah retains the MR in open state and surfaces the reason
-as an alert.
+Oompah does not use the ordinary `merge_when_pipeline_succeeds` endpoint for
+queue delivery because that does not prove merge-train admission and cannot
+supply Oompah's exact-head precondition. If the Oompah option is disabled for a
+GitLab project, automatic review merges fail closed rather than bypassing an
+enabled train with a direct merge.
 
-**Merge trains are not supported in v1.** Oompah uses ordinary auto-merge
-(`merge_when_pipeline_succeeds`) only. If the target project uses merge trains,
-oompah will request an ordinary auto-merge and GitLab will execute the MR
-outside the train. To disable merge trains for a specific project, go to
-**Settings → Merge Requests → Merge method** and disable "Merge Trains".
+If GitLab rejects train enrollment because the feature is disabled, approvals
+are missing, the expected SHA moved, or project policy is unmet, Oompah leaves
+the MR open and surfaces the reason for operator action.
 
 ### State branch push access
 

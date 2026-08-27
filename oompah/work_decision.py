@@ -1141,6 +1141,16 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             durable_jobs=("review_monitor",),
         )
     if ci in {"passed", "success", "successful"}:
+        if bool(value.get("auto_merge_enabled")):
+            return _decision(
+                task,
+                facts,
+                disposition=TaskDisposition.OWNED,
+                reason_code="review.monitoring",
+                owner=WorkflowOwner.REVIEW_MONITOR,
+                actions=(PermittedAction.REFRESH_REVIEW,),
+                durable_jobs=("review_monitor",),
+            )
         return _decision(
             task,
             facts,

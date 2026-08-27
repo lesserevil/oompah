@@ -527,9 +527,9 @@ class Project:
     # single-review-handoff behavior. Raise per-project once GitHub Merge
     # Queue is enabled and verified for that repo.
     max_in_flight_prs: int = 1
-    # When True, YOLO auto-merge calls enable_auto_merge (GitHub merge queue)
-    # instead of directly merging the PR.  Default False preserves today's
-    # direct-merge behaviour.
+    # When True, review delivery uses the forge's queue: GitHub Merge Queue
+    # or GitLab Merge Trains. GitLab review automation fails closed when this
+    # is False so an enabled train cannot be bypassed by a direct merge.
     merge_queue_enabled: bool = False
     # Per-project pause flag. When True, the orchestrator's _should_dispatch
     # rejects every issue belonging to this project with reason

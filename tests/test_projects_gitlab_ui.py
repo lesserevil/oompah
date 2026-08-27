@@ -297,25 +297,16 @@ class TestMergeRequestTerminology:
             "for targeting in tests."
         )
 
-    def test_gitlab_auto_merge_note_present(self, script: str) -> None:
-        """GitLab auto-merge uses merge_when_pipeline_succeeds (not Merge Queue)."""
-        assert "merge_when_pipeline_succeeds" in script, (
-            "For GitLab projects, the UI must show merge_when_pipeline_succeeds "
-            "and note that merge trains are not supported."
-        )
+    def test_gitlab_merge_train_control_is_present(self, script: str) -> None:
+        """GitLab projects expose their provider-native queue control."""
+        assert "Merge Train" in script
+        assert "enqueue MRs through GitLab Merge Trains" in script
 
-    def test_gitlab_merge_trains_unsupported_note(self, script: str) -> None:
-        """A note must appear that GitLab merge trains are not supported."""
-        assert "merge train" in script.lower() or "merge trains" in script.lower(), (
-            "The UI must note that GitLab merge trains are not supported in v1."
-        )
+    def test_gitlab_disabled_queue_warning_is_fail_closed(self, script: str) -> None:
+        assert "Off — Oompah will not auto-merge GitLab MRs" in script
 
-    def test_merge_queue_shown_only_for_github(self, script: str) -> None:
-        """Merge Queue toggle is conditional on forge_kind !== 'gitlab'."""
-        # The template uses forge_kind !== 'gitlab' to show/hide the Merge Queue row
-        assert "forge_kind !== 'gitlab'" in script or "forge_kind === 'gitlab'" in script, (
-            "Merge Queue toggle must be conditional on forge kind."
-        )
+    def test_merge_queue_label_is_provider_specific(self, script: str) -> None:
+        assert "p.forge_kind === 'gitlab' ? 'Merge Train' : 'Merge Queue'" in script
 
 
 # ---------------------------------------------------------------------------
