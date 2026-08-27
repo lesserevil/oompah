@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-14T02:40:21.846935Z'
-updated_at: '2026-08-27T00:25:44.350073Z'
+updated_at: '2026-08-27T00:26:04.336452Z'
 work_branch: epic-OOMPAH-1231--task-OOMPAH-1265
 target_branch: null
 review_url: null
@@ -457,12 +457,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1265
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-1cc5e8198f1c
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+      created_at: '2026-08-27T00:25:54.206008+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-27T00:25:54.206008+00:00'
+      branch_key: epic-OOMPAH-1231--task-OOMPAH-1265
+      selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+      selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
     source_generation: 3
     requested_by:
       version: 1
@@ -473,6 +488,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-26T23:30:47.013716+00:00'
     selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
     selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
+    updated_at: '2026-08-27T00:25:54.206008+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f1e85028019b
@@ -553,6 +569,21 @@ oompah.terminal_audit:
       auditor capability policy permits only read-only repository inspection and configured
       test commands; command denied'
     next_retry_at: '2026-08-26T16:03:49.162330+00:00'
+  - version: 1
+    attempt_id: attempt-1cc5e8198f1c
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dda25dc0bd2632642d1e7323a32edaa75da3d269bfbf92f0fbf90286400c2c76
+    created_at: '2026-08-27T00:25:54.206008+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-27T00:25:54.206008+00:00'
+    branch_key: epic-OOMPAH-1231--task-OOMPAH-1265
+    selected_ref: dea44bc88fd4017054f38934f30c01d06e9aca87
+    selected_sha: dea44bc88fd4017054f38934f30c01d06e9aca87
 ---
 ## Summary
 
@@ -783,5 +814,15 @@ author: oompah
 created: 2026-08-26 23:30
 ---
 Terminal audit rearmed by project owner after recovery: Independent Claude, Codex, and OpenCode auditor candidates are configured and healthy; rearm the exact integrated head after the prior candidate exhaustion.
+---
+author: oompah
+created: 2026-08-27 00:25
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-27 00:26
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
