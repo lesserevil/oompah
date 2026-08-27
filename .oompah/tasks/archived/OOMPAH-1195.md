@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1195
 type: bug
-status: Ready to Integrate
+status: Archived
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=TRICKLE-137'
 parent: null
@@ -11,14 +11,14 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:56:17.683117Z'
-updated_at: '2026-08-24T10:49:01.368949Z'
+updated_at: '2026-08-27T03:39:32.916100Z'
 work_branch: OOMPAH-1195
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.last_batch:
   batch_id: batch-41327bd44d2248989351b0a98c84746f
   actor: shedwards
@@ -217,6 +217,34 @@ oompah.integration:
   submitted_at: '2026-08-24T10:47:17.216001+00:00'
   updated_at: '2026-08-24T10:47:17.216001+00:00'
 oompah.work_branch: OOMPAH-1195
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6758d2e1966d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1195
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9866e22f9915cc46e0d13fc23f5be59c932789c7a64066b75308fd12c3a500a8
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch
+      incident is already fixed on main: persistence uses the 60-second configured
+      bound, expected bounded retirement and pre-request worker failures are below
+      error-intake severity, and provider-retirement behavior has regression coverage.
+      This duplicate auto-filed task must not consume integration capacity or resurrect
+      its stale branch.'
+    created_at: '2026-08-27T03:39:28.335905+00:00'
+    selected_ref: f1cc943d166c5ce6a777348e62e57da581488875
+    selected_sha: f1cc943d166c5ce6a777348e62e57da581488875
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
