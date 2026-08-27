@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T03:37:52.344051Z'
-updated_at: '2026-08-27T03:33:09.956139Z'
+updated_at: '2026-08-27T03:33:21.473344Z'
 work_branch: OOMPAH-1211
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/947
@@ -192,7 +192,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:32:59.665632+00:00'
     selected_ref: f8b4a73d35bb57f475bd4daba90dc7725346d955
     selected_sha: f8b4a73d35bb57f475bd4daba90dc7725346d955
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1211
+    target_state: Archived
+    evidence_fingerprint: 60da1cef4d6ccc3e14d8377bc9dda0b78943b72da4f975220c3ca345a3f9c81a
+    workflow_revision: null
+    selected_ref: f8b4a73d35bb57f475bd4daba90dc7725346d955
+    selected_sha: f8b4a73d35bb57f475bd4daba90dc7725346d955
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:33:17.210864+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -430,5 +444,12 @@ author: oompah
 created: 2026-08-26 10:16
 ---
 Branch quality gate passed for `f8b4a73d35bb57f475bd4daba90dc7725346d955` using `make test` in 189.6s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-27 03:33
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded by fixes already merged to main: production now uses a 60-second contributor-evidence persistence timeout, logs the expected bounded timeout at DEBUG, and excludes expected pre-provider retirement from error intake. The stale branch conflicts with newer recovery work and must not be rebased or merged.
 ---
 <!-- COMMENTS:END -->
