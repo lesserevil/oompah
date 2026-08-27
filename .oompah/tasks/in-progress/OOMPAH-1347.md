@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1347
 type: feature
-status: Backlog
+status: In Progress
 priority: 2
 title: Add Pi AI provider transport
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-27T17:12:13.126258Z'
-updated_at: '2026-08-27T17:12:13.126258Z'
+updated_at: '2026-08-27T17:32:33.775172Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,6 +25,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: pi-ai-provider-implementation-v1
   request_fingerprint: ce1a08358047a0fa88eef9a742e9f66ca46a3c65f78b4c923dd37987e5035043
+oompah.lifecycle_revision: 1
 ---
 ## Summary
 
