@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-12T23:57:22.979573Z'
-updated_at: '2026-08-27T01:28:24.652705Z'
+updated_at: '2026-08-27T03:35:05.345568Z'
 work_branch: OOMPAH-1199
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/955
@@ -189,6 +189,31 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/955
 oompah.review_number: '955'
 oompah.target_branch: main
 oompah.review_head: 99d1966926fc94ae138c2e50198a1fa5a9785a72
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-866341c99de0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1199
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c62f0ac97f9903aca3ba242015cfb02f013c0bd6915fc3c6f3fee5bd124e0ba4
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Superseded by fixes already merged to main: worker pre-request failures
+      now log at DEBUG with structured lifecycle handling. The stale WARNING-only
+      branch conflicts with newer recovery work and must not be rebased or merged.'
+    created_at: '2026-08-27T03:35:03.771668+00:00'
+    selected_ref: 99d1966926fc94ae138c2e50198a1fa5a9785a72
+    selected_sha: 99d1966926fc94ae138c2e50198a1fa5a9785a72
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
