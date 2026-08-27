@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-13T18:21:20.794310Z'
-updated_at: '2026-08-26T23:19:58.188246Z'
+updated_at: '2026-08-27T00:29:06.460796Z'
 work_branch: OOMPAH-1256
 target_branch: null
 review_url: null
@@ -298,6 +298,30 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-26T23:19:56.384759+00:00'
   oompah.terminal_audit_result_intents: []
+  oompah.terminal_provenance_suppression:
+    version: 1
+    suppressed: true
+    authority_generation: 0
+    reason: 'Fix was superseded by equivalent canonical alias handling already present
+      on main; failed superseded PR #952 was closed and the relevant focused suites
+      pass.'
+    marked_at: '2026-08-27T00:29:05.151299+00:00'
+    updated_at: '2026-08-27T00:29:05.151299+00:00'
+    history:
+    - kind: mark
+      actor:
+        version: 1
+        identity: oompah-cli
+        source: api
+      reason: 'Fix was superseded by equivalent canonical alias handling already present
+        on main; failed superseded PR #952 was closed and the relevant focused suites
+        pass.'
+      recorded_at: '2026-08-27T00:29:05.151299+00:00'
+      authority_generation: 0
+    actor:
+      version: 1
+      identity: oompah-cli
+      source: api
   version: 1
   pending_chain: []
   attempt_history: []
