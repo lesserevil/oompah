@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-27T23:44:44.229999Z'
+updated_at: '2026-08-27T23:51:09.165561Z'
 work_branch: OOMPAH-1250
 target_branch: null
 review_url: null
@@ -883,5 +883,10 @@ ERROR: oompah/gitlab_intake_bridge.py:783:17: sync_gitlab_issue_intake_statuses_
 Found 1 unauthorized task-status mutation(s).
 make: *** [Makefile:438: terminal-audit-scan] Error 1
 ```
+---
+author: user
+created: 2026-08-27 23:51
+---
+This should not be in 'needs human'. Please re-open and try again.
 ---
 <!-- COMMENTS:END -->
