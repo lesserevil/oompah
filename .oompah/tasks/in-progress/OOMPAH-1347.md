@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-27T17:12:13.126258Z'
-updated_at: '2026-08-27T17:34:41.628965Z'
+updated_at: '2026-08-27T18:31:27.609358Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,5 +43,10 @@ author: oompah
 created: 2026-08-27 17:34
 ---
 Implementation started on branch OOMPAH-1347-pi-ai-provider.
+---
+author: oompah
+created: 2026-08-27 18:31
+---
+Implemented initial Pi provider transport on branch OOMPAH-1347-pi-ai-provider and opened PR #966. The implementation uses @earendil-works/pi-ai only; Oompah retains its existing agent loop and guarded Python tool executor. Added pinned Node bridge, provider transport fields/API/UI, health probe, exact provider/model mapping, usage/cost propagation, bounded JSONL framing, cancellation/process cleanup, and tests. Focused checks passed: 779 Python tests plus 3 Node tests. CI pending.
 ---
 <!-- COMMENTS:END -->
