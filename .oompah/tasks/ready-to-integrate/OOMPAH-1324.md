@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:22:19.264494Z'
-updated_at: '2026-08-24T06:18:42.635073Z'
+updated_at: '2026-08-27T03:19:07.975082Z'
 work_branch: OOMPAH-1324
 target_branch: null
 review_url: null
@@ -365,5 +365,10 @@ author: oompah
 created: 2026-08-24 06:18
 ---
 Completion: OOMPAH-1324 has been completed and submitted for integration. The fix resolves the issue where error_watcher was auto-filing 'Pre-provider contributor evidence exceeded its bounded task-authority deadline' messages as error tasks. Root cause: These timeout conditions are gracefully-handled retry scenarios, not actual errors. Solution: Lowered log level from WARNING to INFO so error_watcher (which only captures ERROR+ logs) no longer captures them. The change is minimal (3 logger.warning → logger.info), preserves all timeout handling and retry logic, and is backwards compatible. Ready for review and integration.
+---
+author: oompah
+created: 2026-08-27 03:19
+---
+Branch quality gate passed for `083edbe5c91b73b83ac6a1d62920b07312f92ea3` using `make test` in 189.7s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
