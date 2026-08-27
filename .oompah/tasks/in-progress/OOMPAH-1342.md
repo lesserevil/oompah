@@ -16,7 +16,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-27T04:03:03.004317Z'
+updated_at: '2026-08-27T15:27:18.622453Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,5 +62,10 @@ author: oompah
 created: 2026-08-27 04:03
 ---
 Queue hygiene cleanup completed under global/project pause. Closed all 8 stale conflicting Oompah PRs (#939, #947-950, #954-955, #960), archived their 11 superseded tasks with owner override, and deleted their remote branches. Archived another 44 duplicate auto-filed contributor-evidence/worker-dispatch tasks that were still Ready to Integrate despite the root fixes already being on main. Closed 8 stale blocked Trickle draft MRs (!3, !10-13, !16-18), archived their tasks with explicit fresh-revision requirements, and deleted their remote branches. Review inventory fell from 21 to 6 and conflict count from 11 to 0; Ready to Integrate fell from 77 to 32 (Oompah 49 to 5). Remaining six Trickle MRs are non-draft and conflict-free; their CI/blocker disposition remains to be handled separately.
+---
+author: oompah
+created: 2026-08-27 15:27
+---
+Trickle review audit: six non-draft MRs remain and none conflicts. MR !7/TRICKLE-119 and !19/TRICKLE-121 were already green; retried the exact failed macOS jobs for !8/TRICKLE-120 and !14/TRICKLE-136 and both now pass, making those MRs mergeable. !15/TRICKLE-135 and !20/TRICKLE-143 still fail deterministically in ci:test-macos because sccache reports 2,553 compiler cache errors; these need an actual branch fix, not another retry. Removed the untracked .oompah-no-hooks helpers from the four integration worktrees and resubmitted exact remote heads for TRICKLE-119/120/135/136. Automatic lifecycle advancement is not currently occurring because the service and Trickle remain paused for recovery validation.
 ---
 <!-- COMMENTS:END -->
