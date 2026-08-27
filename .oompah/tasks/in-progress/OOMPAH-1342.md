@@ -16,12 +16,12 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-27T15:58:21.964436Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
-review_head: null
+updated_at: '2026-08-27T16:16:19.831413Z'
+work_branch: epic-OOMPAH-1342
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/957
+review_number: '957'
+review_head: c838c152de0ba072b527b6b07076cdcd61f03745
 merged_at: null
 oompah.create_once:
   version: 1
@@ -30,6 +30,11 @@ oompah.create_once:
   creation_marker: manual-service-recovery-20260826-epic
   request_fingerprint: 070158bda33ab0d0629239fafe161aeb566b706e18982b59d6073e52830bd282
 oompah.lifecycle_revision: 2
+oompah.review_url: https://github.com/lesserevil/oompah/pull/957
+oompah.review_number: '957'
+oompah.work_branch: epic-OOMPAH-1342
+oompah.target_branch: main
+oompah.review_head: c838c152de0ba072b527b6b07076cdcd61f03745
 ---
 ## Summary
 
