@@ -2651,6 +2651,16 @@ class TaskTransitionService:
                         )
                         return outcome
                 else:
+                    if canonicalize_status(intent.requested_status) == NEEDS_HUMAN:
+                        logger.info(
+                            "Task escalation to Needs Human: "
+                            "task=%s project=%s actor=%s authority=%s reason=%s",
+                            intent.task_id,
+                            intent.project_id,
+                            intent.actor,
+                            intent.authority,
+                            intent.reason_code,
+                        )
                     await self._update(intent.task_id, intent.requested_status)
             except Exception as exc:  # noqa: BLE001 - verify ambiguous tracker write
                 latest, _ = await self._try_fetch(intent.task_id)
@@ -2964,6 +2974,16 @@ class TaskTransitionService:
                 intent.reason_code,
             )
             try:
+                if canonicalize_status(intent.requested_status) == NEEDS_HUMAN:
+                    logger.info(
+                        "Task escalation to Needs Human: "
+                        "task=%s project=%s actor=%s authority=%s reason=%s",
+                        intent.task_id,
+                        intent.project_id,
+                        intent.actor,
+                        intent.authority,
+                        intent.reason_code,
+                    )
                 await self._update(intent.task_id, intent.requested_status)
             except Exception as exc:  # noqa: BLE001 - verify ambiguous write
                 latest, _ = await self._try_fetch(intent.task_id)
