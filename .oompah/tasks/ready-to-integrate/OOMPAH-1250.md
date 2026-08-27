@@ -13,7 +13,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-08-13T16:21:54.348846Z'
-updated_at: '2026-08-26T03:58:31.589894Z'
+updated_at: '2026-08-27T16:17:55.876360Z'
 work_branch: OOMPAH-1250
 target_branch: null
 review_url: null
@@ -859,5 +859,28 @@ author: oompah
 created: 2026-08-26 03:57
 ---
 COMPLETION: GitLab external issue intake successfully implemented and submitted for integration. Implementation includes: (1) gitlab_intake_bridge.py - 1300+ lines matching GitHub flow with GitLab-specific tracker interaction, (2) orchestrator.py updates to call GitLab sync functions, (3) tests/test_gitlab_intake_bridge.py with 10 comprehensive tests. Acceptance criteria met: oompah_md GitLab project imports issues to Proposed, copies comments once, archives on external close, mirrors terminal status to GitLab, handles missed webhooks via polling, passes GitHub + new GitLab regression tests. Branch pushed; task submitted.
+---
+author: oompah
+created: 2026-08-27 16:17
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-1250`
+Target: `main`
+Head: `a617d060fa8550029b9920b41a371f9798d3dce1`
+Command: `make test`
+Result: `failed`
+Process: exited with return code 2
+Termination source: `process_exit`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+ERROR: oompah/gitlab_intake_bridge.py:783:17: sync_gitlab_issue_intake_statuses_for_project calls update_issue() for current_status
+  Route the transition through TaskTransitionService or document an exact allowlist entry in oompah/terminal_mutation_scanner.py.
+Found 1 unauthorized task-status mutation(s).
+make: *** [Makefile:438: terminal-audit-scan] Error 1
+```
 ---
 <!-- COMMENTS:END -->
