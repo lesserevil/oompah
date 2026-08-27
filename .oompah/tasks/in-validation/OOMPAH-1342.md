@@ -16,7 +16,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-27T17:10:16.176020Z'
+updated_at: '2026-08-27T17:10:33.671998Z'
 work_branch: epic-OOMPAH-1342
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/957
@@ -183,13 +183,13 @@ oompah.terminal_audit:
     landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
     candidate_rotation_count: 1
 oompah.task_costs:
-  total_input_tokens: 678
-  total_output_tokens: 171
+  total_input_tokens: 700
+  total_output_tokens: 10188
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 678
-      output_tokens: 171
+      input_tokens: 700
+      output_tokens: 10188
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -198,6 +198,12 @@ oompah.task_costs:
     output_tokens: 171
     cost_usd: 0.0
     recorded_at: '2026-08-27T16:57:00.183883+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 22
+    output_tokens: 10017
+    cost_usd: 0.0
+    recorded_at: '2026-08-27T17:10:30.560423+00:00'
 ---
 ## Summary
 
@@ -285,5 +291,15 @@ author: oompah
 created: 2026-08-27 16:59
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-27 17:10
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 55, Tool calls: 28
+- Tokens: 22 in / 10.0K out [10.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 37s
+- Log: OOMPAH-1342__20260827T165911Z.jsonl
 ---
 <!-- COMMENTS:END -->
