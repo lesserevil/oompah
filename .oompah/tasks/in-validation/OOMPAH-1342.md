@@ -16,7 +16,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-26T18:42:41.866488Z'
-updated_at: '2026-08-27T16:37:20.472200Z'
+updated_at: '2026-08-27T16:46:56.840925Z'
 work_branch: epic-OOMPAH-1342
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/957
@@ -55,12 +55,28 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1342
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 7770ca18ce34d7d40f3ded77ee64eb779eb526edd15c61a2bbf2ae48784acf01
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-5fa847dac389
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 7770ca18ce34d7d40f3ded77ee64eb779eb526edd15c61a2bbf2ae48784acf01
+      created_at: '2026-08-27T16:46:45.022090+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-27T16:46:45.022090+00:00'
+      branch_key: epic-OOMPAH-1342
+      selected_ref: origin/main
+      selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
+      landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
     source_generation: 1
     requested_by:
       version: 1
@@ -73,6 +89,7 @@ oompah.terminal_audit:
     selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
     landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
     workflow_revision: 7088c4d3100c5c8660e950261aa8d55e7144382d8c1990b19383b04048b5cf62
+    updated_at: '2026-08-27T16:46:45.022090+00:00'
   - version: 1
     audit_id: audit-317deb859e7d
     project_id: proj-14849f1b
@@ -96,7 +113,23 @@ oompah.terminal_audit:
     selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
     landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
     workflow_revision: 7088c4d3100c5c8660e950261aa8d55e7144382d8c1990b19383b04048b5cf62
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-5fa847dac389
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7770ca18ce34d7d40f3ded77ee64eb779eb526edd15c61a2bbf2ae48784acf01
+    created_at: '2026-08-27T16:46:45.022090+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-27T16:46:45.022090+00:00'
+    branch_key: epic-OOMPAH-1342
+    selected_ref: origin/main
+    selected_sha: 08f21678e53149428695ba19d0602f9177c84fab
+    landing_revision: c838c152de0ba072b527b6b07076cdcd61f03745
 ---
 ## Summary
 
@@ -149,5 +182,15 @@ author: oompah
 created: 2026-08-27 16:37
 ---
 Service resumed per operator request with Oompah and Trickle enabled; Exocomp remains paused. After initial correction churn, a full two-project generation completed in 57.900s, liveness healthy/complete 27/27, zero divergence/action-required/source errors. Current service remains unpaused and healthy enough to schedule. Separately, scoped Pi-provider design work is being captured in plans/ without creating implementation tasks until accepted.
+---
+author: oompah
+created: 2026-08-27 16:46
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-27 16:46
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
