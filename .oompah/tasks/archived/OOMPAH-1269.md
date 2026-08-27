@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-19T01:37:27.110739Z'
-updated_at: '2026-08-27T03:35:31.218939Z'
+updated_at: '2026-08-27T03:35:42.749584Z'
 work_branch: OOMPAH-1269
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/946
@@ -162,7 +162,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:35:26.170850+00:00'
     selected_ref: 6e9226700f9bfcab2dcd6e7a3f9d1b106888e8f8
     selected_sha: 6e9226700f9bfcab2dcd6e7a3f9d1b106888e8f8
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1269
+    target_state: Archived
+    evidence_fingerprint: cc3df9329aabc24cb257347a95f361656bbae96ce0bbdaaeb233a3aeb3088663
+    workflow_revision: null
+    selected_ref: 6e9226700f9bfcab2dcd6e7a3f9d1b106888e8f8
+    selected_sha: 6e9226700f9bfcab2dcd6e7a3f9d1b106888e8f8
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:35:35.814982+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -340,5 +354,17 @@ author: oompah
 created: 2026-08-26 18:03
 ---
 Branch quality gate passed for `6e9226700f9bfcab2dcd6e7a3f9d1b106888e8f8` using `make test` in 194.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-27 03:35
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded by merged PRs #885, #886, #890, and the bounded workflow event-retention recovery shipped under OOMPAH-1346. The stale task branch has no commits ahead of main and should be retired.
+---
+author: oompah
+created: 2026-08-27 03:35
+---
+Superseded by merged PRs #885, #886, #890, and the bounded workflow event-retention recovery shipped under OOMPAH-1346. The stale task branch has no commits ahead of main and should be retired.
 ---
 <!-- COMMENTS:END -->
