@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-27T17:12:13.126258Z'
-updated_at: '2026-08-27T17:32:33.775172Z'
+updated_at: '2026-08-27T17:34:41.628965Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,3 +37,11 @@ Implement the accepted design in plans/pi-ai-provider.md on an isolated branch. 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-27 17:34
+---
+Implementation started on branch OOMPAH-1347-pi-ai-provider.
+---
+<!-- COMMENTS:END -->
