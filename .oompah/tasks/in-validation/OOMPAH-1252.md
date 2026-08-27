@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:11:27.677981Z'
-updated_at: '2026-08-27T23:49:53.417808Z'
+updated_at: '2026-08-27T23:57:41.450511Z'
 work_branch: OOMPAH-1252
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/962
@@ -188,6 +188,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1252
     digest: 29321c39c5b9c25d1f77c078ed9dd1c1cb1ee817885f2e5fc6269ff08335c5d1
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1252","audit-820841c6d5de","attempt-64f161e04144"]': '2026-08-27T23:57:32.471763+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1252
+    target_state: Done
+    evidence_fingerprint: 29321c39c5b9c25d1f77c078ed9dd1c1cb1ee817885f2e5fc6269ff08335c5d1
+    workflow_revision: null
+    selected_ref: 8b86f978cba5446b1091bd87753d6e1b9a47be4d
+    selected_sha: 8b86f978cba5446b1091bd87753d6e1b9a47be4d
+    landing_revision: null
+    audit_ids:
+    - audit-820841c6d5de
+    kind: result
+    applied: true
+    retired_at: '2026-08-27T23:57:32.471780+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1252
+    audit_id: audit-820841c6d5de
+    attempt_id: attempt-64f161e04144
+    target_state: Done
+    evidence_fingerprint: 29321c39c5b9c25d1f77c078ed9dd1c1cb1ee817885f2e5fc6269ff08335c5d1
+    status: In Validation
+    audit_ids:
+    - audit-820841c6d5de
+    kind: result
+    applied: true
+    created_at: '2026-08-27T23:57:32.471790+00:00'
+    applied_at: '2026-08-27T23:57:40.002263+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -195,7 +225,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1252
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -204,7 +234,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-64f161e04144
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -216,6 +246,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1252
       selected_ref: 8b86f978cba5446b1091bd87753d6e1b9a47be4d
       selected_sha: 8b86f978cba5446b1091bd87753d6e1b9a47be4d
+      verdict: pass
+      completed_at: '2026-08-27T23:57:32.471582+00:00'
+      ended_at: '2026-08-27T23:57:32.471582+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -226,7 +259,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-27T23:45:30.174665+00:00'
     selected_ref: 8b86f978cba5446b1091bd87753d6e1b9a47be4d
     selected_sha: 8b86f978cba5446b1091bd87753d6e1b9a47be4d
-    updated_at: '2026-08-27T23:49:40.351173+00:00'
+    updated_at: '2026-08-27T23:57:32.471582+00:00'
   - version: 1
     audit_id: audit-8987831c5f23
     project_id: proj-14849f1b
@@ -248,6 +281,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-820841c6d5de
     selected_ref: 8b86f978cba5446b1091bd87753d6e1b9a47be4d
     selected_sha: 8b86f978cba5446b1091bd87753d6e1b9a47be4d
+    updated_at: '2026-08-27T23:57:32.471582+00:00'
+    eligible_at: '2026-08-27T23:57:32.471582+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-64f161e04144
@@ -495,5 +530,27 @@ author: oompah
 created: 2026-08-27 23:49
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-27 23:57
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- fix_file: oompah/server.py
+- fix_line: 4147
+- fix_value: transition.project_owner_authority_required added to expected_policy_rejections set
+- server_handler_line: 16349-16365
+- server_effect: returns HTTP 409 + logs INFO instead of 500 + ERROR
+- gate_command: make test
+- gate_sha: 8b86f978cba5446b1091bd87753d6e1b9a47be4d
+- gate_result: passed
+- gate_runs: 3
+- gate_duration_last: 187.6s
+- service_test: tests/test_task_transition_service.py:850 test_backlog_direct_claim_requires_project_owner_authority
+- regression_test: tests/test_state_branch_fetch_error.py TestDurableTransitionErrorClassification and TestUpdateIssueApiStateBranchFetchError
+- note: No server end-to-end test specifically parametrized for project_owner_authority_required -> 409, but general mechanism covered and gate authoritative
 ---
 <!-- COMMENTS:END -->
