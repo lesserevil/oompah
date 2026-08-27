@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T01:15:25.298559Z'
-updated_at: '2026-08-27T03:58:41.502386Z'
+updated_at: '2026-08-27T03:58:47.350214Z'
 work_branch: OOMPAH-1322
 target_branch: null
 review_url: null
@@ -189,7 +189,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:58:36.439692+00:00'
     selected_ref: d05d11da131bde25d4df4c985f9f9e5ae92f98e2
     selected_sha: d05d11da131bde25d4df4c985f9f9e5ae92f98e2
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1322
+    target_state: Archived
+    evidence_fingerprint: 13432eaaaf3355710b3fabdd1d4625fd75ddcdb2bfd2cc11d09768e2afb919aa
+    workflow_revision: null
+    selected_ref: d05d11da131bde25d4df4c985f9f9e5ae92f98e2
+    selected_sha: d05d11da131bde25d4df4c985f9f9e5ae92f98e2
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:58:45.860066+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -423,5 +437,12 @@ author: oompah
 created: 2026-08-24 15:12
 ---
 Fixed pre-provider contributor evidence timeout logging to prevent auto-filing by error_watcher. Changed three logger.warning() calls to logger.info() in orchestrator.py to suppress notifications for these expected, gracefully-handled retry conditions.
+---
+author: oompah
+created: 2026-08-27 03:58
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
