@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T00:15:51.064357Z'
-updated_at: '2026-08-27T03:52:37.344439Z'
+updated_at: '2026-08-27T03:52:48.546234Z'
 work_branch: OOMPAH-1303
 target_branch: null
 review_url: null
@@ -172,7 +172,21 @@ oompah.terminal_audit:
     created_at: '2026-08-27T03:52:30.641467+00:00'
     selected_ref: 4120b405573d0e12015006e1c1e7c66df2ffc20f
     selected_sha: 4120b405573d0e12015006e1c1e7c66df2ffc20f
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1303
+    target_state: Archived
+    evidence_fingerprint: e1084ba577200a14939524513c5e051ca66ea57e10bcf7385056316220d2bba8
+    workflow_revision: null
+    selected_ref: 4120b405573d0e12015006e1c1e7c66df2ffc20f
+    selected_sha: 4120b405573d0e12015006e1c1e7c66df2ffc20f
+    landing_revision: null
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-27T03:52:42.700478+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -381,5 +395,17 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 25m 59s
 - Log: OOMPAH-1303__20260821T133044Z.jsonl
+---
+author: oompah
+created: 2026-08-27 03:52
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
+---
+author: oompah
+created: 2026-08-27 03:52
+---
+Superseded during recovery cleanup. The underlying contributor-evidence/worker-dispatch incident is already fixed on main: persistence uses the 60-second configured bound, expected bounded retirement and pre-request worker failures are below error-intake severity, and provider-retirement behavior has regression coverage. This duplicate auto-filed task must not consume integration capacity or resurrect its stale branch.
 ---
 <!-- COMMENTS:END -->
