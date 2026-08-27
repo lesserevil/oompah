@@ -4870,7 +4870,7 @@ class TestGitLabEnableAutoMerge:
             (
                 "POST",
                 "/projects/group%2Fsub%2Fproject/merge_trains/merge_requests/42",
-                {"json": {"auto_merge": True, "sha": "a" * 40}},
+                {"json": {"when_pipeline_succeeds": True, "sha": "a" * 40}},
             )
         ]
 

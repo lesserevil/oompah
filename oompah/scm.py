@@ -4110,7 +4110,7 @@ class GitLabProvider(SCMProvider):
             r = self._api(
                 "POST",
                 f"/projects/{encoded}/merge_trains/merge_requests/{review_id}",
-                json={"auto_merge": True, "sha": expected},
+                json={"when_pipeline_succeeds": True, "sha": expected},
             )
             if r.status_code in (200, 201, 202):
                 return True, "MR accepted by GitLab merge train"
