@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T16:14:26.107948Z'
-updated_at: '2026-08-28T01:07:33.286418Z'
+updated_at: '2026-08-28T01:08:09.446874Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -311,5 +311,24 @@ author: oompah
 created: 2026-08-28 01:07
 ---
 Focus: Refactoring Specialist
+---
+author: oompah
+created: 2026-08-28 01:08
+---
+UNDERSTANDING: This is a multi-part task to fix the stalled-task watchdog and add stale-review cleanup in durable mode:
+
+1. The stalled-task watchdog is currently disabled in durable workflow tick (omitted from _run_non_lifecycle_housekeeping)
+2. Need to schedule it through a serialized maintenance lane, preserving TaskTransitionService authority
+3. Need to add new stale-review cleanup job to close obsolete reviews and reclaim capacity
+4. Both jobs must expose telemetry in public maintenance snapshot
+
+Approach:
+- Find _tick(), _run_durable_workflow_tick, _run_non_lifecycle_housekeeping
+- Understand current watchdog implementation (_maybe_run_stalled_task_watchdog)
+- Understand review management and capacity tracking
+- Implement maintenance lane scheduling for watchdog
+- Add stale-review cleanup job
+- Update maintenance snapshot to expose both jobs
+- Write/update tests
 ---
 <!-- COMMENTS:END -->
