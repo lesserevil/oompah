@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:11:27.677981Z'
-updated_at: '2026-08-28T00:06:47.788616Z'
+updated_at: '2026-08-28T00:06:53.489870Z'
 work_branch: OOMPAH-1252
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/962
@@ -252,8 +252,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-8987831c5f23
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-28T00:06:43.407470+00:00'
+    applied_at: '2026-08-28T00:06:52.052052+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -641,5 +642,27 @@ author: oompah
 created: 2026-08-28 00:05
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-28 00:06
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- fix_file: oompah/server.py
+- fix_line: 4147
+- fix_value: transition.project_owner_authority_required added to expected_policy_rejections set
+- server_handler_line: 16349-16365
+- server_effect: returns HTTP 409 + logs INFO instead of 500 + ERROR
+- gate_command: make test
+- gate_sha: 8b86f978cba5446b1091bd87753d6e1b9a47be4d
+- gate_result: passed
+- gate_runs: 3
+- gate_duration_last: 187.6s
+- service_test: tests/test_task_transition_service.py:866 test_backlog_direct_claim_requires_project_owner_authority
+- task_transition_service_emit_line: oompah/task_transition_service.py:1654 and 2292
+- authority_current: true
 ---
 <!-- COMMENTS:END -->
