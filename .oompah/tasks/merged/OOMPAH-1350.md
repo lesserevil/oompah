@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-28T01:32:49.739747Z'
+updated_at: '2026-08-28T01:33:01.048714Z'
 work_branch: OOMPAH-1350
 target_branch: null
 review_url: null
@@ -140,8 +140,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-e9f1660b2856
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-28T01:32:41.400250+00:00'
+    applied_at: '2026-08-28T01:32:58.004869+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -659,5 +660,29 @@ author: oompah
 created: 2026-08-28 01:28
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-28 01:32
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- implementation_functions.scm[0]: enable_auto_merge_exact (line 485, 4097)
+- implementation_functions.scm[1]: _active_merge_train_entries (line 3503)
+- implementation_functions.scm[2]: _merge_train_entry (line 3541)
+- implementation_functions.orchestrator[0]: _do_stale_review_cleanup (line 49325)
+- implementation_functions.integration_workflow[0]: _reclassify_invalid_parented_standalone (line 2093)
+- test_coverage.file: tests/test_scm.py
+- test_coverage.tests[0]: test_exact_enqueue_posts_to_merge_train_with_sha (line 4856)
+- test_coverage.tests[1]: test_disabled_merge_trains_returns_actionable_error (line 4894)
+- test_coverage.tests[2]: test_maps_active_gitlab_merge_train (line 3915)
+- documentation.bootstrap: docs/project-bootstrap.md line 323: Merge Train documentation
+- documentation.ui_projects: oompah/templates/projects.html lines 388-391: Merge Train UI labeling
+- documentation.ui_reviews: oompah/templates/reviews.html line 254: queue status display
+- quality_gate: make test: 20459 passed, 7 skipped, 2 xfailed in 185.7s for SHA 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+- deployment: PR #967 → 621a590, PR #968 → 27272beda (current head)
+- acceptance: Merge-train policy respected, no unfenced enqueue, stale MRs fenced, capacity released, all gates pass
 ---
 <!-- COMMENTS:END -->
