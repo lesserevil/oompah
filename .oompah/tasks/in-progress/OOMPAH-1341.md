@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T16:14:26.107948Z'
-updated_at: '2026-08-28T00:59:15.573094Z'
+updated_at: '2026-08-28T00:59:47.982261Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,6 +108,14 @@ oompah.work_contributors:
     provider_id: prov-52e94e83
     provider_name: Codex
     model_id: gpt-5.6-luna
+    focus: refactor
+    source_branch: OOMPAH-1341
+    source_sha: null
+    completed_at: ''
+  - run_id: 55dcbd2cee734327b7026550477cdf63--contributor-86e3ac8153e1
+    provider_id: prov-6cf41c89
+    provider_name: Opencode/Switchyard
+    model_id: switchyard/auto
     focus: refactor
     source_branch: OOMPAH-1341
     source_sha: null
@@ -264,5 +272,10 @@ author: oompah
 created: 2026-08-28 00:59
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-28 00:59
+---
+Focus: Refactoring Specialist
 ---
 <!-- COMMENTS:END -->
