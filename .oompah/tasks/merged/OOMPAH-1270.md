@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-28T00:09:17.621977Z'
+updated_at: '2026-08-28T00:09:23.642301Z'
 work_branch: OOMPAH-1270
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/964
@@ -231,8 +231,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-f45c6d7670ec
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-28T00:09:13.398582+00:00'
+    applied_at: '2026-08-28T00:09:22.061126+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -578,5 +579,27 @@ author: oompah
 created: 2026-08-28 00:05
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-28 00:09
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- NEEDS_HUMAN_import: line 47 in task_transition_service.py
+- logger_init: line 66: logger = logging.getLogger(__name__)
+- instrumentation_point_1: lines 2620-2629: guards on canonicalize_status(intent.requested_status)==NEEDS_HUMAN, logs task/project/actor/authority/reason
+- instrumentation_point_2: lines 2943-2952: same guard and log format in primary apply path
+- log_message_format: Task escalation to Needs Human: task=%s project=%s actor=%s authority=%s reason=%s
+- regression_test: tests/test_task_transition_service.py::test_needs_human_escalation_is_logged_with_authority_source
+- regression_test_actor: external-webhook
+- regression_test_authority: TransitionAuthority.API
+- regression_test_reason_code: external.push_hook_escalation
+- focused_test_result: 1 passed in 1.72s (Python 3.12.12)
+- full_gate_sha: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
+- full_gate_passes: 3 (189.7s, 184.5s, 186.5s)
+- gap_noted: guard/auto-recovery not implemented; deferred pending production instrumentation data
 ---
 <!-- COMMENTS:END -->
