@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1350
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Correct GitLab merge queue semantics and stale Trickle MR handling
 parent: null
@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-28T01:28:45.992632Z'
+updated_at: '2026-08-28T01:32:49.739747Z'
 work_branch: OOMPAH-1350
 target_branch: null
 review_url: null
@@ -26,7 +26,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 782737cb-2e24-4b6d-8b3f-f7499ae4e544
   request_fingerprint: a28c72be488724c2d094a1252a00e1084bb0ce87b25f541009301b04c8b11756
-oompah.lifecycle_revision: 8
+oompah.lifecycle_revision: 9
 oompah.integration:
   version: 2
   state: integrated
@@ -62,6 +62,7 @@ oompah.terminal_audit:
     '["proj-14849f1b","OOMPAH-1350","audit-3840ab410f74","attempt-755b206caf1c"]': '2026-08-28T00:53:58.001224+00:00'
     '["proj-14849f1b","OOMPAH-1350","audit-3840ab410f74","attempt-c675f1ffbc05"]': '2026-08-28T01:01:45.716000+00:00'
     '["proj-14849f1b","OOMPAH-1350","audit-fc9131994565","attempt-2e06630e7922"]': '2026-08-28T01:28:04.866779+00:00'
+    '["proj-14849f1b","OOMPAH-1350","audit-e9f1660b2856","attempt-ee7ba16d6374"]': '2026-08-28T01:32:41.400221+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1350
@@ -89,6 +90,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-28T01:28:04.866799+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1350
+    target_state: Merged
+    evidence_fingerprint: b5c764a403455a693182d1e5e178c1cf259eea5febaa1591bb7866e3ae6be756
+    workflow_revision: null
+    selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+    selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+    landing_revision: null
+    audit_ids:
+    - audit-e9f1660b2856
+    kind: result
+    applied: true
+    retired_at: '2026-08-28T01:32:41.400238+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1350
@@ -116,6 +130,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-28T01:28:04.866811+00:00'
     applied_at: '2026-08-28T01:28:12.888133+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1350
+    audit_id: audit-e9f1660b2856
+    attempt_id: attempt-ee7ba16d6374
+    target_state: Merged
+    evidence_fingerprint: b5c764a403455a693182d1e5e178c1cf259eea5febaa1591bb7866e3ae6be756
+    status: Merged
+    audit_ids:
+    - audit-e9f1660b2856
+    kind: result
+    applied: false
+    created_at: '2026-08-28T01:32:41.400250+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -246,7 +272,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1350
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -255,7 +281,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ee7ba16d6374
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -267,6 +293,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1350
       selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
       selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+      verdict: pass
+      completed_at: '2026-08-28T01:32:41.400061+00:00'
+      ended_at: '2026-08-28T01:32:41.400061+00:00'
     source_generation: 2
     requested_by:
       version: 1
@@ -277,7 +306,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-fc9131994565
     selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
     selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
-    updated_at: '2026-08-28T01:28:32.275635+00:00'
+    updated_at: '2026-08-28T01:32:41.400061+00:00'
     eligible_at: '2026-08-28T01:28:04.866611+00:00'
   attempt_history:
   - version: 1
