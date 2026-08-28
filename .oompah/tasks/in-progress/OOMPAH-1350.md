@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-28T00:00:49.341120Z'
+updated_at: '2026-08-28T00:08:20.609844Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -106,5 +106,10 @@ author: oompah
 created: 2026-08-28 00:00
 ---
 Follow-up compatibility fix PR #968 merged as 27272beda and deployed with make graceful. The exact-head merge-train request now uses GitLab 17.4 `when_pipeline_succeeds` plus `sha` (the production GitLab version is 17.4.6); focused compatibility suite passed 639 tests / 2 skipped and CI passed. All stale Trickle MRs are closed, capacity reservations released, and Trickle remains paused.
+---
+author: oompah
+created: 2026-08-28 00:08
+---
+Controlled full-mode canary attempted after enabling GitLab merge trains + Oompah merge_queue_enabled/yolo. No MRs were created, but the canary did not reach healthy convergence: generation 26464 remained incomplete with divergence=6 and action_required=2 (TRICKLE-119 and TRICKLE-142 retry.exhausted). make workflow-rollout-check also failed on service health/operator alerts/exhausted jobs. Per fail-closed rollout criteria, Trickle was paused again. GitLab merge trains and Oompah queue/yolo configuration remain enabled but inert while paused; zero open MRs remain.
 ---
 <!-- COMMENTS:END -->
