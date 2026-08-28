@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T16:14:26.107948Z'
-updated_at: '2026-08-28T01:20:41.699121Z'
-work_branch: null
+updated_at: '2026-08-28T01:21:07.903629Z'
+work_branch: OOMPAH-1341
 target_branch: null
 review_url: null
 review_number: null
@@ -77,7 +77,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8afedd84-daab-47ac-aa6a-19f5ec67a8f5
+oompah.agent_run_id: null
 oompah.work_contributors:
   runs:
   - run_id: 03df9146d6884129819da23661f8aa41--contributor-a8b0475e7b09
@@ -150,6 +150,18 @@ oompah.task_costs:
     output_tokens: 119
     cost_usd: 0.0
     recorded_at: '2026-08-28T01:02:33.340530+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1341
+  base_branch: main
+  base_sha: f1381bd482e212196531c958b2926839431ba9ae
+  head_sha: ac620e63b565eaf304b4b4656af83c50b49e9f15
+  submitted_at: '2026-08-28T01:20:51.964762+00:00'
+  updated_at: '2026-08-28T01:20:51.964762+00:00'
+oompah.work_branch: OOMPAH-1341
 ---
 ## Summary
 
@@ -384,5 +396,10 @@ Key acceptance criteria verified:
 ✓ Public maintenance snapshot exposes both stalled_task_watchdog and stale_review_cleanup results
 
 Branch rebased from origin/OOMPAH-1341 and pushed.
+---
+author: oompah
+created: 2026-08-28 01:21
+---
+Implemented stalled-task watchdog and stale-review cleanup in durable mode. Watchdog now runs at configurable interval (default 300s) through maintenance lane while preserving TaskTransitionService authority. Added separate review cleanup job that closes obsolete reviews and releases capacity. Both jobs' results exposed in public maintenance snapshot. All 127 stalled_task_watchdog tests passing.
 ---
 <!-- COMMENTS:END -->
