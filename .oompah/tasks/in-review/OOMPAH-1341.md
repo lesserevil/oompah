@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1341
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Run stalled-task watchdog in durable mode and reclaim obsolete review capacity
 parent: null
@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T16:14:26.107948Z'
-updated_at: '2026-08-28T01:39:31.646872Z'
+updated_at: '2026-08-28T01:39:50.789625Z'
 work_branch: OOMPAH-1341
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/969
 review_number: '969'
-review_head: null
+review_head: ac620e63b565eaf304b4b4656af83c50b49e9f15
 merged_at: null
 oompah.create_once:
   version: 1
@@ -24,7 +24,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 53c97af1-a34d-48a0-bba1-6f39470e2c09
   request_fingerprint: 7c75150ecd7ebbe7b82e77a19511afdc4a2f600598f07a13249a897ff135bd5c
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 7ef7b1fa56bec0f89af30e31d094f81565c59eb1844a6b48c19bf7b102854f65
@@ -164,6 +164,8 @@ oompah.integration:
 oompah.work_branch: OOMPAH-1341
 oompah.review_url: https://github.com/lesserevil/oompah/pull/969
 oompah.review_number: '969'
+oompah.target_branch: main
+oompah.review_head: ac620e63b565eaf304b4b4656af83c50b49e9f15
 ---
 ## Summary
 
