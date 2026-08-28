@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-28T00:09:23.642301Z'
+updated_at: '2026-08-28T00:10:05.120457Z'
 work_branch: OOMPAH-1270
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/964
@@ -117,8 +117,8 @@ oompah.work_contributors:
     source_sha: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
     completed_at: '2026-08-21T15:07:42.098216+00:00'
 oompah.task_costs:
-  total_input_tokens: 622
-  total_output_tokens: 30148
+  total_input_tokens: 640
+  total_output_tokens: 34249
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -126,8 +126,8 @@ oompah.task_costs:
       output_tokens: 17486
       cost_usd: 0.0
     unknown:
-      input_tokens: 26
-      output_tokens: 12662
+      input_tokens: 44
+      output_tokens: 16763
       cost_usd: 0.0
   runs:
   - profile: default
@@ -148,6 +148,12 @@ oompah.task_costs:
     output_tokens: 12662
     cost_usd: 0.0
     recorded_at: '2026-08-27T23:58:39.069589+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 18
+    output_tokens: 4101
+    cost_usd: 0.0
+    recorded_at: '2026-08-28T00:09:59.389629+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -601,5 +607,15 @@ Safe evidence:
 - full_gate_sha: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
 - full_gate_passes: 3 (189.7s, 184.5s, 186.5s)
 - gap_noted: guard/auto-recovery not implemented; deferred pending production instrumentation data
+---
+author: oompah
+created: 2026-08-28 00:10
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 28, Tool calls: 17
+- Tokens: 18 in / 4.1K out [4.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 2s
+- Log: OOMPAH-1270__20260828T000512Z.jsonl
 ---
 <!-- COMMENTS:END -->
