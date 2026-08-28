@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1350
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Correct GitLab merge queue semantics and stale Trickle MR handling
 parent: null
@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-28T00:59:20.120758Z'
+updated_at: '2026-08-28T01:01:56.596877Z'
 work_branch: OOMPAH-1350
 target_branch: null
 review_url: null
@@ -26,7 +26,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 782737cb-2e24-4b6d-8b3f-f7499ae4e544
   request_fingerprint: a28c72be488724c2d094a1252a00e1084bb0ce87b25f541009301b04c8b11756
-oompah.lifecycle_revision: 4
+oompah.lifecycle_revision: 5
 oompah.integration:
   version: 2
   state: ready
@@ -49,6 +49,35 @@ oompah.terminal_audit:
     digest: 7e7dd7858780495519f22dde40b5909e555801f27b2b3f1c9a035dad27d837ed
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1350","audit-3840ab410f74","attempt-755b206caf1c"]': '2026-08-28T00:53:58.001224+00:00'
+    '["proj-14849f1b","OOMPAH-1350","audit-3840ab410f74","attempt-c675f1ffbc05"]': '2026-08-28T01:01:45.716000+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1350
+    target_state: Done
+    evidence_fingerprint: 7e7dd7858780495519f22dde40b5909e555801f27b2b3f1c9a035dad27d837ed
+    workflow_revision: null
+    selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+    selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+    landing_revision: null
+    audit_ids:
+    - audit-3840ab410f74
+    kind: result
+    applied: true
+    retired_at: '2026-08-28T01:01:45.716015+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1350
+    audit_id: audit-3840ab410f74
+    attempt_id: attempt-c675f1ffbc05
+    target_state: Done
+    evidence_fingerprint: 7e7dd7858780495519f22dde40b5909e555801f27b2b3f1c9a035dad27d837ed
+    status: Needs Human
+    audit_ids:
+    - audit-3840ab410f74
+    kind: result
+    applied: true
+    created_at: '2026-08-28T01:01:45.716025+00:00'
+    applied_at: '2026-08-28T01:01:55.085631+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -56,7 +85,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1350
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -106,7 +135,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c675f1ffbc05
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -119,6 +148,10 @@ oompah.terminal_audit:
       selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
       selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
       candidate_rotation_count: 2
+      verdict: needs_human
+      failure_classification: policy_incompatibility
+      completed_at: '2026-08-28T01:01:45.715837+00:00'
+      ended_at: '2026-08-28T01:01:45.715837+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -129,7 +162,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-28T00:45:57.761934+00:00'
     selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
     selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
-    updated_at: '2026-08-28T00:58:57.768063+00:00'
+    updated_at: '2026-08-28T01:01:45.715837+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-755b206caf1c
@@ -355,5 +388,24 @@ author: oompah
 created: 2026-08-28 00:59
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-28 01:01
+---
+Needs Human — Done audit requires operator input.
+
+[REDACTED]
+
+Questions:
+- Has the operator confirmed the Trickle canary rollout reached healthy convergence with zero action-required decisions?
+- Is the Oompah project workflow currently in a state that will accept the Done transition (not paused/excluded/503)?
+- Has a current passing full-gate result been recorded for exact head 27272beda? If not, is a fresh `make test` acceptable?
+- Given the `human-only` label, is a human owner ready to apply the terminal Done transition rather than an automated auditor?
+
+Instructions:
+- Confirm Trickle canary health and clear the two exhausted retry decisions (TRICKLE-119, TRICKLE-142) or explicitly disposition them as unrelated.
+- Ensure a current passing `make test` full-gate result is recorded for head 27272beda8ff9a52da08f138e01f285c3a3fdbd5.
+- Resolve the workflow pause/exclusion that caused prior Done attempts to 503.
+- A human owner should manually apply the terminal Done transition consistent with the `human-only` label policy.
 ---
 <!-- COMMENTS:END -->
