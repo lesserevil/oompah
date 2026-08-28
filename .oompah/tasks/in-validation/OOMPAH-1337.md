@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:38.960190Z'
-updated_at: '2026-08-28T00:08:09.479082Z'
+updated_at: '2026-08-28T00:11:16.149782Z'
 work_branch: OOMPAH-1337
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/961
@@ -137,6 +137,36 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1337
     digest: c1ce492dedb557b24d968a13a94d73c49a8d7b754859fea6351af0542c274377
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1337","audit-f30d1b55fcca","attempt-fa1686d53d28"]': '2026-08-28T00:11:07.555927+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1337
+    target_state: Done
+    evidence_fingerprint: c1ce492dedb557b24d968a13a94d73c49a8d7b754859fea6351af0542c274377
+    workflow_revision: null
+    selected_ref: f963602b000272ee9e27e0eb3258de0daa95fb84
+    selected_sha: f963602b000272ee9e27e0eb3258de0daa95fb84
+    landing_revision: null
+    audit_ids:
+    - audit-f30d1b55fcca
+    kind: result
+    applied: true
+    retired_at: '2026-08-28T00:11:07.555942+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1337
+    audit_id: audit-f30d1b55fcca
+    attempt_id: attempt-fa1686d53d28
+    target_state: Done
+    evidence_fingerprint: c1ce492dedb557b24d968a13a94d73c49a8d7b754859fea6351af0542c274377
+    status: In Validation
+    audit_ids:
+    - audit-f30d1b55fcca
+    kind: result
+    applied: true
+    created_at: '2026-08-28T00:11:07.555950+00:00'
+    applied_at: '2026-08-28T00:11:14.711043+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -144,7 +174,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1337
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -153,7 +183,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-fa1686d53d28
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -165,6 +195,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1337
       selected_ref: f963602b000272ee9e27e0eb3258de0daa95fb84
       selected_sha: f963602b000272ee9e27e0eb3258de0daa95fb84
+      verdict: pass
+      completed_at: '2026-08-28T00:11:07.555779+00:00'
+      ended_at: '2026-08-28T00:11:07.555779+00:00'
     source_generation: 1
     requested_by:
       version: 1
@@ -175,7 +208,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-27T23:45:40.084052+00:00'
     selected_ref: f963602b000272ee9e27e0eb3258de0daa95fb84
     selected_sha: f963602b000272ee9e27e0eb3258de0daa95fb84
-    updated_at: '2026-08-28T00:07:48.814037+00:00'
+    updated_at: '2026-08-28T00:11:07.555779+00:00'
   - version: 1
     audit_id: audit-111406ccdf98
     project_id: proj-14849f1b
@@ -197,6 +230,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-f30d1b55fcca
     selected_ref: f963602b000272ee9e27e0eb3258de0daa95fb84
     selected_sha: f963602b000272ee9e27e0eb3258de0daa95fb84
+    updated_at: '2026-08-28T00:11:07.555779+00:00'
+    eligible_at: '2026-08-28T00:11:07.555779+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fa1686d53d28
@@ -344,5 +379,24 @@ author: oompah
 created: 2026-08-28 00:08
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-28 00:11
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- fix_file: oompah/orchestrator.py
+- fix_line: 15370
+- fix_change: logger.exception -> logger.warning
+- fix_message: Orchestrator shutdown attempt failed; retaining process and retrying
+- new_test: tests/test_restart_api.py:982 test_stop_until_safe_retries_on_exception_without_error_level
+- existing_test: tests/test_restart_api.py:920 test_safe_stop_retries_retired_snapshot_without_backend_error
+- gate_sha: f963602b000272ee9e27e0eb3258de0daa95fb84
+- gate_result: passed
+- gate_duration_seconds: 191.3
+- gate_authority_current: true
 ---
 <!-- COMMENTS:END -->
