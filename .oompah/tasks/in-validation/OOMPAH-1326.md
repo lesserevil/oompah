@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T09:43:03.353905Z'
-updated_at: '2026-08-28T00:38:32.670998Z'
+updated_at: '2026-08-28T00:38:54.065706Z'
 work_branch: OOMPAH-1326
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/963
@@ -106,13 +106,17 @@ oompah.work_contributors:
     source_sha: null
     completed_at: ''
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1490
+  total_input_tokens: 33
+  total_output_tokens: 6462
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 1490
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 23
+      output_tokens: 4972
       cost_usd: 0.0
   runs:
   - profile: default
@@ -121,6 +125,12 @@ oompah.task_costs:
     output_tokens: 1490
     cost_usd: 0.0
     recorded_at: '2026-08-24T11:12:15.894817+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 23
+    output_tokens: 4972
+    cost_usd: 0.0
+    recorded_at: '2026-08-28T00:38:42.446840+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -227,12 +237,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1326
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: bfade913db5f45c4650ae70df9986412c1902154aae98f54d003b464e9ad09c1
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-de4356f2d06a
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: bfade913db5f45c4650ae70df9986412c1902154aae98f54d003b464e9ad09c1
+      created_at: '2026-08-28T00:38:46.756483+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-28T00:38:46.756483+00:00'
+      branch_key: OOMPAH-1326
+      selected_ref: 0d9de7856326baaee84418eaf7c6fb8848f1b3e1
+      selected_sha: 0d9de7856326baaee84418eaf7c6fb8848f1b3e1
     source_generation: 1
     requested_by:
       version: 1
@@ -243,7 +268,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-57382f3b5602
     selected_ref: 0d9de7856326baaee84418eaf7c6fb8848f1b3e1
     selected_sha: 0d9de7856326baaee84418eaf7c6fb8848f1b3e1
-    updated_at: '2026-08-28T00:38:21.806862+00:00'
+    updated_at: '2026-08-28T00:38:46.756483+00:00'
     eligible_at: '2026-08-28T00:38:21.806862+00:00'
   attempt_history:
   - version: 1
@@ -258,6 +283,21 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: sonnet
     started_at: '2026-08-28T00:34:19.271015+00:00'
+    branch_key: OOMPAH-1326
+    selected_ref: 0d9de7856326baaee84418eaf7c6fb8848f1b3e1
+    selected_sha: 0d9de7856326baaee84418eaf7c6fb8848f1b3e1
+  - version: 1
+    attempt_id: attempt-de4356f2d06a
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bfade913db5f45c4650ae70df9986412c1902154aae98f54d003b464e9ad09c1
+    created_at: '2026-08-28T00:38:46.756483+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-28T00:38:46.756483+00:00'
     branch_key: OOMPAH-1326
     selected_ref: 0d9de7856326baaee84418eaf7c6fb8848f1b3e1
     selected_sha: 0d9de7856326baaee84418eaf7c6fb8848f1b3e1
@@ -522,5 +562,20 @@ Safe evidence:
 - focused_test_4: test_checkpoint_trigger_reasons_share_explicit_incident: PASSED
 - key_change: flush(_timer_based=True) logs at WARNING; flush(_timer_based=False) logs at ERROR
 - implementation_file: oompah/checkpoint_queue.py lines 230-251
+---
+author: oompah
+created: 2026-08-28 00:38
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 33, Tool calls: 25
+- Tokens: 23 in / 5.0K out [5.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 19s
+- Log: OOMPAH-1326__20260828T003439Z.jsonl
+---
+author: oompah
+created: 2026-08-28 00:38
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
 ---
 <!-- COMMENTS:END -->
