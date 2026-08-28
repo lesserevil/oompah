@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-28T01:17:37.725006Z'
+updated_at: '2026-08-28T01:19:21.641711Z'
 work_branch: OOMPAH-1350
 target_branch: null
 review_url: null
@@ -29,15 +29,16 @@ oompah.create_once:
 oompah.lifecycle_revision: 7
 oompah.integration:
   version: 2
-  state: ready
+  state: integrated
   attempts: 0
   mode: standalone
   task_branch: OOMPAH-1350
   base_branch: main
   base_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
   head_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+  integrated_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
   submitted_at: '2026-08-28T00:25:31.971877+00:00'
-  updated_at: '2026-08-28T00:25:31.971877+00:00'
+  updated_at: '2026-08-28T01:19:16.283054+00:00'
 oompah.work_branch: OOMPAH-1350
 oompah.terminal_audit:
   queued_comment_posted: true
