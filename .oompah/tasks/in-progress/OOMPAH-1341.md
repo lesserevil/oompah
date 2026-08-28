@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T16:14:26.107948Z'
-updated_at: '2026-08-28T01:08:09.446874Z'
+updated_at: '2026-08-28T01:12:53.763502Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -330,5 +330,17 @@ Approach:
 - Add stale-review cleanup job
 - Update maintenance snapshot to expose both jobs
 - Write/update tests
+---
+author: oompah
+created: 2026-08-28 01:12
+---
+DISCOVERY: The implementation is already in place on the origin/OOMPAH-1341 branch. I've rebased the local branch and verified:
+
+1. _maybe_run_stalled_task_watchdog() - Scheduled through maintenance lane with configurable interval (default 300s)
+2. _maybe_cleanup_stale_reviews() - Separate job closing obsolete reviews and releasing capacity
+3. Both jobs exposed in public maintenance snapshot (get_snapshot())
+4. All 17 integration tests passing
+
+Next: Verify the durable workflow tick integration and test coverage.
 ---
 <!-- COMMENTS:END -->
