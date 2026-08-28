@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-28T00:48:36.307858Z'
+updated_at: '2026-08-28T00:54:00.297335Z'
 work_branch: OOMPAH-1350
 target_branch: null
 review_url: null
@@ -47,6 +47,8 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1350
     digest: 7e7dd7858780495519f22dde40b5909e555801f27b2b3f1c9a035dad27d837ed
+  applied_result_attempts:
+    '["proj-14849f1b","OOMPAH-1350","audit-3840ab410f74","attempt-755b206caf1c"]': '2026-08-28T00:53:58.001224+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -54,7 +56,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1350
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -63,7 +65,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-755b206caf1c
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -75,6 +77,10 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1350
       selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
       selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+      verdict: fail
+      failure_classification: infrastructure_error
+      ended_at: '2026-08-28T00:53:58.001117+00:00'
+      failure_reason: retry ceiling reached; verdict left pending
     source_generation: 1
     requested_by:
       version: 1
@@ -85,7 +91,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-28T00:45:57.761934+00:00'
     selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
     selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
-    updated_at: '2026-08-28T00:48:25.239651+00:00'
+    updated_at: '2026-08-28T00:53:58.001117+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-755b206caf1c
