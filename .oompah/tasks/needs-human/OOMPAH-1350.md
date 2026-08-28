@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-28T01:01:56.596877Z'
+updated_at: '2026-08-28T01:02:11.780352Z'
 work_branch: OOMPAH-1350
 target_branch: null
 review_url: null
@@ -218,13 +218,13 @@ oompah.terminal_audit:
     selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
     candidate_rotation_count: 2
 oompah.task_costs:
-  total_input_tokens: 314
-  total_output_tokens: 8694
+  total_input_tokens: 325
+  total_output_tokens: 12189
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 314
-      output_tokens: 8694
+      input_tokens: 325
+      output_tokens: 12189
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -239,6 +239,12 @@ oompah.task_costs:
     output_tokens: 428
     cost_usd: 0.0
     recorded_at: '2026-08-28T00:58:12.366502+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 11
+    output_tokens: 3495
+    cost_usd: 0.0
+    recorded_at: '2026-08-28T01:02:08.500451+00:00'
 ---
 ## Summary
 
@@ -407,5 +413,15 @@ Instructions:
 - Ensure a current passing `make test` full-gate result is recorded for head 27272beda8ff9a52da08f138e01f285c3a3fdbd5.
 - Resolve the workflow pause/exclusion that caused prior Done attempts to 503.
 - A human owner should manually apply the terminal Done transition consistent with the `human-only` label policy.
+---
+author: oompah
+created: 2026-08-28 01:02
+---
+Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 9, Tool calls: 5
+- Tokens: 11 in / 3.5K out [3.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 1s
+- Log: OOMPAH-1350__20260828T005935Z.jsonl
 ---
 <!-- COMMENTS:END -->
