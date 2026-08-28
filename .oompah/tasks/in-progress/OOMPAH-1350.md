@@ -13,8 +13,8 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-28T00:08:20.609844Z'
-work_branch: null
+updated_at: '2026-08-28T00:25:43.434353Z'
+work_branch: OOMPAH-1350
 target_branch: null
 review_url: null
 review_number: null
@@ -27,6 +27,18 @@ oompah.create_once:
   creation_marker: 782737cb-2e24-4b6d-8b3f-f7499ae4e544
   request_fingerprint: a28c72be488724c2d094a1252a00e1084bb0ce87b25f541009301b04c8b11756
 oompah.lifecycle_revision: 2
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  mode: standalone
+  task_branch: OOMPAH-1350
+  base_branch: main
+  base_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+  head_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+  submitted_at: '2026-08-28T00:25:31.971877+00:00'
+  updated_at: '2026-08-28T00:25:31.971877+00:00'
+oompah.work_branch: OOMPAH-1350
 ---
 ## Summary
 
@@ -111,5 +123,10 @@ author: oompah
 created: 2026-08-28 00:08
 ---
 Controlled full-mode canary attempted after enabling GitLab merge trains + Oompah merge_queue_enabled/yolo. No MRs were created, but the canary did not reach healthy convergence: generation 26464 remained incomplete with divergence=6 and action_required=2 (TRICKLE-119 and TRICKLE-142 retry.exhausted). make workflow-rollout-check also failed on service health/operator alerts/exhausted jobs. Per fail-closed rollout criteria, Trickle was paused again. GitLab merge trains and Oompah queue/yolo configuration remain enabled but inert while paused; zero open MRs remain.
+---
+author: oompah
+created: 2026-08-28 00:25
+---
+Fixed and deployed GitLab merge-train handling in PR #967 plus GitLab 17.4 compatibility in PR #968. Exact deployed head 27272beda. Full gate: 20,459 passed, 7 skipped, 2 xfailed. Closed stale/mismatched Trickle MRs and released leaked review capacity. Controlled canary remains paused pending unrelated exhausted Trickle workflow dispositions.
 ---
 <!-- COMMENTS:END -->
